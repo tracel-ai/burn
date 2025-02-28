@@ -1,7 +1,9 @@
 use alloc::{vec, vec::Vec};
+use burn_tensor::ElementConversion;
+use burn_tensor::TensorData;
 use burn_tensor::TensorMetadata;
-use burn_tensor::{quantization::QuantizationType, TensorData};
-use burn_tensor::{DType, ElementConversion};
+#[cfg(feature = "simd")]
+use burn_tensor::{quantization::QuantizationType, DType};
 use core::fmt::Debug;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::s;
@@ -10,6 +12,7 @@ use ndarray::IntoDimension;
 use ndarray::SliceInfo;
 use ndarray::Zip;
 use num_traits::Signed;
+#[cfg(feature = "simd")]
 use paste::paste;
 
 #[cfg(not(feature = "std"))]
@@ -22,29 +25,21 @@ use ndarray::Dim;
 use ndarray::IxDyn;
 use ndarray::SliceInfoElem;
 
-use crate::{
-    element::NdArrayElement,
-    ops::simd::{binary_elemwise::VecMul, unary::VecBitNot},
+use crate::element::NdArrayElement;
+#[cfg(feature = "simd")]
+use crate::ops::simd::{
+    binary::try_binary_simd,
+    binary_elemwise::{
+        try_binary_scalar_simd, VecAdd, VecBitAnd, VecBitOr, VecBitXor, VecClamp, VecDiv, VecEq,
+        VecMax, VecMin, VecMul, VecSub,
+    },
+    unary::{try_unary_simd, RecipVec, VecAbs, VecBitNot},
 };
 use crate::{
-    ops::{
-        macros::{keepdim, mean_dim, prod_dim, sum_dim},
-        simd::{
-            binary_elemwise::{VecClamp, VecDiv, VecMin},
-            unary::RecipVec,
-        },
-    },
+    ops::macros::{keepdim, mean_dim, prod_dim, sum_dim},
     IntNdArrayElement,
 };
 use crate::{reshape, tensor::NdArrayTensor};
-
-use super::simd::{
-    binary::try_binary_simd,
-    binary_elemwise::{
-        try_binary_scalar_simd, VecAdd, VecBitAnd, VecBitOr, VecBitXor, VecEq, VecMax, VecSub,
-    },
-    unary::{try_unary_simd, VecAbs},
-};
 
 pub struct NdArrayOps<E> {
     e: PhantomData<E>,
@@ -181,6 +176,7 @@ where
     }
 }
 
+#[cfg(feature = "simd")]
 macro_rules! dispatch_binary_simd {
     (noq, $elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
         paste! {
@@ -211,6 +207,17 @@ macro_rules! dispatch_binary_simd {
     }};
 }
 
+#[cfg(not(feature = "simd"))]
+macro_rules! dispatch_binary_simd {
+    (noq, $elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        ($lhs, $rhs)
+    }};
+    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        ($lhs, $rhs)
+    }};
+}
+
+#[cfg(feature = "simd")]
 macro_rules! dispatch_binary_scalar_simd {
     (noq, $elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
         paste! {
@@ -241,6 +248,17 @@ macro_rules! dispatch_binary_scalar_simd {
     }};
 }
 
+#[cfg(not(feature = "simd"))]
+macro_rules! dispatch_binary_scalar_simd {
+    (noq, $elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        $lhs
+    }};
+    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        $lhs
+    }};
+}
+
+#[cfg(feature = "simd")]
 macro_rules! dispatch_unary_simd {
     ($elem: ty, $op: ty, $lhs: expr, $($ty: ty),*) => {{
         paste! {
@@ -253,6 +271,13 @@ macro_rules! dispatch_unary_simd {
                 Err(args) => args,
             }
         }
+    }};
+}
+
+#[cfg(not(feature = "simd"))]
+macro_rules! dispatch_unary_simd {
+    ($elem: ty, $op: ty, $lhs: expr, $($ty: ty),*) => {{
+        $lhs
     }};
 }
 
@@ -869,6 +894,7 @@ pub struct NdArrayBoolOps;
 // produce invalid values.
 impl NdArrayBoolOps {
     pub(crate) fn equal(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
+        #[cfg(feature = "simd")]
         let (lhs, rhs) = match try_binary_simd::<bool, bool, u8, u8, VecEq>(lhs, rhs) {
             Ok(out) => return out,
             Err(args) => args,
@@ -882,6 +908,7 @@ impl NdArrayBoolOps {
     }
 
     pub(crate) fn and(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
+        #[cfg(feature = "simd")]
         let (lhs, rhs) = match try_binary_simd::<bool, bool, u8, u8, VecBitAnd>(lhs, rhs) {
             Ok(out) => return out,
             Err(args) => args,
@@ -895,6 +922,7 @@ impl NdArrayBoolOps {
     }
 
     pub(crate) fn or(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
+        #[cfg(feature = "simd")]
         let (lhs, rhs) = match try_binary_simd::<bool, bool, u8, u8, VecBitOr>(lhs, rhs) {
             Ok(out) => return out,
             Err(args) => args,

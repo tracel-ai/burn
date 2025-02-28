@@ -23,6 +23,7 @@ ndarray = ["burn/ndarray"]
 ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
 ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
 ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
+ndarray-simd = ["burn/ndarray", "burn/simd"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu", "burn/autotune"]
@@ -35,14 +36,15 @@ arboard = { workspace = true }
 burn = { path = "../crates/burn", default-features = false }
 burn-common = { path = "../crates/burn-common", version = "0.17.0" }
 
+chrono = { workspace = true }
 clap = { workspace = true }
 colored = { workspace = true }
-chrono = { workspace = true }
 cubecl = { workspace = true, features = ["wgpu"], default-features = true }
 derive-new = { workspace = true }
 dirs = { workspace = true }
 half = { workspace = true }
 indicatif = { workspace = true }
+log = { workspace = true }
 os_info = { workspace = true }
 percent-encoding = { workspace = true }
 rand = { workspace = true, features = ["thread_rng"] }
@@ -52,10 +54,9 @@ serde_json = { workspace = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 sysinfo = { workspace = true, features = ["serde"] }
+tracing-subscriber = { workspace = true }
 wgpu = { workspace = true }
 wsl = { workspace = true }
-tracing-subscriber = { workspace = true }
-log = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }

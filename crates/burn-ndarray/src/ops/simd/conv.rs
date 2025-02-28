@@ -150,7 +150,7 @@ unsafe fn run_conv2d<S: Simd, E: VMulAdd, const RB: usize, const PAD: bool, cons
     options: &ConvOptions<2>,
     ob: usize,
 ) {
-    let (_, k_height, k_width, out_channels) = weights.dim();
+    let (in_channels, k_height, k_width, out_channels) = weights.dim();
     let (out_height, out_width, _) = out.dim();
     let channels_per_group = out_channels / options.groups;
     let lanes = E::lanes::<S>();
@@ -174,10 +174,11 @@ unsafe fn run_conv2d<S: Simd, E: VMulAdd, const RB: usize, const PAD: bool, cons
     let oh_end = out_height - pad_h;
 
     let ow_blocks = ow_width / ow_b;
+    let oc = ob * oc_b;
+    let group = oc / channels_per_group;
+    let ic_off = group * in_channels;
 
     unsafe {
-        let oc = ob * oc_b;
-
         let bias = if let Some(bias) = &bias {
             simd.vload_unaligned(&bias[oc])
         } else {
@@ -192,13 +193,13 @@ unsafe fn run_conv2d<S: Simd, E: VMulAdd, const RB: usize, const PAD: bool, cons
                 #[allow(clippy::if_same_then_else)]
                 if STRIDE {
                     conv2d_inner_nopad(
-                        simd, &x, &weights, &mut out, bias, oh, ow, oc, stride_h, stride_w,
+                        simd, &x, &weights, &mut out, bias, oh, ow, oc, ic_off, stride_h, stride_w,
                         dilate_h, dilate_w, k_height, k_width, pad_h, pad_w,
                     );
                 } else {
                     conv2d_inner_nopad_nostride(
-                        simd, &x, &weights, &mut out, bias, oh, ow, oc, k_height, k_width, pad_h,
-                        pad_w,
+                        simd, &x, &weights, &mut out, bias, oh, ow, oc, ic_off, k_height, k_width,
+                        pad_h, pad_w,
                     );
                 }
             }
@@ -210,6 +211,7 @@ unsafe fn run_conv2d<S: Simd, E: VMulAdd, const RB: usize, const PAD: bool, cons
             out,
             bias,
             oc,
+            ic_off,
             ow_blocks * ow_b,
             stride_h,
             stride_w,
@@ -232,6 +234,7 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
     out: &mut ArrayViewMut3<E>,
     bias: E::Vector<S>,
     oc: usize,
+    ic_off: usize,
     owb_end: usize,
     stride_h: usize,
     stride_w: usize,
@@ -302,7 +305,7 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
 
                         let f0 = simd.vload_unaligned(&weights[[ic, kh, kw, oc]]);
 
-                        let i0 = simd.splat(*x.uget([ic, ih, iw]));
+                        let i0 = simd.splat(*x.uget([ic_off + ic, ih, iw]));
                         acc = E::vmuladd(simd, i0, f0, acc);
                     }
                 }
@@ -326,6 +329,7 @@ macro_rules! inner_with_register_blocking_size {
             oh: usize,
             ow: usize,
             oc: usize,
+            ic_off: usize,
             stride_h: usize,
             stride_w: usize,
             dilate_h: usize,
@@ -350,7 +354,7 @@ macro_rules! inner_with_register_blocking_size {
                         let iw = ow * stride_w + kw * dilate_w - pad_w;
 
                         seq!(N in 0..$rb {
-                            let i~N = simd.splat(*x.uget([ic, ih, iw + N * stride_w]));
+                            let i~N = simd.splat(*x.uget([ic + ic_off, ih, iw + N * stride_w]));
                         });
                         seq!(N in 0..$rb {
                             acc~N = E::vmuladd(simd, i~N, f0, acc~N);
@@ -375,6 +379,7 @@ macro_rules! inner_with_register_blocking_size {
             oh: usize,
             ow: usize,
             oc: usize,
+            ic_off: usize,
             k_height: usize,
             k_width: usize,
             pad_h: usize,
@@ -395,7 +400,7 @@ macro_rules! inner_with_register_blocking_size {
                         let iw = ow + kw - pad_w;
 
                         seq!(N in 0..$rb {
-                            let i~N = simd.splat(*x.uget([ic, ih, iw + N]));
+                            let i~N = simd.splat(*x.uget([ic + ic_off, ih, iw + N]));
                         });
                         seq!(N in 0..$rb {
                             acc~N = E::vmuladd(simd, i~N, f0, acc~N);

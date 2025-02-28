@@ -4,6 +4,7 @@ mod bool_tensor;
 mod int_tensor;
 mod module;
 mod qtensor;
+#[cfg(feature = "simd")]
 mod simd;
 mod tensor;
 mod transaction;

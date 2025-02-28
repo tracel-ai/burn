@@ -832,7 +832,7 @@ dependencies = [
  "openblas-src",
  "paste",
  "portable-atomic-util",
- "pulp 0.21.4 (git+https://github.com/wingertge/pulp.git?rev=63ba3c45b4c860d0ea2dc61c0bcde49fcf20a98b)",
+ "pulp 0.21.4 (git+https://github.com/wingertge/pulp.git?rev=382b34a300fe6e25a0d7b142f6c6520db78fc3ab)",
  "rand 0.9.0",
  "seq-macro",
  "spin",
@@ -3848,10 +3848,10 @@ dependencies = [
 [[package]]
 name = "macerator"
 version = "0.1.0"
-source = "git+https://github.com/wingertge/macerator.git?rev=d98ee30e9882d7c5f05b8ae77c4f85286669c1bf#d98ee30e9882d7c5f05b8ae77c4f85286669c1bf"
+source = "git+https://github.com/wingertge/macerator.git?rev=d545515503a6117dd74c5cf6f07c2f1e91ee529a#d545515503a6117dd74c5cf6f07c2f1e91ee529a"
 dependencies = [
  "paste",
- "pulp 0.21.4 (git+https://github.com/wingertge/pulp.git?rev=63ba3c45b4c860d0ea2dc61c0bcde49fcf20a98b)",
+ "pulp 0.21.4 (git+https://github.com/wingertge/pulp.git?rev=382b34a300fe6e25a0d7b142f6c6520db78fc3ab)",
 ]
 
 [[package]]
@@ -5542,7 +5542,7 @@ dependencies = [
 [[package]]
 name = "pulp"
 version = "0.21.4"
-source = "git+https://github.com/wingertge/pulp.git?rev=63ba3c45b4c860d0ea2dc61c0bcde49fcf20a98b#63ba3c45b4c860d0ea2dc61c0bcde49fcf20a98b"
+source = "git+https://github.com/wingertge/pulp.git?rev=382b34a300fe6e25a0d7b142f6c6520db78fc3ab#382b34a300fe6e25a0d7b142f6c6520db78fc3ab"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -5557,7 +5557,7 @@ dependencies = [
 [[package]]
 name = "pulp-macro"
 version = "0.1.1"
-source = "git+https://github.com/wingertge/pulp.git?rev=63ba3c45b4c860d0ea2dc61c0bcde49fcf20a98b#63ba3c45b4c860d0ea2dc61c0bcde49fcf20a98b"
+source = "git+https://github.com/wingertge/pulp.git?rev=382b34a300fe6e25a0d7b142f6c6520db78fc3ab#382b34a300fe6e25a0d7b142f6c6520db78fc3ab"
 dependencies = [
  "proc-macro2",
  "quote",

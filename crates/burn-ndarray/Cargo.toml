@@ -12,7 +12,7 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-ndarray"
 version.workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "simd"]
 doc = ["default"]
 std = [
     "burn-autodiff",
@@ -41,6 +41,7 @@ blas-openblas-system = [
     "ndarray/blas",
     "openblas-src/system",
 ]
+simd = ["dep:macerator", "dep:pulp"]
 
 [dependencies]
 
@@ -52,21 +53,21 @@ burn-ir = { path = "../burn-ir", version = "0.17.0", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false }
 
 atomic_float = { workspace = true }
-blas-src = { workspace = true, default-features = false, optional = true } # no-std compatible
+blas-src = { workspace = true, default-features = false, optional = true }   # no-std compatible
 bytemuck = { workspace = true }
 derive-new = { workspace = true }
 itertools = "0.14"
 libm = { workspace = true }
-macerator = { workspace = true }
+macerator = { workspace = true, optional = true }
 matrixmultiply = { workspace = true, default-features = false }
 ndarray = { workspace = true }
 num-traits = { workspace = true }
 openblas-src = { workspace = true, optional = true }
 paste = { workspace = true }
-pulp = { workspace = true, features = ["macro", "x86-v3"] }
+pulp = { workspace = true, features = ["macro", "x86-v3"], optional = true }
 rand = { workspace = true }
 seq-macro = "0.3"
-spin = { workspace = true }                                                # using in place of use std::sync::Mutex;
+spin = { workspace = true }                                                  # using in place of use std::sync::Mutex;
 tracing = "0.1"
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]

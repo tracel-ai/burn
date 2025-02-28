@@ -6,14 +6,11 @@ use super::{
     interpolate::{bicubic_interpolate, bilinear_interpolate, nearest_interpolate},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
 };
-use crate::{
-    element::FloatNdArrayElement,
-    ops::simd::{
-        avgpool::try_avg_pool2d_simd, conv::try_conv2d_simd, maxpool::try_max_pool2d_simd,
-    },
-    tensor::NdArrayTensor,
-    NdArray, NdArrayTensorFloat,
+#[cfg(feature = "simd")]
+use crate::ops::simd::{
+    avgpool::try_avg_pool2d_simd, conv::try_conv2d_simd, maxpool::try_max_pool2d_simd,
 };
+use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray, NdArrayTensorFloat};
 use crate::{
     element::{IntNdArrayElement, QuantElement},
     ops::interpolate::nearest_interpolate_backward,
@@ -54,6 +51,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         options: ConvOptions<2>,
     ) -> NdArrayTensorFloat {
         module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| {
+            #[cfg(feature = "simd")]
             let (x, weight, bias) = match try_conv2d_simd(x, weight, bias, options.clone()) {
                 Ok(out) => return out.into(),
                 Err(args) => args,
@@ -134,6 +132,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         count_include_pad: bool,
     ) -> FloatTensor<Self> {
         module_op!(inp(x), opt(), E, |x| {
+            #[cfg(feature = "simd")]
             let x = match try_avg_pool2d_simd(x, kernel_size, stride, padding, count_include_pad) {
                 Ok(out) => return out.into(),
                 Err(x) => x,
@@ -169,6 +168,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         dilation: [usize; 2],
     ) -> FloatTensor<Self> {
         module_op!(inp(x), opt(), E, |x| {
+            #[cfg(feature = "simd")]
             let x = match try_max_pool2d_simd(x, kernel_size, stride, padding, dilation) {
                 Ok(out) => return out.into(),
                 Err(x) => x,
