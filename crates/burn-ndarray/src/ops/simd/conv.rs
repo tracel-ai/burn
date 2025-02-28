@@ -6,7 +6,7 @@ use burn_tensor::{
     DType, Element, TensorMetadata,
 };
 use bytemuck::Zeroable;
-use macerator::{SimdExt, VMulAdd, Vectorizable};
+use macerator::{SimdExt, VMulAdd};
 use ndarray::{
     s, ArcArray1, Array4, ArrayView3, ArrayView4, ArrayViewMut2, ArrayViewMut3, Dim, Ix1, Ix4,
 };

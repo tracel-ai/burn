@@ -63,6 +63,10 @@ mod nhwc {
 
     use super::*;
 
+    // Until you can use associated constants as array size, we need to hardcode this.
+    // The most common config (x86-v3) has 16 registers, so use half of them for accumulators.
+    const BLOCK_REGISTERS: usize = 8;
+
     pub(crate) fn max_pool2d_nhwc<E: Element + VOrd + MinMax>(
         x: NdArrayTensor<E>,
         kernel_size: [usize; 2],
@@ -76,9 +80,7 @@ mod nhwc {
         let [dilation_height, dilation_width] = dilation;
         let [batch_size, channels, x_height, x_width] = x.shape().dims();
         let lanes = lanes::<E>();
-        // Until you can use associated constants as array size, we need to hardcode this.
-        // The most common config (x86-v3) has 16 registers, so use half of them for accumulators.
-        const BLOCK_REGISTERS: usize = 8;
+
         let ch_block = lanes * BLOCK_REGISTERS;
 
         let out_height = ((x_height + 2 * pad_h - dilation_height * (kernel_height - 1) - 1)
@@ -113,7 +115,7 @@ mod nhwc {
                 loop_blocked(x, out, kernel_size, stride, padding, dilation, block);
             });
             iter_range_par!(0, batch_size * simd_unblocked).for_each(|k| unsafe {
-                let ch = (k % simd_unblocked) + blocks_end;
+                let ch = (k % simd_unblocked) * lanes + blocks_end;
                 let b = k / simd_unblocked;
 
                 let output = unsafe_shared_out.get();
@@ -158,10 +160,6 @@ mod nhwc {
         let (x_height, x_width, _) = x.dim();
         let (out_height, out_width, _) = out.dim();
         let lanes = E::lanes::<S>();
-
-        // Until you can use associated constants as array size, we need to hardcode this.
-        // The most common config (x86-v3) has 16 registers, so use half of them for accumulators.
-        const BLOCK_REGISTERS: usize = 8;
         let ch_block = lanes * BLOCK_REGISTERS;
 
         let min = simd.splat(E::MIN);
@@ -195,14 +193,14 @@ mod nhwc {
             }
         }
 
-        let v_borders = (0..pad_h)
-            .chain(out_height - pad_h..out_height)
-            .cartesian_product(0..out_width);
-        let h_borders =
-            (0..out_height).cartesian_product((0..pad_w).chain(out_width - pad_w..out_width));
-
         // Border pixels need bounds checks
         if (pad_h, pad_w) != (0, 0) {
+            let v_borders = (0..pad_h)
+                .chain(out_height - pad_h..out_height)
+                .cartesian_product(0..out_width);
+            let h_borders =
+                (0..out_height).cartesian_product((0..pad_w).chain(out_width - pad_w..out_width));
+
             for (oh, ow) in v_borders.chain(h_borders) {
                 seq!(N in 0..8 {
                     let mut acc~N = min;
