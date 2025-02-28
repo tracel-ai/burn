@@ -164,8 +164,8 @@ mod nhwc {
 
         let min = simd.splat(E::MIN);
         // If outside padding area, kernels are guaranteed to be in bounds
-        for oh in pad_h..out_height - pad_h {
-            for ow in pad_w..out_width - pad_w {
+        for oh in pad_h..out_height.saturating_sub(pad_h) {
+            for ow in pad_w..out_width.saturating_sub(pad_w) {
                 seq!(N in 0..8 {
                     let mut acc~N = min;
                 });
@@ -196,10 +196,10 @@ mod nhwc {
         // Border pixels need bounds checks
         if (pad_h, pad_w) != (0, 0) {
             let v_borders = (0..pad_h)
-                .chain(out_height - pad_h..out_height)
+                .chain(out_height.saturating_sub(pad_h)..out_height)
                 .cartesian_product(0..out_width);
-            let h_borders =
-                (0..out_height).cartesian_product((0..pad_w).chain(out_width - pad_w..out_width));
+            let h_borders = (0..out_height)
+                .cartesian_product((0..pad_w).chain(out_width.saturating_sub(pad_w)..out_width));
 
             for (oh, ow) in v_borders.chain(h_borders) {
                 seq!(N in 0..8 {
@@ -260,8 +260,8 @@ mod nhwc {
         let (x_height, x_width, _) = x.dim();
         let (out_height, out_width, _) = out.dim();
 
-        for oh in pad_h..out_height - pad_h {
-            for ow in pad_w..out_width - pad_w {
+        for oh in pad_h..out_height.saturating_sub(pad_h) {
+            for ow in pad_w..out_width.saturating_sub(pad_w) {
                 let mut acc = simd.splat(E::MIN);
                 let out = &mut out[[oh, ow, ch]];
 
@@ -282,10 +282,10 @@ mod nhwc {
         // Border pixels need bounds checks
         if (pad_h, pad_w) != (0, 0) {
             let v_borders = (0..pad_h)
-                .chain(out_height - pad_h..out_height)
+                .chain(out_height.saturating_sub(pad_h)..out_height)
                 .cartesian_product(0..out_width);
-            let h_borders =
-                (0..out_height).cartesian_product((0..pad_w).chain(out_width - pad_w..out_width));
+            let h_borders = (0..out_height)
+                .cartesian_product((0..pad_w).chain(out_width.saturating_sub(pad_w)..out_width));
 
             for (oh, ow) in v_borders.chain(h_borders) {
                 let mut acc = simd.splat(E::MIN);

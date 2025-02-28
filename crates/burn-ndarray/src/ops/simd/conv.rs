@@ -169,9 +169,9 @@ unsafe fn run_conv2d<S: Simd, E: VMulAdd, const RB: usize, const PAD: bool, cons
     let ow_b = RB;
 
     let ow_start = pad_w;
-    let ow_width = out_width - 2 * pad_w;
+    let ow_width = out_width.saturating_sub(2 * pad_w);
     let oh_start = pad_h;
-    let oh_end = out_height - pad_h;
+    let oh_end = out_height.saturating_sub(pad_h);
 
     let ow_blocks = ow_width / ow_b;
     let oc = ob * oc_b;
@@ -248,7 +248,7 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
     let (in_channels, in_height, in_width) = x.dim();
     let (out_height, out_width, _) = out.dim();
     let oh_start = pad_h;
-    let oh_end = out_height - pad_h;
+    let oh_end = out_height.saturating_sub(pad_h);
     let ow_start = pad_w;
 
     let height1 = in_height + pad_h;

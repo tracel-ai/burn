@@ -155,8 +155,8 @@ mod nhwc {
         let ch_block = lanes * BLOCK_REGISTERS;
 
         // If pixels are not within padding range, bounds checks are always true
-        for oh in pad_h..out_height - pad_h {
-            for ow in pad_w..out_width - pad_w {
+        for oh in pad_h..out_height.saturating_sub(pad_h) {
+            for ow in pad_w..out_width.saturating_sub(pad_w) {
                 seq!(N in 0..8 {
                     let mut sum~N = Zeroable::zeroed();
                 });
@@ -190,10 +190,10 @@ mod nhwc {
         // Border pixels need bounds checks
         if (pad_h, pad_w) != (0, 0) {
             let v_borders = (0..pad_h)
-                .chain(out_height - pad_h..out_height)
+                .chain(out_height.saturating_sub(pad_h)..out_height)
                 .cartesian_product(0..out_width);
-            let h_borders =
-                (0..out_height).cartesian_product((0..pad_w).chain(out_width - pad_w..out_width));
+            let h_borders = (0..out_height)
+                .cartesian_product((0..pad_w).chain(out_width.saturating_sub(pad_w)..out_width));
 
             for (oh, ow) in v_borders.chain(h_borders) {
                 seq!(N in 0..8 {
@@ -285,10 +285,10 @@ mod nhwc {
         // Border pixels need bounds checks
         if (pad_h, pad_w) != (0, 0) {
             let v_borders = (0..pad_h)
-                .chain(out_height - pad_h..out_height)
+                .chain(out_height.saturating_sub(pad_h)..out_height)
                 .cartesian_product(0..out_width);
-            let h_borders =
-                (0..out_height).cartesian_product((0..pad_w).chain(out_width - pad_w..out_width));
+            let h_borders = (0..out_height)
+                .cartesian_product((0..pad_w).chain(out_width.saturating_sub(pad_w)..out_width));
 
             for (oh, ow) in v_borders.chain(h_borders) {
                 let mut sum = Zeroable::zeroed();
@@ -343,8 +343,8 @@ mod nhwc {
         let (out_height, out_width, _) = out.dim();
 
         // If pixels are not within padding range, bounds checks are always true
-        for oh in pad_h..out_height - pad_h {
-            for ow in pad_w..out_width - pad_w {
+        for oh in pad_h..out_height.saturating_sub(pad_h) {
+            for ow in pad_w..out_width.saturating_sub(pad_w) {
                 let mut sum: E = Zeroable::zeroed();
 
                 for kh in 0..kernel_height {
@@ -364,10 +364,10 @@ mod nhwc {
         // Border pixels need bounds checks
         if (pad_h, pad_w) != (0, 0) {
             let v_borders = (0..pad_h)
-                .chain(out_height - pad_h..out_height)
+                .chain(out_height.saturating_sub(pad_h)..out_height)
                 .cartesian_product(0..out_width);
-            let h_borders =
-                (0..out_height).cartesian_product((0..pad_w).chain(out_width - pad_w..out_width));
+            let h_borders = (0..out_height)
+                .cartesian_product((0..pad_w).chain(out_width.saturating_sub(pad_w)..out_width));
 
             for (oh, ow) in v_borders.chain(h_borders) {
                 let mut sum: E = Zeroable::zeroed();

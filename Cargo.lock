@@ -857,7 +857,7 @@ dependencies = [
  "openblas-src",
  "paste",
  "portable-atomic-util",
- "pulp 0.21.4 (git+https://github.com/wingertge/pulp.git?rev=382b34a300fe6e25a0d7b142f6c6520db78fc3ab)",
+ "pulp 0.21.5",
  "rand 0.9.0",
  "seq-macro",
  "spin",
@@ -996,7 +996,7 @@ dependencies = [
  "ndarray",
  "num-traits",
  "paste",
- "pulp 0.21.4 (git+https://github.com/wingertge/pulp.git?rev=382b34a300fe6e25a0d7b142f6c6520db78fc3ab)",
+ "pulp 0.21.5",
  "serde",
 ]
 
@@ -2731,7 +2731,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "paste",
- "pulp 0.21.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pulp 0.21.4",
  "raw-cpuid 11.4.0",
  "rayon",
  "seq-macro",
@@ -3888,10 +3888,10 @@ dependencies = [
 [[package]]
 name = "macerator"
 version = "0.1.0"
-source = "git+https://github.com/wingertge/macerator.git?rev=d545515503a6117dd74c5cf6f07c2f1e91ee529a#d545515503a6117dd74c5cf6f07c2f1e91ee529a"
+source = "git+https://github.com/wingertge/macerator.git?rev=084f980c12f894b113744ea193e79091fffd399d#084f980c12f894b113744ea193e79091fffd399d"
 dependencies = [
  "paste",
- "pulp 0.21.4 (git+https://github.com/wingertge/pulp.git?rev=382b34a300fe6e25a0d7b142f6c6520db78fc3ab)",
+ "pulp 0.21.5",
 ]
 
 [[package]]
@@ -5581,8 +5581,8 @@ dependencies = [
 
 [[package]]
 name = "pulp"
-version = "0.21.4"
-source = "git+https://github.com/wingertge/pulp.git?rev=382b34a300fe6e25a0d7b142f6c6520db78fc3ab#382b34a300fe6e25a0d7b142f6c6520db78fc3ab"
+version = "0.21.5"
+source = "git+https://github.com/wingertge/pulp.git?rev=b162d37dd53b6209fc038829cd416736ebfba53b#b162d37dd53b6209fc038829cd416736ebfba53b"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -5597,7 +5597,7 @@ dependencies = [
 [[package]]
 name = "pulp-macro"
 version = "0.1.1"
-source = "git+https://github.com/wingertge/pulp.git?rev=382b34a300fe6e25a0d7b142f6c6520db78fc3ab#382b34a300fe6e25a0d7b142f6c6520db78fc3ab"
+source = "git+https://github.com/wingertge/pulp.git?rev=b162d37dd53b6209fc038829cd416736ebfba53b#b162d37dd53b6209fc038829cd416736ebfba53b"
 dependencies = [
  "proc-macro2",
  "quote",
