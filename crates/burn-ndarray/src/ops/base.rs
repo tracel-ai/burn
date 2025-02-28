@@ -396,7 +396,7 @@ where
     }
 
     pub fn div_scalar(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<E> {
-        let lhs = dispatch_binary_scalar_simd!(noq, E, VecMul, lhs, rhs.elem(), f32, f64);
+        let lhs = dispatch_binary_scalar_simd!(noq, E, VecDiv, lhs, rhs.elem(), f32, f64);
 
         let array = lhs.array / rhs;
         let array = array.into_shared();
