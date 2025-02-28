@@ -33,10 +33,10 @@ impl<R: Runtime> ReduceBuilder<R> {
         let props = client.properties();
         let max_bindings = props.hardware_properties().max_bindings;
         let settings_read = FuseSettings {
-            broadcast: false,
-            output_shape_updates: false,
-            inplace: true, // TODO: A bug to fix.
-            vectorization: false,
+            broadcast: true,
+            output_shape_updates: true,
+            inplace: true,
+            vectorization: true,
         };
         let settings_write = FuseSettings {
             broadcast: false,
@@ -63,7 +63,6 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
         if let OptimizationStatus::Closed = self.status {
             return;
         }
-        // println!("{} => {operation:?}", self.len());
 
         if self.reduce.is_none() {
             if let OperationIr::NumericFloat(_, NumericOperationIr::SumDim(op)) = operation {

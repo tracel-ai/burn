@@ -70,7 +70,6 @@ pub enum FusedReduceError {
 impl<R: Runtime> ReduceOptimization<R> {
     /// Execute the optimization.
     pub fn execute<BT: CubeElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
-        println!("Execute fuse reduce {:?}", self.trace_read);
         if self.execute_fused::<BT>(context).is_err() {
             self.execute_fallback::<BT>(context);
         }
@@ -119,9 +118,11 @@ impl<R: Runtime> ReduceOptimization<R> {
         self.len
     }
 }
+
 impl<R: Runtime> Vectorization<R> for FusedReduce {
     fn axis(&self) -> Option<usize> {
-        Some(self.axis)
+        // Some(self.axis)
+        None
     }
 }
 
@@ -136,11 +137,11 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
         config_read: &'a ElemwiseConfig,
         config_write: &'a ElemwiseConfig,
     ) -> Result<(), FusedReduceError> {
-        let strategy = ReduceStrategy::new::<R>(client, true);
-        // let strategy = ReduceStrategy {
-        //     shared: false,
-        //     use_planes: false,
-        // };
+        // let strategy = ReduceStrategy::new::<R>(client, true);
+        let strategy = ReduceStrategy {
+            shared: false,
+            use_planes: false,
+        };
         let shape = inputs.shape(&config_read.ref_layout);
         let strides = inputs.strides(&config_read.ref_layout);
         let reduce_count: u32 = shape
@@ -149,8 +150,8 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             .map(|(i, s)| if i == self.axis { 1 } else { *s as u32 })
             .product();
 
-        let line_mode = match strides[self.axis] == 1 {
-            true => LineMode::Parallel,
+        let line_mode = match self.axis == strides.len() - 1 {
+            true => LineMode::Parallel, // axis de vectorization == axis de reduce.
             false => LineMode::Perpendicular,
         };
 
@@ -178,7 +179,7 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             inputs,
             outputs,
             axis: self.axis as u32,
-            strategy: &ReduceStrategy::new::<R>(client, true),
+            strategy: &strategy,
             config_reduce,
             config_fuse_read: &config_read,
             config_fuse_write: &config_write,
@@ -229,6 +230,7 @@ fn launch_reduce_input_output<'a, 'b, Run: Runtime, Rd: Reduce>(
         _ => panic!("Unsupported"),
     }
 }
+
 fn launch_reduce_output<'a, 'b, Run: Runtime, In: Numeric, Rd: Reduce>(
     kwargs: ReduceKwArgs<'a, 'b, Run>,
     dtype: DType,
