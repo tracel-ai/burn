@@ -43,8 +43,6 @@ Quantizing the weights of your model after training is quite simple. We have acc
 tensors and can collect their statistics, such as the min and max value when using
 `MinMaxCalibration`, to compute the quantization parameters.
 
-TODO: update
-
 ```rust , ignore
 # use burn::module::Quantizer;
 # use burn::tensor::quantization::{Calibration, QuantizationScheme, QuantizationType};
