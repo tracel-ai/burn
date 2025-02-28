@@ -777,9 +777,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
 
@@ -816,9 +816,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
 
@@ -837,9 +837,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
 
@@ -858,9 +858,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
 

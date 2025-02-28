@@ -40,6 +40,15 @@ pub struct ReduceOptimization<R: Runtime> {
     fallback: Arc<dyn ReduceFallbackFn<R>>,
 }
 
+#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+pub enum ReduceInstruction {
+    ArgMax,
+    ArgMin,
+    Mean,
+    Prod,
+    Sum,
+}
+
 pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
     fn run(
         &self,
@@ -66,6 +75,7 @@ pub struct FusedReduce {
     pub(crate) axis: usize,
     pub(crate) op: ReduceDimOpIr,
     strategy: ReduceStrategy,
+    inst: ReduceInstruction,
 }
 
 impl FusedReduce {
@@ -76,6 +86,7 @@ impl FusedReduce {
             axis: self.axis,
             op: self.op.clone(),
             strategy,
+            inst: self.inst,
         }
     }
 }
@@ -251,8 +262,9 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             input: &self.input,
             output: &self.output,
         };
-        launch_reduce_input_output::<R, cubecl::reduce::instructions::Sum>(
+        launch_reduce_input_output_inst::<R>(
             kwargs,
+            self.inst,
             self.op.input.dtype,
             self.op.out.dtype,
         );
@@ -272,6 +284,36 @@ struct ReduceKwArgs<'a, 'b, Run: Runtime> {
     config_fuse_write: &'a ElemwiseConfig,
     input: &'a Arg,
     output: &'a Arg,
+}
+
+fn launch_reduce_input_output_inst<'a, 'b, Run: Runtime>(
+    kwargs: ReduceKwArgs<'a, 'b, Run>,
+    instruction: ReduceInstruction,
+    dtype_input: DType,
+    dtype_output: DType,
+) {
+    match instruction {
+        ReduceInstruction::ArgMax => launch_reduce_input_output::<
+            Run,
+            cubecl::reduce::instructions::ArgMax,
+        >(kwargs, dtype_input, dtype_output),
+        ReduceInstruction::ArgMin => launch_reduce_input_output::<
+            Run,
+            cubecl::reduce::instructions::ArgMin,
+        >(kwargs, dtype_input, dtype_output),
+        ReduceInstruction::Mean => launch_reduce_input_output::<
+            Run,
+            cubecl::reduce::instructions::Mean,
+        >(kwargs, dtype_input, dtype_output),
+        ReduceInstruction::Prod => launch_reduce_input_output::<
+            Run,
+            cubecl::reduce::instructions::Prod,
+        >(kwargs, dtype_input, dtype_output),
+        ReduceInstruction::Sum => launch_reduce_input_output::<
+            Run,
+            cubecl::reduce::instructions::Sum,
+        >(kwargs, dtype_input, dtype_output),
+    }
 }
 
 fn launch_reduce_input_output<'a, 'b, Run: Runtime, Rd: Reduce>(

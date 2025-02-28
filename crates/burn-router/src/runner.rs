@@ -10,7 +10,7 @@ use core::future::Future;
 use super::{RouterTensor, RunnerClient};
 use crate::{
     binary_bool_ops, binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
-    reduce_float_dim_ops, reduce_int_dim_ops, scalar_float2int_ops, scalar_float_cmp_ops,
+    reduce_float2int_dim_ops, reduce_float_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
     scalar_float_dim_ops, scalar_float_ops, scalar_int_cmp_ops, scalar_int_dim_ops, scalar_int_ops,
     unary_float_ops, unary_int_ops,
 };
@@ -483,7 +483,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::MeanDim(desc) => {
-                    scalar_float_dim_ops!(handles, desc, B::float_mean_dim)
+                    reduce_float_dim_ops!(handles, desc, B::float_mean_dim)
                 }
                 NumericOperationIr::Mean(desc) => {
                     unary_float_ops!(handles, desc, B::float_mean)
@@ -498,7 +498,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     unary_float_ops!(handles, desc, B::float_prod)
                 }
                 NumericOperationIr::ProdDim(desc) => {
-                    scalar_float_dim_ops!(handles, desc, B::float_prod_dim)
+                    reduce_float_dim_ops!(handles, desc, B::float_prod_dim)
                 }
                 NumericOperationIr::EqualElem(desc) => {
                     scalar_float_cmp_ops!(handles, desc, B::float_equal_elem)
@@ -528,10 +528,10 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     scalar_float_cmp_ops!(handles, desc, B::float_lower_equal_elem)
                 }
                 NumericOperationIr::ArgMax(desc) => {
-                    scalar_float2int_ops!(handles, desc, B::float_argmax)
+                    reduce_float2int_dim_ops!(handles, desc, B::float_argmax)
                 }
                 NumericOperationIr::ArgMin(desc) => {
-                    scalar_float2int_ops!(handles, desc, B::float_argmin)
+                    reduce_float2int_dim_ops!(handles, desc, B::float_argmin)
                 }
                 NumericOperationIr::Max(desc) => {
                     unary_float_ops!(handles, desc, B::float_max)
@@ -665,7 +665,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::MeanDim(desc) => {
-                    scalar_int_dim_ops!(handles, desc, B::int_mean_dim)
+                    reduce_int_dim_ops!(handles, desc, B::int_mean_dim)
                 }
                 NumericOperationIr::Mean(desc) => {
                     unary_int_ops!(handles, desc, B::int_mean)
@@ -680,7 +680,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     unary_int_ops!(handles, desc, B::int_prod)
                 }
                 NumericOperationIr::ProdDim(desc) => {
-                    scalar_int_dim_ops!(handles, desc, B::int_prod_dim)
+                    reduce_int_dim_ops!(handles, desc, B::int_prod_dim)
                 }
                 NumericOperationIr::EqualElem(desc) => {
                     scalar_int_cmp_ops!(handles, desc, B::int_equal_elem)
@@ -710,10 +710,10 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     scalar_int_cmp_ops!(handles, desc, B::int_lower_equal_elem)
                 }
                 NumericOperationIr::ArgMax(desc) => {
-                    scalar_int_dim_ops!(handles, desc, B::int_argmax)
+                    reduce_int_dim_ops!(handles, desc, B::int_argmax)
                 }
                 NumericOperationIr::ArgMin(desc) => {
-                    scalar_int_dim_ops!(handles, desc, B::int_argmin)
+                    reduce_int_dim_ops!(handles, desc, B::int_argmin)
                 }
                 NumericOperationIr::Max(desc) => {
                     unary_int_ops!(handles, desc, B::int_max)

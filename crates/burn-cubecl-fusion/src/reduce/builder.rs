@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
+use super::optimization::ReduceInstruction;
 use burn_fusion::{OptimizationBuilder, OptimizationStatus};
-use burn_ir::{NumericOperationIr, OperationIr};
+use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
 use cubecl::{reduce::ReduceStrategy, Runtime};
 
 use crate::{
@@ -56,6 +57,45 @@ impl<R: Runtime> ReduceBuilder<R> {
             fallback,
         }
     }
+    fn on_reduce(&mut self, op: &ReduceDimOpIr, inst: ReduceInstruction) {
+        if self.builder_read.current_output_shape != op.input.shape {
+            self.builder_read.close();
+            self.builder_read_fallback.close();
+            self.status = OptimizationStatus::Closed;
+            return;
+        }
+
+        let input = self.builder_read.input(&op.input);
+        self.builder_read.not_output(&op.input);
+
+        let output = self.builder_write.output_unhandled(&op.out);
+        let axis = op.axis;
+
+        self.reduce = Some(FusedReduce::new(
+            input,
+            output,
+            axis,
+            op.clone(),
+            ReduceStrategy {
+                shared: false,
+                use_planes: false,
+            },
+            inst,
+        ));
+        self.builder_read.close();
+        self.builder_read_fallback.close();
+        self.status = OptimizationStatus::Closed;
+    }
+
+    fn on_elemwise(&mut self, operation: &OperationIr) {
+        self.builder_read.register(operation);
+
+        if self.builder_read_fallback.len() < self.builder_read.len() {
+            self.builder_read_fallback.register(operation);
+        }
+
+        self.status = self.builder_read.status();
+    }
 }
 
 impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
@@ -65,41 +105,29 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
         }
 
         if self.reduce.is_none() {
-            if let OperationIr::NumericFloat(_, NumericOperationIr::SumDim(op)) = operation {
-                if self.builder_read.current_output_shape != op.input.shape {
-                    self.builder_read.close();
-                    self.builder_read_fallback.close();
-                    self.status = OptimizationStatus::Closed;
-                    return;
-                }
-
-                let input = self.builder_read.input(&op.input);
-                self.builder_read.not_output(&op.input);
-
-                let output = self.builder_write.output_unhandled(&op.out);
-                let axis = op.axis;
-
-                self.reduce = Some(FusedReduce::new(
-                    input,
-                    output,
-                    axis,
-                    op.clone(),
-                    ReduceStrategy {
-                        shared: false,
-                        use_planes: false,
-                    },
-                ));
-                self.builder_read.close();
-                self.builder_read_fallback.close();
-                self.status = OptimizationStatus::Closed;
+            if let OperationIr::NumericFloat(_, op) = operation {
+                match op {
+                    NumericOperationIr::SumDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::Sum);
+                    }
+                    NumericOperationIr::MeanDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::Mean);
+                    }
+                    NumericOperationIr::ProdDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::Prod);
+                    }
+                    NumericOperationIr::ArgMax(op) => {
+                        self.on_reduce(op, ReduceInstruction::ArgMax);
+                    }
+                    NumericOperationIr::ArgMin(op) => {
+                        self.on_reduce(op, ReduceInstruction::ArgMin);
+                    }
+                    _ => {
+                        self.on_elemwise(operation);
+                    }
+                };
             } else {
-                self.builder_read.register(operation);
-
-                if self.builder_read_fallback.len() < self.builder_read.len() {
-                    self.builder_read_fallback.register(operation);
-                }
-
-                self.status = self.builder_read.status();
+                self.on_elemwise(operation);
             }
         } else {
             panic!("Should not happen");
@@ -113,7 +141,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
         let trace_read_fallback = self.builder_read_fallback.build();
         let trace_write_fallback = self.builder_write_fallback.build();
 
-        let fuse_reduce = self.reduce.as_ref().unwrap().clone();
+        let fuse_reduce = self.reduce.as_ref().unwrap();
         let fuse_reduce_shared = fuse_reduce.with_strategy(ReduceStrategy {
             use_planes: false,
             shared: true,
@@ -135,7 +163,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
             client,
             self.device.clone(),
             self.len(),
-            fuse_reduce,
+            fuse_reduce.clone(),
             fuse_reduce_shared,
             fuse_reduce_plane,
             fuse_reduce_shared_plane,
