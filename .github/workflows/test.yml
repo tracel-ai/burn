@@ -148,7 +148,7 @@ jobs:
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: Set CI Profile
-        run: echo "CARGO_PROFILE_DEV_INHERITS=ci-rust" >> $GITHUB_ENV
+        run: echo "CARGO_PROFILE_TEST_INCREMENTAL=false" >> $GITHUB_ENV
       # --------------------------------------------------------------------------------
       - name: Check disk usage
         shell: bash
