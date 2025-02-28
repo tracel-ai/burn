@@ -1117,7 +1117,7 @@ fn gemm_output_shape(node: &mut Node) {
     }
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        dim: 2,
+        rank: 2,
         shape: Some(vec![m, n]),
         elem_type: match &node.inputs[0].ty {
             ArgType::Tensor(t) => t.elem_type.clone(),

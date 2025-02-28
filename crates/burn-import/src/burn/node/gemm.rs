@@ -55,13 +55,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GemmNode {
         };
 
         let product = quote! {#a.matmul(#b)};
-        let scaled_product = quote! {#alpha * #product};
+        let scaled_product = quote! {#product * #alpha};
 
         if let Some(ref c) = self.c {
             let c = scope.tensor_use_owned(c, node_position);
 
             quote! {
-                let #output = (#scaled_product) + (#beta * #c);
+                let #output = (#scaled_product) + (#c * #beta);
             }
         } else {
             quote! {
@@ -72,5 +72,68 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GemmNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Gemm(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use burn::record::FullPrecisionSettings;
+
+    use super::*;
+    use crate::burn::{
+        graph::BurnGraph,
+        node::{gemm::GemmNode, test::assert_tokens},
+        TensorType,
+    };
+
+    #[test]
+    fn test_codegen_nodes() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(GemmNode::new(
+            TensorType::new_float("tensor1", 2),
+            TensorType::new_float("tensor2", 2),
+            None,
+            TensorType::new_float("tensor3", 2),
+            1.0,
+            1.0,
+            0,
+            0,
+        ));
+
+        graph.register_input_output(
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["tensor3".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, tensor1: Tensor<B, 2>) -> Tensor<B, 2> {
+                    "hello"
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
     }
 }
