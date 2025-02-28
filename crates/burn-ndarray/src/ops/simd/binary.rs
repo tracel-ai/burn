@@ -217,11 +217,6 @@ fn binary_simd_same<
     lhs: NdArrayTensor<T>,
     rhs: NdArrayTensor<T>,
 ) -> NdArrayTensor<Out> {
-    println!(
-        "lhs unique: {}, rhs unique: {}",
-        lhs.array.is_unique(),
-        rhs.array.is_unique()
-    );
     let out = if lhs.array.is_unique() {
         let mut buf = lhs.array.into_owned();
         let lhs = buf.as_slice_mut().unwrap();
@@ -243,10 +238,7 @@ fn binary_simd_same<
         let lhs = lhs.array.as_slice().unwrap();
         let rhs = rhs.array.as_slice().unwrap();
         let out_slice = out.as_slice_mut().unwrap();
-        println!("lhs: {lhs:?}");
-        println!("rhs: {rhs:?}");
         binary(lhs, rhs, out_slice, PhantomData::<Op>);
-        println!("out: {out_slice:?}");
         out
     };
     NdArrayTensor::new(out.into_shared())

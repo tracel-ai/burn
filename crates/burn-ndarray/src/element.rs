@@ -30,7 +30,6 @@ pub trait NdArrayElement:
     + core::cmp::PartialEq
     + core::cmp::PartialOrd<Self>
     + core::ops::Rem<Output = Self>
-    + bytemuck::CheckedBitPattern
 {
 }
 
