@@ -1,19 +1,19 @@
 use core::{marker::PhantomData, mem::transmute};
-use std::time::Instant;
 
-use burn_common::{iter_range_par, run_par};
+use burn_common::{iter_par, run_par};
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
     DType, Element, TensorMetadata,
 };
 use bytemuck::Zeroable;
 use macerator::{SimdExt, VMulAdd};
-use ndarray::{s, Array4, Dim, Ix1, Ix4, NdIndex};
-use num_traits::Zero;
+use ndarray::{
+    s, ArcArray1, Array4, ArrayView3, ArrayView4, ArrayViewMut2, ArrayViewMut3, Axis, Dim, Ix1, Ix4,
+};
 use pulp::{Arch, Simd};
 use seq_macro::seq;
 
-use crate::{FloatNdArrayElement, NdArrayElement, NdArrayTensor, UnsafeSharedRef};
+use crate::{FloatNdArrayElement, NdArrayTensor, UnsafeSharedRef};
 
 type Args<E> = (NdArrayTensor<E>, NdArrayTensor<E>, Option<NdArrayTensor<E>>);
 
@@ -41,21 +41,19 @@ fn cast<T, E>(tensor: NdArrayTensor<T>) -> NdArrayTensor<E> {
     unsafe { transmute::<NdArrayTensor<T>, NdArrayTensor<E>>(tensor) }
 }
 
-#[allow(clippy::result_large_err, clippy::identity_op, clippy::erasing_op)]
-#[pulp::with_simd(conv2d = Arch::new())]
-pub fn conv2d_simd<S: Simd, E: VMulAdd + Element + Zero, T: Element>(
-    simd: S,
+#[allow(clippy::result_large_err)]
+fn conv2d<E: VMulAdd + Element, T: Element>(
     x: NdArrayTensor<T>,
     weight: NdArrayTensor<T>,
     bias: Option<NdArrayTensor<T>>,
     options: ConvOptions<2>,
     _ty: PhantomData<E>,
 ) -> Result<NdArrayTensor<T>, Args<T>> {
-    let [out_channels, in_channels, k_height, k_width] = weight.shape().dims();
+    let [out_channels, _, k_height, k_width] = weight.shape().dims();
     let channels_per_group = out_channels / options.groups;
-    let lanes = E::lanes::<S>();
 
-    if channels_per_group % lanes != 0 {
+    let approx_lanes = 32 / size_of::<E>();
+    if channels_per_group % approx_lanes != 0 {
         return Err((x, weight, bias));
     }
 
@@ -63,18 +61,13 @@ pub fn conv2d_simd<S: Simd, E: VMulAdd + Element + Zero, T: Element>(
     let weight = cast::<_, E>(weight);
     let bias = bias.map(|bias| cast::<_, E>(bias));
 
+    let [batch_size, _in_channels, in_height, in_width] = x.shape().dims();
     let [dilate_h, dilate_w] = options.dilation;
     let [stride_h, stride_w] = options.stride;
     let [pad_h, pad_w] = options.padding;
-    let [batch_size, _in_channels, in_height, in_width] = x.shape().dims();
 
-    const N_REG: usize = 8;
-
-    let oc_b = channels_per_group.min(lanes);
-    let ow_b = N_REG;
-
-    let out_height = calculate_conv_output_size(k_height, 1, pad_h, dilate_h, in_height);
-    let out_width = calculate_conv_output_size(k_width, 1, pad_w, dilate_w, in_width);
+    let out_height = calculate_conv_output_size(k_height, stride_h, pad_h, dilate_h, in_height);
+    let out_width = calculate_conv_output_size(k_width, stride_w, pad_w, dilate_w, in_width);
 
     let x = x.array.into_dimensionality::<Ix4>().unwrap();
     let weights = weight.array.into_dimensionality::<Ix4>().unwrap();
@@ -82,94 +75,333 @@ pub fn conv2d_simd<S: Simd, E: VMulAdd + Element + Zero, T: Element>(
     let weights = weights.as_standard_layout();
     let bias = bias.map(|bias| bias.array.into_dimensionality::<Ix1>().unwrap());
 
-    let mut out = Array4::<E>::zeros(Dim([batch_size, out_height, out_width, out_channels]));
-    let unsafe_shared_out = UnsafeSharedRef::new(&mut out);
-
-    let oc_blocks = out_channels.div_ceil(oc_b);
-    let ow_blocks = out_width.div_ceil(ow_b);
+    let mut out = unsafe {
+        Array4::<E>::uninit(Dim([batch_size, out_height, out_width, out_channels])).assume_init()
+    };
 
     run_par!(|| {
-        iter_range_par!(0, batch_size * oc_blocks).for_each(|k| unsafe {
-            let ob = k % oc_blocks;
-            let b = k / oc_blocks;
+        iter_par!(out.axis_iter_mut(Axis(0)))
+            .enumerate()
+            .for_each(|(b, mut out)| {
+                let x = x.slice(s![b, .., .., ..]);
+                conv2d_launch(x, weights.view(), &bias, &mut out, &options);
+            });
+    });
+
+    let output = out.permuted_axes([0, 3, 1, 2]);
+    Ok(cast(NdArrayTensor::new(output.into_dyn().into_shared())))
+}
+
+/// Size of register blocks, we need to hardcode this because Rust and the `seq` macro don't support
+/// using associated constants as constant parameters. 8 works for all semi-modern CPUs but might
+/// not be perfectly optimized for AVX-512 capable CPUs (which probably should use 16).
+/// This should always be conservative, since oversizing it will cause register spills and that's
+/// **much** worse than the performance lost with lower values.
+const REGISTER_BLOCK: usize = 8;
+inner_with_register_blocking_size!(8);
+
+#[allow(clippy::identity_op, clippy::erasing_op)]
+#[inline(always)]
+#[pulp::with_simd(conv2d_launch = Arch::new())]
+pub fn conv2d_simd<S: Simd, E: VMulAdd + Element>(
+    simd: S,
+    x: ArrayView3<'_, E>,
+    weights: ArrayView4<'_, E>,
+    bias: &Option<ArcArray1<E>>,
+    out: &mut ArrayViewMut3<'_, E>,
+    options: &ConvOptions<2>,
+) {
+    let padded = options.padding != [0, 0];
+    let strided = options.stride != [1, 1] || options.dilation != [1, 1];
+    match (padded, strided) {
+        (true, true) => unsafe {
+            run_conv2d::<S, E, REGISTER_BLOCK, true, true>(simd, x, weights, bias, out, options)
+        },
+        (true, false) => unsafe {
+            run_conv2d::<S, E, REGISTER_BLOCK, true, false>(simd, x, weights, bias, out, options)
+        },
+        (false, true) => unsafe {
+            run_conv2d::<S, E, REGISTER_BLOCK, false, true>(simd, x, weights, bias, out, options)
+        },
+        (false, false) => unsafe {
+            run_conv2d::<S, E, REGISTER_BLOCK, false, false>(simd, x, weights, bias, out, options)
+        },
+    }
+}
+
+#[inline(always)]
+unsafe fn run_conv2d<S: Simd, E: VMulAdd, const RB: usize, const PAD: bool, const STRIDE: bool>(
+    simd: S,
+    x: ArrayView3<E>,
+    weights: ArrayView4<E>,
+    bias: &Option<ArcArray1<E>>,
+    out: &mut ArrayViewMut3<E>,
+    options: &ConvOptions<2>,
+) {
+    let (_, k_height, k_width, out_channels) = weights.dim();
+    let (out_height, out_width, _) = out.dim();
+    let channels_per_group = out_channels / options.groups;
+    let lanes = E::lanes::<S>();
+
+    let [mut pad_h, mut pad_w] = options.padding;
+    let [stride_h, stride_w] = options.stride;
+    let [dilate_h, dilate_w] = options.dilation;
+
+    // Trick compiler into inlining 0 to padding
+    if !PAD {
+        pad_h = 0;
+        pad_w = 0;
+    }
+
+    let oc_b = channels_per_group.min(lanes);
+    let ow_b = RB;
+
+    let unsafe_shared_out = UnsafeSharedRef::new(out);
+
+    let ow_start = pad_w;
+    let ow_width = out_width - 2 * pad_w;
+    let oh_start = pad_h;
+    let oh_end = out_height - pad_h;
+
+    let oc_blocks = out_channels.div_ceil(oc_b);
+    let ow_blocks = ow_width / ow_b;
+
+    for ob in 0..oc_blocks {
+        unsafe {
             let oc = ob * oc_b;
             let out = unsafe_shared_out.get();
+
             let bias = if let Some(bias) = &bias {
                 simd.vload_unaligned(&bias[oc])
             } else {
                 Zeroable::zeroed()
             };
 
-            let x = x.slice(s![b, .., .., ..]);
-            for oh in 0..out_height {
-                let mut out = out.slice_mut(s![b, oh, .., ..]);
-                let ih = oh * stride_h;
+            for oh in oh_start..oh_end {
+                let mut out = out.slice_mut(s![oh, .., ..]);
                 for ow_block in 0..ow_blocks {
-                    seq!(N in 0..8 {
-                        let mut acc~N = bias;
-                    });
-                    let ow = ow_block * ow_b;
-                    let ow_end = ow_b.min(out_width - ow);
-                    let aligned = ow_end == ow_b;
+                    let ow = ow_block * ow_b + ow_start;
 
-                    for ic in 0..in_channels {
-                        for kh in 0..k_height {
-                            let ih = ih + kh * dilate_h;
-                            if ih < pad_h || ih >= in_height + pad_h {
-                                continue;
-                            }
-                            let ih = ih - pad_h;
-
-                            for kw in 0..k_width {
-                                let f0 = simd.vload_unaligned(&weights[[ic, kh, kw, oc]]);
-                                let iw = ow * stride_w + kw * dilate_w;
-
-                                if aligned
-                                    && iw >= pad_w
-                                    && iw + ow_b * stride_w < in_width + pad_h
-                                {
-                                    let iw = iw - pad_w;
-                                    seq!(N in 0..8 {
-                                        let i~N = simd.splat(*x.uget([ic, ih, iw + N * stride_w]));
-                                    });
-                                    seq!(N in 0..8 {
-                                        acc~N = E::vmuladd(simd, i~N, f0, acc~N);
-                                    });
-                                } else {
-                                    seq!(N in 0..8 {
-                                        {
-                                            let ow = ow + N;
-                                            if iw >= pad_w && iw < in_width + pad_w && ow < out_width {
-                                                let iw = iw - pad_w;
-                                                let i~N = simd.splat(*x.uget([ic, ih, iw + N * stride_w]));
-                                                acc~N = E::vmuladd(simd, i~N, f0, acc~N);
-                                            }
-                                        }
-                                    });
-                                }
-                            }
-                        }
-                    }
-
-                    if aligned {
-                        seq!(N in 0..8 {
-                            simd.vstore_unaligned(&mut out[[ow + N, oc]], acc~N);
-                        });
+                    #[allow(clippy::if_same_then_else)]
+                    if STRIDE {
+                        conv2d_inner_nopad(
+                            simd, &x, &weights, &mut out, bias, oh, ow, oc, stride_h, stride_w,
+                            dilate_h, dilate_w, k_height, k_width, pad_h, pad_w,
+                        );
                     } else {
-                        seq!(N in 0..8 {
-                            #[allow(clippy::identity_op)]
-                            if ow + N >= out_width {
-                                continue;
-                            }
-                            #[allow(clippy::identity_op)]
-                            simd.vstore_unaligned(&mut out[[ow + N, oc]], acc~N);
+                        conv2d_inner_nopad_nostride(
+                            simd, &x, &weights, &mut out, bias, oh, ow, oc, k_height, k_width,
+                            pad_h, pad_w,
+                        );
+                    }
+                }
+            }
+            conv2d_remainder(
+                simd,
+                x,
+                weights,
+                out,
+                bias,
+                oc,
+                ow_blocks * ow_b,
+                stride_h,
+                stride_w,
+                dilate_h,
+                dilate_w,
+                pad_h,
+                pad_w,
+                k_height,
+                k_width,
+            );
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+#[inline(always)]
+unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
+    simd: S,
+    x: ArrayView3<E>,
+    weights: ArrayView4<E>,
+    out: &mut ArrayViewMut3<E>,
+    bias: E::Vector<S>,
+    oc: usize,
+    owb_end: usize,
+    stride_h: usize,
+    stride_w: usize,
+    dilate_h: usize,
+    dilate_w: usize,
+    pad_h: usize,
+    pad_w: usize,
+    k_height: usize,
+    k_width: usize,
+) {
+    let (in_channels, in_height, in_width) = x.dim();
+    let (out_height, out_width, _) = out.dim();
+    let oh_start = pad_h;
+    let oh_end = out_height - pad_h;
+    let ow_start = pad_w;
+
+    let height1 = in_height + pad_h;
+    let width1 = in_width + pad_w;
+
+    for oh in (0..oh_start).chain(oh_end..out_height) {
+        for ow in 0..out_width {
+            let mut acc = bias;
+
+            for ic in 0..in_channels {
+                for kh in 0..k_height {
+                    let ih = oh * stride_h + kh * dilate_h;
+                    if (ih < pad_h) | (ih >= height1) {
+                        continue;
+                    }
+                    let ih = ih - pad_h;
+
+                    for kw in 0..k_width {
+                        let iw = ow * stride_w + kw * dilate_w;
+                        if (iw < pad_w) | (iw >= width1) {
+                            continue;
+                        }
+                        let iw = iw - pad_w;
+
+                        let f0 = simd.vload_unaligned(&weights[[ic, kh, kw, oc]]);
+
+                        let i0 = simd.splat(*x.uget([ic, ih, iw]));
+                        acc = E::vmuladd(simd, i0, f0, acc);
+                    }
+                }
+            }
+
+            simd.vstore_unaligned(&mut out[[oh, ow, oc]], acc);
+        }
+    }
+    for ow in (0..ow_start).chain(owb_end..out_width) {
+        for oh in 0..out_height {
+            let mut acc = bias;
+
+            for ic in 0..in_channels {
+                for kh in 0..k_height {
+                    let ih = oh * stride_h + kh * dilate_h;
+                    if (ih < pad_h) | (ih >= height1) {
+                        continue;
+                    }
+                    let ih = ih - pad_h;
+
+                    for kw in 0..k_width {
+                        let iw = ow * stride_w + kw * dilate_w;
+                        if (iw < pad_w) | (iw >= width1) {
+                            continue;
+                        }
+                        let iw = iw - pad_w;
+
+                        let f0 = simd.vload_unaligned(&weights[[ic, kh, kw, oc]]);
+
+                        let i0 = simd.splat(*x.uget([ic, ih, iw]));
+                        acc = E::vmuladd(simd, i0, f0, acc);
+                    }
+                }
+            }
+
+            simd.vstore_unaligned(&mut out[[oh, ow, oc]], acc);
+        }
+    }
+}
+
+macro_rules! inner_with_register_blocking_size {
+    ($rb: literal) => {
+        #[allow(clippy::erasing_op, clippy::identity_op, clippy::too_many_arguments)]
+        #[inline(always)]
+        unsafe fn conv2d_inner_nopad<S: Simd, E: VMulAdd>(
+            simd: S,
+            x: &ArrayView3<E>,
+            weights: &ArrayView4<E>,
+            out: &mut ArrayViewMut2<E>,
+            bias: E::Vector<S>,
+            oh: usize,
+            ow: usize,
+            oc: usize,
+            stride_h: usize,
+            stride_w: usize,
+            dilate_h: usize,
+            dilate_w: usize,
+            k_height: usize,
+            k_width: usize,
+            pad_h: usize,
+            pad_w: usize,
+        ) {
+            let in_channels = x.shape()[0];
+
+            seq!(N in 0..$rb {
+                let mut acc~N = bias;
+            });
+
+            for ic in 0..in_channels {
+                for kh in 0..k_height {
+                    let ih = oh * stride_h + kh * dilate_h - pad_h;
+
+                    for kw in 0..k_width {
+                        let f0 = simd.vload_unaligned(&weights[[ic, kh, kw, oc]]);
+                        let iw = ow * stride_w + kw * dilate_w - pad_w;
+
+                        seq!(N in 0..$rb {
+                            let i~N = simd.splat(*x.uget([ic, ih, iw + N * stride_w]));
+                        });
+                        seq!(N in 0..$rb {
+                            acc~N = E::vmuladd(simd, i~N, f0, acc~N);
                         });
                     }
                 }
             }
-        });
-    });
 
-    let output = out.permuted_axes([0, 3, 1, 2]);
-    Ok(cast(NdArrayTensor::new(output.into_dyn().into_shared())))
+            seq!(N in 0..$rb {
+                simd.vstore_unaligned(&mut out[[ow + N, oc]], acc~N);
+            });
+        }
+
+        #[allow(clippy::erasing_op, clippy::identity_op, clippy::too_many_arguments)]
+        #[inline(always)]
+        unsafe fn conv2d_inner_nopad_nostride<S: Simd, E: VMulAdd>(
+            simd: S,
+            x: &ArrayView3<E>,
+            weights: &ArrayView4<E>,
+            out: &mut ArrayViewMut2<E>,
+            bias: E::Vector<S>,
+            oh: usize,
+            ow: usize,
+            oc: usize,
+            k_height: usize,
+            k_width: usize,
+            pad_h: usize,
+            pad_w: usize,
+        ) {
+            let in_channels = x.shape()[0];
+
+            seq!(N in 0..$rb {
+                let mut acc~N = bias;
+            });
+
+            for ic in 0..in_channels {
+                for kh in 0..k_height {
+                    let ih = oh + kh - pad_h;
+
+                    for kw in 0..k_width {
+                        let f0 = simd.vload_unaligned(&weights[[ic, kh, kw, oc]]);
+                        let iw = ow + kw - pad_w;
+
+                        seq!(N in 0..$rb {
+                            let i~N = simd.splat(*x.uget([ic, ih, iw + N]));
+                        });
+                        seq!(N in 0..$rb {
+                            acc~N = E::vmuladd(simd, i~N, f0, acc~N);
+                        });
+                    }
+                }
+            }
+
+            seq!(N in 0..$rb {
+                simd.vstore_unaligned(&mut out[[ow + N, oc]], acc~N);
+            });
+        }
+    };
 }
+pub(crate) use inner_with_register_blocking_size;

@@ -214,8 +214,8 @@ fn bench<B: Backend>(
     };
 
     let benches = vec![
-        benchmark, /* conv1, conv2, conv3, conv4, conv5, conv6, conv7, conv8, conv9, conv10, conv11,
-                  conv12, conv13, */
+        benchmark, conv1, conv2, conv3, conv4, conv5, conv6, conv7, conv8, conv9, conv10, conv11,
+        conv12, conv13,
     ];
     let mut results = Vec::new();
 
