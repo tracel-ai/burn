@@ -13,7 +13,7 @@ use ndarray::{
 use pulp::{Arch, Simd};
 use seq_macro::seq;
 
-use crate::{FloatNdArrayElement, NdArrayTensor, UnsafeSharedRef};
+use crate::{ops::simd::lanes, FloatNdArrayElement, NdArrayTensor, UnsafeSharedRef};
 
 type Args<E> = (NdArrayTensor<E>, NdArrayTensor<E>, Option<NdArrayTensor<E>>);
 
@@ -41,11 +41,6 @@ fn cast<T, E>(tensor: NdArrayTensor<T>) -> NdArrayTensor<E> {
     unsafe { transmute::<NdArrayTensor<T>, NdArrayTensor<E>>(tensor) }
 }
 
-#[pulp::with_simd(lanes = Arch::new())]
-fn lanes_simd<S: Simd, E: Vectorizable>(_simd: S, _ty: PhantomData<E>) -> usize {
-    E::lanes::<S>()
-}
-
 #[allow(clippy::result_large_err)]
 fn conv2d<E: VMulAdd + Element, T: Element>(
     x: NdArrayTensor<T>,
@@ -56,7 +51,7 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
 ) -> Result<NdArrayTensor<T>, Args<T>> {
     let [out_channels, _, k_height, k_width] = weight.shape().dims();
     let channels_per_group = out_channels / options.groups;
-    let lanes = lanes::<E>(PhantomData);
+    let lanes = lanes::<E>();
 
     if channels_per_group % lanes != 0 {
         return Err((x, weight, bias));

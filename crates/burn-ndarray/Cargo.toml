@@ -55,6 +55,7 @@ atomic_float = { workspace = true }
 blas-src = { workspace = true, default-features = false, optional = true } # no-std compatible
 bytemuck = { workspace = true }
 derive-new = { workspace = true }
+itertools = "0.14"
 libm = { workspace = true }
 macerator = { workspace = true }
 matrixmultiply = { workspace = true, default-features = false }
