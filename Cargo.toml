@@ -174,3 +174,6 @@ tracel-xtask = { version = "=1.1.8" }
 
 [profile.dev]
 debug = 0 # Speed up compilation time and not necessary.
+
+[profile.ci-rust]
+incremental = false
