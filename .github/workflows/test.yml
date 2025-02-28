@@ -143,7 +143,7 @@ jobs:
         include:
           - rust: stable
             toolchain: stable
-            coverage: --enable-coverage
+            # coverage: --enable-coverage
           - rust: prev
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
@@ -161,28 +161,28 @@ jobs:
           mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
           cargo-package-to-clean: burn-tch
       # --------------------------------------------------------------------------------
-      - name: Install grcov
-        if: matrix.rust == 'stable'
-        shell: bash
-        run: |
-          curl -L "$GRCOV_LINK/v$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
-          tar xj -C $HOME/.cargo/bin
-          cargo xtask coverage install
+      # - name: Install grcov
+      #   if: matrix.rust == 'stable'
+      #   shell: bash
+      #   run: |
+      #     curl -L "$GRCOV_LINK/v$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
+      #     tar xj -C $HOME/.cargo/bin
+      #     cargo xtask coverage install
       # --------------------------------------------------------------------------------
       - name: Tests
         run: cargo xtask ${{ matrix.coverage }} test --ci
       # --------------------------------------------------------------------------------
-      - name: Generate lcov.info
-        if: matrix.rust == 'stable'
-        # /* is to exclude std library code coverage from analysis
-        run: cargo xtask coverage generate --ignore "/*,xtask/*,examples/*"
+      # - name: Generate lcov.info
+      #   if: matrix.rust == 'stable'
+      #   # /* is to exclude std library code coverage from analysis
+      #   run: cargo xtask coverage generate --ignore "/*,xtask/*,examples/*"
       # --------------------------------------------------------------------------------
-      - name: Codecov upload lcov.info
-        if: matrix.rust == 'stable'
-        uses: codecov/codecov-action@v5
-        with:
-          files: lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
+      # - name: Codecov upload lcov.info
+      #   if: matrix.rust == 'stable'
+      #   uses: codecov/codecov-action@v5
+      #   with:
+      #     files: lcov.info
+      #     token: ${{ secrets.CODECOV_TOKEN }}
 
   linux-no-std-tests:
     runs-on: ubuntu-22.04
