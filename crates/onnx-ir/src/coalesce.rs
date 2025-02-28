@@ -2,11 +2,11 @@ use std::{iter::Peekable, slice::Iter};
 
 use super::{
     from_onnx::GraphData,
-    ir::{Node, NodeType},
+    ir::{AttributeValue, Node, NodeType},
     proto_conversion::convert_node_proto,
     protos::NodeProto,
 };
-use crate::ir::ArgType;
+use crate::ir::{ArgType, Data, TensorType};
 
 /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
 pub fn coalesce(
@@ -16,7 +16,7 @@ pub fn coalesce(
 ) {
     #[allow(clippy::single_match)]
     match node.node_type {
-        //NodeType::Gemm => convert_gemm_to_linear(node),
+        NodeType::Gemm => convert_gemm_to_linear(node),
         NodeType::MatMul => {
             convert_matmul_to_linear(node, nodes_iter, graph_data);
         }
@@ -24,10 +24,9 @@ pub fn coalesce(
     }
 }
 
-// /// This function converts a Gemm node into a Linear node
-// ///
-// /// PyTorch and other frameworks use Gemm node to represent Linear layer.
-/*
+/// This function converts a Gemm node into a Linear node
+///
+/// PyTorch and other frameworks use Gemm node to represent Linear layer.
 pub(crate) fn convert_gemm_to_linear(node: &mut Node) {
     if node.outputs.len() != 1 {
         panic!("Gemm node must have 1 output");
@@ -53,14 +52,12 @@ pub(crate) fn convert_gemm_to_linear(node: &mut Node) {
 
         // Transpose the weights
         transpose_linear_node_weights(node);
-    } else {
-        panic!("Full Gemm node not supported yet.");
+        //} else {
+        //    panic!("Full Gemm node not supported yet.");
     }
 }
-*/
 
 // Transpose linear weights (required for Gemm -> Linear conversion)
-/*
 fn transpose_linear_node_weights(node: &mut Node) {
     assert!(
         node.inputs.len() > 1,
@@ -100,9 +97,7 @@ fn transpose_linear_node_weights(node: &mut Node) {
         dim: 2,
     });
 }
-*/
 
-/*
 fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec<T> {
     assert_eq!(matrix.len(), rows * cols, "Matrix must be flattened");
 
@@ -116,7 +111,6 @@ fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec
 
     transposed
 }
-*/
 
 /// This function converts a MatMul node into a Linear node if possible.
 ///
