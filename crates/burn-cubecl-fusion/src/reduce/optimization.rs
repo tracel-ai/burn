@@ -22,17 +22,21 @@ use crate::shared::{
 use crate::CubeFusionHandle;
 
 use super::args::{FusedReduceArgs, FusedReduceInputLaunch, FusedReduceOutputLaunch};
+use super::tune::fused_reduce_autotune;
 
 #[derive(new)]
 pub struct ReduceOptimization<R: Runtime> {
-    trace_read: FuseTrace,
+    pub(crate) trace_read: FuseTrace,
     trace_write: FuseTrace,
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
     pub(crate) client: ComputeClient<R::Server, R::Channel>,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
-    pub(crate) fuse: FusedReduce,
+    pub(crate) reduce: FusedReduce,
+    pub(crate) reduce_shared: FusedReduce,
+    pub(crate) reduce_plane: FusedReduce,
+    pub(crate) reduce_shared_plane: FusedReduce,
     fallback: Arc<dyn ReduceFallbackFn<R>>,
 }
 
@@ -59,9 +63,23 @@ pub struct ReduceOptimizationState {
 pub struct FusedReduce {
     input: Arg,
     output: Arg,
-    axis: usize,
+    pub(crate) axis: usize,
     pub(crate) op: ReduceDimOpIr,
+    strategy: ReduceStrategy,
 }
+
+impl FusedReduce {
+    pub fn with_strategy(&self, strategy: ReduceStrategy) -> Self {
+        Self {
+            input: self.input.clone(),
+            output: self.output.clone(),
+            axis: self.axis,
+            op: self.op.clone(),
+            strategy,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum FusedReduceError {
     LaunchError(ReduceError),
@@ -70,12 +88,20 @@ pub enum FusedReduceError {
 impl<R: Runtime> ReduceOptimization<R> {
     /// Execute the optimization.
     pub fn execute<BT: CubeElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
-        if self.execute_fused::<BT>(context).is_err() {
+        #[cfg(feature = "autotune")]
+        fused_reduce_autotune::<R, BT>(self, context);
+
+        #[cfg(not(feature = "autotune"))]
+        if self.execute_fused_reduce::<BT>(context).is_err() {
             self.execute_fallback::<BT>(context);
         }
     }
 
-    pub fn execute_fused<BT: CubeElement>(
+    pub fn num_output_buffers(&self) -> usize {
+        self.trace_read_fallback.outputs.len()
+    }
+
+    pub fn execute_fused_reduce<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), TraceError<FusedReduceError>> {
@@ -84,7 +110,46 @@ impl<R: Runtime> ReduceOptimization<R> {
             &self.client,
             &self.device,
             context,
-            &self.fuse,
+            &self.reduce,
+        )
+    }
+
+    pub fn execute_fused_reduce_shared<BT: CubeElement>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+    ) -> Result<(), TraceError<FusedReduceError>> {
+        FuseTrace::run_multi::<R, BT, FusedReduce>(
+            (&self.trace_read, &self.trace_write),
+            &self.client,
+            &self.device,
+            context,
+            &self.reduce_shared,
+        )
+    }
+
+    pub fn execute_fused_reduce_plane<BT: CubeElement>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+    ) -> Result<(), TraceError<FusedReduceError>> {
+        FuseTrace::run_multi::<R, BT, FusedReduce>(
+            (&self.trace_read, &self.trace_write),
+            &self.client,
+            &self.device,
+            context,
+            &self.reduce_plane,
+        )
+    }
+
+    pub fn execute_fused_reduce_shared_plane<BT: CubeElement>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+    ) -> Result<(), TraceError<FusedReduceError>> {
+        FuseTrace::run_multi::<R, BT, FusedReduce>(
+            (&self.trace_read, &self.trace_write),
+            &self.client,
+            &self.device,
+            context,
+            &self.reduce_shared_plane,
         )
     }
 
@@ -96,15 +161,19 @@ impl<R: Runtime> ReduceOptimization<R> {
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
         let (out_tensor, out_desc) = {
-            let input = context.tensors.get(&self.fuse.op.input.id).unwrap().clone();
-            let out = context.tensors.get(&self.fuse.op.out.id).unwrap().clone();
+            let input = context
+                .tensors
+                .get(&self.reduce.op.input.id)
+                .unwrap()
+                .clone();
+            let out = context.tensors.get(&self.reduce.op.out.id).unwrap().clone();
 
             let input_handle = context
                 .handles
                 .get_handle(&input.id, &TensorStatus::ReadOnly);
             let out_handle = self
                 .fallback
-                .run(input_handle, &input.shape, self.fuse.op.axis);
+                .run(input_handle, &input.shape, self.reduce.op.axis);
 
             (out_handle, out)
         };
@@ -137,11 +206,7 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
         config_read: &'a ElemwiseConfig,
         config_write: &'a ElemwiseConfig,
     ) -> Result<(), FusedReduceError> {
-        // let strategy = ReduceStrategy::new::<R>(client, true);
-        let strategy = ReduceStrategy {
-            shared: false,
-            use_planes: false,
-        };
+        let strategy = self.strategy;
         let shape = inputs.shape(&config_read.ref_layout);
         let strides = inputs.strides(&config_read.ref_layout);
         let reduce_count: u32 = shape

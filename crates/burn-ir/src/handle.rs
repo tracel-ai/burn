@@ -71,6 +71,11 @@ impl<H: Clone> HandleContainer<H> {
         self.handles.insert(id, Handle::Existing(handle));
     }
 
+    /// Whether an handle exists.
+    pub fn has_handle(&mut self, id: &TensorId) -> bool {
+        self.handles.contains_key(id)
+    }
+
     /// Get the handle for the given [tensor id](TensorId). The status is used to determine if the
     /// tensor should be popped out of the current tensor map, necessary for inplace operations.
     ///

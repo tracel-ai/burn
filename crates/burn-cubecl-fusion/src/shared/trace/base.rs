@@ -9,7 +9,7 @@ use super::{
     input::InputPlanner,
     output::OutputPlanner,
     vectorization::VectorizationPlanner,
-    HandleInput, HandleOutput, LaunchPlan, MultiTraceRunner, TraceRunner,
+    HandleInput, HandleOutput, LaunchPlan, MultiTraceRunner, TraceRunner, Vectorization,
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
@@ -108,6 +108,18 @@ impl FuseTrace {
                 context.handles.register_handle(global_id, handle);
             }
         }
+    }
+
+    pub fn vect<R: Runtime, V: Vectorization<R>>(
+        &self,
+        context: &Context<'_, CubeFusionHandle<R>>,
+        runner: &V,
+    ) -> BTreeMap<TensorId, super::Vect> {
+        let mut plan = LaunchPlan::new(&self.reads, &self.writes, self.shape_ref.len());
+        VectorizationPlanner::<R>::new(&self.views, &self.reads, &self.indexed)
+            .run(runner, context, &mut plan);
+
+        plan.vectorization
     }
 
     /// Run a trace with the given [runner](TraceRunner).

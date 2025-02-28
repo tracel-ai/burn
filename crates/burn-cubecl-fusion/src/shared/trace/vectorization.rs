@@ -41,7 +41,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
     pub fn run<Runner: Vectorization<R>>(
         self,
         runner: &Runner,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
     ) {
         let tensors_reshaped = self.views.iter().filter_map(|view| match view {

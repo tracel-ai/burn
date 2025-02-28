@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use burn_fusion::{OptimizationBuilder, OptimizationStatus};
 use burn_ir::{NumericOperationIr, OperationIr};
-use cubecl::Runtime;
+use cubecl::{reduce::ReduceStrategy, Runtime};
 
 use crate::{
     shared::{builder::FuseBuilder, ir::ElemwisePrecision, settings::FuseSettings},
@@ -79,7 +79,16 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
                 let output = self.builder_write.output_unhandled(&op.out);
                 let axis = op.axis;
 
-                self.reduce = Some(FusedReduce::new(input, output, axis, op.clone()));
+                self.reduce = Some(FusedReduce::new(
+                    input,
+                    output,
+                    axis,
+                    op.clone(),
+                    ReduceStrategy {
+                        shared: false,
+                        use_planes: false,
+                    },
+                ));
                 self.builder_read.close();
                 self.builder_read_fallback.close();
                 self.status = OptimizationStatus::Closed;
@@ -104,6 +113,20 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
         let trace_read_fallback = self.builder_read_fallback.build();
         let trace_write_fallback = self.builder_write_fallback.build();
 
+        let fuse_reduce = self.reduce.as_ref().unwrap().clone();
+        let fuse_reduce_shared = fuse_reduce.with_strategy(ReduceStrategy {
+            use_planes: false,
+            shared: true,
+        });
+        let fuse_reduce_plane = fuse_reduce.with_strategy(ReduceStrategy {
+            use_planes: true,
+            shared: false,
+        });
+        let fuse_reduce_shared_plane = fuse_reduce.with_strategy(ReduceStrategy {
+            use_planes: true,
+            shared: true,
+        });
+
         let reduce = ReduceOptimization::<R>::new(
             trace_read,
             trace_write,
@@ -112,7 +135,10 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
             client,
             self.device.clone(),
             self.len(),
-            self.reduce.as_ref().unwrap().clone(),
+            fuse_reduce,
+            fuse_reduce_shared,
+            fuse_reduce_plane,
+            fuse_reduce_shared_plane,
             self.fallback.clone(),
         );
 
