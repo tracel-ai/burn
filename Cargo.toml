@@ -129,7 +129,7 @@ half = { version = "2.4.1", features = [
     "num-traits",
     "serde",
 ], default-features = false }
-macerator = { git = "https://github.com/wingertge/macerator.git", rev = "d545515503a6117dd74c5cf6f07c2f1e91ee529a" }
+macerator = { git = "https://github.com/wingertge/macerator.git", rev = "084f980c12f894b113744ea193e79091fffd399d" }
 # macerator = { path = "../macerator" }
 matrixmultiply = { version = "0.3.9", default-features = false }
 ndarray = { version = "0.16.1", default-features = false }
@@ -138,7 +138,7 @@ num-traits = { version = "0.2.19", default-features = false, features = [
 ] } # libm is for no_std
 openblas-src = "0.10.11"
 # pulp = { path = "../pulp/pulp" }
-pulp = { git = "https://github.com/wingertge/pulp.git", rev = "382b34a300fe6e25a0d7b142f6c6520db78fc3ab", default-features = false }
+pulp = { git = "https://github.com/wingertge/pulp.git", rev = "b162d37dd53b6209fc038829cd416736ebfba53b", default-features = false }
 rand = { version = "0.9.0", default-features = false, features = [
     "std_rng",
 ] } # std_rng is for no_std
