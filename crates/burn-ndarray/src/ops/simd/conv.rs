@@ -1,14 +1,14 @@
 use core::{marker::PhantomData, mem::transmute};
 
-use burn_common::{iter_par, run_par};
+use burn_common::{iter_range_par, run_par};
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
     DType, Element, TensorMetadata,
 };
 use bytemuck::Zeroable;
-use macerator::{SimdExt, VMulAdd};
+use macerator::{SimdExt, VMulAdd, Vectorizable};
 use ndarray::{
-    s, ArcArray1, Array4, ArrayView3, ArrayView4, ArrayViewMut2, ArrayViewMut3, Axis, Dim, Ix1, Ix4,
+    s, ArcArray1, Array4, ArrayView3, ArrayView4, ArrayViewMut2, ArrayViewMut3, Dim, Ix1, Ix4,
 };
 use pulp::{Arch, Simd};
 use seq_macro::seq;
@@ -41,6 +41,11 @@ fn cast<T, E>(tensor: NdArrayTensor<T>) -> NdArrayTensor<E> {
     unsafe { transmute::<NdArrayTensor<T>, NdArrayTensor<E>>(tensor) }
 }
 
+#[pulp::with_simd(lanes = Arch::new())]
+fn lanes_simd<S: Simd, E: Vectorizable>(_simd: S, _ty: PhantomData<E>) -> usize {
+    E::lanes::<S>()
+}
+
 #[allow(clippy::result_large_err)]
 fn conv2d<E: VMulAdd + Element, T: Element>(
     x: NdArrayTensor<T>,
@@ -51,9 +56,9 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
 ) -> Result<NdArrayTensor<T>, Args<T>> {
     let [out_channels, _, k_height, k_width] = weight.shape().dims();
     let channels_per_group = out_channels / options.groups;
+    let lanes = lanes::<E>(PhantomData);
 
-    let approx_lanes = 32 / size_of::<E>();
-    if channels_per_group % approx_lanes != 0 {
+    if channels_per_group % lanes != 0 {
         return Err((x, weight, bias));
     }
 
@@ -74,18 +79,22 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
     let weights = weights.permuted_axes([1, 2, 3, 0]);
     let weights = weights.as_standard_layout();
     let bias = bias.map(|bias| bias.array.into_dimensionality::<Ix1>().unwrap());
+    let oc_blocks = out_channels / lanes;
 
     let mut out = unsafe {
         Array4::<E>::uninit(Dim([batch_size, out_height, out_width, out_channels])).assume_init()
     };
+    let unsafe_shared_out = UnsafeSharedRef::new(&mut out);
 
     run_par!(|| {
-        iter_par!(out.axis_iter_mut(Axis(0)))
-            .enumerate()
-            .for_each(|(b, mut out)| {
-                let x = x.slice(s![b, .., .., ..]);
-                conv2d_launch(x, weights.view(), &bias, &mut out, &options);
-            });
+        iter_range_par!(0, batch_size * oc_blocks).for_each(|k| unsafe {
+            let b = k / oc_blocks;
+            let ob = k % oc_blocks;
+            let x = x.slice(s![b, .., .., ..]);
+            let out = unsafe_shared_out.get();
+            let mut out = out.slice_mut(s![b, .., .., ..]);
+            conv2d_launch(x, weights.view(), &bias, &mut out, &options, ob);
+        });
     });
 
     let output = out.permuted_axes([0, 3, 1, 2]);
@@ -110,21 +119,28 @@ pub fn conv2d_simd<S: Simd, E: VMulAdd + Element>(
     bias: &Option<ArcArray1<E>>,
     out: &mut ArrayViewMut3<'_, E>,
     options: &ConvOptions<2>,
+    ob: usize,
 ) {
     let padded = options.padding != [0, 0];
     let strided = options.stride != [1, 1] || options.dilation != [1, 1];
     match (padded, strided) {
         (true, true) => unsafe {
-            run_conv2d::<S, E, REGISTER_BLOCK, true, true>(simd, x, weights, bias, out, options)
+            run_conv2d::<S, E, REGISTER_BLOCK, true, true>(simd, x, weights, bias, out, options, ob)
         },
         (true, false) => unsafe {
-            run_conv2d::<S, E, REGISTER_BLOCK, true, false>(simd, x, weights, bias, out, options)
+            run_conv2d::<S, E, REGISTER_BLOCK, true, false>(
+                simd, x, weights, bias, out, options, ob,
+            )
         },
         (false, true) => unsafe {
-            run_conv2d::<S, E, REGISTER_BLOCK, false, true>(simd, x, weights, bias, out, options)
+            run_conv2d::<S, E, REGISTER_BLOCK, false, true>(
+                simd, x, weights, bias, out, options, ob,
+            )
         },
         (false, false) => unsafe {
-            run_conv2d::<S, E, REGISTER_BLOCK, false, false>(simd, x, weights, bias, out, options)
+            run_conv2d::<S, E, REGISTER_BLOCK, false, false>(
+                simd, x, weights, bias, out, options, ob,
+            )
         },
     }
 }
@@ -137,6 +153,7 @@ unsafe fn run_conv2d<S: Simd, E: VMulAdd, const RB: usize, const PAD: bool, cons
     bias: &Option<ArcArray1<E>>,
     out: &mut ArrayViewMut3<E>,
     options: &ConvOptions<2>,
+    ob: usize,
 ) {
     let (_, k_height, k_width, out_channels) = weights.dim();
     let (out_height, out_width, _) = out.dim();
@@ -156,64 +173,58 @@ unsafe fn run_conv2d<S: Simd, E: VMulAdd, const RB: usize, const PAD: bool, cons
     let oc_b = channels_per_group.min(lanes);
     let ow_b = RB;
 
-    let unsafe_shared_out = UnsafeSharedRef::new(out);
-
     let ow_start = pad_w;
     let ow_width = out_width - 2 * pad_w;
     let oh_start = pad_h;
     let oh_end = out_height - pad_h;
 
-    let oc_blocks = out_channels.div_ceil(oc_b);
     let ow_blocks = ow_width / ow_b;
 
-    for ob in 0..oc_blocks {
-        unsafe {
-            let oc = ob * oc_b;
-            let out = unsafe_shared_out.get();
+    unsafe {
+        let oc = ob * oc_b;
 
-            let bias = if let Some(bias) = &bias {
-                simd.vload_unaligned(&bias[oc])
-            } else {
-                Zeroable::zeroed()
-            };
+        let bias = if let Some(bias) = &bias {
+            simd.vload_unaligned(&bias[oc])
+        } else {
+            Zeroable::zeroed()
+        };
 
-            for oh in oh_start..oh_end {
-                let mut out = out.slice_mut(s![oh, .., ..]);
-                for ow_block in 0..ow_blocks {
-                    let ow = ow_block * ow_b + ow_start;
+        for oh in oh_start..oh_end {
+            let mut out = out.slice_mut(s![oh, .., ..]);
+            for ow_block in 0..ow_blocks {
+                let ow = ow_block * ow_b + ow_start;
 
-                    #[allow(clippy::if_same_then_else)]
-                    if STRIDE {
-                        conv2d_inner_nopad(
-                            simd, &x, &weights, &mut out, bias, oh, ow, oc, stride_h, stride_w,
-                            dilate_h, dilate_w, k_height, k_width, pad_h, pad_w,
-                        );
-                    } else {
-                        conv2d_inner_nopad_nostride(
-                            simd, &x, &weights, &mut out, bias, oh, ow, oc, k_height, k_width,
-                            pad_h, pad_w,
-                        );
-                    }
+                #[allow(clippy::if_same_then_else)]
+                if STRIDE {
+                    conv2d_inner_nopad(
+                        simd, &x, &weights, &mut out, bias, oh, ow, oc, stride_h, stride_w,
+                        dilate_h, dilate_w, k_height, k_width, pad_h, pad_w,
+                    );
+                } else {
+                    conv2d_inner_nopad_nostride(
+                        simd, &x, &weights, &mut out, bias, oh, ow, oc, k_height, k_width, pad_h,
+                        pad_w,
+                    );
                 }
             }
-            conv2d_remainder(
-                simd,
-                x,
-                weights,
-                out,
-                bias,
-                oc,
-                ow_blocks * ow_b,
-                stride_h,
-                stride_w,
-                dilate_h,
-                dilate_w,
-                pad_h,
-                pad_w,
-                k_height,
-                k_width,
-            );
         }
+        conv2d_remainder(
+            simd,
+            x,
+            weights,
+            out,
+            bias,
+            oc,
+            ow_blocks * ow_b,
+            stride_h,
+            stride_w,
+            dilate_h,
+            dilate_w,
+            pad_h,
+            pad_w,
+            k_height,
+            k_width,
+        );
     }
 }
 
