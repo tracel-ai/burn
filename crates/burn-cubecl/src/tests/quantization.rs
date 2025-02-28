@@ -185,9 +185,13 @@ mod tests {
             let qparams = get_q_params(output_data);
             let expected = get_q_params(expected);
             assert_eq!(qparams.scale.len(), 4);
-            assert_eq!(qparams.scale, expected.scale, "Scale not equal");
+            if qparams.scale != expected.scale {
+                println!("Scale not equal:\n{}\n{}", qparams.scale, expected.scale);
+            }
             assert_eq!(qparams.offset.as_ref().unwrap().len(), 4);
-            assert_eq!(qparams.offset, expected.offset, "Offset not equal");
+            if qparams.scale != expected.scale {
+                println!("Offset not equal:\n{}\n{}", qparams.offset, expected.offset);
+            }
             panic!("Output != expected");
         }
         assert_eq!(output.to_data(), expected);
