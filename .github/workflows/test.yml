@@ -147,13 +147,9 @@ jobs:
           - rust: prev
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
+      # disable incremental compilation (reduces artifact size)
       - name: Set CI Profile
         run: echo "CARGO_PROFILE_TEST_INCREMENTAL=false" >> $GITHUB_ENV
-      # --------------------------------------------------------------------------------
-      - name: Check disk usage
-        shell: bash
-        run: |
-          df -h
       # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
@@ -177,22 +173,8 @@ jobs:
           tar xj -C $HOME/.cargo/bin
           cargo xtask coverage install
       # --------------------------------------------------------------------------------
-      - name: Check disk usage
-        shell: bash
-        run: |
-          df -h
-      # --------------------------------------------------------------------------------
       - name: Tests
         run: cargo xtask ${{ matrix.coverage }} test --ci
-      # --------------------------------------------------------------------------------
-      - name: Check disk usage
-        if: always()  # Runs even if previous steps fail
-        shell: bash
-        run: |
-          df -h
-          du -sh --exclude="*.profraw" *
-          echo ".profraw files:"
-          du -ch *.profraw | grep total || echo "No .profraw files found"
       # --------------------------------------------------------------------------------
       - name: Generate lcov.info
         if: matrix.rust == 'stable'
