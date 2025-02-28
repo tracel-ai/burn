@@ -1,3 +1,5 @@
+use core::mem;
+
 use burn_tensor::{
     quantization::{
         AffineQuantization, QParams, QTensorPrimitive, QuantizationMode, QuantizationScheme,
@@ -7,7 +9,7 @@ use burn_tensor::{
 };
 
 use alloc::vec::Vec;
-use ndarray::{ArcArray, Array, Dim, IxDyn};
+use ndarray::{ArcArray, ArrayD, IxDyn};
 
 use crate::element::QuantElement;
 
@@ -241,7 +243,7 @@ mod utils {
                         return false;
                     }
 
-                    if prev_stride >= stride {
+                    if prev_stride > stride {
                         return false;
                     }
                 }
@@ -316,21 +318,16 @@ where
     E: Element,
 {
     /// Create a new [ndarray tensor](NdArrayTensor) from [data](TensorData).
-    pub fn from_data(data: TensorData) -> NdArrayTensor<E> {
-        let shape: Shape = data.shape.clone().into();
+    pub fn from_data(mut data: TensorData) -> NdArrayTensor<E> {
+        let shape = mem::take(&mut data.shape);
 
         let array = match data.into_vec::<E>() {
-            Ok(vec) => Array::from_vec(vec).into_shared(),
+            // Safety: TensorData checks shape validity on creation, so we don't need to repeat that check here
+            Ok(vec) => unsafe { ArrayD::from_shape_vec_unchecked(shape, vec) }.into_shared(),
             Err(err) => panic!("Data should have the same element type as the tensor {err:?}"),
         };
-        let ndims = shape.num_dims();
 
-        reshape!(
-            ty E,
-            shape shape,
-            array array,
-            d ndims
-        )
+        NdArrayTensor::new(array)
     }
 }
 

@@ -105,7 +105,17 @@ impl TensorData {
     /// Returns the immutable slice view of the tensor data.
     pub fn as_slice<E: Element>(&self) -> Result<&[E], DataError> {
         if E::dtype() == self.dtype {
-            self.try_as_slice()
+            match E::dtype() {
+                // The only way to create a bool `TensorData` with invalid values is by unsafely modifying
+                // the dtype. This should be considered unsafe to begin with, so we unsafely cast bool
+                // to u8 to skip bit validation. Validation iterates through the entire vector, so it's slow.
+                DType::Bool => {
+                    let slice = bytemuck::checked::try_cast_slice::<_, u8>(&self.bytes)
+                        .map_err(DataError::CastError)?;
+                    Ok(unsafe { core::mem::transmute::<&[u8], &[E]>(slice) })
+                }
+                _ => bytemuck::checked::try_cast_slice(&self.bytes).map_err(DataError::CastError),
+            }
         } else {
             Err(DataError::TypeMismatch(format!(
                 "Invalid target element type (expected {:?}, got {:?})",
@@ -121,7 +131,18 @@ impl TensorData {
     /// If the target element type is different from the stored element type.
     pub fn as_mut_slice<E: Element>(&mut self) -> Result<&mut [E], DataError> {
         if E::dtype() == self.dtype {
-            bytemuck::checked::try_cast_slice_mut(&mut self.bytes).map_err(DataError::CastError)
+            match E::dtype() {
+                // The only way to create a bool `TensorData` with invalid values is by unsafely modifying
+                // the dtype. This should be considered unsafe to begin with, so we unsafely cast bool
+                // to u8 to skip bit validation. Validation iterates through the entire vector, so it's slow.
+                DType::Bool => {
+                    let slice = bytemuck::checked::try_cast_slice_mut::<_, u8>(&mut self.bytes)
+                        .map_err(DataError::CastError)?;
+                    Ok(unsafe { core::mem::transmute::<&mut [u8], &mut [E]>(slice) })
+                }
+                _ => bytemuck::checked::try_cast_slice_mut(&mut self.bytes)
+                    .map_err(DataError::CastError),
+            }
         } else {
             Err(DataError::TypeMismatch(format!(
                 "Invalid target element type (expected {:?}, got {:?})",
@@ -147,6 +168,20 @@ impl TensorData {
             )));
         }
 
+        match E::dtype() {
+            // The only way to create a bool `TensorData` with invalid values is by unsafely modifying
+            // the dtype. This should be considered unsafe to begin with, so we unsafely cast bool
+            // to u8 to skip bit validation. Validation iterates through the entire vector, so it's slow.
+            DType::Bool => {
+                let vec = self.into_vec_unchecked::<u8>()?;
+                Ok(unsafe { core::mem::transmute::<Vec<u8>, Vec<E>>(vec) })
+            }
+            _ => self.into_vec_unchecked(),
+        }
+    }
+
+    /// Returns the tensor data as a vector of scalar values. Does not check dtype.
+    pub fn into_vec_unchecked<E: Element>(self) -> Result<Vec<E>, DataError> {
         let mut me = self;
         me.bytes = match me.bytes.try_into_vec::<E>() {
             Ok(elems) => return Ok(elems),

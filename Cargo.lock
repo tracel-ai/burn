@@ -530,6 +530,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "bon"
+version = "3.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe7acc34ff59877422326db7d6f2d845a582b16396b6b08194942bf34c6528ab"
+dependencies = [
+ "bon-macros",
+ "rustversion",
+]
+
+[[package]]
+name = "bon-macros"
+version = "3.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4159dd617a7fbc9be6a692fe69dc2954f8e6bb6bb5e4d7578467441390d77fd0"
+dependencies = [
+ "darling",
+ "ident_case",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn 2.0.98",
+]
+
+[[package]]
 name = "bstr"
 version = "1.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -946,6 +971,7 @@ dependencies = [
 name = "burn-vision"
 version = "0.17.0"
 dependencies = [
+ "bon",
  "burn-candle",
  "burn-cubecl",
  "burn-cuda",
@@ -956,9 +982,16 @@ dependencies = [
  "burn-tensor",
  "burn-tensor-testgen",
  "burn-wgpu",
+ "bytemuck",
  "cubecl",
  "derive-new 0.7.0",
+ "half",
+ "image",
+ "macerator",
  "ndarray",
+ "num-traits",
+ "paste",
+ "pulp 0.21.4 (git+https://github.com/wingertge/pulp.git?rev=d8ad45976c0c130ea92a790c852d430566efbf61)",
  "serde",
 ]
 
@@ -2685,7 +2718,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "paste",
- "pulp 0.21.4",
+ "pulp 0.21.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "raw-cpuid 11.4.0",
  "rayon",
  "seq-macro",
@@ -3544,9 +3577,9 @@ checksum = "b248f5224d1d606005e02c97f5aa4e88eeb230488bcc03bc9ca4d7991399f2b5"
 
 [[package]]
 name = "inout"
-version = "0.1.3"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0c10553d664a4d0bcff9f4215d0aac67a639cc68ef660840afe309b807bc9f5"
+checksum = "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01"
 dependencies = [
  "generic-array",
 ]
@@ -3729,7 +3762,7 @@ checksum = "c0ff37bd590ca25063e35af745c343cb7a0271906fb7b37e4813e8f79f00268d"
 dependencies = [
  "bitflags 2.8.0",
  "libc",
- "redox_syscall 0.5.8",
+ "redox_syscall 0.5.9",
 ]
 
 [[package]]
@@ -3779,9 +3812,9 @@ checksum = "9374ef4228402d4b7e403e5838cb880d9ee663314b0a900d5a6aabf0c213552e"
 
 [[package]]
 name = "log"
-version = "0.4.25"
+version = "0.4.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04cbf5b083de1c7e0222a7a51dbfdba1cbe1c6ab0b15e29fff3f6c077fd9cd9f"
+checksum = "30bde2b3dc3671ae49d8e2e9f044c7c005836e7a023ee57cffa25ab82764bb9e"
 
 [[package]]
 name = "loop9"
@@ -3828,6 +3861,15 @@ checksum = "297e814c836ae64db86b36cf2a557ba54368d03f6afcd7d947c266692f71115e"
 dependencies = [
  "byteorder",
  "crc",
+]
+
+[[package]]
+name = "macerator"
+version = "0.1.0"
+source = "git+https://github.com/wingertge/macerator.git?rev=25b7a80fddcb82fc6dc0a579c2dea338b470401d#25b7a80fddcb82fc6dc0a579c2dea338b470401d"
+dependencies = [
+ "paste",
+ "pulp 0.21.4 (git+https://github.com/wingertge/pulp.git?rev=d8ad45976c0c130ea92a790c852d430566efbf61)",
 ]
 
 [[package]]
@@ -4699,7 +4741,7 @@ checksum = "1e401f977ab385c9e4e3ab30627d6f26d00e2c73eef317493c4ec6d468726cf8"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall 0.5.8",
+ "redox_syscall 0.5.9",
  "smallvec",
  "windows-targets 0.52.6",
 ]
@@ -5516,6 +5558,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "pulp"
+version = "0.21.4"
+source = "git+https://github.com/wingertge/pulp.git?rev=d8ad45976c0c130ea92a790c852d430566efbf61#d8ad45976c0c130ea92a790c852d430566efbf61"
+dependencies = [
+ "bytemuck",
+ "cfg-if",
+ "libm",
+ "num-complex",
+ "paste",
+ "pulp-macro",
+ "reborrow",
+ "version_check",
+]
+
+[[package]]
+name = "pulp-macro"
+version = "0.1.1"
+source = "git+https://github.com/wingertge/pulp.git?rev=d8ad45976c0c130ea92a790c852d430566efbf61#d8ad45976c0c130ea92a790c852d430566efbf61"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.98",
+]
+
+[[package]]
 name = "pytorch-import"
 version = "0.17.0"
 dependencies = [
@@ -5891,9 +5958,9 @@ dependencies = [
 
 [[package]]
 name = "redox_syscall"
-version = "0.5.8"
+version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03a862b389f93e68874fbf580b9de08dd02facb9a788ebadaf4a3fd33cf58834"
+checksum = "82b568323e98e49e2a0899dcee453dd679fae22d69adf9b11dd508d1549b7e2f"
 dependencies = [
  "bitflags 2.8.0",
 ]
@@ -6678,9 +6745,9 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
 name = "stacker"
-version = "0.1.18"
+version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d08feb8f695b465baed819b03c128dc23f57a694510ab1f06c77f763975685e"
+checksum = "d9156ebd5870ef293bfb43f91c7a74528d363ec0d424afe24160ed5a4343d08a"
 dependencies = [
  "cc",
  "cfg-if",
