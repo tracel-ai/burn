@@ -457,3 +457,11 @@ mod tests {
         );
     }
 }
+
+unsafe extern "C" {
+    /// Dummy function to get CUDA to link properly
+    pub fn dummy_cuda_dependency();
+}
+
+#[used]
+static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [dummy_cuda_dependency];

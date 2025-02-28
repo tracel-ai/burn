@@ -14,18 +14,22 @@ pub struct GlobalTensor {
     pub tensor: Tensor<Line<NumericExpand<DYN_ELEM_ID>>>,
     #[cube(comptime)]
     pub elem: Elem,
+    #[cube(comptime)]
+    pub broadcasted: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct GlobalTensorCompilationArg {
     tensor: TensorCompilationArg,
     elem: Elem,
+    broadcasted: bool,
 }
 
 #[derive(new, Debug)]
 pub struct GlobalTensorArg<'a, R: Runtime> {
     pub tensor: <Tensor<Line<NumericExpand<DYN_ELEM_ID>>> as LaunchArg>::RuntimeArg<'a, R>,
     pub elem: Elem,
+    pub broadcasted: bool,
 }
 
 #[derive(CubeType)]
@@ -249,6 +253,7 @@ impl LaunchArg for GlobalTensor {
         GlobalTensorCompilationArg {
             tensor,
             elem: runtime_arg.elem,
+            broadcasted: runtime_arg.broadcasted,
         }
     }
 }
@@ -270,6 +275,7 @@ impl LaunchArgExpand for GlobalTensor {
         GlobalTensorExpand {
             tensor: tensor.into(),
             elem: arg.elem,
+            broadcasted: arg.broadcasted,
         }
     }
     fn expand_output(
@@ -283,6 +289,7 @@ impl LaunchArgExpand for GlobalTensor {
         GlobalTensorExpand {
             tensor: tensor.into(),
             elem: arg.elem,
+            broadcasted: arg.broadcasted,
         }
     }
 }

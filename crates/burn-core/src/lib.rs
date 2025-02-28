@@ -19,7 +19,6 @@ pub mod config;
 pub mod data;
 
 /// Optimizer module.
-#[cfg(feature = "std")]
 pub mod optim;
 
 /// Learning rate scheduler module.
@@ -65,7 +64,6 @@ pub type TestBackend = burn_wgpu::Wgpu;
 pub type TestBackend = burn_cuda::Cuda;
 
 /// Backend for autodiff test cases
-#[cfg(feature = "std")]
 #[cfg(test)]
 pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 

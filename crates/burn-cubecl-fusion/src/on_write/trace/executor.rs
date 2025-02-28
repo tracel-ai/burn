@@ -89,6 +89,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             rank: plan.rank as u32,
             ref_layout: reference.layout,
             ops,
+            width: plan.width,
         };
 
         Runner::run(runner, client, inputs, outputs, &config)
@@ -104,9 +105,11 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
 
         for hi in handle_inputs.iter() {
             let arg = hi.handle.as_tensor_arg(&hi.global_shape, hi.vectorization);
-            inputs
-                .tensors
-                .push(GlobalTensorArg::new(arg, hi.precision.into_elem()));
+            inputs.tensors.push(GlobalTensorArg::new(
+                arg,
+                hi.precision.into_elem(),
+                hi.broadcated,
+            ));
         }
 
         let mut index_f32 = 0;
@@ -222,6 +225,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                     outputs.tensors.push(GlobalTensorArg::new(
                         TensorArg::alias(*input_pos),
                         precision.into_elem(),
+                        false,
                     ));
                 }
                 HandleOutput::Owned {
@@ -241,7 +245,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                         },
                         _ => precision.into_elem(),
                     };
-                    outputs.tensors.push(GlobalTensorArg::new(arg, elem));
+                    outputs.tensors.push(GlobalTensorArg::new(arg, elem, false));
                 }
             }
         }

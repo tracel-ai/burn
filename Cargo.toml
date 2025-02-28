@@ -85,7 +85,7 @@ spin = { version = "0.9.8", features = [
 strum = "0.26.3"
 strum_macros = "0.26.4"
 syn = { version = "2.0.95", features = ["full", "extra-traits"] }
-tempfile = "3.16.0"
+tempfile = "3.17.1"
 thiserror = "2.0.11"
 tokio = { version = "1.42.0", features = ["rt", "macros"] }
 tracing-appender = "0.2.3"
@@ -121,8 +121,11 @@ bincode = { version = "2.0.0-rc.3", features = [
 #
 cfg-if = "1.0.0"
 derive-new = { version = "0.7.0", default-features = false }
+macerator = { git = "https://github.com/wingertge/macerator.git", rev = "25b7a80fddcb82fc6dc0a579c2dea338b470401d" }
+pulp = { git = "https://github.com/wingertge/pulp.git", rev = "d8ad45976c0c130ea92a790c852d430566efbf61", default-features = false }
 
 blas-src = { version = "0.10.0", default-features = false }
+bon = "3.3.0"
 half = { version = "2.4.1", features = [
     "alloc",
     "num-traits",
@@ -138,25 +141,27 @@ rand = { version = "0.9.0", default-features = false, features = [
     "std_rng",
 ] } # std_rng is for no_std
 rand_distr = { version = "0.5.0", default-features = false }
-serde = { version = "1.0.217", default-features = false, features = [
+serde = { version = "1.0.218", default-features = false, features = [
     "derive",
     "alloc",
 ] } # alloc is for no_std, derive is needed
-serde_json = { version = "1.0.137", default-features = false }
+serde_json = { version = "1.0.139", default-features = false }
 uuid = { version = "1.12.1", default-features = false }
 
-libc = "0.2.169"
+libc = "0.2.170"
 nvml-wrapper = "0.10.0"
 sysinfo = "0.33.1"
 systemstat = "0.2.3"
-tch = "0.15.0"
+tch = "0.19.0"
+torch-sys = "0.19.0"    # matches what tch is using, required for lib detection
 
 ahash = { version = "0.8.11", default-features = false }
+portable-atomic = { version = "1.10.0" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8b025f26e5badbf1b8f3e6787fc097427cd961ec" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8b025f26e5badbf1b8f3e6787fc097427cd961ec" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b41cbd82d53f091e76f56cad58c277fe2481c48e" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b41cbd82d53f091e76f56cad58c277fe2481c48e" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

@@ -406,12 +406,12 @@ impl ParsedOnnxGraph {
 
         let const_value = match attr.ty {
             ArgType::Tensor(tensor) => {
-                // Treat tensor with dim 0 as scalar
-                if tensor.dim == 0 {
-                    panic!("Constant tensor with dim 0 should have been converted to scalar.")
+                // Treat tensor with rank 0 as scalar
+                if tensor.rank == 0 {
+                    panic!("Constant tensor with rank 0 should have been converted to scalar.")
                 } else {
                     let kind: TensorKind = tensor.elem_type.clone().into();
-                    let dim = tensor.dim;
+                    let rank = tensor.rank;
                     let name = node.name.clone();
                     let shape = tensor.shape.clone();
 
@@ -431,7 +431,7 @@ impl ParsedOnnxGraph {
                         _ => panic!("Unsupported constant tensor type: {:?} ", tensor.elem_type),
                     };
 
-                    ConstantValue::Tensor(TensorType::new(name, dim, kind, shape), tensor_data)
+                    ConstantValue::Tensor(TensorType::new(name, rank, kind, shape), tensor_data)
                 }
             }
             ArgType::Scalar(elem_type) => match elem_type {
@@ -677,7 +677,7 @@ impl ParsedOnnxGraph {
     fn gather_conversion(node: Node) -> GatherNode {
         let input = Type::from(node.inputs.first().unwrap());
         let index = Type::from(node.inputs.get(1).unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let dim = gather_config(&node);
 
         GatherNode::new(input, index, output, dim)
@@ -742,7 +742,7 @@ impl ParsedOnnxGraph {
                     ScalarType::new(arg.name.clone(), ScalarKind::from(scalar))
                 }
                 ArgType::Tensor(tensor) => {
-                    if tensor.dim != 0 {
+                    if tensor.rank != 0 {
                         panic!("Range node requires scalar inputs");
                     }
                     ScalarType::new(arg.name.clone(), ScalarKind::from(&tensor.elem_type))
@@ -940,7 +940,7 @@ impl ParsedOnnxGraph {
         let config = batch_norm_config(&node);
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let dim = input.dim - 2;
+        let dim = input.rank - 2;
 
         let gamma = extract_data_serialize::<PS::FloatElem>(1, &node).expect("Gamma is required");
         let beta = extract_data_serialize::<PS::FloatElem>(2, &node).expect("Beta is required");
@@ -1162,7 +1162,7 @@ impl ParsedOnnxGraph {
         let input = TensorType::from(node.inputs.first().unwrap());
         let shape = expand_config(&node);
 
-        // dim_inference left the dim at zero, so it needs to be filled before converting to TensorType:
+        // rank_inference left the rank at zero, so it needs to be filled before converting to TensorType:
         assert_eq!(
             node.outputs.len(),
             1,
@@ -1170,9 +1170,9 @@ impl ParsedOnnxGraph {
         );
         let mut output_arg = node.outputs.pop().unwrap();
         if let ArgType::Tensor(output_arg_tensor) = &mut output_arg.ty {
-            output_arg_tensor.dim = match &shape {
+            output_arg_tensor.rank = match &shape {
                 ExpandShape::Static(s) => s.len(),
-                ExpandShape::Runtime(Type::Shape(s)) => s.dim,
+                ExpandShape::Runtime(Type::Shape(s)) => s.rank,
                 ExpandShape::Runtime(Type::Tensor(t)) => t.shape.as_ref().unwrap()[0],
                 _ => panic!("Invalid ExpandShape {shape:?}!"),
             };
@@ -1375,22 +1375,22 @@ impl From<&OnnxArgument> for TensorType {
         match &arg.ty {
             ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Float16 | ElementType::Float32 | ElementType::Float64,
-                dim,
+                rank,
                 shape,
                 ..
-            }) => TensorType::new_float_with_shape(arg.name.clone(), *dim, shape.clone()),
+            }) => TensorType::new_float_with_shape(arg.name.clone(), *rank, shape.clone()),
             ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Int32 | ElementType::Int64,
-                dim,
+                rank,
                 shape,
                 ..
-            }) => TensorType::new_int_with_shape(arg.name.clone(), *dim, shape.clone()),
+            }) => TensorType::new_int_with_shape(arg.name.clone(), *rank, shape.clone()),
             ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Bool,
-                dim,
+                rank,
                 shape,
                 ..
-            }) => TensorType::new_bool_with_shape(arg.name.clone(), *dim, shape.clone()),
+            }) => TensorType::new_bool_with_shape(arg.name.clone(), *rank, shape.clone()),
             _ => panic!("Can't transform {:?} to tensor.", arg.ty),
         }
     }
@@ -1399,25 +1399,25 @@ impl From<&OnnxArgument> for Type {
     fn from(arg: &OnnxArgument) -> Self {
         match &arg.ty {
             ArgType::Tensor(tensor) => {
-                // Treat tensor with dim 0 as scalar
-                if tensor.dim == 0 {
+                // Treat tensor with rank 0 as scalar
+                if tensor.rank == 0 {
                     Type::Scalar(ScalarType::new(
                         arg.name.clone(),
                         ScalarKind::from(&tensor.elem_type),
                     ))
                 } else {
                     let kind: TensorKind = tensor.elem_type.clone().into();
-                    let dim = tensor.dim;
+                    let rank = tensor.rank;
                     let name = arg.name.clone();
                     let shape = tensor.shape.clone();
-                    Type::Tensor(TensorType::new(name, dim, kind, shape))
+                    Type::Tensor(TensorType::new(name, rank, kind, shape))
                 }
             }
 
             ArgType::Scalar(elem_type) => {
                 Type::Scalar(ScalarType::new(arg.name.clone(), elem_type.into()))
             }
-            ArgType::Shape(dim) => Type::Shape(ShapeType::new(arg.name.clone(), *dim)),
+            ArgType::Shape(rank) => Type::Shape(ShapeType::new(arg.name.clone(), *rank)),
         }
     }
 }

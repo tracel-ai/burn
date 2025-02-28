@@ -1,14 +1,13 @@
+use crate::burn::ToTokens;
 use proc_macro2::Ident;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::burn::ToTokens;
-
 #[derive(Debug, Clone)]
 pub struct TensorType {
     pub name: Ident,
-    pub dim: usize,
+    pub rank: usize,
     pub kind: TensorKind,
     pub shape: Option<Vec<usize>>,
 }
@@ -38,7 +37,7 @@ pub struct ScalarType {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShapeType {
     pub name: Ident,
-    pub dim: usize,
+    pub rank: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -165,11 +164,11 @@ impl ShapeType {
         let formatted_name = Type::format_name(name.as_ref());
         Self {
             name: Ident::new(&formatted_name, Span::call_site()),
-            dim,
+            rank: dim,
         }
     }
     pub fn ty(&self) -> TokenStream {
-        let dim = self.dim.to_tokens();
+        let dim = self.rank.to_tokens();
         quote! { [usize; #dim] }
     }
 
@@ -199,13 +198,14 @@ impl TensorType {
             );
         }
         let formatted_name = Type::format_name(name.as_ref());
+
         assert_ne!(
             dim, 0,
             "Trying to create TensorType with dim = 0 - should be a Scalar instead!"
         );
         Self {
             name: Ident::new(&formatted_name, Span::call_site()),
-            dim,
+            rank: dim,
             kind,
             shape,
         }
@@ -247,7 +247,7 @@ impl TensorType {
     }
 
     pub fn ty(&self) -> TokenStream {
-        let dim = self.dim.to_tokens();
+        let dim = self.rank.to_tokens();
         match self {
             TensorType {
                 kind: TensorKind::Float,

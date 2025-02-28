@@ -5,10 +5,13 @@ use std::{
 
 use burn_fusion::stream::Context;
 use burn_ir::TensorId;
-use cubecl::Runtime;
+use cubecl::{
+    ir::{Elem, UIntKind},
+    Runtime,
+};
 
 use crate::{
-    on_write::{ir::ElemwiseOp, settings::FuseSettings},
+    on_write::{ir::ElemwiseOp, trace::Vect},
     CubeFusionHandle,
 };
 
@@ -16,7 +19,6 @@ use super::{HandleOutput, LaunchPlan, TensorView, TraceRunner};
 
 /// Select the best vectorization factor for each tensor handle.
 pub struct VectorizationPlanner<'a, R: Runtime> {
-    settings: &'a FuseSettings,
     views: &'a Vec<TensorView>,
     reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,
     indexed: &'a BTreeSet<TensorId>,
@@ -27,11 +29,9 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
     pub fn new(
         views: &'a Vec<TensorView>,
         reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,
-        settings: &'a FuseSettings,
         indexed: &'a BTreeSet<TensorId>,
     ) -> Self {
         Self {
-            settings,
             views,
             reads,
             indexed,
@@ -65,6 +65,25 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             TensorView::Reshape { .. } => None,
         });
 
+        let mut ref_elem = (Elem::UInt(UIntKind::U64), 8);
+
+        for r in plan.global_inputs.iter() {
+            let elem: Elem = r.dtype.into();
+            let elem_size = elem.size();
+
+            if ref_elem.1 >= elem_size {
+                ref_elem = (elem, elem_size);
+            }
+        }
+        for r in plan.global_outputs.iter() {
+            let elem: Elem = r.dtype.into();
+            let elem_size = elem.size();
+
+            if ref_elem.1 >= elem_size {
+                ref_elem = (elem, elem_size);
+            }
+        }
+
         let filtered = plan
             .handle_inputs
             .iter()
@@ -90,29 +109,26 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             plan.global_outputs.iter(),
             tensors_reshaped,
             tensors_swapped,
+            &ref_elem.0,
         );
-
-        // If mix vectorization is disable, we set the vectorization factor of each tensor to the
-        // minimum value found.
-        if !self.settings.mix_vectorization {
-            let factor = plan.vectorization.values().min().cloned();
-            if let Some(factor) = factor {
-                plan.vectorization
-                    .iter_mut()
-                    .for_each(|(_, vf)| *vf = factor);
-            }
-        }
 
         for tensor in self.indexed {
             let global = context.tensors.get(tensor).unwrap();
-            plan.vectorization.insert(global.id, 1);
+            plan.vectorization.insert(global.id, Vect::Aligned(1));
         }
 
+        plan.width = 0;
+
         for handle in plan.handle_inputs.iter_mut() {
-            handle.vectorization = match plan.vectorization.get(&handle.global_id) {
-                Some(v) => *v,
+            let (vect, br) = match plan.vectorization.get(&handle.global_id) {
+                Some(v) => (v.line_size(), v.is_broadcast()),
                 None => panic!("No vectorization factor found for {:?}", handle.global_id),
             };
+            handle.vectorization = vect;
+            handle.broadcated = br;
+            if plan.width < handle.vectorization {
+                plan.width = handle.vectorization;
+            }
         }
         for handle in plan.handle_outputs.iter_mut() {
             if let HandleOutput::Owned {
@@ -121,7 +137,10 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 ..
             } = handle
             {
-                *vectorization = *plan.vectorization.get(global_id).unwrap()
+                *vectorization = plan.vectorization.get(global_id).unwrap().line_size();
+                if plan.width < *vectorization {
+                    plan.width = *vectorization;
+                }
             }
         }
     }

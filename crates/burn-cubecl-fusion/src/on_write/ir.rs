@@ -22,10 +22,12 @@ pub enum Arg {
     InputReshaped {
         original: Box<Arg>,
         shape: Sequence<Arg>,
+        broadcasted: bool,
     },
     InputSwapDims {
         original: Box<Arg>,
         dims: (u32, u32),
+        broadcasted: bool,
     },
 }
 
@@ -70,6 +72,8 @@ impl IntoRuntime for Arg {
         self
     }
 }
+
+impl CubeDebug for Arg {}
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 /// Operations that can be executed and fused.
@@ -375,6 +379,7 @@ pub struct ElemwiseConfig {
     pub rank: u32,
     pub ref_layout: Arg,
     pub ops: Sequence<ElemwiseOp>,
+    pub width: u8,
 }
 
 impl Arg {

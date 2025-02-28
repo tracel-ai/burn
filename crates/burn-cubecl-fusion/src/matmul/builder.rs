@@ -33,7 +33,6 @@ impl<R: Runtime> MatmulBuilder<R> {
         let settings = FuseSettings {
             broadcast: true,
             output_shape_updates: false,
-            mix_vectorization: true,
             inplace: true,
         };
 

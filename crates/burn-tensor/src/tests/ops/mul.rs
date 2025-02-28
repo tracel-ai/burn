@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(mul)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, Tensor, TensorData};
+    use burn_tensor::{backend::Backend, Int, Tensor, TensorData};
 
     #[test]
     fn should_support_mul_ops() {

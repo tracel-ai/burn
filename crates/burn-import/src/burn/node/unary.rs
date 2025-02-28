@@ -123,7 +123,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
 
         match &self.output {
             Type::Shape(ref shape_type) => {
-                let dim = shape_type.dim.to_tokens();
+                let dim = shape_type.rank.to_tokens();
                 quote! {
                     let #output: [usize;#dim] = #function.try_into().unwrap();
                 }

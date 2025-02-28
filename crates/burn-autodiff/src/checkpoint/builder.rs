@@ -1,9 +1,11 @@
 use crate::{
+    collections::HashMap,
     graph::{ComputingProperty, NodeID, NodeSteps},
     tensor::AutodiffTensor,
 };
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use burn_tensor::backend::Backend;
-use std::{any::Any, collections::HashMap, sync::Arc};
+use core::any::Any;
 
 use super::{
     base::{Checkpointer, NodeTree},
