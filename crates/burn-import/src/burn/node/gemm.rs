@@ -54,14 +54,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GemmNode {
             quote! {#b}
         };
 
-        let product = quote! {#a.matmul(#b)};
+        let product = quote! {#a.clone().matmul(#b.clone())};
         let scaled_product = quote! {#product * #alpha};
 
         if let Some(ref c) = self.c {
             let c = scope.tensor_use_owned(c, node_position);
 
             quote! {
-                let #output = (#scaled_product) + (#c * #beta);
+                let mut d = (#scaled_product).zeros_like();
+                d = #c.unsqueeze();
+                let #output = (#scaled_product) + (d * #beta);
             }
         } else {
             quote! {
@@ -128,8 +130,9 @@ mod tests {
                 }
 
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 2>) -> Tensor<B, 2> {
-                    "hello"
+                pub fn forward(&self, tensor1: Tensor<B, 2>, tensor2: Tensor<B, 2>) -> Tensor<B, 2> {
+                    let tensor3 = tensor1.clone().matmul(tensor2.clone()) * 1f32;
+                    tensor3
                 }
             }
         };

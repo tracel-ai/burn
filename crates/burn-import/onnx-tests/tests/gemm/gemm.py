@@ -12,14 +12,14 @@ def create_gemm_model(output_path="gemm.onnx"):
         output_path (str): Path to save the ONNX model
     """
     # Define input and output shapes
-    batch_size = 2
-    m, k, n = 2, 3, 4  # A: (m, k), B: (k, n), C: (m, n)
+    # batch_size = 1
+    m, k, n = 2, 2, 2  # A: (m, k), B: (k, n), C: (m, n)
 
     # Define the graph inputs and outputs
-    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [batch_size, m, k])
-    B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [batch_size, k, n])
-    C = helper.make_tensor_value_info('C', TensorProto.FLOAT, [batch_size, m, n])
-    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [batch_size, m, n])
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [m, k])
+    B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [k, n])
+    C = helper.make_tensor_value_info('C', TensorProto.FLOAT, [m, n])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [m, n])
 
     # Define Gemm node attributes
     alpha = 1.0
