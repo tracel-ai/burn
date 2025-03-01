@@ -10,7 +10,7 @@ use macerator::{SimdExt, VMulAdd};
 use ndarray::{
     s, ArcArray1, Array4, ArrayView3, ArrayView4, ArrayViewMut2, ArrayViewMut3, Dim, Ix1, Ix4,
 };
-use pulp::{Arch, Simd};
+use pulp::{Arch, Simd, WithSimd};
 use seq_macro::seq;
 
 use crate::{ops::simd::lanes, FloatNdArrayElement, NdArrayTensor, UnsafeSharedRef};
@@ -65,6 +65,9 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
     let [dilate_h, dilate_w] = options.dilation;
     let [stride_h, stride_w] = options.stride;
     let [pad_h, pad_w] = options.padding;
+    let padded = options.padding != [0, 0];
+    let strided = options.stride != [1, 1] || options.dilation != [1, 1];
+    let grouped = options.groups != 1;
 
     let out_height = calculate_conv_output_size(k_height, stride_h, pad_h, dilate_h, in_height);
     let out_width = calculate_conv_output_size(k_width, stride_w, pad_w, dilate_w, in_width);
@@ -88,7 +91,34 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
             let x = x.slice(s![b, .., .., ..]);
             let out = unsafe_shared_out.get();
             let mut out = out.slice_mut(s![b, .., .., ..]);
-            conv2d_launch(x, weights.view(), &bias, &mut out, &options, ob);
+            let w = weights.view();
+
+            match (padded, strided, grouped) {
+                (true, true, true) => {
+                    conv2d_launch::<E, true, true, true>(x, w, &bias, &mut out, &options, ob)
+                }
+                (true, false, true) => {
+                    conv2d_launch::<E, true, false, true>(x, w, &bias, &mut out, &options, ob)
+                }
+                (false, true, true) => {
+                    conv2d_launch::<E, false, true, true>(x, w, &bias, &mut out, &options, ob)
+                }
+                (false, false, true) => {
+                    conv2d_launch::<E, false, false, true>(x, w, &bias, &mut out, &options, ob)
+                }
+                (true, true, false) => {
+                    conv2d_launch::<E, true, true, false>(x, w, &bias, &mut out, &options, ob)
+                }
+                (true, false, false) => {
+                    conv2d_launch::<E, true, false, false>(x, w, &bias, &mut out, &options, ob)
+                }
+                (false, true, false) => {
+                    conv2d_launch::<E, false, true, false>(x, w, &bias, &mut out, &options, ob)
+                }
+                (false, false, false) => {
+                    conv2d_launch::<E, false, false, false>(x, w, &bias, &mut out, &options, ob)
+                }
+            }
         });
     });
 
@@ -104,44 +134,77 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
 const REGISTER_BLOCK: usize = 8;
 inner_with_register_blocking_size!(8);
 
-#[allow(clippy::identity_op, clippy::erasing_op)]
-#[inline(always)]
-#[pulp::with_simd(conv2d_launch = Arch::new())]
-pub fn conv2d_simd<S: Simd, E: VMulAdd + Element>(
-    simd: S,
-    x: ArrayView3<'_, E>,
-    weights: ArrayView4<'_, E>,
-    bias: &Option<ArcArray1<E>>,
-    out: &mut ArrayViewMut3<'_, E>,
-    options: &ConvOptions<2>,
+struct Conv2dLaunch<
+    'a,
+    E: VMulAdd + Element,
+    const PAD: bool,
+    const STRIDE: bool,
+    const GROUPS: bool,
+> {
+    x: ArrayView3<'a, E>,
+    weights: ArrayView4<'a, E>,
+    bias: &'a Option<ArcArray1<E>>,
+    out: &'a mut ArrayViewMut3<'a, E>,
+    options: &'a ConvOptions<2>,
     ob: usize,
-) {
-    let padded = options.padding != [0, 0];
-    let strided = options.stride != [1, 1] || options.dilation != [1, 1];
-    match (padded, strided) {
-        (true, true) => unsafe {
-            run_conv2d::<S, E, REGISTER_BLOCK, true, true>(simd, x, weights, bias, out, options, ob)
-        },
-        (true, false) => unsafe {
-            run_conv2d::<S, E, REGISTER_BLOCK, true, false>(
-                simd, x, weights, bias, out, options, ob,
+}
+
+impl<'a, E: VMulAdd + Element, const PAD: bool, const STRIDE: bool, const GROUPS: bool> WithSimd
+    for Conv2dLaunch<'a, E, PAD, STRIDE, GROUPS>
+{
+    type Output = ();
+
+    fn with_simd<S: Simd>(self, simd: S) -> Self::Output {
+        #[allow(unused_unsafe)]
+        unsafe {
+            run_conv2d::<S, E, REGISTER_BLOCK, PAD, STRIDE, GROUPS>(
+                simd,
+                self.x,
+                self.weights,
+                self.bias,
+                self.out,
+                self.options,
+                self.ob,
             )
-        },
-        (false, true) => unsafe {
-            run_conv2d::<S, E, REGISTER_BLOCK, false, true>(
-                simd, x, weights, bias, out, options, ob,
-            )
-        },
-        (false, false) => unsafe {
-            run_conv2d::<S, E, REGISTER_BLOCK, false, false>(
-                simd, x, weights, bias, out, options, ob,
-            )
-        },
+        }
     }
 }
 
+#[inline(never)]
+fn conv2d_launch<
+    'a,
+    E: VMulAdd + Element,
+    const PAD: bool,
+    const STRIDE: bool,
+    const GROUPS: bool,
+>(
+    x: ArrayView3<'a, E>,
+    weights: ArrayView4<'a, E>,
+    bias: &'a Option<ArcArray1<E>>,
+    out: &'a mut ArrayViewMut3<'a, E>,
+    options: &'a ConvOptions<2>,
+    ob: usize,
+) {
+    let launch = Conv2dLaunch::<'a, E, PAD, STRIDE, GROUPS> {
+        x,
+        weights,
+        bias,
+        out,
+        options,
+        ob,
+    };
+    (Arch::new()).dispatch(launch)
+}
+
 #[inline(always)]
-unsafe fn run_conv2d<S: Simd, E: VMulAdd, const RB: usize, const PAD: bool, const STRIDE: bool>(
+unsafe fn run_conv2d<
+    S: Simd,
+    E: VMulAdd,
+    const RB: usize,
+    const PAD: bool,
+    const STRIDE: bool,
+    const GROUPS: bool,
+>(
     simd: S,
     x: ArrayView3<E>,
     weights: ArrayView4<E>,
@@ -176,7 +239,10 @@ unsafe fn run_conv2d<S: Simd, E: VMulAdd, const RB: usize, const PAD: bool, cons
     let ow_blocks = ow_width / ow_b;
     let oc = ob * oc_b;
     let group = oc / channels_per_group;
-    let ic_off = group * in_channels;
+    let mut ic_off = group * in_channels;
+    if !GROUPS {
+        ic_off = 0;
+    }
 
     unsafe {
         let bias = if let Some(bias) = &bias {
