@@ -3888,7 +3888,7 @@ dependencies = [
 [[package]]
 name = "macerator"
 version = "0.1.0"
-source = "git+https://github.com/wingertge/macerator.git?rev=084f980c12f894b113744ea193e79091fffd399d#084f980c12f894b113744ea193e79091fffd399d"
+source = "git+https://github.com/wingertge/macerator.git?rev=5d124bbbf5c4262343f20e8d63c9071d35f2c064#5d124bbbf5c4262343f20e8d63c9071d35f2c064"
 dependencies = [
  "paste",
  "pulp 0.21.5",
@@ -5582,7 +5582,7 @@ dependencies = [
 [[package]]
 name = "pulp"
 version = "0.21.5"
-source = "git+https://github.com/wingertge/pulp.git?rev=b162d37dd53b6209fc038829cd416736ebfba53b#b162d37dd53b6209fc038829cd416736ebfba53b"
+source = "git+https://github.com/wingertge/pulp.git?rev=c550ba4eda98dcd964dc374fa4d508bfff9f03c8#c550ba4eda98dcd964dc374fa4d508bfff9f03c8"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -5597,7 +5597,7 @@ dependencies = [
 [[package]]
 name = "pulp-macro"
 version = "0.1.1"
-source = "git+https://github.com/wingertge/pulp.git?rev=b162d37dd53b6209fc038829cd416736ebfba53b#b162d37dd53b6209fc038829cd416736ebfba53b"
+source = "git+https://github.com/wingertge/pulp.git?rev=c550ba4eda98dcd964dc374fa4d508bfff9f03c8#c550ba4eda98dcd964dc374fa4d508bfff9f03c8"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -158,6 +158,7 @@ impl<E: VMulAdd + Element, const PAD: bool, const STRIDE: bool, const GROUPS: bo
 {
     type Output = ();
 
+    #[inline(always)]
     fn with_simd<S: Simd>(self, simd: S) -> Self::Output {
         #[allow(unused_unsafe)]
         unsafe {
