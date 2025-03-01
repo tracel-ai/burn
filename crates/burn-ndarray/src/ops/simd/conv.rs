@@ -149,8 +149,8 @@ struct Conv2dLaunch<
     ob: usize,
 }
 
-impl<'a, E: VMulAdd + Element, const PAD: bool, const STRIDE: bool, const GROUPS: bool> WithSimd
-    for Conv2dLaunch<'a, E, PAD, STRIDE, GROUPS>
+impl<E: VMulAdd + Element, const PAD: bool, const STRIDE: bool, const GROUPS: bool> WithSimd
+    for Conv2dLaunch<'_, E, PAD, STRIDE, GROUPS>
 {
     type Output = ();
 
