@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use macerator::{SimdExt, VAbs, VBitNot, VRecip, VSqrt, Vectorizable};
+use macerator::{SimdExt, VAbs, VBitNot, VRecip, Vectorizable};
 use ndarray::ArrayD;
 use num_traits::Signed;
 use pulp::{cast, Arch, Simd};
@@ -26,34 +26,6 @@ impl SimdUnop<f32, f32> for RecipVec {
 
     fn apply(input: f32) -> f32 {
         input.recip()
-    }
-}
-
-pub struct SqrtVec;
-
-impl SimdUnop<f32, f32> for SqrtVec {
-    fn apply_vec<S: Simd>(
-        simd: S,
-        input: <f32 as Vectorizable>::Vector<S>,
-    ) -> <f32 as Vectorizable>::Vector<S> {
-        f32::vsqrt(simd, input)
-    }
-
-    fn apply(input: f32) -> f32 {
-        input.sqrt()
-    }
-}
-
-impl SimdUnop<f64, f64> for SqrtVec {
-    fn apply_vec<S: Simd>(
-        simd: S,
-        input: <f64 as Vectorizable>::Vector<S>,
-    ) -> <f64 as Vectorizable>::Vector<S> {
-        f64::vsqrt(simd, input)
-    }
-
-    fn apply(input: f64) -> f64 {
-        input.sqrt()
     }
 }
 
