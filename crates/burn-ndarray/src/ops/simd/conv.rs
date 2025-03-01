@@ -41,6 +41,10 @@ fn cast<T, E>(tensor: NdArrayTensor<T>) -> NdArrayTensor<E> {
     unsafe { transmute::<NdArrayTensor<T>, NdArrayTensor<E>>(tensor) }
 }
 
+/// Out-channel last SIMD accelerated direct convolution. Loop order and register blocking based on
+/// E. Georganas, S. Avancha, K. Banerjee, D. Kalamkar, G. Henry, H. Pabst, A. Heinecke (2018).
+/// Anatomy Of High-Performance Deep Learning Convolutions On SIMD Architectures.
+/// SC '18, Article 6, pp. 1-12. arXiv:1808.05567. <https://arxiv.org/abs/1808.05567>.
 #[allow(clippy::result_large_err)]
 fn conv2d<E: VMulAdd + Element, T: Element>(
     x: NdArrayTensor<T>,
