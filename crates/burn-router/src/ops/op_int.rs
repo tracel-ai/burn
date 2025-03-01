@@ -609,6 +609,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         out
     }
 
+    fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        todo!()
+    }
     fn int_div(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;

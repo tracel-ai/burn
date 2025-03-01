@@ -211,6 +211,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new((lhs.tensor * rhs.elem::<f64>()).unwrap())
     }
 
+    fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        todo!()
+    }
+
     fn int_div(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         CandleTensor::new(lhs.tensor.broadcast_div(&rhs.tensor).unwrap())
     }

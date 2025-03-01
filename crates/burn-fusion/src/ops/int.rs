@@ -958,6 +958,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        todo!()
+    }
     fn int_div(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         binary_int_ops!(DivOps, B::int_div);
 

@@ -1186,6 +1186,32 @@ pub trait IntTensorOps<B: Backend> {
         argsort::<B, Int>(tensor, dim, descending)
     }
 
+    /// Performs matrix multiplication between two integer tensors.
+    ///
+    /// For 2D tensors, this computes the standard matrix product: if input tensors
+    /// are of shapes (n×m) and (m×p), the output will be of shape (n×p).
+    ///
+    /// For tensors with more than 2 dimensions, this performs batched matrix multiplication.
+    /// If the first tensor has shape (b1,b2,...,bn,n,m) and the second tensor has shape
+    /// (b1,b2,...,bn,m,p), the output will have shape (b1,b2,...,bn,n,p).
+    ///
+    /// Broadcasting is supported for non-matching batch dimensions.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side integer tensor.
+    /// * `rhs` - The right-hand side integer tensor.
+    ///
+    /// # Returns
+    ///
+    /// A new integer tensor containing the result of the matrix multiplication.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the tensors are not compatible for matrix multiplication
+    /// (i.e., if the number of columns in `lhs` does not equal the number of rows in `rhs`).
+    fn int_matmul(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+
     /// Bitwise AND operation for Int Tensors
     fn bitwise_and(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
 

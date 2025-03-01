@@ -154,4 +154,42 @@ where
     pub fn bitwise_right_shift_scalar(self, other: B::IntElem) -> Self {
         Self::new(B::bitwise_right_shift_scalar(self.primitive, other))
     }
+
+    /// Applies the matrix multiplication operation for integer tensors.
+    ///
+    /// `C = AB`
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have a compatible shape.
+    pub fn int_matmul(self, other: Self) -> Self {
+        // Manual dimension checking for matrix multiplication
+        // we can rewrite check!() for int in numeric.rs
+        if D < 2 {
+            panic!("Matrix multiplication requires tensors with at least 2 dimensions");
+        }
+
+        let shape_lhs = self.shape();
+        let shape_rhs = other.shape();
+
+        let dim_lhs = shape_lhs.dims[D - 1];
+        let dim_rhs = shape_rhs.dims[D - 2];
+
+        if dim_lhs != dim_rhs {
+            panic!(
+                "The inner dimension of matmul should be the same, but got {} and {}. Lhs shape {:?}, rhs shape {:?}.",
+                dim_lhs, dim_rhs, shape_lhs.dims, shape_rhs.dims
+            );
+        }
+
+        // Check device compatibility
+        if self.device() != other.device() {
+            panic!("Tensors must be on the same device for matmul operation");
+        }
+
+        Self::new(B::int_matmul(
+            self.primitive,
+            other.primitive,
+        ))
+    }
 }
