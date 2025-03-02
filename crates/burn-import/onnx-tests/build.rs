@@ -111,6 +111,7 @@ fn main() {
         .input("tests/sub/sub_int.onnx")
         .input("tests/sum/sum.onnx")
         .input("tests/sum/sum_int.onnx")
+        .input("tests/tan/tan.onnx")
         .input("tests/tanh/tanh.onnx")
         .input("tests/tile/tile.onnx")
         .input("tests/top_k/top_k_opset_1.onnx")
