@@ -279,6 +279,10 @@ mod tests {
             ops_float: |tensor: TestTensor<2>| tensor.sin()
         );
         clone_invariance_test!(
+            unary: Tan,
+            ops_float: |tensor: TestTensor<2>| tensor.tan()
+        );
+        clone_invariance_test!(
             unary: Log,
             ops_float: |tensor: TestTensor<2>| tensor.log()
         );
