@@ -278,6 +278,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.round()`                             | `tensor.round()`                   |
 | `tensor.sin()`                               | `tensor.sin()`                     |
 | `tensor.sqrt()`                              | `tensor.sqrt()`                    |
+| `tensor.tan()`                               | `tensor.tan()`                     |
 | `tensor.tanh()`                              | `tensor.tanh()`                    |
 | `tensor.to_full_precision()`                 | `tensor.to(torch.float)`           |
 | `tensor.var(dim)`                            | `tensor.var(dim)`                  |
