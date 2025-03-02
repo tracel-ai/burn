@@ -1497,7 +1497,7 @@ mod tests {
         let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]], &device);
         let output = model.forward(input);
         // data from pyTorch
-        let expected = TensorData::from([[[[1.5574f32, -2.1850, -0.1425,  1.1578]]]]);
+        let expected = TensorData::from([[[[1.5574f32, -2.1850, -0.1425, 1.1578]]]]);
         output.to_data().assert_approx_eq(&expected, 4);
     }
 
