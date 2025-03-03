@@ -39,7 +39,7 @@ data-encoding = { version = "2.8.0", default-features = false, features = [
 ] }
 dirs = "5.0.1"
 fake = "3.0.1"
-flate2 = "1.0.35"
+flate2 = "1.1.0"
 float-cmp = "0.10.0"
 getrandom = { version = "0.3.1", default-features = false }
 gix-tempfile = { version = "15.0.0", features = ["signals"] }
