@@ -1,6 +1,9 @@
 use super::{Step, StepBoxed};
-use crate::NodeID;
-use std::collections::{HashMap, HashSet};
+use crate::{
+    collections::{HashMap, HashSet},
+    NodeID,
+};
+use alloc::vec::Vec;
 
 /// Breadth for search algorithm.
 pub struct BreadthFirstSearch;

@@ -6,7 +6,7 @@ use burn_cubecl_fusion::matmul::builder::MatmulBuilder;
 use burn_cubecl_fusion::matmul::optimization::MatmulOptimization;
 use burn_cubecl_fusion::matmul::MatmulFallbackFn;
 use burn_cubecl_fusion::reduce::builder::ReduceBuilder;
-use burn_cubecl_fusion::reduce::optimization::ReduceFallbackFn;
+use burn_cubecl_fusion::reduce::optimization::{ReduceFallbackFn, ReduceOptimization};
 use burn_cubecl_fusion::CubeFusionHandle;
 use burn_cubecl_fusion::{
     elemwise::builder::ElementWiseBuilder, CubeOptimization, CubeOptimizationState,
@@ -43,7 +43,7 @@ where
         match self {
             Self::ElementWise(value) => CubeOptimizationState::ElementWise(value.to_state()),
             Self::Matmul(value) => CubeOptimizationState::Matmul(value.to_state()),
-            Self::Reduce(value) => CubeOptimizationState::Reduce(todo!()),
+            Self::Reduce(value) => CubeOptimizationState::Reduce(value.to_state()),
         }
     }
 
@@ -57,7 +57,11 @@ where
                 state,
                 Arc::new(FallbackMatmul),
             )),
-            CubeOptimizationState::Reduce(reduce_optimization_state) => todo!(),
+            CubeOptimizationState::Reduce(state) => Self::Reduce(ReduceOptimization::from_state(
+                device,
+                state,
+                Arc::new(FallbackReduce),
+            )),
         }
     }
 }

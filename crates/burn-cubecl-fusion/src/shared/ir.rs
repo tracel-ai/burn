@@ -117,9 +117,11 @@ pub enum ElemwiseOp {
 
 impl ElemwiseOp {
     pub(crate) fn output_offset(&mut self, offset: u32) {
-        if let ElemwiseOp::Assign(op) = self { if let Arg::Output(pos, ..) = &mut op.out {
-            *pos += offset;
-        } }
+        if let ElemwiseOp::Assign(op) = self {
+            if let Arg::Output(pos, ..) = &mut op.out {
+                *pos += offset;
+            }
+        }
     }
 
     /// Element type used for the computation.

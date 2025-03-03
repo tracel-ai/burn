@@ -3,6 +3,9 @@ use crate::module::{AutodiffModule, ModuleVisitor, ParamId};
 use burn_tensor::{backend::AutodiffBackend, Tensor};
 use core::marker::PhantomData;
 
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
 #[derive(new)]
 pub struct GradientsParamsConverter<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
     grads: &'a mut B::Gradients,

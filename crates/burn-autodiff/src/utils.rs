@@ -1,5 +1,6 @@
-use crate::graph::NodeRef;
+use alloc::vec::Vec;
 
+use crate::graph::NodeRef;
 /// Duplicate the given object for each node that requires gradients.
 ///
 /// # Notes
@@ -8,7 +9,7 @@ use crate::graph::NodeRef;
 /// will be updated.
 ///
 /// If the object is a tensor and if one reference exists, it can be updated inplace.
-pub fn duplicate<T: Clone + std::fmt::Debug, const N: usize>(
+pub fn duplicate<T: Clone + core::fmt::Debug, const N: usize>(
     nodes: &[Option<NodeRef>; N],
     obj: Option<T>,
 ) -> [Option<T>; N] {

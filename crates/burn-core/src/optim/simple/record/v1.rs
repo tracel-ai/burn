@@ -6,6 +6,9 @@ use burn_tensor::backend::Backend;
 use core::any::Any;
 use serde::{Deserialize, Serialize};
 
+#[cfg(not(feature = "std"))]
+use alloc::boxed::Box;
+
 /// [Optimizer adaptor](crate::optim::simple::adaptor::OptimizerAdaptor) record item.
 pub enum AdaptorRecordV1<O: SimpleOptimizer<B>, B: Backend> {
     /// Rank 0.
