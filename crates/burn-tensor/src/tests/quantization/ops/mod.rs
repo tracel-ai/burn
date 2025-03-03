@@ -42,6 +42,7 @@ mod split;
 mod sqrt;
 mod stack;
 mod sub;
+mod tan;
 mod tanh;
 mod topk;
 mod transpose;

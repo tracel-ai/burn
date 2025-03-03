@@ -969,6 +969,23 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with tangent values.
+    fn q_tan(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_tan(tensor),
+            tensor
+        )
+    }
+
+    /// Returns a new tensor with hyperbolic tangent values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the hyperbolic tangent of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic tangent values.
     fn q_tanh(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
         dequant_op_quant!(
             ty Self,

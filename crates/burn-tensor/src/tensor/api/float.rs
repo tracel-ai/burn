@@ -93,6 +93,13 @@ where
         )))
     }
 
+    /// Applies element wise tangent operation.
+    pub fn tan(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_tan(
+            self.primitive.tensor(),
+        )))
+    }
+
     /// Applies element wise hyperbolic tangent operation.
     pub fn tanh(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_tanh(
