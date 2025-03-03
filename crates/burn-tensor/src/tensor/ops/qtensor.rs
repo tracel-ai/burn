@@ -3,7 +3,9 @@ use core::{future::Future, ops::Range};
 
 use crate::{
     backend::Backend,
-    quantization::{QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme},
+    quantization::{
+        Calibration, QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme,
+    },
     Device, Shape, TensorData, TensorMetadata,
 };
 
@@ -65,8 +67,7 @@ pub trait QTensorOps<B: Backend> {
     /// Dynamically convert the tensor to a lower precision data type based on the quantization scheme.
     fn quantize_dynamic(tensor: FloatTensor<B>, scheme: &QuantizationScheme) -> QuantizedTensor<B> {
         // Dynamically compute min/max tensor range and qparams before quantizing
-        let min = B::float_min(tensor.clone());
-        let max = B::float_max(tensor.clone());
+        let (min, max) = scheme.compute_range_primitive::<B>(tensor.clone(), &Calibration::MinMax);
         let qparams = scheme.compute_q_params_primitive(min, max);
         Self::quantize(tensor, scheme, qparams)
     }

@@ -1,5 +1,5 @@
 use burn_tensor::{
-    quantization::{QTensorPrimitive, QuantizationScheme, QuantizationStrategy},
+    quantization::{QTensorPrimitive, QuantizationScheme},
     DType, Element, Shape, TensorData, TensorMetadata,
 };
 

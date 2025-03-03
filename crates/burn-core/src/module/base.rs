@@ -5,7 +5,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 pub use burn_derive::Module;
-use burn_tensor::{ops::Device, quantization::Calibration, Bool, Int, Tensor};
+use burn_tensor::{ops::Device, Bool, Int, Tensor};
 
 /// Type alias to `Vec<B::Device>` which supports `no_std` environments, but automatically using
 /// the `alloc` crate.
@@ -204,7 +204,7 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
     }
 
     /// Quantize the weights of the module.
-    fn quantize_weights<C: Calibration>(self, quantizer: &mut Quantizer<C>) -> Self {
+    fn quantize_weights(self, quantizer: &mut Quantizer) -> Self {
         self.map(quantizer)
     }
 }
