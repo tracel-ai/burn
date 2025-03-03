@@ -98,13 +98,18 @@ mod nhwc {
         let x = x.view();
         let x = x.permuted_axes([0, 2, 3, 1]);
 
+        // Floor divison ensures `blocks * lanes * blocking factor` is always `<= out_channels`.
+        // An exclusive loop will always have `lanes * blocking factor` elements in bounds.
         let blocks = channels / ch_block;
         let blocks_end = blocks * ch_block;
+        // Floor division means simd_end is always divisible by `lanes` and `<= out_channels`. An
+        // exclusive loop will always have `lanes` elements in bounds.
         let simd_end = channels / lanes * lanes;
         let simd_unblocked = (simd_end - blocks_end) / lanes;
         let remainder = channels - simd_end;
 
         run_par!(|| {
+            // SAFETY: Loop ranges are non-overlapping, so the unsafe shared reference is safe.
             iter_range_par!(0, batch_size * blocks).for_each(|k| unsafe {
                 let block = k % blocks;
                 let b = k / blocks;
@@ -114,6 +119,7 @@ mod nhwc {
                 let out = output.slice_mut(s![b, .., .., ..]);
                 loop_blocked(x, out, kernel_size, stride, padding, dilation, block);
             });
+            // SAFETY: See `loop_unblocked`
             iter_range_par!(0, batch_size * simd_unblocked).for_each(|k| unsafe {
                 let ch = (k % simd_unblocked) * lanes + blocks_end;
                 let b = k / simd_unblocked;
@@ -123,6 +129,7 @@ mod nhwc {
                 let out = output.slice_mut(s![b, .., .., ..]);
                 loop_unblocked(x, out, kernel_size, stride, padding, dilation, ch);
             });
+            // SAFETY: Loop ranges are non-overlapping, so the unsafe shared reference is safe.
             iter_range_par!(0, batch_size * remainder).for_each(|k| unsafe {
                 let ch = (k % remainder) + simd_end;
                 let b = k / remainder;
@@ -139,10 +146,11 @@ mod nhwc {
         NdArrayTensor::new(output.into_dyn().into_shared())
     }
 
+    /// Execute the blocked (unrolled) portion of the pool.
     #[allow(clippy::too_many_arguments, clippy::erasing_op, clippy::identity_op)]
     #[inline(always)]
     #[pulp::with_simd(loop_blocked = Arch::new())]
-    unsafe fn loop_nhwc_simd_blocked<S: Simd, E: Element + VOrd + MinMax>(
+    fn loop_nhwc_simd_blocked<S: Simd, E: Element + VOrd + MinMax>(
         simd: S,
         x: ArrayView3<'_, E>,
         mut out: ArrayViewMut3<'_, E>,
@@ -181,14 +189,20 @@ mod nhwc {
                         let x = x.slice(s![ih, iw, ch..ch_end]);
 
                         seq!(N in 0..8 {
-                            let s~N = simd.vload_unaligned(x.as_ptr().add(N * lanes));
+                            // SAFETY:
+                            // Load a full vector from x[N * lanes]. This is bounds checked by the
+                            // slice above.
+                            let s~N = unsafe { simd.vload_unaligned(&x[N * lanes]) };
                             acc~N = E::vmax(simd, acc~N, s~N);
                         });
                     }
                 }
 
                 seq!(N in 0..8 {
-                    simd.vstore_unaligned(out.as_mut_ptr().add(N * lanes), acc~N);
+                    // SAFETY:
+                    // Store a full vector to out[N * lanes]. This is bounds checked by the
+                    // slice above.
+                    unsafe { simd.vstore_unaligned(&mut out[N * lanes], acc~N) };
                 });
             }
         }
@@ -226,19 +240,28 @@ mod nhwc {
                         let x = x.slice(s![ih, iw, ch..ch_end]);
 
                         seq!(N in 0..8 {
-                            let s~N = simd.vload_unaligned(x.as_ptr().add(N * lanes));
+                            // SAFETY:
+                            // Load a full vector from x[N * lanes]. This is bounds checked by the
+                            // slice above.
+                            let s~N = unsafe { simd.vload_unaligned(&x[N * lanes]) };
                             acc~N = E::vmax(simd, acc~N, s~N);
                         });
                     }
                 }
 
                 seq!(N in 0..8 {
-                    simd.vstore_unaligned(out.as_mut_ptr().add(N * lanes), acc~N);
+                    // SAFETY:
+                    // Store a full vector to out[N * lanes]. This is bounds checked by the
+                    // slice above.
+                    unsafe { simd.vstore_unaligned(&mut out[N * lanes], acc~N) };
                 });
             }
         }
     }
 
+    /// Execute the unblocked (not unrolled) portion of the pool.
+    ///
+    /// SAFETY: Safe as long as `ch + simd_lanes <= out_channels`.
     #[allow(clippy::too_many_arguments)]
     #[inline(always)]
     #[pulp::with_simd(loop_unblocked = Arch::new())]
@@ -270,11 +293,12 @@ mod nhwc {
 
                     for kw in 0..kernel_width {
                         let iw = ow * stride_width + kw * dilation_width - pad_w;
+                        // Load a full vector from `x`. In bounds as long as `out_channels >= ch + lanes`
                         let s0 = simd.vload_unaligned(&x[[ih, iw, ch]]);
                         acc = E::vmax(simd, acc, s0);
                     }
                 }
-
+                // Store a full vector to `out`. In bounds as long as `out_channels >= ch + lanes`.
                 simd.vstore_unaligned(out, acc);
             }
         }
@@ -304,18 +328,18 @@ mod nhwc {
                             continue;
                         }
                         let iw = iw - pad_w;
-
+                        // Load a full vector from `x`. In bounds as long as `out_channels >= ch + lanes`
                         let s0 = simd.vload_unaligned(&x[[ih, iw, ch]]);
                         acc = E::vmax(simd, acc, s0);
                     }
                 }
-
+                // Store a full vector to `out`. In bounds as long as `out_channels >= ch + lanes`.
                 simd.vstore_unaligned(out, acc);
             }
         }
     }
 
-    unsafe fn loop_scalar<E: Element + MinMax>(
+    fn loop_scalar<E: Element + MinMax>(
         x: ArrayView3<'_, E>,
         mut out: ArrayViewMut3<'_, E>,
         kernel_size: [usize; 2],

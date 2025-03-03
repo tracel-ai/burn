@@ -6,6 +6,7 @@ use macerator::{
 };
 use ndarray::ArrayD;
 use pulp::{cast, Arch, Simd};
+use seq_macro::seq;
 
 use crate::{NdArrayElement, NdArrayTensor};
 
@@ -13,7 +14,7 @@ use super::{
     binary_elemwise::{
         VecAdd, VecBitAnd, VecBitOr, VecBitXor, VecDiv, VecEq, VecMax, VecMin, VecMul, VecSub,
     },
-    load4_unaligned, should_use_simd, store4_unaligned, MinMax,
+    should_use_simd, MinMax,
 };
 
 pub trait SimdBinop<T: Vectorizable, Out: Vectorizable> {
@@ -229,6 +230,7 @@ fn binary_simd_same<
     NdArrayTensor::new(out.into_shared())
 }
 
+#[allow(clippy::erasing_op, clippy::identity_op)]
 #[pulp::with_simd(binary = Arch::new())]
 fn binary_simd_slice<
     S: Simd,
@@ -243,25 +245,26 @@ fn binary_simd_slice<
     _op: PhantomData<Op>,
 ) {
     let lanes = T::lanes::<S>();
-    let mut chunks_lhs = lhs.chunks_exact(4 * lanes);
-    let mut chunks_rhs = rhs.chunks_exact(4 * lanes);
-    let mut chunks_out = out.chunks_exact_mut(4 * lanes);
+    let mut chunks_lhs = lhs.chunks_exact(8 * lanes);
+    let mut chunks_rhs = rhs.chunks_exact(8 * lanes);
+    let mut chunks_out = out.chunks_exact_mut(8 * lanes);
     while let Some(((lhs, rhs), out)) = chunks_lhs
         .next()
         .zip(chunks_rhs.next())
         .zip(chunks_out.next())
     {
-        unsafe {
-            let (lhs0, lhs1, lhs2, lhs3) = load4_unaligned(simd, lhs as *const _ as *const T);
-            let (rhs0, rhs1, rhs2, rhs3) = load4_unaligned(simd, rhs as *const _ as *const T);
-
-            let s0 = Op::apply_vec(simd, lhs0, rhs0);
-            let s1 = Op::apply_vec(simd, lhs1, rhs1);
-            let s2 = Op::apply_vec(simd, lhs2, rhs2);
-            let s3 = Op::apply_vec(simd, lhs3, rhs3);
-
-            store4_unaligned(simd, out as *mut _ as *mut Out, s0, s1, s2, s3);
-        }
+        seq!(N in 0..8 {
+            // Load one full vector from `lhs`.
+            // SAFETY: Guaranteed to be in bounds because `len == 8 * lanes`
+            let lhs~N = unsafe { simd.vload_unaligned(&lhs[N * lanes]) };
+            // Load one full vector from `rhs`.
+            // SAFETY: Guaranteed to be in bounds because `len == 8 * lanes`
+            let rhs~N = unsafe { simd.vload_unaligned(&rhs[N * lanes]) };
+            let s~N = Op::apply_vec(simd, lhs~N, rhs~N);
+            // Store one full vector to `out`.
+            // SAFETY: Guaranteed to be in bounds because `len == 8 * lanes`
+            unsafe { simd.vstore_unaligned(&mut out[N * lanes], s~N) };
+        });
     }
     let mut chunks_lhs = chunks_lhs.remainder().chunks_exact(lanes);
     let mut chunks_rhs = chunks_rhs.remainder().chunks_exact(lanes);
@@ -271,14 +274,16 @@ fn binary_simd_slice<
         .zip(chunks_rhs.next())
         .zip(chunks_out.next())
     {
-        unsafe {
-            let lhs0 = simd.vload_unaligned(lhs as *const _ as *const T);
-            let rhs0 = simd.vload_unaligned(rhs as *const _ as *const T);
-
-            let s0 = Op::apply_vec(simd, lhs0, rhs0);
-
-            simd.vstore_unaligned(out as *mut _ as *mut Out, s0);
-        }
+        // Load one full vector from `lhs`.
+        // SAFETY: Guaranteed to be in bounds because `len == lanes`
+        let lhs0 = unsafe { simd.vload_unaligned(lhs.as_ptr()) };
+        // Load one full vector from `rhs`.
+        // SAFETY: Guaranteed to be in bounds because `len == lanes`
+        let rhs0 = unsafe { simd.vload_unaligned(rhs.as_ptr()) };
+        let s0 = Op::apply_vec(simd, lhs0, rhs0);
+        // Store one full vector to `out`.
+        // SAFETY: Guaranteed to be in bounds because `len == lanes`
+        unsafe { simd.vstore_unaligned(out.as_mut_ptr(), s0) };
     }
 
     for ((lhs, rhs), out) in chunks_lhs
@@ -291,6 +296,7 @@ fn binary_simd_slice<
     }
 }
 
+/// Unsafely alias a slice to use as an inline argument
 fn unsafe_alias_slice_mut<'a, T>(slice: &mut [T]) -> &'a mut [T] {
     let ptr = slice.as_mut_ptr();
     let len = slice.len();

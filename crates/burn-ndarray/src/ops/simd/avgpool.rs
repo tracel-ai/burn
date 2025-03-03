@@ -85,13 +85,18 @@ mod nhwc {
         let x = x.array.view();
         let x = x.permuted_axes(vec![0, 2, 3, 1]);
 
+        // Floor divison ensures `blocks * lanes * blocking factor` is always `<= out_channels`.
+        // An exclusive loop will always have `lanes * blocking factor` elements in bounds.
         let blocks = channels / ch_block;
         let blocks_end = blocks * ch_block;
+        // Floor division means simd_end is always divisible by `lanes` and `<= out_channels`. An
+        // exclusive loop will always have `lanes` elements in bounds.
         let simd_end = channels / lanes * lanes;
         let num_simd_unblocked = (simd_end - blocks_end) / lanes;
         let remainder = channels - simd_end;
 
         run_par!(|| {
+            // SAFETY: Loop ranges are non-overlapping, so the unsafe shared reference is safe.
             iter_range_par!(0, batch_size * blocks).for_each(|k| unsafe {
                 let block = k % blocks;
                 let b = k / blocks;
@@ -103,6 +108,7 @@ mod nhwc {
 
                 loop_blocked(x, out, kernel_size, stride, padding, with_pad, block);
             });
+            // SAFETY: See `loop_unblocked`
             iter_range_par!(0, batch_size * num_simd_unblocked).for_each(|k| unsafe {
                 let ch = (k % num_simd_unblocked) * lanes + blocks_end;
                 let b = k / num_simd_unblocked;
@@ -114,6 +120,7 @@ mod nhwc {
 
                 loop_unblocked(x, out, kernel_size, stride, padding, with_pad, ch);
             });
+            // SAFETY: Loop ranges are non-overlapping, so the unsafe shared reference is safe.
             iter_range_par!(0, batch_size * remainder).for_each(|k| unsafe {
                 let ch = (k % remainder) + simd_end;
                 let b = k / remainder;
@@ -132,9 +139,10 @@ mod nhwc {
         NdArrayTensor::new(output.into_dyn().into_shared())
     }
 
+    /// Execute the blocked (unrolled) portion of the pool.
     #[allow(clippy::too_many_arguments, clippy::erasing_op, clippy::identity_op)]
     #[pulp::with_simd(loop_blocked = Arch::new())]
-    unsafe fn loop_blocked_simd<S: Simd, E: Element + VAdd + VDiv>(
+    fn loop_blocked_simd<S: Simd, E: Element + VAdd + VDiv>(
         simd: S,
         x: ArrayView3<'_, E>,
         mut out: ArrayViewMut3<'_, E>,
@@ -154,7 +162,7 @@ mod nhwc {
 
         let ch_block = lanes * BLOCK_REGISTERS;
 
-        // If pixels are not within padding range, bounds checks are always true
+        // If pixels are more than `padding` from the edges, the in pixel cannot be out of bounds
         for oh in pad_h..out_height.saturating_sub(pad_h) {
             for ow in pad_w..out_width.saturating_sub(pad_w) {
                 seq!(N in 0..8 {
@@ -172,7 +180,10 @@ mod nhwc {
                         let x = x.slice(s![ih, iw, ch..ch_end]);
 
                         seq!(N in 0..8 {
-                            let s~N = simd.vload_unaligned(x.as_ptr().add(N * lanes));
+                            // SAFETY:
+                            // Load a full vector from x[N * lanes]. This is bounds checked by the
+                            // slice above.
+                            let s~N = unsafe { simd.vload_unaligned(&x[N * lanes]) };
                             sum~N = E::vadd(simd, sum~N, s~N);
                         });
                     }
@@ -182,7 +193,10 @@ mod nhwc {
                 let count_v = simd.splat((count as u64).elem::<E>());
                 seq!(N in 0..8 {
                     let s~N = E::vdiv(simd, sum~N, count_v);
-                    simd.vstore_unaligned(out.as_mut_ptr().add(N * lanes), s~N);
+                    // SAFETY:
+                    // Store a full vector to out[N * lanes]. This is bounds checked by the
+                    // slice above.
+                    unsafe { simd.vstore_unaligned(&mut out[N * lanes], s~N) };
                 });
             }
         }
@@ -222,7 +236,10 @@ mod nhwc {
                         let x = x.slice(s![ih, iw, ch..ch_end]);
 
                         seq!(N in 0..8 {
-                            let s~N = simd.vload_unaligned(x.as_ptr().add(N * lanes));
+                            // SAFETY:
+                            // Load a full vector from x[N * lanes]. This is bounds checked by the
+                            // slice above.
+                            let s~N = unsafe { simd.vload_unaligned(&x[N * lanes]) };
                             sum~N = E::vadd(simd, sum~N, s~N);
                         });
                     }
@@ -235,12 +252,18 @@ mod nhwc {
                 let count_v = simd.splat((count as u64).elem::<E>());
                 seq!(N in 0..8 {
                     let s~N = E::vdiv(simd, sum~N, count_v);
-                    simd.vstore_unaligned(out.as_mut_ptr().add(N * lanes), s~N);
+                    // SAFETY:
+                    // Store a full vector to out[N * lanes]. This is bounds checked by the
+                    // slice above.
+                    unsafe { simd.vstore_unaligned(&mut out[N * lanes], s~N) };
                 });
             }
         }
     }
 
+    /// Execute the unblocked (not unrolled) portion of the pool.
+    ///
+    /// SAFETY: Safe as long as `ch + simd_lanes <= out_channels`.
     #[allow(clippy::too_many_arguments)]
     #[pulp::with_simd(loop_unblocked = Arch::new())]
     unsafe fn loop_unblocked_simd<S: Simd, E: Element + VAdd + VDiv>(
@@ -270,6 +293,7 @@ mod nhwc {
 
                     for kw in 0..kernel_width {
                         let iw = ow * stride_width + kw - pad_w;
+                        // Load a full vector from `x`. In bounds as long as `out_channels >= ch + lanes`
                         let s0 = simd.vload_unaligned(&x[[ih, iw, ch]]);
                         sum = E::vadd(simd, sum, s0);
                     }
@@ -278,6 +302,7 @@ mod nhwc {
                 let count = kernel_height * kernel_width;
                 let count_v = simd.splat((count as u64).elem::<E>());
                 let s0 = E::vdiv(simd, sum, count_v);
+                // Store a full vector to `out`. In bounds as long as `out_channels >= ch + lanes`.
                 simd.vstore_unaligned(&mut out[[oh, ow, ch]], s0);
             }
         }
@@ -309,6 +334,7 @@ mod nhwc {
                         let iw = iw - pad_w;
                         count += 1;
 
+                        // Load a full vector from `x`. In bounds as long as `out_channels >= ch + lanes`
                         let s0 = simd.vload_unaligned(&x[[ih, iw, ch]]);
                         sum = E::vadd(simd, sum, s0);
                     }
@@ -320,13 +346,15 @@ mod nhwc {
 
                 let count_v = simd.splat((count as u64).elem::<E>());
                 let s0 = E::vdiv(simd, sum, count_v);
+                // Store a full vector to `out`. In bounds as long as `out_channels >= ch + lanes`.
                 simd.vstore_unaligned(&mut out[[oh, ow, ch]], s0);
             }
         }
     }
 
+    /// Execute scalar portion of the pooling
     #[allow(clippy::too_many_arguments)]
-    unsafe fn loop_scalar<E: Element + VAdd + VDiv>(
+    fn loop_scalar<E: Element + VAdd + VDiv>(
         x: ArrayView3<'_, E>,
         mut out: ArrayViewMut3<'_, E>,
         kernel_size: [usize; 2],

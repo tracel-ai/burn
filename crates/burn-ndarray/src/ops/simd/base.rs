@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use macerator::{SimdExt, Vectorizable};
+use macerator::Vectorizable;
 use pulp::{Arch, Simd};
 
 /// Whether SIMD instructions are worth using
@@ -78,53 +78,4 @@ impl MinMax for f64 {
     fn max(self, other: Self) -> Self {
         self.max(other)
     }
-}
-
-type Vec4<T> = (T, T, T, T);
-
-pub(crate) unsafe fn load4<S: Simd, T: Vectorizable>(simd: S, ptr: *const T) -> Vec4<T::Vector<S>> {
-    let s0 = simd.vload(ptr);
-    let s1 = simd.vload(ptr.add(T::lanes::<S>()));
-    let s2 = simd.vload(ptr.add(2 * T::lanes::<S>()));
-    let s3 = simd.vload(ptr.add(3 * T::lanes::<S>()));
-    (s0, s1, s2, s3)
-}
-
-pub(crate) unsafe fn load4_unaligned<S: Simd, T: Vectorizable>(
-    simd: S,
-    ptr: *const T,
-) -> Vec4<T::Vector<S>> {
-    let s0 = simd.vload_unaligned(ptr);
-    let s1 = simd.vload_unaligned(ptr.add(T::lanes::<S>()));
-    let s2 = simd.vload_unaligned(ptr.add(2 * T::lanes::<S>()));
-    let s3 = simd.vload_unaligned(ptr.add(3 * T::lanes::<S>()));
-    (s0, s1, s2, s3)
-}
-
-pub(crate) unsafe fn store4<S: Simd, T: Vectorizable>(
-    simd: S,
-    ptr: *mut T,
-    s0: T::Vector<S>,
-    s1: T::Vector<S>,
-    s2: T::Vector<S>,
-    s3: T::Vector<S>,
-) {
-    simd.vstore(ptr, s0);
-    simd.vstore(ptr.add(T::lanes::<S>()), s1);
-    simd.vstore(ptr.add(2 * T::lanes::<S>()), s2);
-    simd.vstore(ptr.add(3 * T::lanes::<S>()), s3);
-}
-
-pub(crate) unsafe fn store4_unaligned<S: Simd, T: Vectorizable>(
-    simd: S,
-    ptr: *mut T,
-    s0: T::Vector<S>,
-    s1: T::Vector<S>,
-    s2: T::Vector<S>,
-    s3: T::Vector<S>,
-) {
-    simd.vstore_unaligned(ptr, s0);
-    simd.vstore_unaligned(ptr.add(T::lanes::<S>()), s1);
-    simd.vstore_unaligned(ptr.add(2 * T::lanes::<S>()), s2);
-    simd.vstore_unaligned(ptr.add(3 * T::lanes::<S>()), s3);
 }

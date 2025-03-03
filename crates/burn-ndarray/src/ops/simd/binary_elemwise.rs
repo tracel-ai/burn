@@ -3,10 +3,11 @@ use core::marker::PhantomData;
 use macerator::{SimdExt, VAdd, VBitAnd, VBitOr, VBitXor, VDiv, VMul, VOrd, VSub, Vectorizable};
 use ndarray::ArrayD;
 use pulp::{cast, Arch, Simd};
+use seq_macro::seq;
 
 use crate::{NdArrayElement, NdArrayTensor};
 
-use super::{load4, load4_unaligned, should_use_simd, store4, store4_unaligned, MinMax};
+use super::{should_use_simd, MinMax};
 
 pub trait ScalarSimdBinop<T: Vectorizable, Out: Vectorizable> {
     type Rhs: Copy;
@@ -254,8 +255,11 @@ pub fn try_binary_scalar_simd<
     }
     // Used to assert traits based on the dynamic `DType`.
     let input = unsafe { core::mem::transmute::<NdArrayTensor<E>, NdArrayTensor<T>>(input) };
-    let out = if size_of::<T>() == size_of::<Out>() && input.array.is_unique() {
-        binary_scalar_simd_inplace::<T, Out, Op>(input, elem)
+    let out = if size_of::<T>() == size_of::<Out>()
+        && align_of::<T>() >= align_of::<Out>()
+        && input.array.is_unique()
+    {
+        unsafe { binary_scalar_simd_inplace::<T, Out, Op>(input, elem) }
     } else {
         binary_scalar_simd_owned::<T, Out, Op>(input, elem)
     };
@@ -264,7 +268,10 @@ pub fn try_binary_scalar_simd<
     Ok(out)
 }
 
-fn binary_scalar_simd_inplace<
+/// Execute operation in place on an owned tensor
+/// SAFETY:
+/// Must ensure `size_of::<T> == size_of::<Out>` and `align_of::<T> >= align_of::<Out>`.
+unsafe fn binary_scalar_simd_inplace<
     T: NdArrayElement + Vectorizable,
     Out: NdArrayElement + Vectorizable,
     Op: ScalarSimdBinop<T, Out>,
@@ -280,6 +287,7 @@ fn binary_scalar_simd_inplace<
     NdArrayTensor::new(out.into_shared())
 }
 
+/// Create a new copy of the tensor as the output
 fn binary_scalar_simd_owned<
     T: NdArrayElement + Vectorizable,
     Out: NdArrayElement + Vectorizable,
@@ -295,6 +303,8 @@ fn binary_scalar_simd_owned<
     NdArrayTensor::new(out.into_shared())
 }
 
+#[inline(always)]
+#[allow(clippy::erasing_op, clippy::identity_op)]
 #[pulp::with_simd(binary_scalar_slice = Arch::new())]
 fn binary_scalar_simd_slice<
     S: Simd,
@@ -309,30 +319,30 @@ fn binary_scalar_simd_slice<
     _op: PhantomData<Op>,
 ) {
     let lanes = T::lanes::<S>();
-    let mut chunks_input = input.chunks_exact(4 * lanes);
-    let mut chunks_out = out.chunks_exact_mut(4 * lanes);
+    let mut chunks_input = input.chunks_exact(8 * lanes);
+    let mut chunks_out = out.chunks_exact_mut(8 * lanes);
     let rhs_vec = Op::splat(simd, rhs);
     while let Some((input, out)) = chunks_input.next().zip(chunks_out.next()) {
-        unsafe {
-            let (s0, s1, s2, s3) = load4_unaligned(simd, input.as_ptr());
-
-            let s0 = Op::apply_vec(simd, s0, rhs_vec);
-            let s1 = Op::apply_vec(simd, s1, rhs_vec);
-            let s2 = Op::apply_vec(simd, s2, rhs_vec);
-            let s3 = Op::apply_vec(simd, s3, rhs_vec);
-
-            store4_unaligned(simd, out.as_mut_ptr(), s0, s1, s2, s3);
-        }
+        seq!(N in 0..8 {
+            // Load one full vector from `input`.
+            // SAFETY: Guaranteed to be in bounds because `len == 8 * lanes`
+            let s~N = unsafe { simd.vload_unaligned(&input[N * lanes]) };
+            let s~N = Op::apply_vec(simd, s~N, rhs_vec);
+            // Store one full vector to `out`.
+            // SAFETY: Guaranteed to be in bounds because `len == 8 * lanes`
+            unsafe { simd.vstore_unaligned(&mut out[N * lanes], s~N) };
+        });
     }
     let mut chunks_input = chunks_input.remainder().chunks_exact(lanes);
     let mut chunks_out = chunks_out.into_remainder().chunks_exact_mut(lanes);
     while let Some((input, out)) = chunks_input.next().zip(chunks_out.next()) {
-        unsafe {
-            let s0 = simd.vload_unaligned(input as *const _ as *const T);
-            let s0 = Op::apply_vec(simd, s0, rhs_vec);
-
-            simd.vstore_unaligned(out as *mut _ as *mut Out, s0);
-        }
+        // Load one full vector from `input`.
+        // SAFETY: Guaranteed to be in bounds because `len == lanes`
+        let s0 = unsafe { simd.vload_unaligned(input.as_ptr()) };
+        let s0 = Op::apply_vec(simd, s0, rhs_vec);
+        // Store one full vector to `out`.
+        // SAFETY: Guaranteed to be in bounds because `len == lanes`
+        unsafe { simd.vstore_unaligned(out.as_mut_ptr(), s0) };
     }
 
     for (input, out) in chunks_input
@@ -344,8 +354,12 @@ fn binary_scalar_simd_slice<
     }
 }
 
+/// Execute operation in line.
+/// SAFETY:
+/// Must ensure `size_of::<T> == size_of::<Out>` and `align_of::<T> >= align_of::<Out>`.
+#[inline(always)]
 #[pulp::with_simd(binary_scalar_slice_inplace = Arch::new())]
-fn binary_scalar_simd_slice_inplace<
+unsafe fn binary_scalar_simd_slice_inplace<
     S: Simd,
     T: NdArrayElement + Vectorizable,
     Out: NdArrayElement + Vectorizable,
@@ -360,29 +374,30 @@ fn binary_scalar_simd_slice_inplace<
     for elem in head.iter_mut().chain(tail) {
         *elem = cast(Op::apply(*elem, rhs));
     }
-    let mut chunks = main.chunks_exact_mut(4);
+    let mut chunks = main.chunks_exact_mut(8);
     let rhs = Op::splat(simd, rhs);
     for elem in chunks.by_ref() {
-        unsafe {
-            let (s0, s1, s2, s3) = load4(simd, elem as *const _ as *const T);
-
-            let s0 = Op::apply_vec(simd, s0, rhs);
-            let s1 = Op::apply_vec(simd, s1, rhs);
-            let s2 = Op::apply_vec(simd, s2, rhs);
-            let s3 = Op::apply_vec(simd, s3, rhs);
-
-            store4(simd, elem as *mut _ as *mut Out, s0, s1, s2, s3);
-        }
+        seq!(N in 0..8 {
+            // Load a full vector from the aligned portion of the buffer.
+            // SAFETY: `align_to_mut` guarantees we're aligned to `T::Vector`'s size, and there is
+            // always a full vector in bounds.
+            let s~N = unsafe { simd.vload(&elem[N] as *const _ as *const T) };
+            let s~N = Op::apply_vec(simd, s~N, rhs);
+            // Store a full vector at the same position as the input. Cast is safe because `Out` is
+            // size and align compatible
+            unsafe { simd.vstore_unaligned(&mut elem[N] as *mut _ as *mut Out, s~N) };
+        });
     }
 
     for elem in chunks.into_remainder() {
-        let input_ptr = elem as *const _ as *const T;
-        let out_ptr = elem as *mut _ as *mut Out;
-
-        let s0 = unsafe { simd.vload(input_ptr) };
+        // Load a full vector from the aligned portion of the buffer.
+        // SAFETY: `align_to_mut` guarantees we're aligned to `T::Vector`'s size, and there is
+        // always a full vector in bounds.
+        let s0 = unsafe { simd.vload(elem as *const _ as *const T) };
 
         let s0 = Op::apply_vec(simd, s0, rhs);
-
-        unsafe { simd.vstore(out_ptr, s0) };
+        // Store a full vector at the same position as the input. Cast is safe because `Out` is
+        // size and align compatible
+        unsafe { simd.vstore(elem as *mut _ as *mut Out, s0) };
     }
 }
