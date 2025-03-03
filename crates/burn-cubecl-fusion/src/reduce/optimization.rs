@@ -239,7 +239,7 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             bound_checks: true,
         }
         .generate_cube_dim(client, strategy.use_planes)
-        .generate_cube_count::<R>(reduce_count as u32, &strategy);
+        .generate_cube_count::<R>(reduce_count, &strategy);
 
         if let CubeCount::Static(x, y, z) = config_reduce.cube_count {
             let (max_x, max_y, max_z) = R::max_cube_count();
@@ -257,8 +257,8 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             axis: self.axis as u32,
             strategy: &strategy,
             config_reduce,
-            config_fuse_read: &config_read,
-            config_fuse_write: &config_write,
+            config_fuse_read: config_read,
+            config_fuse_write: config_write,
             input: &self.input,
             output: &self.output,
         };
@@ -286,8 +286,8 @@ struct ReduceKwArgs<'a, 'b, Run: Runtime> {
     output: &'a Arg,
 }
 
-fn launch_reduce_input_output_inst<'a, 'b, Run: Runtime>(
-    kwargs: ReduceKwArgs<'a, 'b, Run>,
+fn launch_reduce_input_output_inst<Run: Runtime>(
+    kwargs: ReduceKwArgs<'_, '_, Run>,
     instruction: ReduceInstruction,
     dtype_input: DType,
     dtype_output: DType,
@@ -316,8 +316,8 @@ fn launch_reduce_input_output_inst<'a, 'b, Run: Runtime>(
     }
 }
 
-fn launch_reduce_input_output<'a, 'b, Run: Runtime, Rd: Reduce>(
-    kwargs: ReduceKwArgs<'a, 'b, Run>,
+fn launch_reduce_input_output<Run: Runtime, Rd: Reduce>(
+    kwargs: ReduceKwArgs<'_, '_, Run>,
     dtype_input: DType,
     dtype_output: DType,
 ) {
@@ -338,8 +338,8 @@ fn launch_reduce_input_output<'a, 'b, Run: Runtime, Rd: Reduce>(
     }
 }
 
-fn launch_reduce_output<'a, 'b, Run: Runtime, In: Numeric, Rd: Reduce>(
-    kwargs: ReduceKwArgs<'a, 'b, Run>,
+fn launch_reduce_output<Run: Runtime, In: Numeric, Rd: Reduce>(
+    kwargs: ReduceKwArgs<'_, '_, Run>,
     dtype: DType,
 ) {
     match dtype {
@@ -359,8 +359,8 @@ fn launch_reduce_output<'a, 'b, Run: Runtime, In: Numeric, Rd: Reduce>(
     }
 }
 
-fn launch_reduce<'a, 'b, Run: Runtime, In: Numeric, Out: Numeric, Rd: Reduce>(
-    kwargs: ReduceKwArgs<'a, 'b, Run>,
+fn launch_reduce<Run: Runtime, In: Numeric, Out: Numeric, Rd: Reduce>(
+    kwargs: ReduceKwArgs<'_, '_, Run>,
 ) {
     let settings = ReduceParams {
         shared: kwargs.strategy.shared.then(|| {
@@ -381,8 +381,8 @@ fn launch_reduce<'a, 'b, Run: Runtime, In: Numeric, Out: Numeric, Rd: Reduce>(
             kwargs.client,
             kwargs.config_reduce.cube_count,
             kwargs.config_reduce.cube_dim,
-            FusedReduceInputLaunch::new(kwargs.inputs, &kwargs.config_fuse_read, kwargs.input),
-            FusedReduceOutputLaunch::new(kwargs.outputs, &kwargs.config_fuse_write, kwargs.output),
+            FusedReduceInputLaunch::new(kwargs.inputs, kwargs.config_fuse_read, kwargs.input),
+            FusedReduceOutputLaunch::new(kwargs.outputs, kwargs.config_fuse_write, kwargs.output),
             ScalarArg::new(kwargs.axis),
             settings,
         );
