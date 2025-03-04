@@ -550,7 +550,7 @@ impl ParsedOnnxGraph {
         let value = node
             .attrs
             .get("value")
-            .and_then(|val| val.clone().into_tensor().data)
+            .and_then(|val| Some(val.clone().into_tensor().data))
             .map(|val_data| match val_data {
                 // TODO: Handle Float16
                 Data::Float32s(vals) => ConstantValue::from_vec(vals),

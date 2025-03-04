@@ -124,7 +124,7 @@ fn constant_update_outputs(node: &mut Node) {
             AttributeValue::Tensor(tensor) => ArgType::Tensor(TensorType {
                 elem_type: tensor.elem_type.clone(),
                 rank: tensor.rank,
-                shape: tensor.shape.clone(),
+                shape: Some(tensor.shape.clone()),
             }),
             AttributeValue::Float32(_) => ArgType::Scalar(ElementType::Float32),
             AttributeValue::Float32s(value) => ArgType::Tensor(TensorType {

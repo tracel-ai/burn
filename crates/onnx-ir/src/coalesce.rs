@@ -72,9 +72,9 @@ fn transpose_linear_node_weights(node: &mut Node) {
 
     assert_eq!(weight.rank, 2, "Weight must be a 2D tensor");
 
-    let shape = weight.shape.unwrap();
+    let shape = weight.shape.clone();
 
-    match weight.data.expect("Tensor must have data") {
+    match weight.data.clone() {
         Data::Float32s(data) => {
             let data_t = transpose_flattened(data, shape[0], shape[1]);
             node.inputs[1].value = Some(Data::Float32s(data_t));

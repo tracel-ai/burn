@@ -34,16 +34,12 @@ impl Argument {
 
     pub fn from_initializer(initializer: &TensorProto) -> Argument {
         let name = initializer.name.clone();
-        let tensor = Tensor::try_from(initializer.clone())
+        let tensor = TensorData::try_from(initializer.clone())
             .unwrap_or_else(|_| panic!("invalid tensor {}", &initializer.name));
 
         if tensor.rank == 0 {
             // Convert zero rank tensor to scalar
-            let value = if tensor.data.is_some() {
-                Some(tensor.data.clone().unwrap().into_scalar())
-            } else {
-                None
-            };
+            let value = Some(tensor.data.clone().into_scalar());
             let ty = ArgType::Scalar(tensor.elem_type);
 
             Self {
@@ -58,9 +54,9 @@ impl Argument {
                 ty: ArgType::Tensor(TensorType {
                     elem_type: tensor.elem_type,
                     rank: tensor.rank,
-                    shape: tensor.shape,
+                    shape: Some(tensor.shape.clone()),
                 }),
-                value: tensor.data.clone(),
+                value: Some(tensor.data.clone()),
                 passed: false,
             }
         }
@@ -84,8 +80,8 @@ pub enum AttributeValue {
     Int64s(Vec<i64>),
     String(String),
     Strings(Vec<String>),
-    Tensor(Tensor),
-    Tensors(Vec<Tensor>),
+    Tensor(TensorData),
+    Tensors(Vec<TensorData>),
 }
 
 pub type Attributes = HashMap<String, AttributeValue>;
@@ -164,8 +160,8 @@ impl Argument {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct Tensor {
+#[derive(Debug, Clone)]
+pub struct TensorData {
     /// The type of the tensor.
     pub elem_type: ElementType,
 
@@ -173,10 +169,10 @@ pub struct Tensor {
     pub rank: Rank,
 
     /// The data of the tensor.
-    pub data: Option<Data>,
+    pub data: Data,
 
     /// The shape of the tensor.
-    pub shape: Option<Shape>,
+    pub shape: Shape,
 }
 
 /// Container to hold data for tensors and arguments
@@ -716,7 +712,7 @@ impl AttributeValue {
         }
     }
 
-    pub fn into_tensor(self) -> Tensor {
+    pub fn into_tensor(self) -> TensorData {
         if let AttributeValue::Tensor(elem) = self {
             elem
         } else {
@@ -748,7 +744,7 @@ impl AttributeValue {
         }
     }
 
-    pub fn into_tensors(self) -> Vec<Tensor> {
+    pub fn into_tensors(self) -> Vec<TensorData> {
         if let AttributeValue::Tensors(elem) = self {
             elem
         } else {
@@ -815,20 +811,11 @@ impl From<AttributeValue> for Argument {
             AttributeValue::Tensor(tensor) => {
                 if tensor.rank == 0 {
                     // Convert zero rank tensor to scalar
-                    if let Some(data) = tensor.data {
-                        Argument {
-                            ty: ArgType::Scalar(tensor.elem_type),
-                            name,
-                            value: Some(data.into_scalar()),
-                            passed: false,
-                        }
-                    } else {
-                        Argument {
-                            ty: ArgType::Scalar(tensor.elem_type),
-                            name,
-                            value: None,
-                            passed: false,
-                        }
+                    Argument {
+                        ty: ArgType::Scalar(tensor.elem_type),
+                        name,
+                        value: Some(tensor.data.clone().into_scalar()),
+                        passed: false,
                     }
                 } else {
                     // Convert tensor to argument
@@ -836,10 +823,10 @@ impl From<AttributeValue> for Argument {
                         ty: ArgType::Tensor(TensorType {
                             rank: tensor.rank,
                             elem_type: tensor.elem_type,
-                            shape: tensor.shape,
+                            shape: Some(tensor.shape.clone()),
                         }),
                         name,
-                        value: tensor.data,
+                        value: Some(tensor.data.clone()),
                         passed: false,
                     }
                 }
@@ -850,13 +837,13 @@ impl From<AttributeValue> for Argument {
 }
 
 impl Argument {
-    pub fn into_tensor(self) -> Option<Tensor> {
+    pub fn into_tensor(self) -> Option<TensorData> {
         if let ArgType::Tensor(tensor_type) = self.ty {
-            Some(Tensor {
+            Some(TensorData {
                 elem_type: tensor_type.elem_type,
                 rank: tensor_type.rank,
-                data: self.value,
-                shape: tensor_type.shape,
+                data: self.value.unwrap_or_else(|| panic!("No data in tensor")),
+                shape: tensor_type.shape.unwrap_or_default(),
             })
         } else {
             None
