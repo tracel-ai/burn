@@ -20,12 +20,12 @@ impl<B: Backend> MnistBatcher<B> {
     }
 }
 
-impl<B: Backend> Batcher<MnistItem, MnistBatch<B>> for MnistBatcher<B> {
-    fn batch(&self, items: Vec<MnistItem>) -> MnistBatch<B> {
+impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher<B> {
+    fn batch_with_device(&self, items: Vec<MnistItem>, device: &B::Device) -> MnistBatch<B> {
         let images = items
             .iter()
             .map(|item| TensorData::from(item.image))
-            .map(|data| Tensor::<B, 2>::from_data(data.convert::<B::FloatElem>(), &self.device))
+            .map(|data| Tensor::<B, 2>::from_data(data.convert::<B::FloatElem>(), device))
             .map(|tensor| tensor.reshape([1, 28, 28]))
             // normalize: make between [0,1] and make the mean =  0 and std = 1
             // values mean=0.1307,std=0.3081 were copied from Pytorch Mist Example
@@ -38,7 +38,7 @@ impl<B: Backend> Batcher<MnistItem, MnistBatch<B>> for MnistBatcher<B> {
             .map(|item| {
                 Tensor::<B, 1, Int>::from_data(
                     TensorData::from([(item.label as i64).elem::<B::IntElem>()]),
-                    &self.device,
+                    device,
                 )
             })
             .collect();
@@ -47,5 +47,9 @@ impl<B: Backend> Batcher<MnistItem, MnistBatch<B>> for MnistBatcher<B> {
         let targets = Tensor::cat(targets, 0);
 
         MnistBatch { images, targets }
+    }
+
+    fn device(&self) -> B::Device {
+        self.device.clone()
     }
 }
