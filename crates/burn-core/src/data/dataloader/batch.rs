@@ -6,18 +6,19 @@ use burn_dataset::{
     transform::{PartialDataset, ShuffledDataset},
     Dataset,
 };
+use burn_tensor::backend::Backend;
 use rand::{distr::StandardUniform, prelude::Distribution, rngs::StdRng, Rng, SeedableRng};
 use std::sync::Arc;
 
 /// A data loader that can be used to iterate over a dataset in batches.
-pub struct BatchDataLoader<I, O> {
+pub struct BatchDataLoader<B: Backend, I, O> {
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
-    batcher: Box<dyn DynBatcher<I, O>>,
+    batcher: Box<dyn DynBatcher<B, I, O>>,
     rng: Option<Arc<spin::Mutex<rand::rngs::StdRng>>>,
 }
 
-impl<I, O> Clone for BatchDataLoader<I, O> {
+impl<B: Backend, I, O> Clone for BatchDataLoader<B, I, O> {
     fn clone(&self) -> Self {
         Self {
             strategy: self.strategy.clone_dyn(),
@@ -28,7 +29,7 @@ impl<I, O> Clone for BatchDataLoader<I, O> {
     }
 }
 
-impl<I, O> BatchDataLoader<I, O> {
+impl<B: Backend, I, O> BatchDataLoader<B, I, O> {
     /// Creates a new batch data loader.
     ///
     /// # Arguments
@@ -45,7 +46,7 @@ impl<I, O> BatchDataLoader<I, O> {
     pub fn new(
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
-        batcher: Box<dyn DynBatcher<I, O>>,
+        batcher: Box<dyn DynBatcher<B, I, O>>,
         rng: Option<rand::rngs::StdRng>,
     ) -> Self {
         Self {
@@ -58,14 +59,14 @@ impl<I, O> BatchDataLoader<I, O> {
 }
 
 /// A data loader iterator that can be used to iterate over a data loader.
-struct BatchDataloaderIterator<I, O> {
+struct BatchDataloaderIterator<B: Backend, I, O> {
     current_index: usize,
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
-    batcher: Box<dyn DynBatcher<I, O>>,
+    batcher: Box<dyn DynBatcher<B, I, O>>,
 }
 
-impl<I, O> BatchDataLoader<I, O>
+impl<B: Backend, I, O> BatchDataLoader<B, I, O>
 where
     I: Send + Sync + Clone + 'static,
     O: Send + Clone + 'static,
@@ -85,7 +86,7 @@ where
     pub fn multi_thread(
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
-        batcher: Box<dyn DynBatcher<I, O>>,
+        batcher: Box<dyn DynBatcher<B, I, O>>,
         num_threads: usize,
         mut rng: Option<rand::rngs::StdRng>,
     ) -> MultiThreadDataLoader<O> {
@@ -110,8 +111,9 @@ where
     }
 }
 
-impl<I, O> DataLoader<O> for BatchDataLoader<I, O>
+impl<B, I, O> DataLoader<O> for BatchDataLoader<B, I, O>
 where
+    B: Backend,
     I: Send + Sync + Clone + 'static,
     O: Send + 'static,
 {
@@ -142,7 +144,7 @@ where
     }
 }
 
-impl<I, O> BatchDataloaderIterator<I, O> {
+impl<B: Backend, I, O> BatchDataloaderIterator<B, I, O> {
     /// Creates a new batch data loader iterator.
     ///
     /// # Arguments
@@ -157,7 +159,7 @@ impl<I, O> BatchDataloaderIterator<I, O> {
     pub fn new(
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
-        batcher: Box<dyn DynBatcher<I, O>>,
+        batcher: Box<dyn DynBatcher<B, I, O>>,
     ) -> Self {
         BatchDataloaderIterator {
             current_index: 0,
@@ -168,7 +170,7 @@ impl<I, O> BatchDataloaderIterator<I, O> {
     }
 }
 
-impl<I, O> Iterator for BatchDataloaderIterator<I, O> {
+impl<B: Backend, I, O> Iterator for BatchDataloaderIterator<B, I, O> {
     type Item = O;
 
     fn next(&mut self) -> Option<O> {
@@ -176,6 +178,7 @@ impl<I, O> Iterator for BatchDataloaderIterator<I, O> {
             self.current_index += 1;
             self.strategy.add(item);
 
+            // TODO: this should call batch with a specified device
             if let Some(items) = self.strategy.batch(false) {
                 return Some(self.batcher.batch(items));
             }
@@ -189,7 +192,7 @@ impl<I, O> Iterator for BatchDataloaderIterator<I, O> {
     }
 }
 
-impl<I, O> DataLoaderIterator<O> for BatchDataloaderIterator<I, O> {
+impl<B: Backend, I, O> DataLoaderIterator<O> for BatchDataloaderIterator<B, I, O> {
     fn progress(&self) -> Progress {
         Progress::new(self.current_index, self.dataset.len())
     }

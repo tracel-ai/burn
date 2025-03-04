@@ -88,12 +88,16 @@ impl<B: Backend> SequenceBatcher<B> {
     }
 }
 
-impl<B: Backend> Batcher<SequenceDatasetItem, SequenceBatch<B>> for SequenceBatcher<B> {
-    fn batch(&self, items: Vec<SequenceDatasetItem>) -> SequenceBatch<B> {
+impl<B: Backend> Batcher<B, SequenceDatasetItem, SequenceBatch<B>> for SequenceBatcher<B> {
+    fn batch_with_device(
+        &self,
+        items: Vec<SequenceDatasetItem>,
+        device: &B::Device,
+    ) -> SequenceBatch<B> {
         let mut sequences: Vec<Tensor<B, 2>> = Vec::new();
 
         for item in items.iter() {
-            let seq_tensor = Tensor::<B, 1>::from_floats(item.sequence.as_slice(), &self.device);
+            let seq_tensor = Tensor::<B, 1>::from_floats(item.sequence.as_slice(), device);
             // Add feature dimension, the input_size is 1 implicitly. We can change the input_size here with some operations
             sequences.push(seq_tensor.unsqueeze_dims(&[-1]));
         }
@@ -101,10 +105,14 @@ impl<B: Backend> Batcher<SequenceDatasetItem, SequenceBatch<B>> for SequenceBatc
 
         let targets = items
             .iter()
-            .map(|item| Tensor::<B, 1>::from_floats([item.target], &self.device))
+            .map(|item| Tensor::<B, 1>::from_floats([item.target], device))
             .collect();
         let targets = Tensor::stack(targets, 0);
 
         SequenceBatch { sequences, targets }
+    }
+
+    fn device(&self) -> B::Device {
+        self.device.clone()
     }
 }
