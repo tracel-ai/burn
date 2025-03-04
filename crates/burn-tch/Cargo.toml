@@ -12,7 +12,8 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tch"
 version.workspace = true
 
 [features]
-default = []
+default = ["std"]
+std = []
 doc = ["tch/doc-only"]
 
 [dependencies]

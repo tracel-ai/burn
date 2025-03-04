@@ -16,7 +16,7 @@ class Model(nn.Module):
 
 
 def main():
-    # Set seed for reproducability
+    # Set seed for reproducibility
     torch.manual_seed(42)
 
     torch.set_printoptions(precision=8)

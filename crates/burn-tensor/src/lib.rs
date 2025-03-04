@@ -17,6 +17,10 @@ mod tensor;
 #[allow(missing_docs)]
 pub mod tests;
 
+#[cfg(feature = "export_tests")]
+// Re-export the might_panic proc macro for easy access
+pub use burn_tensor_testgen::might_panic;
+
 pub use half::{bf16, f16};
 pub(crate) use tensor::check::macros::check;
 pub use tensor::*;

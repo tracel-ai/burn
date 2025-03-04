@@ -2,7 +2,9 @@ use std::ops::Range;
 
 use burn_tensor::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
-    quantization::{QuantizationParametersPrimitive, QuantizationScheme, QuantizationType},
+    quantization::{
+        BlockLayout, QuantizationParametersPrimitive, QuantizationScheme, QuantizationType,
+    },
     DType, Device, Shape, TensorData,
 };
 
@@ -40,12 +42,21 @@ where
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
-                QuantizationScheme::PerTensorAffine(QuantizationType::QInt8)
-                | QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
+                QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8)
+                | QuantizationScheme::PerBlock(
+                    _mode,
+                    QuantizationType::QInt8,
+                    BlockLayout::Flat(..),
+                ) => {
                     // TensorData quantized representation is the same, with multiple quantized values
                     // packed into u32 and quantization parameters appended to the bytes
                     new_qtensor(data.as_bytes(), data.shape.clone(), scheme, device)
                 }
+                QuantizationScheme::PerBlock(
+                    _mode,
+                    QuantizationType::QInt8,
+                    BlockLayout::Grid(..),
+                ) => panic!("Per-block quantization is not supported for grid layout"),
             },
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
@@ -53,6 +64,8 @@ where
             ),
         }
     }
+
+    // TODO: quantize_dynamic (we can compute min-max on the fly and scale, especially when not per-tensor)
 
     fn quantize(
         tensor: FloatTensor<Self>,
@@ -82,6 +95,7 @@ where
         let tensor = kernel::into_contiguous(tensor);
         let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
 
+        // We use the same internal representation
         TensorData::from_bytes(bytes, tensor.shape, tensor.dtype)
     }
 

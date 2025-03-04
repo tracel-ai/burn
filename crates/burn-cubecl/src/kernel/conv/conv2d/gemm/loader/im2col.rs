@@ -1,9 +1,10 @@
-use cubecl::prelude::pipeline::Pipeline;
+use cubecl::linalg::matmul::components::global::SyncInputLoader;
+use cubecl::linalg::matmul::components::stage::{ContiguousTilingLayout, RowMajorTilingOrder};
 use cubecl::{
     linalg::{
         matmul::components::{
             global::InputLoader,
-            stage::{multi_buffer::LhsReader, Stage, TilingLayout},
+            stage::{multi_buffer::LhsReader, Stage},
             Ident,
         },
         tensor::VirtualTensor,
@@ -18,7 +19,7 @@ use crate::kernel::conv::{precision::ConvPrecision, reader::im2col::Im2colReader
 #[derive(CubeType)]
 pub struct SimpleIm2colLoader<CS: ConvPrecision, G: ConvGemmConfig> {
     pub tensor_view: Im2colReader<CS::EG>,
-    pub stage: Stage<CS::ES>,
+    pub stage: Stage<CS::ES, ContiguousTilingLayout<RowMajorTilingOrder>>,
     _config: PhantomData<G>,
 }
 
@@ -26,21 +27,7 @@ pub struct SimpleIm2colLoader<CS: ConvPrecision, G: ConvGemmConfig> {
 impl<CS: ConvPrecision, G: ConvGemmConfig> InputLoader<CS::EG, CS::ES, G>
     for SimpleIm2colLoader<CS, G>
 {
-    type StageReader = LhsReader<CS::ES>;
-
-    fn fill_stage(this: &mut Self, #[comptime] config: G) {
-        SimpleIm2col::load_to_slice::<CS, G>(
-            &this.tensor_view,
-            &mut this.stage.as_slice_mut(),
-            Ident::Lhs,
-            config,
-        );
-    }
-
-    /// Fills the stage at the current k offset.
-    fn fill_stage_window(_this: &mut Self, _pipeline: Pipeline<CS::ES>, #[comptime] _config: G) {
-        comptime!(todo!());
-    }
+    type StageReader = LhsReader<CS::ES, ContiguousTilingLayout<RowMajorTilingOrder>>;
 
     fn advance_view(this: &mut Self, k_offset: u32) {
         this.tensor_view.update_view(k_offset);
@@ -48,6 +35,20 @@ impl<CS: ConvPrecision, G: ConvGemmConfig> InputLoader<CS::EG, CS::ES, G>
 
     fn as_stage_reader(this: &Self) -> Self::StageReader {
         LhsReader::new(this.stage)
+    }
+}
+
+#[cube]
+impl<CS: ConvPrecision, G: ConvGemmConfig> SyncInputLoader<CS::EG, CS::ES, G>
+    for SimpleIm2colLoader<CS, G>
+{
+    fn fill_stage(this: &mut Self, #[comptime] config: G) {
+        SimpleIm2col::load_to_slice::<CS, G>(
+            &this.tensor_view,
+            &mut this.stage.as_slice_mut(),
+            Ident::Lhs,
+            config,
+        );
     }
 }
 
@@ -100,7 +101,7 @@ impl SimpleIm2col {
         #[comptime] ident: Ident,
         #[comptime] config: G,
     ) {
-        let stage_tiling = config.stage_tiling(ident);
+        let stage_tiling = config.tiling_dimensions(ident);
         let line_size = config.global_line_size(ident);
 
         let num_stage_elements = stage_tiling.total_size();
@@ -121,12 +122,9 @@ impl SimpleIm2col {
             let nth_tile = unit_position / tile_num_elements;
             let pos_within_tile = unit_position % tile_num_elements;
 
-            let (tile_x, tile_y) = TilingLayout::to_x_y(
-                config.tiling_layout(ident),
-                nth_tile,
-                stage_tiling.tile_count_row(),
-                stage_tiling.tile_count_col(),
-            );
+            let (tile_x, tile_y) = ContiguousTilingLayout::<RowMajorTilingOrder>::to_x_y::<
+                G::SmmConfig,
+            >(nth_tile, ident, config.to_smm_config());
 
             let line_read =
                 read_view.load_simple::<G>(tile_x, tile_y, pos_within_tile, ident, config);

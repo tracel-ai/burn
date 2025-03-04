@@ -120,6 +120,7 @@ include_models!(
     sub_int,
     sum,
     sum_int,
+    tan,
     tanh,
     tile,
     top_k_opset_1,
@@ -1484,6 +1485,20 @@ mod tests {
         assert!(expected_sum1.approx_eq(output_sum1, (1.0e-6, 2)));
         assert!(expected_sum2.approx_eq(output_sum2, (1.0e-6, 2)));
         assert!(expected_sum3.approx_eq(output_sum3, (1.0e-6, 2)));
+    }
+
+    #[test]
+    fn tan() {
+        // Initialize the model
+        let device = Default::default();
+        let model = tan::Model::<Backend>::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]], &device);
+        let output = model.forward(input);
+        // data from pyTorch
+        let expected = TensorData::from([[[[1.5574f32, -2.1850, -0.1425, 1.1578]]]]);
+        output.to_data().assert_approx_eq(&expected, 4);
     }
 
     #[test]

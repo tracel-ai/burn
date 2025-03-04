@@ -251,16 +251,16 @@ Let's review the changes made for powf starting from `src/burn` and moving to `s
 
 1. Determine the type of operator and add your operator to the appropriate node (operation) type, in
    this case
-   [BinaryNode under `crates/burn-import/src/burn/node/binary.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-import/src/burn/node/binary.rs#L160)
+   [BinaryNode under `crates/burn-import/src/burn/node/binary.rs`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/binary.rs#L173)
    along with its
-   [`to_str` definition](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-import/src/burn/node/binary.rs#L15)
+   [`as_str` definition](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/binary.rs#L15)
 2. Add an arm to the match statement inside the `into_burn` function in
-   [crates/burn-import/src/onnx/to_burn.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-import/src/onnx/to_burn.rs#L272)
+   [crates/burn-import/src/onnx/to_burn.rs](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/onnx/to_burn.rs#L349)
    for the ONNX `NodeType` (which corresponds to an op in the ONNX spec), and make an
-   [`{op}_conversion` function](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-import/src/onnx/to_burn.rs#L717)
+   [`{op}_conversion` function](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/onnx/to_burn.rs#L1238)
    that maps the ONNX node to the binary type
 3. Specify how dimensions for the output should be derived in
-   [crates/onnx-ir/src/dim_inference.rs](https://github.com/tracel-ai/burn/blob/d4ae82b21ac3dd1def01bd380ab7ea4d3293eccb/crates/onnx-ir/src/dim_inference.rs#L17)
+   [crates/onnx-ir/src/rank_inference.rs](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/rank_inference.rs#L64)
 
 And you're done! Congrats, you just fully added a new operation to burn, and we are all one step
 closer to the answer to [Are we learning yet?](https://www.arewelearningyet.com/) being "Yes, and
