@@ -29,6 +29,7 @@ pub trait Vectorization<R: Runtime> {
         None
     }
     /// The vectorization factor for all inputs and outputs.
+    #[allow(clippy::too_many_arguments)]
     fn vectorization<'a>(
         vectorizations: &mut BTreeMap<TensorId, Vect>,
         handles_inputs: impl Iterator<Item = &'a CubeFusionHandle<R>>,
@@ -67,6 +68,7 @@ pub trait MultiTraceRunner<R: Runtime>: Vectorization<R> {
     ) -> Result<(), Self::Error>;
 }
 
+#[allow(clippy::too_many_arguments)]
 fn vectorization_default<'a, R: Runtime>(
     vectorizations: &mut BTreeMap<TensorId, Vect>,
     handles_inputs: impl Iterator<Item = &'a CubeFusionHandle<R>>,

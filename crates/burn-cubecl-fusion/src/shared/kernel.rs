@@ -48,7 +48,7 @@ pub fn fuse_on_read<E: CubePrimitive>(
     #[unroll]
     for i in 0..read_args.len() {
         let arg = comptime![read_args.index(i).clone()];
-        let value = read::<E>(inputs, outputs, &mut locals, read_pos, arg, config);
+        let value = read::<E>(inputs, outputs, &locals, read_pos, arg, config);
 
         output.push(value);
     }

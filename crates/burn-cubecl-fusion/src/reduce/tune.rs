@@ -56,20 +56,15 @@ pub(crate) fn create_key<R: Runtime>(
 
     let input = context.tensors.get(&opt.reduce.op.input.id).unwrap();
     let out = context.tensors.get(&opt.reduce.op.out.id).unwrap();
-    let key = Some(ReduceAutotuneKey::generate_without_strides(
+    let key = ReduceAutotuneKey::generate_without_strides(
         out.dtype.into(),
         &input.shape,
         opt.reduce.axis,
-    ));
+    );
     let vect = opt.trace_read.vect(context, &opt.reduce);
     let vect = vect.iter().map(|v| v.1.line_size() as usize).sum::<usize>();
 
-    FusedReduceAutotuneKey::new(
-        key.unwrap(),
-        opt.num_output_buffers(),
-        opt.num_ops_fused(),
-        vect,
-    )
+    FusedReduceAutotuneKey::new(key, opt.num_output_buffers(), opt.num_ops_fused(), vect)
 }
 
 fn input_gen<R: Runtime>(

@@ -30,6 +30,7 @@ pub struct LaunchPlanExecutor<'a, R: Runtime> {
 }
 
 /// Execute a [plan](LaunchPlan) using a [runner](TraceRunner) modifying the [context](Context).
+#[allow(clippy::type_complexity)]
 pub struct LaunchMultiPlanExecutor<'a, R: Runtime> {
     scalars: (
         &'a Vec<(ElemwisePrecision, u32)>,
@@ -57,6 +58,7 @@ pub struct MultiExecutionError<R: Runtime, Runner: MultiTraceRunner<R>> {
 }
 
 impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
+    #[allow(clippy::type_complexity)]
     pub fn new(
         scalars: (
             &'a Vec<(ElemwisePrecision, u32)>,

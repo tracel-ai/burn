@@ -24,7 +24,6 @@ use crate::CubeFusionHandle;
 use super::args::{FusedReduceArgs, FusedReduceInputLaunch, FusedReduceOutputLaunch};
 use super::tune::fused_reduce_autotune;
 
-#[derive(new)]
 pub struct ReduceOptimization<R: Runtime> {
     pub(crate) trace_read: FuseTrace,
     trace_write: FuseTrace,
@@ -99,7 +98,47 @@ pub enum FusedReduceError {
     LaunchError(ReduceError),
     InvalidInput,
 }
+
+#[allow(clippy::too_many_arguments)]
 impl<R: Runtime> ReduceOptimization<R> {
+    pub fn new(
+        trace_read: FuseTrace,
+        trace_write: FuseTrace,
+        trace_read_fallback: FuseTrace,
+        trace_write_fallback: FuseTrace,
+        client: ComputeClient<R::Server, R::Channel>,
+        device: R::Device,
+        len: usize,
+        reduce: FusedReduce,
+        fallback: Arc<dyn ReduceFallbackFn<R>>,
+    ) -> Self {
+        let reduce_shared = reduce.with_strategy(ReduceStrategy {
+            use_planes: false,
+            shared: true,
+        });
+        let reduce_plane = reduce.with_strategy(ReduceStrategy {
+            use_planes: true,
+            shared: false,
+        });
+        let reduce_shared_plane = reduce.with_strategy(ReduceStrategy {
+            use_planes: true,
+            shared: true,
+        });
+        Self {
+            trace_read,
+            trace_write,
+            trace_read_fallback,
+            trace_write_fallback,
+            client,
+            device,
+            len,
+            reduce,
+            reduce_shared,
+            reduce_plane,
+            reduce_shared_plane,
+            fallback,
+        }
+    }
     /// Execute the optimization.
     pub fn execute<BT: CubeElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
         #[cfg(feature = "autotune")]
@@ -125,7 +164,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             reduce_shared: self.reduce_shared.clone(),
             reduce_plane: self.reduce_plane.clone(),
             reduce_shared_plane: self.reduce_shared_plane.clone(),
-            len: self.len.clone(),
+            len: self.len,
         }
     }
 
@@ -239,12 +278,7 @@ impl<R: Runtime> ReduceOptimization<R> {
     }
 }
 
-impl<R: Runtime> Vectorization<R> for FusedReduce {
-    fn axis(&self) -> Option<usize> {
-        // Some(self.axis)
-        None
-    }
-}
+impl<R: Runtime> Vectorization<R> for FusedReduce {}
 
 impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
     type Error = FusedReduceError;

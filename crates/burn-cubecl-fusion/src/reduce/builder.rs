@@ -140,20 +140,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
         let trace_write = self.builder_write.build();
         let trace_read_fallback = self.builder_read_fallback.build();
         let trace_write_fallback = self.builder_write_fallback.build();
-
         let fuse_reduce = self.reduce.as_ref().unwrap();
-        let fuse_reduce_shared = fuse_reduce.with_strategy(ReduceStrategy {
-            use_planes: false,
-            shared: true,
-        });
-        let fuse_reduce_plane = fuse_reduce.with_strategy(ReduceStrategy {
-            use_planes: true,
-            shared: false,
-        });
-        let fuse_reduce_shared_plane = fuse_reduce.with_strategy(ReduceStrategy {
-            use_planes: true,
-            shared: true,
-        });
 
         let reduce = ReduceOptimization::<R>::new(
             trace_read,
@@ -164,9 +151,6 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
             self.device.clone(),
             self.len(),
             fuse_reduce.clone(),
-            fuse_reduce_shared,
-            fuse_reduce_plane,
-            fuse_reduce_shared_plane,
             self.fallback.clone(),
         );
 
