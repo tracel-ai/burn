@@ -1,16 +1,14 @@
 use burn_tensor::ops::ConvOptions;
-use cubecl::linalg::{
-    matmul::{
-        components::{
-            global::{AccumulatorLoader, OutputLoader},
-            stage::{StageMatmul, StageMatmulFamily},
-            InvalidConfigError, MatmulProblem, MatrixLayout,
-        },
-        kernels::matmul::AdvancedConfig,
+use cubecl::linalg::matmul::{
+    components::{
+        global::{AccumulatorLoader, OutputLoader},
+        stage::{StageMatmul, StageMatmulFamily},
+        InvalidConfigError, MatmulProblem, MatrixLayout,
     },
-    tensor::{ReadWrite, VirtualTensor},
+    kernels::matmul::AdvancedConfig,
 };
 use cubecl::prelude::*;
+use cubecl_std::tensor::r#virtual::{ReadWrite, VirtualTensor};
 
 use super::{homogeneous::base::ConvTilingLayout, precision::ConvPrecision, ConvGemmConfig};
 

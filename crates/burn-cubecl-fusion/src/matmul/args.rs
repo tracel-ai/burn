@@ -1,7 +1,7 @@
 use cubecl::{linalg::matmul::components::global::args::MatmulArgs, prelude::*};
 
 use crate::shared::{
-    io::{global_rank, global_shape, global_stride, read_input},
+    io::{global_buffer_len, global_len, global_rank, global_shape, global_stride, read_input},
     ir::{Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo},
     kernel::fuse_on_write,
 };
@@ -115,6 +115,82 @@ impl MatmulArgs for FusedMatmulArgs {
             args,
             &state.config,
         );
+    }
+
+    fn len_lhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {
+        let pos = comptime! {
+            match state.lhs {
+                Arg::Input(pos, ..) => pos,
+                _ => panic!("Lhs isn't an input"),
+            }
+        };
+
+        global_len(unsafe { &(*state.inputs) }, pos)
+    }
+
+    fn len_rhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {
+        let pos = comptime! {
+            match state.rhs {
+                Arg::Input(pos, ..) => pos,
+                _ => panic!("Rhs isn't an input"),
+            }
+        };
+
+        global_len(unsafe { &(*state.inputs) }, pos)
+    }
+
+    fn len_out<EG: Numeric>(state: &Self::State<EG>) -> u32 {
+        let (pos, is_input) = comptime! {
+            match state.config.ref_layout {
+                Arg::Input(pos, ..) => (pos, true),
+                Arg::Output(pos, ..) => (pos, false),
+                _ => panic!("Out isn't an input or output"),
+            }
+        };
+
+        if is_input {
+            global_len(unsafe { &(*state.inputs) }, pos)
+        } else {
+            global_len(unsafe { &(*state.outputs) }, pos)
+        }
+    }
+
+    fn buffer_len_lhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {
+        let pos = comptime! {
+            match state.lhs {
+                Arg::Input(pos, ..) => pos,
+                _ => panic!("Lhs isn't an input"),
+            }
+        };
+
+        global_buffer_len(unsafe { &(*state.inputs) }, pos)
+    }
+
+    fn buffer_len_rhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {
+        let pos = comptime! {
+            match state.rhs {
+                Arg::Input(pos, ..) => pos,
+                _ => panic!("Rhs isn't an input"),
+            }
+        };
+
+        global_buffer_len(unsafe { &(*state.inputs) }, pos)
+    }
+
+    fn buffer_len_out<EG: Numeric>(state: &Self::State<EG>) -> u32 {
+        let (pos, is_input) = comptime! {
+            match state.config.ref_layout {
+                Arg::Input(pos, ..) => (pos, true),
+                Arg::Output(pos, ..) => (pos, false),
+                _ => panic!("Out isn't an input or output"),
+            }
+        };
+
+        if is_input {
+            global_buffer_len(unsafe { &(*state.inputs) }, pos)
+        } else {
+            global_buffer_len(unsafe { &(*state.outputs) }, pos)
+        }
     }
 
     fn rank_lhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {

@@ -1,16 +1,15 @@
 use cubecl::linalg::matmul::components::global::SyncInputLoader;
 use cubecl::linalg::matmul::components::stage::{ContiguousTilingLayout, RowMajorTilingOrder};
 use cubecl::{
-    linalg::{
-        matmul::components::{
-            global::InputLoader,
-            stage::{multi_buffer::LhsReader, Stage},
-            Ident,
-        },
-        tensor::VirtualTensor,
+    linalg::matmul::components::{
+        global::InputLoader,
+        stage::{multi_buffer::LhsReader, Stage},
+        Ident,
     },
     prelude::*,
 };
+
+use cubecl_std::tensor::r#virtual::VirtualTensor;
 use std::marker::PhantomData;
 
 use crate::kernel::conv::{precision::ConvPrecision, reader::im2col::Im2colReader, ConvGemmConfig};

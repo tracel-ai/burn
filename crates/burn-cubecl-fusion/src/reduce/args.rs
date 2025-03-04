@@ -1,5 +1,5 @@
 use cubecl::reduce::args::ReduceArgs;
-use cubecl::{prelude::*, reduce::args::ReducePrecision};
+use cubecl::{prelude::*, reduce::args::ReduceDType};
 
 use crate::shared::io::{global_buffer_len, global_len, global_rank, global_shape, global_stride};
 use crate::shared::ir::{Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand};
@@ -49,16 +49,16 @@ pub struct FusedReduceStateExpand {
 impl ReduceArgs for FusedReduceArgs {
     type Input<E: Numeric> = FusedReduceInput;
     type Output<E: Numeric> = FusedReduceOutput;
-    type State<P: ReducePrecision> = FusedReduceState;
+    type State<P: ReduceDType> = FusedReduceState;
 
-    fn init_state<P: ReducePrecision>(
+    fn init_state<P: ReduceDType>(
         input: &Self::Input<P::In>,
         output: &mut Self::Output<P::Out>,
     ) -> Self::State<P> {
         FusedReduceState::new(input, output)
     }
 
-    fn read_input<P: ReducePrecision>(state: &Self::State<P>, index: u32) -> Line<P::In> {
+    fn read_input<P: ReduceDType>(state: &Self::State<P>, index: u32) -> Line<P::In> {
         *fuse_on_read::<P::In>(
             unsafe { &(*state.inputs) },
             unsafe { &mut (*state.outputs) },
@@ -73,15 +73,11 @@ impl ReduceArgs for FusedReduceArgs {
         .index(0)
     }
 
-    fn read_output<P: ReducePrecision>(_state: &Self::State<P>, _index: u32) -> Line<P::Out> {
+    fn read_output<P: ReduceDType>(_state: &Self::State<P>, _index: u32) -> Line<P::Out> {
         Line::empty(1)
     }
 
-    fn write_output<P: ReducePrecision>(
-        state: &mut Self::State<P>,
-        index: u32,
-        value: Line<P::Out>,
-    ) {
+    fn write_output<P: ReduceDType>(state: &mut Self::State<P>, index: u32, value: Line<P::Out>) {
         let mut values = Registry::<Arg, Line<P::Out>>::new();
         let mut args = comptime![Sequence::<Arg>::new()];
 
@@ -98,7 +94,7 @@ impl ReduceArgs for FusedReduceArgs {
         );
     }
 
-    fn len_input<P: ReducePrecision>(state: &Self::State<P>) -> u32 {
+    fn len_input<P: ReduceDType>(state: &Self::State<P>) -> u32 {
         let (pos, is_input) = comptime! {
             match state.config_on_read.ref_layout {
                 Arg::Input(pos, ..) => (pos, true),
@@ -114,7 +110,7 @@ impl ReduceArgs for FusedReduceArgs {
         }
     }
 
-    fn len_output<P: ReducePrecision>(state: &Self::State<P>) -> u32 {
+    fn len_output<P: ReduceDType>(state: &Self::State<P>) -> u32 {
         let (pos, is_input) = comptime! {
             match state.config_on_write.ref_layout {
                 Arg::Input(pos, ..) => (pos, true),
@@ -130,7 +126,7 @@ impl ReduceArgs for FusedReduceArgs {
         }
     }
 
-    fn buffer_len_input<P: ReducePrecision>(state: &Self::State<P>) -> u32 {
+    fn buffer_len_input<P: ReduceDType>(state: &Self::State<P>) -> u32 {
         let (pos, is_input) = comptime! {
             match state.config_on_read.ref_layout {
                 Arg::Input(pos, ..) => (pos, true),
@@ -146,7 +142,7 @@ impl ReduceArgs for FusedReduceArgs {
         }
     }
 
-    fn buffer_len_output<P: ReducePrecision>(state: &Self::State<P>) -> u32 {
+    fn buffer_len_output<P: ReduceDType>(state: &Self::State<P>) -> u32 {
         let (pos, is_input) = comptime! {
             match state.config_on_write.ref_layout {
                 Arg::Input(pos, ..) => (pos, true),
@@ -162,7 +158,7 @@ impl ReduceArgs for FusedReduceArgs {
         }
     }
 
-    fn rank_input<P: ReducePrecision>(state: &Self::State<P>) -> u32 {
+    fn rank_input<P: ReduceDType>(state: &Self::State<P>) -> u32 {
         let (pos, is_input) = comptime! {
             match state.config_on_read.ref_layout {
                 Arg::Input(pos, ..) => (pos, true),
@@ -178,7 +174,7 @@ impl ReduceArgs for FusedReduceArgs {
         }
     }
 
-    fn rank_output<P: ReducePrecision>(state: &Self::State<P>) -> u32 {
+    fn rank_output<P: ReduceDType>(state: &Self::State<P>) -> u32 {
         let (pos, is_input) = comptime! {
             match state.config_on_write.ref_layout {
                 Arg::Input(pos, ..) => (pos, true),
@@ -194,7 +190,7 @@ impl ReduceArgs for FusedReduceArgs {
         }
     }
 
-    fn shape_input<P: ReducePrecision>(state: &Self::State<P>, dim: u32) -> u32 {
+    fn shape_input<P: ReduceDType>(state: &Self::State<P>, dim: u32) -> u32 {
         let (pos, is_input) = comptime! {
             match state.config_on_read.ref_layout {
                 Arg::Input(pos, ..) => (pos, true),
@@ -210,7 +206,7 @@ impl ReduceArgs for FusedReduceArgs {
         }
     }
 
-    fn shape_output<P: ReducePrecision>(state: &Self::State<P>, dim: u32) -> u32 {
+    fn shape_output<P: ReduceDType>(state: &Self::State<P>, dim: u32) -> u32 {
         let (pos, is_input) = comptime! {
             match state.config_on_write.ref_layout {
                 Arg::Input(pos, ..) => (pos, true),
@@ -226,7 +222,7 @@ impl ReduceArgs for FusedReduceArgs {
         }
     }
 
-    fn stride_input<P: ReducePrecision>(state: &Self::State<P>, dim: u32) -> u32 {
+    fn stride_input<P: ReduceDType>(state: &Self::State<P>, dim: u32) -> u32 {
         let (pos, is_input) = comptime! {
             match state.config_on_read.ref_layout {
                 Arg::Input(pos, ..) => (pos, true),
@@ -242,7 +238,7 @@ impl ReduceArgs for FusedReduceArgs {
         }
     }
 
-    fn stride_output<P: ReducePrecision>(state: &Self::State<P>, dim: u32) -> u32 {
+    fn stride_output<P: ReduceDType>(state: &Self::State<P>, dim: u32) -> u32 {
         let (pos, is_input) = comptime! {
             match state.config_on_write.ref_layout {
                 Arg::Input(pos, ..) => (pos, true),
