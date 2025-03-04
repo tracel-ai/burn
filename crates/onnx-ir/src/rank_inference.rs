@@ -87,6 +87,7 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::Sqrt => same_as_input(node),
         NodeType::Sub => same_as_input_broadcast(node),
         NodeType::Sum => same_as_input_broadcast(node),
+        NodeType::Tan => same_as_input(node),
         NodeType::Tanh => same_as_input(node),
         NodeType::TopK => top_k_update_output(node),
         NodeType::Transpose => same_as_input(node),
