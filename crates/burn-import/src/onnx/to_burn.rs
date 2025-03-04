@@ -1316,7 +1316,7 @@ impl ParsedOnnxGraph {
         let a = TensorType::from(node.inputs.first().unwrap());
         let b = TensorType::from(node.inputs.get(1).unwrap());
         let c = if node.inputs.len() > 2 {
-            Some(TensorType::from(node.inputs.get(2).unwrap()))
+            Some(Type::from(node.inputs.get(2).unwrap()))
         } else {
             None
         };

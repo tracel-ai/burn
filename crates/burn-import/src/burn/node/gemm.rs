@@ -9,7 +9,7 @@ use quote::quote;
 pub struct GemmNode {
     pub a: TensorType,
     pub b: TensorType,
-    pub c: Option<TensorType>,
+    pub c: Option<Type>,
     pub output: TensorType,
     pub alpha: f32,
     pub beta: f32,
@@ -26,7 +26,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GemmNode {
         let mut inputs = vec![Type::Tensor(self.a.clone()), Type::Tensor(self.b.clone())];
 
         if let Some(ref c) = self.c {
-            inputs.push(Type::Tensor(c.clone()));
+            match c {
+                Type::Tensor(tensor) => inputs.push(Type::Tensor(tensor.clone())),
+                Type::Scalar(scalar) => inputs.push(Type::Scalar(scalar.clone())),
+                _ => panic!("C should be Tensor or Scalar!"),
+            }
         }
 
         inputs
@@ -54,16 +58,40 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GemmNode {
             quote! {#b}
         };
 
-        let product = quote! {#a.clone().matmul(#b.clone())};
-        let scaled_product = quote! {#product * #alpha};
+        let product = quote! {#a.matmul(#b)};
+
+        let scaled_product = match alpha {
+            1.0 => quote! {#product},
+            _ => quote! {#product * #alpha},
+        };
 
         if let Some(ref c) = self.c {
-            let c = scope.tensor_use_owned(c, node_position);
-
-            quote! {
-                let mut d = (#scaled_product).zeros_like();
-                d = #c.unsqueeze();
-                let #output = (#scaled_product) + (d * #beta);
+            match (c, beta) {
+                (Type::Tensor(tensor), 1.0) => {
+                    let c_tensor = scope.tensor_use_owned(tensor, node_position);
+                    quote! {
+                        let #output = #scaled_product + #c_tensor.unsqueeze();
+                    }
+                }
+                (Type::Scalar(scalar), 1.0) => {
+                    let c_scalar = &scalar.name;
+                    quote! {
+                        let #output = #scaled_product + #c_scalar;
+                    }
+                }
+                (Type::Tensor(tensor), _) => {
+                    let c_tensor = scope.tensor_use_owned(tensor, node_position);
+                    quote! {
+                        let #output = #scaled_product + (#c_tensor.unsqueeze() * #beta);
+                    }
+                }
+                (Type::Scalar(scalar), _) => {
+                    let c_scalar = &scalar.name;
+                    quote! {
+                        let #output = #scaled_product + (#c_scalar * #beta);
+                    }
+                }
+                _ => panic!("C should be Tensor or a Scalar!"),
             }
         } else {
             quote! {
@@ -85,7 +113,7 @@ mod tests {
     use crate::burn::{
         graph::BurnGraph,
         node::{gemm::GemmNode, test::assert_tokens},
-        TensorType,
+        ScalarKind, ScalarType, TensorType,
     };
 
     #[test]
@@ -95,7 +123,10 @@ mod tests {
         graph.register(GemmNode::new(
             TensorType::new_float("tensor1", 2),
             TensorType::new_float("tensor2", 2),
-            None,
+            Some(Type::Scalar(ScalarType::new(
+                "scalar1",
+                ScalarKind::Float32,
+            ))),
             TensorType::new_float("tensor3", 2),
             1.0,
             1.0,
@@ -104,7 +135,11 @@ mod tests {
         ));
 
         graph.register_input_output(
-            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec![
+                "tensor1".to_string(),
+                "tensor2".to_string(),
+                "scalar1".to_string(),
+            ],
             vec!["tensor3".to_string()],
         );
 
@@ -130,8 +165,8 @@ mod tests {
                 }
 
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 2>, tensor2: Tensor<B, 2>) -> Tensor<B, 2> {
-                    let tensor3 = tensor1.clone().matmul(tensor2.clone()) * 1f32;
+                pub fn forward(&self, tensor1: Tensor<B, 2>, tensor2: Tensor<B, 2>, scalar1: f32) -> Tensor<B, 2> {
+                    let tensor3 = tensor1.matmul(tensor2) + scalar1;
                     tensor3
                 }
             }

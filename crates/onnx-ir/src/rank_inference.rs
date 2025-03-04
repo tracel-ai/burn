@@ -1077,48 +1077,14 @@ fn one_hot_output_shape(node: &mut Node) {
 }
 
 fn gemm_output_shape(node: &mut Node) {
-    let a_shape = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.shape.clone().expect("Input A should have a shape!"),
+    let a_rank = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.rank,
         _ => panic!("Input A should be a tensor!"),
     };
-    let b_shape = match &node.inputs[1].ty {
-        ArgType::Tensor(tensor) => tensor.shape.clone().expect("Input B should have a shape!"),
-        _ => panic!("Input B should be a tensor!"),
-    };
-    let trans_a = node
-        .attrs
-        .get("transA")
-        .map(|v| v.clone().into_i64())
-        .unwrap_or(0);
-
-    let trans_b = node
-        .attrs
-        .get("transB")
-        .map(|v| v.clone().into_i64())
-        .unwrap_or(0);
-
-    let (m, k_a) = if trans_a != 0 {
-        (a_shape[1], a_shape[0])
-    } else {
-        (a_shape[0], a_shape[1])
-    };
-
-    let (k_b, n) = if trans_b != 0 {
-        (b_shape[1], b_shape[0])
-    } else {
-        (b_shape[0], b_shape[1])
-    };
-
-    if k_a != k_b {
-        panic!(
-            "Gemm: inner dimensions do not match (got {} and {})",
-            k_a, k_b
-        );
-    }
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        rank: 2,
-        shape: Some(vec![m, n]),
+        rank: a_rank,
+        shape: None,
         elem_type: match &node.inputs[0].ty {
             ArgType::Tensor(t) => t.elem_type.clone(),
             _ => panic!("Unexpected type for input A"),

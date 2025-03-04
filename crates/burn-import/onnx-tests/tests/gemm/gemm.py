@@ -18,7 +18,7 @@ def create_gemm_model(output_path="gemm.onnx"):
     # Define the graph inputs and outputs
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [m, k])
     B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [k, n])
-    C = helper.make_tensor_value_info('C', TensorProto.FLOAT, [m, n])
+    C = helper.make_tensor_value_info('C', TensorProto.FLOAT, [])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [m, n])
 
     # Define Gemm node attributes

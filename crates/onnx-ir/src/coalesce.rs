@@ -52,8 +52,6 @@ pub(crate) fn convert_gemm_to_linear(node: &mut Node) {
 
         // Transpose the weights
         transpose_linear_node_weights(node);
-        //} else {
-        //    panic!("Full Gemm node not supported yet.");
     }
 }
 
