@@ -93,6 +93,13 @@ where
         )))
     }
 
+    /// Applies element wise tangent operation.
+    pub fn tan(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_tan(
+            self.primitive.tensor(),
+        )))
+    }
+
     /// Applies element wise hyperbolic tangent operation.
     pub fn tanh(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_tanh(
@@ -316,6 +323,9 @@ where
     /// # Returns
     ///
     /// The quantized tensor.
+    ///
+    /// # Notes
+    /// This uses [min-max calibration](crate::quantization::Calibration::MinMax).
     pub fn quantize_dynamic(self, scheme: &QuantizationScheme) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::QFloat(B::quantize_dynamic(
             self.primitive.tensor(),

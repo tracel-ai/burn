@@ -312,6 +312,7 @@ impl ParsedOnnxGraph {
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
                 NodeType::Softmax => graph.register(Self::softmax_conversion(node)),
                 NodeType::Sqrt => graph.register(Self::sqrt_conversion(node)),
+                NodeType::Tan => graph.register(Self::tan_conversion(node)),
                 NodeType::Tanh => graph.register(Self::tanh_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
                 NodeType::Min => graph.register(Self::min_conversion(node)),
@@ -888,6 +889,13 @@ impl ParsedOnnxGraph {
         let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::sqrt(input, output)
+    }
+
+    fn tan_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        UnaryNode::tan(input, output)
     }
 
     fn tanh_conversion(node: Node) -> UnaryNode {

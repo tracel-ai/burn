@@ -3,7 +3,9 @@ use core::{future::Future, ops::Range};
 
 use crate::{
     backend::Backend,
-    quantization::{QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme},
+    quantization::{
+        Calibration, QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme,
+    },
     Device, Shape, TensorData, TensorMetadata,
 };
 
@@ -65,8 +67,7 @@ pub trait QTensorOps<B: Backend> {
     /// Dynamically convert the tensor to a lower precision data type based on the quantization scheme.
     fn quantize_dynamic(tensor: FloatTensor<B>, scheme: &QuantizationScheme) -> QuantizedTensor<B> {
         // Dynamically compute min/max tensor range and qparams before quantizing
-        let min = B::float_min(tensor.clone());
-        let max = B::float_max(tensor.clone());
+        let (min, max) = scheme.compute_range_primitive::<B>(tensor.clone(), &Calibration::MinMax);
         let qparams = scheme.compute_q_params_primitive(min, max);
         Self::quantize(tensor, scheme, qparams)
     }
@@ -969,6 +970,23 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with tangent values.
+    fn q_tan(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_tan(tensor),
+            tensor
+        )
+    }
+
+    /// Returns a new tensor with hyperbolic tangent values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the hyperbolic tangent of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic tangent values.
     fn q_tanh(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
         dequant_op_quant!(
             ty Self,

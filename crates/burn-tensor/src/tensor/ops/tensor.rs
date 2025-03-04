@@ -918,6 +918,21 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with tangent values.
+    fn float_tan(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        let sin = B::float_sin(tensor.clone());
+        let cos = B::float_cos(tensor);
+        B::float_div(sin, cos)
+    }
+
+    /// Returns a new tensor with hyperbolic tangent values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the hyperbolic tangent of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic tangent values.
     fn float_tanh(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Returns a new tensor with rounded values.
