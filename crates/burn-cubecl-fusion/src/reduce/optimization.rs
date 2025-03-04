@@ -291,6 +291,10 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
         config_read: &'a ElemwiseConfig,
         config_write: &'a ElemwiseConfig,
     ) -> Result<(), FusedReduceError> {
+        self.strategy
+            .validate::<R>(client)
+            .map_err(|err| FusedReduceError::LaunchError(err))?;
+
         let strategy = self.strategy;
         let shape = inputs.shape(&config_read.ref_layout);
         let strides = inputs.strides(&config_read.ref_layout);
