@@ -3,7 +3,7 @@ authors = [
     "Dilshod Tadjibaev (@antimora)",
     "Nathaniel Simard (@nathanielsimard)",
 ]
-description = "Library for parsing ONNX models"
+description = "ONNX-IR is a pure Rust library for parsing ONNX models into an intermediate representation that can be used to generate code for various ML/DL frameworks"
 edition.workspace = true
 license.workspace = true
 name = "onnx-ir"
