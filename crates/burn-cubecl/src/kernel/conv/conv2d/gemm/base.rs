@@ -12,14 +12,14 @@ use cubecl::linalg::{
 };
 use cubecl::prelude::*;
 
-use super::{precision::ConvPrecision, ConvGemmConfig};
+use super::{homogeneous::base::ConvTilingLayout, precision::ConvPrecision, ConvGemmConfig};
 
 pub trait ConvolutionFamily<SMM: StageMatmulFamily>:
     ConvolutionConfigFactory<Config: ConvGemmConfig> + ConvolutionLaunch
 {
     type Convolution<CS: ConvPrecision>: Convolution<
         CS,
-        SMM::Matmul<CS::ES, CS::EG, CS::EA>,
+        SMM::Matmul<CS::ES, CS::EG, CS::EA, ConvTilingLayout, ConvTilingLayout>,
         Config = Self::Config,
     >;
 }
