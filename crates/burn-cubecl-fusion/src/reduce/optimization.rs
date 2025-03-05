@@ -293,7 +293,7 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
     ) -> Result<(), FusedReduceError> {
         self.strategy
             .validate::<R>(client)
-            .map_err(|err| FusedReduceError::LaunchError(err))?;
+            .map_err(FusedReduceError::LaunchError)?;
 
         let strategy = self.strategy;
         let shape = inputs.shape(&config_read.ref_layout);
