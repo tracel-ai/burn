@@ -1,8 +1,8 @@
 use crate::shared::io::ref_len;
-use crate::shared::ir::GlobalArgs;
+use crate::shared::ir::{GlobalArgs, RefLayout};
+use crate::shared::kernel::fuse_on_write;
 use crate::shared::kernel::init_locals;
 use crate::shared::trace::Vectorization;
-use crate::shared::{io::global_length, kernel::fuse_on_write};
 use crate::CubeFusionHandle;
 use burn_fusion::stream::Context;
 use cubecl::{calculate_cube_count_elemwise, client::ComputeClient, prelude::*, CubeDim};
@@ -74,10 +74,13 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a ElemwiseConfig,
     ) -> Result<(), Self::Error> {
-        let shape = match config.ref_layout {
-            Arg::Input(..) => inputs.shape(&config.ref_layout),
-            Arg::Output(..) => outputs.shape(&config.ref_layout),
-            _ => inputs.shape(&config.ref_layout),
+        let shape = match &config.ref_layout {
+            RefLayout::Concrete(arg) => match arg {
+                Arg::Input(..) => inputs.shape_ref(&config.ref_layout),
+                Arg::Output(..) => outputs.shape_ref(&config.ref_layout),
+                _ => panic!("Invalid concreate ref layout"),
+            },
+            RefLayout::Virtual(_) => inputs.shape_ref(&config.ref_layout),
         };
         let total_elem = shape.iter().product::<usize>() / config.width as usize;
         let cube_dim = CubeDim::default();
@@ -110,12 +113,7 @@ fn elemwise_fuse(
     let pos = ABSOLUTE_POS;
 
     let mut locals = init_locals(inputs, outputs, config);
-
-    let length = match comptime![config.ref_layout.clone()] {
-        Arg::Input(index, _, _) => global_length(inputs, index),
-        Arg::Output(index, _, _) => global_length(outputs, index),
-        _ => ref_len(&locals, config),
-    };
+    let length = ref_len(inputs, outputs, &locals, config);
 
     if pos < length {
         fuse_on_write::<f32>(inputs, outputs, &mut locals, pos, values, args, config)

@@ -2,8 +2,8 @@ use cubecl::{linalg::matmul::components::global::args::MatmulArgs, prelude::*};
 
 use crate::shared::{
     io::{
-        global_buffer_len, global_len, global_rank, global_shape, global_stride, read_input,
-        ref_len,
+        global_buffer_len, global_len, global_rank, global_shape, global_stride, num_elements,
+        read_input, ref_buffer_len, ref_len, ref_rank, ref_shape, ref_stride,
     },
     ir::{
         Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo, LocalArgs, LocalArgsExpand,
@@ -147,51 +147,37 @@ impl MatmulArgs for FusedMatmulArgs {
     }
 
     fn len_out<EG: Numeric>(state: &Self::State<EG>) -> u32 {
-        let (pos, is_input) = comptime! {
-            match state.config.ref_layout {
-                Arg::Input(pos, ..) => (pos, true),
-                Arg::Output(pos, ..) => (pos, false),
-                _ => panic!("Out isn't an input or output"),
-            }
-        };
-
-        if is_input {
-            global_len(unsafe { &(*state.inputs) }, pos)
-        } else {
-            global_len(unsafe { &(*state.outputs) }, pos)
-        }
+        ref_len(
+            unsafe { &(*state.inputs) },
+            unsafe { &(*state.outputs) },
+            unsafe { &(*state.locals) },
+            &state.config,
+        )
     }
 
     fn buffer_len_lhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {
         match comptime![state.lhs.clone()] {
             Arg::Input(pos, ..) => global_buffer_len(unsafe { &(*state.inputs) }, pos),
-            Arg::InputReshaped { .. } => ref_len(unsafe { &(*state.locals) }, &state.config),
+            Arg::InputReshaped { .. } => num_elements(unsafe { &(*state.locals) }, &state.config),
             _ => panic!("Lhs isn't an input"),
         }
     }
 
     fn buffer_len_rhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {
-        match comptime![state.lhs.clone()] {
+        match comptime![state.rhs.clone()] {
             Arg::Input(pos, ..) => global_len(unsafe { &(*state.inputs) }, pos),
-            Arg::InputReshaped { .. } => ref_len(unsafe { &(*state.locals) }, &state.config),
+            Arg::InputReshaped { .. } => num_elements(unsafe { &(*state.locals) }, &state.config),
             _ => panic!("Lhs isn't an input"),
         }
     }
 
     fn buffer_len_out<EG: Numeric>(state: &Self::State<EG>) -> u32 {
-        let (pos, is_input) = comptime! {
-            match state.config.ref_layout {
-                Arg::Input(pos, ..) => (pos, true),
-                Arg::Output(pos, ..) => (pos, false),
-                _ => panic!("Out isn't an input or output"),
-            }
-        };
-
-        if is_input {
-            global_buffer_len(unsafe { &(*state.inputs) }, pos)
-        } else {
-            global_buffer_len(unsafe { &(*state.outputs) }, pos)
-        }
+        ref_buffer_len(
+            unsafe { &(*state.inputs) },
+            unsafe { &(*state.outputs) },
+            unsafe { &(*state.locals) },
+            &state.config,
+        )
     }
 
     fn rank_lhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {
@@ -217,19 +203,11 @@ impl MatmulArgs for FusedMatmulArgs {
     }
 
     fn rank_out<EG: Numeric>(state: &Self::State<EG>) -> u32 {
-        let (pos, is_input) = comptime! {
-            match state.config.ref_layout {
-                Arg::Input(pos, ..) => (pos, true),
-                Arg::Output(pos, ..) => (pos, false),
-                _ => panic!("Out isn't an input or output"),
-            }
-        };
-
-        if is_input {
-            global_rank(unsafe { &(*state.inputs) }, pos)
-        } else {
-            global_rank(unsafe { &(*state.outputs) }, pos)
-        }
+        ref_rank(
+            unsafe { &(*state.inputs) },
+            unsafe { &(*state.outputs) },
+            &state.config,
+        )
     }
 
     fn shape_lhs<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
@@ -255,19 +233,7 @@ impl MatmulArgs for FusedMatmulArgs {
     }
 
     fn shape_out<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
-        let (pos, is_input) = comptime! {
-            match state.config.ref_layout {
-                Arg::Input(pos, ..) => (pos, true),
-                Arg::Output(pos, ..) => (pos, false),
-                _ => panic!("Out isn't an input or output"),
-            }
-        };
-
-        if is_input {
-            global_shape(unsafe { &(*state.inputs) }, dim, pos)
-        } else {
-            global_shape(unsafe { &(*state.outputs) }, dim, pos)
-        }
+        ref_shape(unsafe { &(*state.locals) }, dim)
     }
 
     fn stride_lhs<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
@@ -293,19 +259,7 @@ impl MatmulArgs for FusedMatmulArgs {
     }
 
     fn stride_out<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
-        let (pos, is_input) = comptime! {
-            match state.config.ref_layout {
-                Arg::Input(pos, ..) => (pos, true),
-                Arg::Output(pos, ..) => (pos, false),
-                _ => panic!("Out isn't an input or output"),
-            }
-        };
-
-        if is_input {
-            global_stride(unsafe { &(*state.inputs) }, dim, pos)
-        } else {
-            global_stride(unsafe { &(*state.outputs) }, dim, pos)
-        }
+        ref_stride(unsafe { &(*state.locals) }, dim)
     }
 }
 

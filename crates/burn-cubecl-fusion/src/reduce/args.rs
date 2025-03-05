@@ -1,10 +1,7 @@
 use cubecl::reduce::args::ReduceArgs;
 use cubecl::{prelude::*, reduce::args::ReduceDType};
 
-use crate::shared::io::{
-    global_buffer_len, global_len, global_rank, global_shape, global_stride, ref_len, ref_shape,
-    ref_strides,
-};
+use crate::shared::io::{ref_buffer_len, ref_len, ref_rank, ref_shape, ref_stride};
 use crate::shared::ir::{
     Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand,
 };
@@ -108,96 +105,71 @@ impl ReduceArgs for FusedReduceArgs {
     }
 
     fn len_input<P: ReduceDType>(state: &Self::State<P>) -> u32 {
-        match comptime![state.config_on_read.ref_layout.clone()] {
-            Arg::Input(pos, ..) => global_len(unsafe { &(*state.inputs) }, pos),
-            Arg::Output(pos, ..) => global_len(unsafe { &(*state.outputs) }, pos),
-            _ => ref_len(unsafe { &(*state.locals_on_read) }, &state.config_on_read),
-        }
+        ref_len(
+            unsafe { &(*state.inputs) },
+            unsafe { &(*state.outputs) },
+            unsafe { &(*state.locals_on_read) },
+            &state.config_on_read,
+        )
     }
 
     fn len_output<P: ReduceDType>(state: &Self::State<P>) -> u32 {
-        match comptime![state.config_on_write.ref_layout.clone()] {
-            Arg::Input(pos, ..) => global_len(unsafe { &(*state.inputs) }, pos),
-            Arg::Output(pos, ..) => global_len(unsafe { &(*state.outputs) }, pos),
-            _ => ref_len(unsafe { &(*state.locals_on_write) }, &state.config_on_write),
-        }
+        ref_len(
+            unsafe { &(*state.inputs) },
+            unsafe { &(*state.outputs) },
+            unsafe { &(*state.locals_on_write) },
+            &state.config_on_write,
+        )
     }
 
     fn buffer_len_input<P: ReduceDType>(state: &Self::State<P>) -> u32 {
-        match comptime![state.config_on_read.ref_layout.clone()] {
-            Arg::Input(pos, ..) => global_buffer_len(unsafe { &(*state.inputs) }, pos),
-            Arg::Output(pos, ..) => global_buffer_len(unsafe { &(*state.outputs) }, pos),
-            _ => ref_len(unsafe { &(*state.locals_on_read) }, &state.config_on_read),
-        }
+        ref_buffer_len(
+            unsafe { &(*state.inputs) },
+            unsafe { &(*state.outputs) },
+            unsafe { &(*state.locals_on_read) },
+            &state.config_on_read,
+        )
     }
 
     fn buffer_len_output<P: ReduceDType>(state: &Self::State<P>) -> u32 {
-        match comptime![state.config_on_write.ref_layout.clone()] {
-            Arg::Input(pos, ..) => global_buffer_len(unsafe { &(*state.inputs) }, pos),
-            Arg::Output(pos, ..) => global_buffer_len(unsafe { &(*state.outputs) }, pos),
-            _ => ref_len(unsafe { &(*state.locals_on_write) }, &state.config_on_write),
-        }
+        ref_buffer_len(
+            unsafe { &(*state.inputs) },
+            unsafe { &(*state.outputs) },
+            unsafe { &(*state.locals_on_write) },
+            &state.config_on_write,
+        )
     }
 
     fn rank_input<P: ReduceDType>(state: &Self::State<P>) -> u32 {
-        match comptime![state.config_on_read.ref_layout.clone()] {
-            Arg::Input(pos, ..) => global_rank(unsafe { &(*state.inputs) }, pos),
-            Arg::Output(pos, ..) => global_rank(unsafe { &(*state.outputs) }, pos),
-            Arg::InputReshaped { shape, .. } => shape.len().runtime(),
-            _ => panic!("It isn't an input or output"),
-        }
+        ref_rank(
+            unsafe { &(*state.inputs) },
+            unsafe { &(*state.outputs) },
+            &state.config_on_read,
+        )
     }
 
     fn rank_output<P: ReduceDType>(state: &Self::State<P>) -> u32 {
-        match comptime![state.config_on_write.ref_layout.clone()] {
-            Arg::Input(pos, ..) => global_rank(unsafe { &(*state.inputs) }, pos),
-            Arg::Output(pos, ..) => global_rank(unsafe { &(*state.outputs) }, pos),
-            Arg::InputReshaped { shape, .. } => shape.len().runtime(),
-            _ => panic!("It isn't an input or output"),
-        }
+        ref_rank(
+            unsafe { &(*state.inputs) },
+            unsafe { &(*state.outputs) },
+            &state.config_on_write,
+        )
     }
 
     fn shape_input<P: ReduceDType>(state: &Self::State<P>, dim: u32) -> u32 {
-        match comptime![state.config_on_read.ref_layout.clone()] {
-            Arg::Input(pos, ..) => global_shape(unsafe { &(*state.inputs) }, dim, pos),
-            Arg::Output(pos, ..) => global_shape(unsafe { &(*state.outputs) }, dim, pos),
-            Arg::InputReshaped { .. } => ref_shape(unsafe { &(*state.locals_on_read) }, dim),
-            _ => panic!("It isn't an input or output"),
-        }
+        ref_shape(unsafe { &(*state.locals_on_read) }, dim)
     }
 
     fn shape_output<P: ReduceDType>(state: &Self::State<P>, dim: u32) -> u32 {
-        match comptime![state.config_on_write.ref_layout.clone()] {
-            Arg::Input(pos, ..) => global_shape(unsafe { &(*state.inputs) }, dim, pos),
-            Arg::Output(pos, ..) => global_shape(unsafe { &(*state.outputs) }, dim, pos),
-            Arg::InputReshaped { .. } => ref_shape(unsafe { &(*state.locals_on_write) }, dim),
-            _ => panic!("It isn't an input or output"),
-        }
+        ref_shape(unsafe { &(*state.locals_on_write) }, dim)
     }
 
     fn stride_input<P: ReduceDType>(state: &Self::State<P>, dim: u32) -> u32 {
-        match comptime![state.config_on_read.ref_layout.clone()] {
-            Arg::Input(pos, ..) => global_stride(unsafe { &(*state.inputs) }, dim, pos),
-            Arg::Output(pos, ..) => global_stride(unsafe { &(*state.outputs) }, dim, pos),
-            Arg::InputReshaped { .. } => ref_strides(unsafe { &(*state.locals_on_read) }, dim),
-            _ => panic!("It isn't an input or output"),
-        }
+        ref_stride(unsafe { &(*state.locals_on_read) }, dim)
     }
 
     fn stride_output<P: ReduceDType>(state: &Self::State<P>, dim: u32) -> u32 {
-        let (pos, is_input) = comptime! {
-            match state.config_on_write.ref_layout {
-                Arg::Input(pos, ..) => (pos, true),
-                Arg::Output(pos, ..) => (pos, false),
-                _ => panic!("It isn't an input or output"),
-            }
-        };
-
-        if is_input {
-            global_stride(unsafe { &(*state.inputs) }, dim, pos)
-        } else {
-            global_stride(unsafe { &(*state.outputs) }, dim, pos)
-        }
+        ref_stride(unsafe { &(*state.locals_on_write) }, dim)
     }
 }
 

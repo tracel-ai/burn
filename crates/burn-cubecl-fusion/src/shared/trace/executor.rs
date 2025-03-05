@@ -15,7 +15,7 @@ use super::{
 use crate::{
     elem_dtype,
     shared::{
-        ir::{ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch},
+        ir::{ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch, RefLayout},
         tensor::{GlobalScalar, GlobalTensorArg},
     },
     CubeFusionHandle,
@@ -86,10 +86,9 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
             // Nothing to write, can skip execution.
             return Ok(());
         }
-
         let reference = match plans.0.reference {
-            ReferenceSelection::Found(reference) => reference,
-            _ => {
+            ReferenceSelection::Found(reference) => RefLayout::Concrete(reference.layout),
+            ReferenceSelection::Searching | ReferenceSelection::NotFound => {
                 return Err(MultiExecutionError::new(
                     TraceError::ReferenceNotFound,
                     plans.0.handle_inputs,
@@ -98,6 +97,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
                     plans.1.handle_outputs,
                 ))
             }
+            ReferenceSelection::Virtual(shape) => RefLayout::Virtual(shape),
         };
 
         let mut inputs = GlobalArgsLaunch::default();
@@ -126,7 +126,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
 
         let config_0 = ElemwiseConfig {
             rank: plans.0.rank as u32,
-            ref_layout: reference.layout,
+            ref_layout: reference,
             ops,
             width: plans.0.width,
         };
@@ -134,11 +134,8 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         plans.1.output_offset(output_offset);
 
         let reference = match plans.1.reference {
-            ReferenceSelection::Found(reference) => reference,
-            ReferenceSelection::Searching => {
-                unreachable!()
-            }
-            ReferenceSelection::NotFound => {
+            ReferenceSelection::Found(reference) => RefLayout::Concrete(reference.layout),
+            ReferenceSelection::Searching | ReferenceSelection::NotFound => {
                 return Err(MultiExecutionError::new(
                     TraceError::ReferenceNotFound,
                     plans.0.handle_inputs,
@@ -147,6 +144,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
                     plans.1.handle_outputs,
                 ))
             }
+            ReferenceSelection::Virtual(shape) => RefLayout::Virtual(shape),
         };
 
         register_inputs(&plans.1.handle_inputs, &mut inputs);
@@ -175,7 +173,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         }
         let config_1 = ElemwiseConfig {
             rank: plans.1.rank as u32,
-            ref_layout: reference.layout,
+            ref_layout: reference,
             ops,
             width: plans.1.width,
         };
@@ -218,8 +216,9 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         }
 
         let reference = match plan.reference {
-            ReferenceSelection::Found(reference) => reference,
-            _ => {
+            ReferenceSelection::Found(reference) => RefLayout::Concrete(reference.layout),
+            ReferenceSelection::Virtual(shape) => RefLayout::Virtual(shape),
+            ReferenceSelection::NotFound | ReferenceSelection::Searching => {
                 return Err(ExecutionError::new(
                     TraceError::ReferenceNotFound,
                     plan.handle_inputs,
@@ -253,7 +252,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
 
         let config = ElemwiseConfig {
             rank: plan.rank as u32,
-            ref_layout: reference.layout,
+            ref_layout: reference,
             ops,
             width: plan.width,
         };

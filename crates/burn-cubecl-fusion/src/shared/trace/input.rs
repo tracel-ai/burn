@@ -45,10 +45,6 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
             let status = &tensor_relative.status;
             let mut handle = context.handles.get_handle(&tensor_global.id, status);
 
-            println!(
-                "Tensor relative shape {:?} != {:?}",
-                tensor_relative.shape, self.shape_ref
-            );
             if !self.inputs_unhandled.contains(&tensor_relative.id)
                 && !self.views.iter().any(|v| match v {
                     TensorView::Reshape {
@@ -69,9 +65,13 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                         tensor_relative,
                         strides: handle.strides.clone(),
                     });
-                    plan.potential_reference_input.push(pos);
+                    if plan.potential_reference_input.is_none() {
+                        plan.potential_reference_input = Some(pos);
+                    }
                 } else {
-                    plan.potential_reference_input.push(pos);
+                    if plan.potential_reference_input.is_none() {
+                        plan.potential_reference_input = Some(pos);
+                    }
                 }
             }
 
@@ -95,11 +95,11 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
             plan.global_inputs.push(tensor_global);
         }
 
-        if plan.potential_reference_input.is_empty() {
+        if plan.potential_reference_input.is_none() {
             for v in self.views.iter() {
                 match v {
                     TensorView::Reshape { shape, .. } => {
-                        plan.potential_reference_reshape.push(shape.clone());
+                        plan.potential_reference_reshape = Some(shape.clone());
                         break;
                     }
                     _ => {}

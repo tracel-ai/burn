@@ -190,24 +190,25 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// If the argument doesn't have an handle.
     pub fn shape(&self, arg: &Arg) -> Vec<usize> {
         match self.resolve_arg(arg) {
-            Some(arg) => match arg {
-                TensorArg::Handle { handle, .. } => handle.shape.to_vec(),
-                TensorArg::Alias { .. } => panic!("Unsupported yet"),
-            },
-            None => match arg {
-                Arg::InputReshaped { shape, .. } => {
-                    let start = match shape.index(0) {
-                        Arg::ScalarShape(pos) => *pos as usize,
-                        _ => 0,
-                    };
-                    let end = start + shape.len() as usize;
-                    self.reshapes.values[start..end]
-                        .iter()
-                        .map(|s| s.elem as usize)
-                        .collect()
-                }
-                _ => panic!("Nop"),
-            },
+            TensorArg::Handle { handle, .. } => handle.shape.to_vec(),
+            TensorArg::Alias { .. } => panic!("Unsupported yet"),
+        }
+    }
+
+    pub fn shape_ref(&self, ref_layout: &RefLayout) -> Vec<usize> {
+        match ref_layout {
+            RefLayout::Concrete(arg) => self.shape(arg),
+            RefLayout::Virtual(shape) => {
+                let start = match shape.index(0) {
+                    Arg::ScalarShape(pos) => *pos as usize,
+                    _ => 0,
+                };
+                let end = start + shape.len() as usize;
+                self.reshapes.values[start..end]
+                    .iter()
+                    .map(|s| s.elem as usize)
+                    .collect()
+            }
         }
     }
 
@@ -218,12 +219,16 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// If the argument doesn't have an handle.
     pub fn strides(&self, arg: &Arg) -> Vec<usize> {
         match self.resolve_arg(arg) {
-            Some(arg) => match arg {
-                TensorArg::Handle { handle, .. } => handle.strides.to_vec(),
-                TensorArg::Alias { .. } => panic!("Unsupported yet"),
-            },
-            None => {
-                let shape = self.shape(arg);
+            TensorArg::Handle { handle, .. } => handle.strides.to_vec(),
+            TensorArg::Alias { .. } => panic!("Unsupported yet"),
+        }
+    }
+
+    pub fn strides_ref(&self, ref_layout: &RefLayout) -> Vec<usize> {
+        match ref_layout {
+            RefLayout::Concrete(arg) => self.strides(arg),
+            RefLayout::Virtual(..) => {
+                let shape = self.shape_ref(ref_layout);
                 let mut strides = vec![0; shape.len()];
 
                 let mut current = 1;
@@ -243,7 +248,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     ///
     /// If the argument doesn't have an handle.
     pub fn line_size(&self, arg: &Arg) -> u8 {
-        match self.resolve_arg(arg).unwrap() {
+        match self.resolve_arg(arg) {
             TensorArg::Handle {
                 vectorization_factor,
                 ..
@@ -257,11 +262,11 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument isn't a global input or output tensor.
-    pub fn resolve_arg(&self, arg: &Arg) -> Option<&TensorArg<'_, R>> {
+    pub fn resolve_arg(&self, arg: &Arg) -> &TensorArg<'_, R> {
         match arg {
-            Arg::Input(pos, _, _) => Some(&self.tensors.values[*pos as usize].tensor),
-            Arg::Output(pos, _, _) => Some(&self.tensors.values[*pos as usize].tensor),
-            _ => None,
+            Arg::Input(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
+            Arg::Output(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
+            _ => panic!("Arg not found"),
         }
     }
 }
@@ -418,9 +423,15 @@ impl From<DType> for ElemwisePrecision {
 /// Configuration that encapsulates all comptime information necessary for element wise fusion.
 pub struct ElemwiseConfig {
     pub rank: u32,
-    pub ref_layout: Arg,
+    pub ref_layout: RefLayout,
     pub ops: Sequence<ElemwiseOp>,
     pub width: u8,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RefLayout {
+    Concrete(Arg),
+    Virtual(Sequence<Arg>),
 }
 
 impl Arg {

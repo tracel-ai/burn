@@ -155,14 +155,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     }
 
     fn select_reference_from_inputs(plan: &mut LaunchPlan<'_, R>) {
-        if plan.potential_reference_input.is_empty() && plan.potential_reference_reshape.is_empty()
-        {
-            plan.reference = ReferenceSelection::NotFound;
-            return;
-        }
-
-        if !plan.potential_reference_input.is_empty() {
-            let input_pos = plan.potential_reference_input.remove(0);
+        if let Some(input_pos) = plan.potential_reference_input.take() {
             let reference = plan.handle_inputs.get(input_pos).unwrap();
 
             plan.reference = ReferenceSelection::Found(Reference {
@@ -171,20 +164,11 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 strides: reference.handle.strides.clone(),
             });
             Self::add_layout_info_inputs(plan);
-            return;
+        } else if let Some(shape) = plan.potential_reference_reshape.take() {
+            plan.reference = ReferenceSelection::Virtual(shape);
+        } else {
+            plan.reference = ReferenceSelection::NotFound;
         }
-
-        let shape_args = plan.potential_reference_reshape.remove(0);
-
-        plan.reference = ReferenceSelection::Found(Reference {
-            layout: Arg::InputReshaped {
-                original: Box::new(Arg::Literal(0, ElemwisePrecision::F32)),
-                shape: shape_args,
-                broadcasted: false,
-            },
-            shape: vec![],
-            strides: vec![],
-        });
     }
 
     fn add_layout_info_inputs(plan: &mut LaunchPlan<'_, R>) {

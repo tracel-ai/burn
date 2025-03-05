@@ -387,7 +387,57 @@ pub fn global_buffer_len(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
 }
 
 #[cube]
-pub fn ref_len(locals: &LocalArgs, #[comptime] config: &ElemwiseConfig) -> u32 {
+pub fn ref_len(
+    inputs: &GlobalArgs,
+    outputs: &GlobalArgs,
+    locals: &LocalArgs,
+    #[comptime] config: &ElemwiseConfig,
+) -> u32 {
+    match comptime![config.ref_layout.clone()] {
+        RefLayout::Concrete(arg) => match comptime![arg] {
+            Arg::Input(index, _, _) => global_length(inputs, index),
+            Arg::Output(index, _, _) => global_length(outputs, index),
+            _ => panic!("Invalid concreate ref layout."),
+        },
+        RefLayout::Virtual(_) => num_elements(&locals, config),
+    }
+}
+
+#[cube]
+pub fn ref_buffer_len(
+    inputs: &GlobalArgs,
+    outputs: &GlobalArgs,
+    locals: &LocalArgs,
+    #[comptime] config: &ElemwiseConfig,
+) -> u32 {
+    match comptime![config.ref_layout.clone()] {
+        RefLayout::Concrete(arg) => match comptime![arg] {
+            Arg::Input(index, _, _) => global_buffer_len(inputs, index),
+            Arg::Output(index, _, _) => global_buffer_len(outputs, index),
+            _ => panic!("Invalid concreate ref layout."),
+        },
+        RefLayout::Virtual(_) => num_elements(&locals, config),
+    }
+}
+
+#[cube]
+pub fn ref_rank(
+    inputs: &GlobalArgs,
+    outputs: &GlobalArgs,
+    #[comptime] config: &ElemwiseConfig,
+) -> u32 {
+    match comptime![config.ref_layout.clone()] {
+        RefLayout::Concrete(arg) => match comptime![arg] {
+            Arg::Input(index, _, _) => global_rank(inputs, index),
+            Arg::Output(index, _, _) => global_rank(outputs, index),
+            _ => panic!("Invalid concreate ref layout."),
+        },
+        RefLayout::Virtual(shape) => shape.len().runtime(),
+    }
+}
+
+#[cube]
+pub fn num_elements(locals: &LocalArgs, #[comptime] config: &ElemwiseConfig) -> u32 {
     let mut length = 1u32;
 
     for i in 0..config.rank {
@@ -403,7 +453,7 @@ pub fn ref_shape(locals: &LocalArgs, dim: u32) -> u32 {
 }
 
 #[cube]
-pub fn ref_strides(locals: &LocalArgs, dim: u32) -> u32 {
+pub fn ref_stride(locals: &LocalArgs, dim: u32) -> u32 {
     locals.ref_strides[dim]
 }
 

@@ -64,37 +64,40 @@ pub fn init_locals(
     let mut ref_strides = Array::new(config.rank);
 
     match comptime![config.ref_layout.clone()] {
-        Arg::Input(index, ..) => {
-            let layout = inputs.tensors.index(index);
+        RefLayout::Concrete(arg) => match comptime![arg] {
+            Arg::Input(index, ..) => {
+                let layout = inputs.tensors.index(index);
 
-            #[unroll]
-            for i in 0..config.rank {
-                ref_shape[i] = layout.tensor.shape(i);
-                ref_strides[i] = layout.tensor.stride(i);
+                #[unroll]
+                for i in 0..config.rank {
+                    ref_shape[i] = layout.tensor.shape(i);
+                    ref_strides[i] = layout.tensor.stride(i);
+                }
+
+                LocalArgs::new(
+                    ref_shape.to_slice(),
+                    ref_strides.to_slice(),
+                    layout.tensor.line_size(),
+                )
             }
+            Arg::Output(index, ..) => {
+                let layout = outputs.tensors.index(index);
 
-            LocalArgs::new(
-                ref_shape.to_slice(),
-                ref_strides.to_slice(),
-                layout.tensor.line_size(),
-            )
-        }
-        Arg::Output(index, ..) => {
-            let layout = outputs.tensors.index(index);
+                #[unroll]
+                for i in 0..config.rank {
+                    ref_shape[i] = layout.tensor.shape(i);
+                    ref_strides[i] = layout.tensor.stride(i);
+                }
 
-            #[unroll]
-            for i in 0..config.rank {
-                ref_shape[i] = layout.tensor.shape(i);
-                ref_strides[i] = layout.tensor.stride(i);
+                LocalArgs::new(
+                    ref_shape.to_slice(),
+                    ref_strides.to_slice(),
+                    layout.tensor.line_size(),
+                )
             }
-
-            LocalArgs::new(
-                ref_shape.to_slice(),
-                ref_strides.to_slice(),
-                layout.tensor.line_size(),
-            )
-        }
-        Arg::InputReshaped { shape, .. } => {
+            _ => comptime![panic!("Invalid concrete ref layout.")],
+        },
+        RefLayout::Virtual(shape) => {
             let mut stride_curr = 1u32;
 
             #[unroll]
@@ -107,12 +110,10 @@ pub fn init_locals(
                 ref_strides[comptime![reverse.clone()]] = stride_curr;
 
                 stride_curr *= shape;
-
             }
 
             LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), 1u32)
         }
-        _ => comptime![panic!("Invalid ref layout.")],
     }
 }
 

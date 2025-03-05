@@ -252,8 +252,8 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             .map_err(FusedReduceError::LaunchError)?;
 
         let strategy = self.strategy;
-        let shape = inputs.shape(&config_read.ref_layout);
-        let strides = inputs.strides(&config_read.ref_layout);
+        let shape = inputs.shape_ref(&config_read.ref_layout);
+        let strides = inputs.strides_ref(&config_read.ref_layout);
         let reduce_count: u32 = shape
             .iter()
             .enumerate()

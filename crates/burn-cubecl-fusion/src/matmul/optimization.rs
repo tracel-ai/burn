@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::ir::ElemwisePrecision;
+use crate::shared::ir::RefLayout;
 use crate::shared::trace::TraceError;
 use crate::shared::trace::Vectorization;
 use crate::CubeFusionHandle;
@@ -309,10 +310,13 @@ impl FusedMatmul {
 
         let lhs_line_size = inputs.line_size(&self.lhs);
         let rhs_line_size = inputs.line_size(&self.rhs);
-        let out_line_size = match config.ref_layout {
-            Arg::Input(..) => inputs.line_size(&config.ref_layout),
-            Arg::Output(..) => outputs.line_size(&config.ref_layout),
-            _ => panic!("Invalid ref layout"),
+        let out_line_size = match &config.ref_layout {
+            RefLayout::Concrete(arg) => match arg {
+                Arg::Input(..) => inputs.line_size(&arg),
+                Arg::Output(..) => outputs.line_size(&arg),
+                _ => panic!("Invalid ref layout"),
+            },
+            RefLayout::Virtual(_) => 1,
         };
 
         if out_line_size == 1 && (lhs_line_size > 1 || rhs_line_size > 1) {

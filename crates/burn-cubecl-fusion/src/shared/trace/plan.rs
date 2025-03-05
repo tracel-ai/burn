@@ -13,8 +13,8 @@ use cubecl::Runtime;
 #[derive(Debug)]
 pub(crate) struct LaunchPlan<'a, R: Runtime> {
     pub potential_inplaces: Vec<PotentialInplace<'a>>,
-    pub potential_reference_input: Vec<usize>,
-    pub potential_reference_reshape: Vec<Sequence<Arg>>,
+    pub potential_reference_input: Option<usize>,
+    pub potential_reference_reshape: Option<Sequence<Arg>>,
     pub global_inputs: Vec<TensorIr>,
     pub global_outputs: Vec<TensorIr>,
     pub handle_inputs: Vec<HandleInput<R>>,
@@ -32,6 +32,7 @@ pub enum ReferenceSelection {
     Searching,
     NotFound,
     Found(Reference),
+    Virtual(Sequence<Arg>),
 }
 
 impl ReferenceSelection {
@@ -93,8 +94,8 @@ impl<R: Runtime> LaunchPlan<'_, R> {
     ) -> Self {
         LaunchPlan {
             potential_inplaces: Vec::new(),
-            potential_reference_input: Vec::new(),
-            potential_reference_reshape: Vec::new(),
+            potential_reference_input: None,
+            potential_reference_reshape: None,
             global_inputs: Vec::new(),
             global_outputs: Vec::new(),
             handle_inputs: Vec::new(),
