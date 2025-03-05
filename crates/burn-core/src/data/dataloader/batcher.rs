@@ -1,3 +1,4 @@
+use alloc::{vec, vec::Vec};
 use burn_tensor::backend::Backend;
 
 #[cfg(test)]
@@ -5,7 +6,7 @@ use crate::TestBackend;
 
 /// A trait for batching items of type `I` into items of type `O`.
 pub trait Batcher<B: Backend, I, O>: Send {
-    /// Batches the given items on the default device.
+    /// Batches the given items on the first device.
     ///
     /// # Arguments
     ///
@@ -15,10 +16,10 @@ pub trait Batcher<B: Backend, I, O>: Send {
     ///
     /// The batched items.
     fn batch(&self, items: Vec<I>) -> O {
-        self.batch_with_device(items, &self.device())
+        self.batch_with_device(items, &self.devices()[0])
     }
 
-    /// Batches the given items on the specified device (if applicable).
+    /// Batches the given items on the specified device.
     ///
     /// # Arguments
     ///
@@ -30,11 +31,14 @@ pub trait Batcher<B: Backend, I, O>: Send {
     /// The batched items.
     fn batch_with_device(&self, items: Vec<I>, device: &B::Device) -> O;
 
-    /// Returns the default device to use for the batcher.
+    /// Returns the devices to use for the batcher.
     ///
-    /// By default, this will use the backend's default device.
-    fn device(&self) -> B::Device {
-        Default::default()
+    /// By default, the batcher will use the backend's default device.
+    ///
+    /// # Notes
+    ///
+    fn devices(&self) -> Vec<B::Device> {
+        vec![Default::default()]
     }
 }
 
