@@ -36,8 +36,8 @@ pub struct FusedReduceState {
     outputs: *mut GlobalArgs,
     locals_on_read: *mut LocalArgs,
     locals_on_write: *mut LocalArgs,
-    config_on_write: ElemwiseConfig,
     config_on_read: ElemwiseConfig,
+    config_on_write: ElemwiseConfig,
     input: Arg,
     out: Arg,
 }
@@ -48,8 +48,8 @@ pub struct FusedReduceStateExpand {
     outputs: GlobalArgsExpand,
     locals_on_read: LocalArgsExpand,
     locals_on_write: LocalArgsExpand,
-    config_on_write: ElemwiseConfig,
     config_on_read: ElemwiseConfig,
+    config_on_write: ElemwiseConfig,
     input: Arg,
     out: Arg,
 }
@@ -179,9 +179,7 @@ impl ReduceArgs for FusedReduceArgs {
         match comptime![state.config_on_read.ref_layout.clone()] {
             Arg::Input(pos, ..) => global_stride(unsafe { &(*state.inputs) }, dim, pos),
             Arg::Output(pos, ..) => global_stride(unsafe { &(*state.outputs) }, dim, pos),
-            Arg::InputReshaped { shape, .. } => {
-                ref_strides(unsafe { &(*state.locals_on_read) }, dim)
-            }
+            Arg::InputReshaped { .. } => ref_strides(unsafe { &(*state.locals_on_read) }, dim),
             _ => panic!("It isn't an input or output"),
         }
     }

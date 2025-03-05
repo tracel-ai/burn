@@ -87,8 +87,6 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
             return Ok(());
         }
 
-        println!("Execute {plans:?}");
-
         let reference = match plans.0.reference {
             ReferenceSelection::Found(reference) => reference,
             _ => {

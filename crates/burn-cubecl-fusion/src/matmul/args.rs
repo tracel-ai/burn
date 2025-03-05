@@ -51,7 +51,6 @@ impl MatmulArgs for FusedMatmulArgs {
 
         read_input(
             unsafe { &(*state.inputs) },
-            unsafe { &(*state.outputs) },
             unsafe { &(*state.locals) },
             pos,
             coordinate,
@@ -71,7 +70,6 @@ impl MatmulArgs for FusedMatmulArgs {
 
         read_input(
             unsafe { &(*state.inputs) },
-            unsafe { &(*state.outputs) },
             unsafe { &(*state.locals) },
             pos,
             coordinate,

@@ -42,7 +42,7 @@ impl ReferenceSelection {
     pub fn compatible_strides_for_inplace(&self, strides: &[usize]) -> bool {
         match self {
             ReferenceSelection::Found(reference) => reference.strides == strides,
-            _ => true,
+            _ => false,
         }
     }
 }

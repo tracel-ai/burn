@@ -17,8 +17,6 @@ pub fn fuse_on_write<E: CubePrimitive>(
     #[comptime] write_args: Sequence<Arg>,
     #[comptime] config: &ElemwiseConfig,
 ) {
-    // let mut locals = init_locals(inputs, outputs, config);
-
     // Write the values given as arguments.
     #[unroll]
     for i in 0..write_args.len() {
@@ -41,8 +39,6 @@ pub fn fuse_on_read<E: CubePrimitive>(
     #[comptime] read_args: Sequence<Arg>,
     #[comptime] config: &ElemwiseConfig,
 ) -> Sequence<Line<E>> {
-    // let mut locals = init_locals(inputs, outputs, config);
-
     fuse(inputs, outputs, locals, read_pos, config);
 
     let mut output = Sequence::new();
@@ -100,28 +96,18 @@ pub fn init_locals(
         }
         Arg::InputReshaped { shape, .. } => {
             let mut stride_curr = 1u32;
-            let mut shapes = Sequence::<u32>::new();
-            let mut strides = Sequence::<u32>::new();
 
             #[unroll]
-            for r in 0..config.rank {
-                let i = comptime![reverse_index(config.rank, r)];
+            for i in 0..config.rank {
                 let arg = comptime![shape.index(i.clone())];
-                let shape_i = read_scalar_shape(inputs, comptime![arg.clone()]);
+                let shape = read_scalar_shape(inputs, comptime![arg.clone()]);
+                let reverse = comptime![reverse_index(config.rank, comptime![i.clone()])];
 
-                stride_curr *= shape_i;
-                shapes.push(shape_i);
-                strides.push(stride_curr);
-            }
+                ref_shape[comptime![i.clone()]] = shape;
+                ref_strides[comptime![reverse.clone()]] = stride_curr;
 
-            #[unroll]
-            for r in 0..config.rank {
-                let i = comptime![reverse_index(config.rank, r)];
-                let shape = shapes.index(comptime![i.clone()]);
-                let stride = strides.index(comptime![i.clone()]);
+                stride_curr *= shape;
 
-                ref_shape[comptime![i.clone()]] = *shape;
-                ref_strides[comptime![i.clone()]] = *stride;
             }
 
             LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), 1u32)
@@ -381,16 +367,7 @@ fn gather<C: Numeric>(
     for i in 0..line_size {
         let index = index[i];
 
-        let input = read_input::<C>(
-            inputs,
-            outputs,
-            locals,
-            pos,
-            index,
-            LayoutInfo::IsRef,
-            config,
-            None,
-        );
+        let input = read_input::<C>(inputs, locals, pos, index, LayoutInfo::IsRef, config, None);
         result[i] = input[0];
     }
 
@@ -468,7 +445,6 @@ fn select_indices<C: Numeric>(
         let coordinate_dim = write_pos_input / stride_dim_ref % shape_dim_ref;
         let offset_dim = read_input::<u32>(
             inputs,
-            outputs,
             locals,
             pos_indices,
             coordinate_dim,
@@ -484,7 +460,6 @@ fn select_indices<C: Numeric>(
         for i in 0..line_size_ref {
             let input = read_input::<C>(
                 inputs,
-                outputs,
                 locals,
                 pos_input,
                 index + i * stride_input_line,
@@ -533,7 +508,6 @@ fn select_indices<C: Numeric>(
             let coordinate_dim = (write_pos_indices + i) / stride_dim_ref % shape_dim_ref;
             let offset_dim = read_input::<u32>(
                 inputs,
-                outputs,
                 locals,
                 pos_indices,
                 coordinate_dim,
@@ -544,7 +518,6 @@ fn select_indices<C: Numeric>(
 
             let input = read_input::<C>(
                 inputs,
-                outputs,
                 locals,
                 pos_input,
                 index + (offset_dim[0] * stride_input_dim),

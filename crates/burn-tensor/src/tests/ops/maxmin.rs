@@ -1,6 +1,7 @@
 #[burn_tensor_testgen::testgen(maxmin)]
 mod tests {
     use super::*;
+    use burn_tensor::backend::Backend;
     use burn_tensor::{Tensor, TensorData};
 
     #[test]
@@ -80,6 +81,19 @@ mod tests {
 
         let output = tensor.sum_dim(0);
         let expected = TensorData::from([[3., 5., 7.]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_sum_dim_reshape_maybe_fused() {
+        let tensor = TestTensorInt::arange(0..9, &Default::default()).float();
+        println!("{tensor}");
+        TestBackend::sync(&tensor.device());
+
+        let output = (tensor.reshape([3, 3]) + 2);
+        let output = output.sum_dim(1);
+        let expected = TensorData::from([[9.0], [18.0], [27.0]]);
 
         output.into_data().assert_eq(&expected, false);
     }

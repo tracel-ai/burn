@@ -174,16 +174,16 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             return;
         }
 
-        let shape = plan.potential_reference_reshape.remove(0);
+        let shape_args = plan.potential_reference_reshape.remove(0);
 
         plan.reference = ReferenceSelection::Found(Reference {
             layout: Arg::InputReshaped {
                 original: Box::new(Arg::Literal(0, ElemwisePrecision::F32)),
-                shape: shape,
+                shape: shape_args,
                 broadcasted: false,
             },
-            shape: vec![0],
-            strides: vec![0],
+            shape: vec![],
+            strides: vec![],
         });
     }
 

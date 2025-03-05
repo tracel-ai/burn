@@ -28,9 +28,9 @@ pub fn read<C: CubePrimitive>(
             let line_size = global.tensor.line_size();
 
             if comptime![!global.broadcasted && line_size != config.width as u32] {
-                read_input_aligned(inputs, outputs, locals, pos, ref_pos, layout, config, None)
+                read_input_aligned(inputs, locals, pos, ref_pos, layout, config, None)
             } else {
-                read_input(inputs, outputs, locals, pos, ref_pos, layout, config, None)
+                read_input(inputs, locals, pos, ref_pos, layout, config, None)
             }
         }
         Arg::Output(pos, _precision, layout) => {
@@ -71,7 +71,6 @@ pub fn read<C: CubePrimitive>(
                 if comptime![!broadcasted && line_size != config.width as u32] {
                     read_input_aligned(
                         inputs,
-                        outputs,
                         locals,
                         pos,
                         ref_pos,
@@ -82,7 +81,6 @@ pub fn read<C: CubePrimitive>(
                 } else {
                     read_input(
                         inputs,
-                        outputs,
                         locals,
                         pos,
                         ref_pos,
@@ -106,7 +104,6 @@ pub fn read<C: CubePrimitive>(
                 if comptime![!broadcasted && line_size != config.width as u32] {
                     read_input_aligned(
                         inputs,
-                        outputs,
                         locals,
                         pos,
                         ref_pos,
@@ -117,7 +114,6 @@ pub fn read<C: CubePrimitive>(
                 } else {
                     read_input(
                         inputs,
-                        outputs,
                         locals,
                         pos,
                         ref_pos,
@@ -154,7 +150,6 @@ pub fn read_scalar_shape(inputs: &GlobalArgs, #[comptime] arg: Arg) -> u32 {
 #[cube]
 pub fn read_input<C: CubePrimitive>(
     inputs: &GlobalArgs,
-    outputs: &GlobalArgs,
     locals: &LocalArgs,
     #[comptime] pos: u32,
     ref_pos: u32,
@@ -166,9 +161,7 @@ pub fn read_input<C: CubePrimitive>(
     let offset = match layout {
         LayoutInfo::SameAsRef => ref_pos,
         LayoutInfo::IsRef => ref_pos,
-        LayoutInfo::Unknown => get_offset(
-            inputs, outputs, locals, tensor, ref_pos, None, config, transform,
-        ),
+        LayoutInfo::Unknown => get_offset(inputs, locals, tensor, ref_pos, None, config, transform),
     };
     Line::cast_from(tensor.tensor[offset])
 }
@@ -176,7 +169,6 @@ pub fn read_input<C: CubePrimitive>(
 #[cube]
 pub fn read_input_aligned<C: CubePrimitive>(
     inputs: &GlobalArgs,
-    outputs: &GlobalArgs,
     locals: &LocalArgs,
     #[comptime] pos: u32,
     ref_pos: u32,
@@ -206,9 +198,8 @@ pub fn read_input_aligned<C: CubePrimitive>(
             }
         }
         Some(Transform::SwapDim(dim1, dim2)) => {
-            let offset = get_offset_aligned(
-                inputs, outputs, locals, tensor, ref_pos, layout, config, transform,
-            );
+            let offset =
+                get_offset_aligned(inputs, locals, tensor, ref_pos, layout, config, transform);
             let i = comptime![swap_dims_transform(&(config.rank - 1), (dim1, dim2))];
             let stride = tensor.tensor.stride(comptime![i]);
 
@@ -219,9 +210,8 @@ pub fn read_input_aligned<C: CubePrimitive>(
             }
         }
         None => {
-            let offset = get_offset_aligned(
-                inputs, outputs, locals, tensor, ref_pos, layout, config, transform,
-            );
+            let offset =
+                get_offset_aligned(inputs, locals, tensor, ref_pos, layout, config, transform);
             let stride = tensor.tensor.stride(comptime![config.rank - 1]);
             #[unroll]
             for i in 0u32..comptime!(config.width as u32) {
@@ -237,7 +227,6 @@ pub fn read_input_aligned<C: CubePrimitive>(
 #[cube]
 pub fn get_offset_aligned(
     inputs: &GlobalArgs,
-    outputs: &GlobalArgs,
     locals: &LocalArgs,
     tensor: &GlobalTensor,
     ref_pos: u32,
@@ -251,7 +240,6 @@ pub fn get_offset_aligned(
         }
         LayoutInfo::Unknown => get_offset(
             inputs,
-            outputs,
             locals,
             tensor,
             ref_pos,
@@ -276,9 +264,7 @@ pub fn read_output<C: CubePrimitive>(
     let offset = match layout {
         LayoutInfo::SameAsRef => ref_pos,
         LayoutInfo::IsRef => ref_pos,
-        LayoutInfo::Unknown => {
-            get_offset(inputs, outputs, locals, tensor, ref_pos, None, config, None)
-        }
+        LayoutInfo::Unknown => get_offset(inputs, locals, tensor, ref_pos, None, config, None),
     };
     Line::cast_from(tensor.tensor[offset])
 }
@@ -301,7 +287,7 @@ pub fn write<C: CubePrimitive>(
                 LayoutInfo::SameAsRef => ref_pos,
                 LayoutInfo::IsRef => ref_pos,
                 LayoutInfo::Unknown => {
-                    get_offset(inputs, outputs, locals, tensor, ref_pos, None, config, None)
+                    get_offset(inputs, locals, tensor, ref_pos, None, config, None)
                 }
             };
             let tensor = outputs.tensors.index_mut(pos);
@@ -339,11 +325,11 @@ pub(crate) fn global_offset(
     match arg {
         Arg::Input(pos, _precision, _layout) => {
             let tensor = inputs.tensors.index(pos);
-            get_offset(inputs, outputs, locals, tensor, index, range, config, None)
+            get_offset(inputs, locals, tensor, index, range, config, None)
         }
         Arg::Output(pos, _precision, _layout) => {
             let tensor = outputs.tensors.index(pos);
-            get_offset(inputs, outputs, locals, tensor, index, range, config, None)
+            get_offset(inputs, locals, tensor, index, range, config, None)
         }
         _ => todo!(),
     }
@@ -352,7 +338,6 @@ pub(crate) fn global_offset(
 #[cube]
 fn get_offset(
     inputs: &GlobalArgs,
-    outputs: &GlobalArgs,
     locals: &LocalArgs,
     tensor: &GlobalTensor,
     ref_pos: u32,
