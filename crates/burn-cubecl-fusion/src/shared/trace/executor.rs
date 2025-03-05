@@ -82,13 +82,16 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         mut plans: (LaunchPlan<'a, R>, LaunchPlan<'a, R>),
     ) -> Result<(), MultiExecutionError<R, Runner>> {
+        if plans.0.writes.is_empty() && plans.1.writes.is_empty() {
+            // Nothing to write, can skip execution.
+            return Ok(());
+        }
+
         println!("Execute {plans:?}");
+
         let reference = match plans.0.reference {
             ReferenceSelection::Found(reference) => reference,
-            ReferenceSelection::Searching => {
-                unreachable!()
-            }
-            ReferenceSelection::NotFound => {
+            _ => {
                 return Err(MultiExecutionError::new(
                     TraceError::ReferenceNotFound,
                     plans.0.handle_inputs,
@@ -211,20 +214,14 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
     ) -> Result<(), ExecutionError<R, Runner>> {
+        if plan.writes.is_empty() {
+            // Nothing to write, can skip execution.
+            return Ok(());
+        }
+
         let reference = match plan.reference {
             ReferenceSelection::Found(reference) => reference,
-            ReferenceSelection::Searching => {
-                if plan.writes.is_empty() {
-                    // Nothing to write, can skip execution.
-                    return Ok(());
-                } else {
-                    unreachable!()
-                }
-            }
-            ReferenceSelection::NotFound => {
-                if plan.writes.is_empty() {
-                    return Ok(());
-                }
+            _ => {
                 return Err(ExecutionError::new(
                     TraceError::ReferenceNotFound,
                     plan.handle_inputs,

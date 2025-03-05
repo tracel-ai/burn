@@ -188,10 +188,26 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument doesn't have an handle.
-    pub fn shape(&self, arg: &Arg) -> &[usize] {
+    pub fn shape(&self, arg: &Arg) -> Vec<usize> {
         match self.resolve_arg(arg) {
-            TensorArg::Handle { handle, .. } => handle.shape,
-            TensorArg::Alias { .. } => panic!("Unsupported yet"),
+            Some(arg) => match arg {
+                TensorArg::Handle { handle, .. } => handle.shape.to_vec(),
+                TensorArg::Alias { .. } => panic!("Unsupported yet"),
+            },
+            None => match arg {
+                Arg::InputReshaped { shape, .. } => {
+                    let start = match shape.index(0) {
+                        Arg::ScalarShape(pos) => *pos as usize,
+                        _ => 0,
+                    };
+                    let end = start + shape.len() as usize;
+                    self.reshapes.values[start..end]
+                        .iter()
+                        .map(|s| s.elem as usize)
+                        .collect()
+                }
+                _ => panic!("Nop"),
+            },
         }
     }
 
@@ -200,10 +216,24 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument doesn't have an handle.
-    pub fn strides(&self, arg: &Arg) -> &[usize] {
+    pub fn strides(&self, arg: &Arg) -> Vec<usize> {
         match self.resolve_arg(arg) {
-            TensorArg::Handle { handle, .. } => handle.strides,
-            TensorArg::Alias { .. } => panic!("Unsupported yet"),
+            Some(arg) => match arg {
+                TensorArg::Handle { handle, .. } => handle.strides.to_vec(),
+                TensorArg::Alias { .. } => panic!("Unsupported yet"),
+            },
+            None => {
+                let shape = self.shape(arg);
+                let mut strides = vec![0; shape.len()];
+
+                let mut current = 1;
+                shape.iter().enumerate().rev().for_each(|(index, val)| {
+                    strides[index] = current;
+                    current *= val;
+                });
+
+                strides
+            }
         }
     }
 
@@ -213,7 +243,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     ///
     /// If the argument doesn't have an handle.
     pub fn line_size(&self, arg: &Arg) -> u8 {
-        match self.resolve_arg(arg) {
+        match self.resolve_arg(arg).unwrap() {
             TensorArg::Handle {
                 vectorization_factor,
                 ..
@@ -227,16 +257,16 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument isn't a global input or output tensor.
-    pub fn resolve_arg(&self, arg: &Arg) -> &TensorArg<'_, R> {
+    pub fn resolve_arg(&self, arg: &Arg) -> Option<&TensorArg<'_, R>> {
         match arg {
-            Arg::Input(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
-            Arg::Output(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
-            _ => panic!("Only input & output can have a shape"),
+            Arg::Input(pos, _, _) => Some(&self.tensors.values[*pos as usize].tensor),
+            Arg::Output(pos, _, _) => Some(&self.tensors.values[*pos as usize].tensor),
+            _ => None,
         }
     }
 }
 
-#[derive(CubeType, Clone)]
+#[derive(CubeType)]
 /// Keep track of all local variables that are used as argument in fused
 /// [element wise operations](ElemwiseOp).
 pub struct LocalArgs {
@@ -252,15 +282,19 @@ pub struct LocalArgs {
     pub l_u16: Registry<u32, Line<u16>>,
     pub l_u8: Registry<u32, Line<u8>>,
     pub l_bool: Registry<u32, Line<bool>>,
-    pub ref_shape: Sequence<u32>,
-    pub ref_strides: Sequence<u32>,
+    pub ref_shape: Slice<u32>,
+    pub ref_strides: Slice<u32>,
     #[cube(comptime)]
     pub ref_line_size: u32,
 }
 
 #[cube]
 impl LocalArgs {
-    pub fn new() -> LocalArgs {
+    pub fn new(
+        ref_shape: Slice<u32>,
+        ref_strides: Slice<u32>,
+        #[comptime] ref_line_size: u32,
+    ) -> LocalArgs {
         LocalArgs {
             l_f32: Registry::<u32, Line<f32>>::new(),
             l_f16: Registry::<u32, Line<f16>>::new(),
@@ -274,9 +308,9 @@ impl LocalArgs {
             l_u16: Registry::<u32, Line<u16>>::new(),
             l_u8: Registry::<u32, Line<u8>>::new(),
             l_bool: Registry::<u32, Line<bool>>::new(),
-            ref_shape: Sequence::new(),
-            ref_strides: Sequence::new(),
-            ref_line_size: 1u32,
+            ref_shape,
+            ref_strides,
+            ref_line_size,
         }
     }
 }

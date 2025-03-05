@@ -294,8 +294,8 @@ impl FusedMatmul {
             MatrixLayout::HighlyPermuted => (true, false),
         };
 
-        let (lhs_make_contiguous, lhs_transposed) = check_layout(lhs_strides);
-        let (rhs_make_contiguous, rhs_transposed) = check_layout(rhs_strides);
+        let (lhs_make_contiguous, lhs_transposed) = check_layout(&lhs_strides);
+        let (rhs_make_contiguous, rhs_transposed) = check_layout(&rhs_strides);
 
         if lhs_make_contiguous || rhs_make_contiguous {
             return Err(FusedMatmulError::InvalidInput);

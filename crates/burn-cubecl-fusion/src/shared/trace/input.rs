@@ -45,11 +45,15 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
             let status = &tensor_relative.status;
             let mut handle = context.handles.get_handle(&tensor_global.id, status);
 
+            println!(
+                "Tensor relative shape {:?} != {:?}",
+                tensor_relative.shape, self.shape_ref
+            );
             if !self.inputs_unhandled.contains(&tensor_relative.id)
                 && !self.views.iter().any(|v| match v {
-                    TensorView::Reshape { reshaped, original } => {
-                        reshaped == &tensor_relative.id || original == &tensor_relative.id
-                    }
+                    TensorView::Reshape {
+                        reshaped, original, ..
+                    } => reshaped == &tensor_relative.id || original == &tensor_relative.id,
                     TensorView::SwapDims {
                         swapped, original, ..
                     } => swapped == &tensor_relative.id || original == &tensor_relative.id,
@@ -65,9 +69,9 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                         tensor_relative,
                         strides: handle.strides.clone(),
                     });
-                    plan.potential_reference.push(pos);
+                    plan.potential_reference_input.push(pos);
                 } else {
-                    plan.potential_reference.push(pos);
+                    plan.potential_reference_input.push(pos);
                 }
             }
 
@@ -89,6 +93,18 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 broadcated: false,
             });
             plan.global_inputs.push(tensor_global);
+        }
+
+        if plan.potential_reference_input.is_empty() {
+            for v in self.views.iter() {
+                match v {
+                    TensorView::Reshape { shape, .. } => {
+                        plan.potential_reference_reshape.push(shape.clone());
+                        break;
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 }

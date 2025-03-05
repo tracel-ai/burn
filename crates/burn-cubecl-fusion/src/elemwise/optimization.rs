@@ -1,4 +1,6 @@
+use crate::shared::io::ref_len;
 use crate::shared::ir::GlobalArgs;
+use crate::shared::kernel::init_locals;
 use crate::shared::trace::Vectorization;
 use crate::shared::{io::global_length, kernel::fuse_on_write};
 use crate::CubeFusionHandle;
@@ -72,17 +74,10 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a ElemwiseConfig,
     ) -> Result<(), Self::Error> {
-        let arg = match config.ref_layout {
-            Arg::Input(index, _, _) => inputs.tensors.values.get(index as usize),
-            Arg::Output(index, _, _) => outputs.tensors.values.get(index as usize),
-            _ => panic!("Invalid value"),
-        };
-        let shape = match arg {
-            Some(val) => match &val.tensor {
-                TensorArg::Handle { handle, .. } => handle.shape,
-                TensorArg::Alias { .. } => panic!("Can't be an alias, got {val:?}"),
-            },
-            None => panic!("Invalid argument"),
+        let shape = match config.ref_layout {
+            Arg::Input(..) => inputs.shape(&config.ref_layout),
+            Arg::Output(..) => outputs.shape(&config.ref_layout),
+            _ => inputs.shape(&config.ref_layout),
         };
         let total_elem = shape.iter().product::<usize>() / config.width as usize;
         let cube_dim = CubeDim::default();
@@ -114,13 +109,15 @@ fn elemwise_fuse(
     let args = comptime![Sequence::<Arg>::new()];
     let pos = ABSOLUTE_POS;
 
+    let mut locals = init_locals(inputs, outputs, config);
+
     let length = match comptime![config.ref_layout.clone()] {
         Arg::Input(index, _, _) => global_length(inputs, index),
         Arg::Output(index, _, _) => global_length(outputs, index),
-        _ => comptime![panic!("Invalid ref layout.")],
+        _ => ref_len(&locals, config),
     };
 
     if pos < length {
-        fuse_on_write::<f32>(inputs, outputs, pos, values, args, config)
+        fuse_on_write::<f32>(inputs, outputs, &mut locals, pos, values, args, config)
     }
 }

@@ -290,16 +290,19 @@ impl FuseTraceBuilder {
         let mut shape = Sequence::new();
 
         let index = self.views.len();
-        self.views.push(TensorView::Reshape {
-            reshaped: output.id,
-            original: tensor.id,
-        });
+
         let rank = output.shape.len();
 
         for i in 0..output.shape.len() {
             let id = index * rank + i;
             shape.push(Arg::ScalarShape(id as u32));
         }
+
+        self.views.push(TensorView::Reshape {
+            reshaped: output.id,
+            original: tensor.id,
+            shape: shape.clone(),
+        });
 
         let input = Arg::InputReshaped {
             original: Box::new(original),

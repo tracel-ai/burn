@@ -149,24 +149,41 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
         if !plan.reference.is_found() {
             Self::select_reference_from_inputs(plan);
+        } else {
+            Self::add_layout_info_inputs(plan);
         }
-
-        Self::add_layout_info_inputs(plan);
     }
 
     fn select_reference_from_inputs(plan: &mut LaunchPlan<'_, R>) {
-        if plan.potential_reference.is_empty() {
+        if plan.potential_reference_input.is_empty() && plan.potential_reference_reshape.is_empty()
+        {
             plan.reference = ReferenceSelection::NotFound;
             return;
         }
 
-        let input_pos = plan.potential_reference.remove(0);
-        let reference = plan.handle_inputs.get(input_pos).unwrap();
+        if !plan.potential_reference_input.is_empty() {
+            let input_pos = plan.potential_reference_input.remove(0);
+            let reference = plan.handle_inputs.get(input_pos).unwrap();
+
+            plan.reference = ReferenceSelection::Found(Reference {
+                layout: Arg::Input(input_pos as u32, reference.precision, LayoutInfo::IsRef),
+                shape: reference.global_shape.clone(),
+                strides: reference.handle.strides.clone(),
+            });
+            Self::add_layout_info_inputs(plan);
+            return;
+        }
+
+        let shape = plan.potential_reference_reshape.remove(0);
 
         plan.reference = ReferenceSelection::Found(Reference {
-            layout: Arg::Input(input_pos as u32, reference.precision, LayoutInfo::IsRef),
-            shape: reference.global_shape.clone(),
-            strides: reference.handle.strides.clone(),
+            layout: Arg::InputReshaped {
+                original: Box::new(Arg::Literal(0, ElemwisePrecision::F32)),
+                shape: shape,
+                broadcasted: false,
+            },
+            shape: vec![0],
+            strides: vec![0],
         });
     }
 

@@ -402,6 +402,27 @@ pub fn global_buffer_len(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
 }
 
 #[cube]
+pub fn ref_len(locals: &LocalArgs, #[comptime] config: &ElemwiseConfig) -> u32 {
+    let mut length = 1u32;
+
+    for i in 0..config.rank {
+        length *= locals.ref_shape[i];
+    }
+
+    length
+}
+
+#[cube]
+pub fn ref_shape(locals: &LocalArgs, dim: u32) -> u32 {
+    locals.ref_shape[dim]
+}
+
+#[cube]
+pub fn ref_strides(locals: &LocalArgs, dim: u32) -> u32 {
+    locals.ref_strides[dim]
+}
+
+#[cube]
 pub fn global_shape(global: &GlobalArgs, dim: u32, #[comptime] pos: u32) -> u32 {
     let tensor = global.tensors.index(pos);
     tensor.tensor.shape(dim)
@@ -446,7 +467,7 @@ fn index_offset_with_layout(
             #[unroll]
             for i in start..end {
                 let index = comptime![swap_dims_transform(&i, (dim1, dim2))];
-                let ogwl = offset_ref / locals.ref_strides.index(i);
+                let ogwl = offset_ref / locals.ref_strides[i];
                 offset += ogwl % tensor.tensor.shape(index) * tensor.tensor.stride(index);
             }
 
@@ -463,7 +484,7 @@ fn index_offset_with_layout(
 
             #[unroll]
             for i in start..end {
-                let ogwl = offset_ref / locals.ref_strides.index(i);
+                let ogwl = offset_ref / locals.ref_strides[i];
                 offset += ogwl % tensor.tensor.shape(i) * tensor.tensor.stride(i);
             }
 
@@ -502,7 +523,7 @@ fn reshaped_index(
         let i = comptime![reverse_index(rank, r)];
         let arg = comptime![shape.index(i.clone())];
         let shape_i = read_scalar_shape(inputs, comptime![arg.clone()]);
-        let ogwl = index / locals.ref_strides.index(i);
+        let ogwl = index / locals.ref_strides[comptime![i.clone()]];
 
         offset += ogwl % shape_i * stride_curr;
 

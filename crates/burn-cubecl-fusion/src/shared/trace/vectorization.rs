@@ -45,7 +45,9 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         plan: &mut LaunchPlan<'a, R>,
     ) {
         let tensors_reshaped = self.views.iter().filter_map(|view| match view {
-            TensorView::Reshape { reshaped, original } => Some((
+            TensorView::Reshape {
+                reshaped, original, ..
+            } => Some((
                 context.tensors.get(reshaped).unwrap(),
                 context.tensors.get(original).unwrap(),
                 self.reads.get(original).unwrap().len() > 1,

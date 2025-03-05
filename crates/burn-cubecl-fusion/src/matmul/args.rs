@@ -1,9 +1,14 @@
 use cubecl::{linalg::matmul::components::global::args::MatmulArgs, prelude::*};
 
 use crate::shared::{
-    io::{global_buffer_len, global_len, global_rank, global_shape, global_stride, read_input},
-    ir::{Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo, LocalArgs},
-    kernel::fuse_on_write,
+    io::{
+        global_buffer_len, global_len, global_rank, global_shape, global_stride, read_input,
+        ref_len,
+    },
+    ir::{
+        Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo, LocalArgs, LocalArgsExpand,
+    },
+    kernel::{fuse_on_write, init_locals},
 };
 
 #[derive(Clone)]
@@ -32,7 +37,8 @@ impl MatmulArgs for FusedMatmulArgs {
         inputs: &Self::Input<EG>,
         outputs: &mut Self::Output<EG>,
     ) -> Self::State<EG> {
-        FusedMatmulState::new(inputs, outputs, &inputs.config)
+        let mut locals = init_locals(&inputs.global, outputs, &inputs.config);
+        FusedMatmulState::new(inputs, outputs, &mut locals, &inputs.config)
     }
 
     fn read_lhs<EG: Numeric>(state: &Self::State<EG>, coordinate: u32) -> Line<EG> {
@@ -46,7 +52,7 @@ impl MatmulArgs for FusedMatmulArgs {
         read_input(
             unsafe { &(*state.inputs) },
             unsafe { &(*state.outputs) },
-            &LocalArgs::new(),
+            unsafe { &(*state.locals) },
             pos,
             coordinate,
             LayoutInfo::IsRef,
@@ -66,7 +72,7 @@ impl MatmulArgs for FusedMatmulArgs {
         read_input(
             unsafe { &(*state.inputs) },
             unsafe { &(*state.outputs) },
-            &LocalArgs::new(),
+            unsafe { &(*state.locals) },
             pos,
             coordinate,
             LayoutInfo::IsRef,
@@ -112,6 +118,7 @@ impl MatmulArgs for FusedMatmulArgs {
         fuse_on_write(
             unsafe { &(*state.inputs) },
             unsafe { &mut (*state.outputs) },
+            unsafe { &mut (*state.locals) },
             coordinate,
             values,
             args,
@@ -158,25 +165,19 @@ impl MatmulArgs for FusedMatmulArgs {
     }
 
     fn buffer_len_lhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {
-        let pos = comptime! {
-            match state.lhs {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Lhs isn't an input"),
-            }
-        };
-
-        global_buffer_len(unsafe { &(*state.inputs) }, pos)
+        match comptime![state.lhs.clone()] {
+            Arg::Input(pos, ..) => global_buffer_len(unsafe { &(*state.inputs) }, pos),
+            Arg::InputReshaped { .. } => ref_len(unsafe { &(*state.locals) }, &state.config),
+            _ => panic!("Lhs isn't an input"),
+        }
     }
 
     fn buffer_len_rhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {
-        let pos = comptime! {
-            match state.rhs {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Rhs isn't an input"),
-            }
-        };
-
-        global_buffer_len(unsafe { &(*state.inputs) }, pos)
+        match comptime![state.lhs.clone()] {
+            Arg::Input(pos, ..) => global_len(unsafe { &(*state.inputs) }, pos),
+            Arg::InputReshaped { .. } => ref_len(unsafe { &(*state.locals) }, &state.config),
+            _ => panic!("Lhs isn't an input"),
+        }
     }
 
     fn buffer_len_out<EG: Numeric>(state: &Self::State<EG>) -> u32 {
@@ -313,6 +314,7 @@ impl MatmulArgs for FusedMatmulArgs {
 pub struct FusedMatmulState {
     inputs: *const GlobalArgs,
     outputs: *mut GlobalArgs,
+    locals: *mut LocalArgs,
     config: ElemwiseConfig,
     lhs: Arg,
     rhs: Arg,
@@ -324,12 +326,14 @@ impl FusedMatmulState {
     pub fn new(
         inputs: &FusedMatmulInput,
         outputs: &mut GlobalArgs,
+        locals: &mut LocalArgs,
         #[comptime] config: &ElemwiseConfig,
     ) -> FusedMatmulState {
         FusedMatmulState {
             inputs: &inputs.global,
             outputs,
             config: comptime![config.clone()],
+            locals,
             lhs: comptime![inputs.lhs.clone()],
             rhs: comptime![inputs.rhs.clone()],
             out: comptime![inputs.out.clone()],
@@ -342,6 +346,7 @@ pub struct FusedMatmulStateExpand {
     inputs: GlobalArgsExpand,
     outputs: GlobalArgsExpand,
     config: ElemwiseConfig,
+    locals: LocalArgsExpand,
     lhs: Arg,
     rhs: Arg,
     out: Arg,

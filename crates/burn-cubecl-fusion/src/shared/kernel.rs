@@ -11,12 +11,13 @@ use cubecl::prelude::*;
 pub fn fuse_on_write<E: CubePrimitive>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
     write_pos: u32,
     write_values: Registry<Arg, Line<E>>,
     #[comptime] write_args: Sequence<Arg>,
     #[comptime] config: &ElemwiseConfig,
 ) {
-    let mut locals = init_locals(inputs, outputs, config);
+    // let mut locals = init_locals(inputs, outputs, config);
 
     // Write the values given as arguments.
     #[unroll]
@@ -24,19 +25,47 @@ pub fn fuse_on_write<E: CubePrimitive>(
         let arg = comptime![write_args.index(i).clone()];
         let val = write_values.find(comptime![arg.clone()]);
 
-        write::<E>(inputs, outputs, &mut locals, write_pos, val, arg, config);
+        write::<E>(inputs, outputs, locals, write_pos, val, arg, config);
     }
 
-    fuse(inputs, outputs, &mut locals, write_pos, config);
+    fuse(inputs, outputs, locals, write_pos, config);
 }
 
 #[cube]
-fn init_locals(
+/// Fuse element-wise operations at the given read position.
+pub fn fuse_on_read<E: CubePrimitive>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    read_pos: u32,
+    #[comptime] read_args: Sequence<Arg>,
+    #[comptime] config: &ElemwiseConfig,
+) -> Sequence<Line<E>> {
+    // let mut locals = init_locals(inputs, outputs, config);
+
+    fuse(inputs, outputs, locals, read_pos, config);
+
+    let mut output = Sequence::new();
+
+    #[unroll]
+    for i in 0..read_args.len() {
+        let arg = comptime![read_args.index(i).clone()];
+        let value = read::<E>(inputs, outputs, locals, read_pos, arg, config);
+
+        output.push(value);
+    }
+
+    output
+}
+
+#[cube]
+pub fn init_locals(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     #[comptime] config: &ElemwiseConfig,
 ) -> LocalArgs {
-    let mut locals = LocalArgs::new();
+    let mut ref_shape = Array::new(config.rank);
+    let mut ref_strides = Array::new(config.rank);
 
     match comptime![config.ref_layout.clone()] {
         Arg::Input(index, ..) => {
@@ -44,24 +73,30 @@ fn init_locals(
 
             #[unroll]
             for i in 0..config.rank {
-                locals.ref_shape.push(layout.tensor.shape(i));
-                locals.ref_strides.push(layout.tensor.stride(i));
+                ref_shape[i] = layout.tensor.shape(i);
+                ref_strides[i] = layout.tensor.stride(i);
             }
 
-            let line_size = layout.tensor.line_size();
-            comptime![locals.ref_line_size = line_size];
+            LocalArgs::new(
+                ref_shape.to_slice(),
+                ref_strides.to_slice(),
+                layout.tensor.line_size(),
+            )
         }
         Arg::Output(index, ..) => {
             let layout = outputs.tensors.index(index);
 
             #[unroll]
             for i in 0..config.rank {
-                locals.ref_shape.push(layout.tensor.shape(i));
-                locals.ref_strides.push(layout.tensor.stride(i));
+                ref_shape[i] = layout.tensor.shape(i);
+                ref_strides[i] = layout.tensor.stride(i);
             }
 
-            let line_size = layout.tensor.line_size();
-            comptime![locals.ref_line_size = line_size];
+            LocalArgs::new(
+                ref_shape.to_slice(),
+                ref_strides.to_slice(),
+                layout.tensor.line_size(),
+            )
         }
         Arg::InputReshaped { shape, .. } => {
             let mut stride_curr = 1u32;
@@ -83,41 +118,16 @@ fn init_locals(
             for r in 0..config.rank {
                 let i = comptime![reverse_index(config.rank, r)];
                 let shape = shapes.index(comptime![i.clone()]);
-                let stride = strides.index(i);
-                locals.ref_shape.push(*shape);
-                locals.ref_strides.push(*stride);
+                let stride = strides.index(comptime![i.clone()]);
+
+                ref_shape[comptime![i.clone()]] = *shape;
+                ref_strides[comptime![i.clone()]] = *stride;
             }
+
+            LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), 1u32)
         }
         _ => comptime![panic!("Invalid ref layout.")],
-    };
-
-    locals
-}
-
-#[cube]
-/// Fuse element-wise operations at the given read position.
-pub fn fuse_on_read<E: CubePrimitive>(
-    inputs: &GlobalArgs,
-    outputs: &mut GlobalArgs,
-    read_pos: u32,
-    #[comptime] read_args: Sequence<Arg>,
-    #[comptime] config: &ElemwiseConfig,
-) -> Sequence<Line<E>> {
-    let mut locals = init_locals(inputs, outputs, config);
-
-    fuse(inputs, outputs, &mut locals, read_pos, config);
-
-    let mut output = Sequence::new();
-
-    #[unroll]
-    for i in 0..read_args.len() {
-        let arg = comptime![read_args.index(i).clone()];
-        let value = read::<E>(inputs, outputs, &locals, read_pos, arg, config);
-
-        output.push(value);
     }
-
-    output
 }
 
 #[cube]
@@ -401,8 +411,8 @@ fn select_indices<C: Numeric>(
 ) {
     let (line_size_ref, stride_dim_ref, shape_dim_ref) = (
         locals.ref_line_size,
-        locals.ref_strides.index(dim),
-        locals.ref_shape.index(dim),
+        locals.ref_strides[dim],
+        locals.ref_shape[dim],
     );
 
     let pos_input = comptime! {
