@@ -4,7 +4,7 @@ use burn_fusion::stream::Context;
 use burn_tensor::DType;
 use cubecl::{
     client::ComputeClient,
-    prelude::{Sequence, TensorArg},
+    prelude::{ScalarArg, Sequence, TensorArg},
     CubeElement, Runtime,
 };
 
@@ -82,6 +82,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         mut plans: (LaunchPlan<'a, R>, LaunchPlan<'a, R>),
     ) -> Result<(), MultiExecutionError<R, Runner>> {
+        println!("Execute {plans:?}");
         let reference = match plans.0.reference {
             ReferenceSelection::Found(reference) => reference,
             ReferenceSelection::Searching => {
@@ -415,13 +416,12 @@ fn register_scalars<'h, R: Runtime>(
         }
     }
 
-    // Reshape values are pushed in reverse in the same scalar buffer for all `u32`
-    for relative in views.rev() {
+    for relative in views {
         if let TensorView::Reshape { reshaped, .. } = relative {
             let global = context.tensors.get(reshaped).unwrap();
 
-            for shape in global.shape.iter().rev() {
-                inputs.scalars.push(GlobalScalar::U32(*shape as u32));
+            for shape in global.shape.iter() {
+                inputs.reshapes.push(ScalarArg::new(*shape as u32));
             }
         }
     }

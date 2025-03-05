@@ -58,6 +58,7 @@ impl<R: Runtime> ReduceBuilder<R> {
         }
     }
     fn on_reduce(&mut self, op: &ReduceDimOpIr, inst: ReduceInstruction) {
+        println!("On reduce {op:?}");
         if self.builder_read.current_output_shape != op.input.shape {
             self.builder_read.close();
             self.builder_read_fallback.close();
@@ -88,6 +89,7 @@ impl<R: Runtime> ReduceBuilder<R> {
     }
 
     fn on_elemwise(&mut self, operation: &OperationIr) {
+        println!("On elemwise {operation:?}");
         self.builder_read.register(operation);
 
         if self.builder_read_fallback.len() < self.builder_read.len() {
@@ -158,6 +160,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
     }
 
     fn reset(&mut self) {
+        println!("Reset");
         self.builder_read.reset();
         self.builder_write.reset();
         self.builder_read_fallback.reset();

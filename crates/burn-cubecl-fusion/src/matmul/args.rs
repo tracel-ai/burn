@@ -2,7 +2,7 @@ use cubecl::{linalg::matmul::components::global::args::MatmulArgs, prelude::*};
 
 use crate::shared::{
     io::{global_buffer_len, global_len, global_rank, global_shape, global_stride, read_input},
-    ir::{Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo},
+    ir::{Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo, LocalArgs},
     kernel::fuse_on_write,
 };
 
@@ -46,6 +46,7 @@ impl MatmulArgs for FusedMatmulArgs {
         read_input(
             unsafe { &(*state.inputs) },
             unsafe { &(*state.outputs) },
+            &LocalArgs::new(),
             pos,
             coordinate,
             LayoutInfo::IsRef,
@@ -65,6 +66,7 @@ impl MatmulArgs for FusedMatmulArgs {
         read_input(
             unsafe { &(*state.inputs) },
             unsafe { &(*state.outputs) },
+            &LocalArgs::new(),
             pos,
             coordinate,
             LayoutInfo::IsRef,

@@ -167,6 +167,7 @@ pub struct ReshapedTensor {
 pub struct GlobalArgs {
     pub tensors: Sequence<GlobalTensor>,
     pub scalars: Sequence<GlobalScalar>,
+    pub reshapes: Sequence<u32>,
 }
 
 impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
@@ -174,6 +175,7 @@ impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
         Self {
             tensors: Default::default(),
             scalars: Default::default(),
+            reshapes: Default::default(),
             _phantom_runtime: std::marker::PhantomData,
             _phantom_a: std::marker::PhantomData,
         }
@@ -250,6 +252,10 @@ pub struct LocalArgs {
     pub l_u16: Registry<u32, Line<u16>>,
     pub l_u8: Registry<u32, Line<u8>>,
     pub l_bool: Registry<u32, Line<bool>>,
+    pub ref_shape: Sequence<u32>,
+    pub ref_strides: Sequence<u32>,
+    #[cube(comptime)]
+    pub ref_line_size: u32,
 }
 
 #[cube]
@@ -268,6 +274,9 @@ impl LocalArgs {
             l_u16: Registry::<u32, Line<u16>>::new(),
             l_u8: Registry::<u32, Line<u8>>::new(),
             l_bool: Registry::<u32, Line<bool>>::new(),
+            ref_shape: Sequence::new(),
+            ref_strides: Sequence::new(),
+            ref_line_size: 1u32,
         }
     }
 }

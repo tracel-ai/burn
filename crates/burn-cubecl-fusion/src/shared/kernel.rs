@@ -16,7 +16,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
     #[comptime] write_args: Sequence<Arg>,
     #[comptime] config: &ElemwiseConfig,
 ) {
-    let mut locals = LocalArgs::new();
+    let mut locals = init_locals(inputs, outputs, config);
 
     // Write the values given as arguments.
     #[unroll]
@@ -31,6 +31,70 @@ pub fn fuse_on_write<E: CubePrimitive>(
 }
 
 #[cube]
+fn init_locals(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    #[comptime] config: &ElemwiseConfig,
+) -> LocalArgs {
+    let mut locals = LocalArgs::new();
+
+    match comptime![config.ref_layout.clone()] {
+        Arg::Input(index, ..) => {
+            let layout = inputs.tensors.index(index);
+
+            #[unroll]
+            for i in 0..config.rank {
+                locals.ref_shape.push(layout.tensor.shape(i));
+                locals.ref_strides.push(layout.tensor.stride(i));
+            }
+
+            let line_size = layout.tensor.line_size();
+            comptime![locals.ref_line_size = line_size];
+        }
+        Arg::Output(index, ..) => {
+            let layout = outputs.tensors.index(index);
+
+            #[unroll]
+            for i in 0..config.rank {
+                locals.ref_shape.push(layout.tensor.shape(i));
+                locals.ref_strides.push(layout.tensor.stride(i));
+            }
+
+            let line_size = layout.tensor.line_size();
+            comptime![locals.ref_line_size = line_size];
+        }
+        Arg::InputReshaped { shape, .. } => {
+            let mut stride_curr = 1u32;
+            let mut shapes = Sequence::<u32>::new();
+            let mut strides = Sequence::<u32>::new();
+
+            #[unroll]
+            for r in 0..config.rank {
+                let i = comptime![reverse_index(config.rank, r)];
+                let arg = comptime![shape.index(i.clone())];
+                let shape_i = read_scalar_shape(inputs, comptime![arg.clone()]);
+
+                stride_curr *= shape_i;
+                shapes.push(shape_i);
+                strides.push(stride_curr);
+            }
+
+            #[unroll]
+            for r in 0..config.rank {
+                let i = comptime![reverse_index(config.rank, r)];
+                let shape = shapes.index(comptime![i.clone()]);
+                let stride = strides.index(i);
+                locals.ref_shape.push(*shape);
+                locals.ref_strides.push(*stride);
+            }
+        }
+        _ => comptime![panic!("Invalid ref layout.")],
+    };
+
+    locals
+}
+
+#[cube]
 /// Fuse element-wise operations at the given read position.
 pub fn fuse_on_read<E: CubePrimitive>(
     inputs: &GlobalArgs,
@@ -39,7 +103,7 @@ pub fn fuse_on_read<E: CubePrimitive>(
     #[comptime] read_args: Sequence<Arg>,
     #[comptime] config: &ElemwiseConfig,
 ) -> Sequence<Line<E>> {
-    let mut locals = LocalArgs::new();
+    let mut locals = init_locals(inputs, outputs, config);
 
     fuse(inputs, outputs, &mut locals, read_pos, config);
 
@@ -270,11 +334,7 @@ fn gather<C: Numeric>(
             _ => panic!("Input tensor isn't an input"),
         }
     };
-    let line_size = match config.ref_layout {
-        Arg::Input(pos, _precision, _) => global_line_size(inputs, pos),
-        Arg::Output(pos, _precision, _) => global_line_size(outputs, pos),
-        _ => unreachable!(),
-    };
+    let line_size = locals.ref_line_size;
     let stride = global_stride(inputs, dim, pos);
 
     index *= Line::new(stride);
@@ -283,6 +343,7 @@ fn gather<C: Numeric>(
         let index_before = global_offset(
             inputs,
             outputs,
+            locals,
             write_pos,
             comment!(input.clone()),
             comptime![Some((0u32, dim))],
@@ -295,6 +356,7 @@ fn gather<C: Numeric>(
         let index_after = global_offset(
             inputs,
             outputs,
+            locals,
             write_pos,
             input,
             comptime![Some((dim + 1, config.rank))],
@@ -309,7 +371,16 @@ fn gather<C: Numeric>(
     for i in 0..line_size {
         let index = index[i];
 
-        let input = read_input::<C>(inputs, outputs, pos, index, LayoutInfo::IsRef, config, None);
+        let input = read_input::<C>(
+            inputs,
+            outputs,
+            locals,
+            pos,
+            index,
+            LayoutInfo::IsRef,
+            config,
+            None,
+        );
         result[i] = input[0];
     }
 
@@ -328,19 +399,11 @@ fn select_indices<C: Numeric>(
     #[comptime] output: Arg,
     #[comptime] config: &ElemwiseConfig,
 ) {
-    let (line_size_ref, stride_dim_ref, shape_dim_ref) = match config.ref_layout {
-        Arg::Input(pos, _, _) => (
-            global_line_size(inputs, pos),
-            global_stride(inputs, dim, pos),
-            global_shape(inputs, dim, pos),
-        ),
-        Arg::Output(pos, _, _) => (
-            global_line_size(outputs, pos),
-            global_stride(outputs, dim, pos),
-            global_shape(outputs, dim, pos),
-        ),
-        _ => unreachable!(),
-    };
+    let (line_size_ref, stride_dim_ref, shape_dim_ref) = (
+        locals.ref_line_size,
+        locals.ref_strides.index(dim),
+        locals.ref_shape.index(dim),
+    );
 
     let pos_input = comptime! {
         match input {
@@ -370,6 +433,7 @@ fn select_indices<C: Numeric>(
             let index_before = global_offset(
                 inputs,
                 outputs,
+                locals,
                 write_pos_input,
                 comment!(input.clone()),
                 comptime![Some((0u32, dim))],
@@ -382,6 +446,7 @@ fn select_indices<C: Numeric>(
             let index_after = global_offset(
                 inputs,
                 outputs,
+                locals,
                 write_pos_input,
                 comment!(input.clone()),
                 comptime![Some((dim + 1, config.rank))],
@@ -394,6 +459,7 @@ fn select_indices<C: Numeric>(
         let offset_dim = read_input::<u32>(
             inputs,
             outputs,
+            locals,
             pos_indices,
             coordinate_dim,
             LayoutInfo::IsRef,
@@ -409,6 +475,7 @@ fn select_indices<C: Numeric>(
             let input = read_input::<C>(
                 inputs,
                 outputs,
+                locals,
                 pos_input,
                 index + i * stride_input_line,
                 LayoutInfo::IsRef,
@@ -427,6 +494,7 @@ fn select_indices<C: Numeric>(
             let index_before = global_offset(
                 inputs,
                 outputs,
+                locals,
                 write_pos,
                 comment!(input.clone()),
                 comptime![Some((0u32, dim))],
@@ -439,6 +507,7 @@ fn select_indices<C: Numeric>(
             let index_after = global_offset(
                 inputs,
                 outputs,
+                locals,
                 write_pos,
                 input,
                 comptime![Some((dim + 1, config.rank))],
@@ -455,6 +524,7 @@ fn select_indices<C: Numeric>(
             let offset_dim = read_input::<u32>(
                 inputs,
                 outputs,
+                locals,
                 pos_indices,
                 coordinate_dim,
                 LayoutInfo::IsRef,
@@ -465,6 +535,7 @@ fn select_indices<C: Numeric>(
             let input = read_input::<C>(
                 inputs,
                 outputs,
+                locals,
                 pos_input,
                 index + (offset_dim[0] * stride_input_dim),
                 LayoutInfo::IsRef,
