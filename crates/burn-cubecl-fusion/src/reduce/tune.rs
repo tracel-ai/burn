@@ -32,8 +32,6 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
 
     let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
         .with_tunable(tune_reduce::<R, BT>)
-        .with_tunable(tune_reduce_shared::<R, BT>)
-        .with_tunable(tune_reduce_plane::<R, BT>)
         .with_tunable(tune_reduce_shared_plane::<R, BT>)
         .with_tunable(tune_fallback::<R, BT>);
 
@@ -77,7 +75,6 @@ fn input_gen<R: Runtime>(
 fn tune_reduce<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceOptimization<R>>,
 ) -> Result<(), String> {
-    println!("Reduce");
     let optimization = input.optimization();
     let context = input.context();
 
@@ -90,42 +87,9 @@ fn tune_reduce<R: Runtime, BT: CubeElement>(
     .map_err(|e| format!("{e:?}"))
 }
 
-fn tune_reduce_shared<R: Runtime, BT: CubeElement>(
-    input: TuneInput<R, ReduceOptimization<R>>,
-) -> Result<(), String> {
-    println!("Reduce shared");
-    let optimization = input.optimization();
-    let context = input.context();
-
-    match context {
-        TuneContext::Original(context) => optimization.execute_fused_reduce_shared::<BT>(context),
-        TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fused_reduce_shared::<BT>(&mut context_owned.as_context())
-        }
-    }
-    .map_err(|e| format!("{e:?}"))
-}
-
-fn tune_reduce_plane<R: Runtime, BT: CubeElement>(
-    input: TuneInput<R, ReduceOptimization<R>>,
-) -> Result<(), String> {
-    println!("Reduce plane");
-    let optimization = input.optimization();
-    let context = input.context();
-
-    match context {
-        TuneContext::Original(context) => optimization.execute_fused_reduce_plane::<BT>(context),
-        TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fused_reduce_plane::<BT>(&mut context_owned.as_context())
-        }
-    }
-    .map_err(|e| format!("{e:?}"))
-}
-
 fn tune_reduce_shared_plane<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceOptimization<R>>,
 ) -> Result<(), String> {
-    println!("Reduce shared plane");
     let optimization = input.optimization();
     let context = input.context();
 
@@ -143,7 +107,6 @@ fn tune_reduce_shared_plane<R: Runtime, BT: CubeElement>(
 fn tune_fallback<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceOptimization<R>>,
 ) -> Result<(), String> {
-    println!("Reduce fallback");
     let optimization = input.optimization();
     let context = input.context();
 

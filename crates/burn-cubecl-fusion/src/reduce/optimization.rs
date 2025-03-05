@@ -33,8 +33,6 @@ pub struct ReduceOptimization<R: Runtime> {
     pub(crate) device: R::Device,
     pub(crate) len: usize,
     pub(crate) reduce: FusedReduce,
-    pub(crate) reduce_shared: FusedReduce,
-    pub(crate) reduce_plane: FusedReduce,
     pub(crate) reduce_shared_plane: FusedReduce,
     fallback: Arc<dyn ReduceFallbackFn<R>>,
 }
@@ -64,8 +62,6 @@ pub struct ReduceOptimizationState {
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
     pub(crate) reduce: FusedReduce,
-    pub(crate) reduce_shared: FusedReduce,
-    pub(crate) reduce_plane: FusedReduce,
     pub(crate) reduce_shared_plane: FusedReduce,
     len: usize,
 }
@@ -112,14 +108,6 @@ impl<R: Runtime> ReduceOptimization<R> {
         reduce: FusedReduce,
         fallback: Arc<dyn ReduceFallbackFn<R>>,
     ) -> Self {
-        let reduce_shared = reduce.with_strategy(ReduceStrategy {
-            use_planes: false,
-            shared: true,
-        });
-        let reduce_plane = reduce.with_strategy(ReduceStrategy {
-            use_planes: true,
-            shared: false,
-        });
         let reduce_shared_plane = reduce.with_strategy(ReduceStrategy {
             use_planes: true,
             shared: true,
@@ -133,8 +121,6 @@ impl<R: Runtime> ReduceOptimization<R> {
             device,
             len,
             reduce,
-            reduce_shared,
-            reduce_plane,
             reduce_shared_plane,
             fallback,
         }
@@ -161,8 +147,6 @@ impl<R: Runtime> ReduceOptimization<R> {
             trace_read_fallback: self.trace_read_fallback.clone(),
             trace_write_fallback: self.trace_write_fallback.clone(),
             reduce: self.reduce.clone(),
-            reduce_shared: self.reduce_shared.clone(),
-            reduce_plane: self.reduce_plane.clone(),
             reduce_shared_plane: self.reduce_shared_plane.clone(),
             len: self.len,
         }
@@ -181,8 +165,6 @@ impl<R: Runtime> ReduceOptimization<R> {
             trace_read_fallback: state.trace_read_fallback,
             trace_write_fallback: state.trace_write_fallback,
             reduce: state.reduce,
-            reduce_shared: state.reduce_shared,
-            reduce_plane: state.reduce_plane,
             reduce_shared_plane: state.reduce_shared_plane,
             fallback,
             len: state.len,
@@ -201,32 +183,6 @@ impl<R: Runtime> ReduceOptimization<R> {
             &self.device,
             context,
             &self.reduce,
-        )
-    }
-
-    pub fn execute_fused_reduce_shared<BT: CubeElement>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), TraceError<FusedReduceError>> {
-        FuseTrace::run_multi::<R, BT, FusedReduce>(
-            (&self.trace_read, &self.trace_write),
-            &self.client,
-            &self.device,
-            context,
-            &self.reduce_shared,
-        )
-    }
-
-    pub fn execute_fused_reduce_plane<BT: CubeElement>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), TraceError<FusedReduceError>> {
-        FuseTrace::run_multi::<R, BT, FusedReduce>(
-            (&self.trace_read, &self.trace_write),
-            &self.client,
-            &self.device,
-            context,
-            &self.reduce_plane,
         )
     }
 
