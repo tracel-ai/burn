@@ -1,4 +1,5 @@
 use crate::{TrainOutput, TrainStep};
+use burn_core::data::dataloader::RoundRobinAssignment;
 use burn_core::{
     data::dataloader::DataLoaderIterator, module::AutodiffModule, tensor::backend::AutodiffBackend,
 };
@@ -115,7 +116,7 @@ where
     /// Outputs.
     pub fn step<'a>(
         &self,
-        dataloader: &mut Box<dyn DataLoaderIterator<TI> + 'a>,
+        dataloader: &mut Box<dyn DataLoaderIterator<TI, Strategy = RoundRobinAssignment> + 'a>,
         model: &M,
     ) -> Vec<TrainOutput<TO>> {
         let mut num_send = 0;

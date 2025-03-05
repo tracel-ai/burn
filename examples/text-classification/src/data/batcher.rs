@@ -75,8 +75,8 @@ impl<B: Backend> Batcher<B, TextClassificationItem, TextClassificationTrainingBa
         }
     }
 
-    fn device(&self) -> B::Device {
-        self.device.clone()
+    fn devices(&self) -> Vec<B::Device> {
+        vec![self.device.clone()]
     }
 }
 
@@ -112,7 +112,7 @@ impl<B: Backend> Batcher<B, String, TextClassificationInferenceBatch<B>>
         }
     }
 
-    fn device(&self) -> B::Device {
-        self.device.clone()
+    fn devices(&self) -> Vec<B::Device> {
+        vec![self.device.clone()]
     }
 }

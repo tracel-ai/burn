@@ -46,7 +46,7 @@ impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher<B> {
         MnistBatch { images, targets }
     }
 
-    fn device(&self) -> B::Device {
-        self.device.clone()
+    fn devices(&self) -> Vec<B::Device> {
+        vec![self.device.clone()]
     }
 }

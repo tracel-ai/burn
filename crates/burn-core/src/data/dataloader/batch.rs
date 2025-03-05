@@ -1,6 +1,6 @@
 use super::{
-    batcher::DynBatcher, BatchStrategy, DataLoader, DataLoaderIterator, DynDataLoader,
-    MultiThreadDataLoader, Progress,
+    batcher::DynBatcher, AssignmentStrategy, BatchStrategy, DataLoader, DataLoaderIterator,
+    DynDataLoader, MultiThreadDataLoader, Progress, RoundRobinAssignment, State,
 };
 use burn_dataset::{
     transform::{PartialDataset, ShuffledDataset},
@@ -59,11 +59,13 @@ impl<B: Backend, I, O> BatchDataLoader<B, I, O> {
 }
 
 /// A data loader iterator that can be used to iterate over a data loader.
-struct BatchDataloaderIterator<B: Backend, I, O> {
+struct BatchDataloaderIterator<B: Backend, I, O, A: AssignmentStrategy> {
     current_index: usize,
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
     batcher: Box<dyn DynBatcher<B, I, O>>,
+    assignment: A,
+    devices: Vec<B::Device>,
 }
 
 impl<B: Backend, I, O> BatchDataLoader<B, I, O>
@@ -107,7 +109,7 @@ where
             let dataloader: Box<dyn DynDataLoader<_>> = Box::new(dataloader);
             dataloaders.push(dataloader);
         }
-        MultiThreadDataLoader::new(dataloaders)
+        MultiThreadDataLoader::new(dataloaders, batcher.devices().len())
     }
 }
 
@@ -117,7 +119,7 @@ where
     I: Send + Sync + Clone + 'static,
     O: Send + 'static,
 {
-    fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a> {
+    fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O, Strategy = RoundRobinAssignment> + 'a> {
         // When starting a new iteration, we first check if the dataloader was created with an rng,
         // implying that we should shuffle the dataset beforehand, while advancing the current
         // rng to ensure that each new iteration shuffles the dataset differently.
@@ -136,6 +138,10 @@ where
             self.strategy.clone_dyn(),
             dataset,
             self.batcher.clone_dyn(),
+            // Round-robin device selection to alternate each batch when multiple GPUs are used.
+            // This way, each batch should already be assigned to the correct device before being
+            // passed to the model.
+            RoundRobinAssignment::new(self.batcher.devices().len()),
         ))
     }
 
@@ -144,7 +150,7 @@ where
     }
 }
 
-impl<B: Backend, I, O> BatchDataloaderIterator<B, I, O> {
+impl<B: Backend, I, O, A: AssignmentStrategy> BatchDataloaderIterator<B, I, O, A> {
     /// Creates a new batch data loader iterator.
     ///
     /// # Arguments
@@ -160,17 +166,21 @@ impl<B: Backend, I, O> BatchDataloaderIterator<B, I, O> {
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
         batcher: Box<dyn DynBatcher<B, I, O>>,
+        assignment: A,
     ) -> Self {
+        let devices = batcher.devices();
         BatchDataloaderIterator {
             current_index: 0,
             strategy,
             dataset,
             batcher,
+            assignment,
+            devices,
         }
     }
 }
 
-impl<B: Backend, I, O> Iterator for BatchDataloaderIterator<B, I, O> {
+impl<B: Backend, I, O, A: AssignmentStrategy> Iterator for BatchDataloaderIterator<B, I, O, A> {
     type Item = O;
 
     fn next(&mut self) -> Option<O> {
@@ -178,23 +188,38 @@ impl<B: Backend, I, O> Iterator for BatchDataloaderIterator<B, I, O> {
             self.current_index += 1;
             self.strategy.add(item);
 
-            // TODO: this should call batch with a specified device
             if let Some(items) = self.strategy.batch(false) {
-                return Some(self.batcher.batch(items));
+                let device = &self.devices[self.assignment.current()];
+                self.assignment.step();
+                return Some(self.batcher.batch_with_device(items, device));
             }
         }
 
         if let Some(items) = self.strategy.batch(true) {
-            return Some(self.batcher.batch(items));
+            let device = &self.devices[self.assignment.current()];
+            self.assignment.step();
+            return Some(self.batcher.batch_with_device(items, device));
         }
 
         None
     }
 }
+impl<B: Backend, I, O> DataLoaderIterator<O>
+    for BatchDataloaderIterator<B, I, O, RoundRobinAssignment>
+{
+    type Strategy = RoundRobinAssignment;
 
-impl<B: Backend, I, O> DataLoaderIterator<O> for BatchDataloaderIterator<B, I, O> {
     fn progress(&self) -> Progress {
         Progress::new(self.current_index, self.dataset.len())
+    }
+
+    fn state(&self) -> State {
+        let progress = self.progress();
+        let resource_id = Some(self.assignment.current());
+        State {
+            progress,
+            resource_id,
+        }
     }
 }
 

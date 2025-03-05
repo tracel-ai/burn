@@ -179,7 +179,7 @@ impl<B: Backend> Batcher<B, HousingDistrictItem, HousingBatch<B>> for HousingBat
         HousingBatch { inputs, targets }
     }
 
-    fn device(&self) -> B::Device {
-        self.device.clone()
+    fn devices(&self) -> Vec<B::Device> {
+        vec![self.device.clone()]
     }
 }

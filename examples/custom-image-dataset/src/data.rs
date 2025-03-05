@@ -123,7 +123,7 @@ impl<B: Backend> Batcher<B, ImageDatasetItem, ClassificationBatch<B>> for Classi
         }
     }
 
-    fn device(&self) -> B::Device {
-        self.device.clone()
+    fn devices(&self) -> Vec<B::Device> {
+        vec![self.device.clone()]
     }
 }

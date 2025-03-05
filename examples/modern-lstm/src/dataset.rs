@@ -112,7 +112,7 @@ impl<B: Backend> Batcher<B, SequenceDatasetItem, SequenceBatch<B>> for SequenceB
         SequenceBatch { sequences, targets }
     }
 
-    fn device(&self) -> B::Device {
-        self.device.clone()
+    fn devices(&self) -> Vec<B::Device> {
+        vec![self.device.clone()]
     }
 }
