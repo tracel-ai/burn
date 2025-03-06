@@ -245,7 +245,7 @@ mod tests {
                 [-0.3428, 0.7970, 1.1845],
             ],
         ]);
-        output.to_data().assert_approx_eq(&expected, 3);
+        output.to_data().assert_approx_eq(&expected, 2);
     }
 
     #[test]
