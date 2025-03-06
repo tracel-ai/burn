@@ -312,8 +312,8 @@ impl FusedMatmul {
         let rhs_line_size = inputs.line_size(&self.rhs);
         let out_line_size = match &config.ref_layout {
             RefLayout::Concrete(arg) => match arg {
-                Arg::Input(..) => inputs.line_size(&arg),
-                Arg::Output(..) => outputs.line_size(&arg),
+                Arg::Input(..) => inputs.line_size(arg),
+                Arg::Output(..) => outputs.line_size(arg),
                 _ => panic!("Invalid ref layout"),
             },
             RefLayout::Virtual(_) => 1,

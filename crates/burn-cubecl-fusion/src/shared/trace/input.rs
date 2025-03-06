@@ -68,10 +68,8 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     if plan.potential_reference_input.is_none() {
                         plan.potential_reference_input = Some(pos);
                     }
-                } else {
-                    if plan.potential_reference_input.is_none() {
-                        plan.potential_reference_input = Some(pos);
-                    }
+                } else if plan.potential_reference_input.is_none() {
+                    plan.potential_reference_input = Some(pos);
                 }
             }
 
@@ -97,12 +95,9 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
 
         if plan.potential_reference_input.is_none() {
             for v in self.views.iter() {
-                match v {
-                    TensorView::Reshape { shape, .. } => {
-                        plan.potential_reference_reshape = Some(shape.clone());
-                        break;
-                    }
-                    _ => {}
+                if let TensorView::Reshape { shape, .. } = v {
+                    plan.potential_reference_reshape = Some(shape.clone());
+                    break;
                 }
             }
         }

@@ -101,12 +101,13 @@ pub fn init_locals(
             let mut stride_curr = 1u32;
 
             #[unroll]
+            #[allow(clippy::clone_on_copy)]
             for i in 0..config.rank {
                 let arg = comptime![shape.index(i.clone())];
                 let shape = read_scalar_shape(inputs, comptime![arg.clone()]);
                 let reverse = comptime![reverse_index(config.rank, comptime![i.clone()])];
 
-                ref_shape[comptime![i.clone()]] = shape;
+                ref_shape[i] = shape;
                 ref_strides[comptime![reverse.clone()]] = stride_curr;
 
                 stride_curr *= shape;
