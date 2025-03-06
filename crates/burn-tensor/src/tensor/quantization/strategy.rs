@@ -438,7 +438,7 @@ mod tests {
 
         let symmetric = SymmetricQuantization::<f32, i8>::new(-1.8, 0.5);
         let strategy = QuantizationStrategy::PerBlockSymmetricInt8(
-            vec![symmetric.clone(), symmetric],
+            vec![symmetric, symmetric],
             BlockLayout::Flat(4),
         );
 
@@ -452,7 +452,7 @@ mod tests {
 
     #[test]
     fn test_int8_affine_quantization_per_block_flat() {
-        let x = vec![
+        let x = [
             [-1.8, -1.0, 0.0, 0.5],
             [-0.8, 1.2, 0.25, 0.5],
             [-8., 12., 2.5, 5.],
@@ -460,14 +460,14 @@ mod tests {
         ]
         .concat();
         let shape = &[2, 8];
-        let expected_q = vec![
+        let expected_q = [
             [-128i8, -40, 71, 126],
             [-128, 127, 6, 38],
             [-128, 127, 6, 38],
             [-26, 25, 76, 127],
         ]
         .concat();
-        let expected_d = vec![
+        let expected_d = [
             [-1.794902, -1.0011765, 0.0, 0.49607843],
             [-0.8000001, 1.2, 0.2509804, 0.5019608],
             [-8.0, 12.0, 2.509804, 5.019608],
@@ -504,7 +504,7 @@ mod tests {
 
         let symmetric = SymmetricQuantization::<f32, i8>::new(-1.8, 0.5);
         let strategy = QuantizationStrategy::PerBlockSymmetricInt8(
-            vec![symmetric.clone(), symmetric],
+            vec![symmetric, symmetric],
             BlockLayout::Grid(2, 2),
         );
 
@@ -519,8 +519,7 @@ mod tests {
     #[test]
     fn test_int8_symmetric_quantization_per_block_grid_3d() {
         let shape = &[2, 4, 4];
-        let x = vec![
-            // 2x2 blocks: [[-1.8, -1.0, 0.0, 0.5], [-0.8, 1.2, 0.25, 0.5]]
+        let x = [
             [-1.8, -1.0, -0.8, 1.2],
             [0.0, 0.5, 0.25, 0.5],
             // 2x2 blocks: [[-0.08, 0.12, 0.025, 0.05], [0.2, 0.3, 0.4, 0.5]]
@@ -534,7 +533,7 @@ mod tests {
             [0.2, 0.1, -1.0, -1.8],
         ]
         .concat(); // easier to visualize with a vec of rows
-        let expected_q = vec![
+        let expected_q = [
             [-127, -71, -85, 127],
             [0, 35, 26, 53],
             [-85, 127, 51, 76],
@@ -545,7 +544,7 @@ mod tests {
             [64, 32, -71, -127],
         ]
         .concat();
-        let expected_d = vec![
+        let expected_d = [
             [-1.8, -1.0062993, -0.8031496, 1.2],
             [0.0, 0.496063, 0.24566929, 0.5007874],
             [-0.08031496, 0.12, 0.2007874, 0.2992126],
