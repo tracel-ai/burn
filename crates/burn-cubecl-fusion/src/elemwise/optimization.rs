@@ -1,19 +1,22 @@
-use crate::on_write::ir::GlobalArgs;
-use crate::on_write::{io::global_length, kernel::fuse_on_write};
+use crate::shared::io::ref_len;
+use crate::shared::ir::{GlobalArgs, RefLayout};
+use crate::shared::kernel::fuse_on_write;
+use crate::shared::kernel::init_locals;
+use crate::shared::trace::Vectorization;
 use crate::CubeFusionHandle;
 use burn_fusion::stream::Context;
 use cubecl::{calculate_cube_count_elemwise, client::ComputeClient, prelude::*, CubeDim};
 use serde::{Deserialize, Serialize};
 
-use crate::on_write::{
+use crate::shared::{
     ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
-    trace::{FuseOnWriteTrace, TraceRunner},
+    trace::{FuseTrace, TraceRunner},
 };
 
 #[derive(new)]
 /// Fuse element wise operations into a single kernel.
 pub struct ElemwiseOptimization<R: Runtime> {
-    trace: FuseOnWriteTrace,
+    trace: FuseTrace,
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
     len: usize,
@@ -22,7 +25,7 @@ pub struct ElemwiseOptimization<R: Runtime> {
 #[derive(Serialize, Deserialize)]
 /// State for the [elemwise optimization](ElemwiseOptimization).
 pub struct ElemwiseOptimizationState {
-    trace: FuseOnWriteTrace,
+    trace: FuseTrace,
     len: usize,
 }
 
@@ -60,6 +63,7 @@ impl<R: Runtime> ElemwiseOptimization<R> {
 
 pub struct ElemwiseRunner;
 
+impl<R: Runtime> Vectorization<R> for ElemwiseRunner {}
 impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
     type Error = (); // No error possible
 
@@ -70,17 +74,13 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a ElemwiseConfig,
     ) -> Result<(), Self::Error> {
-        let arg = match config.ref_layout {
-            Arg::Input(index, _, _) => inputs.tensors.values.get(index as usize),
-            Arg::Output(index, _, _) => outputs.tensors.values.get(index as usize),
-            _ => panic!("Invalid value"),
-        };
-        let shape = match arg {
-            Some(val) => match &val.tensor {
-                TensorArg::Handle { handle, .. } => handle.shape,
-                TensorArg::Alias { .. } => panic!("Can't be an alias, got {val:?}"),
+        let shape = match &config.ref_layout {
+            RefLayout::Concrete(arg) => match arg {
+                Arg::Input(..) => inputs.shape_ref(&config.ref_layout),
+                Arg::Output(..) => outputs.shape_ref(&config.ref_layout),
+                _ => panic!("Invalid concreate ref layout"),
             },
-            None => panic!("Invalid argument"),
+            RefLayout::Virtual(_) => inputs.shape_ref(&config.ref_layout),
         };
         let total_elem = shape.iter().product::<usize>() / config.width as usize;
         let cube_dim = CubeDim::default();
@@ -112,13 +112,10 @@ fn elemwise_fuse(
     let args = comptime![Sequence::<Arg>::new()];
     let pos = ABSOLUTE_POS;
 
-    let length = match comptime![config.ref_layout.clone()] {
-        Arg::Input(index, _, _) => global_length(inputs, index),
-        Arg::Output(index, _, _) => global_length(outputs, index),
-        _ => comptime![panic!("Invalid ref layout.")],
-    };
+    let mut locals = init_locals(inputs, outputs, config);
+    let length = ref_len(inputs, outputs, &locals, config);
 
     if pos < length {
-        fuse_on_write::<f32>(inputs, outputs, pos, values, args, config)
+        fuse_on_write::<f32>(inputs, outputs, &mut locals, pos, values, args, config)
     }
 }

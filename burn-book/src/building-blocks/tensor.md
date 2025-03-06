@@ -278,6 +278,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.round()`                             | `tensor.round()`                   |
 | `tensor.sin()`                               | `tensor.sin()`                     |
 | `tensor.sqrt()`                              | `tensor.sqrt()`                    |
+| `tensor.tan()`                               | `tensor.tan()`                     |
 | `tensor.tanh()`                              | `tensor.tanh()`                    |
 | `tensor.to_full_precision()`                 | `tensor.to(torch.float)`           |
 | `tensor.var(dim)`                            | `tensor.var(dim)`                  |
@@ -319,10 +320,12 @@ Those operations are only available for `Bool` tensors.
 | `Tensor::tril_mask(shape, diagonal)` | N/A                             |
 | `Tensor::triu_mask(shape, diagonal)` | N/A                             |
 | `tensor.argwhere()`                  | `tensor.argwhere()`             |
+| `tensor.bool_and()`                  | `tensor.logical_and()`          |
+| `tensor.bool_not()`                  | `tensor.logical_not()`          |
+| `tensor.bool_or()`                   | `tensor.logical_or()`           |
 | `tensor.float()`                     | `tensor.to(torch.float)`        |
 | `tensor.int()`                       | `tensor.to(torch.long)`         |
 | `tensor.nonzero()`                   | `tensor.nonzero(as_tuple=True)` |
-| `tensor.not()`                       | `tensor.logical_not()`          |
 
 ### Quantization Operations
 

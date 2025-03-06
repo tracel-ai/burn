@@ -66,7 +66,7 @@ To extend `burn-import` with support for new ONNX operators, follow these steps:
    model contains the expected operators.
 
 4. **Generate IR and Burn Graph**: Navigate to
-   [crates/burn-import/](https://github.com/tracel-ai/burn/tree/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-import)
+   [crates/burn-import/](https://github.com/tracel-ai/burn/tree/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import)
    and run:
 
    ```
@@ -81,9 +81,9 @@ To extend `burn-import` with support for new ONNX operators, follow these steps:
    the Burn model in Rust code, and `my-model.json` includes the model data.
 
 7. **Add End-to-End Test**: Include the test in
-   [crates/burn-import/onnx-tests/tests/onnx_tests.rs](https://github.com/tracel-ai/burn/blob/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-import/onnx-tests/tests/onnx_tests.rs).
+   [crates/burn-import/onnx-tests/tests/onnx_tests.rs](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/onnx-tests/tests/test_onnx.rs).
    Further details can be found in the
-   [onnx-tests README](https://github.com/tracel-ai/burn/blob/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-import/onnx-tests/README.md).
+   [onnx-tests README](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/onnx-tests/README.md).
 
 ## Implementing a New Operator
 
@@ -96,7 +96,7 @@ are relative to `burn/crates/burn-import/`.
 
 To make a new operation accessible to the rest of the Burn project, you need to declare the module
 within the
-[`mod.rs` file](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/burn/node/mod.rs#L24)
+[`mod.rs` file](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/mod.rs#L43)
 located in the `src/burn/node/` directory.
 
 ### Step 2: Node Implementation
@@ -104,16 +104,16 @@ located in the `src/burn/node/` directory.
 #### Within Onnx-IR
 
 If the node type does not exist within the
-[`NodeType` enum](https://github.com/tracel-ai/burn/blob/d4ae82b21ac3dd1def01bd380ab7ea4d3293eccb/crates/onnx-ir/src/ir.rs#L246),
+[`NodeType` enum](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/ir.rs#L273),
 it will need to be added (support for custom operators is planned). If the node might be provided an
 input which is a constant or the output of an identity node, it will need to be added to the list of
 nodeTypes
-[checked for constants](https://github.com/tracel-ai/burn/blob/d4ae82b21ac3dd1def01bd380ab7ea4d3293eccb/crates/onnx-ir/src/from_onnx.rs#L21).
-The node will need to be added to `dim_inference`, and in most cases the work parsing side will be
+[checked for constants](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/from_onnx.rs#L21).
+The node will need to be added to `rank_inference`, and in most cases the work parsing side will be
 done. If a node requires extra parsing (such as handling an edge case like potentially remapping an
-unsqueeze to a reshape) the best place for that is after check constants and prior to dim_inference
+unsqueeze to a reshape) the best place for that is after check constants and prior to rank_inference
 in
-[`OnnxGraphBuilder::Build`](https://github.com/tracel-ai/burn/blob/d4ae82b21ac3dd1def01bd380ab7ea4d3293eccb/crates/onnx-ir/src/from_onnx.rs#L221)
+[`OnnxGraphBuilder::Build`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/from_onnx.rs#L222)
 
 #### Within burn-import
 
@@ -121,7 +121,7 @@ Create a new file named `<operation_name>.rs` in the `src/burn/node/` directory.
 This file will define the structure and functionality of your new operation. By convention, the
 necessary information for carrying out an operation is encapsulated within a struct named
 `<operation>Node`. For the `Squeeze` operation, we defined a
-[struct called `SqueezeNode`](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/burn/node/squeeze.rs#L8)
+[struct called `SqueezeNode`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/squeeze.rs#L8)
 that holds necessary information about the input tensor, output tensor, and axes for the operation.
 **If implementing a unary or binary operation, please see note below.**
 
@@ -142,7 +142,7 @@ This file is also where you would put `test_codegen_nodes()`, to make sure that 
 works within the Burn library.
 
 **For unary and binary operations:** The implementation of `NodeCodegen` is mostly implemented in
-[`binary.rs`](https://github.com/tracel-ai/burn/blob/76fe0ed881b3965782f78896433f8bb5e2f13a1b/crates/burn-import/src/burn/node/binary.rs#L9)
+[`binary.rs`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/binary.rs#L9)
 and
 [`unary.rs`](https://github.com/tracel-ai/burn/blob/76fe0ed881b3965782f78896433f8bb5e2f13a1b/crates/burn-import/src/burn/node/unary.rs#L13),
 so each new operation only has to define a method to execute the function on the input(s) token
@@ -150,9 +150,9 @@ stream.
 
 ### Step 3: Registering New Operations
 
-[Register the `NodeType::<operation>`](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/onnx/to_burn.rs#L293)
+[Register the `NodeType::<operation>`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/onnx/to_burn.rs#L353)
 and
-[create an `<operation>_conversion(node: Node)` function](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/onnx/to_burn.rs#L831),
+[create an `<operation>_conversion(node: Node)` function](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/onnx/to_burn.rs#L1263),
 both in `src/onnx/to_burn.rs`.
 
 **Registering new operations in the ONNX -> Burn Conversion**  
@@ -198,7 +198,7 @@ a corresponding Burn node. The structure of these functions generally includes:
 
 ### Step 4: Create a Config Function
 
-[Create an `<operation>_config(curr: &Node)`](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/onnx/op_configuration.rs#L975)
+[Create an `<operation>_config(curr: &Node)`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/onnx/op_configuration.rs#L1847)
 in `src/onnx/op_configuration.rs`.
 
 The `squeeze_conversion()` function in `src/onnx/to_burn.rs` from the previous step calls the
@@ -227,15 +227,15 @@ here.
 ### Step 5: Dimension Inference
 
 If needed,
-[create a dimension inference function](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/onnx/dim_inference.rs#L271),
-called `<operation>_update_output(node: &mut Node)` in `src/onnx/dim_inference.rs`. If dimensions
-remain unchanged, use the `same_as_input()` function, for example
+[create a rank inference function](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/rank_inference.rs#L410),
+called `<operation>_update_output(node: &mut Node)` in `src/rank_inference.rs`. If dimensions remain
+unchanged, use the `same_as_input()` function, for example
 `NodeType::AveragePool1d => same_as_input(node)`. Match the `NodeType` to the function in the
-`dim_inference()` match block.
+`rank_inference()` match block.
 
 Dimension inference is an important step in the conversion process where Burn determines the
 dimensions of each output tensor based on the operation.
-[The `dim_inference()`](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/onnx/dim_inference.rs#L14)
+[The `rank_inference()`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/rank_inference.rs#L14)
 function is responsible for determining the dimensions of the output tensors for each node in the
 graph. It does this by:
 
@@ -262,7 +262,7 @@ currently not that nuanced. The output tensor should be (dimensions of input ten
 >    expected types or configurations, such as when the axes are not provided as an integer list or
 >    if the input type is not a tensor.
 
-By invoking this function within the `dim_inference()` match block, the output dimensions of each
+By invoking this function within the `rank_inference()` match block, the output dimensions of each
 node are updated before the graph is finalized. This ensures that all subsequent operations within
 the graph can rely on correct tensor sizes, which is critical for both compiling the graph and for
 runtime execution efficiency.
@@ -273,9 +273,9 @@ your output tensor differs from the dimensions of your input, see the warning at
 ### Step 6: Integrate into the Graph Building Process
 
 When a new node type is introduced, it must be added to the
-[`Node<PS: PrecisionSettings>` enum](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/burn/node/base.rs#L77)
+[`Node<PS: PrecisionSettings>` enum](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/base.rs#L85)
 and
-[`match_all!` macro](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/burn/node/base.rs#L104)
+[`match_all!` macro](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/base.rs#L138)
 in `src/burn/node/base.rs`.
 
 The `Node` enum abstracts over different types of operations (nodes) within a network graph. Each
@@ -286,15 +286,15 @@ operation-specific data structures (like `SqueezeNode1`) that was
 ### Step 7: Add Newly Supported Op!
 
 As a reward, add an extra check to
-[SUPPORTED-ONNX-OPS.md](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/SUPPORTED-ONNX-OPS.md?plain=1#L1)!
+[SUPPORTED-ONNX-OPS.md](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/SUPPORTED-ONNX-OPS.md)!
 
 ### Misc:
 
 > 🚧 **Warning**: Dimension Changes
 >
 > If your operation changes the dimensions of the input tensor, you may need to modify the
-> [`LIFT_CONSTANTS_FOR_NODE_TYPES` enum](https://github.com/tracel-ai/burn/blob/9c5b07c833865bff7f82431001076a33d0d8729c/crates/burn-import/src/onnx/from_onnx.rs#L20)
-> in `src/onnx/from_onnx.rs` by adding the `NodeType` of your operation to it.
+> [`LIFT_CONSTANTS_FOR_NODE_TYPES` enum](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/from_onnx.rs#L21)
+> in `src/from_onnx.rs` by adding the `NodeType` of your operation to it.
 
 ## Testing
 

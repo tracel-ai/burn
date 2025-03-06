@@ -4,10 +4,7 @@ use cubecl::prelude::*;
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
-use super::{
-    tensor::{GlobalScalar, GlobalTensor},
-    DYN_ELEM_ID,
-};
+use super::tensor::{GlobalScalar, GlobalTensor};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 /// Argument to an [elemwise operation](ElemwiseOp).
@@ -119,6 +116,14 @@ pub enum ElemwiseOp {
 }
 
 impl ElemwiseOp {
+    pub(crate) fn output_offset(&mut self, offset: u32) {
+        if let ElemwiseOp::Assign(op) = self {
+            if let Arg::Output(pos, ..) = &mut op.out {
+                *pos += offset;
+            }
+        }
+    }
+
     /// Element type used for the computation.
     pub(crate) fn cmp_elem(&self) -> Elem {
         match self {
@@ -162,6 +167,7 @@ pub struct ReshapedTensor {
 pub struct GlobalArgs {
     pub tensors: Sequence<GlobalTensor>,
     pub scalars: Sequence<GlobalScalar>,
+    pub reshapes: Sequence<u32>,
 }
 
 impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
@@ -169,6 +175,7 @@ impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
         Self {
             tensors: Default::default(),
             scalars: Default::default(),
+            reshapes: Default::default(),
             _phantom_runtime: std::marker::PhantomData,
             _phantom_a: std::marker::PhantomData,
         }
@@ -181,10 +188,27 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument doesn't have an handle.
-    pub fn shape(&self, arg: &Arg) -> &[usize] {
+    pub fn shape(&self, arg: &Arg) -> Vec<usize> {
         match self.resolve_arg(arg) {
-            TensorArg::Handle { handle, .. } => handle.shape,
+            TensorArg::Handle { handle, .. } => handle.shape.to_vec(),
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
+        }
+    }
+
+    pub fn shape_ref(&self, ref_layout: &RefLayout) -> Vec<usize> {
+        match ref_layout {
+            RefLayout::Concrete(arg) => self.shape(arg),
+            RefLayout::Virtual(shape) => {
+                let start = match shape.index(0) {
+                    Arg::ScalarShape(pos) => *pos as usize,
+                    _ => 0,
+                };
+                let end = start + shape.len() as usize;
+                self.reshapes.values[start..end]
+                    .iter()
+                    .map(|s| s.elem as usize)
+                    .collect()
+            }
         }
     }
 
@@ -193,10 +217,28 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument doesn't have an handle.
-    pub fn strides(&self, arg: &Arg) -> &[usize] {
+    pub fn strides(&self, arg: &Arg) -> Vec<usize> {
         match self.resolve_arg(arg) {
-            TensorArg::Handle { handle, .. } => handle.strides,
+            TensorArg::Handle { handle, .. } => handle.strides.to_vec(),
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
+        }
+    }
+
+    pub fn strides_ref(&self, ref_layout: &RefLayout) -> Vec<usize> {
+        match ref_layout {
+            RefLayout::Concrete(arg) => self.strides(arg),
+            RefLayout::Virtual(..) => {
+                let shape = self.shape_ref(ref_layout);
+                let mut strides = vec![0; shape.len()];
+
+                let mut current = 1;
+                shape.iter().enumerate().rev().for_each(|(index, val)| {
+                    strides[index] = current;
+                    current *= val;
+                });
+
+                strides
+            }
         }
     }
 
@@ -224,12 +266,12 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
         match arg {
             Arg::Input(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
             Arg::Output(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
-            _ => panic!("Only input & output can have a shape"),
+            _ => panic!("Arg not found"),
         }
     }
 }
 
-#[derive(CubeType, Clone)]
+#[derive(CubeType)]
 /// Keep track of all local variables that are used as argument in fused
 /// [element wise operations](ElemwiseOp).
 pub struct LocalArgs {
@@ -245,11 +287,19 @@ pub struct LocalArgs {
     pub l_u16: Registry<u32, Line<u16>>,
     pub l_u8: Registry<u32, Line<u8>>,
     pub l_bool: Registry<u32, Line<bool>>,
+    pub ref_shape: Slice<u32>,
+    pub ref_strides: Slice<u32>,
+    #[cube(comptime)]
+    pub ref_line_size: u32,
 }
 
 #[cube]
 impl LocalArgs {
-    pub fn new() -> LocalArgs {
+    pub fn new(
+        ref_shape: Slice<u32>,
+        ref_strides: Slice<u32>,
+        #[comptime] ref_line_size: u32,
+    ) -> LocalArgs {
         LocalArgs {
             l_f32: Registry::<u32, Line<f32>>::new(),
             l_f16: Registry::<u32, Line<f16>>::new(),
@@ -263,15 +313,11 @@ impl LocalArgs {
             l_u16: Registry::<u32, Line<u16>>::new(),
             l_u8: Registry::<u32, Line<u8>>::new(),
             l_bool: Registry::<u32, Line<bool>>::new(),
+            ref_shape,
+            ref_strides,
+            ref_line_size,
         }
     }
-}
-
-#[derive(CubeType, Clone)]
-/// Keep track of all local variables that are used as argument in fused
-/// [element wise operations](ElemwiseOp).
-pub struct LocalArgs2 {
-    pub scalars: Registry<u32, Line<NumericExpand<DYN_ELEM_ID>>>,
 }
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -377,9 +423,15 @@ impl From<DType> for ElemwisePrecision {
 /// Configuration that encapsulates all comptime information necessary for element wise fusion.
 pub struct ElemwiseConfig {
     pub rank: u32,
-    pub ref_layout: Arg,
+    pub ref_layout: RefLayout,
     pub ops: Sequence<ElemwiseOp>,
     pub width: u8,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RefLayout {
+    Concrete(Arg),
+    Virtual(Sequence<Arg>),
 }
 
 impl Arg {

@@ -39,6 +39,7 @@ burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = 
     "cubecl",
 ] }
 cubecl = { workspace = true, features = ["linalg", "reduce"] }
+cubecl-std = { workspace = true }
 
 bytemuck = { workspace = true }
 derive-new = { workspace = true }

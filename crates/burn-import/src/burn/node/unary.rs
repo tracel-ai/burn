@@ -45,6 +45,7 @@ pub enum UnaryNodeKind {
     Sin,
     Softmax,
     Sqrt,
+    Tan,
     Tanh,
     Transpose,
     Sign,
@@ -77,6 +78,7 @@ impl UnaryNodeKind {
             Self::Sin => "sin",
             Self::Softmax => "softmax",
             Self::Sqrt => "sqrt",
+            Self::Tan => "tan",
             Self::Tanh => "tanh",
             Self::Transpose => "transpose",
             Self::Sign => "sign",
@@ -215,6 +217,11 @@ impl UnaryNode {
     pub(crate) fn sqrt(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.sqrt()};
         Self::new(input, output, UnaryNodeKind::Sqrt, Rc::new(function))
+    }
+
+    pub(crate) fn tan(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.tan()};
+        Self::new(input, output, UnaryNodeKind::Tan, Rc::new(function))
     }
 
     pub(crate) fn tanh(input: Type, output: Type) -> Self {
@@ -640,6 +647,25 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = burn::tensor::activation::softmax(tensor1, 1);
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_tan() {
+        one_node_graph(
+            UnaryNode::tan(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.tan();
 
                     tensor2
                 }

@@ -1,9 +1,6 @@
-use cubecl::{
-    linalg::{matmul::components::Ident, tensor::VirtualTensor},
-    prelude::*,
-};
-
 use crate::kernel::conv::ConvGemmConfig;
+use cubecl::{linalg::matmul::components::Ident, prelude::*};
+use cubecl_std::tensor::r#virtual::VirtualTensor;
 
 #[derive(CubeType)]
 /// A view of a feature map tensor that starts reading data from a specified offset.
@@ -98,8 +95,8 @@ impl<E: Numeric> Im2colReader<E> {
         #[comptime] config: G,
     ) -> Line<E> {
         let line_size = config.global_line_size(ident);
-        let tile_size_x = config.stage_tiling(ident).tile_shape_row();
-        let tile_size_y = config.stage_tiling(ident).tile_shape_col();
+        let tile_size_x = config.tiling_dimensions(ident).tile_shape_row();
+        let tile_size_y = config.tiling_dimensions(ident).tile_shape_col();
 
         let view_tile_m = tile_x * tile_size_x + self.m_offset;
         let view_tile_k = tile_y * tile_size_y + self.k_offset;

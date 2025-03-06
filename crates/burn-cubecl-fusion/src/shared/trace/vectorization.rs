@@ -11,11 +11,11 @@ use cubecl::{
 };
 
 use crate::{
-    on_write::{ir::ElemwiseOp, trace::Vect},
+    shared::{ir::ElemwiseOp, trace::Vect},
     CubeFusionHandle,
 };
 
-use super::{HandleOutput, LaunchPlan, TensorView, TraceRunner};
+use super::{HandleOutput, LaunchPlan, TensorView, Vectorization};
 
 /// Select the best vectorization factor for each tensor handle.
 pub struct VectorizationPlanner<'a, R: Runtime> {
@@ -38,13 +38,16 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             _r: PhantomData,
         }
     }
-    pub fn run<Runner: TraceRunner<R>>(
+    pub fn run<Runner: Vectorization<R>>(
         self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        runner: &Runner,
+        context: &Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
     ) {
         let tensors_reshaped = self.views.iter().filter_map(|view| match view {
-            TensorView::Reshape { reshaped, original } => Some((
+            TensorView::Reshape {
+                reshaped, original, ..
+            } => Some((
                 context.tensors.get(reshaped).unwrap(),
                 context.tensors.get(original).unwrap(),
                 self.reads.get(original).unwrap().len() > 1,
@@ -110,6 +113,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             tensors_reshaped,
             tensors_swapped,
             &ref_elem.0,
+            runner.axis(),
         );
 
         for tensor in self.indexed {
@@ -117,7 +121,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             plan.vectorization.insert(global.id, Vect::Aligned(1));
         }
 
-        plan.width = 0;
+        plan.width = 1;
 
         for handle in plan.handle_inputs.iter_mut() {
             let (vect, br) = match plan.vectorization.get(&handle.global_id) {

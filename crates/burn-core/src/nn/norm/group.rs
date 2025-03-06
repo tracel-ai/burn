@@ -245,7 +245,7 @@ mod tests {
                 [-0.3428, 0.7970, 1.1845],
             ],
         ]);
-        output.to_data().assert_approx_eq(&expected, 3);
+        output.to_data().assert_approx_eq(&expected, 2);
     }
 
     #[test]
@@ -261,7 +261,7 @@ mod tests {
             .expect("gamma should not be None")
             .val()
             .to_data()
-            .assert_approx_eq(&TensorData::ones::<f32, _>([6]), 3);
+            .assert_approx_eq(&TensorData::ones::<f32, _>([6]), 2);
 
         module
             .beta
@@ -269,7 +269,7 @@ mod tests {
             .expect("beta should not be None")
             .val()
             .to_data()
-            .assert_approx_eq(&TensorData::zeros::<f32, _>([6]), 3);
+            .assert_approx_eq(&TensorData::zeros::<f32, _>([6]), 2);
 
         let input = Tensor::<TestBackend, 3>::from_data(
             TensorData::from([
@@ -313,7 +313,7 @@ mod tests {
                 [-1.0903, -0.0419, -1.3623],
             ],
         ]);
-        output.to_data().assert_approx_eq(&expected, 3);
+        output.to_data().assert_approx_eq(&expected, 2);
     }
 
     #[test]

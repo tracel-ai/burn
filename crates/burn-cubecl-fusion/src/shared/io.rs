@@ -28,13 +28,13 @@ pub fn read<C: CubePrimitive>(
             let line_size = global.tensor.line_size();
 
             if comptime![!global.broadcasted && line_size != config.width as u32] {
-                read_input_aligned(inputs, outputs, pos, ref_pos, layout, config, None)
+                read_input_aligned(inputs, locals, pos, ref_pos, layout, config, None)
             } else {
-                read_input(inputs, outputs, pos, ref_pos, layout, config, None)
+                read_input(inputs, locals, pos, ref_pos, layout, config, None)
             }
         }
         Arg::Output(pos, _precision, layout) => {
-            read_output(inputs, outputs, pos, ref_pos, layout, config)
+            read_output(inputs, outputs, locals, pos, ref_pos, layout, config)
         }
         Arg::Local(pos, precision) => match comptime![precision] {
             ElemwisePrecision::F32 => Line::cast_from(locals.l_f32.find(pos)),
@@ -71,7 +71,7 @@ pub fn read<C: CubePrimitive>(
                 if comptime![!broadcasted && line_size != config.width as u32] {
                     read_input_aligned(
                         inputs,
-                        outputs,
+                        locals,
                         pos,
                         ref_pos,
                         layout,
@@ -81,7 +81,7 @@ pub fn read<C: CubePrimitive>(
                 } else {
                     read_input(
                         inputs,
-                        outputs,
+                        locals,
                         pos,
                         ref_pos,
                         layout,
@@ -104,7 +104,7 @@ pub fn read<C: CubePrimitive>(
                 if comptime![!broadcasted && line_size != config.width as u32] {
                     read_input_aligned(
                         inputs,
-                        outputs,
+                        locals,
                         pos,
                         ref_pos,
                         layout,
@@ -114,7 +114,7 @@ pub fn read<C: CubePrimitive>(
                 } else {
                     read_input(
                         inputs,
-                        outputs,
+                        locals,
                         pos,
                         ref_pos,
                         layout,
@@ -142,12 +142,7 @@ pub fn read_scalar<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] arg: Arg) 
 #[cube]
 pub fn read_scalar_shape(inputs: &GlobalArgs, #[comptime] arg: Arg) -> u32 {
     match arg {
-        Arg::ScalarShape(pos) => {
-            let offset = comptime![inputs.scalars.len() - pos - 1];
-            let scalar = inputs.scalars.index(offset);
-
-            scalar.as_u32()
-        }
+        Arg::ScalarShape(pos) => *inputs.reshapes.index(pos),
         _ => comptime![panic!("Not a scalar shape")],
     }
 }
@@ -155,7 +150,7 @@ pub fn read_scalar_shape(inputs: &GlobalArgs, #[comptime] arg: Arg) -> u32 {
 #[cube]
 pub fn read_input<C: CubePrimitive>(
     inputs: &GlobalArgs,
-    outputs: &GlobalArgs,
+    locals: &LocalArgs,
     #[comptime] pos: u32,
     ref_pos: u32,
     #[comptime] layout: LayoutInfo,
@@ -166,9 +161,7 @@ pub fn read_input<C: CubePrimitive>(
     let offset = match layout {
         LayoutInfo::SameAsRef => ref_pos,
         LayoutInfo::IsRef => ref_pos,
-        LayoutInfo::Unknown => {
-            get_offset(inputs, outputs, tensor, ref_pos, None, config, transform)
-        }
+        LayoutInfo::Unknown => get_offset(inputs, locals, tensor, ref_pos, None, config, transform),
     };
     Line::cast_from(tensor.tensor[offset])
 }
@@ -176,7 +169,7 @@ pub fn read_input<C: CubePrimitive>(
 #[cube]
 pub fn read_input_aligned<C: CubePrimitive>(
     inputs: &GlobalArgs,
-    outputs: &GlobalArgs,
+    locals: &LocalArgs,
     #[comptime] pos: u32,
     ref_pos: u32,
     #[comptime] layout: LayoutInfo,
@@ -188,18 +181,6 @@ pub fn read_input_aligned<C: CubePrimitive>(
 
     match comptime![transform.clone()] {
         Some(Transform::Reshape(shape)) => {
-            let tensor_layout = match comptime![config.ref_layout.clone()] {
-                Arg::Input(index, ..) => {
-                    let layout = inputs.tensors.index(index);
-                    &layout.tensor
-                }
-                Arg::Output(index, ..) => {
-                    let layout = outputs.tensors.index(index);
-                    &layout.tensor
-                }
-                _ => comptime![panic!("Invalid ref layout.")],
-            };
-
             // Very brute force, not really efficient, but not easy to optimize and not a very
             // frequent workflow.
             let ref_pos = ref_pos * comptime![config.width as u32];
@@ -207,7 +188,7 @@ pub fn read_input_aligned<C: CubePrimitive>(
             for i in 0u32..comptime!(config.width as u32) {
                 let index = reshaped_index(
                     inputs,
-                    tensor_layout,
+                    locals,
                     ref_pos + i,
                     config.rank,
                     comptime![shape.clone()],
@@ -218,7 +199,7 @@ pub fn read_input_aligned<C: CubePrimitive>(
         }
         Some(Transform::SwapDim(dim1, dim2)) => {
             let offset =
-                get_offset_aligned(inputs, outputs, tensor, ref_pos, layout, config, transform);
+                get_offset_aligned(inputs, locals, tensor, ref_pos, layout, config, transform);
             let i = comptime![swap_dims_transform(&(config.rank - 1), (dim1, dim2))];
             let stride = tensor.tensor.stride(comptime![i]);
 
@@ -230,7 +211,7 @@ pub fn read_input_aligned<C: CubePrimitive>(
         }
         None => {
             let offset =
-                get_offset_aligned(inputs, outputs, tensor, ref_pos, layout, config, transform);
+                get_offset_aligned(inputs, locals, tensor, ref_pos, layout, config, transform);
             let stride = tensor.tensor.stride(comptime![config.rank - 1]);
             #[unroll]
             for i in 0u32..comptime!(config.width as u32) {
@@ -246,7 +227,7 @@ pub fn read_input_aligned<C: CubePrimitive>(
 #[cube]
 pub fn get_offset_aligned(
     inputs: &GlobalArgs,
-    outputs: &GlobalArgs,
+    locals: &LocalArgs,
     tensor: &GlobalTensor,
     ref_pos: u32,
     #[comptime] layout: LayoutInfo,
@@ -255,22 +236,11 @@ pub fn get_offset_aligned(
 ) -> u32 {
     match layout {
         LayoutInfo::SameAsRef | LayoutInfo::IsRef => {
-            let line_size = match comptime![config.ref_layout.clone()] {
-                Arg::Input(index, _precision, _) => {
-                    let layout = inputs.tensors.index(index);
-                    layout.tensor.line_size()
-                }
-                Arg::Output(index, _precision, _) => {
-                    let layout = outputs.tensors.index(index);
-                    layout.tensor.line_size()
-                }
-                _ => comptime![panic!("Invalid ref layout.")],
-            };
-            (ref_pos * line_size) / tensor.tensor.line_size()
+            (ref_pos * locals.ref_line_size) / tensor.tensor.line_size()
         }
         LayoutInfo::Unknown => get_offset(
             inputs,
-            outputs,
+            locals,
             tensor,
             ref_pos,
             None,
@@ -284,6 +254,7 @@ pub fn get_offset_aligned(
 pub fn read_output<C: CubePrimitive>(
     inputs: &GlobalArgs,
     outputs: &GlobalArgs,
+    locals: &LocalArgs,
     pos: u32,
     ref_pos: u32,
     #[comptime] layout: LayoutInfo,
@@ -293,7 +264,7 @@ pub fn read_output<C: CubePrimitive>(
     let offset = match layout {
         LayoutInfo::SameAsRef => ref_pos,
         LayoutInfo::IsRef => ref_pos,
-        LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, None, config, None),
+        LayoutInfo::Unknown => get_offset(inputs, locals, tensor, ref_pos, None, config, None),
     };
     Line::cast_from(tensor.tensor[offset])
 }
@@ -316,7 +287,7 @@ pub fn write<C: CubePrimitive>(
                 LayoutInfo::SameAsRef => ref_pos,
                 LayoutInfo::IsRef => ref_pos,
                 LayoutInfo::Unknown => {
-                    get_offset(inputs, outputs, tensor, ref_pos, None, config, None)
+                    get_offset(inputs, locals, tensor, ref_pos, None, config, None)
                 }
             };
             let tensor = outputs.tensors.index_mut(pos);
@@ -345,6 +316,7 @@ pub fn write<C: CubePrimitive>(
 pub(crate) fn global_offset(
     inputs: &GlobalArgs,
     outputs: &GlobalArgs,
+    locals: &LocalArgs,
     index: u32,
     #[comptime] arg: Arg,
     #[comptime] range: Option<(u32, u32)>,
@@ -353,11 +325,11 @@ pub(crate) fn global_offset(
     match arg {
         Arg::Input(pos, _precision, _layout) => {
             let tensor = inputs.tensors.index(pos);
-            get_offset(inputs, outputs, tensor, index, range, config, None)
+            get_offset(inputs, locals, tensor, index, range, config, None)
         }
         Arg::Output(pos, _precision, _layout) => {
             let tensor = outputs.tensors.index(pos);
-            get_offset(inputs, outputs, tensor, index, range, config, None)
+            get_offset(inputs, locals, tensor, index, range, config, None)
         }
         _ => todo!(),
     }
@@ -366,40 +338,22 @@ pub(crate) fn global_offset(
 #[cube]
 fn get_offset(
     inputs: &GlobalArgs,
-    outputs: &GlobalArgs,
+    locals: &LocalArgs,
     tensor: &GlobalTensor,
     ref_pos: u32,
     #[comptime] range: Option<(u32, u32)>,
     #[comptime] config: &ElemwiseConfig,
     #[comptime] transform: Option<Transform>,
 ) -> u32 {
-    match comptime![config.ref_layout.clone()] {
-        Arg::Input(index, _precision, _) => {
-            let layout = inputs.tensors.index(index);
-            index_offset_with_layout(
-                inputs,
-                tensor,
-                layout,
-                ref_pos,
-                range,
-                config.rank,
-                transform,
-            )
-        }
-        Arg::Output(index, _precision, _) => {
-            let layout = outputs.tensors.index(index);
-            index_offset_with_layout(
-                inputs,
-                tensor,
-                layout,
-                ref_pos,
-                range,
-                config.rank,
-                transform,
-            )
-        }
-        _ => comptime![panic!("Invalid ref layout.")],
-    }
+    index_offset_with_layout(
+        inputs,
+        tensor,
+        locals,
+        ref_pos,
+        range,
+        config.rank,
+        transform,
+    )
 }
 
 #[cube]
@@ -409,15 +363,92 @@ pub fn global_line_size(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
 }
 
 #[cube]
-pub fn global_length(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
-    let tensor = global.tensors.index(pos);
-    u32::cast_from(tensor.tensor.len())
-}
-
-#[cube]
 pub fn global_rank(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
     let tensor = global.tensors.index(pos);
     tensor.tensor.rank()
+}
+
+#[cube]
+pub fn global_len(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
+    let tensor = global.tensors.index(pos);
+    tensor.tensor.len()
+}
+
+#[cube]
+pub fn global_buffer_len(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
+    let tensor = global.tensors.index(pos);
+    tensor.tensor.buffer_len()
+}
+
+#[cube]
+pub fn ref_len(
+    inputs: &GlobalArgs,
+    outputs: &GlobalArgs,
+    locals: &LocalArgs,
+    #[comptime] config: &ElemwiseConfig,
+) -> u32 {
+    match comptime![config.ref_layout.clone()] {
+        RefLayout::Concrete(arg) => match comptime![arg] {
+            Arg::Input(index, _, _) => global_len(inputs, index),
+            Arg::Output(index, _, _) => global_len(outputs, index),
+            _ => panic!("Invalid concreate ref layout."),
+        },
+        RefLayout::Virtual(_) => num_elements(locals, config),
+    }
+}
+
+#[cube]
+pub fn ref_buffer_len(
+    inputs: &GlobalArgs,
+    outputs: &GlobalArgs,
+    locals: &LocalArgs,
+    #[comptime] config: &ElemwiseConfig,
+) -> u32 {
+    match comptime![config.ref_layout.clone()] {
+        RefLayout::Concrete(arg) => match comptime![arg] {
+            Arg::Input(index, _, _) => global_buffer_len(inputs, index),
+            Arg::Output(index, _, _) => global_buffer_len(outputs, index),
+            _ => panic!("Invalid concreate ref layout."),
+        },
+        RefLayout::Virtual(_) => num_elements(locals, config),
+    }
+}
+
+#[cube]
+pub fn ref_rank(
+    inputs: &GlobalArgs,
+    outputs: &GlobalArgs,
+    #[comptime] config: &ElemwiseConfig,
+) -> u32 {
+    match comptime![config.ref_layout.clone()] {
+        RefLayout::Concrete(arg) => match comptime![arg] {
+            Arg::Input(index, _, _) => global_rank(inputs, index),
+            Arg::Output(index, _, _) => global_rank(outputs, index),
+            _ => panic!("Invalid concreate ref layout."),
+        },
+        RefLayout::Virtual(shape) => shape.len().runtime(),
+    }
+}
+
+#[cube]
+pub fn num_elements(locals: &LocalArgs, #[comptime] config: &ElemwiseConfig) -> u32 {
+    let mut length = 1u32;
+
+    for i in 0..config.rank {
+        length *= locals.ref_shape[i];
+    }
+
+    length
+}
+
+#[cube]
+pub fn ref_shape(locals: &LocalArgs, dim: u32) -> u32 {
+    locals.ref_shape[dim]
+}
+
+#[cube]
+pub fn ref_stride(locals: &LocalArgs, dim: u32) -> u32 {
+    locals.ref_strides[dim]
 }
 
 #[cube]
@@ -436,7 +467,7 @@ pub fn global_stride(global: &GlobalArgs, dim: u32, #[comptime] pos: u32) -> u32
 fn index_offset_with_layout(
     inputs: &GlobalArgs,
     tensor: &GlobalTensor,
-    layout: &GlobalTensor,
+    locals: &LocalArgs,
     index: u32,
     #[comptime] range: Option<(u32, u32)>,
     #[comptime] rank: u32,
@@ -449,8 +480,8 @@ fn index_offset_with_layout(
                 "Can't get a range on a reshaped tensor."
             )];
 
-            let index = index * layout.tensor.line_size();
-            let index = reshaped_index(inputs, &layout.tensor, index, rank, shape);
+            let index = index * locals.ref_line_size;
+            let index = reshaped_index(inputs, locals, index, rank, shape);
             reshaped_index_to_original_index(&tensor.tensor, index, rank)
         }
         Some(Transform::SwapDim(dim1, dim2)) => {
@@ -459,13 +490,13 @@ fn index_offset_with_layout(
                 None => (0u32, rank),
             }};
 
-            let offset_ref = index * layout.tensor.line_size();
+            let offset_ref = index * locals.ref_line_size;
             let mut offset = 0u32;
 
             #[unroll]
             for i in start..end {
                 let index = comptime![swap_dims_transform(&i, (dim1, dim2))];
-                let ogwl = offset_ref / layout.tensor.stride(i);
+                let ogwl = offset_ref / locals.ref_strides[i];
                 offset += ogwl % tensor.tensor.shape(index) * tensor.tensor.stride(index);
             }
 
@@ -477,11 +508,12 @@ fn index_offset_with_layout(
                 None => (0u32, rank),
             }};
 
-            let offset_ref = index * layout.tensor.line_size();
+            let offset_ref = index * locals.ref_line_size;
             let mut offset = 0u32;
 
+            #[unroll]
             for i in start..end {
-                let ogwl = offset_ref / layout.tensor.stride(i);
+                let ogwl = offset_ref / locals.ref_strides[i];
                 offset += ogwl % tensor.tensor.shape(i) * tensor.tensor.stride(i);
             }
 
@@ -507,7 +539,7 @@ fn swap_dims_transform<I: Index + Clone>(i: &I, dims: (u32, u32)) -> u32 {
 /// The index the input tensor would be at if it was contiguous.
 fn reshaped_index(
     inputs: &GlobalArgs,
-    layout: &Tensor<Line<NumericExpand<DYN_ELEM_ID>>>,
+    locals: &LocalArgs,
     index: u32,
     #[comptime] rank: u32,
     #[comptime] shape: Sequence<Arg>,
@@ -520,8 +552,8 @@ fn reshaped_index(
         let i = comptime![reverse_index(rank, r)];
         let arg = comptime![shape.index(i.clone())];
         let shape_i = read_scalar_shape(inputs, comptime![arg.clone()]);
+        let ogwl = index / locals.ref_strides[comptime![i.clone()]];
 
-        let ogwl = index / layout.stride(i);
         offset += ogwl % shape_i * stride_curr;
 
         stride_curr *= shape_i;
@@ -554,7 +586,7 @@ fn reshaped_index_to_original_index<C: CubePrimitive>(
     offset / original.line_size()
 }
 
-fn reverse_index<Elem: Into<ExpandElementTyped<u32>>>(
+pub(crate) fn reverse_index<Elem: Into<ExpandElementTyped<u32>>>(
     rank: u32,
     iter: Elem,
 ) -> ExpandElementTyped<u32> {

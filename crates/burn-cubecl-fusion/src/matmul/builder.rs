@@ -6,7 +6,7 @@ use burn_ir::{FloatOperationIr, OperationIr};
 use cubecl::Runtime;
 
 use crate::{
-    on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision, settings::FuseSettings},
+    shared::{builder::FuseBuilder, ir::ElemwisePrecision, settings::FuseSettings},
     CubeOptimization,
 };
 
@@ -14,8 +14,8 @@ use super::optimization::{FusedMatmul, MatmulOptimization};
 
 /// Fused element wise operations that are normally memory bound.
 pub struct MatmulBuilder<R: Runtime> {
-    builder: FuseOnWriteBuilder,
-    builder_fallback: FuseOnWriteBuilder,
+    builder: FuseBuilder,
+    builder_fallback: FuseBuilder,
     device: R::Device,
     matmul: Option<FusedMatmul>,
     fallback: Arc<dyn MatmulFallbackFn<R>>,
@@ -34,11 +34,12 @@ impl<R: Runtime> MatmulBuilder<R> {
             broadcast: true,
             output_shape_updates: false,
             inplace: true,
+            vectorization: true,
         };
 
         Self {
-            builder: FuseOnWriteBuilder::new(max_bindings, bool_precision, settings),
-            builder_fallback: FuseOnWriteBuilder::new(max_bindings, bool_precision, settings),
+            builder: FuseBuilder::new(max_bindings, bool_precision, settings),
+            builder_fallback: FuseBuilder::new(max_bindings, bool_precision, settings),
             device,
             matmul: None,
             fallback,

@@ -84,7 +84,7 @@ macro_rules! testgen_quantization {
 
             use burn_tensor::{
                 backend::Backend,
-                quantization::{QuantizationScheme, QuantizationType},
+                quantization::{QuantizationMode, QuantizationScheme, QuantizationType},
                 Tensor, TensorData,
             };
 
@@ -101,13 +101,19 @@ macro_rules! testgen_quantization {
                 /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.
                 pub fn int8_symmetric<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
                     Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
-                        &QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8),
+                        &QuantizationScheme::PerTensor(
+                            QuantizationMode::Symmetric,
+                            QuantizationType::QInt8,
+                        ),
                     )
                 }
                 /// Creates a quantized int8 tensor from the floating point data using per-tensor affine quantization.
                 pub fn int8_affine<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
                     Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
-                        &QuantizationScheme::PerTensorAffine(QuantizationType::QInt8),
+                        &QuantizationScheme::PerTensor(
+                            QuantizationMode::Affine,
+                            QuantizationType::QInt8,
+                        ),
                     )
                 }
             }
@@ -118,6 +124,7 @@ macro_rules! testgen_quantization {
         burn_tensor::testgen_calibration!();
         burn_tensor::testgen_scheme!();
         burn_tensor::testgen_quantize!();
+        burn_tensor::testgen_q_data!();
 
         // test ops
         burn_tensor::testgen_q_abs!();
@@ -161,6 +168,7 @@ macro_rules! testgen_quantization {
         burn_tensor::testgen_q_sqrt!();
         burn_tensor::testgen_q_stack!();
         burn_tensor::testgen_q_sub!();
+        burn_tensor::testgen_q_tan!();
         burn_tensor::testgen_q_tanh!();
         burn_tensor::testgen_q_topk!();
         burn_tensor::testgen_q_transpose!();
@@ -248,6 +256,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_abs!();
         burn_tensor::testgen_squeeze!();
         burn_tensor::testgen_sub!();
+        burn_tensor::testgen_tan!();
         burn_tensor::testgen_tanh!();
         burn_tensor::testgen_transpose!();
         burn_tensor::testgen_tri!();

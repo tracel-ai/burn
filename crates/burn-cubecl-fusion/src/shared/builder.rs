@@ -1,7 +1,7 @@
 use super::{
     ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, ElemwisePrecision, UnaryElemwiseArgs},
     settings::FuseSettings,
-    trace::{FuseOnWriteTrace, FuseOnWriteTraceBuilder},
+    trace::{FuseTrace, FuseTraceBuilder},
 };
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_ir::{
@@ -12,18 +12,20 @@ use burn_tensor::Element;
 use cubecl::ir::Elem;
 
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct FuseOnWriteBuilder {
+#[derive(Debug)]
+pub(crate) struct FuseBuilder {
     builder: TryFuseBuilder,
     settings: FuseSettings,
-    current_output_shape: Vec<usize>,
+    pub(crate) current_output_shape: Vec<usize>,
     status: OptimizationStatus,
     pub(crate) num_ops: usize,
     pub(crate) num_views: usize,
     max_bindings: u32,
 }
 
+#[derive(Debug)]
 struct TryFuseBuilder {
-    builder: FuseOnWriteTraceBuilder,
+    builder: FuseTraceBuilder,
     max_bindings: u32,
     added_ops: bool,
 }
@@ -31,16 +33,13 @@ struct TryFuseBuilder {
 impl TryFuseBuilder {
     fn new(max_bindings: u32, bool_precision: ElemwisePrecision, settings: FuseSettings) -> Self {
         Self {
-            builder: FuseOnWriteTraceBuilder::new(bool_precision, settings),
+            builder: FuseTraceBuilder::new(bool_precision, settings),
             max_bindings,
             added_ops: false,
         }
     }
 
-    fn register(
-        &mut self,
-        add_ops: impl FnOnce(&mut FuseOnWriteTraceBuilder) -> Option<()>,
-    ) -> bool {
+    fn register(&mut self, add_ops: impl FnOnce(&mut FuseTraceBuilder) -> Option<()>) -> bool {
         // Always allow the first operation to be added.
         if !self.added_ops {
             self.added_ops = true;
@@ -64,12 +63,12 @@ impl TryFuseBuilder {
         true
     }
 
-    fn build(&self, shape: Vec<usize>) -> FuseOnWriteTrace {
+    fn build(&self, shape: Vec<usize>) -> FuseTrace {
         self.builder.build(shape)
     }
 }
 
-impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
+impl OptimizationBuilder<FuseTrace> for FuseBuilder {
     fn register(&mut self, op: &OperationIr) {
         if let OptimizationStatus::Closed = self.status {
             return;
@@ -122,7 +121,7 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
         self.num_ops += 1;
     }
 
-    fn build(&self) -> FuseOnWriteTrace {
+    fn build(&self) -> FuseTrace {
         self.builder.build(self.current_output_shape.clone())
     }
 
@@ -155,7 +154,7 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     }
 }
 
-impl FuseOnWriteBuilder {
+impl FuseBuilder {
     pub fn new(
         max_bindings: u32,
         bool_precision: ElemwisePrecision,
@@ -178,6 +177,13 @@ impl FuseOnWriteBuilder {
 
     pub fn input_unhandled(&mut self, tensor: &TensorIr) -> Arg {
         self.builder.builder.input_unhandled(tensor)
+    }
+
+    pub fn input(&mut self, tensor: &TensorIr) -> Arg {
+        self.builder.builder.input(tensor).unwrap()
+    }
+    pub fn not_output(&mut self, tensor: &TensorIr) {
+        self.builder.builder.not_output(tensor)
     }
 
     pub fn output_unhandled(&mut self, tensor: &TensorIr) -> Arg {

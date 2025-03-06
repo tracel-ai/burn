@@ -147,6 +147,10 @@ jobs:
           - rust: prev
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
+      # disable incremental compilation (reduces artifact size)
+      - name: Set CI Profile
+        run: echo "CARGO_PROFILE_TEST_INCREMENTAL=false" >> $GITHUB_ENV
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
         with:

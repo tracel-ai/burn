@@ -187,7 +187,7 @@ represent the corresponding Burn Op.
 | [StringNormalizer][178]          | ❌             | ❌           |
 | [Sub][179]                       | ✅             | ✅           |
 | [Sum][180]                       | ✅             | ✅           |
-| [Tan][181]                       | ❌             | ❌           |
+| [Tan][181]                       | ✅             | ✅           |
 | [Tanh][182]                      | ✅             | ✅           |
 | [TfIdfVectorizer][183]           | ❌             | ❌           |
 | [ThresholdedRelu][184]           | ❌             | ❌           |

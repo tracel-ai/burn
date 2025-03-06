@@ -1,4 +1,4 @@
-use crate::on_write::DYN_ELEM_ID;
+use crate::shared::DYN_ELEM_ID;
 
 use super::io::*;
 use super::ir::*;
@@ -11,203 +11,194 @@ use cubecl::prelude::*;
 pub fn fuse_on_write<E: CubePrimitive>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
     write_pos: u32,
     write_values: Registry<Arg, Line<E>>,
     #[comptime] write_args: Sequence<Arg>,
     #[comptime] config: &ElemwiseConfig,
 ) {
-    let mut locals = LocalArgs::new();
-
     // Write the values given as arguments.
     #[unroll]
     for i in 0..write_args.len() {
         let arg = comptime![write_args.index(i).clone()];
         let val = write_values.find(comptime![arg.clone()]);
 
-        write::<E>(inputs, outputs, &mut locals, write_pos, val, arg, config);
+        write::<E>(inputs, outputs, locals, write_pos, val, arg, config);
     }
 
+    fuse(inputs, outputs, locals, write_pos, config);
+}
+
+#[cube]
+/// Fuse element-wise operations at the given read position.
+pub fn fuse_on_read<E: CubePrimitive>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    read_pos: u32,
+    #[comptime] read_args: Sequence<Arg>,
+    #[comptime] config: &ElemwiseConfig,
+) -> Sequence<Line<E>> {
+    fuse(inputs, outputs, locals, read_pos, config);
+
+    let mut output = Sequence::new();
+
+    #[unroll]
+    for i in 0..read_args.len() {
+        let arg = comptime![read_args.index(i).clone()];
+        let value = read::<E>(inputs, outputs, locals, read_pos, arg, config);
+
+        output.push(value);
+    }
+
+    output
+}
+
+#[cube]
+pub fn init_locals(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    #[comptime] config: &ElemwiseConfig,
+) -> LocalArgs {
+    let mut ref_shape = Array::new(config.rank);
+    let mut ref_strides = Array::new(config.rank);
+
+    match comptime![config.ref_layout.clone()] {
+        RefLayout::Concrete(arg) => match comptime![arg] {
+            Arg::Input(index, ..) => {
+                let layout = inputs.tensors.index(index);
+
+                #[unroll]
+                for i in 0..config.rank {
+                    ref_shape[i] = layout.tensor.shape(i);
+                    ref_strides[i] = layout.tensor.stride(i);
+                }
+
+                LocalArgs::new(
+                    ref_shape.to_slice(),
+                    ref_strides.to_slice(),
+                    layout.tensor.line_size(),
+                )
+            }
+            Arg::Output(index, ..) => {
+                let layout = outputs.tensors.index(index);
+
+                #[unroll]
+                for i in 0..config.rank {
+                    ref_shape[i] = layout.tensor.shape(i);
+                    ref_strides[i] = layout.tensor.stride(i);
+                }
+
+                LocalArgs::new(
+                    ref_shape.to_slice(),
+                    ref_strides.to_slice(),
+                    layout.tensor.line_size(),
+                )
+            }
+            _ => comptime![panic!("Invalid concrete ref layout.")],
+        },
+        RefLayout::Virtual(shape) => {
+            let mut stride_curr = 1u32;
+
+            #[unroll]
+            #[allow(clippy::clone_on_copy)]
+            for i in 0..config.rank {
+                let reverse = comptime![reverse_index(config.rank, comptime![i.clone()])];
+                let arg = comptime![shape.index(reverse.clone())];
+                let shape = read_scalar_shape(inputs, comptime![arg.clone()]);
+
+                ref_shape[comptime![reverse.clone()]] = shape;
+                ref_strides[comptime![reverse.clone()]] = stride_curr;
+
+                stride_curr *= ref_shape[comptime![reverse]];
+            }
+
+            LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), 1u32)
+        }
+    }
+}
+
+#[cube]
+fn fuse(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    pos: u32,
+    #[comptime] config: &ElemwiseConfig,
+) {
     #[unroll]
     for index in 0..config.ops.len() {
         let op = comptime! { config.ops.index(index).clone() };
         set_polyfill::<NumericExpand<DYN_ELEM_ID>>(comptime![op.cmp_elem()]);
 
         match op {
-            ElemwiseOp::Add(op) => add::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Div(op) => div::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Sub(op) => sub::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Mul(op) => mul::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Powf(op) => powf::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Erf(op) => erf::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Abs(op) => abs::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Log(op) => log::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Log1p(op) => log1p::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Recip(op) => recip::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Assign(op) => assign::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Exp(op) => exp::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Cos(op) => cos::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Sin(op) => sin::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Tanh(op) => tanh::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Equal(op) => equal::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Greater(op) => greater::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
+            ElemwiseOp::Add(op) => {
+                add::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Div(op) => {
+                div::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Sub(op) => {
+                sub::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Mul(op) => {
+                mul::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Powf(op) => {
+                powf::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Erf(op) => {
+                erf::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Abs(op) => {
+                abs::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Log(op) => {
+                log::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Log1p(op) => {
+                log1p::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Recip(op) => {
+                recip::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Assign(op) => {
+                assign::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Exp(op) => {
+                exp::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Cos(op) => {
+                cos::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Sin(op) => {
+                sin::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Tanh(op) => {
+                tanh::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Equal(op) => {
+                equal::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Greater(op) => {
+                greater::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
             ElemwiseOp::GreaterEqual(op) => greater_equal::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
+                inputs, outputs, locals, pos, op, config,
             ),
-            ElemwiseOp::Lower(op) => lower::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::LowerEqual(op) => lower_equal::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
+            ElemwiseOp::Lower(op) => {
+                lower::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::LowerEqual(op) => {
+                lower_equal::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
             ElemwiseOp::ConditionalAssign {
                 cond,
                 lhs,
                 rhs,
                 out,
             } => conditional_assign::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                cond,
-                lhs,
-                rhs,
-                out,
-                config,
+                inputs, outputs, locals, pos, cond, lhs, rhs, out, config,
             ),
             ElemwiseOp::Gather {
                 input,
@@ -215,15 +206,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 output,
                 dim,
             } => gather::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                dim,
-                input,
-                indices,
-                output,
-                config,
+                inputs, outputs, locals, pos, dim, input, indices, output, config,
             ),
             ElemwiseOp::Select {
                 input,
@@ -231,15 +214,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 output,
                 dim,
             } => select_indices::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                dim,
-                input,
-                indices,
-                output,
-                config,
+                inputs, outputs, locals, pos, dim, input, indices, output, config,
             ),
         }
     }
@@ -357,11 +332,7 @@ fn gather<C: Numeric>(
             _ => panic!("Input tensor isn't an input"),
         }
     };
-    let line_size = match config.ref_layout {
-        Arg::Input(pos, _precision, _) => global_line_size(inputs, pos),
-        Arg::Output(pos, _precision, _) => global_line_size(outputs, pos),
-        _ => unreachable!(),
-    };
+    let line_size = locals.ref_line_size;
     let stride = global_stride(inputs, dim, pos);
 
     index *= Line::new(stride);
@@ -370,6 +341,7 @@ fn gather<C: Numeric>(
         let index_before = global_offset(
             inputs,
             outputs,
+            locals,
             write_pos,
             comment!(input.clone()),
             comptime![Some((0u32, dim))],
@@ -382,6 +354,7 @@ fn gather<C: Numeric>(
         let index_after = global_offset(
             inputs,
             outputs,
+            locals,
             write_pos,
             input,
             comptime![Some((dim + 1, config.rank))],
@@ -396,7 +369,7 @@ fn gather<C: Numeric>(
     for i in 0..line_size {
         let index = index[i];
 
-        let input = read_input::<C>(inputs, outputs, pos, index, LayoutInfo::IsRef, config, None);
+        let input = read_input::<C>(inputs, locals, pos, index, LayoutInfo::IsRef, config, None);
         result[i] = input[0];
     }
 
@@ -415,19 +388,11 @@ fn select_indices<C: Numeric>(
     #[comptime] output: Arg,
     #[comptime] config: &ElemwiseConfig,
 ) {
-    let (line_size_ref, stride_dim_ref, shape_dim_ref) = match config.ref_layout {
-        Arg::Input(pos, _, _) => (
-            global_line_size(inputs, pos),
-            global_stride(inputs, dim, pos),
-            global_shape(inputs, dim, pos),
-        ),
-        Arg::Output(pos, _, _) => (
-            global_line_size(outputs, pos),
-            global_stride(outputs, dim, pos),
-            global_shape(outputs, dim, pos),
-        ),
-        _ => unreachable!(),
-    };
+    let (line_size_ref, stride_dim_ref, shape_dim_ref) = (
+        locals.ref_line_size,
+        locals.ref_strides[dim],
+        locals.ref_shape[dim],
+    );
 
     let pos_input = comptime! {
         match input {
@@ -457,6 +422,7 @@ fn select_indices<C: Numeric>(
             let index_before = global_offset(
                 inputs,
                 outputs,
+                locals,
                 write_pos_input,
                 comment!(input.clone()),
                 comptime![Some((0u32, dim))],
@@ -469,6 +435,7 @@ fn select_indices<C: Numeric>(
             let index_after = global_offset(
                 inputs,
                 outputs,
+                locals,
                 write_pos_input,
                 comment!(input.clone()),
                 comptime![Some((dim + 1, config.rank))],
@@ -480,7 +447,7 @@ fn select_indices<C: Numeric>(
         let coordinate_dim = write_pos_input / stride_dim_ref % shape_dim_ref;
         let offset_dim = read_input::<u32>(
             inputs,
-            outputs,
+            locals,
             pos_indices,
             coordinate_dim,
             LayoutInfo::IsRef,
@@ -495,7 +462,7 @@ fn select_indices<C: Numeric>(
         for i in 0..line_size_ref {
             let input = read_input::<C>(
                 inputs,
-                outputs,
+                locals,
                 pos_input,
                 index + i * stride_input_line,
                 LayoutInfo::IsRef,
@@ -514,6 +481,7 @@ fn select_indices<C: Numeric>(
             let index_before = global_offset(
                 inputs,
                 outputs,
+                locals,
                 write_pos,
                 comment!(input.clone()),
                 comptime![Some((0u32, dim))],
@@ -526,6 +494,7 @@ fn select_indices<C: Numeric>(
             let index_after = global_offset(
                 inputs,
                 outputs,
+                locals,
                 write_pos,
                 input,
                 comptime![Some((dim + 1, config.rank))],
@@ -541,7 +510,7 @@ fn select_indices<C: Numeric>(
             let coordinate_dim = (write_pos_indices + i) / stride_dim_ref % shape_dim_ref;
             let offset_dim = read_input::<u32>(
                 inputs,
-                outputs,
+                locals,
                 pos_indices,
                 coordinate_dim,
                 LayoutInfo::IsRef,
@@ -551,7 +520,7 @@ fn select_indices<C: Numeric>(
 
             let input = read_input::<C>(
                 inputs,
-                outputs,
+                locals,
                 pos_input,
                 index + (offset_dim[0] * stride_input_dim),
                 LayoutInfo::IsRef,

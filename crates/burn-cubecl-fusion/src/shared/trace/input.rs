@@ -1,5 +1,5 @@
 use super::TensorView;
-use crate::{on_write::settings::FuseSettings, CubeFusionHandle};
+use crate::{shared::settings::FuseSettings, CubeFusionHandle};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorStatus};
 use cubecl::Runtime;
@@ -45,25 +45,32 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
             let status = &tensor_relative.status;
             let mut handle = context.handles.get_handle(&tensor_global.id, status);
 
-            if self.settings.inplace
-                && status == &TensorStatus::ReadWrite
-                && handle.handle.can_mut()
-                && !self.inputs_unhandled.contains(&tensor_relative.id)
+            if !self.inputs_unhandled.contains(&tensor_relative.id)
                 && !self.views.iter().any(|v| match v {
-                    TensorView::Reshape { reshaped, original } => {
-                        reshaped == &tensor_relative.id || original == &tensor_relative.id
-                    }
+                    TensorView::Reshape {
+                        reshaped, original, ..
+                    } => reshaped == &tensor_relative.id || original == &tensor_relative.id,
                     TensorView::SwapDims {
                         swapped, original, ..
                     } => swapped == &tensor_relative.id || original == &tensor_relative.id,
                 })
                 && self.shape_ref == &tensor_relative.shape
             {
-                plan.potential_inplaces.push(PotentialInplace {
-                    input_pos: pos,
-                    tensor_relative,
-                    strides: handle.strides.clone(),
-                });
+                if status == &TensorStatus::ReadWrite
+                    && handle.handle.can_mut()
+                    && self.settings.inplace
+                {
+                    plan.potential_inplaces.push(PotentialInplace {
+                        input_pos: pos,
+                        tensor_relative,
+                        strides: handle.strides.clone(),
+                    });
+                    if plan.potential_reference_input.is_none() {
+                        plan.potential_reference_input = Some(pos);
+                    }
+                } else if plan.potential_reference_input.is_none() {
+                    plan.potential_reference_input = Some(pos);
+                }
             }
 
             if tensor_global.shape.len() < plan.rank {
@@ -84,6 +91,15 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 broadcated: false,
             });
             plan.global_inputs.push(tensor_global);
+        }
+
+        if plan.potential_reference_input.is_none() {
+            for v in self.views.iter() {
+                if let TensorView::Reshape { shape, .. } = v {
+                    plan.potential_reference_reshape = Some(shape.clone());
+                    break;
+                }
+            }
         }
     }
 }

@@ -12,7 +12,8 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tch"
 version.workspace = true
 
 [features]
-default = []
+default = ["std"]
+std = []
 doc = ["tch/doc-only"]
 
 [dependencies]
@@ -35,7 +36,7 @@ burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = 
 rand = { workspace = true, features = ["thread_rng"] }
 
 [build-dependencies]
-cc = "1.2.0"
+cc = "1.2.16"
 
 [package.metadata.docs.rs]
 features = ["doc"]

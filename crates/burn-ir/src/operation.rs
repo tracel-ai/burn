@@ -384,7 +384,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [mean dim](burn_tensor::ops::FloatTensorOps::float_mean_dim).
     /// Int => [mean dim](burn_tensor::ops::IntTensorOps::int_mean_dim).
-    MeanDim(ScalarOpIr<usize>),
+    MeanDim(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [mean](burn_tensor::ops::FloatTensorOps::float_mean).
@@ -399,7 +399,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [sum dim](burn_tensor::ops::FloatTensorOps::float_sum_dim).
     /// Int => [sum dim](burn_tensor::ops::IntTensorOps::int_sum_dim).
-    SumDim(ScalarOpIr<usize>),
+    SumDim(ReduceDimOpIr),
 
     /// Operation corresponding to:
     ///
@@ -411,7 +411,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [prod dim](burn_tensor::ops::FloatTensorOps::float_prod_dim).
     /// Int => [prod dim](burn_tensor::ops::IntTensorOps::int_prod_dim).
-    ProdDim(ScalarOpIr<usize>),
+    ProdDim(ReduceDimOpIr),
 
     /// Operation corresponding to:
     ///
@@ -462,12 +462,12 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [argmax](burn_tensor::ops::FloatTensorOps::float_argmax).
     /// Int => [argmax](burn_tensor::ops::IntTensorOps::int_argmax).
-    ArgMax(ScalarOpIr<usize>),
+    ArgMax(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [argmin](burn_tensor::ops::FloatTensorOps::float_argmin).
     /// Int => [argmin](burn_tensor::ops::IntTensorOps::int_argmin).
-    ArgMin(ScalarOpIr<usize>),
+    ArgMin(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [max](burn_tensor::ops::FloatTensorOps::float_max).
@@ -663,6 +663,14 @@ pub struct ScalarOpIr<E> {
     pub lhs: TensorIr,
     pub rhs: E,
     pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Hash)]
+#[allow(missing_docs)]
+pub struct ReduceDimOpIr {
+    pub input: TensorIr,
+    pub out: TensorIr,
+    pub axis: usize,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -1491,10 +1499,10 @@ impl<E: Element> NumericOperationIr<E> {
                 vec![&repr.lhs, &repr.rhs, &repr.out]
             }
             NumericOperationIr::ArgMax(repr) => {
-                vec![&repr.lhs, &repr.out]
+                vec![&repr.input, &repr.out]
             }
             NumericOperationIr::ArgMin(repr) => {
-                vec![&repr.lhs, &repr.out]
+                vec![&repr.input, &repr.out]
             }
             NumericOperationIr::Clamp(repr) => {
                 vec![&repr.tensor, &repr.out]
@@ -1505,7 +1513,7 @@ impl<E: Element> NumericOperationIr<E> {
             NumericOperationIr::Zeros(repr) => vec![repr],
             NumericOperationIr::Full(repr) => vec![&repr.0],
             NumericOperationIr::MeanDim(repr) => {
-                vec![&repr.lhs, &repr.out]
+                vec![&repr.input, &repr.out]
             }
             NumericOperationIr::Mean(repr) => {
                 vec![&repr.input, &repr.out]
@@ -1514,13 +1522,13 @@ impl<E: Element> NumericOperationIr<E> {
                 vec![&repr.input, &repr.out]
             }
             NumericOperationIr::SumDim(repr) => {
-                vec![&repr.lhs, &repr.out]
+                vec![&repr.input, &repr.out]
             }
             NumericOperationIr::Prod(repr) => {
                 vec![&repr.input, &repr.out]
             }
             NumericOperationIr::ProdDim(repr) => {
-                vec![&repr.lhs, &repr.out]
+                vec![&repr.input, &repr.out]
             }
             NumericOperationIr::Max(repr) => {
                 vec![&repr.input, &repr.out]

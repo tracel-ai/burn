@@ -1,27 +1,25 @@
 use config::HomogeneousConfig;
 use cubecl::{
-    linalg::{
-        matmul::{
-            components::{
-                global::{
-                    self,
-                    output_loader::Unloader,
-                    single_stage::{self, loader::RhsLoader, CyclicLoading},
-                    AccumulatorLoader, GlobalConfig, InputLoader,
-                },
-                stage::{
-                    self,
-                    multi_buffer::{LhsReader, LhsReaderFamily, RhsReader, RhsReaderFamily},
-                    StageMatmulFamily, TilingLayout,
-                },
-                Ident, InvalidConfigError, MatrixLayout, StageTiling,
+    linalg::matmul::{
+        components::{
+            global::{
+                self,
+                output_loader::Unloader,
+                single_stage::{self, loader::SyncRhsLoader, CyclicCoalescedLoading},
+                AccumulatorLoader, GlobalConfig, InputLoader, SyncInputLoader,
             },
-            kernels::matmul::AdvancedConfig,
+            stage::{
+                self,
+                multi_buffer::{LhsReader, LhsReaderFamily, RhsReader, RhsReaderFamily},
+                ContiguousTilingLayout, RowMajorTilingOrder, StageMatmulFamily,
+            },
+            Ident, InvalidConfigError, MatrixLayout,
         },
-        tensor::{ReadWrite, VirtualTensor},
+        kernels::matmul::AdvancedConfig,
     },
     prelude::*,
 };
+use cubecl_std::tensor::r#virtual::{ReadWrite, VirtualTensor};
 use std::marker::PhantomData;
 
 use crate::kernel::conv::{
@@ -38,12 +36,16 @@ pub struct ImplicitGemmConvolutionFamily<SMM: StageMatmulFamily> {
     _smm: PhantomData<SMM>,
 }
 
+pub type ConvTilingLayout = ContiguousTilingLayout<RowMajorTilingOrder>;
+
 impl<SMM> ConvolutionFamily<SMM> for ImplicitGemmConvolutionFamily<SMM>
 where
     SMM: StageMatmulFamily<LhsReader = LhsReaderFamily, RhsReader = RhsReaderFamily>,
 {
-    type Convolution<CS: ConvPrecision> =
-        ImplicitGemmConvolution<CS, SMM::Matmul<CS::ES, CS::EG, CS::EA>>;
+    type Convolution<CS: ConvPrecision> = ImplicitGemmConvolution<
+        CS,
+        SMM::Matmul<CS::ES, CS::EG, CS::EA, ConvTilingLayout, ConvTilingLayout>,
+    >;
 }
 
 /// Performs matrix multiplication at the global level, with each plane sharing the same responsibilities
@@ -64,13 +66,14 @@ where
         CS::ES,
         CS::EG,
         CS::EA,
-        LhsReader = LhsReader<CS::ES>,
-        RhsReader = RhsReader<CS::ES>,
+        LhsReader = LhsReader<CS::ES, ConvTilingLayout>,
+        RhsReader = RhsReader<CS::ES, ConvTilingLayout>,
     >,
 {
     type LhsLoader = SimpleIm2colLoader<CS, Self::Config>;
     type Config = HomogeneousConfig<single_stage::Config<SMM::Config>>;
-    type RhsLoader = RhsLoader<CS::EG, CS::ES, SMM::Config, CyclicLoading>;
+    type RhsLoader =
+        SyncRhsLoader<CS::EG, CS::ES, SMM::Config, CyclicCoalescedLoading<RowMajorTilingOrder>>;
     type AccumulatorLoader = BiasLoader<CS, SMM::Config>;
 
     type Out = Unloader<CS::EG>;
@@ -224,7 +227,6 @@ where
                 problem.rhs_line_size as u32,
                 problem.out_line_size as u32,
                 size.k,
-                global::LoadMode::Coalesced,
             ),
             (problem.out_shape_y as u32, problem.out_shape_x as u32),
             problem.kernel_size,
@@ -276,8 +278,8 @@ pub(crate) fn implicit_conv<
     #[comptime] config: GMM::Config,
     #[comptime] has_bias: bool,
 ) {
-    let x_offset = CUBE_POS_X * config.stage_tiling(Ident::Lhs).total_row();
-    let y_offset = CUBE_POS_Y * config.stage_tiling(Ident::Rhs).total_col();
+    let x_offset = CUBE_POS_X * config.tiling_dimensions(Ident::Lhs).total_row();
+    let y_offset = CUBE_POS_Y * config.tiling_dimensions(Ident::Rhs).total_col();
     let k_range = (0, rhs.shape(0));
 
     let lhs = VirtualTensor::<EG>::new::<Tensor<Line<EG>>>(lhs);
@@ -300,7 +302,7 @@ pub mod config {
     use std::ops::Deref;
 
     use burn_tensor::ops::ConvOptions;
-    use cubecl::linalg::matmul::components::MatmulConfig;
+    use cubecl::linalg::matmul::components::{MatmulConfig, TilingDimensions};
     use global::GlobalConfig;
 
     use crate::kernel::conv::conv2d::gemm::{self};
@@ -341,12 +343,12 @@ pub mod config {
             self.matmul.stage_line_size(ident)
         }
 
-        fn stage_tiling(&self, ident: Ident) -> StageTiling {
-            self.matmul.stage_tiling(ident)
+        fn tiling_dimensions(&self, ident: Ident) -> TilingDimensions {
+            self.matmul.tiling_dimensions(ident)
         }
 
-        fn layout(&self, ident: Ident) -> MatrixLayout {
-            self.matmul.layout(ident)
+        fn matrix_layout(&self, ident: Ident) -> MatrixLayout {
+            self.matmul.matrix_layout(ident)
         }
 
         fn num_planes(&self) -> u32 {
@@ -355,10 +357,6 @@ pub mod config {
 
         fn plane_dim(&self) -> u32 {
             self.matmul.plane_dim()
-        }
-
-        fn tiling_layout(&self, ident: Ident) -> TilingLayout {
-            self.matmul.tiling_layout(ident)
         }
 
         fn check_row_bounds(&self, ident: Ident) -> bool {
@@ -371,10 +369,6 @@ pub mod config {
 
         fn transpose_load(&self, ident: Ident) -> bool {
             self.matmul.transpose_load(ident)
-        }
-
-        fn load_mode(&self) -> global::LoadMode {
-            self.matmul.load_mode()
         }
     }
 
