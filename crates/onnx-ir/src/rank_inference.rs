@@ -1081,9 +1081,13 @@ fn gemm_output_shape(node: &mut Node) {
         ArgType::Tensor(tensor) => tensor.rank,
         _ => panic!("Input A should be a tensor!"),
     };
+    let b_rank = match &node.inputs[1].ty {
+        ArgType::Tensor(tensor) => tensor.rank,
+        _ => panic!("Input B should be a tensor!"),
+    };
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        rank: a_rank,
+        rank: max(a_rank, b_rank),
         shape: None,
         elem_type: match &node.inputs[0].ty {
             ArgType::Tensor(t) => t.elem_type.clone(),

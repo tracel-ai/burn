@@ -1323,11 +1323,7 @@ impl ParsedOnnxGraph {
     fn gemm_conversion(node: Node) -> GemmNode {
         let a = TensorType::from(node.inputs.first().unwrap());
         let b = TensorType::from(node.inputs.get(1).unwrap());
-        let c = if node.inputs.len() > 2 {
-            Some(Type::from(node.inputs.get(2).unwrap()))
-        } else {
-            None
-        };
+        let c = node.inputs.get(2).map(Type::from);
         let output = TensorType::from(node.outputs.first().unwrap());
         let (alpha, beta, trans_a, trans_b) = gemm_config(&node);
         GemmNode::new(a, b, c, output, alpha, beta, trans_a, trans_b)

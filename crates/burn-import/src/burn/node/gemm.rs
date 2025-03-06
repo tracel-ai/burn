@@ -61,7 +61,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GemmNode {
         let product = quote! {#a.matmul(#b)};
 
         let scaled_product = match alpha {
-            1.0 => quote! {#product},
+            1.0 => product,
             _ => quote! {#product * #alpha},
         };
 
@@ -167,6 +167,115 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 2>, tensor2: Tensor<B, 2>, scalar1: f32) -> Tensor<B, 2> {
                     let tensor3 = tensor1.matmul(tensor2) + scalar1;
+                    tensor3
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+    #[test]
+    fn test_codegen_non_unit_alpha_beta() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(GemmNode::new(
+            TensorType::new_float("tensor1", 2),
+            TensorType::new_float("tensor2", 2),
+            Some(Type::Scalar(ScalarType::new(
+                "scalar1",
+                ScalarKind::Float32,
+            ))),
+            TensorType::new_float("tensor3", 2),
+            0.5,
+            0.5,
+            0,
+            0,
+        ));
+
+        graph.register_input_output(
+            vec![
+                "tensor1".to_string(),
+                "tensor2".to_string(),
+                "scalar1".to_string(),
+            ],
+            vec!["tensor3".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, tensor1: Tensor<B, 2>, tensor2: Tensor<B, 2>, scalar1: f32) -> Tensor<B, 2> {
+                    let tensor3 = tensor1.matmul(tensor2) * 0.5f32 + (scalar1 * 0.5f32);
+                    tensor3
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+    #[test]
+    fn test_codegen_no_c() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(GemmNode::new(
+            TensorType::new_float("tensor1", 2),
+            TensorType::new_float("tensor2", 2),
+            None,
+            TensorType::new_float("tensor3", 2),
+            1.,
+            1.,
+            0,
+            0,
+        ));
+
+        graph.register_input_output(
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["tensor3".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, tensor1: Tensor<B, 2>, tensor2: Tensor<B, 2>) -> Tensor<B, 2> {
+                    let tensor3 = tensor1.matmul(tensor2);
                     tensor3
                 }
             }
