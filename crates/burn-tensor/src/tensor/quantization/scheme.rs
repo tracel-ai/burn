@@ -242,8 +242,8 @@ impl QuantizationScheme {
 
     pub fn q_type(&self) -> QuantizationType {
         match self {
-            QuantizationScheme::PerTensorAffine(quantization_type) => *quantization_type,
-            QuantizationScheme::PerTensorSymmetric(quantization_type) => *quantization_type,
+            QuantizationScheme::PerTensor(_, quantization_type) => *quantization_type,
+            QuantizationScheme::PerBlock(_, quantization_type, _) => *quantization_type,
         }
     }
 }
