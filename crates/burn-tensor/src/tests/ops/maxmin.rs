@@ -88,7 +88,6 @@ mod tests {
     #[test]
     fn test_sum_dim_reshape_maybe_fused() {
         let tensor = TestTensorInt::arange(0..9, &Default::default()).float();
-        println!("{tensor}");
         TestBackend::sync(&tensor.device());
 
         let output = (tensor.reshape([3, 3]) + 2);
