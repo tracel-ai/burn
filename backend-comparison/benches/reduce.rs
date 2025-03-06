@@ -4,7 +4,9 @@ use burn_common::benchmark::{run_benchmark, Benchmark};
 
 enum Instruction {
     ArgMin(usize),
+    ArgMinFused(usize),
     SumDim(usize),
+    SumDimFused(usize),
     Sum,
 }
 
@@ -39,11 +41,21 @@ impl<B: Backend> Benchmark for ReduceBenchmark<B> {
                 self.tensor.clone().argmin(axis);
             }
             Instruction::SumDim(axis) => {
+                self.tensor.clone().sum_dim(axis);
+            }
+            Instruction::SumDimFused(axis) => {
                 let tensor = self.tensor.clone() + 5;
                 let tensor = tensor.log();
                 let tensor = tensor.tanh();
                 let tensor = tensor * 3;
                 tensor.sum_dim(axis);
+            }
+            Instruction::ArgMinFused(axis) => {
+                let tensor = self.tensor.clone() + 5;
+                let tensor = tensor.log();
+                let tensor = tensor.tanh();
+                let tensor = tensor * 3;
+                tensor.argmin(axis);
             }
             Instruction::Sum => {
                 self.tensor.clone().sum();
@@ -54,7 +66,9 @@ impl<B: Backend> Benchmark for ReduceBenchmark<B> {
     fn name(&self) -> String {
         match self.instruction {
             Instruction::ArgMin(axis) => format!("reduce-argmin-{axis}"),
+            Instruction::ArgMinFused(axis) => format!("reduce-argmin-{axis}-fused"),
             Instruction::SumDim(axis) => format!("reduce-sum-{axis}"),
+            Instruction::SumDimFused(axis) => format!("reduce-sum-{axis}-fused"),
             Instruction::Sum => String::from("reduce-sum-full"),
         }
     }
@@ -78,18 +92,26 @@ fn bench<B: Backend>(
     let mut benchmarks = Vec::new();
 
     for axis in 0..3 {
-        // benchmarks.push(ReduceBenchmark::<B>::new(
-        //     Instruction::ArgMin(axis),
-        //     device.clone(),
-        // ));
+        benchmarks.push(ReduceBenchmark::<B>::new(
+            Instruction::ArgMin(axis),
+            device.clone(),
+        ));
+        benchmarks.push(ReduceBenchmark::<B>::new(
+            Instruction::ArgMinFused(axis),
+            device.clone(),
+        ));
 
         benchmarks.push(ReduceBenchmark::<B>::new(
             Instruction::SumDim(axis),
             device.clone(),
         ));
+        benchmarks.push(ReduceBenchmark::<B>::new(
+            Instruction::SumDimFused(axis),
+            device.clone(),
+        ));
     }
 
-    // benchmarks.push(ReduceBenchmark::<B>::new(Instruction::Sum, device.clone()));
+    benchmarks.push(ReduceBenchmark::<B>::new(Instruction::Sum, device.clone()));
 
     save::<B>(
         benchmarks.into_iter().map(run_benchmark).collect(),
