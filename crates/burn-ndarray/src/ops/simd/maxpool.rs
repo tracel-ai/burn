@@ -7,7 +7,6 @@ use burn_tensor::{quantization::QuantizationType, DType, Element, TensorMetadata
 use macerator::VOrd;
 use ndarray::{s, Array4};
 use nhwc::max_pool2d_nhwc;
-use pulp::{Arch, Simd};
 
 use super::{should_use_simd, MinMax};
 
@@ -54,10 +53,9 @@ fn cast<T, E>(tensor: NdArrayTensor<T>) -> NdArrayTensor<E> {
 
 mod nhwc {
     use itertools::Itertools;
+    use macerator::{vload_unaligned, vstore_unaligned, Simd};
     use ndarray::{ArrayView3, ArrayViewMut3, Ix4};
     use seq_macro::seq;
-
-    use macerator::SimdExt;
 
     use crate::ops::simd::lanes;
 
@@ -147,19 +145,25 @@ mod nhwc {
     }
 
     /// Execute the blocked (unrolled) portion of the pool.
-    #[allow(clippy::too_many_arguments, clippy::erasing_op, clippy::identity_op)]
+    #[allow(
+        clippy::too_many_arguments,
+        clippy::erasing_op,
+        clippy::identity_op,
+        unused_mut
+    )]
     #[inline(always)]
-    #[pulp::with_simd(loop_blocked = Arch::new())]
-    fn loop_nhwc_simd_blocked<S: Simd, E: Element + VOrd + MinMax>(
-        simd: S,
-        x: ArrayView3<'_, E>,
-        mut out: ArrayViewMut3<'_, E>,
+    #[macerator::with_simd]
+    fn loop_blocked<'a, S: Simd, E: Element + VOrd + MinMax>(
+        x: ArrayView3<'a, E>,
+        mut out: ArrayViewMut3<'a, E>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
         block: usize,
-    ) {
+    ) where
+        'a: 'a,
+    {
         let [kernel_height, kernel_width] = kernel_size;
         let [pad_h, pad_w] = padding;
         let [stride_height, stride_width] = stride;
@@ -170,7 +174,7 @@ mod nhwc {
         let lanes = E::lanes::<S>();
         let ch_block = lanes * BLOCK_REGISTERS;
 
-        let min = simd.splat(E::MIN);
+        let min = E::MIN.splat::<S>();
         // If outside padding area, kernels are guaranteed to be in bounds
         for oh in pad_h..out_height.saturating_sub(pad_h) {
             for ow in pad_w..out_width.saturating_sub(pad_w) {
@@ -192,8 +196,7 @@ mod nhwc {
                             // SAFETY:
                             // Load a full vector from x[N * lanes]. This is bounds checked by the
                             // slice above.
-                            let s~N = unsafe { simd.vload_unaligned(&x[N * lanes]) };
-                            acc~N = E::vmax(simd, acc~N, s~N);
+                            acc~N = acc~N.max(unsafe { vload_unaligned(&x[N * lanes]) });
                         });
                     }
                 }
@@ -202,7 +205,7 @@ mod nhwc {
                     // SAFETY:
                     // Store a full vector to out[N * lanes]. This is bounds checked by the
                     // slice above.
-                    unsafe { simd.vstore_unaligned(&mut out[N * lanes], acc~N) };
+                    unsafe { vstore_unaligned(&mut out[N * lanes], acc~N) };
                 });
             }
         }
@@ -243,8 +246,7 @@ mod nhwc {
                             // SAFETY:
                             // Load a full vector from x[N * lanes]. This is bounds checked by the
                             // slice above.
-                            let s~N = unsafe { simd.vload_unaligned(&x[N * lanes]) };
-                            acc~N = E::vmax(simd, acc~N, s~N);
+                            acc~N = acc~N.max(unsafe { vload_unaligned(&x[N * lanes]) });
                         });
                     }
                 }
@@ -253,7 +255,7 @@ mod nhwc {
                     // SAFETY:
                     // Store a full vector to out[N * lanes]. This is bounds checked by the
                     // slice above.
-                    unsafe { simd.vstore_unaligned(&mut out[N * lanes], acc~N) };
+                    unsafe { vstore_unaligned(&mut out[N * lanes], acc~N) };
                 });
             }
         }
@@ -262,19 +264,20 @@ mod nhwc {
     /// Execute the unblocked (not unrolled) portion of the pool.
     ///
     /// SAFETY: Safe as long as `ch + simd_lanes <= out_channels`.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, unused_mut)]
     #[inline(always)]
-    #[pulp::with_simd(loop_unblocked = Arch::new())]
-    unsafe fn loop_nhwc_simd_unblocked<S: Simd, E: Element + VOrd + MinMax>(
-        simd: S,
-        x: ArrayView3<'_, E>,
-        mut out: ArrayViewMut3<'_, E>,
+    #[macerator::with_simd]
+    unsafe fn loop_unblocked<'a, S: Simd, E: Element + VOrd + MinMax>(
+        x: ArrayView3<'a, E>,
+        mut out: ArrayViewMut3<'a, E>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
         ch: usize,
-    ) {
+    ) where
+        'a: 'a,
+    {
         let [kernel_height, kernel_width] = kernel_size;
         let [pad_h, pad_w] = padding;
         let [stride_height, stride_width] = stride;
@@ -285,7 +288,7 @@ mod nhwc {
 
         for oh in pad_h..out_height.saturating_sub(pad_h) {
             for ow in pad_w..out_width.saturating_sub(pad_w) {
-                let mut acc = simd.splat(E::MIN);
+                let mut acc = E::MIN.splat::<S>();
                 let out = &mut out[[oh, ow, ch]];
 
                 for kh in 0..kernel_height {
@@ -294,12 +297,11 @@ mod nhwc {
                     for kw in 0..kernel_width {
                         let iw = ow * stride_width + kw * dilation_width - pad_w;
                         // Load a full vector from `x`. In bounds as long as `out_channels >= ch + lanes`
-                        let s0 = simd.vload_unaligned(&x[[ih, iw, ch]]);
-                        acc = E::vmax(simd, acc, s0);
+                        acc = acc.max(vload_unaligned(&x[[ih, iw, ch]]));
                     }
                 }
                 // Store a full vector to `out`. In bounds as long as `out_channels >= ch + lanes`.
-                simd.vstore_unaligned(out, acc);
+                vstore_unaligned(out, acc);
             }
         }
 
@@ -312,7 +314,7 @@ mod nhwc {
                 .cartesian_product((0..pad_w).chain(out_width.saturating_sub(pad_w)..out_width));
 
             for (oh, ow) in v_borders.chain(h_borders) {
-                let mut acc = simd.splat(E::MIN);
+                let mut acc = E::MIN.splat::<S>();
                 let out = &mut out[[oh, ow, ch]];
 
                 for kh in 0..kernel_height {
@@ -329,12 +331,11 @@ mod nhwc {
                         }
                         let iw = iw - pad_w;
                         // Load a full vector from `x`. In bounds as long as `out_channels >= ch + lanes`
-                        let s0 = simd.vload_unaligned(&x[[ih, iw, ch]]);
-                        acc = E::vmax(simd, acc, s0);
+                        acc = acc.max(vload_unaligned(&x[[ih, iw, ch]]));
                     }
                 }
                 // Store a full vector to `out`. In bounds as long as `out_channels >= ch + lanes`.
-                simd.vstore_unaligned(out, acc);
+                vstore_unaligned(out, acc);
             }
         }
     }

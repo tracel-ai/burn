@@ -5,10 +5,9 @@ use crate::{sharing::UnsafeSharedRef, tensor::NdArrayTensor};
 use burn_common::{iter_range_par, run_par};
 use burn_tensor::{DType, Element, ElementConversion, TensorMetadata};
 use bytemuck::Zeroable;
-use macerator::{SimdExt, VAdd, VDiv};
+use macerator::{VAdd, VDiv};
 use ndarray::{s, Array4};
 use nhwc::avg_pool_nhwc;
-use pulp::{Arch, Simd};
 
 use super::should_use_simd;
 
@@ -49,6 +48,7 @@ fn cast<T, E>(tensor: NdArrayTensor<T>) -> NdArrayTensor<E> {
 
 mod nhwc {
     use itertools::Itertools;
+    use macerator::{vload_unaligned, vstore_unaligned, Simd, Vector};
     use ndarray::{ArrayView3, ArrayViewMut3};
     use seq_macro::seq;
 
@@ -140,18 +140,24 @@ mod nhwc {
     }
 
     /// Execute the blocked (unrolled) portion of the pool.
-    #[allow(clippy::too_many_arguments, clippy::erasing_op, clippy::identity_op)]
-    #[pulp::with_simd(loop_blocked = Arch::new())]
-    fn loop_blocked_simd<S: Simd, E: Element + VAdd + VDiv>(
-        simd: S,
-        x: ArrayView3<'_, E>,
-        mut out: ArrayViewMut3<'_, E>,
+    #[allow(
+        clippy::too_many_arguments,
+        clippy::erasing_op,
+        clippy::identity_op,
+        unused_mut
+    )]
+    #[macerator::with_simd]
+    fn loop_blocked<'a, S: Simd, E: Element + VAdd + VDiv>(
+        x: ArrayView3<'a, E>,
+        mut out: ArrayViewMut3<'a, E>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         with_pad: bool,
         block: usize,
-    ) {
+    ) where
+        'a: 'a,
+    {
         let [kernel_height, kernel_width] = kernel_size;
         let [pad_h, pad_w] = padding;
         let [stride_height, stride_width] = stride;
@@ -166,7 +172,7 @@ mod nhwc {
         for oh in pad_h..out_height.saturating_sub(pad_h) {
             for ow in pad_w..out_width.saturating_sub(pad_w) {
                 seq!(N in 0..8 {
-                    let mut sum~N = Zeroable::zeroed();
+                    let mut sum~N: Vector<S, E> = Zeroable::zeroed();
                 });
                 let ch = block * ch_block;
                 let ch_end = ch + ch_block;
@@ -183,20 +189,20 @@ mod nhwc {
                             // SAFETY:
                             // Load a full vector from x[N * lanes]. This is bounds checked by the
                             // slice above.
-                            let s~N = unsafe { simd.vload_unaligned(&x[N * lanes]) };
-                            sum~N = E::vadd(simd, sum~N, s~N);
+                            sum~N += unsafe { vload_unaligned(&x[N * lanes]) };
                         });
                     }
                 }
 
                 let count = kernel_height * kernel_width;
-                let count_v = simd.splat((count as u64).elem::<E>());
+                let count = (count as u64).elem::<E>();
+                let count_v = count.splat();
                 seq!(N in 0..8 {
-                    let s~N = E::vdiv(simd, sum~N, count_v);
+                    let s~N = sum~N / count_v;
                     // SAFETY:
                     // Store a full vector to out[N * lanes]. This is bounds checked by the
                     // slice above.
-                    unsafe { simd.vstore_unaligned(&mut out[N * lanes], s~N) };
+                    unsafe { vstore_unaligned(&mut out[N * lanes], s~N) };
                 });
             }
         }
@@ -211,7 +217,7 @@ mod nhwc {
 
             for (oh, ow) in v_borders.chain(h_borders) {
                 seq!(N in 0..8 {
-                    let mut sum~N = Zeroable::zeroed();
+                    let mut sum~N: Vector<S, E> = Zeroable::zeroed();
                 });
                 let mut count: usize = 0;
                 let ch = block * ch_block;
@@ -239,8 +245,7 @@ mod nhwc {
                             // SAFETY:
                             // Load a full vector from x[N * lanes]. This is bounds checked by the
                             // slice above.
-                            let s~N = unsafe { simd.vload_unaligned(&x[N * lanes]) };
-                            sum~N = E::vadd(simd, sum~N, s~N);
+                            sum~N += unsafe { vload_unaligned(&x[N * lanes]) };
                         });
                     }
                 }
@@ -249,13 +254,14 @@ mod nhwc {
                     count = kernel_height * kernel_width;
                 }
 
-                let count_v = simd.splat((count as u64).elem::<E>());
+                let count = (count as u64).elem::<E>();
+                let count_v = count.splat();
                 seq!(N in 0..8 {
-                    let s~N = E::vdiv(simd, sum~N, count_v);
+                    let s~N = sum~N / count_v;
                     // SAFETY:
                     // Store a full vector to out[N * lanes]. This is bounds checked by the
                     // slice above.
-                    unsafe { simd.vstore_unaligned(&mut out[N * lanes], s~N) };
+                    unsafe { vstore_unaligned(&mut out[N * lanes], s~N) };
                 });
             }
         }
@@ -264,18 +270,19 @@ mod nhwc {
     /// Execute the unblocked (not unrolled) portion of the pool.
     ///
     /// SAFETY: Safe as long as `ch + simd_lanes <= out_channels`.
-    #[allow(clippy::too_many_arguments)]
-    #[pulp::with_simd(loop_unblocked = Arch::new())]
-    unsafe fn loop_unblocked_simd<S: Simd, E: Element + VAdd + VDiv>(
-        simd: S,
-        x: ArrayView3<'_, E>,
-        mut out: ArrayViewMut3<'_, E>,
+    #[allow(clippy::too_many_arguments, unused_mut)]
+    #[macerator::with_simd]
+    unsafe fn loop_unblocked<'a, S: Simd, E: Element + VAdd + VDiv>(
+        x: ArrayView3<'a, E>,
+        mut out: ArrayViewMut3<'a, E>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         with_pad: bool,
         ch: usize,
-    ) {
+    ) where
+        'a: 'a,
+    {
         let [kernel_height, kernel_width] = kernel_size;
         let [pad_h, pad_w] = padding;
         let [stride_height, stride_width] = stride;
@@ -286,7 +293,7 @@ mod nhwc {
         // If pixels are not within padding range, bounds checks are always true
         for oh in pad_h..out_height - pad_h {
             for ow in pad_w..out_width - pad_w {
-                let mut sum = Zeroable::zeroed();
+                let mut sum: Vector<S, E> = Zeroable::zeroed();
 
                 for kh in 0..kernel_height {
                     let ih = oh * stride_height + kh - pad_h;
@@ -294,16 +301,17 @@ mod nhwc {
                     for kw in 0..kernel_width {
                         let iw = ow * stride_width + kw - pad_w;
                         // Load a full vector from `x`. In bounds as long as `out_channels >= ch + lanes`
-                        let s0 = simd.vload_unaligned(&x[[ih, iw, ch]]);
-                        sum = E::vadd(simd, sum, s0);
+                        let s0 = vload_unaligned(&x[[ih, iw, ch]]);
+                        sum += s0;
                     }
                 }
 
                 let count = kernel_height * kernel_width;
-                let count_v = simd.splat((count as u64).elem::<E>());
-                let s0 = E::vdiv(simd, sum, count_v);
+                let count: E = (count as u64).elem();
+                let count_v = count.splat();
+                let s0 = sum / count_v;
                 // Store a full vector to `out`. In bounds as long as `out_channels >= ch + lanes`.
-                simd.vstore_unaligned(&mut out[[oh, ow, ch]], s0);
+                vstore_unaligned(&mut out[[oh, ow, ch]], s0);
             }
         }
 
@@ -316,7 +324,7 @@ mod nhwc {
                 .cartesian_product((0..pad_w).chain(out_width.saturating_sub(pad_w)..out_width));
 
             for (oh, ow) in v_borders.chain(h_borders) {
-                let mut sum = Zeroable::zeroed();
+                let mut sum: Vector<S, E> = Zeroable::zeroed();
                 let mut count: usize = 0;
 
                 for kh in 0..kernel_height {
@@ -335,8 +343,7 @@ mod nhwc {
                         count += 1;
 
                         // Load a full vector from `x`. In bounds as long as `out_channels >= ch + lanes`
-                        let s0 = simd.vload_unaligned(&x[[ih, iw, ch]]);
-                        sum = E::vadd(simd, sum, s0);
+                        sum += vload_unaligned(&x[[ih, iw, ch]]);
                     }
                 }
 
@@ -344,10 +351,11 @@ mod nhwc {
                     count = kernel_height * kernel_width;
                 }
 
-                let count_v = simd.splat((count as u64).elem::<E>());
-                let s0 = E::vdiv(simd, sum, count_v);
+                let count = (count as u64).elem::<E>();
+                let count_v = count.splat();
+                let s0 = sum / count_v;
                 // Store a full vector to `out`. In bounds as long as `out_channels >= ch + lanes`.
-                simd.vstore_unaligned(&mut out[[oh, ow, ch]], s0);
+                vstore_unaligned(&mut out[[oh, ow, ch]], s0);
             }
         }
     }

@@ -26,7 +26,6 @@ std = [
     "ndarray/std",
     "rand/std",
     "num-traits/std",
-    "pulp/std",
     "macerator/std",
 ]
 
@@ -41,7 +40,7 @@ blas-openblas-system = [
     "ndarray/blas",
     "openblas-src/system",
 ]
-simd = ["macerator", "pulp", "bytemuck", "seq-macro", "itertools"]
+simd = ["macerator", "bytemuck", "seq-macro", "itertools"]
 
 [dependencies]
 
@@ -68,7 +67,6 @@ spin = { workspace = true }                                                # usi
 bytemuck = { workspace = true, optional = true }
 itertools = { version = "0.14", optional = true }
 macerator = { workspace = true, optional = true }
-pulp = { workspace = true, features = ["macro", "x86-v3"], optional = true }
 seq-macro = { version = "0.3", optional = true }
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]

@@ -857,7 +857,6 @@ dependencies = [
  "openblas-src",
  "paste",
  "portable-atomic-util",
- "pulp 0.21.5",
  "rand 0.9.0",
  "seq-macro",
  "spin",
@@ -996,7 +995,6 @@ dependencies = [
  "ndarray",
  "num-traits",
  "paste",
- "pulp 0.21.5",
  "serde",
 ]
 
@@ -1014,9 +1012,9 @@ dependencies = [
 
 [[package]]
 name = "bytemuck"
-version = "1.21.0"
+version = "1.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef657dfab802224e671f5818e9a4935f9b1957ed18e58292690cc39e7a4092a3"
+checksum = "b6b1fc10dbac614ebc03540c9dbd60e83887fda27794998c6528f1782047d540"
 dependencies = [
  "bytemuck_derive",
 ]
@@ -3888,10 +3886,22 @@ dependencies = [
 [[package]]
 name = "macerator"
 version = "0.1.0"
-source = "git+https://github.com/wingertge/macerator.git?rev=5d124bbbf5c4262343f20e8d63c9071d35f2c064#5d124bbbf5c4262343f20e8d63c9071d35f2c064"
 dependencies = [
+ "bytemuck",
+ "half",
+ "macerator-macros",
+ "num-traits",
  "paste",
- "pulp 0.21.5",
+]
+
+[[package]]
+name = "macerator-macros"
+version = "0.1.0"
+dependencies = [
+ "darling",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.98",
 ]
 
 [[package]]
@@ -5577,31 +5587,6 @@ dependencies = [
  "num-complex",
  "reborrow",
  "version_check",
-]
-
-[[package]]
-name = "pulp"
-version = "0.21.5"
-source = "git+https://github.com/wingertge/pulp.git?rev=c550ba4eda98dcd964dc374fa4d508bfff9f03c8#c550ba4eda98dcd964dc374fa4d508bfff9f03c8"
-dependencies = [
- "bytemuck",
- "cfg-if",
- "libm",
- "num-complex",
- "paste",
- "pulp-macro",
- "reborrow",
- "version_check",
-]
-
-[[package]]
-name = "pulp-macro"
-version = "0.1.1"
-source = "git+https://github.com/wingertge/pulp.git?rev=c550ba4eda98dcd964dc374fa4d508bfff9f03c8#c550ba4eda98dcd964dc374fa4d508bfff9f03c8"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.98",
 ]
 
 [[package]]

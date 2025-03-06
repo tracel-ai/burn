@@ -6,14 +6,13 @@ use burn_tensor::{
     DType, Element, TensorMetadata,
 };
 use bytemuck::Zeroable;
-use macerator::{SimdExt, VMulAdd};
+use macerator::{vload_unaligned, vstore_unaligned, Simd, VMulAdd, Vector};
 use ndarray::{
     s, ArcArray1, Array4, ArrayView3, ArrayView4, ArrayViewMut2, ArrayViewMut3, Dim, Ix1, Ix4,
 };
-use pulp::{Arch, Simd, WithSimd};
 use seq_macro::seq;
 
-use crate::{ops::simd::lanes, FloatNdArrayElement, NdArrayTensor, UnsafeSharedRef};
+use crate::{FloatNdArrayElement, NdArrayTensor, UnsafeSharedRef};
 
 type Args<E> = (NdArrayTensor<E>, NdArrayTensor<E>, Option<NdArrayTensor<E>>);
 
@@ -55,9 +54,15 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
 ) -> Result<NdArrayTensor<T>, Args<T>> {
     let [out_channels, _, k_height, k_width] = weight.shape().dims();
     let channels_per_group = out_channels / options.groups;
-    let lanes = lanes::<E>();
 
-    if channels_per_group % lanes != 0 {
+    #[macerator::with_simd]
+    fn precheck<S: Simd, E: VMulAdd>(_ty: PhantomData<E>) -> (usize, bool) {
+        (E::lanes::<S>(), E::is_accelerated::<S>())
+    }
+
+    let (lanes, accelerated) = precheck::<E>(PhantomData);
+
+    if !accelerated || channels_per_group % lanes != 0 {
         return Err((x, weight, bias));
     }
 
@@ -141,91 +146,30 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
 const REGISTER_BLOCK: usize = 8;
 inner_with_register_blocking_size!(8);
 
-struct Conv2dLaunch<
-    'a,
-    E: VMulAdd + Element,
-    const PAD: bool,
-    const STRIDE: bool,
-    const GROUPS: bool,
-> {
-    x: ArrayView3<'a, E>,
-    weights: ArrayView4<'a, E>,
-    bias: &'a Option<ArcArray1<E>>,
-    out: &'a mut ArrayViewMut3<'a, E>,
-    options: &'a ConvOptions<2>,
-    ob: usize,
-}
-
-impl<E: VMulAdd + Element, const PAD: bool, const STRIDE: bool, const GROUPS: bool> WithSimd
-    for Conv2dLaunch<'_, E, PAD, STRIDE, GROUPS>
-{
-    type Output = ();
-
-    #[inline(always)]
-    fn with_simd<S: Simd>(self, simd: S) -> Self::Output {
-        #[allow(unused_unsafe)]
-        unsafe {
-            run_conv2d::<S, E, REGISTER_BLOCK, PAD, STRIDE, GROUPS>(
-                simd,
-                self.x,
-                self.weights,
-                self.bias,
-                self.out,
-                self.options,
-                self.ob,
-            )
-        }
-    }
-}
-
-#[inline(never)]
-fn conv2d_launch<
-    'a,
-    E: VMulAdd + Element,
-    const PAD: bool,
-    const STRIDE: bool,
-    const GROUPS: bool,
->(
-    x: ArrayView3<'a, E>,
-    weights: ArrayView4<'a, E>,
-    bias: &'a Option<ArcArray1<E>>,
-    out: &'a mut ArrayViewMut3<'a, E>,
-    options: &'a ConvOptions<2>,
-    ob: usize,
-) {
-    let launch = Conv2dLaunch::<'a, E, PAD, STRIDE, GROUPS> {
-        x,
-        weights,
-        bias,
-        out,
-        options,
-        ob,
-    };
-    (Arch::new()).dispatch(launch)
-}
-
 /// Run a loop of conv2d.
 /// # SAFETY
 /// See `conv2d_inner_nopad`, `conv2d_inner_nopad_nostride`, `conv2d_remainder`.
 /// Required preconditions: `ob * simd_lanes` must be `<= out_channels - simd_lanes`, `weights` and
 /// `out` must have unit stride for the out channels.
 #[inline(always)]
-unsafe fn run_conv2d<
+#[macerator::with_simd]
+unsafe fn conv2d_launch<
+    'a,
     S: Simd,
     E: VMulAdd,
-    const RB: usize,
     const PAD: bool,
     const STRIDE: bool,
     const GROUPS: bool,
 >(
-    simd: S,
-    x: ArrayView3<E>,
-    weights: ArrayView4<E>,
-    bias: &Option<ArcArray1<E>>,
-    out: &mut ArrayViewMut3<E>,
-    options: &ConvOptions<2>,
+    x: ArrayView3<'a, E>,
+    weights: ArrayView4<'a, E>,
+    bias: &'a Option<ArcArray1<E>>,
+    out: &'a mut ArrayViewMut3<'a, E>,
+    options: &'a ConvOptions<2>,
     ob: usize,
-) {
+) where
+    'a: 'a,
+{
     let (in_channels, k_height, k_width, out_channels) = weights.dim();
     let (out_height, out_width, _) = out.dim();
     let channels_per_group = out_channels / options.groups;
@@ -242,7 +186,7 @@ unsafe fn run_conv2d<
     }
 
     let oc_b = channels_per_group.min(lanes);
-    let ow_b = RB;
+    let ow_b = REGISTER_BLOCK;
 
     let ow_start = pad_w;
     let ow_width = out_width.saturating_sub(2 * pad_w);
@@ -259,7 +203,7 @@ unsafe fn run_conv2d<
 
     unsafe {
         let bias = if let Some(bias) = &bias {
-            simd.vload_unaligned(&bias[oc])
+            vload_unaligned::<S, _>(&bias[oc])
         } else {
             Zeroable::zeroed()
         };
@@ -272,19 +216,18 @@ unsafe fn run_conv2d<
                 #[allow(clippy::if_same_then_else)]
                 if STRIDE {
                     conv2d_inner_nopad(
-                        simd, &x, &weights, &mut out, bias, oh, ow, oc, ic_off, stride_h, stride_w,
+                        &x, &weights, &mut out, bias, oh, ow, oc, ic_off, stride_h, stride_w,
                         dilate_h, dilate_w, k_height, k_width, pad_h, pad_w,
                     );
                 } else {
                     conv2d_inner_nopad_nostride(
-                        simd, &x, &weights, &mut out, bias, oh, ow, oc, ic_off, k_height, k_width,
-                        pad_h, pad_w,
+                        &x, &weights, &mut out, bias, oh, ow, oc, ic_off, k_height, k_width, pad_h,
+                        pad_w,
                     );
                 }
             }
         }
         conv2d_remainder(
-            simd,
             x,
             weights,
             out,
@@ -312,11 +255,10 @@ unsafe fn run_conv2d<
 #[allow(clippy::too_many_arguments)]
 #[inline(always)]
 unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
-    simd: S,
     x: ArrayView3<E>,
     weights: ArrayView4<E>,
     out: &mut ArrayViewMut3<E>,
-    bias: E::Vector<S>,
+    bias: Vector<S, E>,
     oc: usize,
     ic_off: usize,
     owb_end: usize,
@@ -360,14 +302,14 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
                         // Load a full vector from the weights. This is guaranteed to be in bounds
                         // as long as `oc <= out_channels - simd_lanes` and out channels are last.
                         // We need to ensure the weights are reshaped appropriately.
-                        let f0 = simd.vload_unaligned(&weights[[ic, kh, kw, oc]]);
+                        let f0 = vload_unaligned(&weights[[ic, kh, kw, oc]]);
 
                         // The loop bounds ensure `ic`, `ih` and `iw` are always in bounds, but the
                         // compiler can't prove this. We can't use `as_slice` with fixed bounds
                         // because we want to support arbitrary input layouts. So an unchecked load
                         // is used.
-                        let i0 = simd.splat(*x.uget([ic, ih, iw]));
-                        acc = E::vmuladd(simd, i0, f0, acc);
+                        let i0 = x.uget([ic, ih, iw]).splat::<S>();
+                        acc = i0.mul_add(f0, acc);
                     }
                 }
             }
@@ -375,7 +317,7 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
             // Store a full vector from the output. This is guaranteed to be in bounds
             // as long as `oc <= out_channels - simd_lanes` and oc stride is 1. We create `out` with
             // channels last, so this always holds.
-            simd.vstore_unaligned(&mut out[[oh, ow, oc]], acc);
+            vstore_unaligned(&mut out[[oh, ow, oc]], acc);
         }
     }
     for ow in (0..ow_start).chain(owb_end..out_width) {
@@ -400,14 +342,14 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
                         // Load a full vector from the weights. This is guaranteed to be in bounds
                         // as long as `oc <= out_channels - simd_lanes` and out channels are last.
                         // We need to ensure the weights are reshaped appropriately.
-                        let f0 = simd.vload_unaligned(&weights[[ic, kh, kw, oc]]);
+                        let f0 = vload_unaligned(&weights[[ic, kh, kw, oc]]);
 
                         // The loop bounds ensure `ic`, `ih` and `iw` are always in bounds, but the
                         // compiler can't prove this. We can't use `as_slice` with fixed bounds
                         // because we want to support arbitrary input layouts. So an unchecked load
                         // is used.
-                        let i0 = simd.splat(*x.uget([ic_off + ic, ih, iw]));
-                        acc = E::vmuladd(simd, i0, f0, acc);
+                        let i0 = x.uget([ic_off + ic, ih, iw]).splat::<S>();
+                        acc = i0.mul_add(f0, acc);
                     }
                 }
             }
@@ -415,7 +357,7 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
             // Store a full vector from the output. This is guaranteed to be in bounds
             // as long as `oc <= out_channels - simd_lanes` and oc stride is 1. We create `out` with
             // channels last, so this always holds.
-            simd.vstore_unaligned(&mut out[[oh, ow, oc]], acc);
+            vstore_unaligned(&mut out[[oh, ow, oc]], acc);
         }
     }
 }
@@ -431,11 +373,10 @@ macro_rules! inner_with_register_blocking_size {
         #[allow(clippy::erasing_op, clippy::identity_op, clippy::too_many_arguments)]
         #[inline(always)]
         unsafe fn conv2d_inner_nopad<S: Simd, E: VMulAdd>(
-            simd: S,
             x: &ArrayView3<E>,
             weights: &ArrayView4<E>,
             out: &mut ArrayViewMut2<E>,
-            bias: E::Vector<S>,
+            bias: Vector<S, E>,
             oh: usize,
             ow: usize,
             oc: usize,
@@ -463,7 +404,7 @@ macro_rules! inner_with_register_blocking_size {
                         // Load a full vector from the weights. This is guaranteed to be in bounds
                         // as long as `oc <= out_channels - simd_lanes` and out channels are last.
                         // We need to ensure the weights are reshaped appropriately.
-                        let f0 = simd.vload_unaligned(&weights[[ic, kh, kw, oc]]);
+                        let f0 = vload_unaligned(&weights[[ic, kh, kw, oc]]);
                         let iw = ow * stride_w + kw * dilate_w - pad_w;
 
                         seq!(N in 0..$rb {
@@ -471,10 +412,10 @@ macro_rules! inner_with_register_blocking_size {
                             // compiler can't prove this. We can't use `as_slice` with fixed bounds
                             // because we want to support arbitrary input layouts. So an unchecked load
                             // is used.
-                            let i~N = simd.splat(*x.uget([ic + ic_off, ih, iw + N * stride_w]));
+                            let i~N = x.uget([ic + ic_off, ih, iw + N * stride_w]).splat::<S>();
                         });
                         seq!(N in 0..$rb {
-                            acc~N = E::vmuladd(simd, i~N, f0, acc~N);
+                            acc~N = i~N.mul_add(f0, acc~N);
                         });
                     }
                 }
@@ -484,7 +425,7 @@ macro_rules! inner_with_register_blocking_size {
                 // Store a full vector from the output. This is guaranteed to be in bounds
                 // as long as `oc <= out_channels - simd_lanes` and oc stride is 1. We create `out` with
                 // channels last, so this always holds.
-                simd.vstore_unaligned(&mut out[[ow + N, oc]], acc~N);
+                vstore_unaligned(&mut out[[ow + N, oc]], acc~N);
             });
         }
 
@@ -497,11 +438,10 @@ macro_rules! inner_with_register_blocking_size {
         #[allow(clippy::erasing_op, clippy::identity_op, clippy::too_many_arguments)]
         #[inline(always)]
         unsafe fn conv2d_inner_nopad_nostride<S: Simd, E: VMulAdd>(
-            simd: S,
             x: &ArrayView3<E>,
             weights: &ArrayView4<E>,
             out: &mut ArrayViewMut2<E>,
-            bias: E::Vector<S>,
+            bias: Vector<S, E>,
             oh: usize,
             ow: usize,
             oc: usize,
@@ -525,7 +465,7 @@ macro_rules! inner_with_register_blocking_size {
                         // Load a full vector from the weights. This is guaranteed to be in bounds
                         // as long as `oc <= out_channels - simd_lanes` and out channels are last.
                         // We need to ensure the weights are reshaped appropriately.
-                        let f0 = simd.vload_unaligned(&weights[[ic, kh, kw, oc]]);
+                        let f0 = vload_unaligned(&weights[[ic, kh, kw, oc]]);
                         let iw = ow + kw - pad_w;
 
                         seq!(N in 0..$rb {
@@ -533,10 +473,10 @@ macro_rules! inner_with_register_blocking_size {
                             // compiler can't prove this. We can't use `as_slice` with fixed bounds
                             // because we want to support arbitrary input layouts. So an unchecked load
                             // is used.
-                            let i~N = simd.splat(*x.uget([ic + ic_off, ih, iw + N]));
+                            let i~N = x.uget([ic + ic_off, ih, iw + N]).splat::<S>();
                         });
                         seq!(N in 0..$rb {
-                            acc~N = E::vmuladd(simd, i~N, f0, acc~N);
+                            acc~N = i~N.mul_add(f0, acc~N);
                         });
                     }
                 }
@@ -546,7 +486,7 @@ macro_rules! inner_with_register_blocking_size {
                 // Store a full vector from the output. This is guaranteed to be in bounds
                 // as long as `oc <= out_channels - simd_lanes` and oc stride is 1. We create `out` with
                 // channels last, so this always holds.
-                simd.vstore_unaligned(&mut out[[ow + N, oc]], acc~N);
+                vstore_unaligned(&mut out[[ow + N, oc]], acc~N);
             });
         }
     };

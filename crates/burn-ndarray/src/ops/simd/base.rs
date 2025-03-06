@@ -1,7 +1,6 @@
 use core::marker::PhantomData;
 
-use macerator::Vectorizable;
-use pulp::{Arch, Simd};
+use macerator::{Arch, Scalar, Simd};
 
 /// Whether SIMD instructions are worth using
 #[cfg(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))]
@@ -15,25 +14,25 @@ pub fn should_use_simd(_len: usize) -> bool {
     false
 }
 
-pub(crate) fn lanes<E: Vectorizable>() -> usize {
+pub(crate) fn lanes<E: Scalar>() -> usize {
     #[allow(non_camel_case_types)]
     struct lanes<__T0>(__T0);
 
-    impl<E: Vectorizable> ::pulp::WithSimd for lanes<PhantomData<E>> {
+    impl<E: Scalar> ::macerator::WithSimd for lanes<PhantomData<E>> {
         type Output = usize;
         #[inline(always)]
-        fn with_simd<__S: ::pulp::Simd>(self, __simd: __S) -> <Self as ::pulp::WithSimd>::Output {
+        fn with_simd<__S: ::macerator::Simd>(self) -> <Self as ::macerator::WithSimd>::Output {
             let Self(__ty) = self;
             #[allow(unused_unsafe)]
             unsafe {
-                lanes_simd::<__S, E>(__simd, __ty)
+                lanes_simd::<__S, E>(__ty)
             }
         }
     }
     (Arch::new()).dispatch(lanes(PhantomData::<E>))
 }
 
-fn lanes_simd<S: Simd, E: Vectorizable>(_simd: S, _ty: PhantomData<E>) -> usize {
+fn lanes_simd<S: Simd, E: Scalar>(_ty: PhantomData<E>) -> usize {
     E::lanes::<S>()
 }
 

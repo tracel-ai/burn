@@ -2,8 +2,7 @@ use std::{fmt::Debug, ptr::null_mut};
 
 use burn_tensor::Shape;
 use bytemuck::{cast_slice, cast_slice_mut, Zeroable};
-use macerator::VOrd;
-use pulp::Simd;
+use macerator::{Simd, VOrd, Vector};
 
 use crate::{BorderType, Point, Size};
 
@@ -26,11 +25,11 @@ pub enum Filter<T: VOrd, Op: MorphOperator<T> + VecMorphOperator<T>> {
 
 pub struct FilterEngine<S: Simd, T: VOrd, Op: MorphOperator<T> + VecMorphOperator<T>> {
     /// Vector aligned ring buffer to serve as intermediate, since image isn't always aligned
-    ring_buf: Vec<T::Vector<S>>,
+    ring_buf: Vec<Vector<S, T>>,
     /// Vector aligned row buffer to serve as intermediate, since image isn't always aligned
-    src_row: Vec<T::Vector<S>>,
+    src_row: Vec<Vector<S, T>>,
     const_border_value: Vec<T>,
-    const_border_row: Vec<T::Vector<S>>,
+    const_border_row: Vec<Vector<S, T>>,
     border_table: Vec<usize>,
     /// Pointers to each row offset in the ring buffer
     rows: Vec<*const T>,
@@ -124,13 +123,12 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
         }
     }
 
-    pub fn apply(&mut self, simd: S, tensor: &mut [T], src_shape: Shape) {
+    pub fn apply(&mut self, tensor: &mut [T], src_shape: Shape) {
         let [_, w, ch] = src_shape.dims();
         let src_step = w * ch;
-        self.start(simd, src_shape);
+        self.start(src_shape);
         let y = self.start_y;
         self.proceed(
-            simd,
             &mut tensor[y * src_step..],
             src_step,
             self.end_y - self.start_y,
@@ -138,7 +136,7 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
         );
     }
 
-    pub fn start(&mut self, simd: S, shape: Shape) -> usize {
+    pub fn start(&mut self, shape: Shape) -> usize {
         let [height, width, ch] = shape.dims();
 
         let max_buf_rows = (self.ksize.height + 3)
@@ -177,19 +175,19 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
                 }
 
                 if let Filter::Separable { row_filter, .. } = &self.filter {
-                    row_filter.apply(simd, cast_slice(&self.src_row), dst, self.max_width, ch);
+                    row_filter.apply::<S>(cast_slice(&self.src_row), dst, self.max_width, ch);
                 }
             }
 
             let max_buf_step =
-                (self.max_width + k_offs).next_multiple_of(align_of::<T::Vector<S>>()) * ch;
+                (self.max_width + k_offs).next_multiple_of(align_of::<Vector<S, T>>()) * ch;
 
             self.resize_ring_buf(max_buf_step * self.rows.len());
         }
 
         let const_val = &self.const_border_value;
 
-        self.buf_step = (width + k_offs).next_multiple_of(align_of::<T::Vector<S>>()) * ch;
+        self.buf_step = (width + k_offs).next_multiple_of(align_of::<Vector<S, T>>()) * ch;
 
         self.dx1 = self.anchor.x;
         self.dx2 = self.ksize.width - self.anchor.x - 1;
@@ -244,7 +242,7 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
     #[allow(clippy::too_many_arguments)]
     pub fn proceed(
         &mut self,
-        simd: S,
+
         src: &mut [T],
         src_step: usize,
         mut count: usize,
@@ -312,7 +310,7 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
                 }
 
                 if let Filter::Separable { row_filter, .. } = &self.filter {
-                    row_filter.apply(simd, row, brow, self.width, ch);
+                    row_filter.apply::<S>(row, brow, self.width, ch);
                 }
 
                 dcount -= 1;
@@ -344,23 +342,12 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
             }
             i -= kheight - 1;
             match &mut self.filter {
-                Filter::Separable { col_filter, .. } => col_filter.apply(
-                    simd,
-                    brows,
-                    &mut src[dst_off..],
-                    src_step,
-                    i,
-                    self.width * ch,
-                ),
-                Filter::Fallback(filter) => filter.apply(
-                    simd,
-                    brows,
-                    &mut src[dst_off..],
-                    src_step,
-                    i,
-                    self.width,
-                    ch,
-                ),
+                Filter::Separable { col_filter, .. } => {
+                    col_filter.apply::<S>(brows, &mut src[dst_off..], src_step, i, self.width * ch)
+                }
+                Filter::Fallback(filter) => {
+                    filter.apply::<S>(brows, &mut src[dst_off..], src_step, i, self.width, ch)
+                }
             }
 
             dst_off += src_step * i;

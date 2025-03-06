@@ -30,8 +30,8 @@ use crate::element::NdArrayElement;
 use crate::ops::simd::{
     binary::try_binary_simd,
     binary_elemwise::{
-        try_binary_scalar_simd, VecAdd, VecBitAnd, VecBitOr, VecBitXor, VecClamp, VecDiv, VecEq,
-        VecMax, VecMin, VecMul, VecSub,
+        try_binary_scalar_simd, VecAdd, VecBitAnd, VecBitOr, VecBitXor, VecClamp, VecDiv, VecMax,
+        VecMin, VecMul, VecSub,
     },
     unary::{try_unary_simd, RecipVec, VecAbs, VecBitNot},
 };
@@ -894,12 +894,6 @@ pub struct NdArrayBoolOps;
 // produce invalid values.
 impl NdArrayBoolOps {
     pub(crate) fn equal(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
-        #[cfg(feature = "simd")]
-        let (lhs, rhs) = match try_binary_simd::<bool, bool, u8, u8, VecEq>(lhs, rhs) {
-            Ok(out) => return out,
-            Err(args) => args,
-        };
-
         let output = Zip::from(&lhs.array)
             .and(&rhs.array)
             .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))

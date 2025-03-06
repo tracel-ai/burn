@@ -2,89 +2,69 @@ use core::{marker::PhantomData, slice};
 
 use burn_tensor::{Element, TensorMetadata};
 use macerator::{
-    SimdExt, VAdd, VBitAnd, VBitOr, VBitXor, VDiv, VEq, VMul, VOrd, VSub, Vectorizable,
+    vload_unaligned, vstore_unaligned, Scalar, Simd, VAdd, VBitAnd, VBitOr, VBitXor, VDiv, VMul,
+    VOrd, VSub, Vector,
 };
 use ndarray::ArrayD;
-use pulp::{cast, Arch, Simd};
 use seq_macro::seq;
 
 use crate::{NdArrayElement, NdArrayTensor};
 
 use super::{
     binary_elemwise::{
-        VecAdd, VecBitAnd, VecBitOr, VecBitXor, VecDiv, VecEq, VecMax, VecMin, VecMul, VecSub,
+        VecAdd, VecBitAnd, VecBitOr, VecBitXor, VecDiv, VecMax, VecMin, VecMul, VecSub,
     },
     should_use_simd, MinMax,
 };
 
-pub trait SimdBinop<T: Vectorizable, Out: Vectorizable> {
-    fn apply_vec<S: Simd>(simd: S, lhs: T::Vector<S>, rhs: T::Vector<S>) -> Out::Vector<S>;
+pub trait SimdBinop<T: Scalar, Out: Scalar> {
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Vector<S, Out>;
     fn apply(lhs: T, rhs: T) -> Out;
 }
 
 impl<T: VAdd> SimdBinop<T, T> for VecAdd {
-    fn apply_vec<S: Simd>(
-        simd: S,
-        lhs: <T as Vectorizable>::Vector<S>,
-        rhs: <T as Vectorizable>::Vector<S>,
-    ) -> <T as Vectorizable>::Vector<S> {
-        T::vadd(simd, lhs, rhs)
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Vector<S, T> {
+        lhs + rhs
     }
 
     fn apply(lhs: T, rhs: T) -> T {
-        lhs.add(rhs)
+        lhs + rhs
     }
 }
 
 impl<T: VDiv> SimdBinop<T, T> for VecDiv {
-    fn apply_vec<S: Simd>(
-        simd: S,
-        lhs: <T as Vectorizable>::Vector<S>,
-        rhs: <T as Vectorizable>::Vector<S>,
-    ) -> <T as Vectorizable>::Vector<S> {
-        T::vdiv(simd, lhs, rhs)
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Vector<S, T> {
+        lhs / rhs
     }
 
     fn apply(lhs: T, rhs: T) -> T {
-        lhs.div(rhs)
+        lhs / rhs
     }
 }
 
 impl<T: VMul> SimdBinop<T, T> for VecMul {
-    fn apply_vec<S: Simd>(
-        simd: S,
-        lhs: <T as Vectorizable>::Vector<S>,
-        rhs: <T as Vectorizable>::Vector<S>,
-    ) -> <T as Vectorizable>::Vector<S> {
-        T::vmul(simd, lhs, rhs)
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Vector<S, T> {
+        lhs * rhs
     }
 
     fn apply(lhs: T, rhs: T) -> T {
-        lhs.mul(rhs)
+        lhs * rhs
     }
 }
 
 impl<T: VSub> SimdBinop<T, T> for VecSub {
-    fn apply_vec<S: Simd>(
-        simd: S,
-        lhs: <T as Vectorizable>::Vector<S>,
-        rhs: <T as Vectorizable>::Vector<S>,
-    ) -> <T as Vectorizable>::Vector<S> {
-        T::vsub(simd, lhs, rhs)
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Vector<S, T> {
+        lhs - rhs
     }
 
     fn apply(lhs: T, rhs: T) -> T {
-        lhs.sub(rhs)
+        lhs - rhs
     }
 }
 
 impl<T: VOrd + MinMax> SimdBinop<T, T> for VecMin {
-    fn apply_vec<S: Simd>(
-        simd: S,
-        lhs: <T as Vectorizable>::Vector<S>,
-        rhs: <T as Vectorizable>::Vector<S>,
-    ) -> <T as Vectorizable>::Vector<S> {
-        T::vmin(simd, lhs, rhs)
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Vector<S, T> {
+        lhs.min(rhs)
     }
 
     fn apply(lhs: T, rhs: T) -> T {
@@ -93,12 +73,8 @@ impl<T: VOrd + MinMax> SimdBinop<T, T> for VecMin {
 }
 
 impl<T: VOrd + MinMax> SimdBinop<T, T> for VecMax {
-    fn apply_vec<S: Simd>(
-        simd: S,
-        lhs: <T as Vectorizable>::Vector<S>,
-        rhs: <T as Vectorizable>::Vector<S>,
-    ) -> <T as Vectorizable>::Vector<S> {
-        T::vmax(simd, lhs, rhs)
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Vector<S, T> {
+        lhs.max(rhs)
     }
 
     fn apply(lhs: T, rhs: T) -> T {
@@ -107,12 +83,8 @@ impl<T: VOrd + MinMax> SimdBinop<T, T> for VecMax {
 }
 
 impl<T: VBitAnd> SimdBinop<T, T> for VecBitAnd {
-    fn apply_vec<S: Simd>(
-        simd: S,
-        lhs: <T as Vectorizable>::Vector<S>,
-        rhs: <T as Vectorizable>::Vector<S>,
-    ) -> <T as Vectorizable>::Vector<S> {
-        T::vbitand(simd, lhs, rhs)
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Vector<S, T> {
+        lhs & rhs
     }
 
     fn apply(lhs: T, rhs: T) -> T {
@@ -121,12 +93,8 @@ impl<T: VBitAnd> SimdBinop<T, T> for VecBitAnd {
 }
 
 impl<T: VBitOr> SimdBinop<T, T> for VecBitOr {
-    fn apply_vec<S: Simd>(
-        simd: S,
-        lhs: <T as Vectorizable>::Vector<S>,
-        rhs: <T as Vectorizable>::Vector<S>,
-    ) -> <T as Vectorizable>::Vector<S> {
-        T::vbitor(simd, lhs, rhs)
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Vector<S, T> {
+        lhs | rhs
     }
 
     fn apply(lhs: T, rhs: T) -> T {
@@ -135,12 +103,8 @@ impl<T: VBitOr> SimdBinop<T, T> for VecBitOr {
 }
 
 impl<T: VBitXor> SimdBinop<T, T> for VecBitXor {
-    fn apply_vec<S: Simd>(
-        simd: S,
-        lhs: <T as Vectorizable>::Vector<S>,
-        rhs: <T as Vectorizable>::Vector<S>,
-    ) -> <T as Vectorizable>::Vector<S> {
-        T::vbitxor(simd, lhs, rhs)
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Vector<S, T> {
+        lhs ^ rhs
     }
 
     fn apply(lhs: T, rhs: T) -> T {
@@ -148,29 +112,12 @@ impl<T: VBitXor> SimdBinop<T, T> for VecBitXor {
     }
 }
 
-impl SimdBinop<u8, u8> for VecEq {
-    fn apply_vec<S: Simd>(
-        simd: S,
-        lhs: <u8 as Vectorizable>::Vector<S>,
-        rhs: <u8 as Vectorizable>::Vector<S>,
-    ) -> <u8 as Vectorizable>::Vector<S> {
-        // Need to bitand the mask with `0b1`, since Rust uses `0` and `1` for bool but mask is `0` or `-1`
-        let mask = u8::veq(simd, lhs, rhs);
-        let true_ = simd.splat(1u8);
-        u8::vbitand(simd, cast(mask), true_)
-    }
-
-    fn apply(lhs: u8, rhs: u8) -> u8 {
-        (lhs == rhs) as u8
-    }
-}
-
 #[allow(clippy::result_large_err)]
 pub fn try_binary_simd<
     E: Element,
     EOut: Element,
-    T: NdArrayElement + Vectorizable,
-    Out: NdArrayElement + Vectorizable,
+    T: NdArrayElement + Scalar,
+    Out: NdArrayElement + Scalar,
     Op: SimdBinop<T, Out>,
 >(
     lhs: NdArrayTensor<E>,
@@ -196,8 +143,8 @@ pub fn try_binary_simd<
 }
 
 fn binary_simd_same<
-    T: NdArrayElement + Vectorizable,
-    Out: NdArrayElement + Vectorizable,
+    T: NdArrayElement + Scalar,
+    Out: NdArrayElement + Scalar,
     Op: SimdBinop<T, Out>,
 >(
     lhs: NdArrayTensor<T>,
@@ -231,19 +178,21 @@ fn binary_simd_same<
 }
 
 #[allow(clippy::erasing_op, clippy::identity_op)]
-#[pulp::with_simd(binary = Arch::new())]
-fn binary_simd_slice<
+#[macerator::with_simd]
+fn binary<
+    'a,
     S: Simd,
-    T: NdArrayElement + Vectorizable,
-    Out: NdArrayElement + Vectorizable,
+    T: NdArrayElement + Scalar,
+    Out: NdArrayElement + Scalar,
     Op: SimdBinop<T, Out>,
 >(
-    simd: S,
-    lhs: &[T],
-    rhs: &[T],
-    out: &mut [Out],
+    lhs: &'a [T],
+    rhs: &'a [T],
+    out: &'a mut [Out],
     _op: PhantomData<Op>,
-) {
+) where
+    'a: 'a,
+{
     let lanes = T::lanes::<S>();
     let mut chunks_lhs = lhs.chunks_exact(8 * lanes);
     let mut chunks_rhs = rhs.chunks_exact(8 * lanes);
@@ -256,14 +205,14 @@ fn binary_simd_slice<
         seq!(N in 0..8 {
             // Load one full vector from `lhs`.
             // SAFETY: Guaranteed to be in bounds because `len == 8 * lanes`
-            let lhs~N = unsafe { simd.vload_unaligned(&lhs[N * lanes]) };
+            let lhs~N = unsafe { vload_unaligned::<S, _>(&lhs[N * lanes]) };
             // Load one full vector from `rhs`.
             // SAFETY: Guaranteed to be in bounds because `len == 8 * lanes`
-            let rhs~N = unsafe { simd.vload_unaligned(&rhs[N * lanes]) };
-            let s~N = Op::apply_vec(simd, lhs~N, rhs~N);
+            let rhs~N = unsafe { vload_unaligned(&rhs[N * lanes]) };
+            let s~N = Op::apply_vec(lhs~N, rhs~N);
             // Store one full vector to `out`.
             // SAFETY: Guaranteed to be in bounds because `len == 8 * lanes`
-            unsafe { simd.vstore_unaligned(&mut out[N * lanes], s~N) };
+            unsafe { vstore_unaligned(&mut out[N * lanes], s~N) };
         });
     }
     let mut chunks_lhs = chunks_lhs.remainder().chunks_exact(lanes);
@@ -276,14 +225,14 @@ fn binary_simd_slice<
     {
         // Load one full vector from `lhs`.
         // SAFETY: Guaranteed to be in bounds because `len == lanes`
-        let lhs0 = unsafe { simd.vload_unaligned(lhs.as_ptr()) };
+        let lhs0 = unsafe { vload_unaligned::<S, _>(lhs.as_ptr()) };
         // Load one full vector from `rhs`.
         // SAFETY: Guaranteed to be in bounds because `len == lanes`
-        let rhs0 = unsafe { simd.vload_unaligned(rhs.as_ptr()) };
-        let s0 = Op::apply_vec(simd, lhs0, rhs0);
+        let rhs0 = unsafe { vload_unaligned(rhs.as_ptr()) };
+        let s0 = Op::apply_vec(lhs0, rhs0);
         // Store one full vector to `out`.
         // SAFETY: Guaranteed to be in bounds because `len == lanes`
-        unsafe { simd.vstore_unaligned(out.as_mut_ptr(), s0) };
+        unsafe { vstore_unaligned(out.as_mut_ptr(), s0) };
     }
 
     for ((lhs, rhs), out) in chunks_lhs
