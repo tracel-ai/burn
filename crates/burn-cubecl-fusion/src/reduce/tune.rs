@@ -94,9 +94,11 @@ fn tune_reduce_shared_plane<R: Runtime, BT: CubeElement>(
     let context = input.context();
 
     match context {
-        TuneContext::Original(context) => optimization.execute_fused_reduce::<BT>(context),
+        TuneContext::Original(context) => {
+            optimization.execute_fused_reduce_shared_plane::<BT>(context)
+        }
         TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fused_reduce::<BT>(&mut context_owned.as_context())
+            optimization.execute_fused_reduce_shared_plane::<BT>(&mut context_owned.as_context())
         }
     }
     .map_err(|e| format!("{e:?}"))
