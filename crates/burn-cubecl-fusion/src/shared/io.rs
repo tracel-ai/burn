@@ -363,12 +363,6 @@ pub fn global_line_size(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
 }
 
 #[cube]
-pub fn global_length(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
-    let tensor = global.tensors.index(pos);
-    u32::cast_from(tensor.tensor.len())
-}
-
-#[cube]
 pub fn global_rank(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
     let tensor = global.tensors.index(pos);
     tensor.tensor.rank()
@@ -395,8 +389,8 @@ pub fn ref_len(
 ) -> u32 {
     match comptime![config.ref_layout.clone()] {
         RefLayout::Concrete(arg) => match comptime![arg] {
-            Arg::Input(index, _, _) => global_length(inputs, index),
-            Arg::Output(index, _, _) => global_length(outputs, index),
+            Arg::Input(index, _, _) => global_len(inputs, index),
+            Arg::Output(index, _, _) => global_len(outputs, index),
             _ => panic!("Invalid concreate ref layout."),
         },
         RefLayout::Virtual(_) => num_elements(locals, config),
