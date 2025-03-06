@@ -126,6 +126,27 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
                         self.on_elemwise(operation);
                     }
                 };
+            } else if let OperationIr::NumericInt(_, op) = operation {
+                match op {
+                    NumericOperationIr::SumDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::Sum);
+                    }
+                    NumericOperationIr::MeanDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::Mean);
+                    }
+                    NumericOperationIr::ProdDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::Prod);
+                    }
+                    NumericOperationIr::ArgMax(op) => {
+                        self.on_reduce(op, ReduceInstruction::ArgMax);
+                    }
+                    NumericOperationIr::ArgMin(op) => {
+                        self.on_reduce(op, ReduceInstruction::ArgMin);
+                    }
+                    _ => {
+                        self.on_elemwise(operation);
+                    }
+                };
             } else {
                 self.on_elemwise(operation);
             }
