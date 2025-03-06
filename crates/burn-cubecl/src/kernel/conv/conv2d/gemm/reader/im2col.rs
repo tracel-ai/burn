@@ -1,9 +1,6 @@
-use cubecl::{
-    linalg::{matmul::components::Ident, tensor::VirtualTensor},
-    prelude::*,
-};
-
 use crate::kernel::conv::ConvGemmConfig;
+use cubecl::{linalg::matmul::components::Ident, prelude::*};
+use cubecl_std::tensor::r#virtual::VirtualTensor;
 
 #[derive(CubeType)]
 /// A view of a feature map tensor that starts reading data from a specified offset.

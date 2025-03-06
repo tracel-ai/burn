@@ -12,4 +12,6 @@ pub struct FuseSettings {
     pub output_shape_updates: bool,
     /// Enables the reuse of input buffers.
     pub inplace: bool,
+    /// Whether vectorization is enabled.
+    pub vectorization: bool,
 }

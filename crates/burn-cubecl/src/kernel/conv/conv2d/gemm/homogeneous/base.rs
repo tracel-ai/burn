@@ -1,27 +1,25 @@
 use config::HomogeneousConfig;
 use cubecl::{
-    linalg::{
-        matmul::{
-            components::{
-                global::{
-                    self,
-                    output_loader::Unloader,
-                    single_stage::{self, loader::SyncRhsLoader, CyclicCoalescedLoading},
-                    AccumulatorLoader, GlobalConfig, InputLoader, SyncInputLoader,
-                },
-                stage::{
-                    self,
-                    multi_buffer::{LhsReader, LhsReaderFamily, RhsReader, RhsReaderFamily},
-                    ContiguousTilingLayout, RowMajorTilingOrder, StageMatmulFamily,
-                },
-                Ident, InvalidConfigError, MatrixLayout,
+    linalg::matmul::{
+        components::{
+            global::{
+                self,
+                output_loader::Unloader,
+                single_stage::{self, loader::SyncRhsLoader, CyclicCoalescedLoading},
+                AccumulatorLoader, GlobalConfig, InputLoader, SyncInputLoader,
             },
-            kernels::matmul::AdvancedConfig,
+            stage::{
+                self,
+                multi_buffer::{LhsReader, LhsReaderFamily, RhsReader, RhsReaderFamily},
+                ContiguousTilingLayout, RowMajorTilingOrder, StageMatmulFamily,
+            },
+            Ident, InvalidConfigError, MatrixLayout,
         },
-        tensor::{ReadWrite, VirtualTensor},
+        kernels::matmul::AdvancedConfig,
     },
     prelude::*,
 };
+use cubecl_std::tensor::r#virtual::{ReadWrite, VirtualTensor};
 use std::marker::PhantomData;
 
 use crate::kernel::conv::{

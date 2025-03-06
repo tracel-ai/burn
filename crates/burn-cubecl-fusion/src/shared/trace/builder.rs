@@ -2,14 +2,14 @@ use super::super::{
     ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, ElemwisePrecision, LayoutInfo, UnaryElemwiseArgs},
     settings::FuseSettings,
 };
-use super::{FuseOnWriteTrace, RegisteredTensors, TensorView};
+use super::{FuseTrace, RegisteredTensors, TensorView};
 use burn_ir::{TensorId, TensorIr, TensorStatus};
 use burn_tensor::{DType, Element};
 use cubecl::prelude::Sequence;
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
-#[derive(Clone)]
-pub struct FuseOnWriteTraceBuilder {
+#[derive(Clone, Debug)]
+pub struct FuseTraceBuilder {
     locals: Locals,
     outputs: RegisteredTensors,
     settings: FuseSettings,
@@ -22,9 +22,10 @@ pub struct FuseOnWriteTraceBuilder {
     pub bool_precision: ElemwisePrecision,
     outputs_unhandled: Vec<Arg>,
     inputs_unhandled: Vec<TensorId>,
+    not_outputs: Vec<TensorId>,
 }
 
-impl FuseOnWriteTraceBuilder {
+impl FuseTraceBuilder {
     pub fn new(bool_precision: ElemwisePrecision, settings: FuseSettings) -> Self {
         Self {
             locals: Locals::default(),
@@ -39,6 +40,7 @@ impl FuseOnWriteTraceBuilder {
             bool_precision,
             outputs_unhandled: Vec::new(),
             inputs_unhandled: Vec::new(),
+            not_outputs: Vec::new(),
         }
     }
 
@@ -57,6 +59,10 @@ impl FuseOnWriteTraceBuilder {
         // one slot per scalar.
         let scalar = self.scalars.len() as u32;
         meta + inputs + outputs + scalar
+    }
+
+    pub fn not_output(&mut self, tensor: &TensorIr) {
+        self.not_outputs.push(tensor.id);
     }
 
     /// Register an output tensor that won't be automatically synced into global memory.
@@ -284,16 +290,19 @@ impl FuseOnWriteTraceBuilder {
         let mut shape = Sequence::new();
 
         let index = self.views.len();
-        self.views.push(TensorView::Reshape {
-            reshaped: output.id,
-            original: tensor.id,
-        });
+
         let rank = output.shape.len();
 
         for i in 0..output.shape.len() {
             let id = index * rank + i;
             shape.push(Arg::ScalarShape(id as u32));
         }
+
+        self.views.push(TensorView::Reshape {
+            reshaped: output.id,
+            original: tensor.id,
+            shape: shape.clone(),
+        });
 
         let input = Arg::InputReshaped {
             original: Box::new(original),
@@ -332,7 +341,7 @@ impl FuseOnWriteTraceBuilder {
     }
 
     /// Build into a trace.
-    pub fn build(&self, shape_ref: Vec<usize>) -> FuseOnWriteTrace {
+    pub fn build(&self, shape_ref: Vec<usize>) -> FuseTrace {
         let inputs = self.inputs.clone();
         let outputs = self.output_tensors();
         let ops = self.ops.clone();
@@ -359,7 +368,7 @@ impl FuseOnWriteTraceBuilder {
         let inputs_unhandled = self.inputs_unhandled.clone();
         let indexed = self.indexed.keys().cloned().collect::<BTreeSet<_>>();
 
-        FuseOnWriteTrace {
+        FuseTrace {
             outputs,
             inputs,
             settings,
@@ -570,7 +579,7 @@ impl FuseOnWriteTraceBuilder {
         for entry in local_tensor_ids_output {
             let is_read = local_tensor_ids_input.contains(&entry);
 
-            if !is_read {
+            if !is_read && !self.not_outputs.contains(&entry.0) {
                 let (tensor_id, precision) = entry;
                 let (tensor, _) = self.outputs.get(tensor_id).unwrap();
                 result.insert(precision, tensor.clone());

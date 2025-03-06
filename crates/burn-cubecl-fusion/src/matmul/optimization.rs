@@ -2,7 +2,10 @@ use std::any::TypeId;
 use std::sync::Arc;
 
 use crate::elemwise::optimization::ElemwiseRunner;
-use crate::on_write::ir::ElemwisePrecision;
+use crate::shared::ir::ElemwisePrecision;
+use crate::shared::ir::RefLayout;
+use crate::shared::trace::TraceError;
+use crate::shared::trace::Vectorization;
 use crate::CubeFusionHandle;
 
 use burn_fusion::stream::Context;
@@ -21,9 +24,9 @@ use cubecl::{client::ComputeClient, prelude::*};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
-use crate::on_write::{
+use crate::shared::{
     ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
-    trace::{FuseOnWriteTrace, TraceRunner},
+    trace::{FuseTrace, TraceRunner},
 };
 
 use super::args::FusedMatmulInputLaunch;
@@ -32,8 +35,8 @@ use super::tune::fused_matmul_autotune;
 
 /// Fuse matmul operation followed by elemwise operations into a single kernel.
 pub struct MatmulOptimization<R: Runtime> {
-    trace: FuseOnWriteTrace,
-    trace_fallback: FuseOnWriteTrace,
+    trace: FuseTrace,
+    trace_fallback: FuseTrace,
     pub(crate) client: ComputeClient<R::Server, R::Channel>,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
@@ -54,8 +57,8 @@ pub trait MatmulFallbackFn<R: Runtime>: Send + Sync {
 #[derive(Serialize, Deserialize, Debug)]
 /// State for the [matrix optimization](MatmulOptimizationState).
 pub struct MatmulOptimizationState {
-    trace: FuseOnWriteTrace,
-    trace_fallback: FuseOnWriteTrace,
+    trace: FuseTrace,
+    trace_fallback: FuseTrace,
     matmul_simple: FusedMatmul,
     matmul_double_buffering: FusedMatmul,
     matmul_specialized: FusedMatmul,
@@ -64,8 +67,8 @@ pub struct MatmulOptimizationState {
 
 impl<R: Runtime> MatmulOptimization<R> {
     pub fn new(
-        trace: FuseOnWriteTrace,
-        trace_fallback: FuseOnWriteTrace,
+        trace: FuseTrace,
+        trace_fallback: FuseTrace,
         client: ComputeClient<R::Server, R::Channel>,
         device: R::Device,
         len: usize,
@@ -147,7 +150,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     pub fn execute_simple_fused<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), FusedMatmulError> {
+    ) -> Result<(), TraceError<FusedMatmulError>> {
         self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
             &self.device,
@@ -159,7 +162,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     pub fn execute_specialized_fused<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), FusedMatmulError> {
+    ) -> Result<(), TraceError<FusedMatmulError>> {
         self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
             &self.device,
@@ -171,7 +174,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     pub fn execute_double_buffering_fused<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), FusedMatmulError> {
+    ) -> Result<(), TraceError<FusedMatmulError>> {
         self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
             &self.device,
@@ -246,6 +249,8 @@ impl From<MatmulLaunchError> for FusedMatmulError {
     }
 }
 
+impl<R: Runtime> Vectorization<R> for FusedMatmul {}
+
 impl<R: Runtime> TraceRunner<R> for FusedMatmul {
     type Error = FusedMatmulError;
 
@@ -290,8 +295,8 @@ impl FusedMatmul {
             MatrixLayout::HighlyPermuted => (true, false),
         };
 
-        let (lhs_make_contiguous, lhs_transposed) = check_layout(lhs_strides);
-        let (rhs_make_contiguous, rhs_transposed) = check_layout(rhs_strides);
+        let (lhs_make_contiguous, lhs_transposed) = check_layout(&lhs_strides);
+        let (rhs_make_contiguous, rhs_transposed) = check_layout(&rhs_strides);
 
         if lhs_make_contiguous || rhs_make_contiguous {
             return Err(FusedMatmulError::InvalidInput);
@@ -305,10 +310,13 @@ impl FusedMatmul {
 
         let lhs_line_size = inputs.line_size(&self.lhs);
         let rhs_line_size = inputs.line_size(&self.rhs);
-        let out_line_size = match config.ref_layout {
-            Arg::Input(..) => inputs.line_size(&config.ref_layout),
-            Arg::Output(..) => outputs.line_size(&config.ref_layout),
-            _ => panic!("Invalid ref layout"),
+        let out_line_size = match &config.ref_layout {
+            RefLayout::Concrete(arg) => match arg {
+                Arg::Input(..) => inputs.line_size(arg),
+                Arg::Output(..) => outputs.line_size(arg),
+                _ => panic!("Invalid ref layout"),
+            },
+            RefLayout::Virtual(_) => 1,
         };
 
         if out_line_size == 1 && (lhs_line_size > 1 || rhs_line_size > 1) {

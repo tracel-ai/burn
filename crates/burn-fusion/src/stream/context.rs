@@ -849,13 +849,11 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
                 value: local_elem(converter, &desc.value),
                 out: desc.out.to_relative(converter),
             }),
-            NumericOperationIr::MeanDim(desc) => {
-                NumericOperationIr::MeanDim(ScalarOpIr {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs, // Dim should stay the same.
-                    out: desc.out.to_relative(converter),
-                })
-            }
+            NumericOperationIr::MeanDim(desc) => NumericOperationIr::MeanDim(ReduceDimOpIr {
+                input: desc.input.to_relative(converter),
+                axis: desc.axis,
+                out: desc.out.to_relative(converter),
+            }),
             NumericOperationIr::Mean(desc) => NumericOperationIr::Mean(UnaryOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
@@ -865,23 +863,21 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::SumDim(desc) => {
-                NumericOperationIr::SumDim(ScalarOpIr {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs, // Dim should stay the same.
+                NumericOperationIr::SumDim(ReduceDimOpIr {
+                    input: desc.input.to_relative(converter),
                     out: desc.out.to_relative(converter),
+                    axis: desc.axis, // Axis should stay the same.
                 })
             }
             NumericOperationIr::Prod(desc) => NumericOperationIr::Prod(UnaryOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
-            NumericOperationIr::ProdDim(desc) => {
-                NumericOperationIr::ProdDim(ScalarOpIr {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs, // Dim should stay the same.
-                    out: desc.out.to_relative(converter),
-                })
-            }
+            NumericOperationIr::ProdDim(desc) => NumericOperationIr::ProdDim(ReduceDimOpIr {
+                input: desc.input.to_relative(converter),
+                axis: desc.axis,
+                out: desc.out.to_relative(converter),
+            }),
             NumericOperationIr::EqualElem(desc) => NumericOperationIr::EqualElem(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: local_elem(converter, &desc.rhs),
@@ -933,15 +929,15 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
                     out: desc.out.to_relative(converter),
                 })
             }
-            NumericOperationIr::ArgMax(desc) => NumericOperationIr::ArgMax(ScalarOpIr {
-                lhs: desc.lhs.to_relative(converter),
-                rhs: desc.rhs,
+            NumericOperationIr::ArgMax(desc) => NumericOperationIr::ArgMax(ReduceDimOpIr {
+                input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
+                axis: desc.axis, // Axis should stay the same.
             }),
-            NumericOperationIr::ArgMin(desc) => NumericOperationIr::ArgMin(ScalarOpIr {
-                lhs: desc.lhs.to_relative(converter),
-                rhs: desc.rhs,
+            NumericOperationIr::ArgMin(desc) => NumericOperationIr::ArgMin(ReduceDimOpIr {
+                input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
+                axis: desc.axis, // Axis should stay the same.
             }),
             NumericOperationIr::Max(desc) => NumericOperationIr::Max(UnaryOpIr {
                 input: desc.input.to_relative(converter),

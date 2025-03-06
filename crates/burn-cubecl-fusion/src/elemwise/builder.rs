@@ -2,7 +2,7 @@ use burn_fusion::OptimizationBuilder;
 use cubecl::Runtime;
 
 use crate::{
-    on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision, settings::FuseSettings},
+    shared::{builder::FuseBuilder, ir::ElemwisePrecision, settings::FuseSettings},
     CubeOptimization,
 };
 
@@ -10,7 +10,7 @@ use super::optimization::ElemwiseOptimization;
 
 /// Fused element wise operations that are normally memory bound.
 pub struct ElementWiseBuilder<R: Runtime> {
-    builder: FuseOnWriteBuilder,
+    builder: FuseBuilder,
     device: R::Device,
 }
 
@@ -21,13 +21,14 @@ impl<R: Runtime> ElementWiseBuilder<R> {
         let max_bindings = props.hardware_properties().max_bindings;
 
         Self {
-            builder: FuseOnWriteBuilder::new(
+            builder: FuseBuilder::new(
                 max_bindings,
                 bool_precision,
                 FuseSettings {
                     broadcast: true,
                     output_shape_updates: true,
-                    inplace: true,
+                    inplace: false,
+                    vectorization: true,
                 },
             ),
             device,
