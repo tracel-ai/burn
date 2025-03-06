@@ -276,7 +276,7 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             cube_dim: CubeDim::new_single(),
             line_mode,
             line_size: config_read.width as u32,
-            bound_checks: true,
+            bound_checks: false,
         }
         .generate_cube_dim(client, strategy.use_planes)
         .generate_cube_count::<R>(reduce_count, &strategy);

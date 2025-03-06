@@ -103,14 +103,14 @@ pub fn init_locals(
             #[unroll]
             #[allow(clippy::clone_on_copy)]
             for i in 0..config.rank {
-                let arg = comptime![shape.index(i.clone())];
-                let shape = read_scalar_shape(inputs, comptime![arg.clone()]);
                 let reverse = comptime![reverse_index(config.rank, comptime![i.clone()])];
+                let arg = comptime![shape.index(reverse.clone())];
+                let shape = read_scalar_shape(inputs, comptime![arg.clone()]);
 
-                ref_shape[i] = shape;
+                ref_shape[comptime![reverse.clone()]] = shape;
                 ref_strides[comptime![reverse.clone()]] = stride_curr;
 
-                stride_curr *= shape;
+                stride_curr *= ref_shape[comptime![reverse]];
             }
 
             LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), 1u32)

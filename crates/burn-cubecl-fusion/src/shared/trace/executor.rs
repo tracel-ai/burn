@@ -88,6 +88,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         }
         let reference = match plans.0.reference {
             ReferenceSelection::Found(reference) => RefLayout::Concrete(reference.layout),
+            ReferenceSelection::Virtual(shape) => RefLayout::Virtual(shape),
             ReferenceSelection::Searching | ReferenceSelection::NotFound => {
                 return Err(MultiExecutionError::new(
                     TraceError::ReferenceNotFound,
@@ -97,7 +98,6 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
                     plans.1.handle_outputs,
                 ))
             }
-            ReferenceSelection::Virtual(shape) => RefLayout::Virtual(shape),
         };
 
         let mut inputs = GlobalArgsLaunch::default();
