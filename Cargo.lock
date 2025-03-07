@@ -3896,9 +3896,9 @@ dependencies = [
 
 [[package]]
 name = "macerator"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74e53c1044d47d27550bd4ef990990d73b792445beeb994912a539a635247696"
+checksum = "dc728e7ce4932fdb2f5e692def0fa4f7a6dd04804e260b090657b2dc382f6385"
 dependencies = [
  "bytemuck",
  "half",
@@ -6108,9 +6108,9 @@ dependencies = [
 
 [[package]]
 name = "ring"
-version = "0.17.12"
+version = "0.17.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed9b823fa29b721a59671b41d6b06e66b29e0628e207e8b1c3ceeda701ec928d"
+checksum = "70ac5d832aa16abd7d1def883a8545280c20a60f523a370aa3a9617c2b8550ee"
 dependencies = [
  "cc",
  "cfg-if",
