@@ -69,7 +69,7 @@ represent the corresponding Burn Op.
 | [GatherElements][59]             | ✅             | ✅           |
 | [GatherND][60]                   | ❌             | ❌           |
 | [Gelu][61]                       | ✅             | ✅           |
-| [Gemm][62]                       | ❌             | ❌           |
+| [Gemm][62]                       | ✅             | 🟨           |
 | [GlobalAveragePool][63]          | ✅             | ✅           |
 | [GlobalLpPool][64]               | ❌             | ❌           |
 | [GlobalMaxPool][65]              | ❌             | ❌           |
@@ -200,6 +200,8 @@ represent the corresponding Burn Op.
 | [Where][191]                     | ✅             | ✅           |
 | [Xor][192]                       | ❌             | ❌           |
 | [Unsqueeze][193]                 | ✅             | ✅           |
+
+🟨 Supported via other operations.
 
 [1]: https://onnx.ai/onnx/operators/onnx__Abs.html "ONNX Abs"
 [2]: https://onnx.ai/onnx/operators/onnx__Acos.html "ONNX Acos"
