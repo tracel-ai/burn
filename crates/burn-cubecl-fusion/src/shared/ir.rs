@@ -195,20 +195,24 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
         }
     }
 
-    pub fn shape_ref(&self, ref_layout: &RefLayout) -> Vec<usize> {
+    pub fn shape_ref(&self, ref_layout: &RefLayout, rank: usize) -> Vec<usize> {
         match ref_layout {
             RefLayout::Concrete(arg) => self.shape(arg),
-            RefLayout::Virtual(shape) => {
-                let start = match shape.index(0) {
-                    Arg::ScalarShape(pos) => *pos as usize,
-                    _ => 0,
-                };
-                let end = start + shape.len() as usize;
-                self.reshapes.values[start..end]
-                    .iter()
-                    .map(|s| s.elem as usize)
-                    .collect()
-            }
+            RefLayout::Virtual(layout) => match layout {
+                VirtualLayout::SwapDims(original, dims) => {
+                    let mut shape = self.shape(original);
+                    shape.swap(dims.0 as usize, dims.1 as usize);
+                    shape
+                }
+                VirtualLayout::Reshaped(start) => {
+                    let start = *start as usize;
+                    let end = start + rank;
+                    self.reshapes.values[start..end]
+                        .iter()
+                        .map(|s| s.elem as usize)
+                        .collect()
+                }
+            },
         }
     }
 
@@ -224,11 +228,12 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
         }
     }
 
-    pub fn strides_ref(&self, ref_layout: &RefLayout) -> Vec<usize> {
+    pub fn strides_ref(&self, ref_layout: &RefLayout, rank: usize) -> Vec<usize> {
         match ref_layout {
             RefLayout::Concrete(arg) => self.strides(arg),
-            RefLayout::Virtual(..) => {
-                let shape = self.shape_ref(ref_layout);
+            // When not concrete, we operate on the contiguous layout.
+            _ => {
+                let shape = self.shape_ref(ref_layout, rank);
                 let mut strides = vec![0; shape.len()];
 
                 let mut current = 1;
@@ -429,9 +434,20 @@ pub struct ElemwiseConfig {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+/// A reference layout determines how a fuse execution will access elements in tensors.
+///
+/// It can either follow the same layout as a concrete tensor, or follow a virtual layout.
 pub enum RefLayout {
     Concrete(Arg),
-    Virtual(Sequence<Arg>),
+    Virtual(VirtualLayout),
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+/// A virtual layout is always contiguous and retrieve its shape from either a reshape tensor or a
+/// tensor with swap dimensions.
+pub enum VirtualLayout {
+    Reshaped(u32),
+    SwapDims(Arg, (u32, u32)),
 }
 
 impl Arg {

@@ -1,7 +1,7 @@
 use cubecl::reduce::args::ReduceArgs;
 use cubecl::{prelude::*, reduce::args::ReduceDType};
 
-use crate::shared::io::{ref_buffer_len, ref_len, ref_rank, ref_shape, ref_stride};
+use crate::shared::io::{ref_buffer_len, ref_len, ref_shape, ref_stride};
 use crate::shared::ir::{
     Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand,
 };
@@ -141,19 +141,11 @@ impl ReduceArgs for FusedReduceArgs {
     }
 
     fn rank_input<P: ReduceDType>(state: &Self::State<P>) -> u32 {
-        ref_rank(
-            unsafe { &(*state.inputs) },
-            unsafe { &(*state.outputs) },
-            &state.config_on_read,
-        )
+        state.config_on_read.rank.runtime()
     }
 
     fn rank_output<P: ReduceDType>(state: &Self::State<P>) -> u32 {
-        ref_rank(
-            unsafe { &(*state.inputs) },
-            unsafe { &(*state.outputs) },
-            &state.config_on_write,
-        )
+        state.config_on_write.rank.runtime()
     }
 
     fn shape_input<P: ReduceDType>(state: &Self::State<P>, dim: u32) -> u32 {

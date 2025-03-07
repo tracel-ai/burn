@@ -23,6 +23,7 @@ pub struct FuseTraceBuilder {
     outputs_unhandled: Vec<Arg>,
     inputs_unhandled: Vec<TensorId>,
     not_outputs: Vec<TensorId>,
+    num_reshaped: usize,
 }
 
 impl FuseTraceBuilder {
@@ -41,6 +42,7 @@ impl FuseTraceBuilder {
             outputs_unhandled: Vec::new(),
             inputs_unhandled: Vec::new(),
             not_outputs: Vec::new(),
+            num_reshaped: 0,
         }
     }
 
@@ -227,6 +229,8 @@ impl FuseTraceBuilder {
         let out = self.output(output)?;
         let original = Arg::Input(input_index, precision_input, LayoutInfo::Unknown);
 
+        let broadcasted = output.shape[output.shape.len() - 1] == 0;
+
         self.views.push(TensorView::SwapDims {
             swapped: output.id,
             original: tensor.id,
@@ -236,7 +240,7 @@ impl FuseTraceBuilder {
         let input = Arg::InputSwapDims {
             original: Box::new(original),
             dims,
-            broadcasted: output.shape[output.shape.len() - 1] == 0,
+            broadcasted,
         };
 
         let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
@@ -289,7 +293,8 @@ impl FuseTraceBuilder {
 
         let mut shape = Sequence::new();
 
-        let index = self.views.len();
+        let index = self.num_reshaped;
+        self.num_reshaped += 1;
 
         let rank = output.shape.len();
 
@@ -301,7 +306,8 @@ impl FuseTraceBuilder {
         self.views.push(TensorView::Reshape {
             reshaped: output.id,
             original: tensor.id,
-            shape: shape.clone(),
+            reshape_pos: index as u32,
+            shape_relative: output.shape.clone(),
         });
 
         let input = Arg::InputReshaped {

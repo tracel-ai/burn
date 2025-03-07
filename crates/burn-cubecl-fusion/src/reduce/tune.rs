@@ -32,6 +32,7 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
 
     let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
         .with_tunable(tune_reduce::<R, BT>)
+        .with_tunable(tune_reduce_plane::<R, BT>)
         .with_tunable(tune_reduce_shared_plane::<R, BT>)
         .with_tunable(tune_fallback::<R, BT>);
 
@@ -82,6 +83,21 @@ fn tune_reduce<R: Runtime, BT: CubeElement>(
         TuneContext::Original(context) => optimization.execute_fused_reduce::<BT>(context),
         TuneContext::Fork(mut context_owned) => {
             optimization.execute_fused_reduce::<BT>(&mut context_owned.as_context())
+        }
+    }
+    .map_err(|e| format!("{e:?}"))
+}
+
+fn tune_reduce_plane<R: Runtime, BT: CubeElement>(
+    input: TuneInput<R, ReduceOptimization<R>>,
+) -> Result<(), String> {
+    let optimization = input.optimization();
+    let context = input.context();
+
+    match context {
+        TuneContext::Original(context) => optimization.execute_fused_reduce_plane::<BT>(context),
+        TuneContext::Fork(mut context_owned) => {
+            optimization.execute_fused_reduce_plane::<BT>(&mut context_owned.as_context())
         }
     }
     .map_err(|e| format!("{e:?}"))

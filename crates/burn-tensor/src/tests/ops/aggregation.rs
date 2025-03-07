@@ -248,6 +248,19 @@ mod tests {
     }
 
     #[test]
+    fn test_sum_dim_1_swap_dims_maybe_fused() {
+        let tensor = TestTensorInt::arange(0..9, &Default::default()).float();
+        let tensor = tensor.reshape([3, 3]);
+        TestBackend::sync(&tensor.device());
+
+        let output = (tensor.swap_dims(0, 1) + 2);
+        let output = output.sum_dim(1);
+        let expected = TensorData::from([[15.0], [18.0], [21.0]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
     fn test_sum_dim_2_reshape_maybe_fused_broadcast() {
         let tensor = TestTensorInt::arange(0..9, &Default::default()).float();
         TestBackend::sync(&tensor.device());
