@@ -317,6 +317,7 @@ impl FusedMatmul {
                 _ => panic!("Invalid ref layout"),
             },
             RefLayout::Reshaped(_) => 1,
+            RefLayout::SwapDims(..) => 1,
         };
 
         if out_line_size == 1 && (lhs_line_size > 1 || rhs_line_size > 1) {

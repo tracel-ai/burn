@@ -89,6 +89,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         let reference = match plans.0.reference {
             ReferenceSelection::Found(reference) => RefLayout::Concrete(reference.layout),
             ReferenceSelection::Reshaped(idx) => RefLayout::Reshaped(idx),
+            ReferenceSelection::SwapDims(original, dims) => RefLayout::SwapDims(original, dims),
             ReferenceSelection::Searching | ReferenceSelection::NotFound => {
                 return Err(MultiExecutionError::new(
                     TraceError::ReferenceNotFound,
@@ -135,6 +136,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
 
         let reference = match plans.1.reference {
             ReferenceSelection::Found(reference) => RefLayout::Concrete(reference.layout),
+            ReferenceSelection::SwapDims(original, dims) => RefLayout::SwapDims(original, dims),
             ReferenceSelection::Searching | ReferenceSelection::NotFound => {
                 return Err(MultiExecutionError::new(
                     TraceError::ReferenceNotFound,
@@ -218,6 +220,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         let reference = match plan.reference {
             ReferenceSelection::Found(reference) => RefLayout::Concrete(reference.layout),
             ReferenceSelection::Reshaped(shape) => RefLayout::Reshaped(shape),
+            ReferenceSelection::SwapDims(original, dims) => RefLayout::SwapDims(original, dims),
             ReferenceSelection::NotFound | ReferenceSelection::Searching => {
                 return Err(ExecutionError::new(
                     TraceError::ReferenceNotFound,

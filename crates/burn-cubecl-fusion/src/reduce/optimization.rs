@@ -266,7 +266,7 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             .map(|(i, s)| if i == self.axis { 1 } else { *s as u32 })
             .product();
 
-        let line_mode = match self.axis == shape.len() - 1 {
+        let line_mode = match self.axis == config_read.rank as usize - 1 {
             true => LineMode::Parallel, // axis de vectorization == axis de reduce.
             false => LineMode::Perpendicular,
         };
@@ -276,7 +276,7 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             cube_dim: CubeDim::new_single(),
             line_mode,
             line_size: config_read.width as u32,
-            bound_checks: false,
+            bound_checks: true,
         }
         .generate_cube_dim(client, strategy.use_planes)
         .generate_cube_count::<R>(reduce_count, &strategy);
@@ -290,6 +290,7 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             }
         }
 
+        println!("[reduce({})] {strategy:?} => {config_reduce:?}", self.axis);
         let kwargs = ReduceKwArgs {
             client,
             inputs,

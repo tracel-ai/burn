@@ -81,6 +81,7 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
                 _ => panic!("Invalid concreate ref layout"),
             },
             RefLayout::Reshaped(_) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
+            RefLayout::SwapDims(..) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
         };
         let total_elem = shape.iter().product::<usize>() / config.width as usize;
         let cube_dim = CubeDim::default();

@@ -189,23 +189,20 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     ///
     /// If the argument doesn't have an handle.
     pub fn shape(&self, arg: &Arg) -> Vec<usize> {
-        let (arg, swap_dims) = self.resolve_arg(arg);
-
-        let mut shape = match arg {
+        match self.resolve_arg(arg) {
             TensorArg::Handle { handle, .. } => handle.shape.to_vec(),
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
-        };
-
-        if let Some(dims) = swap_dims {
-            shape.swap(dims.0 as usize, dims.1 as usize);
         }
-
-        shape
     }
 
     pub fn shape_ref(&self, ref_layout: &RefLayout, rank: usize) -> Vec<usize> {
         match ref_layout {
             RefLayout::Concrete(arg) => self.shape(arg),
+            RefLayout::SwapDims(original, dims) => {
+                let mut shape = self.shape(original);
+                shape.swap(dims.0 as usize, dims.1 as usize);
+                shape
+            }
             RefLayout::Reshaped(start) => {
                 let start = *start as usize;
                 let end = start + rank;
@@ -223,24 +220,17 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     ///
     /// If the argument doesn't have an handle.
     pub fn strides(&self, arg: &Arg) -> Vec<usize> {
-        let (arg, swap_dims) = self.resolve_arg(arg);
-
-        let mut strides = match arg {
+        match self.resolve_arg(arg) {
             TensorArg::Handle { handle, .. } => handle.strides.to_vec(),
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
-        };
-
-        if let Some(dims) = swap_dims {
-            strides.swap(dims.0 as usize, dims.1 as usize);
         }
-
-        strides
     }
 
     pub fn strides_ref(&self, ref_layout: &RefLayout, rank: usize) -> Vec<usize> {
         match ref_layout {
             RefLayout::Concrete(arg) => self.strides(arg),
-            RefLayout::Reshaped(..) => {
+            // When not concrete, we operate on the contiguous layout.
+            _ => {
                 let shape = self.shape_ref(ref_layout, rank);
                 let mut strides = vec![0; shape.len()];
 
@@ -261,9 +251,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     ///
     /// If the argument doesn't have an handle.
     pub fn line_size(&self, arg: &Arg) -> u8 {
-        let (arg, _) = self.resolve_arg(arg);
-
-        match arg {
+        match self.resolve_arg(arg) {
             TensorArg::Handle {
                 vectorization_factor,
                 ..
@@ -277,15 +265,10 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument isn't a global input or output tensor.
-    pub fn resolve_arg(&self, arg: &Arg) -> (&TensorArg<'_, R>, Option<(u32, u32)>) {
+    pub fn resolve_arg(&self, arg: &Arg) -> &TensorArg<'_, R> {
         match arg {
-            Arg::Input(pos, _, _) => (&self.tensors.values[*pos as usize].tensor, None),
-            Arg::Output(pos, _, _) => (&self.tensors.values[*pos as usize].tensor, None),
-            Arg::InputSwapDims { original, dims, .. } => match original.as_ref() {
-                Arg::Input(pos, ..) => (&self.tensors.values[*pos as usize].tensor, Some(*dims)),
-                Arg::Output(pos, ..) => (&self.tensors.values[*pos as usize].tensor, Some(*dims)),
-                _ => panic!("Arg not found"),
-            },
+            Arg::Input(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
+            Arg::Output(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
             _ => panic!("Arg not found"),
         }
     }
@@ -452,6 +435,7 @@ pub struct ElemwiseConfig {
 pub enum RefLayout {
     Concrete(Arg),
     Reshaped(u32),
+    SwapDims(Arg, (u32, u32)),
 }
 
 impl Arg {

@@ -45,6 +45,7 @@ pub enum ReferenceSelection {
     NotFound,
     Found(Reference),
     Reshaped(u32),
+    SwapDims(Arg, (u32, u32)),
 }
 
 impl ReferenceSelection {

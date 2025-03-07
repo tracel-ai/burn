@@ -391,14 +391,10 @@ pub fn ref_len(
         RefLayout::Concrete(arg) => match comptime![arg] {
             Arg::Input(index, _, _) => global_len(inputs, index),
             Arg::Output(index, _, _) => global_len(outputs, index),
-            Arg::InputSwapDims { original, .. } => match comptime![original.as_ref().clone()] {
-                Arg::Input(index, _, _) => global_len(inputs, index),
-                Arg::Output(index, _, _) => global_len(outputs, index),
-                _ => panic!("Invalid concrete ref layout."),
-            },
             _ => panic!("Invalid concrete ref layout."),
         },
-        RefLayout::Reshaped(_) => num_elements(locals, config),
+        RefLayout::Reshaped(..) => num_elements(locals, config),
+        RefLayout::SwapDims(..) => num_elements(locals, config),
     }
 }
 
@@ -413,14 +409,10 @@ pub fn ref_buffer_len(
         RefLayout::Concrete(arg) => match comptime![arg] {
             Arg::Input(index, _, _) => global_buffer_len(inputs, index),
             Arg::Output(index, _, _) => global_buffer_len(outputs, index),
-            Arg::InputSwapDims { original, .. } => match comptime![original.as_ref().clone()] {
-                Arg::Input(index, _, _) => global_buffer_len(inputs, index),
-                Arg::Output(index, _, _) => global_buffer_len(outputs, index),
-                _ => panic!("Invalid concrete ref layout."),
-            },
             _ => panic!("Invalid concrete ref layout."),
         },
         RefLayout::Reshaped(_) => num_elements(locals, config),
+        RefLayout::SwapDims(..) => num_elements(locals, config),
     }
 }
 

@@ -183,19 +183,14 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         current *= val;
                     });
 
-                    plan.reference = ReferenceSelection::Found(Reference {
-                        layout: Arg::InputSwapDims {
-                            original: Box::new(Arg::Input(
-                                original_pos as u32,
-                                reference.precision,
-                                LayoutInfo::Unknown,
-                            )),
-                            broadcasted: false,
-                            dims,
-                        },
-                        shape,
-                        strides,
-                    });
+                    plan.reference = ReferenceSelection::SwapDims(
+                        Arg::Input(
+                            original_pos as u32,
+                            reference.precision,
+                            LayoutInfo::Unknown,
+                        ),
+                        dims,
+                    );
                     Self::add_layout_info_inputs(plan);
                 }
                 InputReference::Reshaped { reshape_pos } => {
