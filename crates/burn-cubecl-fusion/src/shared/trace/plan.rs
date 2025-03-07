@@ -99,10 +99,12 @@ impl Vect {
 
 impl<R: Runtime> LaunchPlan<'_, R> {
     pub fn output_offset(&mut self, output_offset: u32) {
-        if let ReferenceSelection::Concrete { layout, .. } = &mut self.reference {
-            if let Arg::Output(pos, ..) = layout {
-                *pos += output_offset
-            }
+        if let ReferenceSelection::Concrete {
+            layout: Arg::Output(pos, ..),
+            ..
+        } = &mut self.reference
+        {
+            *pos += output_offset
         }
 
         for op in self.writes.iter_mut() {

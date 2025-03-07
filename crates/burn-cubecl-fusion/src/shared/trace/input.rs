@@ -128,7 +128,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 return;
             }
 
-            if &tensor_relative.status == &TensorStatus::ReadWrite
+            if tensor_relative.status == TensorStatus::ReadWrite
                 && handle.handle.can_mut()
                 && self.settings.inplace
             {
