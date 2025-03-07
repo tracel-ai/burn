@@ -205,8 +205,8 @@ where
     ) -> Self {
         let ndims = shape.num_dims();
         let mut strides = vec![0; ndims];
-
         let mut current = 1;
+
         shape
             .dims
             .iter()

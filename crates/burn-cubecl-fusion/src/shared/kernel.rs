@@ -102,11 +102,19 @@ pub fn init_locals(
                     _ => comptime![panic!("Unsupported")],
                 };
 
+                let mut stride_curr = 1u32;
+
                 #[unroll]
+                #[allow(clippy::clone_on_copy)]
                 for i in 0..config.rank {
-                    let i = comptime![swap_dims_transform(&i, dims)];
-                    ref_shape[i] = layout.tensor.shape(i);
-                    ref_strides[i] = layout.tensor.stride(i);
+                    let reverse = comptime![reverse_index(config.rank, comptime![i.clone()])];
+                    let swap = comptime![swap_dims_transform(comptime![&reverse], dims)];
+                    let shape = layout.tensor.shape(comptime![swap.clone()]);
+
+                    ref_shape[comptime![reverse.clone()]] = shape;
+                    ref_strides[comptime![reverse.clone()]] = stride_curr;
+
+                    stride_curr *= ref_shape[comptime![reverse]];
                 }
 
                 LocalArgs::new(

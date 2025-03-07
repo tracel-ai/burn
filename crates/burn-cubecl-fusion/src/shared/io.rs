@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum Transform {
     Reshape(Sequence<Arg>),
-    SwapDim(u32, u32),
+    SwapDims(u32, u32),
 }
 
 #[cube]
@@ -109,7 +109,7 @@ pub fn read<C: CubePrimitive>(
                         ref_pos,
                         layout,
                         config,
-                        comptime![Some(Transform::SwapDim(dims.0, dims.1))],
+                        comptime![Some(Transform::SwapDims(dims.0, dims.1))],
                     )
                 } else {
                     read_input(
@@ -119,7 +119,7 @@ pub fn read<C: CubePrimitive>(
                         ref_pos,
                         layout,
                         config,
-                        comptime![Some(Transform::SwapDim(dims.0, dims.1))],
+                        comptime![Some(Transform::SwapDims(dims.0, dims.1))],
                     )
                 }
             }
@@ -197,7 +197,7 @@ pub fn read_input_aligned<C: CubePrimitive>(
                 result[i] = C::cast_from(tensor.tensor[index][0])
             }
         }
-        Some(Transform::SwapDim(dim1, dim2)) => {
+        Some(Transform::SwapDims(dim1, dim2)) => {
             let offset =
                 get_offset_aligned(inputs, locals, tensor, ref_pos, layout, config, transform);
             let i = comptime![swap_dims_transform(&(config.rank - 1), (dim1, dim2))];
@@ -487,7 +487,7 @@ fn index_offset_with_layout(
             let index = reshaped_index(inputs, locals, index, rank, shape);
             reshaped_index_to_original_index(&tensor.tensor, index, rank)
         }
-        Some(Transform::SwapDim(dim1, dim2)) => {
+        Some(Transform::SwapDims(dim1, dim2)) => {
             let (start, end) = comptime! {match range {
                 Some(range) => range,
                 None => (0u32, rank),

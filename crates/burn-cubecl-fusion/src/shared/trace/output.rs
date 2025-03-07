@@ -174,9 +174,14 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     let reference = plan.handle_inputs.get(original_pos).unwrap();
 
                     let mut shape = reference.global_shape.clone();
-                    let mut strides = reference.global_shape.clone();
                     shape.swap(dims.0 as usize, dims.1 as usize);
-                    strides.swap(dims.0 as usize, dims.1 as usize);
+
+                    let mut strides = vec![0; shape.len()];
+                    let mut current = 1;
+                    shape.iter().enumerate().rev().for_each(|(index, val)| {
+                        strides[index] = current;
+                        current *= val;
+                    });
 
                     plan.reference = ReferenceSelection::Found(Reference {
                         layout: Arg::InputSwapDims {

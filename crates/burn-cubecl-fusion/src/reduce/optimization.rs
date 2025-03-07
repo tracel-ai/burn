@@ -259,14 +259,14 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
 
         let strategy = self.strategy;
         let shape = inputs.shape_ref(&config_read.ref_layout, config_read.rank as usize);
-        let strides = inputs.strides_ref(&config_read.ref_layout, config_read.rank as usize);
+
         let reduce_count: u32 = shape
             .iter()
             .enumerate()
             .map(|(i, s)| if i == self.axis { 1 } else { *s as u32 })
             .product();
 
-        let line_mode = match self.axis == strides.len() - 1 {
+        let line_mode = match self.axis == shape.len() - 1 {
             true => LineMode::Parallel, // axis de vectorization == axis de reduce.
             false => LineMode::Perpendicular,
         };
