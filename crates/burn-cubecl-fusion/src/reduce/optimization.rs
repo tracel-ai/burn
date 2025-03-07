@@ -94,6 +94,7 @@ impl FusedReduce {
 #[derive(Debug)]
 pub enum FusedReduceError {
     LaunchError(ReduceError),
+    InvalidSelection(Box<&'static str>),
     InvalidInput,
 }
 
@@ -280,6 +281,12 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
         }
         .generate_cube_dim(client, strategy.use_planes)
         .generate_cube_count::<R>(reduce_count, &strategy);
+
+        if self.strategy.shared && outputs.tensors.values.len() > 1 {
+            return Err(FusedReduceError::InvalidSelection(Box::new(
+                "Can't apply fuse on read with multiple outputs using the shared strategy.",
+            )));
+        }
 
         if let CubeCount::Static(x, y, z) = config_reduce.cube_count {
             let (max_x, max_y, max_z) = R::max_cube_count();
