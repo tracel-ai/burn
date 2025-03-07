@@ -189,21 +189,26 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     ///
     /// If the argument doesn't have an handle.
     pub fn shape(&self, arg: &Arg) -> Vec<usize> {
-        match self.resolve_arg(arg) {
+        let (arg, swap_dims) = self.resolve_arg(arg);
+
+        let mut shape = match arg {
             TensorArg::Handle { handle, .. } => handle.shape.to_vec(),
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
+        };
+
+        if let Some(dims) = swap_dims {
+            shape.swap(dims.0 as usize, dims.1 as usize);
         }
+
+        shape
     }
 
-    pub fn shape_ref(&self, ref_layout: &RefLayout) -> Vec<usize> {
+    pub fn shape_ref(&self, ref_layout: &RefLayout, rank: usize) -> Vec<usize> {
         match ref_layout {
             RefLayout::Concrete(arg) => self.shape(arg),
-            RefLayout::Virtual(shape) => {
-                let start = match shape.index(0) {
-                    Arg::ScalarShape(pos) => *pos as usize,
-                    _ => 0,
-                };
-                let end = start + shape.len() as usize;
+            RefLayout::Reshaped(start) => {
+                let start = *start as usize;
+                let end = start + rank;
                 self.reshapes.values[start..end]
                     .iter()
                     .map(|s| s.elem as usize)
@@ -218,17 +223,25 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     ///
     /// If the argument doesn't have an handle.
     pub fn strides(&self, arg: &Arg) -> Vec<usize> {
-        match self.resolve_arg(arg) {
+        let (arg, swap_dims) = self.resolve_arg(arg);
+
+        let mut strides = match arg {
             TensorArg::Handle { handle, .. } => handle.strides.to_vec(),
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
+        };
+
+        if let Some(dims) = swap_dims {
+            strides.swap(dims.0 as usize, dims.1 as usize);
         }
+
+        strides
     }
 
-    pub fn strides_ref(&self, ref_layout: &RefLayout) -> Vec<usize> {
+    pub fn strides_ref(&self, ref_layout: &RefLayout, rank: usize) -> Vec<usize> {
         match ref_layout {
             RefLayout::Concrete(arg) => self.strides(arg),
-            RefLayout::Virtual(..) => {
-                let shape = self.shape_ref(ref_layout);
+            RefLayout::Reshaped(..) => {
+                let shape = self.shape_ref(ref_layout, rank);
                 let mut strides = vec![0; shape.len()];
 
                 let mut current = 1;
@@ -248,7 +261,9 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     ///
     /// If the argument doesn't have an handle.
     pub fn line_size(&self, arg: &Arg) -> u8 {
-        match self.resolve_arg(arg) {
+        let (arg, _) = self.resolve_arg(arg);
+
+        match arg {
             TensorArg::Handle {
                 vectorization_factor,
                 ..
@@ -262,10 +277,15 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument isn't a global input or output tensor.
-    pub fn resolve_arg(&self, arg: &Arg) -> &TensorArg<'_, R> {
+    pub fn resolve_arg(&self, arg: &Arg) -> (&TensorArg<'_, R>, Option<(u32, u32)>) {
         match arg {
-            Arg::Input(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
-            Arg::Output(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
+            Arg::Input(pos, _, _) => (&self.tensors.values[*pos as usize].tensor, None),
+            Arg::Output(pos, _, _) => (&self.tensors.values[*pos as usize].tensor, None),
+            Arg::InputSwapDims { original, dims, .. } => match original.as_ref() {
+                Arg::Input(pos, ..) => (&self.tensors.values[*pos as usize].tensor, Some(*dims)),
+                Arg::Output(pos, ..) => (&self.tensors.values[*pos as usize].tensor, Some(*dims)),
+                _ => panic!("Arg not found"),
+            },
             _ => panic!("Arg not found"),
         }
     }
@@ -431,7 +451,7 @@ pub struct ElemwiseConfig {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RefLayout {
     Concrete(Arg),
-    Virtual(Sequence<Arg>),
+    Reshaped(u32),
 }
 
 impl Arg {

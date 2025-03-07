@@ -10,8 +10,8 @@ use crate::{
 };
 
 use super::{
-    super::ir::ElemwisePrecision, HandleOutput, LaunchPlan, Reference, ReferenceSelection,
-    RegisteredTensors, TensorView,
+    super::ir::ElemwisePrecision, HandleOutput, InputReference, LaunchPlan, Reference,
+    ReferenceSelection, RegisteredTensors, TensorView,
 };
 
 /// Create or reuse handles for the outputs.
@@ -155,17 +155,48 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     }
 
     fn select_reference_from_inputs(plan: &mut LaunchPlan<'_, R>) {
-        if let Some(input_pos) = plan.potential_reference_input.take() {
-            let reference = plan.handle_inputs.get(input_pos).unwrap();
+        if let Some(input_ref) = plan.potential_reference_input.take() {
+            match input_ref {
+                InputReference::Normal { input_pos } => {
+                    let reference = plan.handle_inputs.get(input_pos).unwrap();
+                    plan.reference = ReferenceSelection::Found(Reference {
+                        layout: Arg::Input(
+                            input_pos as u32,
+                            reference.precision,
+                            LayoutInfo::IsRef,
+                        ),
+                        shape: reference.global_shape.clone(),
+                        strides: reference.handle.strides.clone(),
+                    });
+                    Self::add_layout_info_inputs(plan);
+                }
+                InputReference::SwapDim { original_pos, dims } => {
+                    let reference = plan.handle_inputs.get(original_pos).unwrap();
 
-            plan.reference = ReferenceSelection::Found(Reference {
-                layout: Arg::Input(input_pos as u32, reference.precision, LayoutInfo::IsRef),
-                shape: reference.global_shape.clone(),
-                strides: reference.handle.strides.clone(),
-            });
-            Self::add_layout_info_inputs(plan);
-        } else if let Some(shape) = plan.potential_reference_reshape.take() {
-            plan.reference = ReferenceSelection::Virtual(shape);
+                    let mut shape = reference.global_shape.clone();
+                    let mut strides = reference.global_shape.clone();
+                    shape.swap(dims.0 as usize, dims.1 as usize);
+                    strides.swap(dims.0 as usize, dims.1 as usize);
+
+                    plan.reference = ReferenceSelection::Found(Reference {
+                        layout: Arg::InputSwapDims {
+                            original: Box::new(Arg::Input(
+                                original_pos as u32,
+                                reference.precision,
+                                LayoutInfo::Unknown,
+                            )),
+                            broadcasted: false,
+                            dims,
+                        },
+                        shape,
+                        strides,
+                    });
+                    Self::add_layout_info_inputs(plan);
+                }
+                InputReference::Reshaped { reshape_pos } => {
+                    plan.reference = ReferenceSelection::Reshaped(reshape_pos as u32);
+                }
+            };
         } else {
             plan.reference = ReferenceSelection::NotFound;
         }

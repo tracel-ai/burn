@@ -1,4 +1,3 @@
-use cubecl::prelude::Sequence;
 use std::collections::BTreeMap;
 
 use crate::{
@@ -13,8 +12,7 @@ use cubecl::Runtime;
 #[derive(Debug)]
 pub(crate) struct LaunchPlan<'a, R: Runtime> {
     pub potential_inplaces: Vec<PotentialInplace<'a>>,
-    pub potential_reference_input: Option<usize>,
-    pub potential_reference_reshape: Option<Sequence<Arg>>,
+    pub potential_reference_input: Option<InputReference>,
     pub global_inputs: Vec<TensorIr>,
     pub global_outputs: Vec<TensorIr>,
     pub handle_inputs: Vec<HandleInput<R>>,
@@ -28,11 +26,25 @@ pub(crate) struct LaunchPlan<'a, R: Runtime> {
 }
 
 #[derive(Debug)]
+pub enum InputReference {
+    Normal {
+        input_pos: usize,
+    },
+    SwapDim {
+        original_pos: usize,
+        dims: (u32, u32),
+    },
+    Reshaped {
+        reshape_pos: usize,
+    },
+}
+
+#[derive(Debug)]
 pub enum ReferenceSelection {
     Searching,
     NotFound,
     Found(Reference),
-    Virtual(Sequence<Arg>),
+    Reshaped(u32),
 }
 
 impl ReferenceSelection {
@@ -95,7 +107,6 @@ impl<R: Runtime> LaunchPlan<'_, R> {
         LaunchPlan {
             potential_inplaces: Vec::new(),
             potential_reference_input: None,
-            potential_reference_reshape: None,
             global_inputs: Vec::new(),
             global_outputs: Vec::new(),
             handle_inputs: Vec::new(),

@@ -95,16 +95,37 @@ pub fn init_locals(
                     layout.tensor.line_size(),
                 )
             }
+            Arg::InputSwapDims { original, dims, .. } => {
+                let layout = match comptime![original.as_ref().clone()] {
+                    Arg::Input(pos, ..) => inputs.tensors.index(pos),
+                    Arg::Output(pos, ..) => outputs.tensors.index(pos),
+                    _ => comptime![panic!("Unsupported")],
+                };
+
+                #[unroll]
+                for i in 0..config.rank {
+                    let i = comptime![swap_dims_transform(&i, dims)];
+                    ref_shape[i] = layout.tensor.shape(i);
+                    ref_strides[i] = layout.tensor.stride(i);
+                }
+
+                LocalArgs::new(
+                    ref_shape.to_slice(),
+                    ref_strides.to_slice(),
+                    layout.tensor.line_size(),
+                )
+            }
+
             _ => comptime![panic!("Invalid concrete ref layout.")],
         },
-        RefLayout::Virtual(shape) => {
+        RefLayout::Reshaped(start) => {
             let mut stride_curr = 1u32;
 
             #[unroll]
             #[allow(clippy::clone_on_copy)]
             for i in 0..config.rank {
                 let reverse = comptime![reverse_index(config.rank, comptime![i.clone()])];
-                let arg = comptime![shape.index(reverse.clone())];
+                let arg = comptime![Arg::ScalarShape(start + u32::from(reverse.clone()))];
                 let shape = read_scalar_shape(inputs, comptime![arg.clone()]);
 
                 ref_shape[comptime![reverse.clone()]] = shape;

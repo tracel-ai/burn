@@ -316,7 +316,7 @@ impl FusedMatmul {
                 Arg::Output(..) => outputs.line_size(arg),
                 _ => panic!("Invalid ref layout"),
             },
-            RefLayout::Virtual(_) => 1,
+            RefLayout::Reshaped(_) => 1,
         };
 
         if out_line_size == 1 && (lhs_line_size > 1 || rhs_line_size > 1) {

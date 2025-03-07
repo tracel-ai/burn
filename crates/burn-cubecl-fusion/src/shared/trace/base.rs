@@ -1,4 +1,4 @@
-use crate::{shared::ir::Arg, CubeFusionHandle};
+use crate::CubeFusionHandle;
 
 use super::{
     super::{
@@ -44,12 +44,14 @@ pub enum TensorView {
     Reshape {
         reshaped: TensorId,
         original: TensorId,
-        shape: Sequence<Arg>,
+        reshape_pos: u32,
+        shape_relative: Vec<usize>,
     },
     SwapDims {
         swapped: TensorId,
         original: TensorId,
         dims: (u32, u32),
+        broadcasted: bool,
     },
 }
 

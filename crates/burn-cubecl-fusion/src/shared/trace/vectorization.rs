@@ -59,6 +59,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 swapped,
                 original,
                 dims,
+                ..
             } => Some((
                 context.tensors.get(swapped).unwrap(),
                 context.tensors.get(original).unwrap(),

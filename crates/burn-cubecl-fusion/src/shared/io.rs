@@ -391,9 +391,14 @@ pub fn ref_len(
         RefLayout::Concrete(arg) => match comptime![arg] {
             Arg::Input(index, _, _) => global_len(inputs, index),
             Arg::Output(index, _, _) => global_len(outputs, index),
-            _ => panic!("Invalid concreate ref layout."),
+            Arg::InputSwapDims { original, .. } => match comptime![original.as_ref().clone()] {
+                Arg::Input(index, _, _) => global_len(inputs, index),
+                Arg::Output(index, _, _) => global_len(outputs, index),
+                _ => panic!("Invalid concrete ref layout."),
+            },
+            _ => panic!("Invalid concrete ref layout."),
         },
-        RefLayout::Virtual(_) => num_elements(locals, config),
+        RefLayout::Reshaped(_) => num_elements(locals, config),
     }
 }
 
@@ -408,26 +413,24 @@ pub fn ref_buffer_len(
         RefLayout::Concrete(arg) => match comptime![arg] {
             Arg::Input(index, _, _) => global_buffer_len(inputs, index),
             Arg::Output(index, _, _) => global_buffer_len(outputs, index),
-            _ => panic!("Invalid concreate ref layout."),
+            Arg::InputSwapDims { original, .. } => match comptime![original.as_ref().clone()] {
+                Arg::Input(index, _, _) => global_buffer_len(inputs, index),
+                Arg::Output(index, _, _) => global_buffer_len(outputs, index),
+                _ => panic!("Invalid concrete ref layout."),
+            },
+            _ => panic!("Invalid concrete ref layout."),
         },
-        RefLayout::Virtual(_) => num_elements(locals, config),
+        RefLayout::Reshaped(_) => num_elements(locals, config),
     }
 }
 
 #[cube]
 pub fn ref_rank(
-    inputs: &GlobalArgs,
-    outputs: &GlobalArgs,
+    _inputs: &GlobalArgs,
+    _outputs: &GlobalArgs,
     #[comptime] config: &ElemwiseConfig,
 ) -> u32 {
-    match comptime![config.ref_layout.clone()] {
-        RefLayout::Concrete(arg) => match comptime![arg] {
-            Arg::Input(index, _, _) => global_rank(inputs, index),
-            Arg::Output(index, _, _) => global_rank(outputs, index),
-            _ => panic!("Invalid concreate ref layout."),
-        },
-        RefLayout::Virtual(shape) => shape.len().runtime(),
-    }
+    config.rank.runtime()
 }
 
 #[cube]
@@ -522,7 +525,7 @@ fn index_offset_with_layout(
     }
 }
 
-fn swap_dims_transform<I: Index + Clone>(i: &I, dims: (u32, u32)) -> u32 {
+pub(crate) fn swap_dims_transform<I: Index + Clone>(i: &I, dims: (u32, u32)) -> u32 {
     let i_cloned: I = i.clone();
     let i = i_cloned.value().as_const().unwrap().as_u32();
 
