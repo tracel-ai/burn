@@ -255,7 +255,6 @@ mod tests {
 
         let output = (tensor.swap_dims(0, 1) + 2);
         let output = output.sum_dim(1);
-        println!("{output}");
         let expected = TensorData::from([[15.0], [18.0], [21.0]]);
 
         output.into_data().assert_eq(&expected, false);
