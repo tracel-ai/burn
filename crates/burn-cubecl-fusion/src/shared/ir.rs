@@ -434,9 +434,9 @@ pub struct ElemwiseConfig {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-/// A reference layout determine how a fuse execution access elements in tensors.
+/// A reference layout determines how a fuse execution will access elements in tensors.
 ///
-/// It can either follow a the same layout as a concrete tensor, or follow a virtual layout.
+/// It can either follow the same layout as a concrete tensor, or follow a virtual layout.
 pub enum RefLayout {
     Concrete(Arg),
     Virtual(VirtualLayout),
