@@ -2401,7 +2401,7 @@ mod tests {
             Tensor::<Backend, 2>::from_data(TensorData::from([[19.0, 22.], [43., 50.]]), &device);
 
         // Run the model
-        let output = model.forward(a, b, None);
+        let output = model.forward(a, b);
 
         // Verify the output
         output.to_data().assert_eq(&expected.to_data(), true);
