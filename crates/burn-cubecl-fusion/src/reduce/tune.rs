@@ -32,8 +32,8 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
 
     let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
         .with_tunable(tune_reduce::<R, BT>)
-        .with_tunable(tune_reduce::<R, BT>)
-        .with_tunable(tune_reduce::<R, BT>);
+        .with_tunable(tune_reduce_shared_plane::<R, BT>)
+        .with_tunable(tune_fallback::<R, BT>);
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&optimization.device),

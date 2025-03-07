@@ -124,10 +124,13 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 }
             }
 
+            if self.shape_ref != &tensor_relative.shape {
+                return;
+            }
+
             if &tensor_relative.status == &TensorStatus::ReadWrite
                 && handle.handle.can_mut()
                 && self.settings.inplace
-                && self.shape_ref == &tensor_relative.shape
             {
                 plan.potential_inplaces.push(PotentialInplace {
                     input_pos: pos,
