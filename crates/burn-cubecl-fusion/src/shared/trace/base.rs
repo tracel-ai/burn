@@ -51,7 +51,6 @@ pub enum TensorView {
         swapped: TensorId,
         original: TensorId,
         dims: (u32, u32),
-        broadcasted: bool,
     },
 }
 

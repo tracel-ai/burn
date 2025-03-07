@@ -230,11 +230,11 @@ impl FuseTraceBuilder {
         let original = Arg::Input(input_index, precision_input, LayoutInfo::Unknown);
 
         let broadcasted = output.shape[output.shape.len() - 1] == 0;
+
         self.views.push(TensorView::SwapDims {
             swapped: output.id,
             original: tensor.id,
             dims,
-            broadcasted,
         });
 
         let input = Arg::InputSwapDims {

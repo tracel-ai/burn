@@ -172,17 +172,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 }
                 InputReference::SwapDims { original_pos, dims } => {
                     let reference = plan.handle_inputs.get(original_pos).unwrap();
-
-                    let mut shape = reference.global_shape.clone();
-                    shape.swap(dims.0 as usize, dims.1 as usize);
-
-                    let mut strides = vec![0; shape.len()];
-                    let mut current = 1;
-                    shape.iter().enumerate().rev().for_each(|(index, val)| {
-                        strides[index] = current;
-                        current *= val;
-                    });
-
                     plan.reference = ReferenceSelection::SwapDims {
                         original: Arg::Input(
                             original_pos as u32,
@@ -191,7 +180,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         ),
                         dims,
                     };
-                    Self::add_layout_info_inputs(plan);
                 }
                 InputReference::Reshaped { reshape_pos } => {
                     plan.reference = ReferenceSelection::Reshaped { reshape_pos };
