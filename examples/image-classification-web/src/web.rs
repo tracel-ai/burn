@@ -19,7 +19,7 @@ use burn_candle::Candle;
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
-use wasm_timer::Instant;
+use web_time::Instant;
 
 #[wasm_bindgen(start)]
 pub fn start() {
