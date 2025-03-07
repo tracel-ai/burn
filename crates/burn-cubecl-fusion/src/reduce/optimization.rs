@@ -290,7 +290,6 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             }
         }
 
-        println!("[reduce({})] {strategy:?} => {config_reduce:?}", self.axis);
         let kwargs = ReduceKwArgs {
             client,
             inputs,
