@@ -10,8 +10,8 @@ use crate::{
 };
 
 use super::{
-    super::ir::ElemwisePrecision, HandleOutput, InputReference, LaunchPlan, Reference,
-    ReferenceSelection, RegisteredTensors, TensorView,
+    super::ir::ElemwisePrecision, HandleOutput, InputReference, LaunchPlan, ReferenceSelection,
+    RegisteredTensors, TensorView,
 };
 
 /// Create or reuse handles for the outputs.
@@ -159,7 +159,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             match input_ref {
                 InputReference::Normal { input_pos } => {
                     let reference = plan.handle_inputs.get(input_pos).unwrap();
-                    plan.reference = ReferenceSelection::Found(Reference {
+                    plan.reference = ReferenceSelection::Concrete {
                         layout: Arg::Input(
                             input_pos as u32,
                             reference.precision,
@@ -167,10 +167,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         ),
                         shape: reference.global_shape.clone(),
                         strides: reference.handle.strides.clone(),
-                    });
+                    };
                     Self::add_layout_info_inputs(plan);
                 }
-                InputReference::SwapDim { original_pos, dims } => {
+                InputReference::SwapDims { original_pos, dims } => {
                     let reference = plan.handle_inputs.get(original_pos).unwrap();
 
                     let mut shape = reference.global_shape.clone();
@@ -183,18 +183,18 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         current *= val;
                     });
 
-                    plan.reference = ReferenceSelection::SwapDims(
-                        Arg::Input(
+                    plan.reference = ReferenceSelection::SwapDims {
+                        original: Arg::Input(
                             original_pos as u32,
                             reference.precision,
                             LayoutInfo::Unknown,
                         ),
                         dims,
-                    );
+                    };
                     Self::add_layout_info_inputs(plan);
                 }
                 InputReference::Reshaped { reshape_pos } => {
-                    plan.reference = ReferenceSelection::Reshaped(reshape_pos as u32);
+                    plan.reference = ReferenceSelection::Reshaped { reshape_pos };
                 }
             };
         } else {
@@ -204,8 +204,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
     fn add_layout_info_inputs(plan: &mut LaunchPlan<'_, R>) {
         for hi in plan.handle_inputs.iter() {
-            if let ReferenceSelection::Found(reference) = &plan.reference {
-                if reference.strides == hi.handle.strides && reference.shape == hi.global_shape {
+            if let ReferenceSelection::Concrete { strides, shape, .. } = &plan.reference {
+                if strides == &hi.handle.strides && shape == &hi.global_shape {
                     if let Some(ops) = plan.reads.get_mut(&hi.relative_id) {
                         for op in ops.iter_mut() {
                             if let ElemwiseOp::Assign(op) = op {
@@ -262,11 +262,11 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 .get_index(potential_inplace.tensor_relative.id)
                 .unwrap();
 
-            plan.reference = ReferenceSelection::Found(Reference {
+            plan.reference = ReferenceSelection::Concrete {
                 layout: Arg::Input(index_input, output.precision, LayoutInfo::IsRef),
                 shape: tensor_global.shape.clone(),
                 strides: handle_input.handle.strides.clone(),
-            });
+            };
 
             if let Some(ops) = plan.reads.get_mut(&handle_input.relative_id) {
                 for op in ops.iter_mut() {
@@ -309,7 +309,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         strides: Vec<usize>,
     ) {
         if !plan.reference.is_found() {
-            plan.reference = ReferenceSelection::Found(Reference {
+            plan.reference = ReferenceSelection::Concrete {
                 layout: Arg::Output(
                     output.pos_original as u32,
                     output.precision,
@@ -317,14 +317,19 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 ),
                 shape: tensor_global.shape.clone(),
                 strides: strides.clone(),
-            });
+            };
 
             // Sometimes outputs that are manually handled don't have any write registered.
             if let Some(ElemwiseOp::Assign(op)) = plan.writes.get_mut(&output.tensor_relative.id) {
                 op.out.add_layout_info(LayoutInfo::IsRef);
             };
-        } else if let ReferenceSelection::Found(reference) = &plan.reference {
-            if reference.strides == strides && reference.shape == tensor_global.shape {
+        } else if let ReferenceSelection::Concrete {
+            shape: ref_shape,
+            strides: ref_strides,
+            ..
+        } = &plan.reference
+        {
+            if ref_strides == &strides && ref_shape == &tensor_global.shape {
                 if let ElemwiseOp::Assign(op) =
                     plan.writes.get_mut(&output.tensor_relative.id).unwrap()
                 {

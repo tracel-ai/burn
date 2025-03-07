@@ -112,7 +112,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
 
                                 if &shape == self.shape_ref {
                                     plan.potential_reference_input =
-                                        Some(InputReference::SwapDim {
+                                        Some(InputReference::SwapDims {
                                             original_pos: pos,
                                             dims: *dims,
                                         });

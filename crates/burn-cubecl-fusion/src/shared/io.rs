@@ -393,8 +393,7 @@ pub fn ref_len(
             Arg::Output(index, _, _) => global_len(outputs, index),
             _ => panic!("Invalid concrete ref layout."),
         },
-        RefLayout::Reshaped(..) => num_elements(locals, config),
-        RefLayout::SwapDims(..) => num_elements(locals, config),
+        RefLayout::Virtual(..) => num_elements(locals, config),
     }
 }
 
@@ -411,18 +410,8 @@ pub fn ref_buffer_len(
             Arg::Output(index, _, _) => global_buffer_len(outputs, index),
             _ => panic!("Invalid concrete ref layout."),
         },
-        RefLayout::Reshaped(_) => num_elements(locals, config),
-        RefLayout::SwapDims(..) => num_elements(locals, config),
+        RefLayout::Virtual(_) => num_elements(locals, config),
     }
-}
-
-#[cube]
-pub fn ref_rank(
-    _inputs: &GlobalArgs,
-    _outputs: &GlobalArgs,
-    #[comptime] config: &ElemwiseConfig,
-) -> u32 {
-    config.rank.runtime()
 }
 
 #[cube]

@@ -30,7 +30,7 @@ pub enum InputReference {
     Normal {
         input_pos: usize,
     },
-    SwapDim {
+    SwapDims {
         original_pos: usize,
         dims: (u32, u32),
     },
@@ -40,22 +40,32 @@ pub enum InputReference {
 }
 
 #[derive(Debug)]
+/// Determine how the reference layout is chosen.
 pub enum ReferenceSelection {
     Searching,
     NotFound,
-    Found(Reference),
-    Reshaped(u32),
-    SwapDims(Arg, (u32, u32)),
+    Concrete {
+        layout: Arg,
+        shape: Vec<usize>,
+        strides: Vec<usize>,
+    },
+    SwapDims {
+        original: Arg,
+        dims: (u32, u32),
+    },
+    Reshaped {
+        reshape_pos: usize,
+    },
 }
 
 impl ReferenceSelection {
     pub fn is_found(&self) -> bool {
-        matches!(self, Self::Found(..))
+        !matches!(self, Self::Searching | Self::NotFound)
     }
 
-    pub fn compatible_strides_for_inplace(&self, strides: &[usize]) -> bool {
+    pub fn compatible_strides_for_inplace(&self, strides_inplace: &[usize]) -> bool {
         match self {
-            ReferenceSelection::Found(reference) => reference.strides == strides,
+            ReferenceSelection::Concrete { strides, .. } => strides == strides_inplace,
             _ => false,
         }
     }
@@ -89,8 +99,8 @@ impl Vect {
 
 impl<R: Runtime> LaunchPlan<'_, R> {
     pub fn output_offset(&mut self, output_offset: u32) {
-        if let ReferenceSelection::Found(re) = &mut self.reference {
-            if let Arg::Output(pos, ..) = &mut re.layout {
+        if let ReferenceSelection::Concrete { layout, .. } = &mut self.reference {
+            if let Arg::Output(pos, ..) = layout {
                 *pos += output_offset
             }
         }
@@ -146,13 +156,6 @@ pub struct HandleInput<R: Runtime> {
     pub global_shape: Vec<usize>,
     pub vectorization: u8,
     pub broadcated: bool,
-}
-
-#[derive(Debug)]
-pub struct Reference {
-    pub layout: Arg,
-    pub shape: Vec<usize>,
-    pub strides: Vec<usize>,
 }
 
 #[derive(Debug)]

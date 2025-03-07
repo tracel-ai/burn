@@ -3,7 +3,7 @@ use cubecl::{linalg::matmul::components::global::args::MatmulArgs, prelude::*};
 use crate::shared::{
     io::{
         global_buffer_len, global_len, global_rank, global_shape, global_stride, num_elements,
-        read_input, ref_buffer_len, ref_len, ref_rank, ref_shape, ref_stride,
+        read_input, ref_buffer_len, ref_len, ref_shape, ref_stride,
     },
     ir::{
         Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo, LocalArgs, LocalArgsExpand,
@@ -203,11 +203,7 @@ impl MatmulArgs for FusedMatmulArgs {
     }
 
     fn rank_out<EG: Numeric>(state: &Self::State<EG>) -> u32 {
-        ref_rank(
-            unsafe { &(*state.inputs) },
-            unsafe { &(*state.outputs) },
-            &state.config,
-        )
+        state.config.rank.runtime()
     }
 
     fn shape_lhs<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {

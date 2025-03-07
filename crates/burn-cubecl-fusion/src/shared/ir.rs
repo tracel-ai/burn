@@ -198,19 +198,21 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     pub fn shape_ref(&self, ref_layout: &RefLayout, rank: usize) -> Vec<usize> {
         match ref_layout {
             RefLayout::Concrete(arg) => self.shape(arg),
-            RefLayout::SwapDims(original, dims) => {
-                let mut shape = self.shape(original);
-                shape.swap(dims.0 as usize, dims.1 as usize);
-                shape
-            }
-            RefLayout::Reshaped(start) => {
-                let start = *start as usize;
-                let end = start + rank;
-                self.reshapes.values[start..end]
-                    .iter()
-                    .map(|s| s.elem as usize)
-                    .collect()
-            }
+            RefLayout::Virtual(layout) => match layout {
+                VirtualLayout::SwapDims(original, dims) => {
+                    let mut shape = self.shape(original);
+                    shape.swap(dims.0 as usize, dims.1 as usize);
+                    shape
+                }
+                VirtualLayout::Reshaped(start) => {
+                    let start = *start as usize;
+                    let end = start + rank;
+                    self.reshapes.values[start..end]
+                        .iter()
+                        .map(|s| s.elem as usize)
+                        .collect()
+                }
+            },
         }
     }
 
@@ -432,8 +434,18 @@ pub struct ElemwiseConfig {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+/// A reference layout determine how a fuse execution access elements in tensors.
+///
+/// It can either follow a the same layout as a concrete tensor, or follow a virtual layout.
 pub enum RefLayout {
     Concrete(Arg),
+    Virtual(VirtualLayout),
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+/// A virtual layout is always contiguous and retrieve its shape from either a reshape tensor or a
+/// tensor with swap dimensions.
+pub enum VirtualLayout {
     Reshaped(u32),
     SwapDims(Arg, (u32, u32)),
 }
