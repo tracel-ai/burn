@@ -304,23 +304,6 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
         .generate_cube_dim(client, strategy.use_planes)
         .generate_cube_count::<R>(reduce_count, &strategy);
 
-        if outputs.tensors.values.len() > 1 {
-            if self.strategy.shared {
-                let shape_restrictions = match config_reduce.line_mode {
-                    LineMode::Parallel => {
-                        config_reduce.cube_dim.num_elems() * config_reduce.line_size
-                    }
-                    LineMode::Perpendicular => config_reduce.cube_dim.num_elems(),
-                };
-
-                if shape[self.axis] as u32 % shape_restrictions != 0 {
-                    return Err(FusedReduceError::InvalidSelection(Box::new(
-                        "Can't apply fuse on read with multiple outputs using the shared strategy.",
-                    )));
-                }
-            }
-        }
-
         if let CubeCount::Static(x, y, z) = config_reduce.cube_count {
             let (max_x, max_y, max_z) = R::max_cube_count();
             if x > max_x || y > max_y || z > max_z {
