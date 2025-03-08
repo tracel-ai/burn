@@ -282,6 +282,33 @@ where
         Self::new(K::mul_scalar::<E>(self.primitive, other))
     }
 
+    /// Applies the matrix multiplication operation.
+    ///
+    /// `C = AB`
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have a compatible shape.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0], [4.0, 5.0], [6.0, 7.0]], &device);
+    ///    let tensor = tensor1.matmul(tensor2);
+    ///    println!("{tensor}");
+    ///    // [[16.0, 16.0], [74.0, 98.0]]
+    /// }
+    /// ```
+    pub fn matmul(self, other: Self) -> Self {
+        Self::new(K::matmul(self.primitive, other.primitive))
+    }
+
     /// Switch sign of each element in the tensor.
     ///
     /// `y = -x`
@@ -2463,6 +2490,28 @@ where
     /// which is more high-level and designed for public use.
     fn neg(tensor: Self::Primitive) -> Self::Primitive;
 
+    /// Applies the matrix multiplication operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of the matrix multiplication.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For matrix multiplication of tensors, users should prefer the [Tensor::matmul](Tensor::matmul) function,
+    /// which is more high-level and designed for public use.
+    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
+
+
     /// Returns the signs of the elements of a tensor.
     ///
     /// # Arguments
@@ -3495,6 +3544,9 @@ impl<B: Backend> Numeric<B> for Int {
     fn mul_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         B::int_mul_scalar(lhs, rhs.elem())
     }
+    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::int_matmul(lhs, rhs)
+    }
     fn neg(tensor: Self::Primitive) -> Self::Primitive {
         B::int_neg(tensor)
     }
@@ -3827,6 +3879,17 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::QFloat(lhs) => {
                 TensorPrimitive::QFloat(B::q_mul_scalar(lhs, rhs.elem()))
             }
+        }
+    }
+    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        match (lhs, rhs) {
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_matmul(lhs, rhs))
+            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
+                TensorPrimitive::QFloat(B::q_matmul(lhs, rhs))
+            }
+            _ => panic!("Primitive type mismatch for lhs and rhs"),
         }
     }
     fn neg(tensor: Self::Primitive) -> Self::Primitive {

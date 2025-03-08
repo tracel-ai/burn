@@ -185,7 +185,7 @@ where
     /// # Panics
     ///
     /// If the two tensors don't have a compatible shape.
-    pub fn matmul(self, other: Self) -> Self {
+    pub fn float_matmul(self, other: Self) -> Self {
         check!(TensorCheck::matmul(&self, &other));
         Self::new(TensorPrimitive::Float(B::float_matmul(
             self.primitive.tensor(),

@@ -179,6 +179,9 @@ where
         numeric::mul_scalar::<R, I>(lhs, rhs)
     }
 
+    fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        todo!()
+    }
     fn int_div(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         numeric::div::<R, I>(lhs, rhs)
     }

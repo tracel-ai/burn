@@ -135,6 +135,13 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
         )
     }
 
+    fn int_matmul(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        let lhs_array = &lhs.tensor;
+        let rhs_array = &rhs.tensor;
+        let result = lhs_array.dot(rhs_array);
+        TchTensor::new(result)
+    }
+
     fn int_div(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
         let copy = false;
         let non_blocking = true;

@@ -7,7 +7,8 @@ use burn_tensor::Distribution;
 
 use burn_tensor::ElementConversion;
 use core::ops::Range;
-use ndarray::IntoDimension;
+use std::ops::Mul;
+use ndarray::{IntoDimension, Ix2};
 use ndarray::Zip;
 
 // Current crate
@@ -161,6 +162,31 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
 
     fn int_mul_scalar(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<I> {
         NdArrayMathOps::mul_scalar(lhs, rhs)
+    }
+    fn int_matmul(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        let lhs_array = &lhs.array;
+        let rhs_array = &rhs.array;
+
+        // Get dimensions
+        let m = lhs_array.shape()[0];
+        let k = lhs_array.shape()[1];
+        let n = rhs_array.shape()[1];
+
+        // Convert dynamic arrays to 2D views
+        let lhs_2d = lhs_array.view().into_dimensionality::<Ix2>().unwrap();
+        let rhs_2d = rhs_array.view().into_dimensionality::<Ix2>().unwrap();
+
+        // Create the result array with fixed dimensions
+        let mut result = ndarray::Array2::<I>::zeros((m, n));
+
+        // Perform matrix multiplication with fixed dimensions
+        ndarray::linalg::general_mat_mul(I::one(), &lhs_2d, &rhs_2d, I::zero(), &mut result);
+
+        // Convert back to dynamic dimensions
+        let result_dyn = result.into_dyn();
+
+        // Create the tensor
+        NdArrayTensor::new(result_dyn.into_shared())
     }
 
     fn int_div(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
