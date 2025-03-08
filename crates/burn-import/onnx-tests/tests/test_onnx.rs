@@ -25,6 +25,10 @@ include_models!(
     clip_opset16,
     clip_opset7,
     concat,
+    constant_f32,
+    constant_f64,
+    constant_i32,
+    constant_i64,
     constant_of_shape,
     constant_of_shape_full_like,
     conv1d,
@@ -2217,6 +2221,54 @@ mod tests {
         let output = model.forward(input.into());
 
         assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn add_constant_f32() {
+        let device = Default::default();
+        let model = constant_f32::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn add_constant_f64() {
+        let device = Default::default();
+        let model = constant_f64::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn add_constant_i32() {
+        let device = Default::default();
+        let model = constant_i32::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn add_constant_i64() {
+        let device = Default::default();
+        let model = constant_i64::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
     }
 
     #[test]
