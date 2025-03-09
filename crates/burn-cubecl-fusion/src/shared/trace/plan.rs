@@ -1,4 +1,3 @@
-use cubecl::prelude::Sequence;
 use std::collections::BTreeMap;
 
 use crate::{
@@ -13,8 +12,7 @@ use cubecl::Runtime;
 #[derive(Debug)]
 pub(crate) struct LaunchPlan<'a, R: Runtime> {
     pub potential_inplaces: Vec<PotentialInplace<'a>>,
-    pub potential_reference_input: Option<usize>,
-    pub potential_reference_reshape: Option<Sequence<Arg>>,
+    pub potential_reference_input: Option<InputReference>,
     pub global_inputs: Vec<TensorIr>,
     pub global_outputs: Vec<TensorIr>,
     pub handle_inputs: Vec<HandleInput<R>>,
@@ -28,21 +26,46 @@ pub(crate) struct LaunchPlan<'a, R: Runtime> {
 }
 
 #[derive(Debug)]
+pub enum InputReference {
+    Normal {
+        input_pos: usize,
+    },
+    SwapDims {
+        original_pos: usize,
+        dims: (u32, u32),
+    },
+    Reshaped {
+        reshape_pos: usize,
+    },
+}
+
+#[derive(Debug)]
+/// Determine how the reference layout is chosen.
 pub enum ReferenceSelection {
     Searching,
     NotFound,
-    Found(Reference),
-    Virtual(Sequence<Arg>),
+    Concrete {
+        layout: Arg,
+        shape: Vec<usize>,
+        strides: Vec<usize>,
+    },
+    SwapDims {
+        original: Arg,
+        dims: (u32, u32),
+    },
+    Reshaped {
+        reshape_pos: usize,
+    },
 }
 
 impl ReferenceSelection {
     pub fn is_found(&self) -> bool {
-        matches!(self, Self::Found(..))
+        !matches!(self, Self::Searching | Self::NotFound)
     }
 
-    pub fn compatible_strides_for_inplace(&self, strides: &[usize]) -> bool {
+    pub fn compatible_strides_for_inplace(&self, strides_inplace: &[usize]) -> bool {
         match self {
-            ReferenceSelection::Found(reference) => reference.strides == strides,
+            ReferenceSelection::Concrete { strides, .. } => strides == strides_inplace,
             _ => false,
         }
     }
@@ -76,10 +99,12 @@ impl Vect {
 
 impl<R: Runtime> LaunchPlan<'_, R> {
     pub fn output_offset(&mut self, output_offset: u32) {
-        if let ReferenceSelection::Found(re) = &mut self.reference {
-            if let Arg::Output(pos, ..) = &mut re.layout {
-                *pos += output_offset
-            }
+        if let ReferenceSelection::Concrete {
+            layout: Arg::Output(pos, ..),
+            ..
+        } = &mut self.reference
+        {
+            *pos += output_offset
         }
 
         for op in self.writes.iter_mut() {
@@ -95,7 +120,6 @@ impl<R: Runtime> LaunchPlan<'_, R> {
         LaunchPlan {
             potential_inplaces: Vec::new(),
             potential_reference_input: None,
-            potential_reference_reshape: None,
             global_inputs: Vec::new(),
             global_outputs: Vec::new(),
             handle_inputs: Vec::new(),
@@ -134,13 +158,6 @@ pub struct HandleInput<R: Runtime> {
     pub global_shape: Vec<usize>,
     pub vectorization: u8,
     pub broadcated: bool,
-}
-
-#[derive(Debug)]
-pub struct Reference {
-    pub layout: Arg,
-    pub shape: Vec<usize>,
-    pub strides: Vec<usize>,
 }
 
 #[derive(Debug)]

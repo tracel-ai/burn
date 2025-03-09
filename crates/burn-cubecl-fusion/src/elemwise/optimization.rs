@@ -76,11 +76,11 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
     ) -> Result<(), Self::Error> {
         let shape = match &config.ref_layout {
             RefLayout::Concrete(arg) => match arg {
-                Arg::Input(..) => inputs.shape_ref(&config.ref_layout),
-                Arg::Output(..) => outputs.shape_ref(&config.ref_layout),
+                Arg::Input(..) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
+                Arg::Output(..) => outputs.shape_ref(&config.ref_layout, config.rank as usize),
                 _ => panic!("Invalid concreate ref layout"),
             },
-            RefLayout::Virtual(_) => inputs.shape_ref(&config.ref_layout),
+            RefLayout::Virtual(_) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
         };
         let total_elem = shape.iter().product::<usize>() / config.width as usize;
         let cube_dim = CubeDim::default();

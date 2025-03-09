@@ -15,7 +15,10 @@ use super::{
 use crate::{
     elem_dtype,
     shared::{
-        ir::{ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch, RefLayout},
+        ir::{
+            ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch, RefLayout,
+            VirtualLayout,
+        },
         tensor::{GlobalScalar, GlobalTensorArg},
     },
     CubeFusionHandle,
@@ -87,8 +90,13 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
             return Ok(());
         }
         let reference = match plans.0.reference {
-            ReferenceSelection::Found(reference) => RefLayout::Concrete(reference.layout),
-            ReferenceSelection::Virtual(shape) => RefLayout::Virtual(shape),
+            ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
+            ReferenceSelection::SwapDims { original, dims } => {
+                RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
+            }
+            ReferenceSelection::Reshaped { reshape_pos } => {
+                RefLayout::Virtual(VirtualLayout::Reshaped(reshape_pos as u32))
+            }
             ReferenceSelection::Searching | ReferenceSelection::NotFound => {
                 return Err(MultiExecutionError::new(
                     TraceError::ReferenceNotFound,
@@ -134,7 +142,13 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         plans.1.output_offset(output_offset);
 
         let reference = match plans.1.reference {
-            ReferenceSelection::Found(reference) => RefLayout::Concrete(reference.layout),
+            ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
+            ReferenceSelection::SwapDims { original, dims } => {
+                RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
+            }
+            ReferenceSelection::Reshaped { reshape_pos } => {
+                RefLayout::Virtual(VirtualLayout::Reshaped(reshape_pos as u32))
+            }
             ReferenceSelection::Searching | ReferenceSelection::NotFound => {
                 return Err(MultiExecutionError::new(
                     TraceError::ReferenceNotFound,
@@ -144,7 +158,6 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
                     plans.1.handle_outputs,
                 ))
             }
-            ReferenceSelection::Virtual(shape) => RefLayout::Virtual(shape),
         };
 
         register_inputs(&plans.1.handle_inputs, &mut inputs);
@@ -216,8 +229,13 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         }
 
         let reference = match plan.reference {
-            ReferenceSelection::Found(reference) => RefLayout::Concrete(reference.layout),
-            ReferenceSelection::Virtual(shape) => RefLayout::Virtual(shape),
+            ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
+            ReferenceSelection::SwapDims { original, dims } => {
+                RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
+            }
+            ReferenceSelection::Reshaped { reshape_pos } => {
+                RefLayout::Virtual(VirtualLayout::Reshaped(reshape_pos as u32))
+            }
             ReferenceSelection::NotFound | ReferenceSelection::Searching => {
                 return Err(ExecutionError::new(
                     TraceError::ReferenceNotFound,

@@ -37,6 +37,7 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::Gelu => same_as_input(node),
         NodeType::Gather => gather_update_outputs(node),
         NodeType::GatherElements => same_as_input(node),
+        NodeType::Gemm => gemm_output_shape(node),
         NodeType::Greater => elementwise_comparison_outputs(node),
         NodeType::GreaterOrEqual => elementwise_comparison_outputs(node),
         NodeType::HardSigmoid => same_as_input(node),
@@ -1073,5 +1074,25 @@ fn one_hot_output_shape(node: &mut Node) {
         rank: new_rank,
         shape: None,
         elem_type: output_elem,
+    });
+}
+
+fn gemm_output_shape(node: &mut Node) {
+    let a_rank = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.rank,
+        _ => panic!("Input A should be a tensor!"),
+    };
+    let b_rank = match &node.inputs[1].ty {
+        ArgType::Tensor(tensor) => tensor.rank,
+        _ => panic!("Input B should be a tensor!"),
+    };
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        rank: max(a_rank, b_rank),
+        shape: None,
+        elem_type: match &node.inputs[0].ty {
+            ArgType::Tensor(t) => t.elem_type.clone(),
+            _ => panic!("Unexpected type for input A"),
+        },
     });
 }

@@ -1,7 +1,7 @@
-use super::TensorView;
+use super::{InputReference, TensorView};
 use crate::{shared::settings::FuseSettings, CubeFusionHandle};
 use burn_fusion::stream::Context;
-use burn_ir::{TensorId, TensorStatus};
+use burn_ir::{TensorId, TensorIr, TensorStatus};
 use cubecl::Runtime;
 use std::marker::PhantomData;
 
@@ -45,33 +45,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
             let status = &tensor_relative.status;
             let mut handle = context.handles.get_handle(&tensor_global.id, status);
 
-            if !self.inputs_unhandled.contains(&tensor_relative.id)
-                && !self.views.iter().any(|v| match v {
-                    TensorView::Reshape {
-                        reshaped, original, ..
-                    } => reshaped == &tensor_relative.id || original == &tensor_relative.id,
-                    TensorView::SwapDims {
-                        swapped, original, ..
-                    } => swapped == &tensor_relative.id || original == &tensor_relative.id,
-                })
-                && self.shape_ref == &tensor_relative.shape
-            {
-                if status == &TensorStatus::ReadWrite
-                    && handle.handle.can_mut()
-                    && self.settings.inplace
-                {
-                    plan.potential_inplaces.push(PotentialInplace {
-                        input_pos: pos,
-                        tensor_relative,
-                        strides: handle.strides.clone(),
-                    });
-                    if plan.potential_reference_input.is_none() {
-                        plan.potential_reference_input = Some(pos);
-                    }
-                } else if plan.potential_reference_input.is_none() {
-                    plan.potential_reference_input = Some(pos);
-                }
-            }
+            self.analyze(plan, pos, tensor_relative, &handle);
 
             if tensor_global.shape.len() < plan.rank {
                 let num_elem: usize = tensor_global.shape.iter().product();
@@ -92,13 +66,80 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
             });
             plan.global_inputs.push(tensor_global);
         }
+    }
 
-        if plan.potential_reference_input.is_none() {
+    fn analyze(
+        &self,
+        plan: &mut LaunchPlan<'a, R>,
+        pos: usize,
+        tensor_relative: &'a TensorIr,
+        handle: &CubeFusionHandle<R>,
+    ) {
+        if !self.inputs_unhandled.contains(&tensor_relative.id) {
             for v in self.views.iter() {
-                if let TensorView::Reshape { shape, .. } = v {
-                    plan.potential_reference_reshape = Some(shape.clone());
-                    break;
+                match v {
+                    TensorView::Reshape {
+                        reshaped,
+                        original,
+                        reshape_pos,
+                        shape_relative,
+                    } => {
+                        if original == &tensor_relative.id || reshaped == &tensor_relative.id {
+                            if plan.potential_reference_input.is_none()
+                                && shape_relative == self.shape_ref
+                            {
+                                plan.potential_reference_input = Some(InputReference::Reshaped {
+                                    reshape_pos: *reshape_pos as usize,
+                                });
+                            }
+                            return;
+                        }
+                    }
+                    TensorView::SwapDims {
+                        swapped,
+                        original,
+                        dims,
+                        ..
+                    } => {
+                        if swapped == &tensor_relative.id {
+                            return;
+                        }
+
+                        if original == &tensor_relative.id {
+                            if plan.potential_reference_input.is_none() {
+                                let mut shape = tensor_relative.shape.clone();
+                                shape.swap(dims.0 as usize, dims.1 as usize);
+
+                                if &shape == self.shape_ref {
+                                    plan.potential_reference_input =
+                                        Some(InputReference::SwapDims {
+                                            original_pos: pos,
+                                            dims: *dims,
+                                        });
+                                }
+                            }
+                            return;
+                        }
+                    }
                 }
+            }
+
+            if self.shape_ref != &tensor_relative.shape {
+                return;
+            }
+
+            if tensor_relative.status == TensorStatus::ReadWrite
+                && handle.handle.can_mut()
+                && self.settings.inplace
+            {
+                plan.potential_inplaces.push(PotentialInplace {
+                    input_pos: pos,
+                    tensor_relative,
+                    strides: handle.strides.clone(),
+                });
+                plan.potential_reference_input = Some(InputReference::Normal { input_pos: pos });
+            } else {
+                plan.potential_reference_input = Some(InputReference::Normal { input_pos: pos });
             }
         }
     }

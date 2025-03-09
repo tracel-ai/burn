@@ -97,24 +97,54 @@ pub fn init_locals(
             }
             _ => comptime![panic!("Invalid concrete ref layout.")],
         },
-        RefLayout::Virtual(shape) => {
-            let mut stride_curr = 1u32;
+        RefLayout::Virtual(layout) => match layout {
+            VirtualLayout::SwapDims(original, dims) => {
+                let layout = match comptime![original.clone()] {
+                    Arg::Input(pos, ..) => inputs.tensors.index(pos),
+                    Arg::Output(pos, ..) => outputs.tensors.index(pos),
+                    _ => comptime![panic!("Unsupported")],
+                };
 
-            #[unroll]
-            #[allow(clippy::clone_on_copy)]
-            for i in 0..config.rank {
-                let reverse = comptime![reverse_index(config.rank, comptime![i.clone()])];
-                let arg = comptime![shape.index(reverse.clone())];
-                let shape = read_scalar_shape(inputs, comptime![arg.clone()]);
+                let mut stride_curr = 1u32;
 
-                ref_shape[comptime![reverse.clone()]] = shape;
-                ref_strides[comptime![reverse.clone()]] = stride_curr;
+                #[unroll]
+                #[allow(clippy::clone_on_copy)]
+                for i in 0..config.rank {
+                    let reverse = comptime![reverse_index(config.rank, comptime![i.clone()])];
+                    let swap = comptime![swap_dims_transform(comptime![&reverse], dims)];
+                    let shape = layout.tensor.shape(comptime![swap.clone()]);
 
-                stride_curr *= ref_shape[comptime![reverse]];
+                    ref_shape[comptime![reverse.clone()]] = shape;
+                    ref_strides[comptime![reverse.clone()]] = stride_curr;
+
+                    stride_curr *= ref_shape[comptime![reverse]];
+                }
+
+                LocalArgs::new(
+                    ref_shape.to_slice(),
+                    ref_strides.to_slice(),
+                    layout.tensor.line_size(),
+                )
             }
+            VirtualLayout::Reshaped(start) => {
+                let mut stride_curr = 1u32;
 
-            LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), 1u32)
-        }
+                #[unroll]
+                #[allow(clippy::clone_on_copy)]
+                for i in 0..config.rank {
+                    let reverse = comptime![reverse_index(config.rank, comptime![i.clone()])];
+                    let arg = comptime![Arg::ScalarShape(start + u32::from(reverse.clone()))];
+                    let shape = read_scalar_shape(inputs, comptime![arg.clone()]);
+
+                    ref_shape[comptime![reverse.clone()]] = shape;
+                    ref_strides[comptime![reverse.clone()]] = stride_curr;
+
+                    stride_curr *= ref_shape[comptime![reverse]];
+                }
+
+                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), 1u32)
+            }
+        },
     }
 }
 

@@ -35,6 +35,7 @@ use crate::{
             floor::FloorNode,
             gather::GatherNode,
             gather_elements::GatherElementsNode,
+            gemm::GemmNode,
             global_avg_pool::GlobalAvgPoolNode,
             layer_norm::LayerNormNode,
             linear::LinearNode,
@@ -72,12 +73,12 @@ use super::op_configuration::{
     argmax_config, avg_pool1d_config, avg_pool2d_config, batch_norm_config, clip_config,
     concat_config, conv1d_config, conv2d_config, conv3d_config, conv_transpose1d_config,
     conv_transpose2d_config, conv_transpose3d_config, dropout_config, expand_config,
-    flatten_config, gather_config, hard_sigmoid_config, layer_norm_config, leaky_relu_config,
-    linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, one_hot_config,
-    pad_config, reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
-    reduce_sum_config, reshape_config, resize_config, shape_config, slice_config, softmax_config,
-    split_config, squeeze_config, tile_config, top_k_config, transpose_config, trilu_config,
-    unsqueeze_config,
+    flatten_config, gather_config, gemm_config, hard_sigmoid_config, layer_norm_config,
+    leaky_relu_config, linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config,
+    one_hot_config, pad_config, reduce_max_config, reduce_mean_config, reduce_min_config,
+    reduce_prod_config, reduce_sum_config, reshape_config, resize_config, shape_config,
+    slice_config, softmax_config, split_config, squeeze_config, tile_config, top_k_config,
+    transpose_config, trilu_config, unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -366,6 +367,7 @@ impl ParsedOnnxGraph {
                     graph.register(Self::constant_of_shape_conversion(node))
                 }
                 NodeType::Split => graph.register(Self::split_conversion(node)),
+                NodeType::Gemm => graph.register(Self::gemm_conversion(node)),
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -1316,6 +1318,15 @@ impl ParsedOnnxGraph {
         let output = TensorType::from(node.outputs.first().unwrap());
 
         FloorNode::new(input, output)
+    }
+
+    fn gemm_conversion(node: Node) -> GemmNode {
+        let a = TensorType::from(node.inputs.first().unwrap());
+        let b = TensorType::from(node.inputs.get(1).unwrap());
+        let c = node.inputs.get(2).map(Type::from);
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let (alpha, beta, trans_a, trans_b) = gemm_config(&node);
+        GemmNode::new(a, b, c, output, alpha, beta, trans_a, trans_b)
     }
 }
 

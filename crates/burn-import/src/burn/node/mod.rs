@@ -20,6 +20,7 @@ pub(crate) mod expand;
 pub(crate) mod floor;
 pub(crate) mod gather;
 pub(crate) mod gather_elements;
+pub(crate) mod gemm;
 pub(crate) mod global_avg_pool;
 pub(crate) mod layer_norm;
 pub(crate) mod linear;
