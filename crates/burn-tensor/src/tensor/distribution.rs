@@ -3,7 +3,7 @@ use rand::{distr::StandardUniform, Rng, RngCore};
 use crate::{Element, ElementConversion};
 
 /// Distribution for random value of a tensor.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Distribution {
     /// Uniform distribution from 0 (inclusive) to 1 (exclusive).
     Default,
@@ -16,6 +16,9 @@ pub enum Distribution {
 
     /// Normal distribution with the given mean and standard deviation.
     Normal(f64, f64),
+
+    /// Multinomial distribution with the given probabilities.
+    Multinomial(Vec<f64>),
 }
 
 /// Distribution sampler for random value of a tensor.
@@ -23,7 +26,7 @@ pub enum Distribution {
 pub struct DistributionSampler<'a, E, R>
 where
     StandardUniform: rand::distr::Distribution<E>,
-    E: rand::distr::uniform::SampleUniform,
+    E: rand::distr::uniform::SampleUniform + std::cmp::PartialOrd,
     R: RngCore,
 {
     kind: DistributionSamplerKind<E>,
@@ -34,7 +37,7 @@ where
 pub enum DistributionSamplerKind<E>
 where
     StandardUniform: rand::distr::Distribution<E>,
-    E: rand::distr::uniform::SampleUniform,
+    E: rand::distr::uniform::SampleUniform + std::cmp::PartialOrd,
 {
     /// Standard distribution.
     Standard(rand::distr::StandardUniform),
@@ -47,6 +50,9 @@ where
 
     /// Normal distribution.
     Normal(rand_distr::Normal<f64>),
+
+    /// Multinomial (categorical) distribution.
+    Multinomial(rand::distr::weighted::WeightedIndex<f64>),
 }
 
 impl<E, R> DistributionSampler<'_, E, R>
@@ -54,6 +60,7 @@ where
     StandardUniform: rand::distr::Distribution<E>,
     E: rand::distr::uniform::SampleUniform,
     E: Element,
+    E: std::cmp::PartialOrd,
     R: RngCore,
 {
     /// Sames a random value from the distribution.
@@ -69,6 +76,7 @@ where
                 }
             }
             DistributionSamplerKind::Normal(distribution) => self.rng.sample(distribution).elem(),
+            DistributionSamplerKind::Multinomial(distribution) => (self.rng.sample(distribution) as f64).elem(),
         }
     }
 }
@@ -86,7 +94,7 @@ impl Distribution {
     pub fn sampler<R, E>(self, rng: &'_ mut R) -> DistributionSampler<'_, E, R>
     where
         R: RngCore,
-        E: Element + rand::distr::uniform::SampleUniform,
+        E: Element + rand::distr::uniform::SampleUniform + std::cmp::PartialOrd,
         StandardUniform: rand::distr::Distribution<E>,
     {
         let kind = match self {
@@ -102,6 +110,9 @@ impl Distribution {
             Distribution::Normal(mean, std) => {
                 DistributionSamplerKind::Normal(rand_distr::Normal::new(mean, std).unwrap())
             }
+            Distribution::Multinomial(vec) => 
+                DistributionSamplerKind::Multinomial(rand::distr::weighted::WeightedIndex::new(vec).unwrap()),
+
         };
 
         DistributionSampler::new(kind, rng)
