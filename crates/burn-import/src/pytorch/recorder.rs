@@ -35,7 +35,7 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for PyTorchFileRecorder<PS> 
         unimplemented!("save_item not implemented for PyTorchFileRecorder")
     }
 
-    fn load_item<I: DeserializeOwned>(&self, _file: Self::LoadArgs) -> Result<I, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, _file: &Self::LoadArgs) -> Result<I, RecorderError> {
         unimplemented!("load_item not implemented for PyTorchFileRecorder")
     }
 

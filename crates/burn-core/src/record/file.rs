@@ -150,7 +150,7 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for BinGzFileRecorder<S> {
         Ok(())
     }
 
-    fn load_item<I: DeserializeOwned>(&self, file: Self::LoadArgs) -> Result<I, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, file: &Self::LoadArgs) -> Result<I, RecorderError> {
         let reader = str2reader!(file)?;
         let mut reader = GzDecoder::new(reader);
         let state = bincode::serde::decode_from_std_read(&mut reader, bin_config())
@@ -178,7 +178,7 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for BinFileRecorder<S> {
         Ok(())
     }
 
-    fn load_item<I: DeserializeOwned>(&self, file: Self::LoadArgs) -> Result<I, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, file: &Self::LoadArgs) -> Result<I, RecorderError> {
         let mut reader = str2reader!(file)?;
         let state = bincode::serde::decode_from_std_read(&mut reader, bin_config())
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;
@@ -205,7 +205,7 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for JsonGzFileRecorder<S> {
         Ok(())
     }
 
-    fn load_item<I: DeserializeOwned>(&self, file: Self::LoadArgs) -> Result<I, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, file: &Self::LoadArgs) -> Result<I, RecorderError> {
         let reader = str2reader!(file)?;
         let reader = GzDecoder::new(reader);
         let state = serde_json::from_reader(reader)
@@ -232,7 +232,7 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for PrettyJsonFileRecorder<S>
         Ok(())
     }
 
-    fn load_item<I: DeserializeOwned>(&self, file: Self::LoadArgs) -> Result<I, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, file: &Self::LoadArgs) -> Result<I, RecorderError> {
         let reader = str2reader!(file)?;
         let state = serde_json::from_reader(reader)
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;
@@ -260,7 +260,7 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkGzFileRecorder<S>
         Ok(())
     }
 
-    fn load_item<I: DeserializeOwned>(&self, file: Self::LoadArgs) -> Result<I, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, file: &Self::LoadArgs) -> Result<I, RecorderError> {
         let reader = str2reader!(file)?;
         let reader = GzDecoder::new(reader);
         let state = rmp_serde::decode::from_read(reader)
@@ -289,7 +289,7 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkFileRecorder<S> {
         Ok(())
     }
 
-    fn load_item<I: DeserializeOwned>(&self, file: Self::LoadArgs) -> Result<I, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, file: &Self::LoadArgs) -> Result<I, RecorderError> {
         let reader = str2reader!(file)?;
         let state = rmp_serde::decode::from_read(reader)
             .map_err(|err| RecorderError::Unknown(err.to_string()))?;

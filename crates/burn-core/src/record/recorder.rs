@@ -60,8 +60,8 @@ pub trait Recorder<B: Backend>:
         R: Record<B>,
     {
         let item: BurnRecord<R::Item<Self::Settings>, B> =
-            self.load_item(args.clone()).map_err(|err| {
-                if let Ok(record) = self.load_item::<BurnRecordNoItem>(args.clone()) {
+            self.load_item(&args).map_err(|err| {
+                if let Ok(record) = self.load_item::<BurnRecordNoItem>(&args) {
                     let mut message = "Unable to load record.".to_string();
                     let metadata = recorder_metadata::<Self, B>();
                     if metadata.float != record.metadata.float {
@@ -133,7 +133,7 @@ pub trait Recorder<B: Backend>:
     /// # Returns
     ///
     /// The loaded item.
-    fn load_item<I>(&self, args: Self::LoadArgs) -> Result<I, RecorderError>
+    fn load_item<I>(&self, args: &Self::LoadArgs) -> Result<I, RecorderError>
     where
         I: DeserializeOwned;
 }
