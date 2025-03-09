@@ -35,7 +35,7 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for BinBytesRecorder<S> {
     ) -> Result<Self::RecordOutput, RecorderError> {
         Ok(bincode::serde::encode_to_vec(item, bin_config()).unwrap())
     }
-    fn load_item<I: DeserializeOwned>(&self, args: Self::LoadArgs) -> Result<I, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, args: &Self::LoadArgs) -> Result<I, RecorderError> {
         let state = bincode::serde::decode_borrowed_from_slice(&args, bin_config()).unwrap();
         Ok(state)
     }
@@ -65,7 +65,7 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkBytesRecorder<S> 
     ) -> Result<Self::RecordOutput, RecorderError> {
         rmp_serde::encode::to_vec_named(&item).map_err(|e| RecorderError::Unknown(e.to_string()))
     }
-    fn load_item<I: DeserializeOwned>(&self, args: Self::LoadArgs) -> Result<I, RecorderError> {
+    fn load_item<I: DeserializeOwned>(&self, args: &Self::LoadArgs) -> Result<I, RecorderError> {
         rmp_serde::decode::from_slice(&args).map_err(|e| RecorderError::Unknown(e.to_string()))
     }
 }
