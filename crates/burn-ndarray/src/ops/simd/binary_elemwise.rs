@@ -18,6 +18,7 @@ pub trait ScalarSimdBinop<T: Scalar, Out: Scalar> {
     fn splat<S: Simd>(rhs: Self::Rhs) -> Self::RhsVec<S>;
     fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Self::RhsVec<S>) -> Vector<S, Out>;
     fn apply(lhs: T, rhs: Self::Rhs) -> Out;
+    fn is_accelerated<S: Simd>() -> bool;
 }
 
 pub struct VecAdd;
@@ -46,6 +47,10 @@ impl<T: VAdd> ScalarSimdBinop<T, T> for VecAdd {
     fn apply(lhs: T, rhs: T) -> T {
         lhs + rhs
     }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VAdd>::is_accelerated::<S>()
+    }
 }
 
 impl<T: VDiv> ScalarSimdBinop<T, T> for VecDiv {
@@ -62,6 +67,10 @@ impl<T: VDiv> ScalarSimdBinop<T, T> for VecDiv {
 
     fn apply(lhs: T, rhs: T) -> T {
         lhs / rhs
+    }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VDiv>::is_accelerated::<S>()
     }
 }
 
@@ -80,6 +89,10 @@ impl<T: VMul> ScalarSimdBinop<T, T> for VecMul {
     fn apply(lhs: T, rhs: T) -> T {
         lhs * rhs
     }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VMul>::is_accelerated::<S>()
+    }
 }
 
 impl<T: VSub> ScalarSimdBinop<T, T> for VecSub {
@@ -96,6 +109,10 @@ impl<T: VSub> ScalarSimdBinop<T, T> for VecSub {
 
     fn apply(lhs: T, rhs: T) -> T {
         lhs - rhs
+    }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VSub>::is_accelerated::<S>()
     }
 }
 
@@ -114,6 +131,10 @@ impl<T: VOrd + MinMax> ScalarSimdBinop<T, T> for VecMin {
     fn apply(lhs: T, rhs: T) -> T {
         lhs.min(rhs)
     }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VOrd>::is_min_max_accelerated::<S>()
+    }
 }
 
 impl<T: VOrd + MinMax> ScalarSimdBinop<T, T> for VecMax {
@@ -130,6 +151,10 @@ impl<T: VOrd + MinMax> ScalarSimdBinop<T, T> for VecMax {
 
     fn apply(lhs: T, rhs: T) -> T {
         lhs.max(rhs)
+    }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VOrd>::is_min_max_accelerated::<S>()
     }
 }
 
@@ -148,6 +173,10 @@ impl<T: VOrd + MinMax> ScalarSimdBinop<T, T> for VecClamp {
     fn apply(lhs: T, (min, max): Self::Rhs) -> T {
         lhs.min(max).max(min)
     }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VOrd>::is_min_max_accelerated::<S>()
+    }
 }
 
 impl<T: VBitAnd> ScalarSimdBinop<T, T> for VecBitAnd {
@@ -164,6 +193,10 @@ impl<T: VBitAnd> ScalarSimdBinop<T, T> for VecBitAnd {
 
     fn apply(lhs: T, rhs: Self::Rhs) -> T {
         lhs & rhs
+    }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VBitAnd>::is_accelerated::<S>()
     }
 }
 
@@ -182,6 +215,10 @@ impl<T: VBitOr> ScalarSimdBinop<T, T> for VecBitOr {
     fn apply(lhs: T, rhs: Self::Rhs) -> T {
         lhs | rhs
     }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VBitOr>::is_accelerated::<S>()
+    }
 }
 
 impl<T: VBitXor> ScalarSimdBinop<T, T> for VecBitXor {
@@ -199,6 +236,17 @@ impl<T: VBitXor> ScalarSimdBinop<T, T> for VecBitXor {
     fn apply(lhs: T, rhs: Self::Rhs) -> T {
         lhs ^ rhs
     }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VBitXor>::is_accelerated::<S>()
+    }
+}
+
+#[macerator::with_simd]
+fn is_accelerated<S: Simd, T: Scalar, Out: Scalar, Op: ScalarSimdBinop<T, Out>>(
+    _x: PhantomData<(T, Out, Op)>,
+) -> bool {
+    Op::is_accelerated::<S>()
 }
 
 pub fn try_binary_scalar_simd<
@@ -211,7 +259,10 @@ pub fn try_binary_scalar_simd<
     input: NdArrayTensor<E>,
     elem: Op::Rhs,
 ) -> Result<NdArrayTensor<EOut>, NdArrayTensor<E>> {
-    if !should_use_simd(input.array.len()) || input.array.as_slice_memory_order().is_none() {
+    if !should_use_simd(input.array.len())
+        || input.array.as_slice_memory_order().is_none()
+        || !is_accelerated::<T, Out, Op>(PhantomData)
+    {
         return Err(input);
     }
     // Used to assert traits based on the dynamic `DType`.

@@ -1,33 +1,43 @@
-use core::mem::transmute;
+use core::{marker::PhantomData, mem::transmute};
 
 use crate::{sharing::UnsafeSharedRef, tensor::NdArrayTensor};
 
 use burn_common::{iter_range_par, run_par};
 use burn_tensor::{quantization::QuantizationType, DType, Element, TensorMetadata};
-use macerator::VOrd;
+use macerator::{Simd, VOrd};
 use ndarray::{s, Array4};
 use nhwc::max_pool2d_nhwc;
 
 use super::{should_use_simd, MinMax};
 
+#[macerator::with_simd]
+fn is_accelerated_impl<S: Simd, T: VOrd>(_x: PhantomData<T>) -> bool {
+    <T as VOrd>::is_min_max_accelerated::<S>()
+}
+
+fn is_accelerated<T: VOrd>() -> bool {
+    is_accelerated_impl::<T>(PhantomData)
+}
+
 macro_rules! launch_kernel {
     ($ty: ty, $func: ident, $x: expr, $($arg: expr),*) => {
         match <$ty as Element>::dtype() {
-            DType::F64 => Ok(cast($func::<f64>(cast($x), $($arg),*))),
-            DType::F32 => Ok(cast($func::<f32>(cast($x), $($arg),*))),
-            DType::F16 | DType::BF16 => Err($x), // Once AVX-512 stabilizes we can use f16
-            DType::I64 => Ok(cast($func::<i64>(cast($x), $($arg),*))),
-            DType::I32 => Ok(cast($func::<i32>(cast($x), $($arg),*))),
-            DType::I16 => Ok(cast($func::<i16>(cast($x), $($arg),*))),
-            DType::I8 => Ok(cast($func::<i8>(cast($x), $($arg),*))),
-            DType::U64 => Ok(cast($func::<u64>(cast($x), $($arg),*))),
-            DType::U32 => Ok(cast($func::<u32>(cast($x), $($arg),*))),
-            DType::U16 => Ok(cast($func::<u16>(cast($x), $($arg),*))),
-            DType::U8 => Ok(cast($func::<u8>(cast($x), $($arg),*))),
-            DType::Bool => Ok(cast($func::<u8>(cast($x), $($arg),*))),
+            DType::F64 if is_accelerated::<f64>() => Ok(cast($func::<f64>(cast($x), $($arg),*))),
+            DType::F32 if is_accelerated::<f32>() => Ok(cast($func::<f32>(cast($x), $($arg),*))),
+            DType::I64 if is_accelerated::<i64>() => Ok(cast($func::<i64>(cast($x), $($arg),*))),
+            DType::I32 if is_accelerated::<i32>() => Ok(cast($func::<i32>(cast($x), $($arg),*))),
+            DType::I16 if is_accelerated::<i16>() => Ok(cast($func::<i16>(cast($x), $($arg),*))),
+            DType::I8 if is_accelerated::<i8>() => Ok(cast($func::<i8>(cast($x), $($arg),*))),
+            DType::U64 if is_accelerated::<u64>() => Ok(cast($func::<u64>(cast($x), $($arg),*))),
+            DType::U32 if is_accelerated::<u32>() => Ok(cast($func::<u32>(cast($x), $($arg),*))),
+            DType::U16 if is_accelerated::<u16>() => Ok(cast($func::<u16>(cast($x), $($arg),*))),
+            DType::U8 if is_accelerated::<u8>() => Ok(cast($func::<u8>(cast($x), $($arg),*))),
+            DType::Bool if is_accelerated::<u8>() => Ok(cast($func::<u8>(cast($x), $($arg),*))),
             DType::QFloat(scheme) => match scheme.q_type() {
-                QuantizationType::QInt8 => Ok(cast($func::<i8>(cast($x), $($arg),*))),
+                QuantizationType::QInt8 if is_accelerated::<i8>() => Ok(cast($func::<i8>(cast($x), $($arg),*))),
+                _ => Err($x)
             },
+            _ => Err($x),
         }
     };
 }

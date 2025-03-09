@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use backend_comparison::persistence::save;
-use burn::tensor::{backend::Backend, Bool, Distribution, Element, Shape, Tensor};
+use burn::tensor::{backend::Backend, Distribution, Element, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use rand::rng;
 
@@ -11,7 +11,7 @@ pub struct BinaryBenchmark<B: Backend, const D: usize> {
 }
 
 impl<B: Backend, const D: usize> Benchmark for BinaryBenchmark<B, D> {
-    type Args = (Tensor<B, D, Bool>, Tensor<B, D, Bool>);
+    type Args = (Tensor<B, D>, Tensor<B, D>);
 
     fn name(&self) -> String {
         "binary".into()
@@ -22,14 +22,12 @@ impl<B: Backend, const D: usize> Benchmark for BinaryBenchmark<B, D> {
     }
 
     fn execute(&self, (lhs, rhs): Self::Args) {
-        let _ = lhs.bool_or(rhs);
+        let _ = lhs.greater(rhs);
     }
 
     fn prepare(&self) -> Self::Args {
-        let lhs = Tensor::<B, D>::random(self.shape.clone(), Distribution::Default, &self.device)
-            .greater_elem(0.5);
-        let rhs = Tensor::<B, D>::random(self.shape.clone(), Distribution::Default, &self.device)
-            .greater_elem(0.5);
+        let lhs = Tensor::<B, D>::random(self.shape.clone(), Distribution::Default, &self.device);
+        let rhs = Tensor::<B, D>::random(self.shape.clone(), Distribution::Default, &self.device);
 
         (lhs, rhs)
     }
@@ -46,7 +44,7 @@ pub struct BinaryScalarBenchmark<B: Backend, const D: usize, E: Element> {
 }
 
 impl<B: Backend, const D: usize, E: Element> Benchmark for BinaryScalarBenchmark<B, D, E> {
-    type Args = (Tensor<B, D>, E, E);
+    type Args = (Tensor<B, D>, E);
 
     fn name(&self) -> String {
         "binary_scalar".into()
@@ -56,16 +54,15 @@ impl<B: Backend, const D: usize, E: Element> Benchmark for BinaryScalarBenchmark
         vec![self.shape.dims.clone()]
     }
 
-    fn execute(&self, (lhs, min, max): Self::Args) {
-        let _ = lhs.clamp(min, max);
+    fn execute(&self, (lhs, rhs): Self::Args) {
+        let _ = lhs.equal_elem(rhs);
     }
 
     fn prepare(&self) -> Self::Args {
         let lhs = Tensor::random(self.shape.clone(), Distribution::Default, &self.device);
-        let min = E::random(Distribution::Default, &mut rng());
-        let max = E::random(Distribution::Default, &mut rng());
+        let rhs = E::random(Distribution::Default, &mut rng());
 
-        (lhs, min, max)
+        (lhs, rhs)
     }
 
     fn sync(&self) {

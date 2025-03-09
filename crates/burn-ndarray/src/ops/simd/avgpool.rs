@@ -1,15 +1,20 @@
-use core::mem::transmute;
+use core::{marker::PhantomData, mem::transmute};
 
 use crate::{sharing::UnsafeSharedRef, tensor::NdArrayTensor};
 
 use burn_common::{iter_range_par, run_par};
 use burn_tensor::{DType, Element, ElementConversion, TensorMetadata};
 use bytemuck::Zeroable;
-use macerator::{VAdd, VDiv};
+use macerator::{Simd, VAdd, VDiv};
 use ndarray::{s, Array4};
 use nhwc::avg_pool_nhwc;
 
 use super::should_use_simd;
+
+#[macerator::with_simd]
+fn is_accelerated<S: Simd, T: VAdd + VDiv>(_x: PhantomData<T>) -> bool {
+    <T as VAdd>::is_accelerated::<S>() && <T as VDiv>::is_accelerated::<S>()
+}
 
 pub(crate) fn try_avg_pool2d_simd<E: Element>(
     x: NdArrayTensor<E>,
@@ -24,14 +29,14 @@ pub(crate) fn try_avg_pool2d_simd<E: Element>(
     }
 
     match E::dtype() {
-        DType::F64 => Ok(cast(avg_pool_nhwc::<f64>(
+        DType::F64 if is_accelerated::<f64>(PhantomData) => Ok(cast(avg_pool_nhwc::<f64>(
             cast(x),
             ksize,
             stride,
             padding,
             with_pad,
         ))),
-        DType::F32 => Ok(cast(avg_pool_nhwc::<f32>(
+        DType::F32 if is_accelerated::<f32>(PhantomData) => Ok(cast(avg_pool_nhwc::<f32>(
             cast(x),
             ksize,
             stride,

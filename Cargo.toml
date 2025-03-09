@@ -129,7 +129,7 @@ half = { version = "2.4.1", features = [
     "num-traits",
     "serde",
 ], default-features = false }
-macerator = { version = "0.2.1" }
+macerator = { version = "0.2.4" }
 matrixmultiply = { version = "0.3.9", default-features = false }
 ndarray = { version = "0.16.1", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [

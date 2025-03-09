@@ -8,7 +8,6 @@ use burn_tensor::Distribution;
 use burn_tensor::ElementConversion;
 use core::ops::Range;
 use ndarray::IntoDimension;
-use ndarray::Zip;
 
 // Current crate
 use crate::element::FloatNdArrayElement;
@@ -87,96 +86,43 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn int_equal(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<bool> {
-        let output = Zip::from(&lhs.array)
-            .and(&rhs.array)
-            .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
-            .into_shared();
-        NdArrayTensor::new(output)
+        NdArrayMathOps::equal(lhs, rhs)
     }
 
     fn int_equal_elem(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<bool> {
-        let array = lhs.array.mapv(|a| a == rhs).into_shared();
-        NdArrayTensor { array }
+        NdArrayMathOps::equal_elem(lhs, rhs)
     }
 
     fn int_greater(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<bool> {
-        let lhs = lhs
-            .array
-            .broadcast(rhs.array.dim())
-            .unwrap_or(lhs.array.view());
-        let rhs = rhs.array.broadcast(lhs.dim()).unwrap_or(rhs.array.view());
-
-        NdArrayTensor::new(
-            Zip::from(lhs)
-                .and(rhs)
-                .map_collect(|lhs, rhs| lhs > rhs)
-                .into_shared(),
-        )
+        NdArrayMathOps::greater(lhs, rhs)
     }
 
     fn int_greater_elem(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<bool> {
-        let array = lhs.array.mapv(|a| a > rhs).into_shared();
-        NdArrayTensor::new(array)
+        NdArrayMathOps::greater_elem(lhs, rhs)
     }
 
     fn int_greater_equal(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<bool> {
-        let lhs = lhs
-            .array
-            .broadcast(rhs.array.dim())
-            .unwrap_or(lhs.array.view());
-        let rhs = rhs.array.broadcast(lhs.dim()).unwrap_or(rhs.array.view());
-
-        NdArrayTensor::new(
-            Zip::from(lhs)
-                .and(rhs)
-                .map_collect(|lhs, rhs| lhs >= rhs)
-                .into_shared(),
-        )
+        NdArrayMathOps::greater_equal(lhs, rhs)
     }
 
     fn int_greater_equal_elem(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<bool> {
-        let array = lhs.array.mapv(|a| a >= rhs).into_shared();
-        NdArrayTensor::new(array)
+        NdArrayMathOps::greater_equal_elem(lhs, rhs)
     }
 
     fn int_lower(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<bool> {
-        let lhs = lhs
-            .array
-            .broadcast(rhs.array.dim())
-            .unwrap_or(lhs.array.view());
-        let rhs = rhs.array.broadcast(lhs.dim()).unwrap_or(rhs.array.view());
-
-        NdArrayTensor::new(
-            Zip::from(lhs)
-                .and(rhs)
-                .map_collect(|lhs, rhs| lhs < rhs)
-                .into_shared(),
-        )
+        NdArrayMathOps::lower(lhs, rhs)
     }
 
     fn int_lower_elem(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<bool> {
-        let array = lhs.array.mapv(|a| a < rhs).into_shared();
-        NdArrayTensor::new(array)
+        NdArrayMathOps::lower_elem(lhs, rhs)
     }
 
     fn int_lower_equal(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<bool> {
-        let lhs = lhs
-            .array
-            .broadcast(rhs.array.dim())
-            .unwrap_or(lhs.array.view());
-        let rhs = rhs.array.broadcast(lhs.dim()).unwrap_or(rhs.array.view());
-
-        NdArrayTensor::new(
-            Zip::from(lhs)
-                .and(rhs)
-                .map_collect(|lhs, rhs| lhs <= rhs)
-                .into_shared(),
-        )
+        NdArrayMathOps::lower_equal(lhs, rhs)
     }
 
     fn int_lower_equal_elem(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<bool> {
-        let array = lhs.array.mapv(|a| a <= rhs).into_shared();
-        NdArrayTensor::new(array)
+        NdArrayMathOps::lower_equal_elem(lhs, rhs)
     }
 
     fn int_add(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {

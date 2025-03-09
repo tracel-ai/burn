@@ -20,6 +20,7 @@ use super::{
 pub trait SimdBinop<T: Scalar, Out: Scalar> {
     fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Vector<S, Out>;
     fn apply(lhs: T, rhs: T) -> Out;
+    fn is_accelerated<S: Simd>() -> bool;
 }
 
 impl<T: VAdd> SimdBinop<T, T> for VecAdd {
@@ -29,6 +30,10 @@ impl<T: VAdd> SimdBinop<T, T> for VecAdd {
 
     fn apply(lhs: T, rhs: T) -> T {
         lhs + rhs
+    }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VAdd>::is_accelerated::<S>()
     }
 }
 
@@ -40,6 +45,10 @@ impl<T: VDiv> SimdBinop<T, T> for VecDiv {
     fn apply(lhs: T, rhs: T) -> T {
         lhs / rhs
     }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VDiv>::is_accelerated::<S>()
+    }
 }
 
 impl<T: VMul> SimdBinop<T, T> for VecMul {
@@ -49,6 +58,10 @@ impl<T: VMul> SimdBinop<T, T> for VecMul {
 
     fn apply(lhs: T, rhs: T) -> T {
         lhs * rhs
+    }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VMul>::is_accelerated::<S>()
     }
 }
 
@@ -60,6 +73,10 @@ impl<T: VSub> SimdBinop<T, T> for VecSub {
     fn apply(lhs: T, rhs: T) -> T {
         lhs - rhs
     }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VSub>::is_accelerated::<S>()
+    }
 }
 
 impl<T: VOrd + MinMax> SimdBinop<T, T> for VecMin {
@@ -69,6 +86,10 @@ impl<T: VOrd + MinMax> SimdBinop<T, T> for VecMin {
 
     fn apply(lhs: T, rhs: T) -> T {
         MinMax::min(lhs, rhs)
+    }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VOrd>::is_min_max_accelerated::<S>()
     }
 }
 
@@ -80,6 +101,10 @@ impl<T: VOrd + MinMax> SimdBinop<T, T> for VecMax {
     fn apply(lhs: T, rhs: T) -> T {
         MinMax::max(lhs, rhs)
     }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VOrd>::is_min_max_accelerated::<S>()
+    }
 }
 
 impl<T: VBitAnd> SimdBinop<T, T> for VecBitAnd {
@@ -89,6 +114,10 @@ impl<T: VBitAnd> SimdBinop<T, T> for VecBitAnd {
 
     fn apply(lhs: T, rhs: T) -> T {
         lhs.bitand(rhs)
+    }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VBitAnd>::is_accelerated::<S>()
     }
 }
 
@@ -100,6 +129,10 @@ impl<T: VBitOr> SimdBinop<T, T> for VecBitOr {
     fn apply(lhs: T, rhs: T) -> T {
         lhs.bitor(rhs)
     }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VBitOr>::is_accelerated::<S>()
+    }
 }
 
 impl<T: VBitXor> SimdBinop<T, T> for VecBitXor {
@@ -110,6 +143,17 @@ impl<T: VBitXor> SimdBinop<T, T> for VecBitXor {
     fn apply(lhs: T, rhs: T) -> T {
         lhs.bitxor(rhs)
     }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VBitXor>::is_accelerated::<S>()
+    }
+}
+
+#[macerator::with_simd]
+fn is_accelerated<S: Simd, T: Scalar, Out: Scalar, Op: SimdBinop<T, Out>>(
+    _x: PhantomData<(T, Out, Op)>,
+) -> bool {
+    Op::is_accelerated::<S>()
 }
 
 #[allow(clippy::result_large_err)]
@@ -129,6 +173,7 @@ pub fn try_binary_simd<
         || !lhs.array.is_standard_layout()
         || !rhs.array.is_standard_layout()
         || lhs.shape() != rhs.shape()
+        || !is_accelerated::<T, Out, Op>(PhantomData)
     {
         return Err((lhs, rhs));
     }

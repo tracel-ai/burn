@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use bytemuck::cast;
 use macerator::{
-    vload, vload_unaligned, vstore, vstore_unaligned, Scalar, Simd, VAbs, VBitNot, Vector,
+    vload, vload_unaligned, vstore, vstore_unaligned, Scalar, Simd, VAbs, VBitNot, VRecip, Vector,
 };
 use ndarray::ArrayD;
 use num_traits::Signed;
@@ -15,6 +15,7 @@ use super::should_use_simd;
 pub trait SimdUnop<T: Scalar, Out: Scalar> {
     fn apply_vec<S: Simd>(input: Vector<S, T>) -> Vector<S, Out>;
     fn apply(input: T) -> Out;
+    fn is_accelerated<S: Simd>() -> bool;
 }
 
 pub struct RecipVec;
@@ -26,6 +27,10 @@ impl SimdUnop<f32, f32> for RecipVec {
 
     fn apply(input: f32) -> f32 {
         input.recip()
+    }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <f32 as VRecip>::is_accelerated::<S>()
     }
 }
 
@@ -39,6 +44,10 @@ impl<T: VAbs + Signed> SimdUnop<T, T> for VecAbs {
     fn apply(input: T) -> T {
         input.abs()
     }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VAbs>::is_accelerated::<S>()
+    }
 }
 
 pub struct VecBitNot;
@@ -51,6 +60,17 @@ impl<T: VBitNot> SimdUnop<T, T> for VecBitNot {
     fn apply(input: T) -> T {
         input.not()
     }
+
+    fn is_accelerated<S: Simd>() -> bool {
+        <T as VBitNot>::is_accelerated::<S>()
+    }
+}
+
+#[macerator::with_simd]
+fn is_accelerated<S: Simd, T: Scalar, Out: Scalar, Op: SimdUnop<T, Out>>(
+    _x: PhantomData<(T, Out, Op)>,
+) -> bool {
+    Op::is_accelerated::<S>()
 }
 
 pub fn try_unary_simd<
@@ -62,7 +82,10 @@ pub fn try_unary_simd<
 >(
     input: NdArrayTensor<E>,
 ) -> Result<NdArrayTensor<EOut>, NdArrayTensor<E>> {
-    if !should_use_simd(input.array.len()) || input.array.as_slice_memory_order().is_none() {
+    if !should_use_simd(input.array.len())
+        || input.array.as_slice_memory_order().is_none()
+        || !is_accelerated::<T, Out, Op>(PhantomData)
+    {
         return Err(input);
     }
     // Used to assert traits based on the dynamic `DType`.
