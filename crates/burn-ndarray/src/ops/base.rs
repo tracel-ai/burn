@@ -25,6 +25,7 @@ use ndarray::Dim;
 use ndarray::IxDyn;
 use ndarray::SliceInfoElem;
 
+use crate::element::NdArrayElement;
 #[cfg(feature = "simd")]
 use crate::ops::simd::{
     binary::try_binary_simd,
@@ -32,19 +33,17 @@ use crate::ops::simd::{
         try_binary_scalar_simd, VecAdd, VecBitAnd, VecBitOr, VecBitXor, VecClamp, VecDiv, VecMax,
         VecMin, VecMul, VecSub,
     },
+    cmp::{
+        try_cmp_scalar_simd, try_cmp_simd, VecEquals, VecGreater, VecGreaterEq, VecLower,
+        VecLowerEq,
+    },
     unary::{try_unary_simd, RecipVec, VecAbs, VecBitNot},
-};
-use crate::{
-    element::NdArrayElement,
-    ops::simd::cmp::{VecGreater, VecGreaterEq, VecLower, VecLowerEq},
 };
 use crate::{
     ops::macros::{keepdim, mean_dim, prod_dim, sum_dim},
     IntNdArrayElement,
 };
 use crate::{reshape, tensor::NdArrayTensor};
-
-use super::simd::cmp::{try_cmp_scalar_simd, try_cmp_simd, VecEquals};
 
 pub struct NdArrayOps<E> {
     e: PhantomData<E>,
