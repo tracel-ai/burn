@@ -6,6 +6,10 @@ use super::{
     interpolate::{bicubic_interpolate, bilinear_interpolate, nearest_interpolate},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
 };
+#[cfg(feature = "simd")]
+use crate::ops::simd::{
+    avgpool::try_avg_pool2d_simd, conv::try_conv2d_simd, maxpool::try_max_pool2d_simd,
+};
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray, NdArrayTensorFloat};
 use crate::{
     element::{IntNdArrayElement, QuantElement},
@@ -46,10 +50,14 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         bias: Option<NdArrayTensorFloat>,
         options: ConvOptions<2>,
     ) -> NdArrayTensorFloat {
-        module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| conv2d::<E>(
-            x, weight, bias, options
-        )
-        .into())
+        module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| {
+            #[cfg(feature = "simd")]
+            let (x, weight, bias) = match try_conv2d_simd(x, weight, bias, options.clone()) {
+                Ok(out) => return out.into(),
+                Err(args) => args,
+            };
+            conv2d::<E>(x, weight, bias, options).into()
+        })
     }
 
     fn deform_conv2d(
@@ -123,14 +131,14 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         padding: [usize; 2],
         count_include_pad: bool,
     ) -> FloatTensor<Self> {
-        module_op!(inp(x), opt(), E, |x| avg_pool2d::<E>(
-            x,
-            kernel_size,
-            stride,
-            padding,
-            count_include_pad
-        )
-        .into())
+        module_op!(inp(x), opt(), E, |x| {
+            #[cfg(feature = "simd")]
+            let x = match try_avg_pool2d_simd(x, kernel_size, stride, padding, count_include_pad) {
+                Ok(out) => return out.into(),
+                Err(x) => x,
+            };
+            avg_pool2d::<E>(x, kernel_size, stride, padding, count_include_pad).into()
+        })
     }
 
     fn avg_pool2d_backward(
@@ -159,14 +167,14 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         padding: [usize; 2],
         dilation: [usize; 2],
     ) -> FloatTensor<Self> {
-        module_op!(inp(x), opt(), E, |x| max_pool2d::<E>(
-            x,
-            kernel_size,
-            stride,
-            padding,
-            dilation
-        )
-        .into())
+        module_op!(inp(x), opt(), E, |x| {
+            #[cfg(feature = "simd")]
+            let x = match try_max_pool2d_simd(x, kernel_size, stride, padding, dilation) {
+                Ok(out) => return out.into(),
+                Err(x) => x,
+            };
+            max_pool2d::<E>(x, kernel_size, stride, padding, dilation).into()
+        })
     }
 
     fn max_pool2d_with_indices(

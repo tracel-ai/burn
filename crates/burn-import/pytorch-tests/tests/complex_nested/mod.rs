@@ -207,7 +207,7 @@ fn partial_model_loading() {
     // get the sum of all elements in the output tensor for quick check
     let sum = output.sum();
 
-    assert_eq!(4.871538, sum.into_scalar());
+    assert!((sum.into_scalar() - 4.871538).abs() < 0.000002);
 }
 
 #[test]
@@ -232,7 +232,7 @@ fn extra_field_model_loading() {
     // get the sum of all elements in the output tensor for quick check
     let sum = output.sum();
 
-    assert_eq!(4.871538, sum.into_scalar());
+    assert!((sum.into_scalar() - 4.871538).abs() < 0.000002);
 
     assert!(model.extra_field);
 }

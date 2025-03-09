@@ -212,6 +212,7 @@ mod tests {
         x.into_data().assert_approx_eq(&tensor.into_data(), 2);
     }
 
+    #[allow(clippy::excessive_precision)]
     #[cfg(feature = "std")]
     #[might_panic(reason = "Per-block quantization is not supported")]
     #[test]

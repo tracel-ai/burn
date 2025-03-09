@@ -239,4 +239,11 @@ impl QuantizationScheme {
         };
         self.compute_q_params(range).into()
     }
+
+    pub fn q_type(&self) -> QuantizationType {
+        match self {
+            QuantizationScheme::PerTensor(_, quantization_type) => *quantization_type,
+            QuantizationScheme::PerBlock(_, quantization_type, _) => *quantization_type,
+        }
+    }
 }

@@ -220,6 +220,7 @@ fn bench<B: Backend>(
     let mut results = Vec::new();
 
     for bench in benches {
+        println!("Running {}", bench.name());
         let result = black_box(run_benchmark(bench));
         results.push(result);
     }

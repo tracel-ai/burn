@@ -1,10 +1,10 @@
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor};
-use burn_tensor::TensorMetadata;
+use burn_tensor::{Element, TensorMetadata};
 use ndarray::{Array4, Array5};
 
 use super::NdArrayOps;
 
-pub(crate) fn apply_padding_4d<E: FloatNdArrayElement>(
+pub(crate) fn apply_padding_4d<E: Element>(
     x: NdArrayTensor<E>,
     padding: [usize; 2],
     elem: E,

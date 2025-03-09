@@ -22,7 +22,7 @@ default = ["ndarray", "cubecl-backend", "fusion", "std", "export-tests"]
 export-tests = ["burn-tensor-testgen", "image"]
 fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
 ndarray = ["burn-ndarray"]
-std = ["pulp/std"]
+std = []
 tch = ["burn-tch"]
 
 # Test features
@@ -50,7 +50,6 @@ macerator = { workspace = true }
 ndarray = { workspace = true }
 num-traits = { workspace = true }
 paste = { workspace = true }
-pulp = { workspace = true, features = ["x86-v3", "macro"] }
 serde = { workspace = true }
 
 [dev-dependencies]
