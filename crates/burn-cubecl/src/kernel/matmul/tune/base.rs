@@ -1,6 +1,6 @@
 use burn_tensor::{Element, ElementConversion};
 use cubecl::{
-    linalg::matmul::{kernels::tiling2d::Tiling2dConfig, Strategy},
+    linalg::matmul::{kernels::tiling2d::Tiling2dConfig, Strategy, SyncLoadingStrategy},
     tune::{local_tuner, LocalTuner, TunableSet},
 };
 
@@ -63,7 +63,7 @@ fn matmul_accelerated<R: CubeRuntime, E: FloatElement>(
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::linalg::matmul::launch_ref::<R, E>(
-        &Strategy::Simple,
+        &Strategy::Simple(SyncLoadingStrategy::Cyclic),
         &lhs.client,
         &lhs.as_handle_ref(),
         &rhs.as_handle_ref(),
@@ -93,7 +93,7 @@ fn matmul_simple<R: CubeRuntime, E: FloatElement>(
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::linalg::matmul::launch_ref::<R, E>(
-        &Strategy::Simple,
+        &Strategy::Simple(SyncLoadingStrategy::Cyclic),
         &lhs.client,
         &lhs.as_handle_ref(),
         &rhs.as_handle_ref(),

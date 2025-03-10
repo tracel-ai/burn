@@ -1,11 +1,8 @@
-use cubecl::linalg::matmul::components::global::SyncInputLoader;
+use cubecl::linalg::matmul::components::global::{InputLoader, SyncInputLoader};
+use cubecl::linalg::matmul::components::stage::multi_buffer::LhsReader;
 use cubecl::linalg::matmul::components::stage::{ContiguousTilingLayout, RowMajorTilingOrder};
 use cubecl::{
-    linalg::matmul::components::{
-        global::InputLoader,
-        stage::{multi_buffer::LhsReader, Stage},
-        Ident,
-    },
+    linalg::matmul::components::{stage::Stage, Ident},
     prelude::*,
 };
 
@@ -34,6 +31,10 @@ impl<CS: ConvPrecision, G: ConvGemmConfig> InputLoader<CS::EG, CS::ES, G>
 
     fn as_stage_reader(this: &Self) -> Self::StageReader {
         LhsReader::new(this.stage)
+    }
+
+    fn clear_stage(_this: &mut Self, #[comptime] _config: G) {
+        // Unreachable
     }
 }
 

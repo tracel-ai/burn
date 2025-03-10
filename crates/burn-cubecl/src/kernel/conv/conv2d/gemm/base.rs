@@ -1,11 +1,8 @@
 use burn_tensor::ops::ConvOptions;
-use cubecl::linalg::matmul::{
-    components::{
-        global::{AccumulatorLoader, OutputLoader},
-        stage::{StageMatmul, StageMatmulFamily},
-        InvalidConfigError, MatmulProblem, MatrixLayout,
-    },
-    kernels::matmul::AdvancedConfig,
+use cubecl::linalg::matmul::components::{
+    global::{AccumulatorLoader, OutputLoader},
+    stage::{StageMatmul, StageMatmulFamily},
+    InvalidConfigError, MatmulProblem, MatrixLayout,
 };
 use cubecl::prelude::*;
 use cubecl_std::tensor::r#virtual::{ReadWrite, VirtualTensor};
@@ -94,7 +91,6 @@ pub trait ConvolutionConfigFactory: Send + Sync + 'static {
         problem: &ConvolutionProblem,
         cube_dim: &CubeDim,
         cube_count: &CubeCount,
-        advanced_config: &AdvancedConfig,
     ) -> Self::Config;
 }
 
