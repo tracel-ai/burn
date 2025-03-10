@@ -191,14 +191,12 @@ impl<B: Backend, I, O> BatchDataloaderIterator<B, I, O> {
         batcher: Box<dyn DynBatcher<B, I, O>>,
         distributor: Box<dyn DistributionStrategy<Resource = B::Device>>,
     ) -> Self {
-        // let devices = batcher.devices();
         BatchDataloaderIterator {
             current_index: 0,
             strategy,
             dataset,
             batcher,
             distributor,
-            // devices,
         }
     }
 }
