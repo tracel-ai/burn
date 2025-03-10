@@ -56,10 +56,10 @@ paste = "1"
 percent-encoding = "2.3.1"
 polars = { version = "0.46.0", features = ["lazy"] }
 pretty_assertions = "1.4.1"
-proc-macro2 = "1.0.93"
+proc-macro2 = "1.0.94"
 protobuf = "3.7.1"
 protobuf-codegen = "3.7.1"
-quote = "1.0.38"
+quote = "1.0.39"
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.25.0"
 rayon = "1.10.0"
@@ -72,7 +72,7 @@ rstest = "0.23.0"
 rusqlite = "0.32.1"
 rust-format = "0.3.4"
 sanitize-filename = "0.6.0"
-serde_bytes = { version = "0.11.15", default-features = false, features = [
+serde_bytes = { version = "0.11.17", default-features = false, features = [
     "alloc",
 ] } # alloc for no_std
 serde_rusqlite = "0.36.0"
@@ -84,7 +84,7 @@ spin = { version = "0.9.8", features = [
 ] }
 strum = "0.26.3"
 strum_macros = "0.26.4"
-syn = { version = "2.0.95", features = ["full", "extra-traits"] }
+syn = { version = "2.0.100", features = ["full", "extra-traits"] }
 tempfile = "3.17.1"
 thiserror = "2.0.11"
 tokio = { version = "1.42.0", features = ["rt", "macros"] }
@@ -145,7 +145,7 @@ serde = { version = "1.0.218", default-features = false, features = [
     "derive",
     "alloc",
 ] } # alloc is for no_std, derive is needed
-serde_json = { version = "1.0.139", default-features = false }
+serde_json = { version = "1.0.140", default-features = false }
 uuid = { version = "1.12.1", default-features = false }
 
 libc = "0.2.170"
