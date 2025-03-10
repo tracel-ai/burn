@@ -1,16 +1,15 @@
-use super::{
-    AssignmentStrategy, DataLoader, DataLoaderIterator, DynDataLoader, Progress,
-    RoundRobinAssignment, State,
-};
+use burn_tensor::backend::Backend;
+
+use super::{DataLoader, DataLoaderIterator, DistributionStrategy, DynDataLoader, Progress, State};
 use std::sync::mpsc;
 use std::thread;
 
 const MAX_QUEUED_ITEMS: usize = 100;
 
 /// A multi-threaded data loader that can be used to iterate over a dataset.
-pub struct MultiThreadDataLoader<O> {
+pub struct MultiThreadDataLoader<B: Backend, O> {
     dataloaders: Vec<Box<dyn DynDataLoader<O>>>,
-    num_devices: usize,
+    distributor: Box<dyn DistributionStrategy<Resource = B::Device>>,
 }
 
 /// A message that can be sent between threads.
@@ -23,40 +22,43 @@ pub enum Message<O> {
     Done,
 }
 
-struct MultiThreadsDataloaderIterator<O, A: AssignmentStrategy> {
+struct MultiThreadsDataloaderIterator<B: Backend, O> {
     num_done: usize,
     workers: Vec<thread::JoinHandle<()>>,
     receiver: mpsc::Receiver<Message<O>>,
     progresses: Vec<Progress>,
-    // For multi-device assignment
-    assignment: A,
+    // For multi-device distribution
+    distributor: Box<dyn DistributionStrategy<Resource = B::Device>>,
     queue: DeviceQueue<O>,
 }
 
-impl<O> MultiThreadDataLoader<O> {
+impl<B: Backend, O> MultiThreadDataLoader<B, O> {
     /// Creates a new multi-threaded data loader.
     ///
     /// # Arguments
     ///
     /// * `dataloaders` - The data loaders.
+    /// * `distributor` - The resource distribution strategy.
     ///
     /// # Returns
     ///
     /// The multi-threaded data loader.
-    pub fn new(dataloaders: Vec<Box<dyn DynDataLoader<O>>>, num_devices: usize) -> Self {
-        assert!(num_devices > 0, "Must use at least one device");
+    pub fn new(
+        dataloaders: Vec<Box<dyn DynDataLoader<O>>>,
+        distributor: Box<dyn DistributionStrategy<Resource = B::Device>>,
+    ) -> Self {
         Self {
             dataloaders,
-            num_devices,
+            distributor,
         }
     }
 }
 
-impl<O> DataLoader<O> for MultiThreadDataLoader<O>
+impl<B: Backend, O> DataLoader<O> for MultiThreadDataLoader<B, O>
 where
     O: Send + 'static + std::fmt::Debug,
 {
-    fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O, Strategy = RoundRobinAssignment> + 'a> {
+    fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a> {
         let (sender, receiver) = mpsc::sync_channel::<Message<O>>(MAX_QUEUED_ITEMS);
 
         let mut progresses = Vec::with_capacity(self.dataloaders.len());
@@ -95,12 +97,11 @@ where
             })
             .collect();
 
-        Box::new(MultiThreadsDataloaderIterator::new(
+        Box::new(MultiThreadsDataloaderIterator::<B, O>::new(
             receiver,
             handlers,
             progresses,
-            self.num_devices,
-            RoundRobinAssignment::new(self.num_devices),
+            self.distributor.clone_dyn(),
         ))
     }
 
@@ -109,30 +110,28 @@ where
     }
 }
 
-impl<O, A: AssignmentStrategy> MultiThreadsDataloaderIterator<O, A> {
+impl<B: Backend, O> MultiThreadsDataloaderIterator<B, O> {
     pub fn new(
         receiver: mpsc::Receiver<Message<O>>,
         workers: Vec<thread::JoinHandle<()>>,
         progresses: Vec<Progress>,
-        num_devices: usize,
-        assignment: A,
+        distributor: Box<dyn DistributionStrategy<Resource = B::Device>>,
     ) -> Self {
+        let queue = DeviceQueue::new(distributor.resources().len());
         MultiThreadsDataloaderIterator {
             num_done: 0,
             workers,
             receiver,
             progresses,
-            assignment,
-            queue: DeviceQueue::new(num_devices),
+            distributor,
+            queue,
         }
     }
 }
 
-impl<O: std::fmt::Debug> DataLoaderIterator<O>
-    for MultiThreadsDataloaderIterator<O, RoundRobinAssignment>
+impl<B: Backend, O: std::fmt::Debug> DataLoaderIterator<O>
+    for MultiThreadsDataloaderIterator<B, O>
 {
-    type Strategy = RoundRobinAssignment;
-
     fn progress(&self) -> Progress {
         let mut items_total = 0;
         let mut items_processed = 0;
@@ -184,7 +183,7 @@ impl<O> DeviceQueue<O> {
     }
 }
 
-impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O, RoundRobinAssignment> {
+impl<B: Backend, O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<B, O> {
     type Item = O;
 
     fn next(&mut self) -> Option<O> {
@@ -195,7 +194,7 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O, RoundRob
         loop {
             let item = self.receiver.recv();
             let item = item.unwrap();
-            let current_id = self.assignment.current();
+            let current_id = self.distributor.next_id();
 
             match item {
                 Message::Batch(index, item, progress, device_id) => {
@@ -203,7 +202,7 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O, RoundRob
                         *current = progress;
                     }
                     if device_id == current_id {
-                        self.assignment.step();
+                        self.distributor.select();
                         return Some(item);
                     } else {
                         self.queue.push(item, device_id);
@@ -216,7 +215,7 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O, RoundRob
 
             // Get item from queue
             if let Some(item) = self.queue.pop(current_id) {
-                self.assignment.step();
+                self.distributor.select();
                 return Some(item);
             }
 

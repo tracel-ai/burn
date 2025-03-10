@@ -72,9 +72,7 @@ impl Dataset<SequenceDatasetItem> for SequenceDataset {
 }
 
 #[derive(Clone, Debug)]
-pub struct SequenceBatcher<B: Backend> {
-    device: B::Device,
-}
+pub struct SequenceBatcher {}
 
 #[derive(Clone, Debug)]
 pub struct SequenceBatch<B: Backend> {
@@ -82,18 +80,14 @@ pub struct SequenceBatch<B: Backend> {
     pub targets: Tensor<B, 2>,   // [batch_size, 1]
 }
 
-impl<B: Backend> SequenceBatcher<B> {
-    pub fn new(device: B::Device) -> Self {
-        Self { device }
+impl SequenceBatcher {
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
-impl<B: Backend> Batcher<B, SequenceDatasetItem, SequenceBatch<B>> for SequenceBatcher<B> {
-    fn batch_with_device(
-        &self,
-        items: Vec<SequenceDatasetItem>,
-        device: &B::Device,
-    ) -> SequenceBatch<B> {
+impl<B: Backend> Batcher<B, SequenceDatasetItem, SequenceBatch<B>> for SequenceBatcher {
+    fn batch(&self, items: Vec<SequenceDatasetItem>, device: &B::Device) -> SequenceBatch<B> {
         let mut sequences: Vec<Tensor<B, 2>> = Vec::new();
 
         for item in items.iter() {
@@ -110,9 +104,5 @@ impl<B: Backend> Batcher<B, SequenceDatasetItem, SequenceBatch<B>> for SequenceB
         let targets = Tensor::stack(targets, 0);
 
         SequenceBatch { sequences, targets }
-    }
-
-    fn devices(&self) -> Vec<B::Device> {
-        vec![self.device.clone()]
     }
 }

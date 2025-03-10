@@ -15,8 +15,8 @@ pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MnistItem)
     let model: Model<B> = config.model.init(&device).load_record(record);
 
     let label = item.label;
-    let batcher = MnistBatcher::new(device);
-    let batch = batcher.batch(vec![item]);
+    let batcher = MnistBatcher::new();
+    let batch = batcher.batch(vec![item], &device);
     let output = model.forward(batch.images);
     let predicted = output.argmax(1).flatten::<1>(0, 1).into_scalar();
 

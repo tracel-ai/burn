@@ -4,13 +4,11 @@ use burn::{
 };
 
 #[derive(Clone)]
-pub struct MnistBatcher<B: Backend> {
-    device: B::Device,
-}
+pub struct MnistBatcher {}
 
-impl<B: Backend> MnistBatcher<B> {
-    pub fn new(device: B::Device) -> Self {
-        Self { device }
+impl MnistBatcher {
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
@@ -20,8 +18,8 @@ pub struct MnistBatch<B: Backend> {
     pub targets: Tensor<B, 1, Int>,
 }
 
-impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher<B> {
-    fn batch_with_device(&self, items: Vec<MnistItem>, device: &B::Device) -> MnistBatch<B> {
+impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher {
+    fn batch(&self, items: Vec<MnistItem>, device: &B::Device) -> MnistBatch<B> {
         let images = items
             .iter()
             .map(|item| TensorData::from(item.image).convert::<B::FloatElem>())
@@ -44,9 +42,5 @@ impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher<B> {
         let targets = Tensor::cat(targets, 0);
 
         MnistBatch { images, targets }
-    }
-
-    fn devices(&self) -> Vec<B::Device> {
-        vec![self.device.clone()]
     }
 }

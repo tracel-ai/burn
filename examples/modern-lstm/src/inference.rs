@@ -26,9 +26,9 @@ pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device) {
     let dataset = SequenceDataset::new(NUM_SEQUENCES / 5, SEQ_LENGTH, NOISE_LEVEL);
     let items: Vec<SequenceDatasetItem> = dataset.iter().collect();
 
-    let batcher = SequenceBatcher::new(device);
+    let batcher = SequenceBatcher::new();
     // Put all items in one batch
-    let batch = batcher.batch(items);
+    let batch = batcher.batch(items, &device);
     let predicted = model.forward(batch.sequences, None);
     let targets = batch.targets;
 

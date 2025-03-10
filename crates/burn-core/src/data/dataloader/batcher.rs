@@ -1,4 +1,3 @@
-use alloc::{vec, vec::Vec};
 use burn_tensor::backend::Backend;
 
 #[cfg(test)]
@@ -6,19 +5,6 @@ use crate::TestBackend;
 
 /// A trait for batching items of type `I` into items of type `O`.
 pub trait Batcher<B: Backend, I, O>: Send {
-    /// Batches the given items on the first device.
-    ///
-    /// # Arguments
-    ///
-    /// * `items` - The items to batch.
-    ///
-    /// # Returns
-    ///
-    /// The batched items.
-    fn batch(&self, items: Vec<I>) -> O {
-        self.batch_with_device(items, &self.devices()[0])
-    }
-
     /// Batches the given items on the specified device.
     ///
     /// # Arguments
@@ -29,17 +15,7 @@ pub trait Batcher<B: Backend, I, O>: Send {
     /// # Returns
     ///
     /// The batched items.
-    fn batch_with_device(&self, items: Vec<I>, device: &B::Device) -> O;
-
-    /// Returns the devices to use for the batcher.
-    ///
-    /// By default, the batcher will use the backend's default device.
-    ///
-    /// # Notes
-    ///
-    fn devices(&self) -> Vec<B::Device> {
-        vec![Default::default()]
-    }
+    fn batch(&self, items: Vec<I>, device: &B::Device) -> O;
 }
 
 /// A super trait for [batcher](Batcher) that allows it to be cloned dynamically.
@@ -67,15 +43,7 @@ pub struct TestBatcher;
 
 #[cfg(test)]
 impl<I> Batcher<TestBackend, I, Vec<I>> for TestBatcher {
-    fn batch(&self, items: Vec<I>) -> Vec<I> {
-        items
-    }
-
-    fn batch_with_device(
-        &self,
-        items: Vec<I>,
-        _device: &<TestBackend as Backend>::Device,
-    ) -> Vec<I> {
+    fn batch(&self, items: Vec<I>, _device: &<TestBackend as Backend>::Device) -> Vec<I> {
         items
     }
 }

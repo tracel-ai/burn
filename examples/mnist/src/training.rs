@@ -47,9 +47,11 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let config = MnistTrainingConfig::new(config_optimizer);
     B::seed(config.seed);
 
+    let model = Model::<B>::new(&device);
+
     // Data
-    let batcher_train = MnistBatcher::<B>::new(device.clone());
-    let batcher_valid = MnistBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher_train = MnistBatcher::new();
+    let batcher_valid = MnistBatcher::new();
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
@@ -85,7 +87,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
         .summary()
-        .build(Model::new(&device), config.optimizer.init(), 1e-4);
+        .build(model, config.optimizer.init(), 1e-4);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 

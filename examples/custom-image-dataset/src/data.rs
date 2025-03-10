@@ -48,7 +48,6 @@ impl<B: Backend> Normalizer<B> {
 #[derive(Clone)]
 pub struct ClassificationBatcher<B: Backend> {
     normalizer: Normalizer<B>,
-    device: B::Device,
 }
 
 #[derive(Clone, Debug)]
@@ -62,17 +61,12 @@ impl<B: Backend> ClassificationBatcher<B> {
     pub fn new(device: B::Device) -> Self {
         Self {
             normalizer: Normalizer::<B>::new(&device),
-            device,
         }
     }
 }
 
 impl<B: Backend> Batcher<B, ImageDatasetItem, ClassificationBatch<B>> for ClassificationBatcher<B> {
-    fn batch_with_device(
-        &self,
-        items: Vec<ImageDatasetItem>,
-        device: &B::Device,
-    ) -> ClassificationBatch<B> {
+    fn batch(&self, items: Vec<ImageDatasetItem>, device: &B::Device) -> ClassificationBatch<B> {
         fn image_as_vec_u8(item: ImageDatasetItem) -> Vec<u8> {
             // Convert Vec<PixelDepth> to Vec<u8> (we know that CIFAR images are u8)
             item.image
@@ -121,9 +115,5 @@ impl<B: Backend> Batcher<B, ImageDatasetItem, ClassificationBatch<B>> for Classi
             targets,
             images_path,
         }
-    }
-
-    fn devices(&self) -> Vec<B::Device> {
-        vec![self.device.clone()]
     }
 }

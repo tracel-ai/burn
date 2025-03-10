@@ -121,7 +121,6 @@ impl<B: Backend> Normalizer<B> {
 
 #[derive(Clone, Debug)]
 pub struct HousingBatcher<B: Backend> {
-    device: B::Device,
     normalizer: Normalizer<B>,
 }
 
@@ -134,18 +133,13 @@ pub struct HousingBatch<B: Backend> {
 impl<B: Backend> HousingBatcher<B> {
     pub fn new(device: B::Device) -> Self {
         Self {
-            device: device.clone(),
             normalizer: Normalizer::new(&device, &FEATURES_MIN, &FEATURES_MAX),
         }
     }
 }
 
 impl<B: Backend> Batcher<B, HousingDistrictItem, HousingBatch<B>> for HousingBatcher<B> {
-    fn batch_with_device(
-        &self,
-        items: Vec<HousingDistrictItem>,
-        device: &B::Device,
-    ) -> HousingBatch<B> {
+    fn batch(&self, items: Vec<HousingDistrictItem>, device: &B::Device) -> HousingBatch<B> {
         let mut inputs: Vec<Tensor<B, 2>> = Vec::new();
 
         for item in items.iter() {
@@ -177,9 +171,5 @@ impl<B: Backend> Batcher<B, HousingDistrictItem, HousingBatch<B>> for HousingBat
         let targets = Tensor::cat(targets, 0);
 
         HousingBatch { inputs, targets }
-    }
-
-    fn devices(&self) -> Vec<B::Device> {
-        vec![self.device.clone()]
     }
 }

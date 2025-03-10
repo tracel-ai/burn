@@ -51,12 +51,12 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     B::seed(config.seed);
 
     // Create the model and optimizer.
-    let model = config.model.init(&device);
+    let model = config.model.init::<B>(&device);
     let optim = config.optimizer.init();
 
     // Create the batcher.
-    let batcher_train = MnistBatcher::<B>::new(device.clone());
-    let batcher_valid = MnistBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher_train = MnistBatcher::new();
+    let batcher_valid = MnistBatcher::new();
 
     // Create the dataloaders.
     let dataloader_train = DataLoaderBuilder::new(batcher_train)

@@ -16,10 +16,9 @@ use std::sync::Arc;
 
 /// Struct for batching text classification items
 #[derive(Clone, new)]
-pub struct TextClassificationBatcher<B: Backend> {
+pub struct TextClassificationBatcher {
     tokenizer: Arc<dyn Tokenizer>, // Tokenizer for converting text to token IDs
-    device: B::Device, // Device on which to perform computation (e.g., CPU or CUDA device)
-    max_seq_length: usize, // Maximum sequence length for tokenized text
+    max_seq_length: usize,         // Maximum sequence length for tokenized text
 }
 
 /// Struct for training batch in text classification task
@@ -39,10 +38,10 @@ pub struct TextClassificationInferenceBatch<B: Backend> {
 
 /// Implement Batcher trait for TextClassificationBatcher struct for training
 impl<B: Backend> Batcher<B, TextClassificationItem, TextClassificationTrainingBatch<B>>
-    for TextClassificationBatcher<B>
+    for TextClassificationBatcher
 {
     /// Batches a vector of text classification items into a training batch
-    fn batch_with_device(
+    fn batch(
         &self,
         items: Vec<TextClassificationItem>,
         device: &B::Device,
@@ -74,22 +73,14 @@ impl<B: Backend> Batcher<B, TextClassificationItem, TextClassificationTrainingBa
             mask_pad: mask.mask,
         }
     }
-
-    fn devices(&self) -> Vec<B::Device> {
-        vec![self.device.clone()]
-    }
 }
 
 /// Implement Batcher trait for TextClassificationBatcher struct for inference
 impl<B: Backend> Batcher<B, String, TextClassificationInferenceBatch<B>>
-    for TextClassificationBatcher<B>
+    for TextClassificationBatcher
 {
     /// Batches a vector of strings into an inference batch
-    fn batch_with_device(
-        &self,
-        items: Vec<String>,
-        device: &B::Device,
-    ) -> TextClassificationInferenceBatch<B> {
+    fn batch(&self, items: Vec<String>, device: &B::Device) -> TextClassificationInferenceBatch<B> {
         let mut tokens_list = Vec::with_capacity(items.len());
 
         // Tokenize each string
@@ -110,9 +101,5 @@ impl<B: Backend> Batcher<B, String, TextClassificationInferenceBatch<B>>
             tokens: mask.tensor.to_device(device),
             mask_pad: mask.mask.to_device(device),
         }
-    }
-
-    fn devices(&self) -> Vec<B::Device> {
-        vec![self.device.clone()]
     }
 }

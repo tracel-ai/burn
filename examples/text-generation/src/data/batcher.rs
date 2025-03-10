@@ -22,11 +22,7 @@ pub struct TrainingTextGenerationBatch<B: Backend> {
 }
 
 impl<B: Backend> Batcher<B, TextGenerationItem, TextGenerationBatch<B>> for TextGenerationBatcher {
-    fn batch_with_device(
-        &self,
-        items: Vec<TextGenerationItem>,
-        device: &B::Device,
-    ) -> TextGenerationBatch<B> {
+    fn batch(&self, items: Vec<TextGenerationItem>, device: &B::Device) -> TextGenerationBatch<B> {
         let mut tokens_list = Vec::with_capacity(items.len());
 
         for item in items {
@@ -50,12 +46,12 @@ impl<B: Backend> Batcher<B, TextGenerationItem, TextGenerationBatch<B>> for Text
 impl<B: Backend> Batcher<B, TextGenerationItem, TrainingTextGenerationBatch<B>>
     for TextGenerationBatcher
 {
-    fn batch_with_device(
+    fn batch(
         &self,
         items: Vec<TextGenerationItem>,
         device: &B::Device,
     ) -> TrainingTextGenerationBatch<B> {
-        let item: TextGenerationBatch<B> = self.batch_with_device(items, device);
+        let item: TextGenerationBatch<B> = self.batch(items, device);
         let [batch_size, seq_length] = item.tokens.dims();
 
         let inputs = item

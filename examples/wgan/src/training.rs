@@ -110,7 +110,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     let mut optimizer_d = config.optimizer.init();
 
     // Create the dataset batcher
-    let batcher_train = MnistBatcher::<B>::new(device.clone());
+    let batcher_train = MnistBatcher::new();
 
     // Create the dataloaders
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
