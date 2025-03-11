@@ -390,7 +390,7 @@ mod tests {
         let model_after =
             create_model(&device).load_record(recorder.load(file_path(), &device).unwrap());
 
-        let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
+        let byte_recorder = BinBytesRecorder::<FullPrecisionSettings, Vec<u8>>::default();
         let model_bytes_before = byte_recorder
             .record(model_before.into_record(), ())
             .unwrap();

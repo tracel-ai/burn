@@ -281,7 +281,7 @@ pub type SensitiveCompactRecorder = BinGzFileRecorder<HalfPrecisionSettings>;
 pub type NoStdTrainingRecorder = BinFileRecorder<FullPrecisionSettings>;
 
 /// Inference recorder compatible with no-std.
-pub type NoStdInferenceRecorder = BinBytesRecorder<FullPrecisionSettings>;
+pub type NoStdInferenceRecorder = BinBytesRecorder<FullPrecisionSettings, Vec<u8>>;
 
 /// Debug recorder.
 ///

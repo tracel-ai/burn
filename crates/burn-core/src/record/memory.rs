@@ -9,24 +9,41 @@ use serde::{Serialize, de::DeserializeOwned};
 ///
 /// This is especially useful in no_std environment where weights are stored directly in
 /// compiled binaries.
-pub trait BytesRecorder<B: Backend>:
-    Recorder<B, RecordArgs = (), RecordOutput = Vec<u8>, LoadArgs = Vec<u8>>
+pub trait BytesRecorder<
+    B: Backend,
+    L: AsRef<[u8]> + Send + Sync + core::fmt::Debug + Clone + core::default::Default,
+>: Recorder<B, RecordArgs = (), RecordOutput = Vec<u8>, LoadArgs = L>
 {
 }
 
 /// In memory recorder using the [bincode format](bincode).
 #[derive(new, Debug, Default, Clone)]
-pub struct BinBytesRecorder<S: PrecisionSettings> {
+pub struct BinBytesRecorder<
+    S: PrecisionSettings,
+    L: AsRef<[u8]> + Send + Sync + core::fmt::Debug + Clone + core::default::Default,
+> {
     _settings: core::marker::PhantomData<S>,
+    _loadargs: core::marker::PhantomData<L>,
 }
 
-impl<S: PrecisionSettings, B: Backend> BytesRecorder<B> for BinBytesRecorder<S> {}
+impl<
+    S: PrecisionSettings,
+    B: Backend,
+    L: AsRef<[u8]> + Send + Sync + core::fmt::Debug + Clone + core::default::Default,
+> BytesRecorder<B, L> for BinBytesRecorder<S, L>
+{
+}
 
-impl<S: PrecisionSettings, B: Backend> Recorder<B> for BinBytesRecorder<S> {
+impl<
+    S: PrecisionSettings,
+    B: Backend,
+    L: AsRef<[u8]> + Send + Sync + core::fmt::Debug + Clone + core::default::Default,
+> Recorder<B> for BinBytesRecorder<S, L>
+{
     type Settings = S;
     type RecordArgs = ();
     type RecordOutput = Vec<u8>;
-    type LoadArgs = Vec<u8>;
+    type LoadArgs = L;
 
     fn save_item<I: Serialize>(
         &self,
@@ -38,7 +55,7 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for BinBytesRecorder<S> {
 
     fn load_item<I: DeserializeOwned>(&self, args: Self::LoadArgs) -> Result<I, RecorderError> {
         let state = bincode::borrow_decode_from_slice::<'_, bincode::serde::BorrowCompat<I>, _>(
-            &args,
+            args.as_ref(),
             bin_config(),
         )
         .unwrap()
@@ -55,7 +72,7 @@ pub struct NamedMpkBytesRecorder<S: PrecisionSettings> {
 }
 
 #[cfg(feature = "std")]
-impl<S: PrecisionSettings, B: Backend> BytesRecorder<B> for NamedMpkBytesRecorder<S> {}
+impl<S: PrecisionSettings, B: Backend> BytesRecorder<B, Vec<u8>> for NamedMpkBytesRecorder<S> {}
 
 #[cfg(feature = "std")]
 impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkBytesRecorder<S> {
@@ -89,7 +106,7 @@ mod tests {
 
     #[test]
     fn test_can_save_and_load_bin_format() {
-        test_can_save_and_load(BinBytesRecorder::<FullPrecisionSettings>::default())
+        test_can_save_and_load(BinBytesRecorder::<FullPrecisionSettings, Vec<u8>>::default())
     }
 
     #[cfg(feature = "std")]
@@ -100,7 +117,7 @@ mod tests {
 
     fn test_can_save_and_load<Recorder>(recorder: Recorder)
     where
-        Recorder: BytesRecorder<TestBackend>,
+        Recorder: BytesRecorder<TestBackend, Vec<u8>>,
     {
         let device = Default::default();
         let model1 = create_model::<TestBackend>(&device);
