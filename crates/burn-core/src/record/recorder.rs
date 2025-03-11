@@ -28,7 +28,7 @@ pub trait Recorder<B: Backend>:
     type RecordOutput;
 
     /// Arguments used to load recorded objects.
-    type LoadArgs: Clone;
+    type LoadArgs;
 
     /// Records an item.
     ///
@@ -59,47 +59,46 @@ pub trait Recorder<B: Backend>:
     where
         R: Record<B>,
     {
-        let item: BurnRecord<R::Item<Self::Settings>, B> =
-            self.load_item(args.clone()).map_err(|err| {
-                if let Ok(record) = self.load_item::<BurnRecordNoItem>(args.clone()) {
-                    let mut message = "Unable to load record.".to_string();
-                    let metadata = recorder_metadata::<Self, B>();
-                    if metadata.float != record.metadata.float {
-                        message += format!(
-                            "\nMetadata has a different float type: Actual {:?}, Expected {:?}",
-                            record.metadata.float, metadata.float
-                        )
-                        .as_str();
-                    }
-                    if metadata.int != record.metadata.int {
-                        message += format!(
-                            "\nMetadata has a different int type: Actual {:?}, Expected {:?}",
-                            record.metadata.int, metadata.int
-                        )
-                        .as_str();
-                    }
-                    if metadata.format != record.metadata.format {
-                        message += format!(
-                            "\nMetadata has a different format: Actual {:?}, Expected {:?}",
-                            record.metadata.format, metadata.format
-                        )
-                        .as_str();
-                    }
-                    if metadata.version != record.metadata.version {
-                        message += format!(
-                            "\nMetadata has a different Burn version: Actual {:?}, Expected {:?}",
-                            record.metadata.version, metadata.version
-                        )
-                        .as_str();
-                    }
-
-                    message += format!("\nError: {:?}", err).as_str();
-
-                    return RecorderError::Unknown(message);
+        let item: BurnRecord<R::Item<Self::Settings>, B> = self.load_item(args).map_err(|err| {
+            if let Ok(record) = self.load_item::<BurnRecordNoItem>(err.args) {
+                let mut message = "Unable to load record.".to_string();
+                let metadata = recorder_metadata::<Self, B>();
+                if metadata.float != record.metadata.float {
+                    message += format!(
+                        "\nMetadata has a different float type: Actual {:?}, Expected {:?}",
+                        record.metadata.float, metadata.float
+                    )
+                    .as_str();
+                }
+                if metadata.int != record.metadata.int {
+                    message += format!(
+                        "\nMetadata has a different int type: Actual {:?}, Expected {:?}",
+                        record.metadata.int, metadata.int
+                    )
+                    .as_str();
+                }
+                if metadata.format != record.metadata.format {
+                    message += format!(
+                        "\nMetadata has a different format: Actual {:?}, Expected {:?}",
+                        record.metadata.format, metadata.format
+                    )
+                    .as_str();
+                }
+                if metadata.version != record.metadata.version {
+                    message += format!(
+                        "\nMetadata has a different Burn version: Actual {:?}, Expected {:?}",
+                        record.metadata.version, metadata.version
+                    )
+                    .as_str();
                 }
 
-                err
-            })?;
+                message += format!("\nError: {:?}", err.error).as_str();
+
+                return RecorderError::Unknown(message);
+            }
+
+            err.error
+        })?;
 
         Ok(R::from_item(item.item, device))
     }
@@ -133,7 +132,10 @@ pub trait Recorder<B: Backend>:
     /// # Returns
     ///
     /// The loaded item.
-    fn load_item<I>(&self, args: Self::LoadArgs) -> Result<I, RecorderError>
+    fn load_item<I>(
+        &self,
+        args: Self::LoadArgs,
+    ) -> Result<I, RecorderErrorWithParameter<Self::LoadArgs>>
     where
         I: DeserializeOwned;
 }
@@ -150,6 +152,21 @@ where
         env!("CARGO_PKG_VERSION").to_string(),
         format!("{:?}", R::Settings::default()),
     )
+}
+
+pub struct RecorderErrorWithParameter<A> {
+    args: A,
+    error: RecorderError,
+}
+
+impl<A> RecorderErrorWithParameter<A> {
+    pub fn new(args: A, error: RecorderError) -> Self {
+        Self { args, error }
+    }
+
+    pub fn from_error<E: core::error::Error>(args: A, err: E) -> RecorderErrorWithParameter<A> {
+        RecorderErrorWithParameter::new(args, RecorderError::Unknown(err.to_string()))
+    }
 }
 
 /// Error that can occur when using a [Recorder](Recorder).

@@ -1,4 +1,4 @@
-use super::{PrecisionSettings, Recorder, RecorderError, bin_config};
+use super::{PrecisionSettings, Recorder, RecorderError, RecorderErrorWithParameter, bin_config};
 use alloc::vec::Vec;
 use burn_tensor::backend::Backend;
 use serde::{Serialize, de::DeserializeOwned};
@@ -35,6 +35,7 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for BinBytesRecorder<S> {
     ) -> Result<Self::RecordOutput, RecorderError> {
         Ok(bincode::serde::encode_to_vec(item, bin_config()).unwrap())
     }
+
     fn load_item<I: DeserializeOwned>(&self, args: Self::LoadArgs) -> Result<I, RecorderError> {
         let state = bincode::borrow_decode_from_slice::<'_, bincode::serde::BorrowCompat<I>, _>(
             &args,
@@ -70,8 +71,12 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkBytesRecorder<S> 
     ) -> Result<Self::RecordOutput, RecorderError> {
         rmp_serde::encode::to_vec_named(&item).map_err(|e| RecorderError::Unknown(e.to_string()))
     }
-    fn load_item<I: DeserializeOwned>(&self, args: Self::LoadArgs) -> Result<I, RecorderError> {
-        rmp_serde::decode::from_slice(&args).map_err(|e| RecorderError::Unknown(e.to_string()))
+    fn load_item<I: DeserializeOwned>(
+        &self,
+        args: Self::LoadArgs,
+    ) -> Result<I, RecorderErrorWithParameter<Self::LoadArgs>> {
+        rmp_serde::decode::from_slice(&args)
+            .map_err(|e| RecorderErrorWithParameter::from_error(args, e))
     }
 }
 
