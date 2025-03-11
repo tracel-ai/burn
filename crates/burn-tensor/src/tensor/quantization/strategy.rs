@@ -520,6 +520,7 @@ mod tests {
     fn test_int8_symmetric_quantization_per_block_grid_3d() {
         let shape = &[2, 4, 4];
         let x = [
+            // 2x2 blocks: [[-1.8, -1.0, 0.0, 0.5], [-0.8, 1.2, 0.25, 0.5]]
             [-1.8, -1.0, -0.8, 1.2],
             [0.0, 0.5, 0.25, 0.5],
             // 2x2 blocks: [[-0.08, 0.12, 0.025, 0.05], [0.2, 0.3, 0.4, 0.5]]
