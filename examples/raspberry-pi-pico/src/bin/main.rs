@@ -4,10 +4,10 @@
 use burn::{backend::NdArray, tensor::Tensor};
 use defmt::*;
 use embassy_executor::Spawner;
-use raspberry_pi_pico::sine::Model;
-use {defmt_rtt as _, panic_probe as _};
 use embassy_rp as _;
 use embedded_alloc::Heap;
+use raspberry_pi_pico::sine::Model;
+use {defmt_rtt as _, panic_probe as _};
 
 type Backend = NdArray<f32>;
 type BackendDevice = <Backend as burn::tensor::backend::Backend>::Device;
@@ -33,16 +33,18 @@ async fn main(_spawner: Spawner) {
     // Define input
     let mut input = 0.0;
     loop {
-        if input > 2.0 { input = 0.0 }
+        if input > 2.0 {
+            input = 0.0
+        }
         input += 0.05;
 
         // Run the model
         let output = run_model(&model, &device, input);
 
         // Output the values
-        match output.into_primitive().tensor().array.as_slice() {
-            Some(slice) => info!("input: {} - output: {}", input, slice),
-            None => defmt::panic!("Failed to get value")
+        match output.into_data().as_slice::<f32>() {
+            Ok(slice) => info!("input: {} - output: {}", input, slice),
+            Err(err) => core::panic!("err: {:?}", err),
         };
     }
 }
