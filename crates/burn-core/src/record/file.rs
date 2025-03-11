@@ -1,6 +1,5 @@
 use super::{PrecisionSettings, Recorder, RecorderError, RecorderErrorWithParameter, bin_config};
 use burn_tensor::backend::Backend;
-use core::error::Error;
 use core::marker::PhantomData;
 use flate2::{Compression, read::GzDecoder, write::GzEncoder};
 use serde::{Serialize, de::DeserializeOwned};
