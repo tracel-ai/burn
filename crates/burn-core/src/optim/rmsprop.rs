@@ -350,8 +350,10 @@ mod tests {
         #[cfg(not(feature = "std"))]
         {
             use crate::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
+            extern crate alloc;
+            use alloc::vec::Vec;
 
-            let result = BinBytesRecorder::<FullPrecisionSettings>::default()
+            let result = BinBytesRecorder::<FullPrecisionSettings, Vec<u8>>::default()
                 .record(optimizer.to_record(), ())
                 .unwrap();
             assert!(!result.is_empty());

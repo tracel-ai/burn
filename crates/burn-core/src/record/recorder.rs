@@ -154,16 +154,19 @@ where
     )
 }
 
+/// Wrapper around RecorderError that also contains the args used to call load_args, so that no memory clones are needed
 pub struct RecorderErrorWithParameter<A> {
     args: A,
     error: RecorderError,
 }
 
 impl<A> RecorderErrorWithParameter<A> {
+    /// Creates a new RecorderErrorWithParameter with args and error
     pub fn new(args: A, error: RecorderError) -> Self {
         Self { args, error }
     }
 
+    /// Creates a RecorderErrorWithParameter from a normal error
     pub fn from_error<E: core::error::Error>(args: A, err: E) -> RecorderErrorWithParameter<A> {
         RecorderErrorWithParameter::new(args, RecorderError::Unknown(err.to_string()))
     }
@@ -281,7 +284,7 @@ pub type SensitiveCompactRecorder = BinGzFileRecorder<HalfPrecisionSettings>;
 pub type NoStdTrainingRecorder = BinFileRecorder<FullPrecisionSettings>;
 
 /// Inference recorder compatible with no-std.
-pub type NoStdInferenceRecorder = BinBytesRecorder<FullPrecisionSettings, Vec<u8>>;
+pub type NoStdInferenceRecorder = BinBytesRecorder<FullPrecisionSettings, &'static [u8]>;
 
 /// Debug recorder.
 ///
