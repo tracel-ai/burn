@@ -57,7 +57,7 @@ percent-encoding = "2.3.1"
 polars = { version = "0.46.0", features = ["lazy"] }
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.94"
-protobuf = "3.7.1"
+protobuf = "3.7.2"
 protobuf-codegen = "3.7.1"
 quote = "1.0.39"
 r2d2 = "0.8.10"
@@ -111,7 +111,8 @@ chrono = "0.4.39"
 os_info = "3.10.0"
 wsl = "0.1.0"
 
-bincode = { version = "2.0.0-rc.3", features = [
+# TODO: update to official 2.0 release once MSRV is bumped to 1.85
+bincode = { version = "=2.0.0-rc.3", features = [
     "alloc",
     "serde",
 ], default-features = false }
@@ -172,7 +173,7 @@ cubecl-std = { path = "../cubecl/crates/cubecl-std", default-features = false }
 # cubecl-common = { version = "0.4.0", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = { version = "=1.1.8" }
+tracel-xtask = { version = "=1.1.9" }
 
 [profile.dev]
 debug = 0 # Speed up compilation time and not necessary.
