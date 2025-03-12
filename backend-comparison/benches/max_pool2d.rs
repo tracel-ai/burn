@@ -49,7 +49,7 @@ fn bench<B: Backend>(
     token: Option<&str>,
 ) {
     let benchmark = MaxPool2dBenchmark::<B> {
-        shape: [32, 32, 512, 512].into(),
+        shape: [32, 128, 512, 512].into(),
         kernel_size: [5, 5],
         stride: [2, 2],
         padding: [2, 2],
