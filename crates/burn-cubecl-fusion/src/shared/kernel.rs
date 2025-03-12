@@ -485,7 +485,6 @@ fn select_indices<C: Numeric>(
             None,
         );
 
-        index *= line_size_ref;
         index += offset_dim[0] * stride_input_dim;
 
         #[unroll]

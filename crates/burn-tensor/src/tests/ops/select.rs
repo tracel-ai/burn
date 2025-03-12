@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(select)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{backend::Backend, Tensor, TensorData};
 
     #[test]
     fn should_select_1d() {
@@ -130,6 +130,22 @@ mod tests {
         let output = tensor.select_assign(1, indices, values);
         let expected = TensorData::from([[2.0, 2.0, 5.0], [8.0, 8.0, 11.0]]);
 
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn tensor_select_maybe_fused() {
+        let device = Default::default();
+        let x1 = TestTensor::<4>::ones([1, 3, 10, 10], &device);
+        let indexes = TestTensorInt::from_data(TensorData::from([1, 2, 3]), &device);
+
+        let first = x1.select(2, indexes.clone());
+        let output = first.select(3, indexes);
+        let expected = TensorData::from([[
+            [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0]],
+            [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0]],
+            [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0]],
+        ]]);
         output.into_data().assert_eq(&expected, false);
     }
 
