@@ -1,11 +1,8 @@
 use cubecl::{
-    linalg::matmul::{
-        components::{
-            stage::{self, StageMatmulFamily},
-            tile::{accelerated::Accelerated, TileMatmulFamily},
-            InvalidConfigError,
-        },
-        kernels::matmul::AdvancedConfig,
+    linalg::matmul::components::{
+        stage::{self, StageMatmulFamily},
+        tile::{accelerated::Accelerated, TileMatmulFamily},
+        InvalidConfigError,
     },
     prelude::*,
 };
@@ -33,16 +30,9 @@ pub trait Algorithm {
         problem: &ConvolutionProblem,
         cube_dim: &CubeDim,
         cube_count: &CubeCount,
-        advanced_config: &AdvancedConfig,
     ) -> Result<<Self::GlobalConvolution as ConvolutionConfigFactory>::Config, InvalidConfigError>
     {
-        let config = Self::GlobalConvolution::make_config(
-            input,
-            problem,
-            cube_dim,
-            cube_count,
-            advanced_config,
-        );
+        let config = Self::GlobalConvolution::make_config(input, problem, cube_dim, cube_count);
         Self::GlobalConvolution::check_config(&config)?;
         Ok(config)
     }

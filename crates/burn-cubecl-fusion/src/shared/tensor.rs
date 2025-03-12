@@ -5,6 +5,7 @@ use cubecl::{
     prelude::*,
     unexpanded,
 };
+use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
 use super::DYN_ELEM_ID;
@@ -35,8 +36,8 @@ pub struct GlobalTensorArg<'a, R: Runtime> {
 #[derive(CubeType)]
 pub enum GlobalScalar {
     F32(f32),
-    F16(half::f16),
-    BF16(half::bf16),
+    F16(f16),
+    BF16(bf16),
     I64(i64),
     I32(i32),
     I16(i16),

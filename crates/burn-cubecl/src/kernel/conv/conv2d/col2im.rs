@@ -61,8 +61,7 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime, E: FloatElement>(
     );
     let im_channels = im_ch_per_group * groups;
 
-    let batches_per_run = batches_per_run(batch_size, input_h, input_w)
-        .expect("Image too large to run even one batch at once");
+    let batches_per_run = batches_per_run(batch_size, input_h, input_w)?;
     let col_shape_0 = im_ch_per_group * kernel_h * kernel_w;
 
     let weight = reshape(
