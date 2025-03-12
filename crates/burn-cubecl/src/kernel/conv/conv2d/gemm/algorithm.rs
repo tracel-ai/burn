@@ -1,8 +1,11 @@
 use cubecl::{
-    linalg::matmul::components::{
-        stage::{self, StageMatmulFamily},
-        tile::{accelerated::Accelerated, TileMatmulFamily},
-        InvalidConfigError,
+    linalg::matmul::{
+        components::{
+            stage::{self, StageMatmulFamily},
+            tile::{accelerated::Accelerated, TileMatmulFamily},
+            InvalidConfigError,
+        },
+        kernels::MatmulAvailabilityError,
     },
     prelude::*,
 };
@@ -10,6 +13,7 @@ use cubecl::{
 use super::{
     base::{ConvolutionConfigFactory, ConvolutionFamily, ConvolutionProblem},
     homogeneous::base::ImplicitGemmConvolutionFamily,
+    precision::ConvPrecision,
     selection::ConvSelection,
 };
 
@@ -35,6 +39,12 @@ pub trait Algorithm {
         let config = Self::GlobalConvolution::make_config(input, problem, cube_dim, cube_count);
         Self::GlobalConvolution::check_config(&config)?;
         Ok(config)
+    }
+    fn check_availability<R: Runtime, CP: ConvPrecision>(
+        client: &ComputeClient<R::Server, R::Channel>,
+        config: &<Self::GlobalConvolution as ConvolutionConfigFactory>::Config,
+    ) -> Result<(), MatmulAvailabilityError> {
+        Self::GlobalConvolution::check_availability::<R, CP>(client, config)
     }
 }
 

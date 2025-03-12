@@ -1,18 +1,21 @@
 use config::HomogeneousConfig;
 use cubecl::{
-    linalg::matmul::components::{
-        global::{
-            self,
-            loader::sync::{CyclicCoalescedLoading, SyncRhsLoader},
-            output_loader::Unloader,
-            single_stage, AccumulatorLoader, GlobalConfig, InputLoader, SyncInputLoader,
+    linalg::matmul::{
+        components::{
+            global::{
+                self,
+                loader::sync::{CyclicCoalescedLoading, SyncRhsLoader},
+                output_loader::Unloader,
+                single_stage, AccumulatorLoader, GlobalConfig, InputLoader, SyncInputLoader,
+            },
+            stage::{
+                self,
+                multi_buffer::{LhsReader, LhsReaderFamily, RhsReader, RhsReaderFamily},
+                ContiguousTilingLayout, RowMajorTilingOrder, StageMatmulFamily,
+            },
+            Ident, InvalidConfigError, MatrixLayout,
         },
-        stage::{
-            self,
-            multi_buffer::{LhsReader, LhsReaderFamily, RhsReader, RhsReaderFamily},
-            ContiguousTilingLayout, RowMajorTilingOrder, StageMatmulFamily,
-        },
-        Ident, InvalidConfigError, MatrixLayout,
+        kernels::MatmulAvailabilityError,
     },
     prelude::*,
 };
@@ -228,6 +231,12 @@ where
             &problem.options,
             problem.has_bias,
         )
+    }
+    fn check_availability<R: Runtime, CP: ConvPrecision>(
+        client: &ComputeClient<R::Server, R::Channel>,
+        config: &Self::Config,
+    ) -> Result<(), MatmulAvailabilityError> {
+        SMM::check_availability::<R, (CP::EG, CP::ES, CP::EA)>(client, &config.to_smm_config())
     }
 }
 
