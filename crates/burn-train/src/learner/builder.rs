@@ -212,6 +212,8 @@ where
         self
     }
 
+    // TODO: page-locked memory (i.e., pinned memory)?
+
     /// Run the training loop on multiple devices.
     pub fn devices(mut self, devices: Vec<B::Device>) -> Self {
         self.devices = devices;

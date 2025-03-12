@@ -109,6 +109,7 @@ pub trait DistributionStrategy: Send {
 }
 
 /// Always selects the same resource or device.
+#[derive(Clone)]
 pub struct FixedDistributor<R> {
     resources: Vec<R>,
     fixed_id: usize,
@@ -126,6 +127,8 @@ impl<R> FixedDistributor<R> {
 impl<R: Send + Clone + 'static> DistributionStrategy for FixedDistributor<R> {
     type Resource = R;
 
+    /// Create a new fixed distribution strategy. Always selects the first resource.
+    /// To change the fixed resource, use `with_fixed(...)`.
     fn new(resources: Vec<Self::Resource>) -> Self
     where
         Self: Sized,

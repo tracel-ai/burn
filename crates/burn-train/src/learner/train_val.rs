@@ -1,7 +1,7 @@
-use crate::components::LearnerComponents;
+use crate::components::{LearnerComponents, TrainDevice, ValidDevice};
 use crate::metric::processor::EventProcessor;
 use crate::{Learner, TrainEpoch, ValidEpoch};
-use burn_core::data::dataloader::DataLoader;
+use burn_core::data::dataloader::{DistributionStrategy, FixedDistributor, LazyDataLoader};
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::AutodiffBackend;
@@ -110,8 +110,8 @@ impl<LC: LearnerComponents> Learner<LC> {
     /// The fitted model.
     pub fn fit<InputTrain, InputValid, OutputTrain, OutputValid>(
         mut self,
-        dataloader_train: Arc<dyn DataLoader<InputTrain>>,
-        dataloader_valid: Arc<dyn DataLoader<InputValid>>,
+        dataloader_train: Arc<dyn LazyDataLoader<InputTrain, Resource = TrainDevice<LC>>>,
+        dataloader_valid: Arc<dyn LazyDataLoader<InputValid, Resource = ValidDevice<LC>>>,
     ) -> LC::Model
     where
         InputTrain: Send + 'static,
@@ -144,14 +144,30 @@ impl<LC: LearnerComponents> Learner<LC> {
             None => 1,
         };
 
-        for epoch in starting_epoch..self.num_epochs + 1 {
-            let epoch_train = TrainEpoch::new(
-                dataloader_train.clone(),
-                epoch,
-                self.num_epochs,
-                self.grad_accumulation,
-            );
+        // Split the data loader for each device
+        let dataloaders_train = if self.devices.len() > 1 {
+            let fixed_devices = self
+                .devices
+                .iter()
+                .map(|device| FixedDistributor::new(vec![device.clone()]).clone_dyn())
+                .collect();
+            dataloader_train
+                .split(fixed_devices)
+                .into_iter()
+                .map(Arc::from)
+                .collect::<Vec<_>>()
+        } else {
+            vec![dataloader_train]
+        };
+        // Changed the train epoch to keep the dataloaders
+        let mut epoch_train = TrainEpoch::new(
+            dataloaders_train,
+            starting_epoch,
+            self.num_epochs,
+            self.grad_accumulation,
+        );
 
+        for epoch in starting_epoch..self.num_epochs + 1 {
             if self.devices.len() > 1 {
                 (self.model, self.optim) = epoch_train.run_multi_device::<LC, OutputTrain>(
                     self.model,
@@ -175,6 +191,7 @@ impl<LC: LearnerComponents> Learner<LC> {
                 break;
             }
 
+            // TODO: multi-device validation?
             let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
             epoch_valid.run::<LC, OutputValid>(
                 &self.model,
