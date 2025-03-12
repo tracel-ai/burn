@@ -45,7 +45,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
     let tunables = TunableSet::new(create_key::<R, E>, matmul_input_gen::<R, E>)
         .with_tunable(matmul_tiling2d::<R, E>)
         .with_tunable(matmul_accelerated::<R, E>)
-        .with_tunable(matmul_simple::<R, E>);
+        .with_tunable(matmul_naive::<R, E>);
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&lhs.device),
@@ -103,13 +103,13 @@ fn matmul_tiling2d<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_simple<R: CubeRuntime, E: FloatElement>(
+fn matmul_naive<R: CubeRuntime, E: FloatElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::linalg::matmul::launch_ref::<R, E>(
-        &Strategy::Simple(SyncLoadingStrategy::Cyclic),
+        &Strategy::Naive,
         &lhs.client,
         &lhs.as_handle_ref(),
         &rhs.as_handle_ref(),
