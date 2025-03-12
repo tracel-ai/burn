@@ -1,6 +1,9 @@
 use burn_tensor::{Element, ElementConversion};
 use cubecl::{
-    linalg::matmul::{kernels::tiling2d::Tiling2dConfig, Strategy, SyncLoadingStrategy},
+    linalg::matmul::{
+        kernels::tiling2d::Tiling2dConfig, tune_key::MatmulAutotuneKey, Strategy,
+        SyncLoadingStrategy,
+    },
     tune::{local_tuner, LocalTuner, TunableSet},
 };
 
@@ -9,14 +12,11 @@ use crate::{
     kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
     ops::numeric::empty_device,
     tensor::CubeTensor,
-    tune_key::CubeAutotuneKey,
     CubeRuntime, CubeTuneId,
 };
 
-use super::key::create_key;
-
 fn matmul_input_gen<R: CubeRuntime, E: FloatElement>(
-    _key: &CubeAutotuneKey,
+    _key: &MatmulAutotuneKey,
     lhs: &CubeTensor<R>,
     rhs: &CubeTensor<R>,
     out: &CubeTensor<R>,
@@ -40,7 +40,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
 
     let client = lhs.client.clone();
 
-    static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
+    static TUNER: LocalTuner<MatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<R, E>, matmul_input_gen::<R, E>)
         .with_tunable(matmul_tiling2d::<R, E>)
@@ -55,6 +55,22 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
     );
 
     output
+}
+
+fn create_key<R: CubeRuntime, E: FloatElement>(
+    lhs: &CubeTensor<R>,
+    rhs: &CubeTensor<R>,
+    _out: &CubeTensor<R>,
+) -> MatmulAutotuneKey {
+    MatmulAutotuneKey::generate(
+        &lhs.shape.dims,
+        &rhs.shape.dims,
+        &lhs.strides,
+        &rhs.strides,
+        E::dtype().into(),
+        E::dtype().into(),
+        E::dtype().into(),
+    )
 }
 
 fn matmul_accelerated<R: CubeRuntime, E: FloatElement>(

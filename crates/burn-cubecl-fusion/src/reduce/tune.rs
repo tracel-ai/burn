@@ -56,6 +56,7 @@ pub(crate) fn create_key<R: Runtime>(
     let input = context.tensors.get(&opt.reduce.op.input.id).unwrap();
     let out = context.tensors.get(&opt.reduce.op.out.id).unwrap();
     let key = ReduceAutotuneKey::generate_without_strides(
+        input.dtype.into(),
         out.dtype.into(),
         &input.shape,
         opt.reduce.axis,
