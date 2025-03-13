@@ -25,6 +25,11 @@ portable-atomic = { version = "1.5", features = ["critical-section"] }
 embedded-alloc = "0.5.1"
 
 burn = { path = "../../crates/burn", default-features = false, features = ["ndarray"] }
+bincode = { version = "=2.0.0-rc.3", features = [
+"alloc",
+"serde",
+], default-features = false }
+bincode_derive = "=2.0.0-rc.3"
 
 [build-dependencies]
 burn-import = { path = "../../crates/burn-import" }
