@@ -101,7 +101,6 @@ impl<O> MultiThreadsDataloaderIterator<O> {
         }
     }
 }
-
 impl<O: std::fmt::Debug> DataLoaderIterator<O> for MultiThreadsDataloaderIterator<O> {
     fn progress(&self) -> Progress {
         let mut items_total = 0;
@@ -115,6 +114,7 @@ impl<O: std::fmt::Debug> DataLoaderIterator<O> for MultiThreadsDataloaderIterato
         Progress::new(items_processed, items_total)
     }
 }
+
 impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
     type Item = O;
 
