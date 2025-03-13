@@ -50,8 +50,8 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let model = Model::<B>::new(&device);
 
     // Data
-    let batcher_train = MnistBatcher::new();
-    let batcher_valid = MnistBatcher::new();
+    let batcher_train = MnistBatcher::default();
+    let batcher_valid = MnistBatcher::default();
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)

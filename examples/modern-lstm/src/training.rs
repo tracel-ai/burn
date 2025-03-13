@@ -48,8 +48,8 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     let mut optim = config.optimizer.init::<B, LstmNetwork<B>>();
 
     // Create the batcher
-    let batcher_train = SequenceBatcher::new();
-    let batcher_valid = SequenceBatcher::new();
+    let batcher_train = SequenceBatcher::default();
+    let batcher_valid = SequenceBatcher::default();
 
     // Create the dataloaders
     let dataloader_train = DataLoaderBuilder::new(batcher_train)

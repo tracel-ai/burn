@@ -42,8 +42,8 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let mut optim = config.optimizer.init();
 
     // Create the batcher.
-    let batcher_train = MnistBatcher::new();
-    let batcher_valid = MnistBatcher::new();
+    let batcher_train = MnistBatcher::default();
+    let batcher_valid = MnistBatcher::default();
 
     // Create the dataloaders.
     let dataloader_train = DataLoaderBuilder::new(batcher_train)

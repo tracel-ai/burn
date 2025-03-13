@@ -3,19 +3,13 @@ use burn::{
     prelude::*,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MnistBatcher {}
 
 #[derive(Clone, Debug)]
 pub struct MnistBatch<B: Backend> {
     pub images: Tensor<B, 3>,
     pub targets: Tensor<B, 1, Int>,
-}
-
-impl MnistBatcher {
-    pub fn new() -> Self {
-        Self {}
-    }
 }
 
 impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher {

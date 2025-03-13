@@ -71,19 +71,13 @@ impl Dataset<SequenceDatasetItem> for SequenceDataset {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SequenceBatcher {}
 
 #[derive(Clone, Debug)]
 pub struct SequenceBatch<B: Backend> {
     pub sequences: Tensor<B, 3>, // [batch_size, seq_length, input_size]
     pub targets: Tensor<B, 2>,   // [batch_size, 1]
-}
-
-impl SequenceBatcher {
-    pub fn new() -> Self {
-        Self {}
-    }
 }
 
 impl<B: Backend> Batcher<B, SequenceDatasetItem, SequenceBatch<B>> for SequenceBatcher {

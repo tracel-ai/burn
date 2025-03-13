@@ -3,14 +3,8 @@ use burn::{
     prelude::*,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct MnistBatcher {}
-
-impl MnistBatcher {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct MnistBatch<B: Backend> {
