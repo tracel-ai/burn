@@ -4,6 +4,10 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch)]
 fn adaptive_avg_pool2d_direct<E: Numeric>(input: &Tensor<E>, output: &mut Tensor<E>) {
+    if ABSOLUTE_POS >= output.len() {
+        terminate!()
+    }
+
     let (output_stride_0, output_stride_1, output_stride_2, output_stride_3) = (
         output.stride(0),
         output.stride(1),
