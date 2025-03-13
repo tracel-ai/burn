@@ -199,16 +199,12 @@ impl<B: Backend, I, O> Iterator for BatchDataloaderIterator<B, I, O> {
             self.strategy.add(item);
 
             if let Some(items) = self.strategy.batch(false) {
-                let device = self.distributor.next().clone();
-                self.distributor.select();
-                return Some(self.batcher.batch(items, &device));
+                return Some(self.batcher.batch(items, self.distributor.next()));
             }
         }
 
         if let Some(items) = self.strategy.batch(true) {
-            let device = self.distributor.next().clone();
-            self.distributor.select();
-            return Some(self.batcher.batch(items, &device));
+            return Some(self.batcher.batch(items, self.distributor.next()));
         }
 
         None

@@ -97,13 +97,6 @@ pub trait DistributionStrategy: Send {
     /// Returns the strategy resources.
     fn resources(&self) -> &[Self::Resource];
 
-    /// Returns the previous resource id assigned.
-    fn prev(&self) -> Option<usize>;
-
-    /// Marks the selection of the predicted resource.
-    /// If the strategy is not stateful (i.e., not history dependent), this can be a no-op.
-    fn select(&mut self);
-
     /// Creates a new strategy of the same type.
     fn clone_dyn(&self) -> Box<dyn DistributionStrategy<Resource = Self::Resource>>;
 }
@@ -113,7 +106,6 @@ pub trait DistributionStrategy: Send {
 pub struct FixedDistributor<R> {
     resources: Vec<R>,
     fixed_id: usize,
-    selected: bool,
 }
 
 impl<R> FixedDistributor<R> {
@@ -136,7 +128,6 @@ impl<R: Send + Clone + 'static> DistributionStrategy for FixedDistributor<R> {
         Self {
             resources,
             fixed_id: 0,
-            selected: false,
         }
     }
 
@@ -144,76 +135,8 @@ impl<R: Send + Clone + 'static> DistributionStrategy for FixedDistributor<R> {
         self.fixed_id
     }
 
-    fn prev(&self) -> Option<usize> {
-        if self.selected {
-            Some(self.fixed_id)
-        } else {
-            None
-        }
-    }
-
-    fn select(&mut self) {
-        self.selected = true
-    }
-
     fn clone_dyn(&self) -> Box<dyn DistributionStrategy<Resource = R>> {
         Box::new(Self::new(self.resources.clone()).with_fixed(self.fixed_id))
-    }
-
-    fn resources(&self) -> &[Self::Resource] {
-        self.resources.as_slice()
-    }
-}
-
-/// A strategy for assigning items to resources in a round-robin fashion.
-/// It cycles through the available resources, ensuring that batches are
-/// assigned in turn to each resource, balancing the load evenly across them.
-#[derive(Clone, Debug)]
-pub struct RoundRobinDistributor<R> {
-    resources: Vec<R>,
-    total: usize,
-    next: usize,
-    prev: Option<usize>,
-}
-
-impl<R> RoundRobinDistributor<R> {
-    fn compute_next(&self, value: Option<usize>) -> usize {
-        value.map_or(0, |x| (x + 1).wrapping_rem(self.total))
-    }
-}
-
-impl<R: Send + Clone + 'static> DistributionStrategy for RoundRobinDistributor<R> {
-    type Resource = R;
-
-    fn new(resources: Vec<R>) -> Self
-    where
-        Self: Sized,
-    {
-        let total = resources.len();
-        Self {
-            resources,
-            total,
-            next: 0,
-            prev: None,
-        }
-    }
-    fn next_id(&mut self) -> usize {
-        self.next = self.compute_next(self.prev);
-        self.next
-    }
-
-    fn prev(&self) -> Option<usize> {
-        self.prev
-    }
-
-    fn select(&mut self) {
-        if self.next == self.compute_next(self.prev) {
-            self.prev = Some(self.next)
-        }
-    }
-
-    fn clone_dyn(&self) -> Box<dyn DistributionStrategy<Resource = R>> {
-        Box::new(Self::new(self.resources.clone()))
     }
 
     fn resources(&self) -> &[Self::Resource] {
@@ -227,57 +150,17 @@ mod tests {
 
     #[test]
     fn test_fixed_device() {
-        let device_id = 1;
-        let mut distributor = FixedDistributor::new(vec![0, device_id]).with_fixed(device_id);
-
-        // Nothing selected yet
-        assert_eq!(distributor.prev(), None);
-
-        // Predict next, but not marked as selected/used
-        assert_eq!(*distributor.next(), device_id);
-        assert_eq!(distributor.prev(), None);
-
-        assert_eq!(*distributor.next(), device_id);
-        distributor.select();
-        assert_eq!(distributor.prev(), Some(device_id));
+        let fixed_id = 1;
+        let device = 2;
+        let devices = vec![0, device];
+        let mut distributor = FixedDistributor::new(devices.clone()).with_fixed(fixed_id);
 
         // Always the same
-        assert_eq!(*distributor.next(), device_id);
-        distributor.select();
-        assert_eq!(*distributor.next(), device_id);
-    }
+        for _ in 0..5 {
+            assert_eq!(distributor.next_id(), fixed_id);
+            assert_eq!(*distributor.next(), device);
+        }
 
-    #[test]
-    fn test_round_robin_device_selection() {
-        let mut distributor = RoundRobinDistributor::new(vec![0, 1, 2]);
-
-        // Nothing selected yet
-        assert_eq!(distributor.prev(), None);
-
-        // Predict next, but not marked as selected/used
-        assert_eq!(*distributor.next(), 0);
-        assert_eq!(distributor.prev(), None);
-
-        // Next is still 0 (stateful, must be marked)
-        assert_eq!(*distributor.next(), 0);
-        distributor.select();
-        assert_eq!(distributor.prev(), Some(0));
-        // Next is 1, but prev will still be 0 since it has not been marked
-        assert_eq!(*distributor.next(), 1);
-        assert_eq!(distributor.prev(), Some(0));
-        // Now it's 1
-        distributor.select();
-        assert_eq!(distributor.prev(), Some(1));
-        // Wrapping back to 0
-        assert_eq!(*distributor.next(), 2);
-        distributor.select();
-        assert_eq!(distributor.prev(), Some(2));
-        distributor.select();
-        assert_eq!(*distributor.next(), 0);
-        // Multiple select should not impact the next
-        distributor.select();
-        distributor.select();
-        distributor.select();
-        assert_eq!(*distributor.next(), 1);
+        assert_eq!(distributor.resources(), devices.as_slice())
     }
 }
