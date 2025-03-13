@@ -26,9 +26,9 @@ pub trait DynBatcher<B: Backend, I, O>: Send + Batcher<B, I, O> {
     fn clone_dyn(&self) -> Box<dyn DynBatcher<B, I, O>>;
 }
 
-impl<Ba, B, I, O> DynBatcher<B, I, O> for Ba
+impl<Bt, B, I, O> DynBatcher<B, I, O> for Bt
 where
-    Ba: Batcher<B, I, O> + Clone + 'static,
+    Bt: Batcher<B, I, O> + Clone + 'static,
     B: Backend,
 {
     fn clone_dyn(&self) -> Box<dyn DynBatcher<B, I, O>> {

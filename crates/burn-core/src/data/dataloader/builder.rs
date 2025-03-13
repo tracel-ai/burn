@@ -31,9 +31,9 @@ where
     /// # Returns
     ///
     /// The data loader builder.
-    pub fn new<Ba>(batcher: Ba) -> Self
+    pub fn new<Bt>(batcher: Bt) -> Self
     where
-        Ba: DynBatcher<B, I, O> + 'static,
+        Bt: DynBatcher<B, I, O> + 'static,
     {
         Self {
             batcher: Box::new(batcher),
