@@ -4,7 +4,7 @@ use burn_fusion::stream::Context;
 use burn_ir::{ReduceDimOpIr, TensorStatus};
 use burn_tensor::DType;
 use cubecl::prelude::*;
-use cubecl::reduce::{reduce_kernel, Reduce, ReduceParams, ReduceStrategy};
+use cubecl::reduce::{reduce_kernel, BoundChecksInner, Reduce, ReduceParams, ReduceStrategy};
 use cubecl::{
     client::ComputeClient,
     reduce::{LineMode, ReduceConfig, ReduceError},
@@ -300,6 +300,11 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             line_mode,
             line_size: config_read.width as u32,
             bound_checks: false,
+            bound_checks_inner: if strategy.use_planes {
+                BoundChecksInner::Branch
+            } else {
+                BoundChecksInner::Mask
+            },
         }
         .generate_cube_dim(client, strategy.use_planes)
         .generate_cube_count::<R>(reduce_count, &strategy);
@@ -437,6 +442,7 @@ fn launch_reduce<Run: Runtime, In: Numeric, Out: Numeric, Rd: Reduce>(
         line_size: kwargs.config_reduce.line_size,
         line_mode: kwargs.config_reduce.line_mode,
         bound_checks: kwargs.config_reduce.bound_checks,
+        bound_checks_inner: kwargs.config_reduce.bound_checks_inner,
     };
 
     unsafe {
