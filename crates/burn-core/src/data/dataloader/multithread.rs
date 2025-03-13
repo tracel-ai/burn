@@ -115,7 +115,6 @@ impl<O: std::fmt::Debug> DataLoaderIterator<O> for MultiThreadsDataloaderIterato
         Progress::new(items_processed, items_total)
     }
 }
-
 impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
     type Item = O;
 
@@ -132,8 +131,8 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
                 Message::Batch(index, item, progress) => {
                     if let Some(current) = self.progresses.get_mut(index) {
                         *current = progress;
-                        return Some(item);
                     }
+                    return Some(item);
                 }
                 Message::Done => {
                     self.num_done += 1;
