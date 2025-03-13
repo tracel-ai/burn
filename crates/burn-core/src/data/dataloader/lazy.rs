@@ -103,28 +103,30 @@ where
     }
 
     /// Force initialization if needed.
-    fn initialize(&self) -> &Box<dyn DataLoader<O>> {
-        self.inner.get_or_init(|| {
-            if self.num_threads > 1 {
-                Box::new(BatchDataLoader::multi_thread(
-                    self.strategy.clone_dyn(),
-                    self.dataset.clone(),
-                    self.batcher.clone_dyn(),
-                    self.num_threads,
-                    self.distributor.as_ref().map(|d| d.clone_dyn()),
-                    self.rng.clone(),
-                ))
-            } else {
-                // Create a regular BatchDataLoader
-                Box::new(BatchDataLoader::new(
-                    self.strategy.clone_dyn(),
-                    self.dataset.clone(),
-                    self.batcher.clone_dyn(),
-                    self.distributor.as_ref().map(|d| d.clone_dyn()),
-                    self.rng.clone(),
-                ))
-            }
-        })
+    fn initialize(&self) -> &dyn DataLoader<O> {
+        self.inner
+            .get_or_init(|| {
+                if self.num_threads > 1 {
+                    Box::new(BatchDataLoader::multi_thread(
+                        self.strategy.clone_dyn(),
+                        self.dataset.clone(),
+                        self.batcher.clone_dyn(),
+                        self.num_threads,
+                        self.distributor.as_ref().map(|d| d.clone_dyn()),
+                        self.rng.clone(),
+                    ))
+                } else {
+                    // Create a regular BatchDataLoader
+                    Box::new(BatchDataLoader::new(
+                        self.strategy.clone_dyn(),
+                        self.dataset.clone(),
+                        self.batcher.clone_dyn(),
+                        self.distributor.as_ref().map(|d| d.clone_dyn()),
+                        self.rng.clone(),
+                    ))
+                }
+            })
+            .as_ref()
     }
 }
 
