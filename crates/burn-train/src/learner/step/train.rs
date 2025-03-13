@@ -115,7 +115,7 @@ where
     /// Outputs.
     pub fn step<'a>(
         &self,
-        dataloaders: &mut [Box<dyn DataLoaderIterator<TI>>],
+        dataloaders: &mut [Box<dyn DataLoaderIterator<TI> + 'a>],
         model: &M,
     ) -> (Vec<TrainOutput<TO>>, Progress) {
         let mut num_send = 0;

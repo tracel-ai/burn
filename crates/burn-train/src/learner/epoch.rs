@@ -152,7 +152,7 @@ impl<TI, R> TrainEpoch<TI, R> {
     }
 }
 
-impl<TI, R: 'static> TrainEpoch<TI, R> {
+impl<TI, R> TrainEpoch<TI, R> {
     /// Runs the training epoch on multiple devices.
     ///
     /// # Arguments
@@ -189,7 +189,6 @@ impl<TI, R: 'static> TrainEpoch<TI, R> {
             devices
         );
 
-        // Stupid lifetime
         let mut iterators = self.dataloader.iter().map(|d| d.iter()).collect::<Vec<_>>();
         let mut iteration = 0;
         let mut accumulator = GradientsAccumulator::new();
