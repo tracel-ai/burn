@@ -13,6 +13,10 @@ fn adaptive_avg_pool2d_backward_direct<E: Numeric>(
     grad: &Tensor<Line<E>>,
     output: &mut Tensor<Line<E>>,
 ) {
+    if ABSOLUTE_POS >= output.len() {
+        terminate!();
+    }
+
     let (out_h, out_w, channels) = (output.shape(1), output.shape(2), output.shape(3));
     let channel_lines = channels / grad.line_size();
     let (grad_stride_b, grad_stride_h, grad_stride_w, grad_stride_c) = (
