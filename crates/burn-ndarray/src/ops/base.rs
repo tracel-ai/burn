@@ -2,6 +2,8 @@ use alloc::{vec, vec::Vec};
 use burn_tensor::ElementConversion;
 use burn_tensor::TensorData;
 use burn_tensor::TensorMetadata;
+#[cfg(feature = "simd")]
+use burn_tensor::{quantization::QuantizationType, DType};
 use core::fmt::Debug;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::s;
@@ -10,6 +12,8 @@ use ndarray::IntoDimension;
 use ndarray::SliceInfo;
 use ndarray::Zip;
 use num_traits::Signed;
+#[cfg(feature = "simd")]
+use paste::paste;
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -22,7 +26,23 @@ use ndarray::IxDyn;
 use ndarray::SliceInfoElem;
 
 use crate::element::NdArrayElement;
-use crate::ops::macros::{keepdim, mean_dim, prod_dim, sum_dim};
+#[cfg(feature = "simd")]
+use crate::ops::simd::{
+    binary::try_binary_simd,
+    binary_elemwise::{
+        try_binary_scalar_simd, VecAdd, VecBitAnd, VecBitOr, VecBitXor, VecClamp, VecDiv, VecMax,
+        VecMin, VecMul, VecSub,
+    },
+    cmp::{
+        try_cmp_scalar_simd, try_cmp_simd, VecEquals, VecGreater, VecGreaterEq, VecLower,
+        VecLowerEq,
+    },
+    unary::{try_unary_simd, RecipVec, VecAbs, VecBitNot},
+};
+use crate::{
+    ops::macros::{keepdim, mean_dim, prod_dim, sum_dim},
+    IntNdArrayElement,
+};
 use crate::{reshape, tensor::NdArrayTensor};
 
 pub struct NdArrayOps<E> {
@@ -160,11 +180,172 @@ where
     }
 }
 
+#[cfg(feature = "simd")]
+macro_rules! dispatch_binary_simd {
+    (noq, $elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        paste! {
+            let simd = match $elem::dtype() {
+                $(DType::[<$ty:upper>] => try_binary_simd::<$elem, $elem, $ty, $ty, $op>($lhs, $rhs),)*
+                _ => Err(($lhs, $rhs)),
+            };
+            match simd {
+                Ok(out) => return out,
+                Err(args) => args,
+            }
+        }
+    }};
+    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        paste! {
+            let simd = match $elem::dtype() {
+                $(DType::[<$ty:upper>] => try_binary_simd::<$elem, $elem, $ty, $ty, $op>($lhs, $rhs),)*
+                DType::QFloat(strategy) => match strategy.q_type() {
+                    QuantizationType::QInt8 => try_binary_simd::<$elem, $elem, i8, i8, $op>($lhs, $rhs),
+                },
+                _ => Err(($lhs, $rhs)),
+            };
+            match simd {
+                Ok(out) => return out,
+                Err(args) => args,
+            }
+        }
+    }};
+}
+
+#[cfg(not(feature = "simd"))]
+macro_rules! dispatch_binary_simd {
+    (noq, $elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        ($lhs, $rhs)
+    }};
+    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        ($lhs, $rhs)
+    }};
+}
+
+#[cfg(feature = "simd")]
+macro_rules! dispatch_binary_scalar_simd {
+    (noq, $elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        paste! {
+            let simd = match $elem::dtype() {
+                $(DType::[<$ty:upper>] => try_binary_scalar_simd::<$elem, $elem, $ty, $ty, $op>($lhs, $rhs),)*
+                _ => Err($lhs),
+            };
+            match simd {
+                Ok(out) => return out,
+                Err(args) => args,
+            }
+        }
+    }};
+    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        paste! {
+            let simd = match $elem::dtype() {
+                $(DType::[<$ty:upper>] => try_binary_scalar_simd::<$elem, $elem, $ty, $ty, $op>($lhs, $rhs),)*
+                DType::QFloat(strategy) => match strategy.q_type() {
+                    QuantizationType::QInt8 => try_binary_scalar_simd::<$elem, $elem, i8, i8, $op>($lhs, $rhs),
+                },
+                _ => Err($lhs),
+            };
+            match simd {
+                Ok(out) => return out,
+                Err(args) => args,
+            }
+        }
+    }};
+}
+
+#[cfg(not(feature = "simd"))]
+macro_rules! dispatch_binary_scalar_simd {
+    (noq, $elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        $lhs
+    }};
+    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        $lhs
+    }};
+}
+
+#[cfg(feature = "simd")]
+macro_rules! dispatch_cmp_simd {
+    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        paste! {
+            let simd = match $elem::dtype() {
+                $(DType::[<$ty:upper>] => try_cmp_simd::<$elem, $ty, $op>($lhs, $rhs),)*
+                DType::QFloat(strategy) => match strategy.q_type() {
+                    QuantizationType::QInt8 => try_cmp_simd::<$elem, i8, $op>($lhs, $rhs),
+                },
+                _ => Err(($lhs, $rhs)),
+            };
+            match simd {
+                Ok(out) => return out,
+                Err(args) => args,
+            }
+        }
+    }};
+}
+
+#[cfg(not(feature = "simd"))]
+macro_rules! dispatch_cmp_simd {
+    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        ($lhs, $rhs)
+    }};
+}
+
+#[cfg(feature = "simd")]
+macro_rules! dispatch_cmp_scalar_simd {
+    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        paste! {
+            let simd = match $elem::dtype() {
+                $(DType::[<$ty:upper>] => try_cmp_scalar_simd::<$elem, $ty, $op>($lhs, $rhs),)*
+                DType::QFloat(strategy) => match strategy.q_type() {
+                    QuantizationType::QInt8 => try_cmp_scalar_simd::<$elem, i8, $op>($lhs, $rhs),
+                },
+                _ => Err($lhs),
+            };
+            match simd {
+                Ok(out) => return out,
+                Err(args) => args,
+            }
+        }
+    }};
+}
+
+#[cfg(not(feature = "simd"))]
+macro_rules! dispatch_cmp_scalar_simd {
+    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
+        $lhs
+    }};
+}
+
+#[cfg(feature = "simd")]
+macro_rules! dispatch_unary_simd {
+    ($elem: ty, $op: ty, $lhs: expr, $($ty: ty),*) => {{
+        paste! {
+            let simd = match $elem::dtype() {
+                $(DType::[<$ty:upper>] => try_unary_simd::<$elem, $elem, $ty, $ty, $op>($lhs),)*
+                _ => Err($lhs),
+            };
+            match simd {
+                Ok(out) => return out,
+                Err(args) => args,
+            }
+        }
+    }};
+}
+
+#[cfg(not(feature = "simd"))]
+macro_rules! dispatch_unary_simd {
+    ($elem: ty, $op: ty, $lhs: expr, $($ty: ty),*) => {{
+        $lhs
+    }};
+}
+
 impl<E> NdArrayMathOps<E>
 where
     E: Copy + NdArrayElement,
 {
     pub fn add(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let (lhs, rhs) = dispatch_binary_simd!(
+            E, VecAdd, lhs, rhs, u8, i8, u16, i16, u32, i32, f32, u64, i64, f64
+        );
+
         let array = &lhs.array + &rhs.array;
         let array = array.into_shared();
 
@@ -172,6 +353,23 @@ where
     }
 
     pub fn add_scalar(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<E> {
+        let lhs = dispatch_binary_scalar_simd!(
+            E,
+            VecAdd,
+            lhs,
+            rhs.elem(),
+            u8,
+            i8,
+            u16,
+            i16,
+            u32,
+            i32,
+            f32,
+            u64,
+            i64,
+            f64
+        );
+
         let array = lhs.array + rhs;
         let array = array.into_shared();
 
@@ -179,6 +377,10 @@ where
     }
 
     pub fn sub(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let (lhs, rhs) = dispatch_binary_simd!(
+            E, VecSub, lhs, rhs, u8, i8, u16, i16, u32, i32, f32, u64, i64, f64
+        );
+
         let array = lhs.array - rhs.array;
         let array = array.into_shared();
 
@@ -186,6 +388,23 @@ where
     }
 
     pub fn sub_scalar(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<E> {
+        let lhs = dispatch_binary_scalar_simd!(
+            E,
+            VecSub,
+            lhs,
+            rhs.elem(),
+            u8,
+            i8,
+            u16,
+            i16,
+            u32,
+            i32,
+            f32,
+            u64,
+            i64,
+            f64
+        );
+
         let array = lhs.array - rhs;
         let array = array.into_shared();
 
@@ -193,6 +412,9 @@ where
     }
 
     pub fn mul(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let (lhs, rhs) =
+            dispatch_binary_simd!(noq, E, VecMul, lhs, rhs, u16, i16, u32, i32, f32, f64);
+
         let array = lhs.array * rhs.array;
         let array = array.into_shared();
 
@@ -200,6 +422,20 @@ where
     }
 
     pub fn mul_scalar(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<E> {
+        let lhs = dispatch_binary_scalar_simd!(
+            noq,
+            E,
+            VecMul,
+            lhs,
+            rhs.elem(),
+            u16,
+            i16,
+            u32,
+            i32,
+            f32,
+            f64
+        );
+
         let array = lhs.array * rhs;
         let array = array.into_shared();
 
@@ -207,6 +443,8 @@ where
     }
 
     pub fn div(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let (lhs, rhs) = dispatch_binary_simd!(noq, E, VecDiv, lhs, rhs, f32, f64);
+
         let array = lhs.array / rhs.array;
         let array = array.into_shared();
 
@@ -214,6 +452,8 @@ where
     }
 
     pub fn div_scalar(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<E> {
+        let lhs = dispatch_binary_scalar_simd!(noq, E, VecDiv, lhs, rhs.elem(), f32, f64);
+
         let array = lhs.array / rhs;
         let array = array.into_shared();
 
@@ -239,6 +479,8 @@ where
     }
 
     pub fn recip(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let tensor = dispatch_unary_simd!(E, RecipVec, tensor, f32);
+
         let array = tensor.array.map(|x| 1.elem::<E>() / *x);
         let array = array.into_shared();
 
@@ -468,7 +710,24 @@ where
         arg(tensor, dim, CmpType::Min)
     }
 
-    pub fn clamp_min(mut tensor: NdArrayTensor<E>, min: E) -> NdArrayTensor<E> {
+    pub fn clamp_min(tensor: NdArrayTensor<E>, min: E) -> NdArrayTensor<E> {
+        let mut tensor = dispatch_binary_scalar_simd!(
+            E,
+            VecMax,
+            tensor,
+            min.elem(),
+            u8,
+            i8,
+            u16,
+            i16,
+            u32,
+            i32,
+            f32,
+            u64,
+            i64,
+            f64
+        );
+
         tensor.array.mapv_inplace(|x| match x < min {
             true => min,
             false => x,
@@ -477,7 +736,24 @@ where
         tensor
     }
 
-    pub fn clamp_max(mut tensor: NdArrayTensor<E>, max: E) -> NdArrayTensor<E> {
+    pub fn clamp_max(tensor: NdArrayTensor<E>, max: E) -> NdArrayTensor<E> {
+        let mut tensor = dispatch_binary_scalar_simd!(
+            E,
+            VecMin,
+            tensor,
+            max.elem(),
+            u8,
+            i8,
+            u16,
+            i16,
+            u32,
+            i32,
+            f32,
+            u64,
+            i64,
+            f64
+        );
+
         tensor.array.mapv_inplace(|x| match x > max {
             true => max,
             false => x,
@@ -486,7 +762,24 @@ where
         tensor
     }
 
-    pub fn clamp(mut tensor: NdArrayTensor<E>, min: E, max: E) -> NdArrayTensor<E> {
+    pub fn clamp(tensor: NdArrayTensor<E>, min: E, max: E) -> NdArrayTensor<E> {
+        let mut tensor = dispatch_binary_scalar_simd!(
+            E,
+            VecClamp,
+            tensor,
+            (min.elem(), max.elem()),
+            u8,
+            i8,
+            u16,
+            i16,
+            u32,
+            i32,
+            f32,
+            u64,
+            i64,
+            f64
+        );
+
         tensor.array.mapv_inplace(|x| match x < min {
             true => min,
             false => match x > max {
@@ -539,6 +832,377 @@ where
                 })
                 .into_shared(),
         )
+    }
+
+    pub(crate) fn abs(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let tensor = dispatch_unary_simd!(E, VecAbs, tensor, i8, i16, i32, f32, f64);
+
+        let array = tensor.array.mapv_into(|a| a.abs_elem()).into_shared();
+
+        NdArrayTensor::new(array)
+    }
+
+    pub(crate) fn equal(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<bool> {
+        let (lhs, rhs) = dispatch_cmp_simd!(
+            E, VecEquals, lhs, rhs, u8, i8, u16, i16, u32, f32, i32, u64, i64, f64
+        );
+
+        let output = Zip::from(&lhs.array)
+            .and(&rhs.array)
+            .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
+            .into_shared();
+        NdArrayTensor::new(output)
+    }
+
+    pub(crate) fn equal_elem(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<bool> {
+        let lhs = dispatch_cmp_scalar_simd!(
+            E,
+            VecEquals,
+            lhs,
+            rhs.elem(),
+            u8,
+            i8,
+            u16,
+            i16,
+            u32,
+            f32,
+            i32,
+            u64,
+            i64,
+            f64
+        );
+
+        let array = lhs.array.mapv(|a| a == rhs).into_shared();
+        NdArrayTensor { array }
+    }
+
+    pub(crate) fn greater(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<bool> {
+        let (lhs, rhs) = dispatch_cmp_simd!(
+            E, VecGreater, lhs, rhs, u8, i8, u16, i16, u32, f32, i32, u64, i64, f64
+        );
+
+        let lhs = lhs
+            .array
+            .broadcast(rhs.array.dim())
+            .unwrap_or(lhs.array.view());
+        let rhs = rhs.array.broadcast(lhs.dim()).unwrap_or(rhs.array.view());
+
+        NdArrayTensor::new(
+            Zip::from(lhs)
+                .and(rhs)
+                .map_collect(|lhs, rhs| lhs > rhs)
+                .into_shared(),
+        )
+    }
+
+    pub(crate) fn greater_elem(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<bool> {
+        let lhs = dispatch_cmp_scalar_simd!(
+            E,
+            VecGreater,
+            lhs,
+            rhs.elem(),
+            u8,
+            i8,
+            u16,
+            i16,
+            u32,
+            f32,
+            i32,
+            u64,
+            i64,
+            f64
+        );
+
+        let array = lhs.array.mapv(|a| a > rhs).into_shared();
+        NdArrayTensor { array }
+    }
+
+    pub(crate) fn greater_equal(
+        lhs: NdArrayTensor<E>,
+        rhs: NdArrayTensor<E>,
+    ) -> NdArrayTensor<bool> {
+        let (lhs, rhs) = dispatch_cmp_simd!(
+            E,
+            VecGreaterEq,
+            lhs,
+            rhs,
+            u8,
+            i8,
+            u16,
+            i16,
+            u32,
+            f32,
+            i32,
+            u64,
+            i64,
+            f64
+        );
+
+        let lhs = lhs
+            .array
+            .broadcast(rhs.array.dim())
+            .unwrap_or(lhs.array.view());
+        let rhs = rhs.array.broadcast(lhs.dim()).unwrap_or(rhs.array.view());
+
+        NdArrayTensor::new(
+            Zip::from(lhs)
+                .and(rhs)
+                .map_collect(|lhs, rhs| lhs >= rhs)
+                .into_shared(),
+        )
+    }
+
+    pub(crate) fn greater_equal_elem(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<bool> {
+        let lhs = dispatch_cmp_scalar_simd!(
+            E,
+            VecGreaterEq,
+            lhs,
+            rhs.elem(),
+            u8,
+            i8,
+            u16,
+            i16,
+            u32,
+            f32,
+            i32,
+            u64,
+            i64,
+            f64
+        );
+
+        let array = lhs.array.mapv(|a| a >= rhs).into_shared();
+        NdArrayTensor { array }
+    }
+
+    pub(crate) fn lower_equal(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<bool> {
+        let (lhs, rhs) = dispatch_cmp_simd!(
+            E, VecLowerEq, lhs, rhs, u8, i8, u16, i16, u32, f32, i32, u64, i64, f64
+        );
+
+        let lhs = lhs
+            .array
+            .broadcast(rhs.array.dim())
+            .unwrap_or(lhs.array.view());
+        let rhs = rhs.array.broadcast(lhs.dim()).unwrap_or(rhs.array.view());
+
+        NdArrayTensor::new(
+            Zip::from(lhs)
+                .and(rhs)
+                .map_collect(|lhs, rhs| lhs <= rhs)
+                .into_shared(),
+        )
+    }
+
+    pub(crate) fn lower_equal_elem(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<bool> {
+        let lhs = dispatch_cmp_scalar_simd!(
+            E,
+            VecLowerEq,
+            lhs,
+            rhs.elem(),
+            u8,
+            i8,
+            u16,
+            i16,
+            u32,
+            f32,
+            i32,
+            u64,
+            i64,
+            f64
+        );
+
+        let array = lhs.array.mapv(|a| a <= rhs).into_shared();
+        NdArrayTensor { array }
+    }
+
+    pub(crate) fn lower(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<bool> {
+        let (lhs, rhs) = dispatch_cmp_simd!(
+            E, VecLower, lhs, rhs, u8, i8, u16, i16, u32, f32, i32, u64, i64, f64
+        );
+
+        let lhs = lhs
+            .array
+            .broadcast(rhs.array.dim())
+            .unwrap_or(lhs.array.view());
+        let rhs = rhs.array.broadcast(lhs.dim()).unwrap_or(rhs.array.view());
+
+        NdArrayTensor::new(
+            Zip::from(lhs)
+                .and(rhs)
+                .map_collect(|lhs, rhs| lhs < rhs)
+                .into_shared(),
+        )
+    }
+
+    pub(crate) fn lower_elem(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<bool> {
+        let lhs = dispatch_cmp_scalar_simd!(
+            E,
+            VecLower,
+            lhs,
+            rhs.elem(),
+            u8,
+            i8,
+            u16,
+            i16,
+            u32,
+            f32,
+            i32,
+            u64,
+            i64,
+            f64
+        );
+
+        let array = lhs.array.mapv(|a| a < rhs).into_shared();
+        NdArrayTensor { array }
+    }
+}
+
+pub struct NdArrayBitOps<I: IntNdArrayElement>(PhantomData<I>);
+
+impl<I: IntNdArrayElement> NdArrayBitOps<I> {
+    pub(crate) fn bitand(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        let (lhs, rhs) =
+            dispatch_binary_simd!(I, VecBitAnd, lhs, rhs, i8, u8, i16, u16, i32, u32, i64, u64);
+
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
+            (a.elem::<i64>() & (b.elem::<i64>())).elem()
+        })
+    }
+
+    pub(crate) fn bitand_scalar(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<I> {
+        let lhs = dispatch_binary_scalar_simd!(
+            I,
+            VecBitAnd,
+            lhs,
+            rhs.elem(),
+            i8,
+            u8,
+            i16,
+            u16,
+            i32,
+            u32,
+            i64,
+            u64
+        );
+
+        NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
+            (a.elem::<i64>() & rhs.elem::<i64>()).elem()
+        })
+    }
+
+    pub(crate) fn bitor(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        let (lhs, rhs) =
+            dispatch_binary_simd!(I, VecBitOr, lhs, rhs, i8, u8, i16, u16, i32, u32, i64, u64);
+
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
+            (a.elem::<i64>() | (b.elem::<i64>())).elem()
+        })
+    }
+
+    pub(crate) fn bitor_scalar(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<I> {
+        let lhs = dispatch_binary_scalar_simd!(
+            I,
+            VecBitOr,
+            lhs,
+            rhs.elem(),
+            i8,
+            u8,
+            i16,
+            u16,
+            i32,
+            u32,
+            i64,
+            u64
+        );
+
+        NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
+            (a.elem::<i64>() | rhs.elem::<i64>()).elem()
+        })
+    }
+
+    pub(crate) fn bitxor(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        let (lhs, rhs) =
+            dispatch_binary_simd!(I, VecBitXor, lhs, rhs, i8, u8, i16, u16, i32, u32, i64, u64);
+
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
+            (a.elem::<i64>() ^ (b.elem::<i64>())).elem()
+        })
+    }
+
+    pub(crate) fn bitxor_scalar(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<I> {
+        let lhs = dispatch_binary_scalar_simd!(
+            I,
+            VecBitXor,
+            lhs,
+            rhs.elem(),
+            i8,
+            u8,
+            i16,
+            u16,
+            i32,
+            u32,
+            i64,
+            u64
+        );
+
+        NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
+            (a.elem::<i64>() ^ rhs.elem::<i64>()).elem()
+        })
+    }
+
+    pub(crate) fn bitnot(tensor: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        let tensor =
+            dispatch_unary_simd!(I, VecBitNot, tensor, i8, u8, i16, u16, i32, u32, i64, u64);
+
+        NdArrayMathOps::elementwise_op_scalar(tensor, |a: I| (!a.elem::<i64>()).elem())
+    }
+}
+
+pub struct NdArrayBoolOps;
+
+// Rust booleans are either `00000000` or `00000001`, so bitwise and/or is fine, but bitwise not would
+// produce invalid values.
+impl NdArrayBoolOps {
+    pub(crate) fn equal(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
+        #[cfg(feature = "simd")]
+        let (lhs, rhs) = match try_cmp_simd::<bool, u8, VecEquals>(lhs, rhs) {
+            Ok(out) => return out,
+            Err(args) => args,
+        };
+
+        let output = Zip::from(&lhs.array)
+            .and(&rhs.array)
+            .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
+            .into_shared();
+        NdArrayTensor::new(output)
+    }
+
+    pub(crate) fn and(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
+        #[cfg(feature = "simd")]
+        let (lhs, rhs) = match try_binary_simd::<bool, bool, u8, u8, VecBitAnd>(lhs, rhs) {
+            Ok(out) => return out,
+            Err(args) => args,
+        };
+
+        let output = Zip::from(&lhs.array)
+            .and(&rhs.array)
+            .map_collect(|&lhs_val, &rhs_val| (lhs_val && rhs_val))
+            .into_shared();
+        NdArrayTensor::new(output)
+    }
+
+    pub(crate) fn or(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
+        #[cfg(feature = "simd")]
+        let (lhs, rhs) = match try_binary_simd::<bool, bool, u8, u8, VecBitOr>(lhs, rhs) {
+            Ok(out) => return out,
+            Err(args) => args,
+        };
+
+        let output = Zip::from(&lhs.array)
+            .and(&rhs.array)
+            .map_collect(|&lhs_val, &rhs_val| (lhs_val || rhs_val))
+            .into_shared();
+        NdArrayTensor::new(output)
     }
 }
 

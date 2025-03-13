@@ -27,7 +27,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                 FuseSettings {
                     broadcast: true,
                     output_shape_updates: true,
-                    inplace: false,
+                    inplace: true,
                     vectorization: true,
                 },
             ),
