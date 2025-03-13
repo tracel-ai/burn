@@ -3,7 +3,6 @@ use alloc::vec::Vec;
 use burn_tensor::cast::ToElement;
 use burn_tensor::ops::FloatTensor;
 use core::ops::Range;
-use ndarray::Zip;
 
 // Current crate
 use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
@@ -227,75 +226,61 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
 
     fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor<bool> {
         execute_with_float_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
-            let output = Zip::from(&lhs.array)
-                .and(&rhs.array)
-                .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
-                .into_shared();
-            NdArrayTensor::new(output)
+            NdArrayMathOps::equal(lhs, rhs)
         })
     }
 
     fn float_equal_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor<bool> {
         execute_with_float_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv(|a| a == rhs.elem::<E>()).into_shared();
-
-            NdArrayTensor::new(array)
+            NdArrayMathOps::equal_elem(tensor, rhs.elem())
         })
     }
 
     fn float_greater(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor<bool> {
-        let tensor = NdArray::<E>::float_sub(lhs, rhs);
-        let zero = 0.elem();
-        Self::float_greater_elem(tensor, zero)
+        execute_with_float_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
+            NdArrayMathOps::greater(lhs, rhs)
+        })
     }
 
     fn float_greater_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor<bool> {
         execute_with_float_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv(|a| a > rhs.elem::<E>()).into_shared();
-
-            NdArrayTensor::new(array)
+            NdArrayMathOps::greater_elem(tensor, rhs.elem())
         })
     }
 
     fn float_greater_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor<bool> {
-        let tensor = NdArray::<E>::float_sub(lhs, rhs);
-        let zero = 0.elem();
-        Self::float_greater_equal_elem(tensor, zero)
+        execute_with_float_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
+            NdArrayMathOps::greater_equal(lhs, rhs)
+        })
     }
 
     fn float_greater_equal_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor<bool> {
         execute_with_float_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv(|a| a >= rhs.elem::<E>()).into_shared();
-
-            NdArrayTensor::new(array)
+            NdArrayMathOps::greater_equal_elem(tensor, rhs.elem())
         })
     }
 
     fn float_lower(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor<bool> {
-        let tensor = NdArray::<E>::float_sub(lhs, rhs);
-        let zero = 0.elem();
-        Self::float_lower_elem(tensor, zero)
+        execute_with_float_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
+            NdArrayMathOps::lower(lhs, rhs)
+        })
     }
 
     fn float_lower_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor<bool> {
         execute_with_float_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv(|a| a < rhs.elem::<E>()).into_shared();
-
-            NdArrayTensor::new(array)
+            NdArrayMathOps::lower_elem(tensor, rhs.elem())
         })
     }
 
     fn float_lower_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor<bool> {
-        let tensor = NdArray::<E>::float_sub(lhs, rhs);
-        let zero = 0.elem();
-        Self::float_lower_equal_elem(tensor, zero)
+        execute_with_float_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
+            NdArrayMathOps::lower_equal(lhs, rhs)
+        })
     }
 
     fn float_lower_equal_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor<bool> {
         execute_with_float_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv(|a| a <= rhs.elem::<E>()).into_shared();
-
-            NdArrayTensor::new(array)
+            NdArrayMathOps::lower_equal_elem(tensor, rhs.elem())
         })
     }
 
