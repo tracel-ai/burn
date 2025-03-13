@@ -445,15 +445,12 @@ fn select_indices<C: Numeric>(
         //
         // Therefore the same indices are used to fetch multiple entries in the input tensor.
 
-        let write_pos_input = write_pos * line_size_ref;
-        let stride_input_line = global_stride(inputs, comptime![config.rank - 1], pos_input);
-
         if comptime![dim > 0] {
             let index_before = global_offset(
                 inputs,
                 outputs,
                 locals,
-                write_pos_input,
+                write_pos,
                 comment!(input.clone()),
                 comptime![Some((0u32, dim))],
                 config,
@@ -466,7 +463,7 @@ fn select_indices<C: Numeric>(
                 inputs,
                 outputs,
                 locals,
-                write_pos_input,
+                write_pos,
                 comment!(input.clone()),
                 comptime![Some((dim + 1, config.rank))],
                 config,
@@ -474,6 +471,8 @@ fn select_indices<C: Numeric>(
             index += index_after;
         }
 
+        let stride_input_line = global_stride(inputs, comptime![config.rank - 1], pos_input);
+        let write_pos_input = write_pos * line_size_ref;
         let coordinate_dim = write_pos_input / stride_dim_ref % shape_dim_ref;
         let offset_dim = read_input::<u32>(
             inputs,

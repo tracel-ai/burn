@@ -134,18 +134,23 @@ mod tests {
     }
 
     #[test]
-    fn tensor_select_maybe_fused() {
+    fn should_select_3d_dim1_vec() {
         let device = Default::default();
-        let x1 = TestTensor::<4>::ones([1, 3, 10, 10], &device);
-        let indexes = TestTensorInt::from_data(TensorData::from([1, 2, 3]), &device);
+        let tensor = TestTensor::<3>::from_data(
+            [
+                [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]],
+                [[-1.0, -2.0], [-3.0, -4.0], [-5.0, -6.0], [-7.0, -8.0]],
+            ],
+            &device,
+        );
+        let indices = TestTensorInt::from_data([1, 0, 3, 2], &device);
 
-        let first = x1.select(2, indexes.clone());
-        let output = first.select(3, indexes);
-        let expected = TensorData::from([[
-            [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0]],
-            [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0]],
-            [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0]],
-        ]]);
+        let output = tensor.select(1, indices);
+        let expected = TensorData::from([
+            [[3.0, 4.0], [1.0, 2.0], [7.0, 8.0], [5.0, 6.0]],
+            [[-3.0, -4.0], [-1.0, -2.0], [-7.0, -8.0], [-5.0, -6.0]],
+        ]);
+
         output.into_data().assert_eq(&expected, false);
     }
 
