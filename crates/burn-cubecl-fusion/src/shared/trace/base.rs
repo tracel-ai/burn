@@ -77,8 +77,10 @@ impl FuseTrace {
         OutputPlanner::<R>::new(&self.inputs, &self.outputs, &self.views)
             .run::<BT>(client, device, context, &mut plan);
 
-        VectorizationPlanner::<R>::new(&self.views, &self.reads, &self.indexed)
-            .run(runner, context, &mut plan);
+        if self.settings.vectorization {
+            VectorizationPlanner::<R>::new(&self.views, &self.reads, &self.indexed)
+                .run(runner, context, &mut plan);
+        }
 
         match LaunchPlanExecutor::<R>::new(&self.scalars, &self.views, &self.ops)
             .execute::<_, BT>(client, runner, context, plan)
