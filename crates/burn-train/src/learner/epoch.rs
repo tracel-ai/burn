@@ -1,4 +1,4 @@
-use burn_core::data::dataloader::{DataLoaderIterator, LazyDataLoader};
+use burn_core::data::dataloader::LazyDataLoader;
 use burn_core::tensor::backend::{AutodiffBackend, DeviceOps};
 use burn_core::{
     lr_scheduler::LrScheduler, module::AutodiffModule, optim::GradientsAccumulator,
@@ -101,6 +101,7 @@ impl<TI, R> TrainEpoch<TI, R> {
     {
         log::info!("Executing training step for epoch {}", self.epoch,);
 
+        // Single device / dataloader
         let mut iterator = self.dataloader[0].iter();
         let mut iteration = 0;
         let mut accumulator = GradientsAccumulator::new();
@@ -195,7 +196,6 @@ impl<TI, R> TrainEpoch<TI, R> {
         let mut accumulation_current = 0;
 
         let accumulation = self.grad_accumulation.unwrap_or(1) * devices.len();
-        // TODO: train step workers should have the data loaders?
         let step = MultiDevicesTrainStep::new(&devices);
 
         // The main device is always the first in the list.
@@ -203,7 +203,6 @@ impl<TI, R> TrainEpoch<TI, R> {
         let mut interrupted = false;
 
         loop {
-            // TODO: step should return progress?
             let (items, progress) = step.step(iterators.as_mut_slice(), &model);
             if items.is_empty() {
                 break;
@@ -212,10 +211,8 @@ impl<TI, R> TrainEpoch<TI, R> {
             for item in items {
                 iteration += 1;
                 let lr = lr_scheduler.step();
-                // let progress = iterator.progress();
 
                 // TODO: aggregate multi device (all-reduce)
-                // https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/collectives.html#allreduce
                 let grads = item.grads.to_device(&device_main, &model);
 
                 accumulator.accumulate(&model, grads);

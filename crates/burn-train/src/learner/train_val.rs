@@ -149,6 +149,9 @@ impl<LC: LearnerComponents> Learner<LC> {
             let fixed_devices = self
                 .devices
                 .iter()
+                // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy
+                // for each (worker) data loader. This matches the expected device on the worker, so we
+                // don't have to move the data between devices.
                 .map(|device| FixedDistributor::new(vec![device.clone()]).clone_dyn())
                 .collect();
             dataloader_train

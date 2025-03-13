@@ -109,6 +109,7 @@ where
     /// # Arguments
     ///
     /// * `model` - Model.
+    /// * `dataloaders` - The data loader for each worker.
     ///
     /// # Returns
     ///
