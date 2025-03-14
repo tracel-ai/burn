@@ -1,18 +1,24 @@
-use super::{batcher::DynBatcher, BatchDataLoader, BatchStrategy, DataLoader, FixBatchStrategy};
+use super::{
+    batcher::DynBatcher, BatchStrategy, DistributionStrategy, FixBatchStrategy,
+    LazyBatchDataLoader, LazyDataLoader,
+};
 use burn_dataset::Dataset;
+use burn_tensor::backend::Backend;
 use rand::{rngs::StdRng, SeedableRng};
 use std::sync::Arc;
 
 /// A builder for data loaders.
-pub struct DataLoaderBuilder<I, O> {
+pub struct DataLoaderBuilder<B: Backend, I, O> {
     strategy: Option<Box<dyn BatchStrategy<I>>>,
-    batcher: Box<dyn DynBatcher<I, O>>,
+    batcher: Box<dyn DynBatcher<B, I, O>>,
     num_threads: Option<usize>,
     shuffle: Option<u64>,
+    distributor: Option<Box<dyn DistributionStrategy<Resource = B::Device>>>,
 }
 
-impl<I, O> DataLoaderBuilder<I, O>
+impl<B, I, O> DataLoaderBuilder<B, I, O>
 where
+    B: Backend,
     I: Send + Sync + Clone + std::fmt::Debug + 'static,
     O: Send + Clone + std::fmt::Debug + 'static,
 {
@@ -25,15 +31,16 @@ where
     /// # Returns
     ///
     /// The data loader builder.
-    pub fn new<B>(batcher: B) -> Self
+    pub fn new<Bt>(batcher: Bt) -> Self
     where
-        B: DynBatcher<I, O> + 'static,
+        Bt: DynBatcher<B, I, O> + 'static,
     {
         Self {
             batcher: Box::new(batcher),
             strategy: None,
             num_threads: None,
             shuffle: None,
+            distributor: None,
         }
     }
 
@@ -82,6 +89,23 @@ where
         self
     }
 
+    /// Sets the data loader device distribution/selection strategy for a batch.
+    ///
+    /// # Arguments
+    ///
+    /// * `distributor` - The device distribution strategy.
+    ///
+    /// # Returns
+    ///
+    /// The data loader builder.
+    pub fn distributor<D>(mut self, distributor: D) -> Self
+    where
+        D: DistributionStrategy<Resource = B::Device>,
+    {
+        self.distributor = Some(distributor.clone_dyn());
+        self
+    }
+
     /// Builds the data loader.
     ///
     /// # Arguments
@@ -91,7 +115,7 @@ where
     /// # Returns
     ///
     /// The data loader.
-    pub fn build<D>(self, dataset: D) -> Arc<dyn DataLoader<O>>
+    pub fn build<D>(self, dataset: D) -> Arc<dyn LazyDataLoader<O, Resource = B::Device>>
     where
         D: Dataset<I> + 'static,
     {
@@ -102,16 +126,117 @@ where
             Some(strategy) => strategy,
             None => Box::new(FixBatchStrategy::new(1)),
         };
-        if let Some(num_threads) = self.num_threads {
-            return Arc::new(BatchDataLoader::multi_thread(
-                strategy,
-                dataset,
-                self.batcher,
-                num_threads,
-                rng,
-            ));
+
+        Arc::new(LazyBatchDataLoader::new(
+            strategy,
+            dataset,
+            self.batcher,
+            self.distributor,
+            rng,
+            self.num_threads.unwrap_or(0),
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::data::dataloader::FixedDistributor;
+    use crate::data::dataset::FakeDataset;
+    use crate::{data::dataloader::batcher::Batcher, TestBackend};
+
+    #[test]
+    fn test_default_device_distributor() {
+        type TestDevice = <TestBackend as Backend>::Device;
+
+        #[derive(new, Clone)]
+        pub struct TestBatcher;
+
+        #[cfg(test)]
+        impl<I> Batcher<TestBackend, I, TestDevice> for TestBatcher {
+            fn batch(&self, _items: Vec<I>, device: &TestDevice) -> TestDevice {
+                device.clone()
+            }
         }
 
-        Arc::new(BatchDataLoader::new(strategy, dataset, self.batcher, rng))
+        // `LazyBatchDataLoader` with no DistributionStrategy fixed device (default)
+        let default_device = TestDevice::default();
+        let dataloader = DataLoaderBuilder::new(TestBatcher::new())
+            .batch_size(1)
+            .num_workers(1)
+            .build(FakeDataset::<String>::new(9));
+
+        for device in dataloader.iter() {
+            assert_eq!(device, default_device)
+        }
+    }
+
+    #[test]
+    fn test_multi_device_distributor() {
+        type TestDevice = <TestBackend as Backend>::Device;
+
+        #[derive(new, Clone)]
+        pub struct TestBatcher;
+
+        #[cfg(test)]
+        impl<I> Batcher<TestBackend, I, TestDevice> for TestBatcher {
+            fn batch(&self, _items: Vec<I>, device: &TestDevice) -> TestDevice {
+                device.clone()
+            }
+        }
+
+        // `LazyBatchDataLoader` with no DistributionStrategy fixed device (default)
+        let num_items = 11;
+        let dataloader = DataLoaderBuilder::new(TestBatcher::new())
+            .batch_size(1)
+            .num_workers(1)
+            .build(FakeDataset::<String>::new(num_items));
+
+        #[cfg(all(
+            test,
+            not(feature = "test-tch"),
+            not(feature = "test-wgpu"),
+            not(feature = "test-cuda")
+        ))]
+        // Only one device exists...
+        let (device1, device2) = (
+            burn_ndarray::NdArrayDevice::Cpu,
+            burn_ndarray::NdArrayDevice::Cpu,
+        );
+
+        #[cfg(all(test, feature = "test-tch"))]
+        let (device1, device2) = (
+            burn_tch::LibTorchDevice::Cuda(0),
+            burn_tch::LibTorchDevice::Cuda(1),
+        );
+
+        #[cfg(all(test, feature = "test-wgpu"))]
+        let (device1, device2) = (
+            burn_wgpu::WgpuDevice::DiscreteGpu(0),
+            burn_wgpu::WgpuDevice::DiscreteGpu(1),
+        );
+
+        #[cfg(all(test, feature = "test-cuda"))]
+        let (device1, device2) = (burn_cuda::CudaDevice::new(0), burn_cuda::CudaDevice::new(1));
+
+        let fixed_devices = vec![
+            FixedDistributor::new(vec![device1.clone()]).clone_dyn(),
+            FixedDistributor::new(vec![device2.clone()]).clone_dyn(),
+        ];
+        let dataloaders = dataloader.split(fixed_devices);
+
+        assert_eq!(dataloaders.len(), 2);
+
+        let (mut iterator_1, mut iterator_2) = (dataloaders[0].iter(), dataloaders[1].iter());
+
+        for _ in 0..num_items / 2 {
+            assert_eq!(iterator_1.next(), Some(device1.clone()));
+            assert_eq!(iterator_2.next(), Some(device2.clone()));
+        }
+
+        assert_eq!(iterator_1.next(), None);
+        // For uneven split, the last dataloader (partial dataset) will have the remaining item
+        assert_eq!(iterator_2.next(), Some(device2));
+        assert_eq!(iterator_2.next(), None);
     }
 }

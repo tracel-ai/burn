@@ -1,34 +1,37 @@
 use super::{
-    batcher::DynBatcher, BatchStrategy, DataLoader, DataLoaderIterator, DynDataLoader,
-    MultiThreadDataLoader, Progress,
+    batcher::DynBatcher, BatchStrategy, DataLoader, DataLoaderIterator, DistributionStrategy,
+    DynDataLoader, FixedDistributor, MultiThreadDataLoader, Progress,
 };
 use burn_dataset::{
     transform::{PartialDataset, ShuffledDataset},
     Dataset,
 };
+use burn_tensor::backend::Backend;
 use rand::{distr::StandardUniform, prelude::Distribution, rngs::StdRng, Rng, SeedableRng};
 use std::sync::Arc;
 
 /// A data loader that can be used to iterate over a dataset in batches.
-pub struct BatchDataLoader<I, O> {
+pub struct BatchDataLoader<B: Backend, I, O> {
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
-    batcher: Box<dyn DynBatcher<I, O>>,
+    batcher: Box<dyn DynBatcher<B, I, O>>,
+    distributor: Option<Box<dyn DistributionStrategy<Resource = B::Device>>>,
     rng: Option<Arc<spin::Mutex<rand::rngs::StdRng>>>,
 }
 
-impl<I, O> Clone for BatchDataLoader<I, O> {
+impl<B: Backend, I, O> Clone for BatchDataLoader<B, I, O> {
     fn clone(&self) -> Self {
         Self {
             strategy: self.strategy.clone_dyn(),
             dataset: self.dataset.clone(),
             batcher: self.batcher.clone_dyn(),
+            distributor: self.distributor.as_ref().map(|d| d.clone_dyn()),
             rng: self.rng.clone(),
         }
     }
 }
 
-impl<I, O> BatchDataLoader<I, O> {
+impl<B: Backend, I, O> BatchDataLoader<B, I, O> {
     /// Creates a new batch data loader.
     ///
     /// # Arguments
@@ -36,6 +39,7 @@ impl<I, O> BatchDataLoader<I, O> {
     /// * `strategy` - The batch strategy.
     /// * `dataset` - The dataset.
     /// * `batcher` - The batcher.
+    /// * `distributor` - The resource distribution strategy.
     /// * `rng`     - The rng determining if the dataset is shuffled each time a dataloader
     ///               iterator is created.
     ///
@@ -45,27 +49,30 @@ impl<I, O> BatchDataLoader<I, O> {
     pub fn new(
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
-        batcher: Box<dyn DynBatcher<I, O>>,
+        batcher: Box<dyn DynBatcher<B, I, O>>,
+        distributor: Option<Box<dyn DistributionStrategy<Resource = B::Device>>>,
         rng: Option<rand::rngs::StdRng>,
     ) -> Self {
         Self {
             strategy,
             dataset,
             batcher,
+            distributor,
             rng: rng.map(|rng| Arc::new(spin::Mutex::new(rng))),
         }
     }
 }
 
 /// A data loader iterator that can be used to iterate over a data loader.
-struct BatchDataloaderIterator<I, O> {
+struct BatchDataloaderIterator<B: Backend, I, O> {
     current_index: usize,
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
-    batcher: Box<dyn DynBatcher<I, O>>,
+    batcher: Box<dyn DynBatcher<B, I, O>>,
+    distributor: Box<dyn DistributionStrategy<Resource = B::Device>>,
 }
 
-impl<I, O> BatchDataLoader<I, O>
+impl<B: Backend, I, O> BatchDataLoader<B, I, O>
 where
     I: Send + Sync + Clone + 'static,
     O: Send + Clone + 'static,
@@ -77,6 +84,7 @@ where
     /// * `strategy` - The batch strategy.
     /// * `dataset` - The dataset.
     /// * `batcher` - The batcher.
+    /// * `distributor` - The resource distribution strategy.
     /// * `num_threads` - The number of threads.
     ///
     /// # Returns
@@ -85,8 +93,9 @@ where
     pub fn multi_thread(
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
-        batcher: Box<dyn DynBatcher<I, O>>,
+        batcher: Box<dyn DynBatcher<B, I, O>>,
         num_threads: usize,
+        distributor: Option<Box<dyn DistributionStrategy<Resource = B::Device>>>,
         mut rng: Option<rand::rngs::StdRng>,
     ) -> MultiThreadDataLoader<O> {
         let datasets = PartialDataset::split(dataset, num_threads);
@@ -101,8 +110,13 @@ where
 
         for (dataset, rng) in datasets.into_iter().zip(rngs) {
             let strategy = strategy.clone_dyn();
-            let dataloader =
-                BatchDataLoader::new(strategy, Arc::new(dataset), batcher.clone_dyn(), rng);
+            let dataloader = BatchDataLoader::new(
+                strategy,
+                Arc::new(dataset),
+                batcher.clone_dyn(),
+                distributor.as_ref().map(|d| d.clone_dyn()),
+                rng,
+            );
             let dataloader: Box<dyn DynDataLoader<_>> = Box::new(dataloader);
             dataloaders.push(dataloader);
         }
@@ -110,8 +124,9 @@ where
     }
 }
 
-impl<I, O> DataLoader<O> for BatchDataLoader<I, O>
+impl<B, I, O> DataLoader<O> for BatchDataLoader<B, I, O>
 where
+    B: Backend,
     I: Send + Sync + Clone + 'static,
     O: Send + 'static,
 {
@@ -134,6 +149,7 @@ where
             self.strategy.clone_dyn(),
             dataset,
             self.batcher.clone_dyn(),
+            self.distributor.as_ref().map(|d| d.clone_dyn()),
         ))
     }
 
@@ -142,7 +158,7 @@ where
     }
 }
 
-impl<I, O> BatchDataloaderIterator<I, O> {
+impl<B: Backend, I, O> BatchDataloaderIterator<B, I, O> {
     /// Creates a new batch data loader iterator.
     ///
     /// # Arguments
@@ -150,6 +166,8 @@ impl<I, O> BatchDataloaderIterator<I, O> {
     /// * `strategy` - The batch strategy.
     /// * `dataset` - The dataset.
     /// * `batcher` - The batcher.
+    /// * `distributor` - The resource distribution strategy.
+    ///                   Uses the backend's default device when not provided.
     ///
     /// # Returns
     ///
@@ -157,18 +175,22 @@ impl<I, O> BatchDataloaderIterator<I, O> {
     pub fn new(
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
-        batcher: Box<dyn DynBatcher<I, O>>,
+        batcher: Box<dyn DynBatcher<B, I, O>>,
+        distributor: Option<Box<dyn DistributionStrategy<Resource = B::Device>>>,
     ) -> Self {
+        let distributor =
+            distributor.unwrap_or(Box::new(FixedDistributor::new(vec![Default::default()])));
         BatchDataloaderIterator {
             current_index: 0,
             strategy,
             dataset,
             batcher,
+            distributor,
         }
     }
 }
 
-impl<I, O> Iterator for BatchDataloaderIterator<I, O> {
+impl<B: Backend, I, O> Iterator for BatchDataloaderIterator<B, I, O> {
     type Item = O;
 
     fn next(&mut self) -> Option<O> {
@@ -177,19 +199,19 @@ impl<I, O> Iterator for BatchDataloaderIterator<I, O> {
             self.strategy.add(item);
 
             if let Some(items) = self.strategy.batch(false) {
-                return Some(self.batcher.batch(items));
+                return Some(self.batcher.batch(items, self.distributor.next()));
             }
         }
 
         if let Some(items) = self.strategy.batch(true) {
-            return Some(self.batcher.batch(items));
+            return Some(self.batcher.batch(items, self.distributor.next()));
         }
 
         None
     }
 }
 
-impl<I, O> DataLoaderIterator<O> for BatchDataloaderIterator<I, O> {
+impl<B: Backend, I, O> DataLoaderIterator<O> for BatchDataloaderIterator<B, I, O> {
     fn progress(&self) -> Progress {
         Progress::new(self.current_index, self.dataset.len())
     }
@@ -212,6 +234,7 @@ mod tests {
             Box::new(FixBatchStrategy::new(5)),
             dataset.clone(),
             batcher,
+            None,
             None,
         );
 
@@ -240,12 +263,14 @@ mod tests {
             dataset.clone(),
             batcher.clone_dyn(),
             None,
+            None,
         );
         let dataloader_multi_thread = BatchDataLoader::multi_thread(
             Box::new(FixBatchStrategy::new(5)),
             dataset,
             batcher,
             4,
+            None,
             None,
         );
 
