@@ -73,6 +73,8 @@ macro_rules! bench_on_backend {
         let feature_name = "candle-metal";
         #[cfg(feature = "ndarray")]
         let feature_name = "ndarray";
+        #[cfg(feature = "ndarray-simd")]
+        let feature_name = "ndarray-simd";
         #[cfg(feature = "ndarray-blas-accelerate")]
         let feature_name = "ndarray-blas-accelerate";
         #[cfg(feature = "ndarray-blas-netlib")]
@@ -133,6 +135,7 @@ macro_rules! bench_on_backend {
 
         #[cfg(any(
             feature = "ndarray",
+            feature = "ndarray-simd",
             feature = "ndarray-blas-netlib",
             feature = "ndarray-blas-openblas",
             feature = "ndarray-blas-accelerate",

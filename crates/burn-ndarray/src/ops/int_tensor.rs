@@ -8,7 +8,6 @@ use burn_tensor::Distribution;
 use burn_tensor::ElementConversion;
 use core::ops::Range;
 use ndarray::IntoDimension;
-use ndarray::Zip;
 
 // Current crate
 use crate::element::FloatNdArrayElement;
@@ -22,7 +21,7 @@ use crate::{NdArrayDevice, SEED};
 // Workspace crates
 use burn_tensor::{backend::Backend, DType, Shape, TensorData};
 
-use super::{NdArrayMathOps, NdArrayOps};
+use super::{NdArrayBitOps, NdArrayMathOps, NdArrayOps};
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps<Self>
     for NdArray<E, I, Q>
@@ -87,56 +86,43 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn int_equal(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<bool> {
-        let output = Zip::from(&lhs.array)
-            .and(&rhs.array)
-            .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
-            .into_shared();
-        NdArrayTensor::new(output)
+        NdArrayMathOps::equal(lhs, rhs)
     }
 
     fn int_equal_elem(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<bool> {
-        let array = lhs.array.mapv(|a| a == rhs).into_shared();
-        NdArrayTensor { array }
+        NdArrayMathOps::equal_elem(lhs, rhs)
     }
 
     fn int_greater(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<bool> {
-        let tensor = Self::int_sub(lhs, rhs);
-        Self::int_greater_elem(tensor, 0.elem())
+        NdArrayMathOps::greater(lhs, rhs)
     }
 
     fn int_greater_elem(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<bool> {
-        let array = lhs.array.mapv(|a| a > rhs).into_shared();
-        NdArrayTensor::new(array)
+        NdArrayMathOps::greater_elem(lhs, rhs)
     }
 
     fn int_greater_equal(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<bool> {
-        let tensor = Self::int_sub(lhs, rhs);
-        Self::int_greater_equal_elem(tensor, 0.elem())
+        NdArrayMathOps::greater_equal(lhs, rhs)
     }
 
     fn int_greater_equal_elem(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<bool> {
-        let array = lhs.array.mapv(|a| a >= rhs).into_shared();
-        NdArrayTensor::new(array)
+        NdArrayMathOps::greater_equal_elem(lhs, rhs)
     }
 
     fn int_lower(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<bool> {
-        let tensor = Self::int_sub(lhs, rhs);
-        Self::int_lower_elem(tensor, 0.elem())
+        NdArrayMathOps::lower(lhs, rhs)
     }
 
     fn int_lower_elem(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<bool> {
-        let array = lhs.array.mapv(|a| a < rhs).into_shared();
-        NdArrayTensor::new(array)
+        NdArrayMathOps::lower_elem(lhs, rhs)
     }
 
     fn int_lower_equal(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<bool> {
-        let tensor = Self::int_sub(lhs, rhs);
-        Self::int_lower_equal_elem(tensor, 0.elem())
+        NdArrayMathOps::lower_equal(lhs, rhs)
     }
 
     fn int_lower_equal_elem(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<bool> {
-        let array = lhs.array.mapv(|a| a <= rhs).into_shared();
-        NdArrayTensor::new(array)
+        NdArrayMathOps::lower_equal_elem(lhs, rhs)
     }
 
     fn int_add(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
@@ -277,9 +263,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn int_abs(tensor: NdArrayTensor<I>) -> NdArrayTensor<I> {
-        let array = tensor.array.mapv_into(|a| a.int_abs_elem()).into_shared();
-
-        NdArrayTensor::new(array)
+        NdArrayMathOps::abs(tensor)
     }
 
     fn int_into_float(tensor: NdArrayTensor<I>) -> FloatTensor<Self> {
@@ -354,46 +338,31 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn bitwise_and(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
-        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
-            (a.elem::<i64>() & (b.elem::<i64>())).elem()
-        })
+        NdArrayBitOps::bitand(lhs, rhs)
     }
 
     fn bitwise_and_scalar(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<I> {
-        NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
-            (a.elem::<i64>() & rhs.elem::<i64>()).elem()
-        })
+        NdArrayBitOps::bitand_scalar(lhs, rhs)
     }
 
     fn bitwise_or(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
-        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
-            (a.elem::<i64>() | (b.elem::<i64>())).elem()
-        })
+        NdArrayBitOps::bitor(lhs, rhs)
     }
 
-    fn bitwise_or_scalar(
-        lhs: burn_tensor::ops::IntTensor<Self>,
-        rhs: burn_tensor::ops::IntElem<Self>,
-    ) -> burn_tensor::ops::IntTensor<Self> {
-        NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
-            (a.elem::<i64>() | rhs.elem::<i64>()).elem()
-        })
+    fn bitwise_or_scalar(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<I> {
+        NdArrayBitOps::bitor_scalar(lhs, rhs)
     }
 
     fn bitwise_xor(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
-        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
-            (a.elem::<i64>() ^ (b.elem::<i64>())).elem()
-        })
+        NdArrayBitOps::bitxor(lhs, rhs)
     }
 
     fn bitwise_xor_scalar(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<I> {
-        NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
-            (a.elem::<i64>() ^ rhs.elem::<i64>()).elem()
-        })
+        NdArrayBitOps::bitxor_scalar(lhs, rhs)
     }
 
     fn bitwise_not(tensor: NdArrayTensor<I>) -> NdArrayTensor<I> {
-        NdArrayMathOps::elementwise_op_scalar(tensor, |a: I| (!a.elem::<i64>()).elem())
+        NdArrayBitOps::bitnot(tensor)
     }
 
     fn bitwise_left_shift(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {

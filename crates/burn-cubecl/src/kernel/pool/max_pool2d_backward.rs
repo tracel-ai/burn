@@ -1,16 +1,20 @@
 use crate::{
-    element::CubeElement, kernel::into_contiguous, ops::numeric::empty_device, tensor::CubeTensor,
+    element::CubeElement,
+    kernel::conv::nchw_to_nhwc,
+    ops::{max_vectorization, numeric::empty_device, permute},
+    tensor::CubeTensor,
     CubeRuntime, IntElement,
 };
+use burn_tensor::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use super::{PoolBackwardArgs, PoolBackwardArgsLaunch};
 
 #[cube(launch_unchecked)]
 fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int>(
-    grad: &Tensor<E>,
-    indices: &Tensor<I>,
-    output: &mut Tensor<E>,
+    grad: &Tensor<Line<E>>,
+    indices: &Tensor<Line<I>>,
+    output: &mut Tensor<Line<E>>,
     args: &PoolBackwardArgs,
     #[comptime] kernel_size_0: i32,
     #[comptime] kernel_size_1: i32,
@@ -19,33 +23,42 @@ fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int>(
         terminate!();
     }
 
-    let batch = ABSOLUTE_POS / output.stride(0) % output.shape(0);
-    let channel = ABSOLUTE_POS / output.stride(1) % output.shape(1);
-    let ih = ABSOLUTE_POS / output.stride(2) % output.shape(2);
-    let iw = ABSOLUTE_POS / output.stride(3) % output.shape(3);
+    let line_size = grad.line_size();
 
-    let index_current = ih * output.stride(2) + iw * output.stride(3);
+    let channels = output.shape(3) / line_size;
+    let channel = (ABSOLUTE_POS % channels) * output.line_size();
+    let pos = ABSOLUTE_POS / channels;
+    let iw = pos % output.shape(2);
+    let pos = pos / output.shape(2);
+    let ih = pos % output.shape(1);
+    let batch = pos / output.shape(1);
+
+    let index_current = ih * output.shape(2) + iw;
 
     let (oh_start, oh_end, ow_start, ow_end) = loop_ranges(
         ih as i32,
         iw as i32,
+        grad.shape(1),
         grad.shape(2),
-        grad.shape(3),
         args,
         kernel_size_0,
         kernel_size_1,
     );
 
-    let mut grad_acc = E::from_int(0);
+    let mut grad_acc = Line::empty(grad.line_size()).fill(E::from_int(0));
 
-    let index_base = batch * grad.stride(0) + channel * grad.stride(1);
+    let index_base = batch * grad.stride(0) + channel * grad.stride(3);
 
     for oh in oh_start..oh_end {
         for ow in ow_start..ow_end {
-            let index = index_base + oh * grad.stride(2) + ow * grad.stride(3);
-            let index_max = u32::cast_from(indices[index]);
+            let index = index_base + oh * grad.stride(1) + ow * grad.stride(2);
+            let index_max = Line::<u32>::cast_from(indices[index / line_size]);
 
-            grad_acc += select(index_max == index_current, grad[index], E::from_int(0));
+            grad_acc += select_many(
+                index_max.equal(Line::cast_from(index_current)),
+                grad[index / line_size],
+                Line::new(E::from_int(0)),
+            );
         }
     }
 
@@ -82,21 +95,38 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime, E: CubeElement, I
     padding: [usize; 2],
     dilation: [usize; 2],
 ) -> CubeTensor<R> {
-    let grad = into_contiguous(grad);
-    let indices = into_contiguous(indices);
+    let [batches, channels, height, width] = x.shape.dims();
 
-    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), x.shape.clone());
+    let grad = if grad.is_contiguous() {
+        nchw_to_nhwc::<R, E>(grad)
+    } else {
+        permute(grad, &[0, 2, 3, 1])
+    };
+    let indices = if indices.is_contiguous() {
+        nchw_to_nhwc::<R, E>(indices)
+    } else {
+        permute(indices, &[0, 2, 3, 1])
+    };
+    let line_size = if grad.strides[3] == indices.strides[3] {
+        max_vectorization(&grad)
+    } else {
+        1
+    };
+
+    let out_shape = Shape::new([batches, height, width, channels]);
+    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), out_shape);
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let cube_count =
+        calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
     unsafe {
         max_pool2d_with_indices_backward_kernel::launch_unchecked::<E, I, R>(
             &x.client,
             cube_count,
             cube_dim,
-            grad.as_tensor_arg::<E>(1),
-            indices.as_tensor_arg::<I>(1),
-            output.as_tensor_arg::<E>(1),
+            grad.as_tensor_arg::<E>(line_size),
+            indices.as_tensor_arg::<I>(line_size),
+            output.as_tensor_arg::<E>(line_size),
             PoolBackwardArgsLaunch::new(
                 ScalarArg::new(stride[0] as i32),
                 ScalarArg::new(stride[1] as i32),
@@ -110,5 +140,5 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime, E: CubeElement, I
         )
     };
 
-    output
+    permute(output, &[0, 3, 1, 2])
 }

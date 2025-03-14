@@ -71,6 +71,8 @@ enum BackendValues {
     Hip,
     #[strum(to_string = "ndarray")]
     Ndarray,
+    #[strum(to_string = "ndarray-simd")]
+    NdarraySimd,
     #[strum(to_string = "ndarray-blas-accelerate")]
     NdarrayBlasAccelerate,
     #[strum(to_string = "ndarray-blas-netlib")]

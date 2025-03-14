@@ -122,8 +122,6 @@ bincode = { version = "=2.0.0-rc.3", features = [
 #
 cfg-if = "1.0.0"
 derive-new = { version = "0.7.0", default-features = false }
-macerator = { git = "https://github.com/wingertge/macerator.git", rev = "25b7a80fddcb82fc6dc0a579c2dea338b470401d" }
-pulp = { git = "https://github.com/wingertge/pulp.git", rev = "d8ad45976c0c130ea92a790c852d430566efbf61", default-features = false }
 
 blas-src = { version = "0.10.0", default-features = false }
 bon = "3.3.0"
@@ -132,6 +130,7 @@ half = { version = "2.4.1", features = [
     "num-traits",
     "serde",
 ], default-features = false }
+macerator = { version = "0.2.4" }
 matrixmultiply = { version = "0.3.9", default-features = false }
 ndarray = { version = "0.16.1", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [

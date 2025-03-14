@@ -95,6 +95,7 @@ openblas-system = ["burn-ndarray?/blas-openblas-system"]
 remote = ["burn-remote/client"]
 router = ["burn-router"]
 server = ["burn-remote/server"]
+simd = ["burn-ndarray?/simd"]
 template = ["burn-wgpu?/template"]
 
 candle = ["burn-candle"]
@@ -103,9 +104,9 @@ cuda = ["burn-cuda"]
 hip = ["burn-hip"]
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
-wgpu = ["burn-wgpu"]
 vulkan = ["wgpu", "burn-wgpu/vulkan"]
 webgpu = ["wgpu", "burn-wgpu/webgpu"]
+wgpu = ["burn-wgpu"]
 
 [dependencies]
 

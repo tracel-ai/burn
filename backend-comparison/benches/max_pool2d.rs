@@ -8,6 +8,7 @@ pub struct MaxPool2dBenchmark<B: Backend> {
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    name: &'static str,
     device: B::Device,
 }
 
@@ -15,7 +16,7 @@ impl<B: Backend> Benchmark for MaxPool2dBenchmark<B> {
     type Args = Tensor<B, 4>;
 
     fn name(&self) -> String {
-        "max_pool2d".into()
+        format!("max_pool2d_{}", self.name)
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {
@@ -33,7 +34,9 @@ impl<B: Backend> Benchmark for MaxPool2dBenchmark<B> {
     }
 
     fn prepare(&self) -> Self::Args {
-        Tensor::random(self.shape.clone(), Distribution::Default, &self.device)
+        let [batches, ch, h, w] = self.shape.dims();
+        Tensor::random([batches, h, w, ch], Distribution::Default, &self.device)
+            .permute([0, 3, 1, 2])
     }
 
     fn sync(&self) {
@@ -49,16 +52,26 @@ fn bench<B: Backend>(
     token: Option<&str>,
 ) {
     let benchmark = MaxPool2dBenchmark::<B> {
-        shape: [32, 32, 512, 512].into(),
+        name: "default",
+        shape: [32, 128, 512, 512].into(),
         kernel_size: [5, 5],
         stride: [2, 2],
         padding: [2, 2],
         dilation: [2, 2],
         device: device.clone(),
     };
+    let benchmark2 = MaxPool2dBenchmark::<B> {
+        name: "unit_stride",
+        shape: [32, 32, 512, 512].into(),
+        kernel_size: [5, 5],
+        stride: [1, 1],
+        padding: [2, 2],
+        dilation: [1, 1],
+        device: device.clone(),
+    };
 
     save::<B>(
-        vec![run_benchmark(benchmark)],
+        vec![run_benchmark(benchmark), run_benchmark(benchmark2)],
         device,
         feature_name,
         url,
