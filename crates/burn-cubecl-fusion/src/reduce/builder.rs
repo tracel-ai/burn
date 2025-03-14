@@ -57,6 +57,7 @@ impl<R: Runtime> ReduceBuilder<R> {
             fallback,
         }
     }
+
     fn on_reduce(&mut self, op: &ReduceDimOpIr, inst: ReduceInstruction) {
         if self.builder_read.current_output_shape != op.input.shape {
             self.builder_read.close();

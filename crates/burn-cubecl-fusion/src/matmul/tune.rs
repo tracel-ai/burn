@@ -29,10 +29,10 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
     static TUNER: LocalTuner<FusedMatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
+        .with_tunable(tune_fallback::<R, BT>) // First one should always work.
         .with_tunable(tune_simple_fused::<R, BT>)
         .with_tunable(tune_specialized_fused::<R, BT>)
-        .with_tunable(tune_double_buffering_fused::<R, BT>)
-        .with_tunable(tune_fallback::<R, BT>);
+        .with_tunable(tune_double_buffering_fused::<R, BT>);
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&optimization.device),
