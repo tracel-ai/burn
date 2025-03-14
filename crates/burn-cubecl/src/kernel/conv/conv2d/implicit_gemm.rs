@@ -6,14 +6,17 @@ use cmma::{Matrix, MatrixIdent, MatrixLayout};
 use cubecl::{
     cube,
     ir::{Elem, FloatKind},
-    linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError},
+    linalg::{
+        convolution::ConvLaunchError,
+        matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError},
+    },
     prelude::*,
     CubeCount, CubeDim, Feature,
 };
 use half::f16;
 
 use crate::{
-    kernel::{conv::ConvLaunchError, into_contiguous, slice, slice_assign},
+    kernel::{into_contiguous, slice, slice_assign},
     ops::{
         numeric::{empty_device, zeros_device},
         permute,
