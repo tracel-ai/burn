@@ -137,3 +137,106 @@ where
         ))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::data::dataloader::FixedDistributor;
+    use crate::data::dataset::FakeDataset;
+    use crate::{data::dataloader::batcher::Batcher, TestBackend};
+
+    #[test]
+    fn test_default_device_distributor() {
+        type TestDevice = <TestBackend as Backend>::Device;
+
+        #[derive(new, Clone)]
+        pub struct TestBatcher;
+
+        #[cfg(test)]
+        impl<I> Batcher<TestBackend, I, TestDevice> for TestBatcher {
+            fn batch(&self, _items: Vec<I>, device: &TestDevice) -> TestDevice {
+                device.clone()
+            }
+        }
+
+        // `LazyBatchDataLoader` with no DistributionStrategy fixed device (default)
+        let default_device = TestDevice::default();
+        let dataloader = DataLoaderBuilder::new(TestBatcher::new())
+            .batch_size(1)
+            .num_workers(1)
+            .build(FakeDataset::<String>::new(9));
+
+        for device in dataloader.iter() {
+            assert_eq!(device, default_device)
+        }
+    }
+
+    #[test]
+    fn test_multi_device_distributor() {
+        type TestDevice = <TestBackend as Backend>::Device;
+
+        #[derive(new, Clone)]
+        pub struct TestBatcher;
+
+        #[cfg(test)]
+        impl<I> Batcher<TestBackend, I, TestDevice> for TestBatcher {
+            fn batch(&self, _items: Vec<I>, device: &TestDevice) -> TestDevice {
+                device.clone()
+            }
+        }
+
+        // `LazyBatchDataLoader` with no DistributionStrategy fixed device (default)
+        let num_items = 11;
+        let dataloader = DataLoaderBuilder::new(TestBatcher::new())
+            .batch_size(1)
+            .num_workers(1)
+            .build(FakeDataset::<String>::new(num_items));
+
+        #[cfg(all(
+            test,
+            not(feature = "test-tch"),
+            not(feature = "test-wgpu"),
+            not(feature = "test-cuda")
+        ))]
+        // Only one device exists...
+        let (device1, device2) = (
+            burn_ndarray::NdArrayDevice::Cpu,
+            burn_ndarray::NdArrayDevice::Cpu,
+        );
+
+        #[cfg(all(test, feature = "test-tch"))]
+        let (device1, device2) = (
+            burn_tch::LibTorchDevice::Cuda(0),
+            burn_tch::LibTorchDevice::Cuda(1),
+        );
+
+        #[cfg(all(test, feature = "test-wgpu"))]
+        let (device1, device2) = (
+            burn_wgpu::WgpuDevice::DiscreteGpu(0),
+            burn_wgpu::WgpuDevice::DiscreteGpu(1),
+        );
+
+        #[cfg(all(test, feature = "test-cuda"))]
+        let (device1, device2) = (burn_cuda::CudaDevice::new(0), burn_cuda::CudaDevice::new(1));
+
+        let fixed_devices = vec![
+            FixedDistributor::new(vec![device1.clone()]).clone_dyn(),
+            FixedDistributor::new(vec![device2.clone()]).clone_dyn(),
+        ];
+        let dataloaders = dataloader.split(fixed_devices);
+
+        assert_eq!(dataloaders.len(), 2);
+
+        let (mut iterator_1, mut iterator_2) = (dataloaders[0].iter(), dataloaders[1].iter());
+
+        for _ in 0..num_items / 2 {
+            assert_eq!(iterator_1.next(), Some(device1.clone()));
+            assert_eq!(iterator_2.next(), Some(device2.clone()));
+        }
+
+        assert_eq!(iterator_1.next(), None);
+        // For uneven split, the last dataloader (partial dataset) will have the remaining item
+        assert_eq!(iterator_2.next(), Some(device2));
+        assert_eq!(iterator_2.next(), None);
+    }
+}
