@@ -91,7 +91,7 @@ impl<R: Runtime> core::fmt::Debug for CubeFusionHandle<R> {
         f.write_fmt(format_args!(
             "CubeFusionHandle {{ device: {:?}, runtime: {}}}",
             self.device,
-            R::name(),
+            R::name(&self.client),
         ))
     }
 }

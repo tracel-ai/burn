@@ -1895,7 +1895,7 @@ where
 
         writeln!(f, "  shape:  {:?},", self.dims())?;
         writeln!(f, "  device:  {:?},", self.device())?;
-        writeln!(f, "  backend:  {:?},", B::name())?;
+        writeln!(f, "  backend:  {:?},", B::name(&self.device()))?;
         writeln!(f, "  kind:  {:?},", K::name())?;
 
         let dtype = self.primitive.dtype();
