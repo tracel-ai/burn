@@ -93,7 +93,7 @@ for our model.
 #         ClassificationOutput::new(loss, output, targets)
 #     }
 # }
-#
+# 
 impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
     fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
@@ -180,7 +180,7 @@ Let us move on to establishing the practical training configuration.
 # impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
 #     fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
 #         let item = self.forward_classification(batch.images, batch.targets);
-#
+# 
 #         TrainOutput::new(self, item.loss.backward(), item)
 #     }
 # }
