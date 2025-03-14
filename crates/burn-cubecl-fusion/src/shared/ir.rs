@@ -182,6 +182,12 @@ impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
     }
 }
 
+impl<R: Runtime> core::fmt::Debug for GlobalArgsLaunch<'_, R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({:?})", self.tensors.values)
+    }
+}
+
 impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// Get the shape of the given [argument](Arg).
     ///

@@ -13,6 +13,7 @@ use cubecl::{
 use serde::{Deserialize, Serialize};
 
 use crate::elemwise::optimization::ElemwiseRunner;
+use crate::shared::ir::RefLayout;
 use crate::shared::trace::TraceError;
 use crate::shared::trace::{MultiTraceRunner, Vectorization};
 use crate::shared::{
@@ -281,7 +282,12 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             .map_err(FusedReduceError::LaunchError)?;
 
         let strategy = self.strategy;
-        let shape = inputs.shape_ref(&config_read.ref_layout, config_read.rank as usize);
+        let shape = match &config_read.ref_layout {
+            RefLayout::Concrete(Arg::Output(..)) => {
+                outputs.shape_ref(&config_read.ref_layout, config_read.rank as usize)
+            }
+            _ => inputs.shape_ref(&config_read.ref_layout, config_read.rank as usize),
+        };
 
         let reduce_count: u32 = shape
             .iter()
