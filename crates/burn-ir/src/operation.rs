@@ -1782,6 +1782,7 @@ impl core::hash::Hash for RandomOpIr {
             Distribution::Bernoulli(_) => 2u8.hash(state),
             Distribution::Uniform(_, _) => 3u8.hash(state),
             Distribution::Normal(_, _) => 4u8.hash(state),
+            Distribution::Multinomial(_) => 5u8.hash(state),
         }
     }
 }
