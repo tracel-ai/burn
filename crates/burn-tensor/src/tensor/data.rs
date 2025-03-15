@@ -375,7 +375,7 @@ impl TensorData {
                 DType::Bool | DType::QFloat(_) => unreachable!(),
             }
         } else {
-            match dtype {
+            match self.dtype {
                 DType::F64 => self.convert_clone_dtype::<f64>(dtype),
                 DType::F32 => self.convert_clone_dtype::<f32>(dtype),
                 DType::F16 => self.convert_clone_dtype::<f16>(dtype),
@@ -448,6 +448,7 @@ impl TensorData {
     fn convert_clone<Current: Element + CheckedBitPattern, Target: Element + Zeroable>(
         self,
     ) -> Self {
+        println!("self: {:?}", self.as_slice::<Current>());
         let this = bytemuck::checked::cast_slice::<_, Current>(&self.bytes);
         let mut out: Vec<Target> = vec![Zeroable::zeroed(); self.num_elements()];
 
