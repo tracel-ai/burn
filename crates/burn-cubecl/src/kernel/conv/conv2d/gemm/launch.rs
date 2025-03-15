@@ -12,11 +12,10 @@ use cubecl::{
             algorithm::{Algorithm, ImplicitCmmaConv},
             base::ConvolutionProblem,
             launch_conv2d_nhwc,
-            precision::ConvPrecision,
             selection::{Balanced, ConvSelector, Large},
             ConvLaunchError,
         },
-        matmul,
+        matmul::{self, components::MatmulPrecision},
     },
     tensor_line_size, tf32, Feature,
 };
@@ -93,7 +92,7 @@ fn conv2d_gemm_cmma_strategy<
 /// * `options` - The options to use for the convolution
 pub fn conv2d_gemm_with_algo<
     R: CubeRuntime,
-    SP: ConvPrecision,
+    SP: MatmulPrecision,
     Alg: Algorithm,
     S: ConvSelector<Alg>,
 >(

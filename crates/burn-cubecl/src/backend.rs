@@ -42,7 +42,7 @@ where
     type QuantizedEncoding = u32;
 
     fn name() -> String {
-        format!("cubecl<{}>", R::name())
+        format!("cubecl<{}>", R::name(&R::client(&Default::default())))
     }
 
     fn seed(seed: u64) {
@@ -65,7 +65,10 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> core::fmt:
     for CubeBackend<R, F, I, BT>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("CubeBackend {{ runtime: {}}}", R::name()))
+        f.write_fmt(format_args!(
+            "CubeBackend {{ runtime: {}}}",
+            R::name(&R::client(&Default::default()))
+        ))
     }
 }
 

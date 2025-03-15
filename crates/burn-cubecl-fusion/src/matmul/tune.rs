@@ -35,7 +35,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
         .with_tunable(tune_double_buffering_fused::<R, BT>);
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&optimization.device),
+        &CubeTuneId::new::<R>(&optimization.client, &optimization.device),
         &optimization.client,
         &tunables,
         TuneInput::new(context, optimization),
