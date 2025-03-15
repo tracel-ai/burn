@@ -448,9 +448,8 @@ impl TensorData {
     fn convert_clone<Current: Element + CheckedBitPattern, Target: Element + Zeroable>(
         self,
     ) -> Self {
-        println!("self: {:?}", self.as_slice::<Current>());
         let this = bytemuck::checked::cast_slice::<_, Current>(&self.bytes);
-        let mut out: Vec<Target> = vec![Zeroable::zeroed(); self.num_elements()];
+        let mut out: Vec<Target> = ::alloc::vec![Zeroable::zeroed(); self.num_elements()];
 
         for (x, out) in this.iter().zip(&mut out) {
             *out = x.elem();
