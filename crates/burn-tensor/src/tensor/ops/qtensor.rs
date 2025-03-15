@@ -978,6 +978,40 @@ pub trait QTensorOps<B: Backend> {
         )
     }
 
+    /// Returns a new tensor with hyperbolic cosine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the hyperbolic cosine of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic cosine values.
+    fn q_cosh(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_cosh(tensor),
+            tensor
+        )
+    }
+
+    /// Returns a new tensor with hyperbolic sine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the hyperbolic sine of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic sine values.
+    fn q_sinh(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_sinh(tensor),
+            tensor
+        )
+    }
+
     /// Returns a new tensor with hyperbolic tangent values.
     ///
     /// # Arguments

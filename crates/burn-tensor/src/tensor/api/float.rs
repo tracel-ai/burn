@@ -100,6 +100,20 @@ where
         )))
     }
 
+    /// Applies element wise hyperbolic cosine operation.
+    pub fn cosh(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_cosh(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise hyperbolic sine operation.
+    pub fn sinh(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_sinh(
+            self.primitive.tensor(),
+        )))
+    }
+
     /// Applies element wise hyperbolic tangent operation.
     pub fn tanh(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_tanh(
