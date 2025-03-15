@@ -88,6 +88,20 @@ pub trait ToElement {
         u128::from(self.to_u64())
     }
 
+    /// Converts the value of `self` to an `f16`. Overflows may map to positive
+    /// or negative infinity.
+    #[inline]
+    fn to_f16(&self) -> f16 {
+        f16::from_f32(self.to_f32())
+    }
+
+    /// Converts the value of `self` to an `bf16`. Overflows may map to positive
+    /// or negative infinity.
+    #[inline]
+    fn to_bf16(&self) -> bf16 {
+        bf16::from_f32(self.to_f32())
+    }
+
     /// Converts the value of `self` to an `f32`. Overflows may map to positive
     /// or negative infinity.
     #[inline]
@@ -415,6 +429,10 @@ impl ToElement for f16 {
         Self::to_f32(*self).to_u32()
     }
     #[inline]
+    fn to_f16(&self) -> f16 {
+        *self
+    }
+    #[inline]
     fn to_f32(&self) -> f32 {
         Self::to_f32(*self)
     }
@@ -460,6 +478,10 @@ impl ToElement for bf16 {
     #[inline]
     fn to_u32(&self) -> u32 {
         Self::to_f32(*self).to_u32()
+    }
+    #[inline]
+    fn to_bf16(&self) -> bf16 {
+        *self
     }
     #[inline]
     fn to_f32(&self) -> f32 {
