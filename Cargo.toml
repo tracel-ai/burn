@@ -28,7 +28,7 @@ version = "0.17.0"
 [workspace.dependencies]
 atomic_float = "1"
 bytemuck = "1.21.0"
-candle-core = { version = "0.8" }
+candle-core = { version = "0.8.4" }
 clap = { version = "4.5.27", features = ["derive"] }
 colored = "2.1.0"
 console_error_panic_hook = "0.1.7"
@@ -125,12 +125,12 @@ derive-new = { version = "0.7.0", default-features = false }
 
 blas-src = { version = "0.10.0", default-features = false }
 bon = "3.3.0"
-half = { version = "2.4.1", features = [
+half = { version = "2.5.0", features = [
     "alloc",
     "num-traits",
     "serde",
 ], default-features = false }
-macerator = { version = "0.2.4" }
+macerator = { version = "0.2.6" }
 matrixmultiply = { version = "0.3.9", default-features = false }
 ndarray = { version = "0.16.1", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
@@ -160,9 +160,9 @@ portable-atomic = { version = "1.11.0" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5d65fd30f660a5b0b228bfac414b58a0dbcce3b8" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5d65fd30f660a5b0b228bfac414b58a0dbcce3b8" }
-cubecl-std = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5d65fd30f660a5b0b228bfac414b58a0dbcce3b8" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f35422e1f42f8f095662df5403f823e91ae58ae6" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f35422e1f42f8f095662df5403f823e91ae58ae6" }
+cubecl-std = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f35422e1f42f8f095662df5403f823e91ae58ae6" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
