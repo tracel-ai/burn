@@ -48,7 +48,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
         .with_tunable(matmul_naive::<R, E>);
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&lhs.device),
+        &CubeTuneId::new::<R>(&lhs.client, &lhs.device),
         &client,
         &tunables,
         (lhs, rhs, output.clone()),

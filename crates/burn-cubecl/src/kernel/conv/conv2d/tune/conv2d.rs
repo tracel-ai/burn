@@ -33,7 +33,7 @@ pub fn conv2d_autotune<R: CubeRuntime, E: FloatElement>(
         .with_tunable(conv2d_gemm_cmma_balanced::<R, E>);
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&input.device),
+        &CubeTuneId::new::<R>(&input.client, &input.device),
         &client,
         &tunables,
         (input, weights, bias, options),

@@ -97,7 +97,7 @@ pub trait Backend:
     }
 
     /// Name of the backend.
-    fn name() -> String;
+    fn name(device: &Self::Device) -> String;
 
     /// Seed the backend.
     fn seed(seed: u64);

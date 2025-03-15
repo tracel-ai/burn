@@ -36,7 +36,7 @@ pub fn autotune_reduce<
         .with_tunable(reduce_shared_plane::<Run, In, Out, Rd>);
 
     TUNER.execute(
-        &CubeTuneId::new::<Run>(&input.device),
+        &CubeTuneId::new::<Run>(&input.client, &input.device),
         client,
         &tunables,
         (input, output, dim),
@@ -228,7 +228,7 @@ pub fn autotune_sum<Run: CubeRuntime, E: CubeElement>(
         .with_tunable(sum_one_shot::<Run, E, 64>);
 
     TUNER.execute(
-        &CubeTuneId::new::<Run>(&input.device),
+        &CubeTuneId::new::<Run>(&input.client, &input.device),
         client,
         &tunables,
         input,

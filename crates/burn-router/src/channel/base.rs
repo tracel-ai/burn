@@ -23,7 +23,7 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     type BoolElem: Element;
 
     /// Name of the channel.
-    fn name() -> String;
+    fn name(device: &Self::Device) -> String;
 
     /// Initialize a new client for the given device.
     fn init_client(device: &Self::Device) -> Self::Client;

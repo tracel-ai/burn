@@ -61,7 +61,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for 
         false
     }
 
-    fn name() -> String {
+    fn name(_device: &Self::Device) -> String {
         String::from("ndarray")
     }
 
