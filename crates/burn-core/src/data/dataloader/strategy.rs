@@ -75,12 +75,12 @@ impl<I: Send + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
     }
 }
 
-/// A strategy for distributing items across devices or other resources.
-pub trait DistributionStrategy: Send {
+/// A strategy for dispatching batches across devices or other resources.
+pub trait BatchDispatcher: Send {
     /// The resource type.
     type Resource: Send + Clone;
 
-    /// Create a new distribution strategy for the specified resources.
+    /// Create a new dispatching strategy for the specified resources.
     fn new(resources: Vec<Self::Resource>) -> Self
     where
         Self: Sized;
@@ -98,17 +98,17 @@ pub trait DistributionStrategy: Send {
     fn resources(&self) -> &[Self::Resource];
 
     /// Creates a new strategy of the same type.
-    fn clone_dyn(&self) -> Box<dyn DistributionStrategy<Resource = Self::Resource>>;
+    fn clone_dyn(&self) -> Box<dyn BatchDispatcher<Resource = Self::Resource>>;
 }
 
 /// Always selects the same resource or device.
 #[derive(Clone)]
-pub struct FixedDistributor<R> {
+pub struct FixedDispatcher<R> {
     resources: Vec<R>,
     fixed_id: usize,
 }
 
-impl<R> FixedDistributor<R> {
+impl<R> FixedDispatcher<R> {
     /// Sets the fixed resource id.
     pub fn with_fixed(mut self, resource_id: usize) -> Self {
         self.fixed_id = resource_id;
@@ -116,10 +116,10 @@ impl<R> FixedDistributor<R> {
     }
 }
 
-impl<R: Send + Clone + 'static> DistributionStrategy for FixedDistributor<R> {
+impl<R: Send + Clone + 'static> BatchDispatcher for FixedDispatcher<R> {
     type Resource = R;
 
-    /// Create a new fixed distribution strategy. Always selects the first resource.
+    /// Create a new fixed dispatching strategy. Always selects the first resource.
     /// To change the fixed resource, use `with_fixed(...)`.
     fn new(resources: Vec<Self::Resource>) -> Self
     where
@@ -135,7 +135,7 @@ impl<R: Send + Clone + 'static> DistributionStrategy for FixedDistributor<R> {
         self.fixed_id
     }
 
-    fn clone_dyn(&self) -> Box<dyn DistributionStrategy<Resource = R>> {
+    fn clone_dyn(&self) -> Box<dyn BatchDispatcher<Resource = R>> {
         Box::new(Self::new(self.resources.clone()).with_fixed(self.fixed_id))
     }
 
@@ -153,14 +153,14 @@ mod tests {
         let fixed_id = 1;
         let device = 2;
         let devices = vec![0, device];
-        let mut distributor = FixedDistributor::new(devices.clone()).with_fixed(fixed_id);
+        let mut dispatcher = FixedDispatcher::new(devices.clone()).with_fixed(fixed_id);
 
         // Always the same
         for _ in 0..5 {
-            assert_eq!(distributor.next_id(), fixed_id);
-            assert_eq!(*distributor.next(), device);
+            assert_eq!(dispatcher.next_id(), fixed_id);
+            assert_eq!(*dispatcher.next(), device);
         }
 
-        assert_eq!(distributor.resources(), devices.as_slice())
+        assert_eq!(dispatcher.resources(), devices.as_slice())
     }
 }

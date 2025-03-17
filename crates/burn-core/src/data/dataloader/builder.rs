@@ -1,6 +1,6 @@
 use super::{
-    batcher::DynBatcher, BatchStrategy, DistributionStrategy, FixBatchStrategy,
-    LazyBatchDataLoader, LazyDataLoader,
+    batcher::DynBatcher, BatchDispatcher, BatchStrategy, FixBatchStrategy, LazyBatchDataLoader,
+    LazyDataLoader,
 };
 use burn_dataset::Dataset;
 use burn_tensor::backend::Backend;
@@ -13,7 +13,7 @@ pub struct DataLoaderBuilder<B: Backend, I, O> {
     batcher: Box<dyn DynBatcher<B, I, O>>,
     num_threads: Option<usize>,
     shuffle: Option<u64>,
-    distributor: Option<Box<dyn DistributionStrategy<Resource = B::Device>>>,
+    dispatcher: Option<Box<dyn BatchDispatcher<Resource = B::Device>>>,
 }
 
 impl<B, I, O> DataLoaderBuilder<B, I, O>
@@ -40,7 +40,7 @@ where
             strategy: None,
             num_threads: None,
             shuffle: None,
-            distributor: None,
+            dispatcher: None,
         }
     }
 
@@ -89,20 +89,20 @@ where
         self
     }
 
-    /// Sets the data loader device distribution/selection strategy for a batch.
+    /// Sets the data loader device dispatching/selection strategy for a batch.
     ///
     /// # Arguments
     ///
-    /// * `distributor` - The device distribution strategy.
+    /// * `dispatcher` - The device dispatching strategy.
     ///
     /// # Returns
     ///
     /// The data loader builder.
-    pub fn distributor<D>(mut self, distributor: D) -> Self
+    pub fn dispatcher<D>(mut self, dispatcher: D) -> Self
     where
-        D: DistributionStrategy<Resource = B::Device>,
+        D: BatchDispatcher<Resource = B::Device>,
     {
-        self.distributor = Some(distributor.clone_dyn());
+        self.dispatcher = Some(dispatcher.clone_dyn());
         self
     }
 
@@ -131,7 +131,7 @@ where
             strategy,
             dataset,
             self.batcher,
-            self.distributor,
+            self.dispatcher,
             rng,
             self.num_threads.unwrap_or(0),
         ))
@@ -141,7 +141,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::dataloader::FixedDistributor;
+    use crate::data::dataloader::FixedDispatcher;
     use crate::data::dataset::FakeDataset;
     use crate::{data::dataloader::batcher::Batcher, TestBackend};
 
@@ -159,7 +159,7 @@ mod tests {
             }
         }
 
-        // `LazyBatchDataLoader` with no DistributionStrategy fixed device (default)
+        // `LazyBatchDataLoader` with no BatchDispatcher fixed device (default)
         let default_device = TestDevice::default();
         let dataloader = DataLoaderBuilder::new(TestBatcher::new())
             .batch_size(1)
@@ -185,7 +185,7 @@ mod tests {
             }
         }
 
-        // `LazyBatchDataLoader` with no DistributionStrategy fixed device (default)
+        // `LazyBatchDataLoader` with no BatchDispatcher fixed device (default)
         let num_items = 11;
         let dataloader = DataLoaderBuilder::new(TestBatcher::new())
             .batch_size(1)
@@ -220,8 +220,8 @@ mod tests {
         let (device1, device2) = (burn_cuda::CudaDevice::new(0), burn_cuda::CudaDevice::new(1));
 
         let fixed_devices = vec![
-            FixedDistributor::new(vec![device1.clone()]).clone_dyn(),
-            FixedDistributor::new(vec![device2.clone()]).clone_dyn(),
+            FixedDispatcher::new(vec![device1.clone()]).clone_dyn(),
+            FixedDispatcher::new(vec![device2.clone()]).clone_dyn(),
         ];
         let dataloaders = dataloader.split(fixed_devices);
 
