@@ -304,7 +304,8 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             cube_count: CubeCount::new_single(),
             cube_dim: CubeDim::new_single(),
             line_mode,
-            line_size: config_read.width as u32,
+            line_size_input: config_read.width as u32,
+            line_size_output: config_write.width as u32,
             bound_checks: false,
             bound_checks_inner: if strategy.use_planes {
                 BoundChecksInner::Branch
@@ -445,7 +446,8 @@ fn launch_reduce<Run: Runtime, In: Numeric, Out: Numeric, Rd: Reduce>(
             }
         }),
         use_planes: kwargs.strategy.use_planes,
-        line_size: kwargs.config_reduce.line_size,
+        line_size_input: kwargs.config_reduce.line_size_input,
+        line_size_output: kwargs.config_reduce.line_size_output,
         line_mode: kwargs.config_reduce.line_mode,
         bound_checks: kwargs.config_reduce.bound_checks,
         bound_checks_inner: kwargs.config_reduce.bound_checks_inner,

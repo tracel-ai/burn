@@ -22,6 +22,7 @@ pub struct VectorizationPlanner<'a, R: Runtime> {
     views: &'a Vec<TensorView>,
     reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,
     indexed: &'a BTreeSet<TensorId>,
+    max: u8,
     _r: PhantomData<R>,
 }
 
@@ -30,11 +31,13 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         views: &'a Vec<TensorView>,
         reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,
         indexed: &'a BTreeSet<TensorId>,
+        max: u8,
     ) -> Self {
         Self {
             views,
             reads,
             indexed,
+            max,
             _r: PhantomData,
         }
     }
@@ -114,6 +117,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             tensors_reshaped,
             tensors_swapped,
             &ref_elem.0,
+            self.max,
             runner.axis(),
         );
 

@@ -24,6 +24,7 @@ pub struct FuseTraceBuilder {
     inputs_unhandled: Vec<TensorId>,
     not_outputs: Vec<TensorId>,
     num_reshaped: usize,
+    // TODO: Add Map to Arg.
 }
 
 impl FuseTraceBuilder {

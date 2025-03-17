@@ -78,7 +78,7 @@ impl FuseTrace {
             .run::<BT>(client, device, context, &mut plan);
 
         if self.settings.vectorization {
-            VectorizationPlanner::<R>::new(&self.views, &self.reads, &self.indexed)
+            VectorizationPlanner::<R>::new(&self.views, &self.reads, &self.indexed, u8::MAX)
                 .run(runner, context, &mut plan);
         }
 
@@ -120,7 +120,7 @@ impl FuseTrace {
         runner: &V,
     ) -> BTreeMap<TensorId, super::Vect> {
         let mut plan = LaunchPlan::new(&self.reads, &self.writes, self.shape_ref.len());
-        VectorizationPlanner::<R>::new(&self.views, &self.reads, &self.indexed)
+        VectorizationPlanner::<R>::new(&self.views, &self.reads, &self.indexed, u8::MAX)
             .run(runner, context, &mut plan);
 
         plan.vectorization
@@ -155,7 +155,7 @@ impl FuseTrace {
         );
 
         if read.settings.vectorization {
-            VectorizationPlanner::<R>::new(&read.views, &read.reads, &read.indexed).run(
+            VectorizationPlanner::<R>::new(&read.views, &read.reads, &read.indexed, u8::MAX).run(
                 runner,
                 context,
                 &mut plan_read,
@@ -179,11 +179,13 @@ impl FuseTrace {
         );
 
         if write.settings.vectorization {
-            VectorizationPlanner::<R>::new(&write.views, &write.reads, &write.indexed).run(
-                runner,
-                context,
-                &mut plan_write,
-            );
+            VectorizationPlanner::<R>::new(
+                &write.views,
+                &write.reads,
+                &write.indexed,
+                plan_read.width as u8,
+            )
+            .run(runner, context, &mut plan_write);
         }
 
         match LaunchMultiPlanExecutor::<R>::new(

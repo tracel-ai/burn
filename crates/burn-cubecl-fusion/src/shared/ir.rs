@@ -116,6 +116,48 @@ pub enum ElemwiseOp {
 }
 
 impl ElemwiseOp {
+    pub(crate) fn update_arg(&mut self, previous: Arg, new: Arg) {
+        match self {
+            ElemwiseOp::Add(op) => op.update_arg(previous, new),
+            ElemwiseOp::Sub(op) => op.update_arg(previous, new),
+            ElemwiseOp::Mul(op) => op.update_arg(previous, new),
+            ElemwiseOp::Div(op) => op.update_arg(previous, new),
+            ElemwiseOp::Powf(op) => op.update_arg(previous, new),
+            ElemwiseOp::Abs(op) => op.update_arg(previous, new),
+            ElemwiseOp::Exp(op) => op.update_arg(previous, new),
+            ElemwiseOp::Log(op) => op.update_arg(previous, new),
+            ElemwiseOp::Log1p(op) => op.update_arg(previous, new),
+            ElemwiseOp::Cos(op) => op.update_arg(previous, new),
+            ElemwiseOp::Sin(op) => op.update_arg(previous, new),
+            ElemwiseOp::Tanh(op) => op.update_arg(previous, new),
+            ElemwiseOp::Erf(op) => op.update_arg(previous, new),
+            ElemwiseOp::Recip(op) => op.update_arg(previous, new),
+            ElemwiseOp::Assign(op) => op.update_arg(previous, new),
+            ElemwiseOp::Equal(op) => op.update_arg(previous, new),
+            ElemwiseOp::Lower(op) => op.update_arg(previous, new),
+            ElemwiseOp::Greater(op) => op.update_arg(previous, new),
+            ElemwiseOp::LowerEqual(op) => op.update_arg(previous, new),
+            ElemwiseOp::GreaterEqual(op) => op.update_arg(previous, new),
+            ElemwiseOp::ConditionalAssign {
+                cond,
+                lhs,
+                rhs,
+                out,
+            } => todo!(),
+            ElemwiseOp::Gather {
+                input,
+                indices,
+                output,
+                dim,
+            } => todo!(),
+            ElemwiseOp::Select {
+                input,
+                indices,
+                output,
+                dim,
+            } => todo!(),
+        }
+    }
     pub(crate) fn output_offset(&mut self, offset: u32) {
         if let ElemwiseOp::Assign(op) = self {
             if let Arg::Output(pos, ..) = &mut op.out {
@@ -344,6 +386,25 @@ pub struct BinaryElemwiseArgs {
     pub lhs: Arg,
     pub rhs: Arg,
     pub out: Arg,
+}
+
+impl BinaryElemwiseArgs {
+    pub(crate) fn update_arg(&mut self, previous: Arg, new: Arg) {
+        if self.lhs == previous {
+            self.lhs = new.clone();
+        }
+        if self.rhs == previous {
+            self.rhs = new;
+        }
+    }
+}
+
+impl UnaryElemwiseArgs {
+    pub(crate) fn update_arg(&mut self, previous: Arg, new: Arg) {
+        if self.input == previous {
+            self.input = new;
+        }
+    }
 }
 
 #[derive(

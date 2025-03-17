@@ -40,10 +40,10 @@ impl<R: Runtime> ReduceBuilder<R> {
             vectorization: true,
         };
         let settings_write = FuseSettings {
-            broadcast: false,
+            broadcast: true,
             output_shape_updates: false,
-            inplace: false,
-            vectorization: false,
+            inplace: true,
+            vectorization: true,
         };
 
         Self {
@@ -85,10 +85,10 @@ impl<R: Runtime> ReduceBuilder<R> {
         ));
         self.builder_read.close();
         self.builder_read_fallback.close();
-        self.status = OptimizationStatus::Closed;
+        self.status = OptimizationStatus::Open;
     }
 
-    fn on_elemwise(&mut self, operation: &OperationIr) {
+    fn on_elemwise_read(&mut self, operation: &OperationIr) {
         self.builder_read.register(operation);
 
         if self.builder_read_fallback.len() < self.builder_read.len() {
@@ -96,6 +96,16 @@ impl<R: Runtime> ReduceBuilder<R> {
         }
 
         self.status = self.builder_read.status();
+    }
+
+    fn on_elemwise_write(&mut self, operation: &OperationIr) {
+        self.builder_write.register(operation);
+
+        if self.builder_write_fallback.len() < self.builder_read.len() {
+            self.builder_write_fallback.register(operation);
+        }
+
+        self.status = self.builder_write.status();
     }
 }
 
@@ -124,7 +134,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
                         self.on_reduce(op, ReduceInstruction::ArgMin);
                     }
                     _ => {
-                        self.on_elemwise(operation);
+                        self.on_elemwise_read(operation);
                     }
                 };
             } else if let OperationIr::NumericInt(_, op) = operation {
@@ -145,14 +155,14 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
                         self.on_reduce(op, ReduceInstruction::ArgMin);
                     }
                     _ => {
-                        self.on_elemwise(operation);
+                        self.on_elemwise_read(operation);
                     }
                 };
             } else {
-                self.on_elemwise(operation);
+                self.on_elemwise_read(operation);
             }
         } else {
-            panic!("Should not happen");
+            self.on_elemwise_write(operation);
         }
     }
 
