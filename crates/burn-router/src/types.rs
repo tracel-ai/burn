@@ -251,10 +251,10 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn name() -> String {
-                    let mut name = format!("{}", $DefaultBackend::name());
+                fn name(_device: &Self::Device) -> String {
+                    let mut name = format!("{}", $DefaultBackend::name(&<$DefaultBackend::Device as Default>::default()));
                     $(
-                        name.push_str(&format!(", {}", $OtherBackend::name()));
+                        name.push_str(&format!(", {}", $OtherBackend::name(&<$OtherBackend::Device as Default>::default())));
                     )+
                     format!("direct<({})>", name)
                 }

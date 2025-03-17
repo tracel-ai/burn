@@ -44,7 +44,7 @@ where
             self.device,
             self.strides,
             self.dtype.name(),
-            R::name(&R::client(&Default::default())),
+            R::name(&self.client),
         ))
     }
 }

@@ -92,7 +92,7 @@ tracing-appender = "0.2.3"
 tracing-core = "0.1.33"
 tracing-subscriber = "0.3.19"
 web-time = "1.1.0"
-zip = "2.2.3"
+zip = "2.3.0"
 
 # Async handling
 async-channel = "2.3"
@@ -124,7 +124,7 @@ cfg-if = "1.0.0"
 derive-new = { version = "0.7.0", default-features = false }
 
 blas-src = { version = "0.10.0", default-features = false }
-bon = "3.3.0"
+bon = "3.5.0"
 half = { version = "2.5.0", features = [
     "alloc",
     "num-traits",
@@ -146,7 +146,7 @@ serde = { version = "1.0.218", default-features = false, features = [
     "alloc",
 ] } # alloc is for no_std, derive is needed
 serde_json = { version = "1.0.140", default-features = false }
-uuid = { version = "1.12.1", default-features = false }
+uuid = { version = "1.16.0", default-features = false }
 
 libc = "0.2.170"
 nvml-wrapper = "0.10.0"
@@ -160,9 +160,9 @@ portable-atomic = { version = "1.11.0" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "1a59333d8a9ccb64dd8c5149e2c9756bb2a0b76a" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "1a59333d8a9ccb64dd8c5149e2c9756bb2a0b76a" }
-cubecl-std = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "1a59333d8a9ccb64dd8c5149e2c9756bb2a0b76a" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7b87694d9fef34509e7399d045da7a35c2850d3d" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7b87694d9fef34509e7399d045da7a35c2850d3d" }
+cubecl-std = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7b87694d9fef34509e7399d045da7a35c2850d3d" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -170,6 +170,7 @@ cubecl-std = { git = "https://github.com/tracel-ai/cubecl", default-features = f
 ### For the release. ###
 # cubecl = { version = "0.4.0", default-features = false }
 # cubecl-common = { version = "0.4.0", default-features = false }
+# cubecl-std = { version = "0.4.0", default-features = false }
 
 ### For xtask crate ###
 tracel-xtask = { version = "=1.1.9" }
