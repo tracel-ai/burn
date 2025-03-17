@@ -4,7 +4,7 @@ use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
-use bytemuck::{checked::CheckedCastError, AnyBitPattern};
+use bytemuck::{cast_mut, checked::CheckedCastError, AnyBitPattern, CheckedBitPattern, Zeroable};
 use half::{bf16, f16};
 
 use crate::{
@@ -375,20 +375,20 @@ impl TensorData {
                 DType::Bool | DType::QFloat(_) => unreachable!(),
             }
         } else {
-            match dtype {
-                DType::F64 => TensorData::new(self.iter::<f64>().collect(), self.shape),
-                DType::F32 => TensorData::new(self.iter::<f32>().collect(), self.shape),
-                DType::F16 => TensorData::new(self.iter::<f16>().collect(), self.shape),
-                DType::BF16 => TensorData::new(self.iter::<bf16>().collect(), self.shape),
-                DType::I64 => TensorData::new(self.iter::<i64>().collect(), self.shape),
-                DType::I32 => TensorData::new(self.iter::<i32>().collect(), self.shape),
-                DType::I16 => TensorData::new(self.iter::<i16>().collect(), self.shape),
-                DType::I8 => TensorData::new(self.iter::<i8>().collect(), self.shape),
-                DType::U64 => TensorData::new(self.iter::<u64>().collect(), self.shape),
-                DType::U32 => TensorData::new(self.iter::<u32>().collect(), self.shape),
-                DType::U16 => TensorData::new(self.iter::<u16>().collect(), self.shape),
-                DType::U8 => TensorData::new(self.iter::<u8>().collect(), self.shape),
-                DType::Bool => TensorData::new(self.iter::<bool>().collect(), self.shape),
+            match self.dtype {
+                DType::F64 => self.convert_clone_dtype::<f64>(dtype),
+                DType::F32 => self.convert_clone_dtype::<f32>(dtype),
+                DType::F16 => self.convert_clone_dtype::<f16>(dtype),
+                DType::BF16 => self.convert_clone_dtype::<bf16>(dtype),
+                DType::I64 => self.convert_clone_dtype::<i64>(dtype),
+                DType::I32 => self.convert_clone_dtype::<i32>(dtype),
+                DType::I16 => self.convert_clone_dtype::<i16>(dtype),
+                DType::I8 => self.convert_clone_dtype::<i8>(dtype),
+                DType::U64 => self.convert_clone_dtype::<u64>(dtype),
+                DType::U32 => self.convert_clone_dtype::<u32>(dtype),
+                DType::U16 => self.convert_clone_dtype::<u16>(dtype),
+                DType::U8 => self.convert_clone_dtype::<u8>(dtype),
+                DType::Bool => self.convert_clone_dtype::<bool>(dtype),
                 DType::QFloat(_) => unreachable!(),
             }
         }
@@ -412,23 +412,50 @@ impl TensorData {
         }
     }
 
-    fn convert_inplace<Current: Element + AnyBitPattern, Target: Element>(mut self) -> Self {
-        let step = core::mem::size_of::<Current>();
-
-        for offset in 0..(self.bytes.len() / step) {
-            let start = offset * step;
-            let end = start + step;
-
-            let slice_old = &mut self.bytes[start..end];
-            let val: Current = *bytemuck::from_bytes(slice_old);
-            let val = &val.elem::<Target>();
-            let slice_new = bytemuck::bytes_of(val);
-
-            slice_old.clone_from_slice(slice_new);
+    fn convert_inplace<Current: Element + AnyBitPattern, Target: Element + AnyBitPattern>(
+        mut self,
+    ) -> Self {
+        for x in bytemuck::cast_slice_mut::<_, Current>(&mut self.bytes) {
+            let t: Target = x.elem();
+            let x = cast_mut::<_, Target>(x);
+            *x = t;
         }
+
         self.dtype = Target::dtype();
 
         self
+    }
+
+    fn convert_clone_dtype<Current: Element + CheckedBitPattern>(self, dtype: DType) -> Self {
+        match dtype {
+            DType::F64 => self.convert_clone::<Current, f64>(),
+            DType::F32 => self.convert_clone::<Current, f32>(),
+            DType::F16 => self.convert_clone::<Current, f16>(),
+            DType::BF16 => self.convert_clone::<Current, bf16>(),
+            DType::I64 => self.convert_clone::<Current, i64>(),
+            DType::I32 => self.convert_clone::<Current, i32>(),
+            DType::I16 => self.convert_clone::<Current, i16>(),
+            DType::I8 => self.convert_clone::<Current, i8>(),
+            DType::U64 => self.convert_clone::<Current, u64>(),
+            DType::U32 => self.convert_clone::<Current, u32>(),
+            DType::U16 => self.convert_clone::<Current, u16>(),
+            DType::U8 => self.convert_clone::<Current, u8>(),
+            DType::Bool => self.convert_clone::<Current, bool>(),
+            DType::QFloat(_) => unreachable!(),
+        }
+    }
+
+    fn convert_clone<Current: Element + CheckedBitPattern, Target: Element + Zeroable>(
+        self,
+    ) -> Self {
+        let this = bytemuck::checked::cast_slice::<_, Current>(&self.bytes);
+        let mut out: Vec<Target> = ::alloc::vec![Zeroable::zeroed(); self.num_elements()];
+
+        for (x, out) in this.iter().zip(&mut out) {
+            *out = x.elem();
+        }
+
+        Self::new(out, self.shape)
     }
 
     /// Returns the data as a slice of bytes.
