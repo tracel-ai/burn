@@ -92,7 +92,7 @@ tracing-appender = "0.2.3"
 tracing-core = "0.1.33"
 tracing-subscriber = "0.3.19"
 web-time = "1.1.0"
-zip = "2.2.3"
+zip = "2.3.0"
 
 # Async handling
 async-channel = "2.3"
