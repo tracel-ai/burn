@@ -92,7 +92,7 @@ tracing-appender = "0.2.3"
 tracing-core = "0.1.33"
 tracing-subscriber = "0.3.19"
 web-time = "1.1.0"
-zip = "2.2.3"
+zip = "2.3.0"
 
 # Async handling
 async-channel = "2.3"
@@ -124,7 +124,7 @@ cfg-if = "1.0.0"
 derive-new = { version = "0.7.0", default-features = false }
 
 blas-src = { version = "0.10.0", default-features = false }
-bon = "3.3.0"
+bon = "3.5.0"
 half = { version = "2.4.1", features = [
     "alloc",
     "num-traits",
@@ -146,7 +146,7 @@ serde = { version = "1.0.218", default-features = false, features = [
     "alloc",
 ] } # alloc is for no_std, derive is needed
 serde_json = { version = "1.0.140", default-features = false }
-uuid = { version = "1.12.1", default-features = false }
+uuid = { version = "1.16.0", default-features = false }
 
 libc = "0.2.170"
 nvml-wrapper = "0.10.0"
