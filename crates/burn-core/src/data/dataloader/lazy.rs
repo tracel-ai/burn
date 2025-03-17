@@ -22,7 +22,7 @@ pub trait LazyDataLoader<O>: DataLoader<O> {
     ///
     /// # Arguments
     ///
-    /// * `distributors` - The dispatching strategy for each data loader.
+    /// * `dispatchers` - The dispatching strategy for each data loader.
     ///
     /// # Returns
     /// A vector of lazy data loaders, each initialized with one of the provided dispatching strategies.
@@ -30,7 +30,7 @@ pub trait LazyDataLoader<O>: DataLoader<O> {
     /// processed. The number of returned data loaders matches the number of dispatching strategies provided.
     fn split(
         &self,
-        distributors: Vec<Box<dyn BatchDispatcher<Resource = Self::Resource>>>,
+        dispatchers: Vec<Box<dyn BatchDispatcher<Resource = Self::Resource>>>,
     ) -> Vec<Box<dyn LazyDataLoader<O, Resource = Self::Resource>>>;
 }
 
@@ -41,7 +41,7 @@ pub struct LazyBatchDataLoader<B: Backend, I, O> {
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
     batcher: Box<dyn DynBatcher<B, I, O>>,
-    dispatcher: Option<Box<dyn BatchDispatcher<Resource = B::Device>>>,
+    dispatcher: Arc<dyn BatchDispatcher<Resource = B::Device>>,
     rng: Option<rand::rngs::StdRng>,
     num_threads: usize,
 
@@ -55,7 +55,7 @@ impl<B: Backend, I, O> Clone for LazyBatchDataLoader<B, I, O> {
             strategy: self.strategy.clone_dyn(),
             dataset: self.dataset.clone(),
             batcher: self.batcher.clone_dyn(),
-            dispatcher: self.dispatcher.as_ref().map(|d| d.clone_dyn()),
+            dispatcher: self.dispatcher.clone(),
             rng: self.rng.clone(),
             num_threads: self.num_threads,
             inner: OnceCell::new(),
@@ -87,7 +87,7 @@ where
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
         batcher: Box<dyn DynBatcher<B, I, O>>,
-        dispatcher: Option<Box<dyn BatchDispatcher<Resource = B::Device>>>,
+        dispatcher: Arc<dyn BatchDispatcher<Resource = B::Device>>,
         rng: Option<rand::rngs::StdRng>,
         num_threads: usize,
     ) -> Self {
@@ -112,7 +112,7 @@ where
                         self.dataset.clone(),
                         self.batcher.clone_dyn(),
                         self.num_threads,
-                        self.dispatcher.as_ref().map(|d| d.clone_dyn()),
+                        self.dispatcher.clone(),
                         self.rng.clone(),
                     ))
                 } else {
@@ -121,7 +121,7 @@ where
                         self.strategy.clone_dyn(),
                         self.dataset.clone(),
                         self.batcher.clone_dyn(),
-                        self.dispatcher.as_ref().map(|d| d.clone_dyn()),
+                        self.dispatcher.clone(),
                         self.rng.clone(),
                     ))
                 }
@@ -158,9 +158,9 @@ where
 
     fn split(
         &self,
-        distributors: Vec<Box<dyn BatchDispatcher<Resource = Self::Resource>>>,
+        dispatchers: Vec<Box<dyn BatchDispatcher<Resource = Self::Resource>>>,
     ) -> Vec<Box<dyn LazyDataLoader<O, Resource = Self::Resource>>> {
-        let num_splits = distributors.len();
+        let num_splits = dispatchers.len();
         let datasets = PartialDataset::split(self.dataset.clone(), num_splits);
 
         let mut dataloaders = Vec::with_capacity(num_splits);
@@ -172,12 +172,12 @@ where
                 .map(|rng| StdRng::seed_from_u64(Distribution::sample(&StandardUniform, rng)))
         });
 
-        for ((dataset, rng), dispatcher) in datasets.into_iter().zip(rngs).zip(distributors) {
+        for ((dataset, rng), dispatcher) in datasets.into_iter().zip(rngs).zip(dispatchers) {
             let dataloader = LazyBatchDataLoader::new(
                 self.strategy.clone_dyn(),
                 Arc::new(dataset),
                 self.batcher.clone_dyn(),
-                Some(dispatcher.clone_dyn()),
+                Arc::from(dispatcher),
                 rng,
                 self.num_threads,
             );
@@ -202,12 +202,13 @@ mod tests {
     #[test]
     fn test_batch_dataloader_lazy() {
         let batcher = Box::new(TestBatcher::new());
+        let dispatcher = Arc::new(FixedDispatcher::new(vec![Default::default()]));
         let dataset = Arc::new(FakeDataset::<String>::new(27));
         let dataloader = LazyBatchDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),
             dataset.clone(),
             batcher,
-            None,
+            dispatcher,
             None,
             0,
         );
@@ -231,12 +232,13 @@ mod tests {
     #[test]
     fn test_multi_thread_batch_dataloader_lazy() {
         let batcher = Box::new(TestBatcher::new());
+        let dispatcher = Arc::new(FixedDispatcher::new(vec![Default::default()]));
         let dataset = Arc::new(FakeDataset::<String>::new(27));
         let dataloader_single_thread = LazyBatchDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),
             dataset.clone(),
             batcher.clone_dyn(),
-            None,
+            dispatcher.clone(),
             None,
             0,
         );
@@ -244,7 +246,7 @@ mod tests {
             Box::new(FixBatchStrategy::new(5)),
             dataset,
             batcher,
-            None,
+            dispatcher,
             None,
             4,
         );
@@ -270,27 +272,29 @@ mod tests {
     #[test]
     fn test_multi_thread_batch_dataloader_split() {
         let batcher = Box::new(TestBatcher::new());
-        let dispatcher = FixedDispatcher::new(vec![Default::default(), Default::default()]);
+        let dispatcher = Arc::new(FixedDispatcher::new(vec![Default::default()]));
         let dataset = Arc::new(FakeDataset::<String>::new(27));
         let dataloader_single_thread = LazyBatchDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),
             dataset.clone(),
             batcher.clone_dyn(),
-            None,
+            dispatcher.clone(),
             None,
             0,
         );
+
+        let dispatcher_multi = FixedDispatcher::new(vec![Default::default(), Default::default()]);
         let dataloader_split = LazyBatchDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),
             dataset,
             batcher,
-            None,
+            dispatcher,
             None,
             4,
         )
         .split(vec![
-            dispatcher.clone_dyn(),
-            dispatcher.with_fixed(1).clone_dyn(),
+            dispatcher_multi.clone_dyn(),
+            dispatcher_multi.with_fixed(1).clone_dyn(),
         ]);
 
         let mut items_single_thread = HashSet::new();
@@ -316,12 +320,13 @@ mod tests {
     #[test]
     fn test_batch_dataloader_lazy_split_after_iter() {
         let batcher = Box::new(TestBatcher::new());
+        let dispatcher = Arc::new(FixedDispatcher::new(vec![Default::default()]));
         let dataset = Arc::new(FakeDataset::<String>::new(27));
         let dataloader = LazyBatchDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),
             dataset.clone(),
             batcher,
-            None,
+            dispatcher,
             None,
             0,
         );
@@ -335,10 +340,10 @@ mod tests {
             }
         }
 
-        let dispatcher = FixedDispatcher::new(vec![Default::default(), Default::default()]);
+        let dispatcher_multi = FixedDispatcher::new(vec![Default::default(), Default::default()]);
         let dataloader_split = dataloader.split(vec![
-            dispatcher.clone_dyn(),
-            dispatcher.with_fixed(1).clone_dyn(),
+            dispatcher_multi.clone_dyn(),
+            dispatcher_multi.with_fixed(1).clone_dyn(),
         ]);
 
         for dataloader in dataloader_split {

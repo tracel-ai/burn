@@ -76,7 +76,7 @@ impl<I: Send + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
 }
 
 /// A strategy for dispatching batches across devices or other resources.
-pub trait BatchDispatcher: Send {
+pub trait BatchDispatcher: Send + Sync {
     /// The resource type.
     type Resource: Send + Clone;
 
@@ -86,13 +86,13 @@ pub trait BatchDispatcher: Send {
         Self: Sized;
 
     /// Predicts the next resource to assign an item to.
-    fn next(&mut self) -> &Self::Resource {
+    fn next(&self) -> &Self::Resource {
         let id = self.next_id();
         &self.resources()[id]
     }
 
     /// Predicts the next resource to assign an item to.
-    fn next_id(&mut self) -> usize;
+    fn next_id(&self) -> usize;
 
     /// Returns the strategy resources.
     fn resources(&self) -> &[Self::Resource];
@@ -116,7 +116,7 @@ impl<R> FixedDispatcher<R> {
     }
 }
 
-impl<R: Send + Clone + 'static> BatchDispatcher for FixedDispatcher<R> {
+impl<R: Send + Sync + Clone + 'static> BatchDispatcher for FixedDispatcher<R> {
     type Resource = R;
 
     /// Create a new fixed dispatching strategy. Always selects the first resource.
@@ -131,7 +131,7 @@ impl<R: Send + Clone + 'static> BatchDispatcher for FixedDispatcher<R> {
         }
     }
 
-    fn next_id(&mut self) -> usize {
+    fn next_id(&self) -> usize {
         self.fixed_id
     }
 
@@ -153,7 +153,7 @@ mod tests {
         let fixed_id = 1;
         let device = 2;
         let devices = vec![0, device];
-        let mut dispatcher = FixedDispatcher::new(devices.clone()).with_fixed(fixed_id);
+        let dispatcher = FixedDispatcher::new(devices.clone()).with_fixed(fixed_id);
 
         // Always the same
         for _ in 0..5 {

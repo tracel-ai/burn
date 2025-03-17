@@ -1,6 +1,6 @@
 use super::{
     batcher::DynBatcher, BatchDispatcher, BatchStrategy, DataLoader, DataLoaderIterator,
-    DynDataLoader, FixedDispatcher, MultiThreadDataLoader, Progress,
+    DynDataLoader, MultiThreadDataLoader, Progress,
 };
 use burn_dataset::{
     transform::{PartialDataset, ShuffledDataset},
@@ -15,7 +15,7 @@ pub struct BatchDataLoader<B: Backend, I, O> {
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
     batcher: Box<dyn DynBatcher<B, I, O>>,
-    dispatcher: Option<Box<dyn BatchDispatcher<Resource = B::Device>>>,
+    dispatcher: Arc<dyn BatchDispatcher<Resource = B::Device>>,
     rng: Option<Arc<spin::Mutex<rand::rngs::StdRng>>>,
 }
 
@@ -25,7 +25,7 @@ impl<B: Backend, I, O> Clone for BatchDataLoader<B, I, O> {
             strategy: self.strategy.clone_dyn(),
             dataset: self.dataset.clone(),
             batcher: self.batcher.clone_dyn(),
-            dispatcher: self.dispatcher.as_ref().map(|d| d.clone_dyn()),
+            dispatcher: self.dispatcher.clone(),
             rng: self.rng.clone(),
         }
     }
@@ -50,7 +50,7 @@ impl<B: Backend, I, O> BatchDataLoader<B, I, O> {
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
         batcher: Box<dyn DynBatcher<B, I, O>>,
-        dispatcher: Option<Box<dyn BatchDispatcher<Resource = B::Device>>>,
+        dispatcher: Arc<dyn BatchDispatcher<Resource = B::Device>>,
         rng: Option<rand::rngs::StdRng>,
     ) -> Self {
         Self {
@@ -69,7 +69,7 @@ struct BatchDataloaderIterator<B: Backend, I, O> {
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
     batcher: Box<dyn DynBatcher<B, I, O>>,
-    dispatcher: Box<dyn BatchDispatcher<Resource = B::Device>>,
+    dispatcher: Arc<dyn BatchDispatcher<Resource = B::Device>>,
 }
 
 impl<B: Backend, I, O> BatchDataLoader<B, I, O>
@@ -95,7 +95,7 @@ where
         dataset: Arc<dyn Dataset<I>>,
         batcher: Box<dyn DynBatcher<B, I, O>>,
         num_threads: usize,
-        dispatcher: Option<Box<dyn BatchDispatcher<Resource = B::Device>>>,
+        dispatcher: Arc<dyn BatchDispatcher<Resource = B::Device>>,
         mut rng: Option<rand::rngs::StdRng>,
     ) -> MultiThreadDataLoader<O> {
         let datasets = PartialDataset::split(dataset, num_threads);
@@ -114,7 +114,7 @@ where
                 strategy,
                 Arc::new(dataset),
                 batcher.clone_dyn(),
-                dispatcher.as_ref().map(|d| d.clone_dyn()),
+                dispatcher.clone(),
                 rng,
             );
             let dataloader: Box<dyn DynDataLoader<_>> = Box::new(dataloader);
@@ -149,7 +149,7 @@ where
             self.strategy.clone_dyn(),
             dataset,
             self.batcher.clone_dyn(),
-            self.dispatcher.as_ref().map(|d| d.clone_dyn()),
+            self.dispatcher.clone(),
         ))
     }
 
@@ -176,10 +176,8 @@ impl<B: Backend, I, O> BatchDataloaderIterator<B, I, O> {
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
         batcher: Box<dyn DynBatcher<B, I, O>>,
-        dispatcher: Option<Box<dyn BatchDispatcher<Resource = B::Device>>>,
+        dispatcher: Arc<dyn BatchDispatcher<Resource = B::Device>>,
     ) -> Self {
-        let dispatcher =
-            dispatcher.unwrap_or(Box::new(FixedDispatcher::new(vec![Default::default()])));
         BatchDataloaderIterator {
             current_index: 0,
             strategy,
@@ -224,17 +222,19 @@ mod tests {
     use super::*;
     use crate::data::dataloader::batcher::TestBatcher;
     use crate::data::dataloader::FixBatchStrategy;
+    use crate::data::dataloader::FixedDispatcher;
     use crate::data::dataset::FakeDataset;
 
     #[test]
     fn test_batch_dataloader() {
         let batcher = Box::new(TestBatcher::new());
+        let dispatcher = Arc::new(FixedDispatcher::new(vec![Default::default()]));
         let dataset = Arc::new(FakeDataset::<String>::new(27));
         let dataloader = BatchDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),
             dataset.clone(),
             batcher,
-            None,
+            dispatcher,
             None,
         );
 
@@ -257,12 +257,13 @@ mod tests {
     #[test]
     fn test_multi_thread_batch_dataloader() {
         let batcher = Box::new(TestBatcher::new());
+        let dispatcher = Arc::new(FixedDispatcher::new(vec![Default::default()]));
         let dataset = Arc::new(FakeDataset::<String>::new(27));
         let dataloader_single_thread = BatchDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),
             dataset.clone(),
             batcher.clone_dyn(),
-            None,
+            dispatcher.clone(),
             None,
         );
         let dataloader_multi_thread = BatchDataLoader::multi_thread(
@@ -270,7 +271,7 @@ mod tests {
             dataset,
             batcher,
             4,
-            None,
+            dispatcher,
             None,
         );
 

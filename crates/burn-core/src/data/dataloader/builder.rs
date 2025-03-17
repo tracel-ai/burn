@@ -1,6 +1,6 @@
 use super::{
-    batcher::DynBatcher, BatchDispatcher, BatchStrategy, FixBatchStrategy, LazyBatchDataLoader,
-    LazyDataLoader,
+    batcher::DynBatcher, BatchDispatcher, BatchStrategy, FixBatchStrategy, FixedDispatcher,
+    LazyBatchDataLoader, LazyDataLoader,
 };
 use burn_dataset::Dataset;
 use burn_tensor::backend::Backend;
@@ -127,11 +127,16 @@ where
             None => Box::new(FixBatchStrategy::new(1)),
         };
 
+        let dispatcher = match self.dispatcher {
+            Some(dispatcher) => dispatcher,
+            None => Box::new(FixedDispatcher::new(Default::default())),
+        };
+
         Arc::new(LazyBatchDataLoader::new(
             strategy,
             dataset,
             self.batcher,
-            self.dispatcher,
+            Arc::from(dispatcher),
             rng,
             self.num_threads.unwrap_or(0),
         ))
