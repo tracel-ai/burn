@@ -129,7 +129,7 @@ where
 
         let dispatcher = match self.dispatcher {
             Some(dispatcher) => dispatcher,
-            None => Box::new(FixedDispatcher::new(Default::default())),
+            None => Box::new(FixedDispatcher::new(vec![Default::default()])),
         };
 
         Arc::new(LazyBatchDataLoader::new(
