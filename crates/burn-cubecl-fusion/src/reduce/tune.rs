@@ -31,10 +31,10 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
     static TUNER: LocalTuner<FusedReduceAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
+        .with_tunable(tune_fallback::<R, BT>) // First one should always work.
         .with_tunable(tune_reduce::<R, BT>)
         .with_tunable(tune_reduce_plane::<R, BT>)
-        .with_tunable(tune_reduce_shared_plane::<R, BT>)
-        .with_tunable(tune_fallback::<R, BT>);
+        .with_tunable(tune_reduce_shared_plane::<R, BT>);
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&optimization.device),
@@ -56,6 +56,7 @@ pub(crate) fn create_key<R: Runtime>(
     let input = context.tensors.get(&opt.reduce.op.input.id).unwrap();
     let out = context.tensors.get(&opt.reduce.op.out.id).unwrap();
     let key = ReduceAutotuneKey::generate_without_strides(
+        input.dtype.into(),
         out.dtype.into(),
         &input.shape,
         opt.reduce.axis,

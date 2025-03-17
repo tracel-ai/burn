@@ -29,10 +29,10 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
     static TUNER: LocalTuner<FusedMatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
+        .with_tunable(tune_fallback::<R, BT>) // First one should always work.
         .with_tunable(tune_simple_fused::<R, BT>)
         .with_tunable(tune_specialized_fused::<R, BT>)
-        .with_tunable(tune_double_buffering_fused::<R, BT>)
-        .with_tunable(tune_fallback::<R, BT>);
+        .with_tunable(tune_double_buffering_fused::<R, BT>);
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&optimization.device),
@@ -55,7 +55,24 @@ pub(crate) fn create_key<R: Runtime>(
     let rhs = context.tensors.get(&opt.matmul_simple.op.rhs.id).unwrap();
     let out = context.tensors.get(&opt.matmul_simple.op.out.id).unwrap();
 
-    let key = MatmulAutotuneKey::from_shape(&lhs.shape, &rhs.shape, out.dtype.into());
+    let lhs_strides = context
+        .handles
+        .get_handle(&lhs.id, &burn_ir::TensorStatus::ReadOnly)
+        .strides;
+    let rhs_strides = context
+        .handles
+        .get_handle(&rhs.id, &burn_ir::TensorStatus::ReadOnly)
+        .strides;
+
+    let key = MatmulAutotuneKey::generate(
+        &lhs.shape,
+        &rhs.shape,
+        &lhs_strides,
+        &rhs_strides,
+        lhs.dtype.into(),
+        rhs.dtype.into(),
+        out.dtype.into(),
+    );
     FusedMatmulAutotuneKey::new(key, opt.num_output_buffers(), opt.num_ops_fused())
 }
 

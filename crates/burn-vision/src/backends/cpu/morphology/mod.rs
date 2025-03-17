@@ -9,8 +9,7 @@ use burn_tensor::{
 };
 use filter::{MaxOp, MinOp, MorphOperator, VecMorphOperator};
 use filter_engine::{ColFilter, Filter, Filter2D, FilterEngine, RowFilter};
-use macerator::VOrd;
-use pulp::Simd;
+use macerator::{Simd, VOrd};
 
 use crate::{BorderType, MorphOptions, Point, Size};
 
@@ -217,21 +216,27 @@ fn filter<T: VOrd + MinMax, Op: MorphOperator<T> + VecMorphOperator<T>, B: Eleme
 
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-#[pulp::with_simd(dispatch_morph = pulp::Arch::new())]
-fn run_morph_simd<S: Simd, T: VOrd + MinMax + Debug, Op: MorphOperator<T> + VecMorphOperator<T>>(
-    simd: S,
-    buffer: &mut [T],
+#[macerator::with_simd]
+fn dispatch_morph<
+    'a,
+    S: Simd,
+    T: VOrd + MinMax + Debug,
+    Op: MorphOperator<T> + VecMorphOperator<T>,
+>(
+    buffer: &'a mut [T],
     buffer_shape: Shape,
     filter: filter_engine::Filter<T, Op>,
     border_type: BorderType,
-    border_value: &[T],
+    border_value: &'a [T],
     iterations: usize,
-) {
+) where
+    'a: 'a,
+{
     let [_, _, ch] = buffer_shape.dims();
-    let mut engine = FilterEngine::new(filter, border_type, border_value, ch);
-    engine.apply(simd, buffer, buffer_shape.clone());
+    let mut engine = FilterEngine::<S, _, _>::new(filter, border_type, border_value, ch);
+    engine.apply(buffer, buffer_shape.clone());
     for _ in 1..iterations {
-        engine.apply(simd, buffer, buffer_shape.clone());
+        engine.apply(buffer, buffer_shape.clone());
     }
 }
 

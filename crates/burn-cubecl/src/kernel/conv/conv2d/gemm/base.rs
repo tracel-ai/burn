@@ -5,7 +5,7 @@ use cubecl::linalg::matmul::{
         stage::{StageMatmul, StageMatmulFamily},
         InvalidConfigError, MatmulProblem, MatrixLayout,
     },
-    kernels::matmul::AdvancedConfig,
+    kernels::MatmulAvailabilityError,
 };
 use cubecl::prelude::*;
 use cubecl_std::tensor::r#virtual::{ReadWrite, VirtualTensor};
@@ -94,8 +94,12 @@ pub trait ConvolutionConfigFactory: Send + Sync + 'static {
         problem: &ConvolutionProblem,
         cube_dim: &CubeDim,
         cube_count: &CubeCount,
-        advanced_config: &AdvancedConfig,
     ) -> Self::Config;
+
+    fn check_availability<R: Runtime, CP: ConvPrecision>(
+        client: &ComputeClient<R::Server, R::Channel>,
+        config: &Self::Config,
+    ) -> Result<(), MatmulAvailabilityError>;
 }
 
 /// Provides launch entry point to solve a matmul

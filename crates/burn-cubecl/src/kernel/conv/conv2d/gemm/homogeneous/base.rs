@@ -4,9 +4,9 @@ use cubecl::{
         components::{
             global::{
                 self,
+                loader::sync::{CyclicCoalescedLoading, SyncRhsLoader},
                 output_loader::Unloader,
-                single_stage::{self, loader::SyncRhsLoader, CyclicCoalescedLoading},
-                AccumulatorLoader, GlobalConfig, InputLoader, SyncInputLoader,
+                single_stage, AccumulatorLoader, GlobalConfig, InputLoader, SyncInputLoader,
             },
             stage::{
                 self,
@@ -15,7 +15,7 @@ use cubecl::{
             },
             Ident, InvalidConfigError, MatrixLayout,
         },
-        kernels::matmul::AdvancedConfig,
+        kernels::MatmulAvailabilityError,
     },
     prelude::*,
 };
@@ -202,14 +202,12 @@ where
         problem: &ConvolutionProblem,
         cube_dim: &CubeDim,
         cube_count: &CubeCount,
-        advanced_config: &AdvancedConfig,
     ) -> Self::Config {
         let smm_config = SMM::make_config(
             input,
             &problem.as_matmul_problem(),
             cube_dim,
             cube_count,
-            advanced_config,
             false,
         );
         let size = SMM::stage_shape(&smm_config);
@@ -233,6 +231,12 @@ where
             &problem.options,
             problem.has_bias,
         )
+    }
+    fn check_availability<R: Runtime, CP: ConvPrecision>(
+        client: &ComputeClient<R::Server, R::Channel>,
+        config: &Self::Config,
+    ) -> Result<(), MatmulAvailabilityError> {
+        SMM::check_availability::<R, (CP::EG, CP::ES, CP::EA)>(client, &config.to_smm_config())
     }
 }
 
@@ -367,8 +371,8 @@ pub mod config {
             self.matmul.check_col_bounds(ident)
         }
 
-        fn transpose_load(&self, ident: Ident) -> bool {
-            self.matmul.transpose_load(ident)
+        fn check_k_bounds(&self) -> bool {
+            self.matmul.check_k_bounds()
         }
     }
 

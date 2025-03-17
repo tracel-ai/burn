@@ -1,60 +1,62 @@
-use crate::{element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
+use crate::{
+    element::CubeElement,
+    kernel::conv::nchw_to_nhwc,
+    ops::{max_vectorization, numeric::empty_device, permute},
+    tensor::CubeTensor,
+    CubeRuntime,
+};
 use burn_tensor::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch)]
-fn adaptive_avg_pool2d_direct<E: Numeric>(input: &Tensor<E>, output: &mut Tensor<E>) {
-    let (output_stride_0, output_stride_1, output_stride_2, output_stride_3) = (
-        output.stride(0),
-        output.stride(1),
-        output.stride(2),
-        output.stride(3),
-    );
-    let (output_shape_0, output_shape_1, output_shape_2, output_shape_3) = (
-        output.shape(0),
-        output.shape(1),
-        output.shape(2),
-        output.shape(3),
-    );
-    let (input_stride_0, input_stride_1, input_stride_2, input_stride_3) = (
+fn adaptive_avg_pool2d_direct<E: Numeric>(input: &Tensor<Line<E>>, output: &mut Tensor<Line<E>>) {
+    if ABSOLUTE_POS >= output.len() {
+        terminate!();
+    }
+
+    let (out_h, out_w, channels) = (output.shape(1), output.shape(2), output.shape(3));
+    let channel_lines = channels / output.line_size();
+    let (in_stride_b, in_stride_h, in_stride_w, in_stride_c) = (
         input.stride(0),
         input.stride(1),
         input.stride(2),
         input.stride(3),
     );
-    let (input_shape_2, input_shape_3) = (input.shape(2), input.shape(3));
+    let (in_h, in_w) = (input.shape(1), input.shape(2));
 
-    let b = (ABSOLUTE_POS / output_stride_0) % output_shape_0;
-    let c = (ABSOLUTE_POS / output_stride_1) % output_shape_1;
-    let oh = (ABSOLUTE_POS / output_stride_2) % output_shape_2;
-    let ow = (ABSOLUTE_POS / output_stride_3) % output_shape_3;
+    let c = (ABSOLUTE_POS % channel_lines) * input.line_size();
+    let pos = ABSOLUTE_POS / channel_lines;
+    let ow = pos % out_w;
+    let pos = pos / out_w;
+    let oh = pos % out_h;
+    let b = pos / out_h;
 
-    let ih_start = start_index(oh, output_shape_2, input_shape_2);
-    let ih_end = end_index(oh, output_shape_2, input_shape_2);
+    let ih_start = start_index(oh, out_h, in_h);
+    let ih_end = end_index(oh, out_h, in_h);
 
-    let iw_start = start_index(ow, output_shape_3, input_shape_3);
-    let iw_end = end_index(ow, output_shape_3, input_shape_3);
+    let iw_start = start_index(ow, out_w, in_w);
+    let iw_end = end_index(ow, out_w, in_w);
 
-    let mut sum = E::from_int(0);
+    let mut sum = Line::empty(input.line_size()).fill(E::from_int(0));
 
-    let index_input_0 = b * input_stride_0;
-    let index_input_1 = c * input_stride_1;
+    let index_input_0 = b * in_stride_b;
+    let index_input_1 = c * in_stride_c;
 
     for ih in ih_start..ih_end {
-        let index_input_2 = ih * input_stride_2;
+        let index_input_2 = ih * in_stride_h;
 
         for iw in iw_start..iw_end {
-            let index_input_3 = iw * input_stride_3;
+            let index_input_3 = iw * in_stride_w;
 
             let index_input = index_input_0 + index_input_1 + index_input_2 + index_input_3;
-            sum += input[index_input];
+            sum += input[index_input / input.line_size()];
         }
     }
 
     let num_ih = ih_end - ih_start;
     let num_iw = iw_end - iw_start;
 
-    output[ABSOLUTE_POS] = sum / E::cast_from(num_ih * num_iw);
+    output[ABSOLUTE_POS] = sum / Line::cast_from(num_ih * num_iw);
 }
 
 #[cube]
@@ -82,20 +84,27 @@ pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime, E: CubeElement>(
 ) -> CubeTensor<R> {
     let [batch_size, channels, _, _] = input.shape.dims();
 
-    let output_shape = Shape::new([batch_size, channels, output_size[0], output_size[1]]);
+    let input = if input.is_contiguous() {
+        nchw_to_nhwc::<R, E>(input)
+    } else {
+        permute(input, &[0, 2, 3, 1])
+    };
+    let line_size = max_vectorization(&input);
+
+    let output_shape = Shape::new([batch_size, output_size[0], output_size[1], channels]);
     let num_elems: usize = output_shape.num_elements();
     let output = empty_device::<R, E>(input.client.clone(), input.device.clone(), output_shape);
 
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
+    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
     adaptive_avg_pool2d_direct::launch::<E, R>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<E>(1),
-        output.as_tensor_arg::<E>(1),
+        input.as_tensor_arg::<E>(line_size),
+        output.as_tensor_arg::<E>(line_size),
     );
 
-    output
+    permute(output, &[0, 3, 1, 2])
 }

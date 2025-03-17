@@ -194,15 +194,9 @@ where
     let cube_dim = Alg::cube_dim(&selection);
     let cube_count = Alg::cube_count(&selection, &problem);
 
-    let advanced_config = Default::default();
-    let config = Alg::make_config(
-        config_input,
-        &problem,
-        &cube_dim,
-        &cube_count,
-        &advanced_config,
-    )
-    .map_err(MatmulLaunchError::InvalidConfig)?;
+    let config = Alg::make_config(config_input, &problem, &cube_dim, &cube_count)
+        .map_err(MatmulLaunchError::InvalidConfig)?;
+    Alg::check_availability::<R, SP>(&input.client, &config)?;
 
     let bias = bias.unwrap_or_else(|| {
         empty_device::<R, SP::EG>(input.client.clone(), input.device.clone(), Shape::new([1]))

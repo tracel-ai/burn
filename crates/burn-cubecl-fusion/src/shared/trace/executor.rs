@@ -89,6 +89,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
             // Nothing to write, can skip execution.
             return Ok(());
         }
+
         let reference = match plans.0.reference {
             ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
             ReferenceSelection::SwapDims { original, dims } => {
