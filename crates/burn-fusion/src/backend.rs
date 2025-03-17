@@ -39,8 +39,8 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     type QuantizedEncoding = B::QuantizedEncoding;
 
-    fn name() -> String {
-        format!("fusion<{}>", B::name())
+    fn name(device: &Self::Device) -> String {
+        format!("fusion<{}>", B::name(device))
     }
 
     fn seed(seed: u64) {

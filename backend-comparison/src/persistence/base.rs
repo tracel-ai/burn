@@ -71,7 +71,7 @@ pub fn save<B: Backend>(
     let records: Vec<BenchmarkRecord> = benches
         .into_iter()
         .map(|bench| BenchmarkRecord {
-            backend: B::name().to_string(),
+            backend: B::name(device).to_string(),
             device: format!("{:?}", device),
             feature: feature.to_string(),
             system_info: BenchmarkSystemInfo::new(),

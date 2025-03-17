@@ -28,7 +28,7 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime, E: FloatElement>(
         .with_tunable(conv_transpose2d_col2im::<R, E>);
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&input.device),
+        &CubeTuneId::new::<R>(&input.client, &input.device),
         &client,
         &tune_set,
         (input, weights, bias, options),

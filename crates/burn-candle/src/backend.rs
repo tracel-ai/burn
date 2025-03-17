@@ -177,8 +177,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
         false
     }
 
-    fn name() -> String {
-        "candle".to_string()
+    fn name(device: &Self::Device) -> String {
+        match device {
+            CandleDevice::Cpu => "candle<cpu>",
+            CandleDevice::Cuda(..) => "cancle<cuda>",
+            CandleDevice::Metal(..) => "candle<metal>",
+        }
+        .to_string()
     }
 
     fn seed(seed: u64) {
