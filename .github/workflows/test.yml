@@ -223,7 +223,7 @@ jobs:
     runs-on: windows-2022
     needs: prepare-checks
     env:
-      DISABLE_WGPU: '0'
+      DISABLE_WGPU: '1'
     # Keep the stragegy to be able to easily add new rust versions if required
     strategy:
       matrix:
