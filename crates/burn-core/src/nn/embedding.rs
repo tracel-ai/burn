@@ -100,10 +100,10 @@ mod tests {
         );
         var_act
             .to_data()
-            .assert_approx_eq(&TensorData::from([1.0f32]), 0);
+            .assert_approx_eq(&TensorData::from([1.0f32]), 1);
         mean_act
             .to_data()
-            .assert_approx_eq(&TensorData::from([0.0f32]), 0);
+            .assert_approx_eq(&TensorData::from([0.0f32]), 1);
     }
 
     #[test]
