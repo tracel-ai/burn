@@ -1,6 +1,5 @@
-
 use burn_tensor::Shape;
-use cubecl::prelude::*;
+use cubecl::{linalg::tensor::TensorHandle, prelude::*};
 
 use crate::{
     kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},
@@ -11,12 +10,12 @@ use crate::{
 use super::{random, PrngArgs, PrngRuntime};
 
 #[derive(CubeLaunch)]
-pub(crate) struct Multinomial<E: Numeric> {
+pub(crate) struct Multinomial<E: Numeric + CubeType> {
     props: Tensor<E>,
 }
 
 #[cube]
-impl<E: CubeElement> PrngRuntime<E> for Multinomial<E> {
+impl<E: CubeElement + CubeType> PrngRuntime<E> for Multinomial<E> {
     fn inner_loop(
         args: Multinomial<E>,
         write_index_base: u32,
@@ -53,15 +52,6 @@ impl<E: CubeElement> PrngRuntime<E> for Multinomial<E> {
     }
 }
 
-impl<E: CubeElement> PrngArgs<E> for Multinomial<E> {
-    type Args = Self;
-
-    fn args<'a, R: Runtime>(self) -> MultinomialLaunch<'a, E, R> {
-        MultinomialLaunch::new(
-           self.props 
-        )
-    }
-}
 
 /// Pseudo-random generator with uniform distribution
 pub fn random_multinomial<R: CubeRuntime, E: CubeElement>(
@@ -69,13 +59,7 @@ pub fn random_multinomial<R: CubeRuntime, E: CubeElement>(
     device: &R::Device,
     props: Tensor<E>,
 ) -> CubeTensor<R> {
-    random(
-        shape,
-        device,
-        Multinomial {
-            props,
-        },
-    )
+    random(shape, device, Multinomial { props })
 }
 /// Pseudo-random generator for uniform distribution, based on
 /// another tensor.
@@ -83,9 +67,5 @@ pub fn random_like_multinomial<R: CubeRuntime, E: CubeElement>(
     tensor: &CubeTensor<R>,
     props: Tensor<E>,
 ) -> CubeTensor<R> {
-    random_multinomial::<R, E>(
-        tensor.shape.clone(),
-        &tensor.device,
-        props,
-    )
+    random_multinomial::<R, E>(tensor.shape.clone(), &tensor.device, props)
 }
