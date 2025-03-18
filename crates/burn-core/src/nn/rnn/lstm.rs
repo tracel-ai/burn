@@ -357,6 +357,7 @@ mod tests {
     use super::*;
     use crate::tensor::{Device, Distribution, TensorData};
     use crate::{module::Param, nn::LinearRecord, TestBackend};
+    use serial_test::serial;
 
     #[cfg(feature = "std")]
     use crate::TestAutodiffBackend;
@@ -387,6 +388,7 @@ mod tests {
     /// C_t = f_t * 0 + i_t * c_t = 0 + 0.5123725 * 0.0892937 = 0.04575243
     /// h_t = o_t * tanh(C_t) = 0.5274723 * tanh(0.04575243) = 0.5274723 * 0.04568173 = 0.024083648
     #[test]
+    #[serial]
     fn test_forward_single_input_single_feature() {
         TestBackend::seed(0);
         let config = LstmConfig::new(1, 1, false);
@@ -537,6 +539,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_bidirectional() {
         TestBackend::seed(0);
         let config = BiLstmConfig::new(2, 3, true);

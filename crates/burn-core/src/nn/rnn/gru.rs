@@ -246,6 +246,7 @@ mod tests {
     use super::*;
     use crate::tensor::{Distribution, TensorData};
     use crate::{module::Param, nn::LinearRecord, TestBackend};
+    use serial_test::serial;
 
     fn init_gru<B: Backend>(reset_after: bool, device: &B::Device) -> Gru<B> {
         fn create_gate_controller<B: Backend>(
@@ -316,6 +317,7 @@ mod tests {
     ///
     /// h_t = z_t * h' + (1 - z_t) * g_t = 0.0341
     #[test]
+    #[serial]
     fn tests_forward_single_input_single_feature() {
         TestBackend::seed(0);
         let device = Default::default();
@@ -345,6 +347,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn tests_forward_seq_len_3() {
         TestBackend::seed(0);
         let device = Default::default();

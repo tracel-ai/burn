@@ -202,6 +202,7 @@ mod tests {
 
     use crate::tensor::{ElementConversion, TensorData};
     use num_traits::Pow;
+    use serial_test::serial;
 
     pub type TB = burn_ndarray::NdArray<f32>;
 
@@ -243,6 +244,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn initializer_normal_init() {
         // seed random generator
         TB::seed(0);
@@ -316,6 +318,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn initializer_kaiming_normal_init() {
         TB::seed(0);
 
@@ -404,6 +407,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn initializer_xavier_normal_init() {
         TB::seed(0);
 

@@ -80,11 +80,12 @@ mod tests {
     use super::*;
     use crate::tensor::TensorData;
     use crate::TestBackend;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn initializer_default() {
         TestBackend::seed(0);
-
         let config = EmbeddingConfig::new(100, 10);
         let embed = config.init::<TestBackend>(&Default::default());
         let weights = embed.weight.val().reshape([1000]);
