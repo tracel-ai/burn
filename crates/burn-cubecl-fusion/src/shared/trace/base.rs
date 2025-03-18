@@ -21,7 +21,6 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Serialize, Deserialize, Debug)]
 /// Trace containing all element wise operations as well as reads and writes.
 pub struct FuseTrace {
-    pub settings: FuseSettings,
     pub blocks: Vec<FuseBlock>,
     pub resources: KernelResources,
 }
@@ -68,12 +67,12 @@ impl FuseTrace {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         runner: &Runner,
     ) -> Result<(), TraceError<Runner::Error>> {
+        let mut rank = 0;
+        for b in self.blocks.iter() {
+            rank = usize::max(b.shape_ref.len(), rank);
+        }
+        let mut plan = LaunchPlan::<R>::new(&self.blocks);
         todo!();
-        // let mut plan = LaunchPlan::new(
-        //     &self.block.reads,
-        //     &self.block.writes,
-        //     self.block.shape_ref.len(),
-        // );
 
         // InputPlanner::<R>::new(
         //     &self.inputs,

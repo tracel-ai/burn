@@ -51,154 +51,154 @@ pub struct ExecutionError<R: Runtime, Runner: TraceRunner<R>> {
     pub handles_output: Vec<HandleOutput<R>>,
 }
 
-#[derive(new, Debug)]
-pub struct MultiExecutionError<R: Runtime, Runner: MultiTraceRunner<R>> {
-    pub error: TraceError<Runner::Error>,
-    pub plan_0_handles_input: Vec<HandleInput<R>>,
-    pub plan_0_handles_output: Vec<HandleOutput<R>>,
-    pub plan_1_handles_input: Vec<HandleInput<R>>,
-    pub plan_1_handles_output: Vec<HandleOutput<R>>,
-}
-
-impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
-    #[allow(clippy::type_complexity)]
-    pub fn new(
-        scalars: (
-            &'a Vec<(ElemwisePrecision, u32)>,
-            &'a Vec<(ElemwisePrecision, u32)>,
-        ),
-        views: (&'a Vec<TensorView>, &'a Vec<TensorView>),
-        ops: (&'a Vec<ElemwiseOp>, &'a Vec<ElemwiseOp>),
-    ) -> Self {
-        Self {
-            scalars,
-            views,
-            ops,
-            _r: PhantomData,
-        }
-    }
-
-    pub fn execute<Runner: MultiTraceRunner<R>, BT: CubeElement>(
-        self,
-        client: &ComputeClient<R::Server, R::Channel>,
-        runner: &Runner,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-        plans: (LaunchPlan<'a, R>, LaunchPlan<'a, R>),
-    ) -> Result<(), MultiExecutionError<R, Runner>> {
-        if plans.0.writes.is_empty() && plans.1.writes.is_empty() {
-            // Nothing to write, can skip execution.
-            return Ok(());
-        }
-
-        let reference = match plans.0.reference {
-            ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
-            ReferenceSelection::SwapDims { original, dims } => {
-                RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
-            }
-            ReferenceSelection::Reshaped { reshape_pos } => {
-                RefLayout::Virtual(VirtualLayout::Reshaped(reshape_pos as u32))
-            }
-            ReferenceSelection::Searching | ReferenceSelection::NotFound => {
-                return Err(MultiExecutionError::new(
-                    TraceError::ReferenceNotFound,
-                    plans.0.handle_inputs,
-                    plans.0.handle_outputs,
-                    plans.1.handle_inputs,
-                    plans.1.handle_outputs,
-                ))
-            }
-        };
-
-        let mut inputs = GlobalArgsLaunch::default();
-        let mut outputs = GlobalArgsLaunch::default();
-
-        register_inputs(&plans.0.handle_inputs, &mut inputs);
-        register_outputs::<BT, R>(&plans.0.handle_outputs, &mut outputs);
-
-        let mut ops = Sequence::<ElemwiseOp>::new();
-
-        for read_ops in plans.0.reads.into_values() {
-            for op in read_ops {
-                ops.push(op);
-            }
-        }
-
-        for op in self.ops.0.iter() {
-            ops.push(op.clone());
-        }
-
-        for op in plans.0.writes.into_values() {
-            ops.push(op);
-        }
-
-        let config_0 = ElemwiseConfig {
-            rank: plans.0.rank as u32,
-            ref_layout: reference,
-            ops,
-            width: plans.0.width,
-        };
-
-        let reference = match plans.1.reference {
-            ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
-            ReferenceSelection::SwapDims { original, dims } => {
-                RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
-            }
-            ReferenceSelection::Reshaped { reshape_pos } => {
-                RefLayout::Virtual(VirtualLayout::Reshaped(reshape_pos as u32))
-            }
-            ReferenceSelection::Searching | ReferenceSelection::NotFound => {
-                return Err(MultiExecutionError::new(
-                    TraceError::ReferenceNotFound,
-                    plans.0.handle_inputs,
-                    plans.0.handle_outputs,
-                    plans.1.handle_inputs,
-                    plans.1.handle_outputs,
-                ))
-            }
-        };
-
-        register_inputs(&plans.1.handle_inputs, &mut inputs);
-        register_outputs::<BT, R>(&plans.1.handle_outputs, &mut outputs);
-        register_scalars::<R>(
-            self.scalars.0.iter().chain(self.scalars.1.iter()),
-            self.views.0.iter().chain(self.views.1.iter()),
-            context,
-            &mut inputs,
-        );
-
-        let mut ops = Sequence::<ElemwiseOp>::new();
-
-        for read_ops in plans.1.reads.into_values() {
-            for op in read_ops {
-                ops.push(op);
-            }
-        }
-
-        for op in self.ops.1.iter() {
-            ops.push(op.clone());
-        }
-
-        for op in plans.1.writes.into_values() {
-            ops.push(op);
-        }
-        let config_1 = ElemwiseConfig {
-            rank: plans.1.rank as u32,
-            ref_layout: reference,
-            ops,
-            width: plans.1.width,
-        };
-
-        Runner::run(runner, client, inputs, outputs, &config_0, &config_1).map_err(|err| {
-            MultiExecutionError::new(
-                TraceError::RunnerError(err),
-                plans.0.handle_inputs,
-                plans.0.handle_outputs,
-                plans.1.handle_inputs,
-                plans.1.handle_outputs,
-            )
-        })
-    }
-}
+// #[derive(new, Debug)]
+// pub struct MultiExecutionError<R: Runtime, Runner: MultiTraceRunner<R>> {
+//     pub error: TraceError<Runner::Error>,
+//     pub plan_0_handles_input: Vec<HandleInput<R>>,
+//     pub plan_0_handles_output: Vec<HandleOutput<R>>,
+//     pub plan_1_handles_input: Vec<HandleInput<R>>,
+//     pub plan_1_handles_output: Vec<HandleOutput<R>>,
+// }
+// 
+// impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
+//     #[allow(clippy::type_complexity)]
+//     pub fn new(
+//         scalars: (
+//             &'a Vec<(ElemwisePrecision, u32)>,
+//             &'a Vec<(ElemwisePrecision, u32)>,
+//         ),
+//         views: (&'a Vec<TensorView>, &'a Vec<TensorView>),
+//         ops: (&'a Vec<ElemwiseOp>, &'a Vec<ElemwiseOp>),
+//     ) -> Self {
+//         Self {
+//             scalars,
+//             views,
+//             ops,
+//             _r: PhantomData,
+//         }
+//     }
+// 
+//     pub fn execute<Runner: MultiTraceRunner<R>, BT: CubeElement>(
+//         self,
+//         client: &ComputeClient<R::Server, R::Channel>,
+//         runner: &Runner,
+//         context: &mut Context<'_, CubeFusionHandle<R>>,
+//         plans: (LaunchPlan<'a, R>, LaunchPlan<'a, R>),
+//     ) -> Result<(), MultiExecutionError<R, Runner>> {
+//         if plans.0.writes.is_empty() && plans.1.writes.is_empty() {
+//             // Nothing to write, can skip execution.
+//             return Ok(());
+//         }
+// 
+//         let reference = match plans.0.reference {
+//             ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
+//             ReferenceSelection::SwapDims { original, dims } => {
+//                 RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
+//             }
+//             ReferenceSelection::Reshaped { reshape_pos } => {
+//                 RefLayout::Virtual(VirtualLayout::Reshaped(reshape_pos as u32))
+//             }
+//             ReferenceSelection::Searching | ReferenceSelection::NotFound => {
+//                 return Err(MultiExecutionError::new(
+//                     TraceError::ReferenceNotFound,
+//                     plans.0.handle_inputs,
+//                     plans.0.handle_outputs,
+//                     plans.1.handle_inputs,
+//                     plans.1.handle_outputs,
+//                 ))
+//             }
+//         };
+// 
+//         let mut inputs = GlobalArgsLaunch::default();
+//         let mut outputs = GlobalArgsLaunch::default();
+// 
+//         register_inputs(&plans.0.handle_inputs, &mut inputs);
+//         register_outputs::<BT, R>(&plans.0.handle_outputs, &mut outputs);
+// 
+//         let mut ops = Sequence::<ElemwiseOp>::new();
+// 
+//         for read_ops in plans.0.reads.into_values() {
+//             for op in read_ops {
+//                 ops.push(op);
+//             }
+//         }
+// 
+//         for op in self.ops.0.iter() {
+//             ops.push(op.clone());
+//         }
+// 
+//         for op in plans.0.writes.into_values() {
+//             ops.push(op);
+//         }
+// 
+//         let config_0 = ElemwiseConfig {
+//             rank: plans.0.rank as u32,
+//             ref_layout: reference,
+//             ops,
+//             width: plans.0.width,
+//         };
+// 
+//         let reference = match plans.1.reference {
+//             ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
+//             ReferenceSelection::SwapDims { original, dims } => {
+//                 RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
+//             }
+//             ReferenceSelection::Reshaped { reshape_pos } => {
+//                 RefLayout::Virtual(VirtualLayout::Reshaped(reshape_pos as u32))
+//             }
+//             ReferenceSelection::Searching | ReferenceSelection::NotFound => {
+//                 return Err(MultiExecutionError::new(
+//                     TraceError::ReferenceNotFound,
+//                     plans.0.handle_inputs,
+//                     plans.0.handle_outputs,
+//                     plans.1.handle_inputs,
+//                     plans.1.handle_outputs,
+//                 ))
+//             }
+//         };
+// 
+//         register_inputs(&plans.1.handle_inputs, &mut inputs);
+//         register_outputs::<BT, R>(&plans.1.handle_outputs, &mut outputs);
+//         register_scalars::<R>(
+//             self.scalars.0.iter().chain(self.scalars.1.iter()),
+//             self.views.0.iter().chain(self.views.1.iter()),
+//             context,
+//             &mut inputs,
+//         );
+// 
+//         let mut ops = Sequence::<ElemwiseOp>::new();
+// 
+//         for read_ops in plans.1.reads.into_values() {
+//             for op in read_ops {
+//                 ops.push(op);
+//             }
+//         }
+// 
+//         for op in self.ops.1.iter() {
+//             ops.push(op.clone());
+//         }
+// 
+//         for op in plans.1.writes.into_values() {
+//             ops.push(op);
+//         }
+//         let config_1 = ElemwiseConfig {
+//             rank: plans.1.rank as u32,
+//             ref_layout: reference,
+//             ops,
+//             width: plans.1.width,
+//         };
+// 
+//         Runner::run(runner, client, inputs, outputs, &config_0, &config_1).map_err(|err| {
+//             MultiExecutionError::new(
+//                 TraceError::RunnerError(err),
+//                 plans.0.handle_inputs,
+//                 plans.0.handle_outputs,
+//                 plans.1.handle_inputs,
+//                 plans.1.handle_outputs,
+//             )
+//         })
+//     }
+// }
 impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
     pub fn new(
         scalars: &'a Vec<(ElemwisePrecision, u32)>,

@@ -25,7 +25,7 @@ impl FuseTraceBuilder {
         Self {
             settings,
             bool_precision,
-            block_current: FuseBlockBuilder::new(bool_precision),
+            block_current: FuseBlockBuilder::new(bool_precision, settings),
             blocks_previous: Default::default(),
             resources: Default::default(),
         }
@@ -37,7 +37,7 @@ impl FuseTraceBuilder {
     }
 
     pub fn next_block(&mut self, shape_ref: Vec<usize>, settings: FuseSettings) {
-        let mut block_new = FuseBlockBuilder::new(self.bool_precision);
+        let mut block_new = FuseBlockBuilder::new(self.bool_precision, settings);
         core::mem::swap(&mut self.block_current, &mut block_new);
         self.blocks_previous.push((block_new, shape_ref));
         self.settings = settings;
@@ -184,10 +184,6 @@ impl FuseTraceBuilder {
         // memory.
         resources.outputs = outputs;
 
-        FuseTrace {
-            settings: self.settings,
-            blocks,
-            resources,
-        }
+        FuseTrace { blocks, resources }
     }
 }

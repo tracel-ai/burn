@@ -1,5 +1,6 @@
-use crate::shared::ir::{
-    Arg, BinaryElemwiseArgs, ElemwiseOp, ElemwisePrecision, LayoutInfo, UnaryElemwiseArgs,
+use crate::shared::{
+    ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, ElemwisePrecision, LayoutInfo, UnaryElemwiseArgs},
+    settings::FuseSettings,
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};
 use cubecl::prelude::Sequence;
@@ -11,6 +12,7 @@ use super::{KernelResources, RegisteredTensors, TensorView};
 #[derive(Clone, Serialize, Deserialize, Debug)]
 /// A block of operations that can be fused.
 pub struct FuseBlock {
+    pub settings: FuseSettings,
     pub ops: Vec<ElemwiseOp>,
     pub shape_ref: Vec<usize>,
     pub reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
@@ -20,6 +22,7 @@ pub struct FuseBlock {
 #[derive(Clone, Debug)]
 /// A block of operations that can be fused.
 pub struct FuseBlockBuilder {
+    pub settings: FuseSettings,
     locals: LocalVariablePool,
     pub ops: Vec<ElemwiseOp>,
     reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
@@ -31,9 +34,10 @@ pub struct FuseBlockBuilder {
 }
 
 impl FuseBlockBuilder {
-    pub fn new(bool_precision: ElemwisePrecision) -> Self {
+    pub fn new(bool_precision: ElemwisePrecision, settings: FuseSettings) -> Self {
         Self {
             bool_precision,
+            settings,
             locals: Default::default(),
             ops: Default::default(),
             reads: Default::default(),
@@ -292,6 +296,7 @@ impl FuseBlockBuilder {
 
         (
             FuseBlock {
+                settings: self.settings,
                 ops,
                 shape_ref,
                 reads,

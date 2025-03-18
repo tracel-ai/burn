@@ -7,6 +7,8 @@ use crate::{
 use burn_ir::{TensorId, TensorIr};
 use cubecl::Runtime;
 
+use super::block::FuseBlock;
+
 /// The plan is responsible to keep runtime information related to the launch of a fused kernel
 /// at one place.
 #[derive(Debug)]
@@ -17,12 +19,16 @@ pub(crate) struct LaunchPlan<'a, R: Runtime> {
     pub global_outputs: Vec<TensorIr>,
     pub handle_inputs: Vec<HandleInput<R>>,
     pub handle_outputs: Vec<HandleOutput<R>>,
+    pub rank: usize,
+    pub blocks: Vec<BlockPlan>,
+}
+
+#[derive(Debug)]
+pub(crate) struct BlockPlan {
     pub reference: ReferenceSelection,
     pub reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
     pub writes: BTreeMap<TensorId, ElemwiseOp>,
-    pub vectorization: BTreeMap<TensorId, Vect>,
     pub width: u8,
-    pub rank: usize,
 }
 
 #[derive(Debug)]
@@ -98,25 +104,21 @@ impl Vect {
 }
 
 impl<R: Runtime> LaunchPlan<'_, R> {
-    pub fn output_offset(&mut self, output_offset: u32) {
-        if let ReferenceSelection::Concrete {
-            layout: Arg::Output(pos, ..),
-            ..
-        } = &mut self.reference
-        {
-            *pos += output_offset
+    pub fn new(fuse_blocks: &Vec<FuseBlock>) -> Self {
+        let mut rank = 0;
+        let mut blocks = Vec::with_capacity(fuse_blocks.len());
+
+        for b in fuse_blocks.iter() {
+            rank = usize::max(b.shape_ref.len(), rank);
+            let block = BlockPlan {
+                reference: ReferenceSelection::Searching,
+                reads: b.reads.clone(),
+                writes: b.writes.clone(),
+                width: 0,
+            };
+            blocks.push(block);
         }
 
-        for op in self.writes.iter_mut() {
-            op.1.output_offset(output_offset);
-        }
-    }
-
-    pub fn new(
-        reads: &BTreeMap<TensorId, Vec<ElemwiseOp>>,
-        writes: &BTreeMap<TensorId, ElemwiseOp>,
-        rank: usize,
-    ) -> Self {
         LaunchPlan {
             potential_inplaces: Vec::new(),
             potential_reference_input: None,
@@ -124,12 +126,8 @@ impl<R: Runtime> LaunchPlan<'_, R> {
             global_outputs: Vec::new(),
             handle_inputs: Vec::new(),
             handle_outputs: Vec::new(),
-            reference: ReferenceSelection::Searching,
-            vectorization: BTreeMap::default(),
-            reads: reads.clone(),
-            writes: writes.clone(),
-            width: 1,
             rank,
+            blocks,
         }
     }
 }
