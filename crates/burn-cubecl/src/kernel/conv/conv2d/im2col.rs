@@ -2,11 +2,11 @@ use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
 };
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, linalg::convolution::ConvLaunchError, prelude::*};
 
 use crate::{
     kernel::{
-        conv::{index, ConvLaunchError},
+        conv::index,
         into_contiguous, launch_binop,
         matmul::{matmul, MatmulStrategy},
         AddOp,
