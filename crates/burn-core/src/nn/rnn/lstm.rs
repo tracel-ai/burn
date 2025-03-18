@@ -364,8 +364,6 @@ mod tests {
 
     #[test]
     fn test_with_uniform_initializer() {
-        TestBackend::seed(0);
-
         let config = LstmConfig::new(5, 5, false)
             .with_initializer(Initializer::Uniform { min: 0.0, max: 1.0 });
         let lstm = config.init::<TestBackend>(&Default::default());

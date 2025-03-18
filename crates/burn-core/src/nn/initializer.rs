@@ -234,8 +234,6 @@ mod tests {
 
     #[test]
     fn initializer_uniform_init() {
-        TB::seed(0);
-
         let (min, max) = (0.0, 1.0);
         let uniform = Initializer::Uniform { min, max };
         let tensor: Tensor<TB, 4> = uniform.init([2, 2, 2, 2], &Default::default()).into_value();
@@ -302,8 +300,6 @@ mod tests {
 
     #[test]
     fn initializer_kaiming_uniform_init() {
-        TB::seed(0);
-
         let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
         let k = gain * (3.0 / fan_in as f64).sqrt();
@@ -338,8 +334,6 @@ mod tests {
 
     #[test]
     fn initializer_kaiming_uniform_init_bias() {
-        TB::seed(0);
-
         let gain = 2_f64;
         let shape = [3];
         let fan_in = 5;
@@ -356,8 +350,6 @@ mod tests {
 
     #[test]
     fn initializer_kaiming_uniform_init_fan_out() {
-        TB::seed(0);
-
         let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
         let k = gain * (3.0 / fan_out as f64).sqrt();
@@ -374,8 +366,6 @@ mod tests {
     #[test]
     #[should_panic]
     fn initializer_kaiming_uniform_no_fan() {
-        TB::seed(0);
-
         let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
 
@@ -389,8 +379,6 @@ mod tests {
 
     #[test]
     fn initializer_xavier_uniform_init() {
-        TB::seed(0);
-
         let gain = 2.;
         let (fan_in, fan_out) = (5, 6);
         let bound = gain * (6. / (fan_in + fan_out) as f64).sqrt();
@@ -430,8 +418,6 @@ mod tests {
     #[test]
     #[should_panic]
     fn initializer_xavier_uniform_no_fan() {
-        TB::seed(0);
-
         let gain = 2.;
         let (fan_in, fan_out) = (5, 6);
         let _: Tensor<TB, 2> = Initializer::XavierUniform { gain }
