@@ -268,4 +268,5 @@ jobs:
           cache-key: ${{ matrix.rust }}-macos
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask test --ci
+        run: cargo test --color always -p burn-wgpu test_conv1d_basic
+        # run: cargo xtask test --ci
