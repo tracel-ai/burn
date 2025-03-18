@@ -5,8 +5,8 @@ use burn_tensor::{
     Shape,
 };
 use cubecl::{
-    calculate_cube_count_elemwise, cube, ir::Elem, linalg::convolution::ConvLaunchError,
-    prelude::*, AtomicFeature, CubeDim, CubeLaunch, Feature,
+    calculate_cube_count_elemwise, cube, ir::Elem, prelude::*, AtomicFeature, CubeDim, CubeLaunch,
+    Feature,
 };
 
 use crate::{
@@ -24,7 +24,7 @@ use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
 
-use super::{bilinear_interpolate, deform_im2col, index};
+use super::{bilinear_interpolate, deform_im2col, index, ConvLaunchError};
 
 /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
 #[allow(clippy::single_range_in_vec_init)]

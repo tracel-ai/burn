@@ -2,10 +2,11 @@ use burn_tensor::{
     ops::{conv::calculate_conv_transpose_output_size, ConvTransposeOptions},
     Shape,
 };
-use cubecl::{calculate_cube_count_elemwise, linalg::convolution::ConvLaunchError, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
     kernel::{
+        conv::ConvLaunchError,
         into_contiguous,
         matmul::{matmul, MatmulStrategy},
         slice,

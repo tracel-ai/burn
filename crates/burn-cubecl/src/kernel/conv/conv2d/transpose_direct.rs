@@ -1,8 +1,8 @@
-use cubecl::{calculate_cube_count_elemwise, linalg::convolution::ConvLaunchError, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
     element::CubeElement,
-    kernel::into_contiguous,
+    kernel::{conv::ConvLaunchError, into_contiguous},
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,

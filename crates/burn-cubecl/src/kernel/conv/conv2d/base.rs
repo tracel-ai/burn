@@ -1,7 +1,8 @@
 use burn_tensor::ops::{ConvOptions, ConvTransposeOptions};
-use cubecl::linalg::convolution::ConvLaunchError;
 
-use crate::{tensor::CubeTensor, CubeRuntime, FloatElement, IntElement};
+use crate::{
+    kernel::conv::ConvLaunchError, tensor::CubeTensor, CubeRuntime, FloatElement, IntElement,
+};
 
 #[cfg(feature = "autotune")]
 use super::{conv2d_autotune, conv_transpose2d_autotune};

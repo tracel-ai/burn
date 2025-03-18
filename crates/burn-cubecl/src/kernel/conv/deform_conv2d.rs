@@ -1,4 +1,4 @@
-use cubecl::{calculate_cube_count_elemwise, linalg::convolution::ConvLaunchError, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, DeformConvOptions},
@@ -18,6 +18,8 @@ use crate::{
     tensor::CubeTensor,
     CubeRuntime, FloatElement,
 };
+
+use super::ConvLaunchError;
 
 #[derive(CubeLaunch)]
 struct DeformConv2dArgs<F: Float> {
