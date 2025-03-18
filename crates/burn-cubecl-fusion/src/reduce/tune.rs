@@ -61,7 +61,7 @@ pub(crate) fn create_key<R: Runtime>(
         &input.shape,
         opt.reduce.axis,
     );
-    let vect = opt.trace_read.vect(context, &opt.reduce);
+    let vect = opt.trace.vect(context, &opt.reduce);
     let vect = vect.iter().map(|v| v.1.line_size() as usize).sum::<usize>();
 
     FusedReduceAutotuneKey::new(key, opt.num_output_buffers(), opt.num_ops_fused(), vect)

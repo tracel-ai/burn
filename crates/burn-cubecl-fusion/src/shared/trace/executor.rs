@@ -83,14 +83,12 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         client: &ComputeClient<R::Server, R::Channel>,
         runner: &Runner,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-        mut plans: (LaunchPlan<'a, R>, LaunchPlan<'a, R>),
+        plans: (LaunchPlan<'a, R>, LaunchPlan<'a, R>),
     ) -> Result<(), MultiExecutionError<R, Runner>> {
         if plans.0.writes.is_empty() && plans.1.writes.is_empty() {
             // Nothing to write, can skip execution.
             return Ok(());
         }
-
-        plans.1.after(&plans.0);
 
         let reference = match plans.0.reference {
             ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),

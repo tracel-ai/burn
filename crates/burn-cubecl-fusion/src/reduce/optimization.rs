@@ -26,8 +26,7 @@ use super::args::{FusedReduceArgs, FusedReduceInputLaunch, FusedReduceOutputLaun
 use super::tune::fused_reduce_autotune;
 
 pub struct ReduceOptimization<R: Runtime> {
-    pub(crate) trace_read: FuseTrace,
-    trace_write: FuseTrace,
+    pub(crate) trace: FuseTrace,
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
     pub(crate) client: ComputeClient<R::Server, R::Channel>,
@@ -61,8 +60,7 @@ pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReduceOptimizationState {
-    trace_read: FuseTrace,
-    trace_write: FuseTrace,
+    trace: FuseTrace,
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
     pub(crate) reduce: FusedReduce,
@@ -104,8 +102,7 @@ pub enum FusedReduceError {
 #[allow(clippy::too_many_arguments)]
 impl<R: Runtime> ReduceOptimization<R> {
     pub fn new(
-        trace_read: FuseTrace,
-        trace_write: FuseTrace,
+        trace: FuseTrace,
         trace_read_fallback: FuseTrace,
         trace_write_fallback: FuseTrace,
         client: ComputeClient<R::Server, R::Channel>,
@@ -123,8 +120,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             shared: true,
         });
         Self {
-            trace_read,
-            trace_write,
+            trace,
             trace_read_fallback,
             trace_write_fallback,
             client,
@@ -148,13 +144,12 @@ impl<R: Runtime> ReduceOptimization<R> {
     }
 
     pub fn num_output_buffers(&self) -> usize {
-        self.trace_read_fallback.outputs.len()
+        self.trace_read_fallback.resources.outputs.len()
     }
 
     pub fn to_state(&self) -> ReduceOptimizationState {
         ReduceOptimizationState {
-            trace_read: self.trace_read.clone(),
-            trace_write: self.trace_write.clone(),
+            trace: self.trace.clone(),
             trace_read_fallback: self.trace_read_fallback.clone(),
             trace_write_fallback: self.trace_write_fallback.clone(),
             reduce: self.reduce.clone(),
@@ -172,8 +167,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         let client = R::client(device);
 
         Self {
-            trace_read: state.trace_read,
-            trace_write: state.trace_write,
+            trace: state.trace,
             trace_read_fallback: state.trace_read_fallback,
             trace_write_fallback: state.trace_write_fallback,
             reduce: state.reduce,
@@ -191,7 +185,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), TraceError<FusedReduceError>> {
         FuseTrace::run_multi::<R, BT, FusedReduce>(
-            (&self.trace_read, &self.trace_write),
+            (&self.trace, &self.trace),
             &self.client,
             &self.device,
             context,
@@ -204,7 +198,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), TraceError<FusedReduceError>> {
         FuseTrace::run_multi::<R, BT, FusedReduce>(
-            (&self.trace_read, &self.trace_write),
+            (&self.trace, &self.trace),
             &self.client,
             &self.device,
             context,
@@ -217,7 +211,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), TraceError<FusedReduceError>> {
         FuseTrace::run_multi::<R, BT, FusedReduce>(
-            (&self.trace_read, &self.trace_write),
+            (&self.trace, &self.trace),
             &self.client,
             &self.device,
             context,

@@ -15,7 +15,7 @@ use cubecl::ir::Elem;
 #[derive(Debug)]
 pub(crate) struct FuseBuilder {
     builder: TryFuseBuilder,
-    settings: FuseSettings,
+    pub(crate) settings: FuseSettings,
     pub(crate) current_output_shape: Vec<usize>,
     status: OptimizationStatus,
     pub(crate) num_ops: usize,
@@ -182,8 +182,17 @@ impl FuseBuilder {
     pub fn input(&mut self, tensor: &TensorIr) -> Arg {
         self.builder.builder.input(tensor).unwrap()
     }
-    pub fn not_output(&mut self, tensor: &TensorIr) {
-        self.builder.builder.not_output(tensor)
+
+    pub fn next_block(&mut self, outputs: &[&TensorIr], settings: FuseSettings) {
+        for o in outputs {
+            self.builder.builder.block_local_output(o);
+        }
+        let mut current_output_shape = Vec::new();
+        core::mem::swap(&mut current_output_shape, &mut self.current_output_shape);
+        self.builder
+            .builder
+            .next_block(current_output_shape, settings);
+        self.settings = settings;
     }
 
     pub fn output_unhandled(&mut self, tensor: &TensorIr) -> Arg {

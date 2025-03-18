@@ -1,3 +1,4 @@
+pub(crate) mod block;
 pub(crate) mod executor;
 pub(crate) mod input;
 pub(crate) mod output;

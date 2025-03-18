@@ -1,10 +1,11 @@
-use crate::CubeFusionHandle;
+use crate::{shared::ir::Arg, CubeFusionHandle};
 
 use super::{
     super::{
         ir::{ElemwiseOp, ElemwisePrecision},
         settings::FuseSettings,
     },
+    block::FuseBlock,
     executor::{LaunchMultiPlanExecutor, LaunchPlanExecutor},
     input::InputPlanner,
     output::OutputPlanner,
@@ -20,17 +21,21 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Serialize, Deserialize, Debug)]
 /// Trace containing all element wise operations as well as reads and writes.
 pub struct FuseTrace {
+    pub settings: FuseSettings,
+    pub blocks: Vec<FuseBlock>,
+    pub resources: KernelResources,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+pub struct KernelResources {
     pub outputs: RegisteredTensors,
     pub inputs: RegisteredTensors,
-    pub settings: FuseSettings,
     pub scalars: Vec<(ElemwisePrecision, u32)>,
     pub views: Vec<TensorView>,
-    pub indexed: BTreeSet<TensorId>,
-    pub shape_ref: Vec<usize>,
-    pub ops: Vec<ElemwiseOp>,
-    pub reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
-    pub writes: BTreeMap<TensorId, ElemwiseOp>,
+    pub indexed: BTreeMap<TensorId, Arg>,
     pub inputs_unhandled: Vec<TensorId>,
+    pub outputs_unhandled: Vec<Arg>,
+    pub num_reshaped: usize,
 }
 
 #[derive(Debug)]
@@ -63,34 +68,39 @@ impl FuseTrace {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         runner: &Runner,
     ) -> Result<(), TraceError<Runner::Error>> {
-        let mut plan = LaunchPlan::new(&self.reads, &self.writes, self.shape_ref.len());
+        todo!();
+        // let mut plan = LaunchPlan::new(
+        //     &self.block.reads,
+        //     &self.block.writes,
+        //     self.block.shape_ref.len(),
+        // );
 
-        InputPlanner::<R>::new(
-            &self.inputs,
-            &self.inputs_unhandled,
-            &self.views,
-            &self.shape_ref,
-            &self.settings,
-        )
-        .run(context, &mut plan);
+        // InputPlanner::<R>::new(
+        //     &self.inputs,
+        //     &self.inputs_unhandled,
+        //     &self.views,
+        //     &self.block.shape_ref,
+        //     &self.settings,
+        // )
+        // .run(context, &mut plan);
 
-        OutputPlanner::<R>::new(&self.inputs, &self.outputs, &self.views)
-            .run::<BT>(client, device, context, &mut plan);
+        // OutputPlanner::<R>::new(&self.inputs, &self.outputs, &self.views)
+        //     .run::<BT>(client, device, context, &mut plan);
 
-        if self.settings.vectorization {
-            VectorizationPlanner::<R>::new(&self.views, &self.reads, &self.indexed, u8::MAX)
-                .run(runner, context, &mut plan);
-        }
+        // if self.settings.vectorization {
+        //     VectorizationPlanner::<R>::new(&self.views, &self.block.reads, &self.indexed, u8::MAX)
+        //         .run(runner, context, &mut plan);
+        // }
 
-        match LaunchPlanExecutor::<R>::new(&self.scalars, &self.views, &self.ops)
-            .execute::<_, BT>(client, runner, context, plan)
-        {
-            Err(err) => {
-                self.rollback(context, err.handles_input, err.handles_output);
-                Err(err.error)
-            }
-            Ok(val) => Ok(val),
-        }
+        // match LaunchPlanExecutor::<R>::new(&self.scalars, &self.views, &self.block.ops)
+        //     .execute::<_, BT>(client, runner, context, plan)
+        // {
+        //     Err(err) => {
+        //         self.rollback(context, err.handles_input, err.handles_output);
+        //         Err(err.error)
+        //     }
+        //     Ok(val) => Ok(val),
+        // }
     }
 
     fn rollback<R: Runtime>(
@@ -119,11 +129,16 @@ impl FuseTrace {
         context: &Context<'_, CubeFusionHandle<R>>,
         runner: &V,
     ) -> BTreeMap<TensorId, super::Vect> {
-        let mut plan = LaunchPlan::new(&self.reads, &self.writes, self.shape_ref.len());
-        VectorizationPlanner::<R>::new(&self.views, &self.reads, &self.indexed, u8::MAX)
-            .run(runner, context, &mut plan);
+        todo!();
+        // let mut plan = LaunchPlan::new(
+        //     &self.block.reads,
+        //     &self.block.writes,
+        //     self.block.shape_ref.len(),
+        // );
+        // VectorizationPlanner::<R>::new(&self.views, &self.block.reads, &self.indexed, u8::MAX)
+        //     .run(runner, context, &mut plan);
 
-        plan.vectorization
+        // plan.vectorization
     }
 
     /// Run a trace with the given [runner](TraceRunner).
@@ -134,74 +149,75 @@ impl FuseTrace {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         runner: &Runner,
     ) -> Result<(), TraceError<Runner::Error>> {
-        let (read, write) = this;
-        let mut plan_read = LaunchPlan::new(&read.reads, &read.writes, read.shape_ref.len());
-        let mut plan_write = LaunchPlan::new(&write.reads, &write.writes, write.shape_ref.len());
+        todo!();
+        //let (read, write) = this;
+        //let mut plan_read = LaunchPlan::new(&read.reads, &read.writes, read.shape_ref.len());
+        //let mut plan_write = LaunchPlan::new(&write.reads, &write.writes, write.shape_ref.len());
 
-        InputPlanner::<R>::new(
-            &read.inputs,
-            &read.inputs_unhandled,
-            &read.views,
-            &read.shape_ref,
-            &read.settings,
-        )
-        .run(context, &mut plan_read);
+        //InputPlanner::<R>::new(
+        //    &read.inputs,
+        //    &read.inputs_unhandled,
+        //    &read.views,
+        //    &read.shape_ref,
+        //    &read.settings,
+        //)
+        //.run(context, &mut plan_read);
 
-        OutputPlanner::<R>::new(&read.inputs, &read.outputs, &read.views).run::<BT>(
-            client,
-            device,
-            context,
-            &mut plan_read,
-        );
+        //OutputPlanner::<R>::new(&read.inputs, &read.outputs, &read.views).run::<BT>(
+        //    client,
+        //    device,
+        //    context,
+        //    &mut plan_read,
+        //);
 
-        if read.settings.vectorization {
-            VectorizationPlanner::<R>::new(&read.views, &read.reads, &read.indexed, u8::MAX).run(
-                runner,
-                context,
-                &mut plan_read,
-            );
-        }
+        //if read.settings.vectorization {
+        //    VectorizationPlanner::<R>::new(&read.views, &read.reads, &read.indexed, u8::MAX).run(
+        //        runner,
+        //        context,
+        //        &mut plan_read,
+        //    );
+        //}
 
-        InputPlanner::<R>::new(
-            &write.inputs,
-            &write.inputs_unhandled,
-            &write.views,
-            &write.shape_ref,
-            &write.settings,
-        )
-        .run(context, &mut plan_write);
+        //InputPlanner::<R>::new(
+        //    &write.inputs,
+        //    &write.inputs_unhandled,
+        //    &write.views,
+        //    &write.shape_ref,
+        //    &write.settings,
+        //)
+        //.run(context, &mut plan_write);
 
-        OutputPlanner::<R>::new(&write.inputs, &write.outputs, &write.views).run::<BT>(
-            client,
-            device,
-            context,
-            &mut plan_write,
-        );
+        //OutputPlanner::<R>::new(&write.inputs, &write.outputs, &write.views).run::<BT>(
+        //    client,
+        //    device,
+        //    context,
+        //    &mut plan_write,
+        //);
 
-        if write.settings.vectorization {
-            VectorizationPlanner::<R>::new(
-                &write.views,
-                &write.reads,
-                &write.indexed,
-                plan_read.width as u8,
-            )
-            .run(runner, context, &mut plan_write);
-        }
+        //if write.settings.vectorization {
+        //    VectorizationPlanner::<R>::new(
+        //        &write.views,
+        //        &write.reads,
+        //        &write.indexed,
+        //        plan_read.width as u8,
+        //    )
+        //    .run(runner, context, &mut plan_write);
+        //}
 
-        match LaunchMultiPlanExecutor::<R>::new(
-            (&read.scalars, &write.scalars),
-            (&read.views, &write.views),
-            (&read.ops, &write.ops),
-        )
-        .execute::<_, BT>(client, runner, context, (plan_read, plan_write))
-        {
-            Err(err) => {
-                read.rollback(context, err.plan_0_handles_input, err.plan_0_handles_output);
-                write.rollback(context, err.plan_1_handles_input, err.plan_1_handles_output);
-                Err(err.error)
-            }
-            Ok(val) => Ok(val),
-        }
+        //match LaunchMultiPlanExecutor::<R>::new(
+        //    (&read.scalars, &write.scalars),
+        //    (&read.views, &write.views),
+        //    (&read.ops, &write.ops),
+        //)
+        //.execute::<_, BT>(client, runner, context, (plan_read, plan_write))
+        //{
+        //    Err(err) => {
+        //        read.rollback(context, err.plan_0_handles_input, err.plan_0_handles_output);
+        //        write.rollback(context, err.plan_1_handles_input, err.plan_1_handles_output);
+        //        Err(err.error)
+        //    }
+        //    Ok(val) => Ok(val),
+        //}
     }
 }
 
@@ -213,6 +229,9 @@ pub struct RegisteredTensors {
 impl RegisteredTensors {
     pub fn iter(&self) -> impl Iterator<Item = &(TensorIr, ElemwisePrecision)> {
         self.tensors.iter()
+    }
+    pub fn into_iter(self) -> impl Iterator<Item = (TensorIr, ElemwisePrecision)> {
+        self.tensors.into_iter()
     }
 
     pub fn len(&self) -> usize {

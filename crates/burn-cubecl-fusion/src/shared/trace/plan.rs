@@ -112,30 +112,6 @@ impl<R: Runtime> LaunchPlan<'_, R> {
         }
     }
 
-    pub fn after(&mut self, plan_previous: &LaunchPlan<'_, R>) {
-        for (tensor_id, ops) in self.reads.iter_mut() {
-            if plan_previous.reads.contains_key(tensor_id) {
-                let arg = plan_previous
-                    .global_inputs
-                    .iter()
-                    .enumerate()
-                    .find(|(i, t)| &t.id == tensor_id)
-                    .map(|(i, t)| {
-                        Arg::Input(
-                            i as u32,
-                            t.dtype.into(),
-                            crate::shared::ir::LayoutInfo::Unknown,
-                        )
-                    })
-                    .unwrap();
-                for op in ops {
-                    op.update_arg(arg.clone());
-                }
-            }
-        }
-        self.output_offset(plan_previous.handle_outputs.len() as u32);
-    }
-
     pub fn new(
         reads: &BTreeMap<TensorId, Vec<ElemwiseOp>>,
         writes: &BTreeMap<TensorId, ElemwiseOp>,
