@@ -173,7 +173,7 @@ impl UnaryNode {
     pub(crate) fn flatten(input: Type, output: Type, start_dim: usize, end_dim: usize) -> Self {
         let start_dim = start_dim.to_tokens();
         let end_dim = end_dim.to_tokens();
-        let function = move |input| quote! { #input.flatten(#start_dim, #end_dim) };
+        let function = move |input| quote! { #input.flatten::<2>(#start_dim, #end_dim) };
 
         Self::new(input, output, UnaryNodeKind::Flatten, Rc::new(function))
     }
@@ -502,13 +502,13 @@ mod tests {
         one_node_graph(
             UnaryNode::flatten(
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_float("tensor2", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 2)),
                 1,
                 2,
             ),
             quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.flatten(1, 2);
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 2> {
+                    let tensor2 = tensor1.flatten::<2>(1, 2);
 
                     tensor2
                 }
