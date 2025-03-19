@@ -1,22 +1,15 @@
 use crate::{shared::ir::Arg, CubeFusionHandle};
 
 use super::{
-    super::{
-        ir::{ElemwiseOp, ElemwisePrecision},
-        settings::FuseSettings,
-    },
-    block::FuseBlock,
-    executor::{LaunchMultiPlanExecutor, LaunchPlanExecutor},
-    input::InputPlanner,
-    output::OutputPlanner,
-    vectorization::VectorizationPlanner,
-    HandleInput, HandleOutput, LaunchPlan, MultiTraceRunner, TraceRunner, Vectorization,
+    super::ir::ElemwisePrecision, block::FuseBlock, executor::LaunchPlanExecutor,
+    input::InputPlanner, output::OutputPlanner, vectorization::VectorizationPlanner, HandleInput,
+    HandleOutput, LaunchPlan, TraceRunner, Vectorization,
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 /// Trace containing all element wise operations as well as reads and writes.
@@ -68,34 +61,22 @@ impl FuseTrace {
         runner: &Runner,
     ) -> Result<(), TraceError<Runner::Error>> {
         let mut plan = LaunchPlan::<R>::new(&self.blocks);
-        todo!();
 
-        // InputPlanner::<R>::new(
-        //     &self.inputs,
-        //     &self.inputs_unhandled,
-        //     &self.views,
-        //     &self.block.shape_ref,
-        //     &self.settings,
-        // )
-        // .run(context, &mut plan);
+        InputPlanner::<R>::new(&self.resources, &self.blocks).run(context, &mut plan);
 
-        // OutputPlanner::<R>::new(&self.inputs, &self.outputs, &self.views)
-        //     .run::<BT>(client, device, context, &mut plan);
+        OutputPlanner::<R>::new(&self.resources).run::<BT>(client, device, context, &mut plan);
 
-        // if self.settings.vectorization {
-        //     VectorizationPlanner::<R>::new(&self.views, &self.block.reads, &self.indexed, u8::MAX)
-        //         .run(runner, context, &mut plan);
-        // }
+        VectorizationPlanner::<R>::new(&self.resources).run(runner, context, &mut plan);
 
-        // match LaunchPlanExecutor::<R>::new(&self.scalars, &self.views, &self.block.ops)
-        //     .execute::<_, BT>(client, runner, context, plan)
-        // {
-        //     Err(err) => {
-        //         self.rollback(context, err.handles_input, err.handles_output);
-        //         Err(err.error)
-        //     }
-        //     Ok(val) => Ok(val),
-        // }
+        match LaunchPlanExecutor::<R>::new(&self.resources, &self.blocks)
+            .execute::<_, BT>(client, runner, context, plan)
+        {
+            Err(err) => {
+                self.rollback(context, err.handles_input, err.handles_output);
+                Err(err.error)
+            }
+            Ok(val) => Ok(val),
+        }
     }
 
     fn rollback<R: Runtime>(
@@ -124,95 +105,11 @@ impl FuseTrace {
         context: &Context<'_, CubeFusionHandle<R>>,
         runner: &V,
     ) -> BTreeMap<TensorId, super::Vect> {
-        todo!();
-        // let mut plan = LaunchPlan::new(
-        //     &self.block.reads,
-        //     &self.block.writes,
-        //     self.block.shape_ref.len(),
-        // );
-        // VectorizationPlanner::<R>::new(&self.views, &self.block.reads, &self.indexed, u8::MAX)
-        //     .run(runner, context, &mut plan);
+        let mut plan = LaunchPlan::<R>::new(&self.blocks);
 
-        // plan.vectorization
-    }
+        VectorizationPlanner::<R>::new(&self.resources).run(runner, context, &mut plan);
 
-    /// Run a trace with the given [runner](TraceRunner).
-    pub fn run_multi<R: Runtime, BT: CubeElement, Runner: MultiTraceRunner<R>>(
-        this: (&Self, &Self),
-        client: &ComputeClient<R::Server, R::Channel>,
-        device: &R::Device,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-        runner: &Runner,
-    ) -> Result<(), TraceError<Runner::Error>> {
-        todo!();
-        //let (read, write) = this;
-        //let mut plan_read = LaunchPlan::new(&read.reads, &read.writes, read.shape_ref.len());
-        //let mut plan_write = LaunchPlan::new(&write.reads, &write.writes, write.shape_ref.len());
-
-        //InputPlanner::<R>::new(
-        //    &read.inputs,
-        //    &read.inputs_unhandled,
-        //    &read.views,
-        //    &read.shape_ref,
-        //    &read.settings,
-        //)
-        //.run(context, &mut plan_read);
-
-        //OutputPlanner::<R>::new(&read.inputs, &read.outputs, &read.views).run::<BT>(
-        //    client,
-        //    device,
-        //    context,
-        //    &mut plan_read,
-        //);
-
-        //if read.settings.vectorization {
-        //    VectorizationPlanner::<R>::new(&read.views, &read.reads, &read.indexed, u8::MAX).run(
-        //        runner,
-        //        context,
-        //        &mut plan_read,
-        //    );
-        //}
-
-        //InputPlanner::<R>::new(
-        //    &write.inputs,
-        //    &write.inputs_unhandled,
-        //    &write.views,
-        //    &write.shape_ref,
-        //    &write.settings,
-        //)
-        //.run(context, &mut plan_write);
-
-        //OutputPlanner::<R>::new(&write.inputs, &write.outputs, &write.views).run::<BT>(
-        //    client,
-        //    device,
-        //    context,
-        //    &mut plan_write,
-        //);
-
-        //if write.settings.vectorization {
-        //    VectorizationPlanner::<R>::new(
-        //        &write.views,
-        //        &write.reads,
-        //        &write.indexed,
-        //        plan_read.width as u8,
-        //    )
-        //    .run(runner, context, &mut plan_write);
-        //}
-
-        //match LaunchMultiPlanExecutor::<R>::new(
-        //    (&read.scalars, &write.scalars),
-        //    (&read.views, &write.views),
-        //    (&read.ops, &write.ops),
-        //)
-        //.execute::<_, BT>(client, runner, context, (plan_read, plan_write))
-        //{
-        //    Err(err) => {
-        //        read.rollback(context, err.plan_0_handles_input, err.plan_0_handles_output);
-        //        write.rollback(context, err.plan_1_handles_input, err.plan_1_handles_output);
-        //        Err(err.error)
-        //    }
-        //    Ok(val) => Ok(val),
-        //}
+        plan.vectorizations
     }
 }
 

@@ -19,6 +19,7 @@ pub(crate) struct LaunchPlan<'a, R: Runtime> {
     pub handle_outputs: Vec<HandleOutput<R>>,
     pub rank: usize,
     pub blocks: Vec<BlockPlan<'a>>,
+    pub vectorizations: BTreeMap<TensorId, Vect>,
 }
 
 #[derive(Debug)]
@@ -115,19 +116,20 @@ impl<R: Runtime> LaunchPlan<'_, R> {
                 reads: b.reads.clone(),
                 writes: b.writes.clone(),
                 width: 0,
+                potential_inplaces: Vec::new(),
+                potential_reference_input: None,
             };
             blocks.push(block);
         }
 
         LaunchPlan {
-            potential_inplaces: Vec::new(),
-            potential_reference_input: None,
             global_inputs: Vec::new(),
             global_outputs: Vec::new(),
             handle_inputs: Vec::new(),
             handle_outputs: Vec::new(),
             rank,
             blocks,
+            vectorizations: Default::default(),
         }
     }
 }
@@ -140,6 +142,7 @@ pub enum HandleOutput<R: Runtime> {
     },
     Owned {
         global_id: TensorId,
+        relative_id: TensorId,
         precision: ElemwisePrecision,
         handle: CubeFusionHandle<R>,
         global_shape: Vec<usize>,

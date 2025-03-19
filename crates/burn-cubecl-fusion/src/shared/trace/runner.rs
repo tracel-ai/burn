@@ -20,7 +20,7 @@ pub trait TraceRunner<R: Runtime>: Vectorization<R> {
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        config: &'a ElemwiseConfig,
+        configs: &'a [ElemwiseConfig],
     ) -> Result<(), Self::Error>;
 }
 
@@ -53,21 +53,6 @@ pub trait Vectorization<R: Runtime> {
             axis,
         )
     }
-}
-
-pub trait MultiTraceRunner<R: Runtime>: Vectorization<R> {
-    /// The error that might happen while running the trace.
-    type Error;
-
-    /// Run the trace.
-    fn run<'a>(
-        &'a self,
-        client: &'a ComputeClient<R::Server, R::Channel>,
-        inputs: GlobalArgsLaunch<'a, R>,
-        outputs: GlobalArgsLaunch<'a, R>,
-        config_read: &'a ElemwiseConfig,
-        config_write: &'a ElemwiseConfig,
-    ) -> Result<(), Self::Error>;
 }
 
 #[allow(clippy::too_many_arguments)]

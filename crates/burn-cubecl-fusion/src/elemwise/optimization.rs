@@ -72,8 +72,9 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        config: &'a ElemwiseConfig,
+        configs: &[ElemwiseConfig],
     ) -> Result<(), Self::Error> {
+        let config = &configs[0];
         let shape = match &config.ref_layout {
             RefLayout::Concrete(arg) => match arg {
                 Arg::Input(..) => inputs.shape_ref(&config.ref_layout, config.rank as usize),

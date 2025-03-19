@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    marker::PhantomData,
-};
+use std::marker::PhantomData;
 
 use burn_fusion::stream::Context;
 use burn_ir::TensorId;
@@ -10,34 +7,20 @@ use cubecl::{
     Runtime,
 };
 
-use crate::{
-    shared::{ir::ElemwiseOp, trace::Vect},
-    CubeFusionHandle,
-};
+use crate::{shared::trace::Vect, CubeFusionHandle};
 
-use super::{HandleOutput, LaunchPlan, TensorView, Vectorization};
+use super::{HandleOutput, KernelResources, LaunchPlan, TensorView, Vectorization};
 
 /// Select the best vectorization factor for each tensor handle.
 pub struct VectorizationPlanner<'a, R: Runtime> {
-    views: &'a Vec<TensorView>,
-    reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,
-    indexed: &'a BTreeSet<TensorId>,
-    max: u8,
+    resources: &'a KernelResources,
     _r: PhantomData<R>,
 }
 
 impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
-    pub fn new(
-        views: &'a Vec<TensorView>,
-        reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,
-        indexed: &'a BTreeSet<TensorId>,
-        max: u8,
-    ) -> Self {
+    pub fn new(resources: &'a KernelResources) -> Self {
         Self {
-            views,
-            reads,
-            indexed,
-            max,
+            resources,
             _r: PhantomData,
         }
     }
@@ -47,17 +30,24 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         context: &Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
     ) {
-        let tensors_reshaped = self.views.iter().filter_map(|view| match view {
+        let has_multiple_read = |tensor: &TensorId| {
+            let mut read_count = 0;
+            for block in plan.blocks.iter() {
+                read_count += block.reads.get(tensor).map(|a| a.len()).unwrap_or(0);
+            }
+            read_count > 1
+        };
+        let tensors_reshaped = self.resources.views.iter().filter_map(|view| match view {
             TensorView::Reshape {
                 reshaped, original, ..
             } => Some((
                 context.tensors.get(reshaped).unwrap(),
                 context.tensors.get(original).unwrap(),
-                self.reads.get(original).unwrap().len() > 1,
+                has_multiple_read(original),
             )),
             TensorView::SwapDims { .. } => None,
         });
-        let tensors_swapped = self.views.iter().filter_map(|view| match view {
+        let tensors_swapped = self.resources.views.iter().filter_map(|view| match view {
             TensorView::SwapDims {
                 swapped,
                 original,
@@ -66,7 +56,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             } => Some((
                 context.tensors.get(swapped).unwrap(),
                 context.tensors.get(original).unwrap(),
-                self.reads.get(original).unwrap().len() > 1,
+                has_multiple_read(original),
                 dims,
             )),
             TensorView::Reshape { .. } => None,
@@ -94,11 +84,11 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         let filtered = plan
             .handle_inputs
             .iter()
-            .map(|item| !self.indexed.contains(&item.relative_id))
+            .map(|item| !self.resources.indexed.contains_key(&item.relative_id))
             .collect::<Vec<_>>();
 
         Runner::vectorization(
-            &mut plan.vectorization,
+            &mut plan.vectorizations,
             plan.handle_inputs
                 .iter()
                 .enumerate()
@@ -117,38 +107,46 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             tensors_reshaped,
             tensors_swapped,
             &ref_elem.0,
-            self.max,
+            u8::MAX,
             runner.axis(),
         );
 
-        for tensor in self.indexed {
+        for tensor in self.resources.indexed.keys() {
             let global = context.tensors.get(tensor).unwrap();
-            plan.vectorization.insert(global.id, Vect::Aligned(1));
+            plan.vectorizations.insert(global.id, Vect::Aligned(1));
         }
 
-        plan.width = 1;
-
         for handle in plan.handle_inputs.iter_mut() {
-            let (vect, br) = match plan.vectorization.get(&handle.global_id) {
+            let (vect, br) = match plan.vectorizations.get(&handle.global_id) {
                 Some(v) => (v.line_size(), v.is_broadcast()),
                 None => panic!("No vectorization factor found for {:?}", handle.global_id),
             };
             handle.vectorization = vect;
             handle.broadcated = br;
-            if plan.width < handle.vectorization {
-                plan.width = handle.vectorization;
+
+            for block in plan.blocks.iter_mut() {
+                if block.reads.contains_key(&handle.relative_id)
+                    && block.width < handle.vectorization
+                {
+                    block.width = handle.vectorization;
+                }
             }
         }
+
         for handle in plan.handle_outputs.iter_mut() {
             if let HandleOutput::Owned {
                 vectorization,
                 global_id,
+                relative_id,
                 ..
             } = handle
             {
-                *vectorization = plan.vectorization.get(global_id).unwrap().line_size();
-                if plan.width < *vectorization {
-                    plan.width = *vectorization;
+                *vectorization = plan.vectorizations.get(global_id).unwrap().line_size();
+
+                for block in plan.blocks.iter_mut() {
+                    if block.writes.contains_key(&relative_id) && block.width < *vectorization {
+                        block.width = *vectorization;
+                    }
                 }
             }
         }

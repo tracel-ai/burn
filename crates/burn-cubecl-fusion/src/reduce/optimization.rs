@@ -14,8 +14,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::ir::RefLayout;
-use crate::shared::trace::TraceError;
-use crate::shared::trace::{MultiTraceRunner, Vectorization};
+use crate::shared::trace::Vectorization;
+use crate::shared::trace::{TraceError, TraceRunner};
 use crate::shared::{
     ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
     trace::FuseTrace,
@@ -184,8 +184,8 @@ impl<R: Runtime> ReduceOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), TraceError<FusedReduceError>> {
-        FuseTrace::run_multi::<R, BT, FusedReduce>(
-            (&self.trace, &self.trace),
+        FuseTrace::run::<R, BT, FusedReduce>(
+            &self.trace,
             &self.client,
             &self.device,
             context,
@@ -197,8 +197,8 @@ impl<R: Runtime> ReduceOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), TraceError<FusedReduceError>> {
-        FuseTrace::run_multi::<R, BT, FusedReduce>(
-            (&self.trace, &self.trace),
+        FuseTrace::run::<R, BT, FusedReduce>(
+            &self.trace,
             &self.client,
             &self.device,
             context,
@@ -210,8 +210,8 @@ impl<R: Runtime> ReduceOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), TraceError<FusedReduceError>> {
-        FuseTrace::run_multi::<R, BT, FusedReduce>(
-            (&self.trace, &self.trace),
+        FuseTrace::run::<R, BT, FusedReduce>(
+            &self.trace,
             &self.client,
             &self.device,
             context,
@@ -260,7 +260,7 @@ impl<R: Runtime> ReduceOptimization<R> {
 
 impl<R: Runtime> Vectorization<R> for FusedReduce {}
 
-impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
+impl<R: Runtime> TraceRunner<R> for FusedReduce {
     type Error = FusedReduceError;
 
     fn run<'a>(
@@ -268,9 +268,9 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        config_read: &'a ElemwiseConfig,
-        config_write: &'a ElemwiseConfig,
+        configs: &'a [ElemwiseConfig],
     ) -> Result<(), FusedReduceError> {
+        let [config_read, config_write] = [&configs[0], &configs[1]];
         self.strategy
             .validate::<R>(client)
             .map_err(FusedReduceError::LaunchError)?;

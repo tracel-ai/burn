@@ -144,7 +144,7 @@ impl<R: Runtime> MatmulOptimization<R> {
 
     /// Returns the number of output buffers added by fusion.
     pub fn num_output_buffers(&self) -> usize {
-        self.trace_fallback.outputs.len()
+        self.trace_fallback.resources.outputs.len()
     }
 
     pub fn execute_simple_fused<BT: CubeElement>(
@@ -259,13 +259,17 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmul {
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        config: &'a ElemwiseConfig,
+        configs: &'a [ElemwiseConfig],
     ) -> Result<(), FusedMatmulError> {
         match self.out.precision() {
-            ElemwisePrecision::F32 => self.matmul_fused::<R, f32>(client, inputs, outputs, config),
-            ElemwisePrecision::F16 => self.matmul_fused::<R, f16>(client, inputs, outputs, config),
+            ElemwisePrecision::F32 => {
+                self.matmul_fused::<R, f32>(client, inputs, outputs, &configs[0])
+            }
+            ElemwisePrecision::F16 => {
+                self.matmul_fused::<R, f16>(client, inputs, outputs, &configs[0])
+            }
             ElemwisePrecision::BF16 => {
-                self.matmul_fused::<R, bf16>(client, inputs, outputs, config)
+                self.matmul_fused::<R, bf16>(client, inputs, outputs, &configs[0])
             }
             _ => panic!("Unsupported precision"),
         }
