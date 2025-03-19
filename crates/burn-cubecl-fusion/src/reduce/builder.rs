@@ -167,7 +167,6 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
             }
         } else {
             // On fuse on write.
-            println!("Fuse on write. {operation:?}");
             self.on_elemwise_write(operation);
         }
     }
