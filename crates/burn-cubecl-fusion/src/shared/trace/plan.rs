@@ -13,18 +13,18 @@ use super::block::FuseBlock;
 /// at one place.
 #[derive(Debug)]
 pub(crate) struct LaunchPlan<'a, R: Runtime> {
-    pub potential_inplaces: Vec<PotentialInplace<'a>>,
-    pub potential_reference_input: Option<InputReference>,
     pub global_inputs: Vec<TensorIr>,
     pub global_outputs: Vec<TensorIr>,
     pub handle_inputs: Vec<HandleInput<R>>,
     pub handle_outputs: Vec<HandleOutput<R>>,
     pub rank: usize,
-    pub blocks: Vec<BlockPlan>,
+    pub blocks: Vec<BlockPlan<'a>>,
 }
 
 #[derive(Debug)]
-pub(crate) struct BlockPlan {
+pub(crate) struct BlockPlan<'a> {
+    pub potential_inplaces: Vec<PotentialInplace<'a>>,
+    pub potential_reference_input: Option<InputReference>,
     pub reference: ReferenceSelection,
     pub reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
     pub writes: BTreeMap<TensorId, ElemwiseOp>,

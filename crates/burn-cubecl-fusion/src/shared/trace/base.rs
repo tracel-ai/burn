@@ -67,10 +67,6 @@ impl FuseTrace {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         runner: &Runner,
     ) -> Result<(), TraceError<Runner::Error>> {
-        let mut rank = 0;
-        for b in self.blocks.iter() {
-            rank = usize::max(b.shape_ref.len(), rank);
-        }
         let mut plan = LaunchPlan::<R>::new(&self.blocks);
         todo!();
 
