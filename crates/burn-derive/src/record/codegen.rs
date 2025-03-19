@@ -1,6 +1,6 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{parse_quote, Generics};
+use syn::{Generics, parse_quote};
 
 use crate::record::item::codegen::RecordItemCodegen;
 
@@ -19,7 +19,7 @@ pub(crate) struct RecordCodegen<G: RecordItemCodegen> {
     /// Record type info.
     ty: RecordType,
     /// Record item code gen.
-    gen: G,
+    generated: G,
 }
 
 impl<G: RecordItemCodegen> RecordCodegen<G> {
@@ -34,7 +34,7 @@ impl<G: RecordItemCodegen> RecordCodegen<G> {
         }
 
         // Generate the record item definition
-        self.gen
+        self.generated
             .gen_item_type(&self.ty.item, &generics, self.ty.has_backend)
     }
 
@@ -52,8 +52,8 @@ impl<G: RecordItemCodegen> RecordCodegen<G> {
         };
 
         let name_item = &self.ty.item;
-        let into_item_fn = self.gen.gen_into_item(name_item);
-        let from_item_fn = self.gen.gen_from_item();
+        let into_item_fn = self.generated.gen_into_item(name_item);
+        let from_item_fn = self.generated.gen_from_item();
 
         // Return the generated stream of token trees (i.e., code to be generated)
         let name = &self.ty.name;
@@ -102,7 +102,7 @@ impl<G: RecordItemCodegen> RecordCodegen<G> {
     pub(crate) fn from_ast(ast: &syn::DeriveInput) -> Self {
         Self {
             ty: RecordType::from_ast(ast),
-            gen: G::from_ast(ast),
+            generated: G::from_ast(ast),
         }
     }
 }

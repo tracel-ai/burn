@@ -1,7 +1,7 @@
 use burn_tensor::{
+    Tensor,
     backend::{AutodiffBackend, Backend},
     container::TensorContainer,
-    Tensor,
 };
 
 use crate::module::{AutodiffModule, ParamId};
@@ -115,11 +115,11 @@ impl GradientsParams {
 mod tests {
     use super::*;
     use crate::{
-        module::{list_param_ids, Module},
-        nn::{Linear, LinearConfig},
         TestAutodiffBackend,
+        module::{Module, list_param_ids},
+        nn::{Linear, LinearConfig},
     };
-    use burn_tensor::{backend::Backend, Distribution};
+    use burn_tensor::{Distribution, backend::Backend};
 
     #[test]
     fn test_convert_grads() {

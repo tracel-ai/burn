@@ -3,10 +3,10 @@ use crate::kernel::conv::{
 };
 use cubecl::{
     linalg::matmul::components::{
+        Ident,
         global::AccumulatorLoader,
         stage::{Stage, StageConfig},
         tile::{Tile, TileConfig, TileMatmul},
-        Ident,
     },
     prelude::*,
 };

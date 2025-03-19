@@ -2,9 +2,9 @@ use cubecl::linalg::matmul::components::global::SyncInputLoader;
 use cubecl::linalg::matmul::components::stage::{ContiguousTilingLayout, RowMajorTilingOrder};
 use cubecl::{
     linalg::matmul::components::{
-        global::InputLoader,
-        stage::{multi_buffer::LhsReader, Stage},
         Ident,
+        global::InputLoader,
+        stage::{Stage, multi_buffer::LhsReader},
     },
     prelude::*,
 };
@@ -12,7 +12,7 @@ use cubecl::{
 use cubecl_std::tensor::r#virtual::VirtualTensor;
 use std::marker::PhantomData;
 
-use crate::kernel::conv::{precision::ConvPrecision, reader::im2col::Im2colReader, ConvGemmConfig};
+use crate::kernel::conv::{ConvGemmConfig, precision::ConvPrecision, reader::im2col::Im2colReader};
 
 /// Loader that translates matrix coordinates to input coordinates using the `im2col` algorithm
 #[derive(CubeType)]

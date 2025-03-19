@@ -11,7 +11,7 @@ pub struct ConvSelection {
 
 pub trait ConvSelector<A: Algorithm> {
     fn select_kernel<R: CubeRuntime, CS: ConvPrecision>(plane_dim: u32)
-        -> (A::Selection, A::Input);
+    -> (A::Selection, A::Input);
 }
 
 /// Large m stage size for the usual case where `batch_size * out_h * out_w` is significantly larger

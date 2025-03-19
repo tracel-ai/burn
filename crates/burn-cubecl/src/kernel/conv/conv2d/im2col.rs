@@ -1,19 +1,19 @@
 use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
+    ops::{ConvOptions, conv::calculate_conv_output_size},
 };
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
+    CubeRuntime, FloatElement,
     kernel::{
-        conv::{index, ConvLaunchError},
-        into_contiguous, launch_binop,
-        matmul::{matmul, MatmulStrategy},
         AddOp,
+        conv::{ConvLaunchError, index},
+        into_contiguous, launch_binop,
+        matmul::{MatmulStrategy, matmul},
     },
     ops::{numeric::empty_device, reshape, swap_dims},
     tensor::CubeTensor,
-    CubeRuntime, FloatElement,
 };
 
 #[derive(CubeLaunch)]

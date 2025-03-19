@@ -1,5 +1,5 @@
-use burn_core::data::dataloader::Progress;
 use burn_core::LearningRate;
+use burn_core::data::dataloader::Progress;
 
 /// Event happening during the training/validation process.
 pub enum Event<T> {

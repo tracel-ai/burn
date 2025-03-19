@@ -4,7 +4,7 @@ mod tests {
 
     use super::*;
     use burn_tensor::TensorData;
-    use burn_vision::{as_type, ConnectedComponents, ConnectedStatsOptions, Connectivity};
+    use burn_vision::{ConnectedComponents, ConnectedStatsOptions, Connectivity, as_type};
 
     fn space_invader() -> [[IntType; 14]; 9] {
         as_type!(IntType: [

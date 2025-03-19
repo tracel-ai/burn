@@ -2,7 +2,7 @@ use std::env::args;
 
 use burn::{
     backend::ndarray::NdArray,
-    data::dataset::{vision::MnistDataset, Dataset},
+    data::dataset::{Dataset, vision::MnistDataset},
     tensor::Tensor,
 };
 

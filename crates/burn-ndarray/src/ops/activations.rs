@@ -1,12 +1,12 @@
 use crate::{
+    NdArray,
     element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
     execute_with_float_dtype,
     tensor::NdArrayTensor,
-    NdArray,
 };
 use burn_tensor::{
-    ops::{ActivationOps, FloatTensor},
     ElementConversion,
+    ops::{ActivationOps, FloatTensor},
 };
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ActivationOps<Self>

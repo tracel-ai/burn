@@ -1,5 +1,5 @@
 use burn::optim::decay::WeightDecayConfig;
-use text_generation::{training::ExperimentConfig, DbPediaDataset};
+use text_generation::{DbPediaDataset, training::ExperimentConfig};
 
 #[cfg(feature = "f16")]
 type Elem = burn::tensor::f16;

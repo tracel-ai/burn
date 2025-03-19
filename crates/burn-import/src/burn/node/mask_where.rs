@@ -117,9 +117,9 @@ mod tests {
 
     use super::*;
     use crate::burn::{
+        ScalarKind, TensorType,
         graph::BurnGraph,
         node::{mask_where::WhereNode, test::assert_tokens},
-        ScalarKind, TensorType,
     };
 
     #[test]

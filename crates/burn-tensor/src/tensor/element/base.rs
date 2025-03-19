@@ -1,9 +1,9 @@
 use core::cmp::Ordering;
 
 use crate::{
+    Distribution,
     cast::ToElement,
     quantization::{QuantizationScheme, QuantizationType},
-    Distribution,
 };
 #[cfg(feature = "cubecl")]
 use cubecl::flex32;

@@ -5,7 +5,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 pub use burn_derive::Module;
-use burn_tensor::{ops::Device, Bool, Int, Tensor};
+use burn_tensor::{Bool, Int, Tensor, ops::Device};
 
 /// Type alias to `Vec<B::Device>` which supports `no_std` environments, but automatically using
 /// the `alloc` crate.

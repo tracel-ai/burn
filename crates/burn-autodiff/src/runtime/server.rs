@@ -1,11 +1,11 @@
 use super::memory_management::GraphMemoryManagement;
 use crate::{
+    NodeID,
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     collections::HashMap,
     grads::Gradients,
-    graph::{traversal::BreadthFirstSearch, StepBoxed},
+    graph::{StepBoxed, traversal::BreadthFirstSearch},
     tensor::NodeRefCount,
-    NodeID,
 };
 use alloc::vec::Vec;
 

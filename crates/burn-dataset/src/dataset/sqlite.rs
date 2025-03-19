@@ -9,16 +9,16 @@ use std::{
 use crate::Dataset;
 
 use gix_tempfile::{
-    handle::{persist, Writable},
     AutoRemove, ContainingDirectory, Handle,
+    handle::{Writable, persist},
 };
 use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::{
-    rusqlite::{OpenFlags, OptionalExtension},
     SqliteConnectionManager,
+    rusqlite::{OpenFlags, OptionalExtension},
 };
 use sanitize_filename::sanitize;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use serde_rusqlite::{columns_from_statement, from_row_with_columns};
 
 /// Result type for the sqlite dataset.
@@ -636,7 +636,7 @@ mod tests {
     use rayon::prelude::*;
     use rstest::{fixture, rstest};
     use serde::{Deserialize, Serialize};
-    use tempfile::{tempdir, NamedTempFile, TempDir};
+    use tempfile::{NamedTempFile, TempDir, tempdir};
 
     use super::*;
 

@@ -1,14 +1,14 @@
 use std::any::TypeId;
 
 use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
+    ops::{ConvOptions, conv::calculate_conv_output_size},
 };
 use cubecl::{
-    flex32,
+    Feature, flex32,
     ir::{Elem, FloatKind},
     linalg::matmul::{self, kernels::MatmulLaunchError},
-    tensor_line_size, tf32, Feature,
+    tensor_line_size, tf32,
 };
 use half::{bf16, f16};
 
@@ -17,19 +17,20 @@ use super::{
     selection::{Balanced, ConvSelector, Large},
 };
 use crate::{
+    CubeElement, CubeRuntime, FloatElement,
     kernel::{
         conv::{
+            ConvLaunchError,
             conv2d::gemm::{
                 algorithm::{Algorithm, ImplicitCmmaConv},
                 base::{ConvolutionLaunch, ConvolutionProblem},
             },
-            nchw_to_nhwc, ConvLaunchError,
+            nchw_to_nhwc,
         },
         into_contiguous,
     },
     ops::{numeric::empty_device, permute, reshape},
     tensor::CubeTensor,
-    CubeElement, CubeRuntime, FloatElement,
 };
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul

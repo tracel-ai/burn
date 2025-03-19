@@ -1,4 +1,4 @@
-use rand::{distr::StandardUniform, Rng, RngCore};
+use rand::{Rng, RngCore, distr::StandardUniform};
 
 use crate::{Element, ElementConversion};
 

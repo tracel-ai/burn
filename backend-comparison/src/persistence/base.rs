@@ -1,11 +1,11 @@
 use super::system_info::BenchmarkSystemInfo;
 use burn::{
-    serde::{de::Visitor, ser::SerializeStruct, Deserialize, Serialize, Serializer},
+    serde::{Deserialize, Serialize, Serializer, de::Visitor, ser::SerializeStruct},
     tensor::backend::Backend,
 };
 use burn_common::benchmark::BenchmarkResult;
 use dirs;
-use reqwest::header::{HeaderMap, ACCEPT, AUTHORIZATION, USER_AGENT};
+use reqwest::header::{ACCEPT, AUTHORIZATION, HeaderMap, USER_AGENT};
 use serde_json;
 use std::time::Duration;
 use std::{fs, io::Write};

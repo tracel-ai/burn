@@ -1,9 +1,9 @@
 use cubecl::{
     linalg::matmul::{
         components::{
-            stage::{self, StageMatmulFamily},
-            tile::{accelerated::Accelerated, TileMatmulFamily},
             InvalidConfigError,
+            stage::{self, StageMatmulFamily},
+            tile::{TileMatmulFamily, accelerated::Accelerated},
         },
         kernels::matmul::AdvancedConfig,
     },

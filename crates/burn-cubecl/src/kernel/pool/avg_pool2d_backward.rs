@@ -1,6 +1,6 @@
 use crate::{
-    element::CubeElement, kernel::into_contiguous, ops::numeric::empty_device, tensor::CubeTensor,
-    CubeRuntime,
+    CubeRuntime, element::CubeElement, kernel::into_contiguous, ops::numeric::empty_device,
+    tensor::CubeTensor,
 };
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 

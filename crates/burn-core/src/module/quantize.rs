@@ -1,7 +1,7 @@
 use burn_tensor::{
+    Tensor,
     backend::Backend,
     quantization::{Calibration, QuantizationScheme},
-    Tensor,
 };
 
 use crate::module::{ModuleMapper, ParamId};

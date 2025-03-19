@@ -1,6 +1,7 @@
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
+    CubeRuntime,
     element::CubeElement,
     kernel::{conv::ConvLaunchError, into_contiguous},
     ops::{
@@ -8,9 +9,8 @@ use crate::{
         reshape,
     },
     tensor::CubeTensor,
-    CubeRuntime,
 };
-use burn_tensor::{ops::ConvTransposeOptions, Shape};
+use burn_tensor::{Shape, ops::ConvTransposeOptions};
 
 #[derive(CubeLaunch)]
 struct ConvArgs {

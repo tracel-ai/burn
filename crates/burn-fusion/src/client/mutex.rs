@@ -1,7 +1,7 @@
 use super::FusionClient;
 use crate::{
-    stream::{execution::Operation, StreamId},
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
+    stream::{StreamId, execution::Operation},
 };
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::DType;

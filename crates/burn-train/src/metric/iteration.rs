@@ -1,7 +1,7 @@
-use super::state::FormatOptions;
-use super::state::NumericMetricState;
 use super::MetricEntry;
 use super::MetricMetadata;
+use super::state::FormatOptions;
+use super::state::NumericMetricState;
 use crate::metric::{Metric, Numeric};
 
 /// The loss metric.

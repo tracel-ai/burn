@@ -1,4 +1,4 @@
-use crate::{ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime, IntElement};
+use crate::{CubeRuntime, IntElement, ops::numeric::empty_device, tensor::CubeTensor};
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
     tensor_line_size_parallel,

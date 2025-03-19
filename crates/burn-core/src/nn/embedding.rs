@@ -5,9 +5,9 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
-use crate::tensor::backend::Backend;
 use crate::tensor::Int;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 
 use crate::tensor::module::embedding;
 
@@ -78,8 +78,8 @@ impl<B: Backend> Embedding<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
 
     #[test]
     fn initializer_default() {

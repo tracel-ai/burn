@@ -1,5 +1,5 @@
 use cubecl::{
-    linalg::matmul::components::{stage::StageConfig, Ident},
+    linalg::matmul::components::{Ident, stage::StageConfig},
     prelude::*,
 };
 use cubecl_std::tensor::r#virtual::VirtualTensor;

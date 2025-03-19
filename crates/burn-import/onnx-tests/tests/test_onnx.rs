@@ -142,7 +142,7 @@ mod tests {
 
     use super::*;
 
-    use burn::tensor::{cast::ToElement, Bool, Int, Shape, Tensor, TensorData};
+    use burn::tensor::{Bool, Int, Shape, Tensor, TensorData, cast::ToElement};
 
     use float_cmp::ApproxEq;
 

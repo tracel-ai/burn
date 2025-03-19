@@ -2,18 +2,16 @@ use config::HomogeneousConfig;
 use cubecl::{
     linalg::matmul::{
         components::{
+            Ident, InvalidConfigError, MatrixLayout,
             global::{
-                self,
+                self, AccumulatorLoader, GlobalConfig, InputLoader, SyncInputLoader,
                 output_loader::Unloader,
-                single_stage::{self, loader::SyncRhsLoader, CyclicCoalescedLoading},
-                AccumulatorLoader, GlobalConfig, InputLoader, SyncInputLoader,
+                single_stage::{self, CyclicCoalescedLoading, loader::SyncRhsLoader},
             },
             stage::{
-                self,
+                self, ContiguousTilingLayout, RowMajorTilingOrder, StageMatmulFamily,
                 multi_buffer::{LhsReader, LhsReaderFamily, RhsReader, RhsReaderFamily},
-                ContiguousTilingLayout, RowMajorTilingOrder, StageMatmulFamily,
             },
-            Ident, InvalidConfigError, MatrixLayout,
         },
         kernels::matmul::AdvancedConfig,
     },
@@ -22,6 +20,7 @@ use cubecl::{
 use cubecl_std::tensor::r#virtual::{ReadWrite, VirtualTensor};
 use std::marker::PhantomData;
 
+use crate::kernel::conv::{conv2d::gemm::ConvGemmConfig as _, loader::bias::BiasLoader};
 use crate::kernel::conv::{
     conv2d::gemm::base::{
         Convolution, ConvolutionConfigFactory, ConvolutionFamily, ConvolutionLaunch,
@@ -30,7 +29,6 @@ use crate::kernel::conv::{
     loader::im2col::SimpleIm2colLoader,
     precision::ConvPrecision,
 };
-use crate::kernel::conv::{conv2d::gemm::ConvGemmConfig as _, loader::bias::BiasLoader};
 
 pub struct ImplicitGemmConvolutionFamily<SMM: StageMatmulFamily> {
     _smm: PhantomData<SMM>,
@@ -63,12 +61,12 @@ pub struct ImplicitGemmConvolution<
 impl<CS: ConvPrecision, SMM> Convolution<CS, SMM> for ImplicitGemmConvolution<CS, SMM>
 where
     SMM: stage::StageMatmul<
-        CS::ES,
-        CS::EG,
-        CS::EA,
-        LhsReader = LhsReader<CS::ES, ConvTilingLayout>,
-        RhsReader = RhsReader<CS::ES, ConvTilingLayout>,
-    >,
+            CS::ES,
+            CS::EG,
+            CS::EA,
+            LhsReader = LhsReader<CS::ES, ConvTilingLayout>,
+            RhsReader = RhsReader<CS::ES, ConvTilingLayout>,
+        >,
 {
     type LhsLoader = SimpleIm2colLoader<CS, Self::Config>;
     type Config = HomogeneousConfig<single_stage::Config<SMM::Config>>;

@@ -4,13 +4,13 @@ use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
-use bytemuck::{checked::CheckedCastError, AnyBitPattern};
+use bytemuck::{AnyBitPattern, checked::CheckedCastError};
 use half::{bf16, f16};
 
 use crate::{
+    DType, Distribution, Element, ElementConversion,
     quantization::{QuantizationScheme, QuantizationStrategy, QuantizationType, QuantizedBytes},
     tensor::bytes::Bytes,
-    DType, Distribution, Element, ElementConversion,
 };
 
 use num_traits::pow::Pow;
@@ -787,14 +787,8 @@ impl<E: Element, const A: usize, const B: usize, const C: usize, const D: usize>
     }
 }
 
-impl<
-        Elem: Element,
-        const A: usize,
-        const B: usize,
-        const C: usize,
-        const D: usize,
-        const E: usize,
-    > From<[[[[[Elem; E]; D]; C]; B]; A]> for TensorData
+impl<Elem: Element, const A: usize, const B: usize, const C: usize, const D: usize, const E: usize>
+    From<[[[[[Elem; E]; D]; C]; B]; A]> for TensorData
 {
     fn from(elems: [[[[[Elem; E]; D]; C]; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B * C * D * E);
@@ -868,11 +862,11 @@ fn compare_floats(value: f64, other: f64, ty: DType, tolerance: f64) -> Option<(
 
 #[cfg(test)]
 mod tests {
-    use crate::{quantization::AffineQuantization, Shape};
+    use crate::{Shape, quantization::AffineQuantization};
 
     use super::*;
     use alloc::vec;
-    use rand::{rngs::StdRng, SeedableRng};
+    use rand::{SeedableRng, rngs::StdRng};
 
     #[test]
     fn into_vec_should_yield_same_value_as_iter() {

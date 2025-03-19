@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use crate::module::{AutodiffModule, ModuleVisitor, ParamId};
 
-use burn_tensor::{backend::AutodiffBackend, Tensor};
+use burn_tensor::{Tensor, backend::AutodiffBackend};
 
 use super::GradientsParams;
 
@@ -75,10 +75,10 @@ impl<B: AutodiffBackend, M: AutodiffModule<B>> ModuleVisitor<B> for ModuleGradsA
 mod tests {
     use super::*;
     use crate::{
-        nn::{Linear, LinearConfig},
         TestAutodiffBackend,
+        nn::{Linear, LinearConfig},
     };
-    use burn_tensor::{backend::Backend, Distribution};
+    use burn_tensor::{Distribution, backend::Backend};
 
     #[test]
     fn test_accumulate_gradients_one_step() {

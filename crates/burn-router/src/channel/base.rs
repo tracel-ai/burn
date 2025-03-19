@@ -1,8 +1,8 @@
 use alloc::{string::String, vec::Vec};
 use burn_ir::TensorIr;
-use burn_tensor::{backend::DeviceOps, DType, Element};
+use burn_tensor::{DType, Element, backend::DeviceOps};
 
-use crate::{get_client, MultiBackendBridge, RouterTensor, RunnerClient};
+use crate::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 
 /// Type alias for `<Br as MultiBackendBridge>::TensorHandle`.
 pub type TensorHandle<Br> = <Br as MultiBackendBridge>::TensorHandle;

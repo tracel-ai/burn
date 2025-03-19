@@ -2,12 +2,12 @@ use burn_tensor::Shape;
 use cubecl::prelude::*;
 
 use crate::{
+    CubeElement, CubeRuntime,
     kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},
     tensor::CubeTensor,
-    CubeElement, CubeRuntime,
 };
 
-use super::{random, PrngArgs, PrngRuntime};
+use super::{PrngArgs, PrngRuntime, random};
 
 #[derive(CubeLaunch)]
 pub(crate) struct Uniform<E: Numeric> {

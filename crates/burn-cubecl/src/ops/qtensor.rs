@@ -1,16 +1,16 @@
 use std::ops::Range;
 
 use burn_tensor::{
+    DType, Device, Shape, TensorData,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
         BlockLayout, QuantizationParametersPrimitive, QuantizationScheme, QuantizationType,
     },
-    DType, Device, Shape, TensorData,
 };
 
 use crate::{
-    element::BoolElement, kernel, tensor::CubeTensor, CubeBackend, CubeRuntime, FloatElement,
-    IntElement,
+    CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement, kernel,
+    tensor::CubeTensor,
 };
 
 /// Create a quantized tensor with packed values (u32).

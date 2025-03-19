@@ -3,7 +3,7 @@ use crate::burn::{Scope, TensorType, Type};
 use burn::config::Config;
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 
 #[derive(Config, Debug)]
 pub struct TopKConfig {
@@ -54,9 +54,9 @@ mod tests {
 
     use super::*;
     use crate::burn::{
+        TensorType,
         graph::BurnGraph,
         node::{test::assert_tokens, top_k::TopKNode},
-        TensorType,
     };
 
     #[test]

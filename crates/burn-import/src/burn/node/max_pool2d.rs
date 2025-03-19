@@ -92,11 +92,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool2dNode {
 mod tests {
     use super::*;
     use crate::burn::{
+        TensorType,
         graph::BurnGraph,
         node::{max_pool2d::MaxPool2dNode, test::assert_tokens},
-        TensorType,
     };
-    use burn::{nn::pool::MaxPool2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings};
+    use burn::{nn::PaddingConfig2d, nn::pool::MaxPool2dConfig, record::FullPrecisionSettings};
 
     #[test]
     fn test_codegen() {

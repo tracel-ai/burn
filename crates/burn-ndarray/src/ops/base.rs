@@ -4,11 +4,11 @@ use burn_tensor::TensorData;
 use burn_tensor::TensorMetadata;
 use core::fmt::Debug;
 use core::{marker::PhantomData, ops::Range};
-use ndarray::s;
 use ndarray::Array2;
 use ndarray::IntoDimension;
 use ndarray::SliceInfo;
 use ndarray::Zip;
+use ndarray::s;
 use num_traits::Signed;
 
 #[cfg(not(feature = "std"))]
@@ -563,11 +563,7 @@ fn arg<E: NdArrayElement, I: NdArrayElement>(
                 CmpType::Max => e > &acc.0,
             };
 
-            if cmp {
-                (*e, idx)
-            } else {
-                acc
-            }
+            if cmp { (*e, idx) } else { acc }
         });
 
         (idx as i64).elem()

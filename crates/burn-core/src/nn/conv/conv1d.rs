@@ -5,8 +5,8 @@ use crate as burn;
 use crate::{
     config::Config,
     module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param},
-    nn::{conv::checks, Initializer, PaddingConfig1d},
-    tensor::{backend::Backend, module::conv1d, ops::ConvOptions, Tensor},
+    nn::{Initializer, PaddingConfig1d, conv::checks},
+    tensor::{Tensor, backend::Backend, module::conv1d, ops::ConvOptions},
 };
 
 /// Configuration to create a [1D convolution](Conv1d) layer using the [init function](Conv1dConfig::init).
@@ -154,8 +154,8 @@ impl<B: Backend> Conv1d<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
 
     #[test]
     fn initializer_default() {

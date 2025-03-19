@@ -111,9 +111,9 @@ mod tests {
 
     use super::*;
     use crate::burn::{
+        ScalarKind, ScalarType, TensorType,
         graph::BurnGraph,
         node::{gemm::GemmNode, test::assert_tokens},
-        ScalarKind, ScalarType, TensorType,
     };
 
     #[test]

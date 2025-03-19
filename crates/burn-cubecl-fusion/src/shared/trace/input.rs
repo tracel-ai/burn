@@ -1,5 +1,5 @@
 use super::{InputReference, TensorView};
-use crate::{shared::settings::FuseSettings, CubeFusionHandle};
+use crate::{CubeFusionHandle, shared::settings::FuseSettings};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr, TensorStatus};
 use cubecl::Runtime;

@@ -133,9 +133,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose2dNode {
 mod tests {
     use super::*;
     use crate::burn::{
+        TensorType,
         graph::BurnGraph,
         node::{conv_transpose_2d::ConvTranspose2dNode, test::assert_tokens},
-        TensorType,
     };
     use burn::{nn::conv::ConvTranspose2dConfig, record::FullPrecisionSettings};
 

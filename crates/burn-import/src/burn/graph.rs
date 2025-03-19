@@ -1,7 +1,7 @@
 use super::{BurnImports, Scope, Type};
 use crate::burn::{
-    node::{Node, NodeCodegen},
     TensorKind, TensorType,
+    node::{Node, NodeCodegen},
 };
 use burn::record::{
     BinFileRecorder, BurnRecord, FileRecorder, NamedMpkFileRecorder, NamedMpkGzFileRecorder,
@@ -10,8 +10,8 @@ use burn::record::{
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::{
-    ser::{SerializeMap, SerializeTuple},
     Serialize,
+    ser::{SerializeMap, SerializeTuple},
 };
 use std::{any::type_name, collections::HashMap, marker::PhantomData, path::PathBuf};
 

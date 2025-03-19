@@ -18,7 +18,7 @@ use ndarray::Array2;
 
 use crate::Connectivity;
 
-use super::{max_labels, Solver, StatsOp};
+use super::{Solver, StatsOp, max_labels};
 
 #[allow(non_snake_case)]
 mod Spaghetti4C_forest_labels;

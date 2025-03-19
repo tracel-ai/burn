@@ -1,13 +1,13 @@
 use core::fmt;
 use std::{
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
 
-use indicatif::{style::ProgressTracker, ProgressBar, ProgressState, ProgressStyle};
+use indicatif::{ProgressBar, ProgressState, ProgressStyle, style::ProgressTracker};
 
 pub(crate) struct RunnerProgressBar {
     pb: ProgressBar,

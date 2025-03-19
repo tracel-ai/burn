@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use burn_tensor::{backend::Backend, Shape, Tensor, TensorData};
+use burn_tensor::{Shape, Tensor, TensorData, backend::Backend};
 use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 
 mod connected_components;

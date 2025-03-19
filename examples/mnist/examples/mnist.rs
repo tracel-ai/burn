@@ -6,8 +6,8 @@
 ))]
 mod ndarray {
     use burn::backend::{
-        ndarray::{NdArray, NdArrayDevice},
         Autodiff,
+        ndarray::{NdArray, NdArrayDevice},
     };
     use mnist::training;
 
@@ -20,8 +20,8 @@ mod ndarray {
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
     use burn::backend::{
-        libtorch::{LibTorch, LibTorchDevice},
         Autodiff,
+        libtorch::{LibTorch, LibTorchDevice},
     };
     use mnist::training;
 
@@ -38,8 +38,8 @@ mod tch_gpu {
 #[cfg(feature = "wgpu")]
 mod wgpu {
     use burn::backend::{
-        wgpu::{Wgpu, WgpuDevice},
         Autodiff,
+        wgpu::{Wgpu, WgpuDevice},
     };
     use mnist::training;
 
@@ -52,8 +52,8 @@ mod wgpu {
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
     use burn::backend::{
-        libtorch::{LibTorch, LibTorchDevice},
         Autodiff,
+        libtorch::{LibTorch, LibTorchDevice},
     };
     use mnist::training;
 

@@ -1,10 +1,10 @@
+use crate::Tensor;
 use crate::check::TensorCheck;
 use crate::quantization::{QuantizationParameters, QuantizationScheme};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
-use crate::Tensor;
-use crate::{check, FloatDType};
+use crate::{FloatDType, check};
 use crate::{Int, TensorPrimitive};
 
 impl<const D: usize, B> Tensor<B, D>

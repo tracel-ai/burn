@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::backend::Backend;
-    use burn_tensor::{set_print_options, Element, PrintOptions, Shape, Tensor, TensorData};
+    use burn_tensor::{Element, PrintOptions, Shape, Tensor, TensorData, set_print_options};
 
     type FloatElem = <TestBackend as Backend>::FloatElem;
     type IntElem = <TestBackend as Backend>::IntElem;

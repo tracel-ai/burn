@@ -4,14 +4,15 @@ use burn_fusion::stream::Context;
 use burn_ir::{ReduceDimOpIr, TensorStatus};
 use burn_tensor::DType;
 use cubecl::prelude::*;
-use cubecl::reduce::{reduce_kernel, Reduce, ReduceParams, ReduceStrategy};
+use cubecl::reduce::{Reduce, ReduceParams, ReduceStrategy, reduce_kernel};
 use cubecl::{
+    CubeCount, CubeDim, Runtime,
     client::ComputeClient,
     reduce::{LineMode, ReduceConfig, ReduceError},
-    CubeCount, CubeDim, Runtime,
 };
 use serde::{Deserialize, Serialize};
 
+use crate::CubeFusionHandle;
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::trace::TraceError;
 use crate::shared::trace::{MultiTraceRunner, Vectorization};
@@ -19,7 +20,6 @@ use crate::shared::{
     ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
     trace::FuseTrace,
 };
-use crate::CubeFusionHandle;
 
 use super::args::{FusedReduceArgs, FusedReduceInputLaunch, FusedReduceOutputLaunch};
 use super::tune::fused_reduce_autotune;

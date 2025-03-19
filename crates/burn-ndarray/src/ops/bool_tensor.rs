@@ -8,11 +8,11 @@ use ndarray::{IntoDimension, Zip};
 
 // Current crate
 use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
-use crate::{new_tensor_float, NdArrayDevice};
-use crate::{tensor::NdArrayTensor, NdArray};
+use crate::{NdArray, tensor::NdArrayTensor};
+use crate::{NdArrayDevice, new_tensor_float};
 
 // Workspace crates
-use burn_tensor::{backend::Backend, Shape, TensorData};
+use burn_tensor::{Shape, TensorData, backend::Backend};
 
 use super::NdArrayOps;
 

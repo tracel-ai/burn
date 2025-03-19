@@ -97,8 +97,8 @@ impl GradientClipping {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::Tensor;
     use crate::TestBackend;
+    use crate::tensor::Tensor;
 
     #[test]
     fn test_clip_by_value() {

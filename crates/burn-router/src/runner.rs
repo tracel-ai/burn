@@ -4,13 +4,13 @@ use burn_ir::{
     BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer, IntOperationIr,
     ModuleOperationIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
 };
-use burn_tensor::{backend::Backend, DType, ElementConversion, FloatDType, Shape, TensorData};
+use burn_tensor::{DType, ElementConversion, FloatDType, Shape, TensorData, backend::Backend};
 use core::future::Future;
 
 use super::{RouterTensor, RunnerClient};
 use crate::{
     binary_bool_ops, binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
-    reduce_float2int_dim_ops, reduce_float_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
+    reduce_float_dim_ops, reduce_float2int_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
     scalar_float_dim_ops, scalar_float_ops, scalar_int_cmp_ops, scalar_int_dim_ops, scalar_int_ops,
     unary_float_ops, unary_int_ops,
 };

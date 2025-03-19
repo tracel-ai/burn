@@ -1,16 +1,16 @@
 use burn_tensor::{Element, ElementConversion};
 use cubecl::{
-    linalg::matmul::{kernels::tiling2d::Tiling2dConfig, Strategy},
-    tune::{local_tuner, LocalTuner, TunableSet},
+    linalg::matmul::{Strategy, kernels::tiling2d::Tiling2dConfig},
+    tune::{LocalTuner, TunableSet, local_tuner},
 };
 
 use crate::{
+    CubeRuntime, CubeTuneId,
     element::FloatElement,
     kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
     ops::numeric::empty_device,
     tensor::CubeTensor,
     tune_key::CubeAutotuneKey,
-    CubeRuntime, CubeTuneId,
 };
 
 use super::key::create_key;

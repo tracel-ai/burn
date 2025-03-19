@@ -62,9 +62,9 @@ mod tests {
 
     use super::*;
     use crate::burn::{
+        TensorType, Type,
         graph::BurnGraph,
         node::{test::assert_tokens, unsqueeze::UnsqueezeNode},
-        TensorType, Type,
     };
 
     #[test]

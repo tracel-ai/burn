@@ -1,8 +1,9 @@
 use alloc::sync::Arc;
 use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorId, TensorIr};
 use burn_tensor::{
+    DType, Shape, TensorData,
     backend::{Backend, DeviceId, DeviceOps},
-    try_read_sync, DType, Shape, TensorData,
+    try_read_sync,
 };
 
 use crate::{
@@ -376,7 +377,7 @@ impl_multi_backend_types!(quad, B1, B2, B3, B4);
 #[cfg(not(target_os = "windows"))] // cannot find a wgpu adapter on windows CI
 #[cfg(test)]
 mod tests {
-    use burn_tensor::{backend::Backend, Tensor};
+    use burn_tensor::{Tensor, backend::Backend};
 
     use super::*;
     use crate::tests::{TestBackend, TestBackend1, TestBackend2};

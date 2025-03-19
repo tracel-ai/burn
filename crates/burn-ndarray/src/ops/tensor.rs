@@ -6,15 +6,15 @@ use core::ops::Range;
 use ndarray::Zip;
 
 // Current crate
-use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
+use super::{NdArrayMathOps, NdArrayOps, matmul::matmul};
 use crate::element::{ExpElement, FloatNdArrayElement, IntNdArrayElement, QuantElement};
-use crate::{execute_with_float_dtype, NdArrayDevice, NdArrayTensorFloat, SEED};
-use crate::{tensor::NdArrayTensor, NdArray};
+use crate::{NdArray, tensor::NdArrayTensor};
+use crate::{NdArrayDevice, NdArrayTensorFloat, SEED, execute_with_float_dtype};
 
 // Workspace crates
 use burn_common::rand::get_seeded_rng;
-use burn_tensor::{backend::Backend, ops::FloatTensorOps, ElementConversion, Shape, TensorData};
 use burn_tensor::{DType, Distribution, FloatDType};
+use burn_tensor::{ElementConversion, Shape, TensorData, backend::Backend, ops::FloatTensorOps};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]

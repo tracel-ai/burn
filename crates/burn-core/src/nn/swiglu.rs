@@ -3,7 +3,7 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::activation::silu;
-use crate::tensor::{backend::Backend, Tensor};
+use crate::tensor::{Tensor, backend::Backend};
 
 use super::{Initializer, Linear, LinearConfig};
 

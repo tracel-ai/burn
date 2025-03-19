@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(cat)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Distribution, Tensor};
+    use burn_tensor::{Distribution, Tensor, backend::Backend};
 
     #[test]
     fn cat_should_match_reference_backend_dim0() {

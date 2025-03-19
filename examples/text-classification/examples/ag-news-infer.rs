@@ -39,7 +39,7 @@ pub fn launch<B: Backend>(device: B::Device) {
 mod ndarray {
     use burn::backend::ndarray::{NdArray, NdArrayDevice};
 
-    use crate::{launch, ElemType};
+    use crate::{ElemType, launch};
 
     pub fn run() {
         launch::<NdArray<ElemType>>(NdArrayDevice::Cpu);
@@ -48,7 +48,7 @@ mod ndarray {
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use crate::{launch, ElemType};
+    use crate::{ElemType, launch};
     use burn::backend::libtorch::{LibTorch, LibTorchDevice};
 
     pub fn run() {
@@ -63,7 +63,7 @@ mod tch_gpu {
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use crate::{launch, ElemType};
+    use crate::{ElemType, launch};
     use burn::backend::libtorch::{LibTorch, LibTorchDevice};
 
     pub fn run() {
@@ -73,7 +73,7 @@ mod tch_cpu {
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use crate::{launch, ElemType};
+    use crate::{ElemType, launch};
     use burn::backend::wgpu::{Wgpu, WgpuDevice};
 
     pub fn run() {
@@ -83,8 +83,8 @@ mod wgpu {
 
 #[cfg(feature = "cuda")]
 mod cuda {
-    use crate::{launch, ElemType};
-    use burn::backend::{cuda::CudaDevice, Cuda};
+    use crate::{ElemType, launch};
+    use burn::backend::{Cuda, cuda::CudaDevice};
 
     pub fn run() {
         launch::<Cuda<ElemType, i32>>(CudaDevice::default());

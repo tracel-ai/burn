@@ -4,9 +4,9 @@ use crate::{Bytes, Element};
 use alloc::vec::Vec;
 
 use super::{
-    pack_i8s_to_u32s, unpack_u32s_to_i8s, AffineQuantization, BlockLayout, QParams,
-    QuantizationMode, QuantizationScheme, QuantizationStrategy, QuantizationType,
-    SymmetricQuantization,
+    AffineQuantization, BlockLayout, QParams, QuantizationMode, QuantizationScheme,
+    QuantizationStrategy, QuantizationType, SymmetricQuantization, pack_i8s_to_u32s,
+    unpack_u32s_to_i8s,
 };
 
 /// Quantized data bytes representation.
@@ -265,7 +265,7 @@ unsafe fn reinterpret_vec<T, U>(mut input: Vec<T>) -> Vec<U> {
 
     core::mem::forget(input);
 
-    Vec::from_raw_parts(ptr, len, cap)
+    unsafe { Vec::from_raw_parts(ptr, len, cap) }
 }
 
 #[cfg(test)]

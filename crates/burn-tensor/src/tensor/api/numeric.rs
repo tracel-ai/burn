@@ -4,12 +4,12 @@ use crate::{alloc::borrow::ToOwned, cast::ToElement};
 
 use crate::TensorPrimitive;
 use crate::{
+    BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
+    TensorKind,
     backend::Backend,
     check,
     check::TensorCheck,
     ops::{Device, IntTensor},
-    BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
-    TensorKind,
 };
 
 /// Default RTOL value for `is_close` and `all_close`.
@@ -2127,7 +2127,7 @@ where
             .clone()
             .mask_fill(self.clone().lower_elem(0), num_classes as i64) // Handle negative indices
             .add(indices.clone().mask_fill(self.clone().greater_elem(0), 0)); // Handle positive indices
-                                                                              // Unsqueeze the indices tensor along the specified axis
+        // Unsqueeze the indices tensor along the specified axis
         let indices_unsqueezed: Tensor<B, D2, Int> = adjusted_indices.unsqueeze_dim(axis as usize);
 
         // Initialize the output tensor with the off_value

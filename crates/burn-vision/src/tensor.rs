@@ -1,6 +1,6 @@
 use burn_tensor::{
-    backend::Backend, ops::BoolTensor, BasicOps, Bool, Float, Int, Tensor, TensorKind,
-    TensorPrimitive,
+    BasicOps, Bool, Float, Int, Tensor, TensorKind, TensorPrimitive, backend::Backend,
+    ops::BoolTensor,
 };
 
 use crate::{

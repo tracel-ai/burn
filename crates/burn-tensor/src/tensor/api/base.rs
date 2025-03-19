@@ -16,10 +16,10 @@ use serde::{Serialize, Serializer};
 
 use crate::tensor::api::narrow::narrow;
 use crate::{
-    backend::Backend, check, ops::Device, Bool, Float, Int, Shape, TensorData, TensorKind,
+    Bool, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check, ops::Device,
 };
-use crate::{cast::ToElement, check::TensorCheck};
 use crate::{DType, Element, TensorPrimitive};
+use crate::{cast::ToElement, check::TensorCheck};
 
 use super::{TensorMetadata, Transaction};
 

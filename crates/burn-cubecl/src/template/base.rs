@@ -1,6 +1,6 @@
-use crate::{element::CubeElement, tensor::CubeTensor, CubeRuntime};
+use crate::{CubeRuntime, element::CubeElement, tensor::CubeTensor};
 use burn_common::ExecutionMode;
-use cubecl::{prelude::*, Compiler, KernelId};
+use cubecl::{Compiler, KernelId, prelude::*};
 
 use super::SourceTemplate;
 

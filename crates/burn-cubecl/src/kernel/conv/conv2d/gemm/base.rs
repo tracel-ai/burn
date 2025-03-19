@@ -1,25 +1,25 @@
 use burn_tensor::ops::ConvOptions;
 use cubecl::linalg::matmul::{
     components::{
+        InvalidConfigError, MatmulProblem, MatrixLayout,
         global::{AccumulatorLoader, OutputLoader},
         stage::{StageMatmul, StageMatmulFamily},
-        InvalidConfigError, MatmulProblem, MatrixLayout,
     },
     kernels::matmul::AdvancedConfig,
 };
 use cubecl::prelude::*;
 use cubecl_std::tensor::r#virtual::{ReadWrite, VirtualTensor};
 
-use super::{homogeneous::base::ConvTilingLayout, precision::ConvPrecision, ConvGemmConfig};
+use super::{ConvGemmConfig, homogeneous::base::ConvTilingLayout, precision::ConvPrecision};
 
 pub trait ConvolutionFamily<SMM: StageMatmulFamily>:
     ConvolutionConfigFactory<Config: ConvGemmConfig> + ConvolutionLaunch
 {
     type Convolution<CS: ConvPrecision>: Convolution<
-        CS,
-        SMM::Matmul<CS::ES, CS::EG, CS::EA, ConvTilingLayout, ConvTilingLayout>,
-        Config = Self::Config,
-    >;
+            CS,
+            SMM::Matmul<CS::ES, CS::EG, CS::EA, ConvTilingLayout, ConvTilingLayout>,
+            Config = Self::Config,
+        >;
 }
 
 #[cube]
