@@ -180,7 +180,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     fn name(device: &Self::Device) -> String {
         match device {
             CandleDevice::Cpu => "candle<cpu>",
-            CandleDevice::Cuda(..) => "cancle<cuda>",
+            CandleDevice::Cuda(..) => "candle<cuda>",
             CandleDevice::Metal(..) => "candle<metal>",
         }
         .to_string()

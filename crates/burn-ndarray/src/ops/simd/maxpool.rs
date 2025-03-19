@@ -106,7 +106,7 @@ mod nhwc {
         let x = x.view();
         let x = x.permuted_axes([0, 2, 3, 1]);
 
-        // Floor divison ensures `blocks * lanes * blocking factor` is always `<= out_channels`.
+        // Floor division ensures `blocks * lanes * blocking factor` is always `<= out_channels`.
         // An exclusive loop will always have `lanes * blocking factor` elements in bounds.
         let blocks = channels / ch_block;
         let blocks_end = blocks * ch_block;
