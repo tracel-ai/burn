@@ -66,7 +66,8 @@ impl FuseTrace {
 
         OutputPlanner::<R>::new(&self.resources).run::<BT>(client, device, context, &mut plan);
 
-        VectorizationPlanner::<R>::new(&self.resources).run(runner, context, &mut plan);
+        VectorizationPlanner::<R>::new(&self.resources, &self.blocks)
+            .run(runner, context, &mut plan);
 
         match LaunchPlanExecutor::<R>::new(&self.resources, &self.blocks)
             .execute::<_, BT>(client, runner, context, plan)
@@ -107,7 +108,8 @@ impl FuseTrace {
     ) -> BTreeMap<TensorId, super::Vect> {
         let mut plan = LaunchPlan::<R>::new(&self.blocks);
 
-        VectorizationPlanner::<R>::new(&self.resources).run(runner, context, &mut plan);
+        VectorizationPlanner::<R>::new(&self.resources, &self.blocks)
+            .run(runner, context, &mut plan);
 
         plan.vectorizations
     }

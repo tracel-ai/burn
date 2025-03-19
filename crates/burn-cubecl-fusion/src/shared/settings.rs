@@ -13,5 +13,12 @@ pub struct FuseSettings {
     /// Enables the reuse of input buffers.
     pub inplace: bool,
     /// Whether vectorization is enabled.
-    pub vectorization: bool,
+    pub vectorization: VectorizationSetting,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum VectorizationSetting {
+    Activated,
+    SmallerThanPreviousBlock,
+    Deactivated,
 }

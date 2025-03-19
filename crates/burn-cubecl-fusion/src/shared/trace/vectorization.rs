@@ -7,20 +7,28 @@ use cubecl::{
     Runtime,
 };
 
-use crate::{shared::trace::Vect, CubeFusionHandle};
+use crate::{
+    shared::{settings::VectorizationSetting, trace::Vect},
+    CubeFusionHandle,
+};
 
-use super::{HandleOutput, KernelResources, LaunchPlan, TensorView, Vectorization};
+use super::{
+    block::FuseBlock, BlockPlan, HandleInput, HandleOutput, KernelResources, LaunchPlan,
+    TensorView, Vectorization,
+};
 
 /// Select the best vectorization factor for each tensor handle.
 pub struct VectorizationPlanner<'a, R: Runtime> {
     resources: &'a KernelResources,
+    blocks: &'a Vec<FuseBlock>,
     _r: PhantomData<R>,
 }
 
 impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
-    pub fn new(resources: &'a KernelResources) -> Self {
+    pub fn new(resources: &'a KernelResources, blocks: &'a Vec<FuseBlock>) -> Self {
         Self {
             resources,
+            blocks,
             _r: PhantomData,
         }
     }
@@ -116,36 +124,134 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             plan.vectorizations.insert(global.id, Vect::Aligned(1));
         }
 
-        for handle in plan.handle_inputs.iter_mut() {
+        let mut block_vectorization = Vec::with_capacity(self.blocks.len());
+        for _ in 0..self.blocks.len() {
+            block_vectorization.push(Vec::new());
+        }
+
+        for (input_pos, handle) in plan.handle_inputs.iter_mut().enumerate() {
             let (vect, br) = match plan.vectorizations.get(&handle.global_id) {
                 Some(v) => (v.line_size(), v.is_broadcast()),
                 None => panic!("No vectorization factor found for {:?}", handle.global_id),
             };
-            handle.vectorization = vect;
-            handle.broadcated = br;
 
-            for block in plan.blocks.iter_mut() {
-                if block.reads.contains_key(&handle.relative_id)
-                    && block.width < handle.vectorization
-                {
-                    block.width = handle.vectorization;
+            for (block_pos, block_plan) in plan.blocks.iter().enumerate() {
+                if block_plan.reads.contains_key(&handle.relative_id) {
+                    block_vectorization[block_pos].push(BlockVectorization {
+                        action: VectorizationAction::Input(input_pos),
+                        potential: vect,
+                        broadcated: br,
+                    });
                 }
             }
         }
 
-        for handle in plan.handle_outputs.iter_mut() {
+        for (output_pos, handle) in plan.handle_outputs.iter().enumerate() {
             if let HandleOutput::Owned {
-                vectorization,
                 global_id,
                 relative_id,
                 ..
             } = handle
             {
-                *vectorization = plan.vectorizations.get(global_id).unwrap().line_size();
+                for (block_pos, block_plan) in plan.blocks.iter().enumerate() {
+                    if block_plan.writes.contains_key(&relative_id) {
+                        let vectorization = plan.vectorizations.get(global_id).unwrap().line_size();
+                        block_vectorization[block_pos].push(BlockVectorization {
+                            action: VectorizationAction::Output(output_pos),
+                            potential: vectorization,
+                            broadcated: false,
+                        });
+                    }
+                }
+            }
+        }
 
-                for block in plan.blocks.iter_mut() {
-                    if block.writes.contains_key(&relative_id) && block.width < *vectorization {
-                        block.width = *vectorization;
+        let mut previous_width = 1;
+
+        for ((tmp, block_plan), block) in block_vectorization
+            .into_iter()
+            .zip(plan.blocks.iter_mut())
+            .zip(self.blocks)
+        {
+            match block.settings.vectorization {
+                VectorizationSetting::Activated => {
+                    apply_vectorization_block(
+                        tmp,
+                        &mut plan.handle_inputs,
+                        &mut plan.handle_outputs,
+                        block_plan,
+                        u8::MAX,
+                    );
+                }
+                VectorizationSetting::SmallerThanPreviousBlock => {
+                    apply_vectorization_block(
+                        tmp,
+                        &mut plan.handle_inputs,
+                        &mut plan.handle_outputs,
+                        block_plan,
+                        previous_width,
+                    );
+                }
+                VectorizationSetting::Deactivated => {
+                    apply_vectorization_block(
+                        tmp,
+                        &mut plan.handle_inputs,
+                        &mut plan.handle_outputs,
+                        block_plan,
+                        1,
+                    );
+                }
+            }
+            previous_width = block_plan.width;
+        }
+    }
+}
+
+enum VectorizationAction {
+    Input(usize),
+    Output(usize),
+}
+
+struct BlockVectorization {
+    action: VectorizationAction,
+    potential: u8,
+    broadcated: bool,
+}
+
+fn apply_vectorization_block<R: Runtime>(
+    block_vectorization: Vec<BlockVectorization>,
+    inputs: &mut Vec<HandleInput<R>>,
+    outputs: &mut Vec<HandleOutput<R>>,
+    block_plan: &mut BlockPlan,
+    max: u8,
+) {
+    for item in block_vectorization {
+        match item.action {
+            VectorizationAction::Input(pos) => {
+                let (vect, br) = if item.potential <= max {
+                    (item.potential, item.broadcated)
+                } else {
+                    (1, false)
+                };
+
+                inputs[pos].vectorization = vect;
+                inputs[pos].broadcated = br;
+
+                if block_plan.width < vect {
+                    block_plan.width = vect;
+                }
+            }
+            VectorizationAction::Output(pos) => {
+                if let HandleOutput::Owned { vectorization, .. } = &mut outputs[pos] {
+                    let vect = if item.potential <= max {
+                        item.potential
+                    } else {
+                        1
+                    };
+                    *vectorization = vect;
+
+                    if block_plan.width < vect {
+                        block_plan.width = vect;
                     }
                 }
             }

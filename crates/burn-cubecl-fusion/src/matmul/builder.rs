@@ -6,7 +6,11 @@ use burn_ir::{FloatOperationIr, OperationIr};
 use cubecl::Runtime;
 
 use crate::{
-    shared::{builder::FuseBuilder, ir::ElemwisePrecision, settings::FuseSettings},
+    shared::{
+        builder::FuseBuilder,
+        ir::ElemwisePrecision,
+        settings::{FuseSettings, VectorizationSetting},
+    },
     CubeOptimization,
 };
 
@@ -34,7 +38,7 @@ impl<R: Runtime> MatmulBuilder<R> {
             broadcast: true,
             output_shape_updates: false,
             inplace: true,
-            vectorization: true,
+            vectorization: VectorizationSetting::Activated,
         };
 
         Self {

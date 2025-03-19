@@ -2,7 +2,11 @@ use burn_fusion::OptimizationBuilder;
 use cubecl::Runtime;
 
 use crate::{
-    shared::{builder::FuseBuilder, ir::ElemwisePrecision, settings::FuseSettings},
+    shared::{
+        builder::FuseBuilder,
+        ir::ElemwisePrecision,
+        settings::{FuseSettings, VectorizationSetting},
+    },
     CubeOptimization,
 };
 
@@ -28,7 +32,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                     broadcast: true,
                     output_shape_updates: true,
                     inplace: true,
-                    vectorization: true,
+                    vectorization: VectorizationSetting::Activated,
                 },
             ),
             device,

@@ -6,7 +6,11 @@ use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
 use cubecl::{reduce::ReduceStrategy, Runtime};
 
 use crate::{
-    shared::{builder::FuseBuilder, ir::ElemwisePrecision, settings::FuseSettings},
+    shared::{
+        builder::FuseBuilder,
+        ir::ElemwisePrecision,
+        settings::{FuseSettings, VectorizationSetting},
+    },
     CubeOptimization,
 };
 
@@ -36,13 +40,13 @@ impl<R: Runtime> ReduceBuilder<R> {
             broadcast: true,
             output_shape_updates: true,
             inplace: true,
-            vectorization: true,
+            vectorization: VectorizationSetting::Activated,
         };
         let settings_write = FuseSettings {
             broadcast: true,
             output_shape_updates: false,
             inplace: true,
-            vectorization: true,
+            vectorization: VectorizationSetting::SmallerThanPreviousBlock,
         };
 
         Self {
@@ -82,7 +86,6 @@ impl<R: Runtime> ReduceBuilder<R> {
             },
             inst,
         ));
-        // self.builder.close();
         self.builder_read_fallback.close();
         self.status = OptimizationStatus::Open;
     }
