@@ -52,7 +52,6 @@ impl FuseBlockBuilder {
         if resources.indexed.contains_key(&tensor.id) {
             return None;
         }
-        self.outputs.insert(tensor.dtype.into(), tensor.clone());
         let precision = tensor.dtype.into();
 
         // Bool tensors are encoded as bool_precision.
@@ -66,6 +65,7 @@ impl FuseBlockBuilder {
             None => {
                 let out = self.locals.create(precision, tensor.id);
 
+                self.outputs.insert(precision_output, tensor.clone());
                 resources.outputs.insert(precision_output, tensor.clone());
 
                 out
@@ -95,6 +95,7 @@ impl FuseBlockBuilder {
                 // An input can be an output of a previously fused operation.
                 // We need to flag the new status for the tensor.
                 resources.outputs.update(tensor);
+                self.outputs.update(tensor);
 
                 local
             }
@@ -273,6 +274,7 @@ impl FuseBlockBuilder {
         &self,
         resources: &KernelResources,
         shape_ref: Vec<usize>,
+        offset: usize,
     ) -> (FuseBlock, RegisteredTensors) {
         let ops = self.ops.clone();
         let reads = self.reads.clone();
@@ -288,7 +290,11 @@ impl FuseBlockBuilder {
                     tensor.id,
                     ElemwiseOp::Assign(UnaryElemwiseArgs {
                         input: local,
-                        out: Arg::Output(out_index, *precision, LayoutInfo::Unknown),
+                        out: Arg::Output(
+                            out_index + offset as u32,
+                            *precision,
+                            LayoutInfo::Unknown,
+                        ),
                     }),
                 );
             }

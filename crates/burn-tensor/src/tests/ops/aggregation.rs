@@ -282,7 +282,6 @@ mod tests {
 
         let output = (tensor_1 + tensor_2.clone()).sum_dim(2) + tensor_2;
         TestBackend::sync(&output.device());
-        panic!("YOY");
         let expected = TensorData::from([[[56.0], [77.0]]]);
 
         output.into_data().assert_eq(&expected, false);

@@ -31,7 +31,12 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
             // the global graph, since the status of the global graph
             // might be of a later operation on the same tensor id.
             let status = &tensor_relative.status;
+            // println!(
+            //     "HERE Global({:?}) Relative({:?})",
+            //     tensor_global.id, tensor_relative.id
+            // );
             let mut handle = context.handles.get_handle(&tensor_global.id, status);
+            // println!("DONE");
 
             self.analyze(plan, pos, tensor_relative, &handle);
 
@@ -54,6 +59,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
             });
             plan.global_inputs.push(tensor_global);
         }
+        // println!("Finished");
     }
 
     fn analyze(

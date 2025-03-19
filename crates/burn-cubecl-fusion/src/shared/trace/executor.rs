@@ -54,6 +54,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
     ) -> Result<(), ExecutionError<R, Runner>> {
+        println!("Plan {plan:?}");
         let mut num_writes = 0;
         for b in plan.blocks.iter() {
             num_writes += b.writes.len();
@@ -61,6 +62,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
 
         if num_writes == 0 {
             // Nothing to write, can skip execution.
+            println!("Nothing to execute");
             return Ok(());
         }
 

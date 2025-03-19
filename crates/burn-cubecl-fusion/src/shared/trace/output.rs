@@ -31,6 +31,7 @@ struct OutputSorted<'a> {
     tensor_relative: &'a TensorIr,
 }
 
+#[derive(Debug)]
 enum OutputKind {
     Normal,
     Inplace {

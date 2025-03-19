@@ -82,16 +82,27 @@ impl<R: Runtime> ReduceBuilder<R> {
             },
             inst,
         ));
-        self.builder.close();
+        // self.builder.close();
         self.builder_read_fallback.close();
         self.status = OptimizationStatus::Open;
     }
 
-    fn on_elemwise(&mut self, operation: &OperationIr) {
+    fn on_elemwise_read(&mut self, operation: &OperationIr) {
         self.builder.register(operation);
 
         if self.builder_read_fallback.len() < self.builder.len() {
             self.builder_read_fallback.register(operation);
+        }
+
+        self.status = self.builder.status();
+    }
+    fn on_elemwise_write(&mut self, operation: &OperationIr) {
+        self.builder.register(operation);
+
+        if self.builder_write_fallback.len()
+            < (self.builder.len() - self.builder_read_fallback.len())
+        {
+            self.builder_write_fallback.register(operation);
         }
 
         self.status = self.builder.status();
@@ -123,7 +134,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
                         self.on_reduce(op, ReduceInstruction::ArgMin);
                     }
                     _ => {
-                        self.on_elemwise(operation);
+                        self.on_elemwise_read(operation);
                     }
                 };
             } else if let OperationIr::NumericInt(_, op) = operation {
@@ -144,16 +155,17 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
                         self.on_reduce(op, ReduceInstruction::ArgMin);
                     }
                     _ => {
-                        self.on_elemwise(operation);
+                        self.on_elemwise_read(operation);
                     }
                 };
             } else {
                 // On fuse on read.
-                self.on_elemwise(operation);
+                self.on_elemwise_read(operation);
             }
         } else {
             // On fuse on write.
-            self.on_elemwise(operation);
+            println!("Fuse on write. {operation:?}");
+            self.on_elemwise_write(operation);
         }
     }
 

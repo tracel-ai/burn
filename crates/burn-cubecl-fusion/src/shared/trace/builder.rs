@@ -166,19 +166,26 @@ impl FuseTraceBuilder {
         let mut outputs = RegisteredTensors::default();
         let mut blocks = Vec::new();
 
-        let mut register_block = |block: &FuseBlockBuilder, shape_ref: &Vec<usize>| {
-            let (block, block_tensor_writes) = block.build(&self.resources, shape_ref.clone());
-            blocks.push(block);
+        let mut register_block =
+            |block: &FuseBlockBuilder, shape_ref: &Vec<usize>, offset: usize| {
+                let (block, block_tensor_writes) =
+                    block.build(&self.resources, shape_ref.clone(), offset);
+                blocks.push(block);
 
-            for (ir, precision) in block_tensor_writes.into_iter() {
-                outputs.insert(precision, ir);
-            }
-        };
+                let num_outputs = block_tensor_writes.len();
+                for (ir, precision) in block_tensor_writes.into_iter() {
+                    outputs.insert(precision, ir);
+                }
+
+                num_outputs
+            };
+
+        let mut offset = 0;
 
         for (block, shape_ref) in self.blocks_previous.iter() {
-            register_block(block, shape_ref);
+            offset += register_block(block, shape_ref, offset);
         }
-        register_block(&self.block_current, &shape_ref);
+        register_block(&self.block_current, &shape_ref, offset);
 
         // We update the output tensors registered to be the ones that are written to in global
         // memory.

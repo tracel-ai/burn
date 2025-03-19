@@ -193,6 +193,7 @@ impl FuseBuilder {
             .builder
             .next_block(current_output_shape, settings);
         self.settings = settings;
+        self.status = OptimizationStatus::Open;
     }
 
     pub fn output_unhandled(&mut self, tensor: &TensorIr) -> Arg {
