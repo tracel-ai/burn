@@ -1,6 +1,6 @@
 [package]
 authors = ["Dilshod Tadjibaev (@antimora)"]
-edition = "2021"
+edition.workspace = true
 license = "MIT OR Apache-2.0"
 name = "pytorch-import"
 publish = false
