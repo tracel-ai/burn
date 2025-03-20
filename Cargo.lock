@@ -1810,6 +1810,7 @@ version = "0.5.0"
 dependencies = [
  "cubecl-core",
  "cubecl-runtime",
+ "serde",
 ]
 
 [[package]]
