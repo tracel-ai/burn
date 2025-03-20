@@ -473,7 +473,7 @@ impl ParsedOnnxGraph {
 
     fn random_uniform_like_conversion(node: Node) -> RandomUniformLikeNode {
         let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let output = input.copy_with_rename(&node.outputs.first().unwrap().name);
         let low = node
             .attrs
             .get("low")
