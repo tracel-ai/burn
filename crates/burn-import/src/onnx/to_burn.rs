@@ -516,7 +516,7 @@ impl ParsedOnnxGraph {
 
     fn random_normal_like_conversion(node: Node) -> RandomNormalLikeNode {
         let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let output = input.copy_with_rename(&node.outputs.first().unwrap().name);
         let mean = node
             .attrs
             .get("mean")

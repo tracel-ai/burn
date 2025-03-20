@@ -269,6 +269,10 @@ impl TensorType {
             },
         }
     }
+
+    pub fn copy_with_rename<S: AsRef<str>>(&self, name: S) -> Self {
+        Self::new(name, self.rank, self.kind, self.shape.clone())
+    }
 }
 
 impl OtherType {
