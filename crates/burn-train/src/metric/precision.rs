@@ -11,7 +11,7 @@ use burn_core::{
 use core::marker::PhantomData;
 use std::num::NonZeroUsize;
 
-///The Precision Metric
+/// The Precision Metric
 #[derive(Default)]
 pub struct PrecisionMetric<B: Backend> {
     state: NumericMetricState,
