@@ -9,7 +9,7 @@ use crate::{
 
 use super::{PrngArgs, PrngRuntime, random};
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 pub(crate) struct Bernoulli<E: Numeric> {
     probability: E,
 }

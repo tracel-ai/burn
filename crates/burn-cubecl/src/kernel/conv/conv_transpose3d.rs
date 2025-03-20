@@ -12,7 +12,7 @@ use crate::{
 };
 use burn_tensor::{Element, Shape, ops::ConvTransposeOptions};
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct ConvArgs {
     conv_stride_0: u32,
     conv_stride_1: u32,

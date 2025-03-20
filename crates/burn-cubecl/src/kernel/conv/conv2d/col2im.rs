@@ -215,7 +215,7 @@ fn col2im<R: CubeRuntime, E: FloatElement>(
     };
 }
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct Col2ImArgs {
     out_h: u32,
     out_w: u32,

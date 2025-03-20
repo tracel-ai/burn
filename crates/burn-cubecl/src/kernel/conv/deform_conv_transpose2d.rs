@@ -246,7 +246,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime, E: FloatElement>(
     Ok((grad_offset, mask_gradient))
 }
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct DeformConv2dCol2ImgCoordArgs<F: Float> {
     stride_h: u32,
     stride_w: u32,
@@ -523,7 +523,7 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
     }
 }
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct DeformConv2dCol2ImgArgs<F: Float> {
     stride_h: u32,
     stride_w: u32,
@@ -636,6 +636,7 @@ trait FloatAtomicAdd: Send + Sync + 'static {
 
 #[derive(CubeType)]
 struct IntrinsicFloatAtomicAdd<F: Float> {
+    #[cube(comptime)]
     _ty: PhantomData<F>,
 }
 

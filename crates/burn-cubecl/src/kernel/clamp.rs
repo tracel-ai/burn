@@ -7,7 +7,7 @@ use crate::{
     tensor::CubeTensor,
 };
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct Options<C: Numeric> {
     min_value: C,
     max_value: C,

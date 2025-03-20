@@ -16,7 +16,7 @@ use crate::{
     tensor::CubeTensor,
 };
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct Im2ColArgs {
     stride_h: u32,
     stride_w: u32,

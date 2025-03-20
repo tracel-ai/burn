@@ -219,17 +219,19 @@ fn find_common_vec(channels: usize, elems_per_thread: u32, supported_vecs: &[u8]
         .unwrap_or(1)
 }
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct ConvArgs {
     stride_h: u32,
     stride_w: u32,
+    #[allow(dead_code)]
     pad_h: i32,
+    #[allow(dead_code)]
     pad_w: i32,
     dilation_h: u32,
     dilation_w: u32,
 }
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct Dimensions {
     gemm_m: u32,
     gemm_n: u32,

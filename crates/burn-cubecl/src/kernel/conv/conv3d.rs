@@ -15,7 +15,7 @@ use crate::{
     tensor::CubeTensor,
 };
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct Conv3dArgs {
     conv_stride_0: u32,
     conv_stride_1: u32,

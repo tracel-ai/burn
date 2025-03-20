@@ -9,7 +9,7 @@ use crate::{
 
 use super::{PrngArgs, PrngRuntime, random};
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 pub(crate) struct Uniform<E: Numeric> {
     lower_bound: E,
     upper_bound: E,

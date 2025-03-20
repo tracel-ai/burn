@@ -123,7 +123,7 @@ pub(crate) mod unary_basic_int {
         BitwiseNot,
     }
 
-    #[derive(CubeLaunch)]
+    #[derive(CubeLaunch, CubeType)]
     struct BasicIntUnaryOptions {
         #[cube(comptime)]
         kind: BasicIntUnaryKind,
