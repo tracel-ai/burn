@@ -181,7 +181,7 @@ impl TensorData {
     }
 
     /// Returns the tensor data as a vector of scalar values. Does not check dtype.
-    pub fn into_vec_unchecked<E: Element>(self) -> Result<Vec<E>, DataError> {
+    fn into_vec_unchecked<E: Element>(self) -> Result<Vec<E>, DataError> {
         let mut me = self;
         me.bytes = match me.bytes.try_into_vec::<E>() {
             Ok(elems) => return Ok(elems),

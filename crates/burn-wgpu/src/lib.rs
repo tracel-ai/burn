@@ -32,11 +32,11 @@ pub use cubecl::wgpu::WgslCompiler;
 /// Tensor backend that uses the wgpu crate for executing GPU compute shaders.
 ///
 /// This backend can target multiple graphics APIs, including:
-///   - [Vulkan] on Linux, Windows, and Android.
-///   - [OpenGL](crate::OpenGl) on Linux, Windows, and Android.
-///   - [DirectX 12](crate::Dx12) on Windows.
-///   - [Metal] on Apple hardware.
-///   - [WebGPU](crate::WebGpu) on supported browsers and `wasm` runtimes.
+///   - [Vulkan][crate::graphics::Vulkan] on Linux, Windows, and Android.
+///   - [OpenGL](crate::graphics::OpenGl) on Linux, Windows, and Android.
+///   - [DirectX 12](crate::graphics::Dx12) on Windows.
+///   - [Metal][crate::graphics::Metal] on Apple hardware.
+///   - [WebGPU](crate::graphics::WebGpu) on supported browsers and `wasm` runtimes.
 ///
 /// To configure the wgpu backend, eg. to select what graphics API to use or what memory strategy to use,
 /// you have to manually initialize the runtime. For example:
