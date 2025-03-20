@@ -5,20 +5,20 @@ use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::Elem};
 
 use crate::{
     CubeFusionHandle, elem_dtype, is_contiguous,
-    shared::ir::{Arg, ElemwiseOp, LayoutInfo},
+    shared::ir::{Arg, FuseOp, LayoutInfo},
     strides_dyn_rank,
 };
 
 use super::{
-    super::ir::ElemwisePrecision, BlockPlan, HandleInput, HandleOutput, InputReference,
-    KernelResources, LaunchPlan, ReferenceSelection, TensorView,
+    super::ir::FusePrecision, BlockPlan, FuseResources, HandleInput, HandleOutput, InputReference,
+    LaunchPlan, ReferenceSelection, TensorView,
 };
 
 /// Create or reuse handles for the outputs.
 ///
 /// It is also responsible to select the reference tensor.
 pub struct OutputPlanner<'a, R: Runtime> {
-    resources: &'a KernelResources,
+    resources: &'a FuseResources,
     outputs_sorted: Vec<OutputSorted<'a>>,
     handles: Vec<Option<HandleOutput<R>>>,
     globals: Vec<Option<TensorIr>>,
@@ -27,7 +27,7 @@ pub struct OutputPlanner<'a, R: Runtime> {
 #[derive(Debug)]
 struct OutputSorted<'a> {
     pos_original: usize,
-    precision: ElemwisePrecision,
+    precision: FusePrecision,
     tensor_relative: &'a TensorIr,
 }
 
@@ -42,7 +42,7 @@ enum OutputKind {
 }
 
 impl<'a, R: Runtime> OutputPlanner<'a, R> {
-    pub fn new(resources: &'a KernelResources) -> Self {
+    pub fn new(resources: &'a FuseResources) -> Self {
         let mut outputs_sorted: Vec<_> = resources
             .outputs
             .iter()
@@ -198,7 +198,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 if strides == &hi.handle.strides && shape == &hi.global_shape {
                     if let Some(ops) = block.reads.get_mut(&hi.relative_id) {
                         for op in ops.iter_mut() {
-                            if let ElemwiseOp::Assign(op) = op {
+                            if let FuseOp::Assign(op) = op {
                                 op.input.add_layout_info(LayoutInfo::SameAsRef);
                             }
                         }
@@ -276,18 +276,18 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
             if let Some(ops) = block.reads.get_mut(&handle_input.relative_id) {
                 for op in ops.iter_mut() {
-                    if let ElemwiseOp::Assign(op) = op {
+                    if let FuseOp::Assign(op) = op {
                         op.input.add_layout_info(LayoutInfo::IsRef);
                     };
                 }
             }
 
-            if let Some(ElemwiseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
+            if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
                 op.out.add_layout_info(LayoutInfo::IsRef);
             };
         } else {
             // Already validated, necessary for correctness.
-            if let Some(ElemwiseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
+            if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
                 op.out.add_layout_info(LayoutInfo::SameAsRef);
             };
         }
@@ -329,7 +329,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             };
 
             // Sometimes outputs that are manually handled don't have any write registered.
-            if let Some(ElemwiseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
+            if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
                 op.out.add_layout_info(LayoutInfo::IsRef);
             };
         } else if let ReferenceSelection::Concrete {
@@ -339,7 +339,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         } = &block.reference
         {
             if ref_strides == &strides && ref_shape == &tensor_global.shape {
-                if let ElemwiseOp::Assign(op) =
+                if let FuseOp::Assign(op) =
                     block.writes.get_mut(&output.tensor_relative.id).unwrap()
                 {
                     op.out.add_layout_info(LayoutInfo::SameAsRef);

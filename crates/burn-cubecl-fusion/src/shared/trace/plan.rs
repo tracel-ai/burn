@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::{
     CubeFusionHandle,
-    shared::ir::{Arg, ElemwiseOp, ElemwisePrecision},
+    shared::ir::{Arg, FuseOp, FusePrecision},
 };
 use burn_ir::{TensorId, TensorIr};
 use cubecl::Runtime;
@@ -27,8 +27,8 @@ pub(crate) struct BlockPlan<'a> {
     pub potential_inplaces: Vec<PotentialInplace<'a>>,
     pub potential_reference_input: Option<InputReference>,
     pub reference: ReferenceSelection,
-    pub reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
-    pub writes: BTreeMap<TensorId, ElemwiseOp>,
+    pub reads: BTreeMap<TensorId, Vec<FuseOp>>,
+    pub writes: BTreeMap<TensorId, FuseOp>,
     pub width: u8,
 }
 
@@ -138,12 +138,12 @@ impl<R: Runtime> LaunchPlan<'_, R> {
 pub enum HandleOutput<R: Runtime> {
     Alias {
         input_pos: usize,
-        precision: ElemwisePrecision,
+        precision: FusePrecision,
     },
     Owned {
         global_id: TensorId,
         relative_id: TensorId,
-        precision: ElemwisePrecision,
+        precision: FusePrecision,
         handle: CubeFusionHandle<R>,
         global_shape: Vec<usize>,
         vectorization: u8,
@@ -154,7 +154,7 @@ pub enum HandleOutput<R: Runtime> {
 pub struct HandleInput<R: Runtime> {
     pub relative_id: TensorId,
     pub global_id: TensorId,
-    pub precision: ElemwisePrecision,
+    pub precision: FusePrecision,
     pub handle: CubeFusionHandle<R>,
     pub global_shape: Vec<usize>,
     pub vectorization: u8,

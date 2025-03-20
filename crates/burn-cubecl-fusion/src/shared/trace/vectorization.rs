@@ -10,19 +10,19 @@ use cubecl::{
 use crate::{CubeFusionHandle, shared::settings::VectorizationSetting, shared::trace::Vect};
 
 use super::{
-    BlockPlan, HandleInput, HandleOutput, KernelResources, LaunchPlan, TensorView, Vectorization,
+    BlockPlan, FuseResources, HandleInput, HandleOutput, LaunchPlan, TensorView, Vectorization,
     block::FuseBlock,
 };
 
 /// Select the best vectorization factor for each tensor handle.
 pub struct VectorizationPlanner<'a, R: Runtime> {
-    resources: &'a KernelResources,
+    resources: &'a FuseResources,
     blocks: &'a Vec<FuseBlock>,
     _r: PhantomData<R>,
 }
 
 impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
-    pub fn new(resources: &'a KernelResources, blocks: &'a Vec<FuseBlock>) -> Self {
+    pub fn new(resources: &'a FuseResources, blocks: &'a Vec<FuseBlock>) -> Self {
         Self {
             resources,
             blocks,

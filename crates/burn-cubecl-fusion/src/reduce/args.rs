@@ -3,7 +3,7 @@ use cubecl::{prelude::*, reduce::args::ReduceDType};
 
 use crate::shared::io::{ref_buffer_len, ref_len, ref_shape, ref_stride};
 use crate::shared::ir::{
-    Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand,
+    Arg, FuseConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand,
 };
 use crate::shared::kernel::{fuse_on_read, fuse_on_write, init_locals};
 
@@ -14,7 +14,7 @@ pub struct FusedReduceArgs;
 pub struct FusedReduceInput {
     global: GlobalArgs,
     #[cube(comptime)]
-    config: ElemwiseConfig,
+    config: FuseConfig,
     #[cube(comptime)]
     arg: Arg,
 }
@@ -23,7 +23,7 @@ pub struct FusedReduceInput {
 pub struct FusedReduceOutput {
     global: GlobalArgs,
     #[cube(comptime)]
-    config: ElemwiseConfig,
+    config: FuseConfig,
     #[cube(comptime)]
     arg: Arg,
 }
@@ -33,8 +33,8 @@ pub struct FusedReduceState {
     outputs: *mut GlobalArgs,
     locals_on_read: *mut LocalArgs,
     locals_on_write: *mut LocalArgs,
-    config_on_read: ElemwiseConfig,
-    config_on_write: ElemwiseConfig,
+    config_on_read: FuseConfig,
+    config_on_write: FuseConfig,
     input: Arg,
     out: Arg,
 }
@@ -45,8 +45,8 @@ pub struct FusedReduceStateExpand {
     outputs: GlobalArgsExpand,
     locals_on_read: LocalArgsExpand,
     locals_on_write: LocalArgsExpand,
-    config_on_read: ElemwiseConfig,
-    config_on_write: ElemwiseConfig,
+    config_on_read: FuseConfig,
+    config_on_write: FuseConfig,
     input: Arg,
     out: Arg,
 }

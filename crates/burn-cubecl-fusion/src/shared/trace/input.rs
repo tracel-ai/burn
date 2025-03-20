@@ -1,4 +1,4 @@
-use super::{BlockPlan, InputReference, KernelResources, TensorView, block::FuseBlock};
+use super::{BlockPlan, FuseResources, InputReference, TensorView, block::FuseBlock};
 use crate::CubeFusionHandle;
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
@@ -10,13 +10,13 @@ use super::{HandleInput, LaunchPlan, PotentialInplace};
 /// Fetch and register [input handles](HandleInput) and itendify potential inputs that
 /// can be used inplace.
 pub struct InputPlanner<'a, R: Runtime> {
-    resources: &'a KernelResources,
+    resources: &'a FuseResources,
     blocks: &'a Vec<FuseBlock>,
     _r: PhantomData<R>,
 }
 
 impl<'a, R: Runtime> InputPlanner<'a, R> {
-    pub fn new(resources: &'a KernelResources, blocks: &'a Vec<FuseBlock>) -> Self {
+    pub fn new(resources: &'a FuseResources, blocks: &'a Vec<FuseBlock>) -> Self {
         Self {
             resources,
             blocks,

@@ -9,23 +9,20 @@ use cubecl::{
 };
 
 use super::{
-    HandleInput, HandleOutput, KernelResources, LaunchPlan, ReferenceSelection, TensorView,
+    FuseResources, HandleInput, HandleOutput, LaunchPlan, ReferenceSelection, TensorView,
     TraceError, TraceRunner, block::FuseBlock,
 };
 use crate::{
     CubeFusionHandle, elem_dtype,
     shared::{
-        ir::{
-            ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch, RefLayout,
-            VirtualLayout,
-        },
+        ir::{FuseConfig, FuseOp, FusePrecision, GlobalArgsLaunch, RefLayout, VirtualLayout},
         tensor::{GlobalScalar, GlobalTensorArg},
     },
 };
 
 /// Execute a [plan](LaunchPlan) using a [runner](TraceRunner) modifying the [context](Context).
 pub struct LaunchPlanExecutor<'a, R: Runtime> {
-    resources: &'a KernelResources,
+    resources: &'a FuseResources,
     blocks: &'a Vec<FuseBlock>,
     _r: PhantomData<R>,
 }
@@ -38,7 +35,7 @@ pub struct ExecutionError<R: Runtime, Runner: TraceRunner<R>> {
 }
 
 impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
-    pub fn new(resources: &'a KernelResources, blocks: &'a Vec<FuseBlock>) -> Self {
+    pub fn new(resources: &'a FuseResources, blocks: &'a Vec<FuseBlock>) -> Self {
         Self {
             resources,
             blocks,
@@ -95,7 +92,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 }
             };
 
-            let mut ops = Sequence::<ElemwiseOp>::new();
+            let mut ops = Sequence::<FuseOp>::new();
 
             for read_ops in block_plan.reads.into_values() {
                 for op in read_ops {
@@ -111,7 +108,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 ops.push(op);
             }
 
-            let config = ElemwiseConfig {
+            let config = FuseConfig {
                 rank: plan.rank as u32,
                 ref_layout: reference,
                 ops,
@@ -170,9 +167,9 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                 let arg = handle.as_tensor_arg(global_shape, *vectorization);
 
                 let elem = match precision {
-                    ElemwisePrecision::Bool => match elem_dtype::<BT>() {
-                        DType::U32 => ElemwisePrecision::U32.into_elem(),
-                        DType::U8 => ElemwisePrecision::U8.into_elem(),
+                    FusePrecision::Bool => match elem_dtype::<BT>() {
+                        DType::U32 => FusePrecision::U32.into_elem(),
+                        DType::U8 => FusePrecision::U8.into_elem(),
                         _ => todo!(),
                     },
                     _ => precision.into_elem(),
@@ -184,7 +181,7 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
 }
 
 fn register_scalars<'h, R: Runtime>(
-    scalars: impl Iterator<Item = &'h (ElemwisePrecision, u32)>,
+    scalars: impl Iterator<Item = &'h (FusePrecision, u32)>,
     views: impl DoubleEndedIterator<Item = &'h TensorView>,
     context: &mut Context<'_, CubeFusionHandle<R>>,
     inputs: &mut GlobalArgsLaunch<'h, R>,
@@ -203,73 +200,73 @@ fn register_scalars<'h, R: Runtime>(
 
     for (precision, _pos) in scalars {
         match precision {
-            ElemwisePrecision::F32 => {
+            FusePrecision::F32 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::F32(context.scalar_f32[index_f32]));
                 index_f32 += 1;
             }
-            ElemwisePrecision::F16 => {
+            FusePrecision::F16 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::F16(context.scalar_f16[index_f16]));
                 index_f16 += 1;
             }
-            ElemwisePrecision::BF16 => {
+            FusePrecision::BF16 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::BF16(context.scalar_bf16[index_bf16]));
                 index_bf16 += 1;
             }
-            ElemwisePrecision::I64 => {
+            FusePrecision::I64 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::I64(context.scalar_i64[index_i64]));
                 index_i64 += 1;
             }
-            ElemwisePrecision::I32 => {
+            FusePrecision::I32 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::I32(context.scalar_i32[index_i32]));
                 index_i32 += 1;
             }
-            ElemwisePrecision::I16 => {
+            FusePrecision::I16 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::I16(context.scalar_i16[index_i16]));
                 index_i16 += 1;
             }
-            ElemwisePrecision::I8 => {
+            FusePrecision::I8 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::I8(context.scalar_i8[index_i8]));
                 index_i8 += 1;
             }
-            ElemwisePrecision::U64 => {
+            FusePrecision::U64 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::U64(context.scalar_u64[index_u64]));
                 index_u64 += 1;
             }
-            ElemwisePrecision::U32 => {
+            FusePrecision::U32 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::U32(context.scalar_u32[index_u32]));
                 index_u32 += 1;
             }
-            ElemwisePrecision::U16 => {
+            FusePrecision::U16 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::U16(context.scalar_u16[index_u16]));
                 index_u16 += 1;
             }
-            ElemwisePrecision::U8 => {
+            FusePrecision::U8 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::U8(context.scalar_u8[index_u8]));
                 index_u8 += 1;
             }
-            ElemwisePrecision::Bool => todo!(),
+            FusePrecision::Bool => todo!(),
         }
     }
 

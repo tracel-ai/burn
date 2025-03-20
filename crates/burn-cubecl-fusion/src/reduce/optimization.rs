@@ -18,7 +18,7 @@ use crate::shared::ir::RefLayout;
 use crate::shared::trace::Vectorization;
 use crate::shared::trace::{TraceError, TraceRunner};
 use crate::shared::{
-    ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
+    ir::{Arg, FuseConfig, GlobalArgsLaunch},
     trace::FuseTrace,
 };
 
@@ -268,7 +268,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        configs: &'a [ElemwiseConfig],
+        configs: &'a [FuseConfig],
     ) -> Result<(), FusedReduceError> {
         let [config_read, config_write] = [&configs[0], &configs[1]];
         self.strategy
@@ -349,8 +349,8 @@ struct ReduceKwArgs<'a, 'b, Run: Runtime> {
     axis: u32,
     strategy: &'b ReduceStrategy,
     config_reduce: ReduceConfig,
-    config_fuse_read: &'a ElemwiseConfig,
-    config_fuse_write: &'a ElemwiseConfig,
+    config_fuse_read: &'a FuseConfig,
+    config_fuse_write: &'a FuseConfig,
     input: &'a Arg,
     output: &'a Arg,
 }

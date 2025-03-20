@@ -4,8 +4,8 @@ use cubecl::Runtime;
 use crate::{
     CubeOptimization,
     shared::{
-        builder::FuseBuilder,
-        ir::ElemwisePrecision,
+        builder::FuseOptimizationBuilder,
+        ir::FusePrecision,
         settings::{FuseSettings, VectorizationSetting},
     },
 };
@@ -14,18 +14,18 @@ use super::optimization::ElemwiseOptimization;
 
 /// Fused element wise operations that are normally memory bound.
 pub struct ElementWiseBuilder<R: Runtime> {
-    builder: FuseBuilder,
+    builder: FuseOptimizationBuilder,
     device: R::Device,
 }
 
 impl<R: Runtime> ElementWiseBuilder<R> {
-    pub fn new(device: R::Device, bool_precision: ElemwisePrecision) -> Self {
+    pub fn new(device: R::Device, bool_precision: FusePrecision) -> Self {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware_properties().max_bindings;
 
         Self {
-            builder: FuseBuilder::new(
+            builder: FuseOptimizationBuilder::new(
                 max_bindings,
                 bool_precision,
                 FuseSettings {

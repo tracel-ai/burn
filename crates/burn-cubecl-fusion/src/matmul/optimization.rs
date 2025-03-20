@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::CubeFusionHandle;
 use crate::elemwise::optimization::ElemwiseRunner;
-use crate::shared::ir::ElemwisePrecision;
+use crate::shared::ir::FusePrecision;
 use crate::shared::ir::RefLayout;
 use crate::shared::trace::TraceError;
 use crate::shared::trace::Vectorization;
@@ -25,7 +25,7 @@ use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
 use crate::shared::{
-    ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
+    ir::{Arg, FuseConfig, GlobalArgsLaunch},
     trace::{FuseTrace, TraceRunner},
 };
 
@@ -259,16 +259,12 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmul {
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        configs: &'a [ElemwiseConfig],
+        configs: &'a [FuseConfig],
     ) -> Result<(), FusedMatmulError> {
         match self.out.precision() {
-            ElemwisePrecision::F32 => {
-                self.matmul_fused::<R, f32>(client, inputs, outputs, &configs[0])
-            }
-            ElemwisePrecision::F16 => {
-                self.matmul_fused::<R, f16>(client, inputs, outputs, &configs[0])
-            }
-            ElemwisePrecision::BF16 => {
+            FusePrecision::F32 => self.matmul_fused::<R, f32>(client, inputs, outputs, &configs[0]),
+            FusePrecision::F16 => self.matmul_fused::<R, f16>(client, inputs, outputs, &configs[0]),
+            FusePrecision::BF16 => {
                 self.matmul_fused::<R, bf16>(client, inputs, outputs, &configs[0])
             }
             _ => panic!("Unsupported precision"),
@@ -282,7 +278,7 @@ impl FusedMatmul {
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        config: &'a ElemwiseConfig,
+        config: &'a FuseConfig,
     ) -> Result<(), FusedMatmulError> {
         let lhs_shape = inputs.shape(&self.lhs);
         let rhs_shape = inputs.shape(&self.rhs);

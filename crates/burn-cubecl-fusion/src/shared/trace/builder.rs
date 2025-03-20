@@ -1,9 +1,9 @@
 use super::{
     super::{
-        ir::{Arg, ElemwiseOp, ElemwisePrecision, LayoutInfo},
+        ir::{Arg, FuseOp, FusePrecision, LayoutInfo},
         settings::FuseSettings,
     },
-    KernelResources,
+    FuseResources,
     block::FuseBlockBuilder,
 };
 use super::{FuseTrace, RegisteredTensors};
@@ -11,17 +11,21 @@ use burn_ir::TensorIr;
 use burn_tensor::{DType, Element};
 
 #[derive(Clone, Debug)]
+/// It is responsible to create a [trace](FuseTrace) composed of multiple [blocks](super::block::FuseBlock).
+///
+/// It mostly handles the [resources](KernelResources) needed by the generated fused kernel, and
+/// delegates most of the work to the [block builder](FuseBlockBuilder).
 pub struct FuseTraceBuilder {
     settings: FuseSettings,
-    pub bool_precision: ElemwisePrecision,
+    pub bool_precision: FusePrecision,
     // The tensors returned by the block that doesn't need to be written to global memory.
     block_current: FuseBlockBuilder,
     blocks_previous: Vec<(FuseBlockBuilder, Vec<usize>)>,
-    resources: KernelResources,
+    resources: FuseResources,
 }
 
 impl FuseTraceBuilder {
-    pub fn new(bool_precision: ElemwisePrecision, settings: FuseSettings) -> Self {
+    pub fn new(bool_precision: FusePrecision, settings: FuseSettings) -> Self {
         Self {
             settings,
             bool_precision,
@@ -32,7 +36,7 @@ impl FuseTraceBuilder {
     }
 
     /// Register an operation.
-    pub fn register_operation(&mut self, op: ElemwiseOp) {
+    pub fn register_operation(&mut self, op: FuseOp) {
         self.block_current.ops.push(op);
     }
 
@@ -89,7 +93,7 @@ impl FuseTraceBuilder {
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
-            ElemwisePrecision::Bool => self.bool_precision,
+            FusePrecision::Bool => self.bool_precision,
             _ => precision,
         };
         let new_input = self
@@ -151,7 +155,7 @@ impl FuseTraceBuilder {
 
         // Bool scalars are encoded as bool_precision.
         let precision = match precision {
-            ElemwisePrecision::Bool => self.bool_precision,
+            FusePrecision::Bool => self.bool_precision,
             _ => precision,
         };
         let new_index = self.resources.scalars.len() as u32;

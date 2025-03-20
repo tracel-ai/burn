@@ -1,5 +1,5 @@
 use super::{
-    super::ir::{ElemwiseConfig, GlobalArgsLaunch},
+    super::ir::{FuseConfig, GlobalArgsLaunch},
     Vect,
 };
 use crate::CubeFusionHandle;
@@ -20,7 +20,7 @@ pub trait TraceRunner<R: Runtime>: Vectorization<R> {
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        configs: &'a [ElemwiseConfig],
+        configs: &'a [FuseConfig],
     ) -> Result<(), Self::Error>;
 }
 

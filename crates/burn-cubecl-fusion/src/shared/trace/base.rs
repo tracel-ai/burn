@@ -1,6 +1,6 @@
 use crate::{
     CubeFusionHandle,
-    shared::ir::{Arg, ElemwisePrecision},
+    shared::ir::{Arg, FusePrecision},
 };
 
 use super::{
@@ -15,17 +15,24 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-/// Trace containing all element wise operations as well as reads and writes.
+/// A trace constains all [blocks](FuseBlock) and the [resources](KernelResources) used by the
+/// kernel.
 pub struct FuseTrace {
     pub blocks: Vec<FuseBlock>,
-    pub resources: KernelResources,
+    pub resources: FuseResources,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
-pub struct KernelResources {
+/// Declare all resources used by the kernel, and potentially multiple [blocks](FuseBlock).
+///
+/// # Notes
+///
+/// Each block can't contain their own resources, since they are shared between blocks. The
+/// vectorization factor of one input tensor must be the same for all blocks.
+pub struct FuseResources {
     pub outputs: RegisteredTensors,
     pub inputs: RegisteredTensors,
-    pub scalars: Vec<(ElemwisePrecision, u32)>,
+    pub scalars: Vec<(FusePrecision, u32)>,
     pub views: Vec<TensorView>,
     pub indexed: BTreeMap<TensorId, Arg>,
     pub inputs_unhandled: Vec<TensorId>,
@@ -120,14 +127,14 @@ impl FuseTrace {
 
 #[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub struct RegisteredTensors {
-    tensors: Vec<(TensorIr, ElemwisePrecision)>,
+    tensors: Vec<(TensorIr, FusePrecision)>,
 }
 
 impl RegisteredTensors {
-    pub fn iter(&self) -> impl Iterator<Item = &(TensorIr, ElemwisePrecision)> {
+    pub fn iter(&self) -> impl Iterator<Item = &(TensorIr, FusePrecision)> {
         self.tensors.iter()
     }
-    pub fn into_iter(self) -> impl Iterator<Item = (TensorIr, ElemwisePrecision)> {
+    pub fn into_iter(self) -> impl Iterator<Item = (TensorIr, FusePrecision)> {
         self.tensors.into_iter()
     }
 
@@ -143,13 +150,13 @@ impl RegisteredTensors {
             .map(|(pos, (_, _))| pos as u32)
     }
 
-    pub fn get(&self, tensor_id: TensorId) -> Option<&(TensorIr, ElemwisePrecision)> {
+    pub fn get(&self, tensor_id: TensorId) -> Option<&(TensorIr, FusePrecision)> {
         self.tensors
             .iter()
             .find(|(tensor, _)| tensor.id == tensor_id)
     }
 
-    pub fn insert(&mut self, precision: ElemwisePrecision, tensor: TensorIr) -> u32 {
+    pub fn insert(&mut self, precision: FusePrecision, tensor: TensorIr) -> u32 {
         let value = (tensor, precision);
         if let Some(old) = self
             .tensors
