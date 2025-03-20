@@ -5,11 +5,11 @@ use super::{
         ir::{ElemwiseOp, ElemwisePrecision},
         settings::FuseSettings,
     },
+    HandleInput, HandleOutput, LaunchPlan, MultiTraceRunner, TraceRunner, Vectorization,
     executor::{LaunchMultiPlanExecutor, LaunchPlanExecutor},
     input::InputPlanner,
     output::OutputPlanner,
     vectorization::VectorizationPlanner,
-    HandleInput, HandleOutput, LaunchPlan, MultiTraceRunner, TraceRunner, Vectorization,
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};

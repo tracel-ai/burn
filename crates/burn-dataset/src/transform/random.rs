@@ -1,5 +1,5 @@
 use crate::Dataset;
-use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, prelude::SliceRandom, rngs::StdRng};
 use std::marker::PhantomData;
 
 /// Shuffled a dataset, consider using [sampler dataset](crate::transform::SamplerDataset) is you

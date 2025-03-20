@@ -18,7 +18,7 @@ pub mod tensor;
 /// Elements for JIT backend
 pub mod element;
 
-use cubecl::{compute::CubeTask, Feature, Runtime};
+use cubecl::{Feature, Runtime, compute::CubeTask};
 pub use element::{BoolElement, CubeElement, FloatElement, IntElement};
 
 mod backend;
@@ -47,10 +47,7 @@ pub trait CubeRuntime: Runtime<Device = Self::CubeDevice, Server = Self::CubeSer
     /// The device that should also implement [burn_tensor::backend::DeviceOps].
     type CubeDevice: burn_tensor::backend::DeviceOps;
     /// The cube server with the [CubeAutotuneKey].
-    type CubeServer: cubecl::server::ComputeServer<
-        Kernel = Box<dyn CubeTask<Self::Compiler>>,
-        Feature = Feature,
-    >;
+    type CubeServer: cubecl::server::ComputeServer<Kernel = Box<dyn CubeTask<Self::Compiler>>, Feature = Feature>;
 }
 
 pub use cubecl::CubeTuneId;

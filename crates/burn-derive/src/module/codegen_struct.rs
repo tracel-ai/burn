@@ -1,5 +1,5 @@
 use super::{codegen::ModuleCodegen, record_struct::StructModuleRecordCodegen};
-use crate::shared::field::{parse_fields, FieldTypeAnalyzer};
+use crate::shared::field::{FieldTypeAnalyzer, parse_fields};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::Visibility;

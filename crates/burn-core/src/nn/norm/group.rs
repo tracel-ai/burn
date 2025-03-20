@@ -5,8 +5,8 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
-use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 
 /// Configuration to create a [GroupNorm](GroupNorm) layer using the [init function](GroupNormConfig::init).
 #[derive(Debug, Config)]
@@ -189,8 +189,8 @@ pub(crate) fn group_norm<B: Backend, const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
     use alloc::format;
 
     #[test]

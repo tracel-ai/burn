@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use super::{execution::Operation, OperationConverter, RelativeOps};
+use super::{OperationConverter, RelativeOps, execution::Operation};
 use crate::FusionRuntime;
 use burn_ir::{OperationIr, TensorId};
 

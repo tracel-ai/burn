@@ -1,7 +1,7 @@
-use crate::{element::BoolElement, tensor::CubeTensor, CubeRuntime, FloatElement, IntElement};
+use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor::CubeTensor};
 use burn_tensor::backend::{Backend, DeviceOps};
 use cubecl::server::ComputeServer;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use std::{marker::PhantomData, sync::Mutex};
 
 #[cfg(not(feature = "fusion"))]

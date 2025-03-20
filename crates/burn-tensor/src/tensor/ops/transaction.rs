@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use core::future::Future;
 
 use super::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-use crate::{backend::Backend, TensorData};
+use crate::{TensorData, backend::Backend};
 
 #[derive(Default)]
 /// Contains all tensor primitives that are going to be read.

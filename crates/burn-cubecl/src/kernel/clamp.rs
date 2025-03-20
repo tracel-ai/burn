@@ -1,10 +1,10 @@
 use cubecl::prelude::*;
 
 use crate::{
-    element::CubeElement,
-    kernel::{launch_unary_numeric, NumericUnaryOp, NumericUnaryOpFamily},
-    tensor::CubeTensor,
     CubeRuntime,
+    element::CubeElement,
+    kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric},
+    tensor::CubeTensor,
 };
 
 #[derive(CubeLaunch)]

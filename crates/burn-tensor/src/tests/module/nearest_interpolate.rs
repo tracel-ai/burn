@@ -1,9 +1,9 @@
 #[burn_tensor_testgen::testgen(module_nearest_interpolate)]
 mod tests {
     use super::*;
+    use burn_tensor::Shape;
     use burn_tensor::module::interpolate;
     use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
-    use burn_tensor::Shape;
 
     #[test]
     fn test_upsample_interpolation() {

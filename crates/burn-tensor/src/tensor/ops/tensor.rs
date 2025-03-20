@@ -2,10 +2,10 @@ use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
 use crate::tensor::cast::ToElement;
-use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Float, TensorData};
+use crate::{Distribution, ElementConversion, Float, TensorData, backend::Backend, tensor::Shape};
 use crate::{
-    tensor::api::chunk, tensor::api::narrow, tensor::api::split, tensor::api::split_with_sizes,
-    FloatDType, TensorMetadata, TensorPrimitive,
+    FloatDType, TensorMetadata, TensorPrimitive, tensor::api::chunk, tensor::api::narrow,
+    tensor::api::split, tensor::api::split_with_sizes,
 };
 use alloc::vec::Vec;
 use core::future::Future;
@@ -39,7 +39,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The tensor with the given shape and random values.
     fn float_random(shape: Shape, distribution: Distribution, device: &Device<B>)
-        -> FloatTensor<B>;
+    -> FloatTensor<B>;
 
     /// Creates a new tensor with zeros.
     ///
@@ -94,7 +94,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The data structure with the tensor's data.
     fn float_into_data(tensor: FloatTensor<B>)
-        -> impl Future<Output = TensorData> + 'static + Send;
+    -> impl Future<Output = TensorData> + 'static + Send;
 
     /// Gets the device of the tensor.
     ///

@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(max_pool2d)]
 mod tests {
     use super::*;
-    use burn_tensor::{module, Distribution, Tensor};
+    use burn_tensor::{Distribution, Tensor, module};
 
     #[test]
     pub fn max_pool2d_should_match_reference_backends() {

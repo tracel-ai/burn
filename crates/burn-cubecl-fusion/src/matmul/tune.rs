@@ -1,12 +1,12 @@
 use crate::{
-    tune::{TuneContext, TuneInput},
     CubeFusionHandle,
+    tune::{TuneContext, TuneInput},
 };
 use burn_fusion::stream::Context;
 use cubecl::{
-    linalg::matmul::tune_key::MatmulAutotuneKey,
-    tune::{local_tuner, LocalTuner, TunableSet},
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
+    linalg::matmul::tune_key::MatmulAutotuneKey,
+    tune::{LocalTuner, TunableSet, local_tuner},
 };
 use serde::{Deserialize, Serialize};
 

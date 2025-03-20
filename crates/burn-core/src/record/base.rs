@@ -2,7 +2,7 @@ pub use burn_derive::Record;
 use burn_tensor::backend::Backend;
 
 use super::PrecisionSettings;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 /// Trait to define a family of types which can be recorded using any [settings](PrecisionSettings).
 pub trait Record<B: Backend>: Send {

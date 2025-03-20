@@ -20,7 +20,7 @@ exclude = [
 ]
 
 [workspace.package]
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 version = "0.17.0"
@@ -160,9 +160,9 @@ portable-atomic = { version = "1.11.0" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7b87694d9fef34509e7399d045da7a35c2850d3d" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7b87694d9fef34509e7399d045da7a35c2850d3d" }
-cubecl-std = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7b87694d9fef34509e7399d045da7a35c2850d3d" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c386d0202f3b1a9855cdb29ea945658a1455513a" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c386d0202f3b1a9855cdb29ea945658a1455513a" }
+cubecl-std = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c386d0202f3b1a9855cdb29ea945658a1455513a" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

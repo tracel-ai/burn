@@ -3,7 +3,7 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Param;
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use crate::tensor::{backend::Backend, Tensor};
+use crate::tensor::{Tensor, backend::Backend};
 
 use super::Initializer;
 
@@ -106,8 +106,8 @@ impl<B: Backend> ModuleDisplay for Linear<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{Shape, TensorData};
     use crate::TestBackend;
+    use crate::tensor::{Shape, TensorData};
 
     #[test]
     fn initializer_default() {

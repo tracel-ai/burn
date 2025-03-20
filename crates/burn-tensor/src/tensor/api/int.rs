@@ -1,5 +1,5 @@
 use crate::{
-    backend::Backend, cartesian_grid, Float, Int, Shape, Tensor, TensorData, TensorPrimitive,
+    Float, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend, cartesian_grid,
 };
 
 use core::ops::Range;

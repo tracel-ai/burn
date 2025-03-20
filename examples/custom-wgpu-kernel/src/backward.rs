@@ -4,10 +4,10 @@ use super::{AutodiffBackend, Backend};
 use burn::{
     backend::{
         autodiff::{
+            Autodiff, NodeID,
             checkpoint::{base::Checkpointer, strategy::CheckpointStrategy},
             grads::Gradients,
-            ops::{broadcast_shape, Backward, Ops, OpsKind},
-            Autodiff, NodeID,
+            ops::{Backward, Ops, OpsKind, broadcast_shape},
         },
         wgpu::{BoolElement, CubeBackend, FloatElement, IntElement, WgpuRuntime},
     },

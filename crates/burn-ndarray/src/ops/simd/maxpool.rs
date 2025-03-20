@@ -3,12 +3,12 @@ use core::{marker::PhantomData, mem::transmute};
 use crate::{sharing::UnsafeSharedRef, tensor::NdArrayTensor};
 
 use burn_common::{iter_range_par, run_par};
-use burn_tensor::{quantization::QuantizationType, DType, Element, TensorMetadata};
+use burn_tensor::{DType, Element, TensorMetadata, quantization::QuantizationType};
 use macerator::{Simd, VOrd};
-use ndarray::{s, Array4};
+use ndarray::{Array4, s};
 use nhwc::max_pool2d_nhwc;
 
-use super::{should_use_simd, MinMax};
+use super::{MinMax, should_use_simd};
 
 #[macerator::with_simd]
 fn is_accelerated_impl<S: Simd, T: VOrd>(_x: PhantomData<T>) -> bool {
@@ -63,7 +63,7 @@ fn cast<T, E>(tensor: NdArrayTensor<T>) -> NdArrayTensor<E> {
 
 mod nhwc {
     use itertools::Itertools;
-    use macerator::{vload_unaligned, vstore_unaligned, Simd};
+    use macerator::{Simd, vload_unaligned, vstore_unaligned};
     use ndarray::{ArrayView3, ArrayViewMut3, Ix4};
     use seq_macro::seq;
 
@@ -307,11 +307,11 @@ mod nhwc {
                     for kw in 0..kernel_width {
                         let iw = ow * stride_width + kw * dilation_width - pad_w;
                         // Load a full vector from `x`. In bounds as long as `out_channels >= ch + lanes`
-                        acc = acc.max(vload_unaligned(&x[[ih, iw, ch]]));
+                        acc = acc.max(unsafe { vload_unaligned(&x[[ih, iw, ch]]) });
                     }
                 }
                 // Store a full vector to `out`. In bounds as long as `out_channels >= ch + lanes`.
-                vstore_unaligned(out, acc);
+                unsafe { vstore_unaligned(out, acc) };
             }
         }
 
@@ -341,11 +341,11 @@ mod nhwc {
                         }
                         let iw = iw - pad_w;
                         // Load a full vector from `x`. In bounds as long as `out_channels >= ch + lanes`
-                        acc = acc.max(vload_unaligned(&x[[ih, iw, ch]]));
+                        acc = acc.max(unsafe { vload_unaligned(&x[[ih, iw, ch]]) });
                     }
                 }
                 // Store a full vector to `out`. In bounds as long as `out_channels >= ch + lanes`.
-                vstore_unaligned(out, acc);
+                unsafe { vstore_unaligned(out, acc) };
             }
         }
     }

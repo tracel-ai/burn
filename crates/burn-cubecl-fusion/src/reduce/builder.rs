@@ -3,11 +3,11 @@ use std::sync::Arc;
 use super::optimization::ReduceInstruction;
 use burn_fusion::{OptimizationBuilder, OptimizationStatus};
 use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
-use cubecl::{reduce::ReduceStrategy, Runtime};
+use cubecl::{Runtime, reduce::ReduceStrategy};
 
 use crate::{
-    shared::{builder::FuseBuilder, ir::ElemwisePrecision, settings::FuseSettings},
     CubeOptimization,
+    shared::{builder::FuseBuilder, ir::ElemwisePrecision, settings::FuseSettings},
 };
 
 use super::optimization::{FusedReduce, ReduceFallbackFn, ReduceOptimization};

@@ -1,5 +1,5 @@
-use crate::{tensor::CubeTensor, BoolElement, CubeElement, CubeRuntime};
-use cubecl::{calculate_cube_count_elemwise, prelude::*, CubeDim};
+use crate::{BoolElement, CubeElement, CubeRuntime, tensor::CubeTensor};
+use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch)]
 fn bool_cast_kernel<B: Numeric, T: Numeric>(input: &Tensor<B>, output: &mut Tensor<T>) {

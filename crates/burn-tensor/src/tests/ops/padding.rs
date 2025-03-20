@@ -2,10 +2,9 @@
 mod tests {
     use super::*;
     use burn_tensor::{
-        as_type,
+        Numeric, Shape, Tensor, TensorData, as_type,
         backend::Backend,
         tests::{Float as _, Int as _},
-        Numeric, Shape, Tensor, TensorData,
     };
 
     #[test]

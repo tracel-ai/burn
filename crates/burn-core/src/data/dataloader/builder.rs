@@ -1,6 +1,6 @@
-use super::{batcher::DynBatcher, BatchDataLoader, BatchStrategy, DataLoader, FixBatchStrategy};
+use super::{BatchDataLoader, BatchStrategy, DataLoader, FixBatchStrategy, batcher::DynBatcher};
 use burn_dataset::Dataset;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use std::sync::Arc;
 
 /// A builder for data loaders.

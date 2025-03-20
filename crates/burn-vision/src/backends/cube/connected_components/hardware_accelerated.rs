@@ -4,17 +4,16 @@
 //! DASIP, 2018
 
 use crate::{
-    backends::cube::connected_components::stats_from_opts, ConnectedStatsOptions,
-    ConnectedStatsPrimitive, Connectivity,
+    ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity,
+    backends::cube::connected_components::stats_from_opts,
 };
 use burn_cubecl::{
-    kernel,
+    BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement, kernel,
     ops::{into_data_sync, numeric::zeros_device},
     tensor::CubeTensor,
-    BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
-use burn_tensor::{cast::ToElement, ops::IntTensorOps, Shape};
-use cubecl::{prelude::*, Feature};
+use burn_tensor::{Shape, cast::ToElement, ops::IntTensorOps};
+use cubecl::{Feature, prelude::*};
 
 use super::prefix_sum::prefix_sum;
 

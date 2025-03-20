@@ -3,8 +3,8 @@ use crate::config::Config;
 use crate::module::Param;
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::nn::Initializer;
-use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 /// Parametric Relu layer.
 ///
 /// Should be created using [PReluConfig]

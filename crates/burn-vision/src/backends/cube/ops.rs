@@ -1,12 +1,12 @@
 use crate::{
-    backends::cpu, BoolVisionOps, ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity,
-    FloatVisionOps, IntVisionOps, QVisionOps, VisionBackend,
+    BoolVisionOps, ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity, FloatVisionOps,
+    IntVisionOps, QVisionOps, VisionBackend, backends::cpu,
 };
 use burn_cubecl::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
 
 use burn_tensor::{
-    ops::{BoolTensor, IntTensor},
     Element,
+    ops::{BoolTensor, IntTensor},
 };
 
 use super::connected_components::hardware_accelerated;
@@ -76,7 +76,7 @@ where
 mod fusion {
     use super::*;
     use burn_fusion::{
-        client::FusionClient, stream::Operation, Fusion, FusionBackend, FusionRuntime,
+        Fusion, FusionBackend, FusionRuntime, client::FusionClient, stream::Operation,
     };
     use burn_ir::{CustomOpIr, HandleContainer, OperationIr};
 

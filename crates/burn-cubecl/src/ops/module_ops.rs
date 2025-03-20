@@ -1,10 +1,10 @@
 use crate::{
+    CubeBackend, CubeRuntime, FloatElement, IntElement,
     element::BoolElement,
     kernel::{
         self,
         conv::{Conv2dStrategy, ConvTranspose2dStrategy},
     },
-    CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
 use burn_tensor::ops::{
     ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, InterpolateOptions,

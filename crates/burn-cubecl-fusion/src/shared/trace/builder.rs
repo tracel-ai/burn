@@ -6,7 +6,7 @@ use super::{FuseTrace, RegisteredTensors, TensorView};
 use burn_ir::{TensorId, TensorIr, TensorStatus};
 use burn_tensor::{DType, Element};
 use cubecl::prelude::Sequence;
-use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 
 #[derive(Clone, Debug)]
 pub struct FuseTraceBuilder {

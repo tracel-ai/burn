@@ -71,9 +71,9 @@ mod tests {
 
     use super::*;
     use crate::burn::{
+        TensorKind, TensorType,
         graph::BurnGraph,
         node::{random_normal::RandomNormalNode, test::assert_tokens},
-        TensorKind, TensorType,
     };
 
     #[test]

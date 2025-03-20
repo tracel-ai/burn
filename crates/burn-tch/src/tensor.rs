@@ -1,10 +1,10 @@
 use crate::{LibTorchDevice, TchElement};
 use burn_tensor::{
+    DType, Shape, TensorData, TensorMetadata,
     quantization::{
         AffineQuantization, QTensorPrimitive, QuantizationMode, QuantizationScheme,
         QuantizationStrategy, QuantizationType, SymmetricQuantization,
     },
-    DType, Shape, TensorData, TensorMetadata,
 };
 use libc::c_void;
 use std::sync::Arc;
@@ -375,8 +375,8 @@ mod tests {
     use burn_tensor::ops::QTensorOps;
     use burn_tensor::quantization::{QuantizationMode, QuantizationParametersPrimitive};
     use burn_tensor::{Distribution, Tensor, TensorPrimitive};
-    use rand::prelude::StdRng;
     use rand::SeedableRng;
+    use rand::prelude::StdRng;
 
     #[test]
     fn should_support_into_and_from_data_1d() {

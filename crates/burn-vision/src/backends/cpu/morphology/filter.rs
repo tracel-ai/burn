@@ -3,11 +3,11 @@ use std::{marker::PhantomData, ptr::null};
 
 use burn_tensor::Element;
 use macerator::{
-    vload, vload_low, vload_unaligned, vstore, vstore_low, vstore_unaligned, Scalar, Simd, VOrd,
-    Vector,
+    Scalar, Simd, VOrd, Vector, vload, vload_low, vload_unaligned, vstore, vstore_low,
+    vstore_unaligned,
 };
 
-use crate::{backends::cpu::MinMax, Point, Size};
+use crate::{Point, Size, backends::cpu::MinMax};
 
 pub trait MorphOperator<T> {
     fn apply(a: T, b: T) -> T;

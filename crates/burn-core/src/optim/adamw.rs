@@ -1,10 +1,10 @@
 use super::{AdaptiveMomentumState, SimpleOptimizer};
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
-use crate::tensor::{backend::AutodiffBackend, Tensor};
+use crate::tensor::{Tensor, backend::AutodiffBackend};
 use crate::{
-    self as burn, grad_clipping::GradientClippingConfig, module::AutodiffModule, record::Record,
-    LearningRate,
+    self as burn, LearningRate, grad_clipping::GradientClippingConfig, module::AutodiffModule,
+    record::Record,
 };
 use burn_tensor::{backend::Backend, ops::Device};
 
@@ -174,7 +174,7 @@ mod tests {
     use crate::module::{Module, Param};
     use crate::optim::{GradientsParams, Optimizer};
     use crate::tensor::{Distribution, Tensor, TensorData};
-    use crate::{nn, TestAutodiffBackend};
+    use crate::{TestAutodiffBackend, nn};
 
     const LEARNING_RATE: LearningRate = 0.01;
 
@@ -350,8 +350,8 @@ mod tests {
             .load_record(record)
     }
 
-    fn create_adamw(
-    ) -> OptimizerAdaptor<AdamW, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend> {
+    fn create_adamw()
+    -> OptimizerAdaptor<AdamW, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend> {
         let config = AdamWConfig::new();
         AdamW {
             momentum: AdaptiveMomentumW {

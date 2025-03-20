@@ -6,23 +6,23 @@ use core::marker::PhantomData;
 use num_traits::float::Float;
 
 use crate::{
+    Autodiff,
     checkpoint::{
         base::Checkpointer, builder::CheckpointerBuilder, retro_forward::RetroForward,
         state::BackwardStates, strategy::CheckpointStrategy,
     },
     grads::Gradients,
     graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
-    ops::{binary, broadcast_shape, unary, Backward, Ops, OpsKind},
+    ops::{Backward, Ops, OpsKind, binary, broadcast_shape, unary},
     retro_binary, retro_unary, retro_unary_scalar,
     tensor::AutodiffTensor,
     utils::duplicate,
-    Autodiff,
 };
 
 use burn_tensor::{
+    Device, ElementConversion, Shape, TensorData, TensorMetadata,
     backend::Backend,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
-    Device, ElementConversion, Shape, TensorData, TensorMetadata,
 };
 
 use super::maxmin::MaxMinDim;

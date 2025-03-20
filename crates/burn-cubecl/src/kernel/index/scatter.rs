@@ -1,11 +1,11 @@
 use crate::{
+    CubeRuntime, IntElement,
     element::CubeElement,
     kernel::{self},
     tensor::CubeTensor,
-    CubeRuntime, IntElement,
 };
 use cubecl::prelude::*;
-use cubecl::{calculate_cube_count_elemwise, CubeDim};
+use cubecl::{CubeDim, calculate_cube_count_elemwise};
 
 #[cube(launch_unchecked)]
 fn scatter_kernel<T: Numeric, I: Int>(

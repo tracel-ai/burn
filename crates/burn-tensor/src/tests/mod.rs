@@ -83,9 +83,9 @@ macro_rules! testgen_quantization {
             use core::marker::PhantomData;
 
             use burn_tensor::{
+                Tensor, TensorData,
                 backend::Backend,
                 quantization::{QuantizationMode, QuantizationScheme, QuantizationType},
-                Tensor, TensorData,
             };
 
             pub struct QTensor<B: Backend, const D: usize> {

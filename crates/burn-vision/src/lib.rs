@@ -26,4 +26,4 @@ pub use base::*;
 pub use ops::*;
 pub use tensor::*;
 
-pub use backends::{create_structuring_element, KernelShape};
+pub use backends::{KernelShape, create_structuring_element};

@@ -1,9 +1,9 @@
 use super::TchOps;
-use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor};
+use crate::{LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor, element::TchElement};
 use burn_tensor::{
+    DType, Distribution, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
     backend::Backend,
     ops::{FloatTensorOps, IntTensor},
-    DType, Distribution, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
 };
 use half::{bf16, f16};
 use std::ops::Range;

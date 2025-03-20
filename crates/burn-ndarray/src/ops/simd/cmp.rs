@@ -1,7 +1,7 @@
 use core::{marker::PhantomData, slice};
 
 use burn_tensor::{Element, TensorMetadata};
-use macerator::{vload_unaligned, Scalar, Simd, VEq, VOrd, Vector};
+use macerator::{Scalar, Simd, VEq, VOrd, Vector, vload_unaligned};
 use ndarray::ArrayD;
 use seq_macro::seq;
 
@@ -263,7 +263,7 @@ mod elemwise {
     ) -> NdArrayTensor<bool> {
         let mut buffer = input.array.into_owned();
         let slice = buffer.as_slice_memory_order_mut().unwrap();
-        cmp_scalar_slice_inplace::<T, Op>(slice, elem, PhantomData);
+        unsafe { cmp_scalar_slice_inplace::<T, Op>(slice, elem, PhantomData) };
         // Buffer has the same elem size and is filled with the operation output, so this is safe
         let out = unsafe { core::mem::transmute::<ArrayD<T>, ArrayD<bool>>(buffer) };
         NdArrayTensor::new(out.into_shared())

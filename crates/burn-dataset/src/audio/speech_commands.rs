@@ -1,6 +1,6 @@
 use crate::{
-    transform::{Mapper, MapperDataset},
     Dataset, HuggingfaceDatasetLoader, SqliteDataset,
+    transform::{Mapper, MapperDataset},
 };
 
 use hound::WavReader;

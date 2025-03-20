@@ -1,28 +1,27 @@
 use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
+    ops::{ConvOptions, conv::calculate_conv_output_size},
 };
 use cmma::{Matrix, MatrixIdent, MatrixLayout};
 use cubecl::{
-    cube,
+    CubeCount, CubeDim, Feature, cube,
     ir::{Elem, FloatKind},
     linalg::{
         convolution::ConvLaunchError,
         matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError},
     },
     prelude::*,
-    CubeCount, CubeDim, Feature,
 };
 use half::f16;
 
 use crate::{
+    CubeRuntime, FloatElement,
     kernel::{into_contiguous, slice, slice_assign},
     ops::{
         numeric::{empty_device, zeros_device},
         permute,
     },
     tensor::CubeTensor,
-    CubeRuntime, FloatElement,
 };
 
 use super::nchw_to_nhwc;

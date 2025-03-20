@@ -1,15 +1,15 @@
 use std::borrow::Borrow;
 
 use burn_tensor::{
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
     Device, Distribution, ElementConversion, FloatDType, Shape, TensorData,
+    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
 };
-use candle_core::{backend::BackendStorage, shape, Tensor};
+use candle_core::{Tensor, backend::BackendStorage, shape};
 use half::{bf16, f16};
 
 use crate::{
-    element::{CandleElement, FloatCandleElement, IntCandleElement},
     Candle, CandleTensor,
+    element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
 use super::base::{expand, permute, sign};

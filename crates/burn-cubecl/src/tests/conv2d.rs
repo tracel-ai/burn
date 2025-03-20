@@ -5,7 +5,7 @@ mod tests {
         kernel::{conv::nchw_to_nhwc, into_contiguous},
         tests::into_data_sync,
     };
-    use burn_tensor::{backend::Backend, module, Distribution, Tensor};
+    use burn_tensor::{Distribution, Tensor, backend::Backend, module};
 
     #[test]
     fn conv2d_should_match_reference_backend() {

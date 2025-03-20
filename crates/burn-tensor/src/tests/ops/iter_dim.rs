@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(iter_dim)]
 mod test {
     use super::*;
-    use burn_tensor::{backend::Backend, Int, Tensor, TensorData};
+    use burn_tensor::{Int, Tensor, TensorData, backend::Backend};
 
     #[test]
     fn test_1d_iter_last_item() {

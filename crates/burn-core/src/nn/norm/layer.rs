@@ -6,8 +6,8 @@ use crate::module::Module;
 use crate::module::ModuleDisplay;
 use crate::module::Param;
 use crate::nn::Initializer;
-use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 
 /// Configuration to create a [LayerNorm](LayerNorm) layer using the [init function](LayerNormConfig::init).
 #[derive(Debug, Config)]

@@ -1,9 +1,9 @@
 use burn_tensor::{
-    ops::{TransactionOps, TransactionPrimitiveResult},
     DType, TensorData,
+    ops::{TransactionOps, TransactionPrimitiveResult},
 };
 
-use crate::{element::BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
+use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement};
 
 impl<R, F, I, BT> TransactionOps<Self> for CubeBackend<R, F, I, BT>
 where

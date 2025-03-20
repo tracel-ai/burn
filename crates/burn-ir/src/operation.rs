@@ -7,11 +7,11 @@ use alloc::boxed::Box;
 use alloc::{string::String, vec, vec::Vec};
 
 use burn_tensor::{
+    DType, Distribution, Element,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
     },
     quantization::QuantizationScheme,
-    DType, Distribution, Element,
 };
 
 use crate::TensorIr;

@@ -2,16 +2,16 @@ use crate::{data::MnistBatcher, model::Model};
 
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
-    optim::{decay::WeightDecayConfig, AdamConfig},
+    optim::{AdamConfig, decay::WeightDecayConfig},
     prelude::*,
     record::{CompactRecorder, NoStdTrainingRecorder},
     tensor::backend::AutodiffBackend,
     train::{
-        metric::{
-            store::{Aggregate, Direction, Split},
-            AccuracyMetric, CpuMemory, CpuTemperature, CpuUse, LossMetric,
-        },
         LearnerBuilder, MetricEarlyStoppingStrategy, StoppingCondition,
+        metric::{
+            AccuracyMetric, CpuMemory, CpuTemperature, CpuUse, LossMetric,
+            store::{Aggregate, Direction, Split},
+        },
     },
 };
 

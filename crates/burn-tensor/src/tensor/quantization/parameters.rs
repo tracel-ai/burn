@@ -1,4 +1,4 @@
-use crate::{backend::Backend, Int, Tensor};
+use crate::{Int, Tensor, backend::Backend};
 
 /// The tensor quantization parameters.
 pub type QuantizationParameters<B> = QParams<Tensor<B, 1>, Tensor<B, 1, Int>>;

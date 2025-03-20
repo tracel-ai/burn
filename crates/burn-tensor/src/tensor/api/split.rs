@@ -1,5 +1,5 @@
-use super::{narrow::narrow, TensorMetadata};
-use crate::{backend::Backend, BasicOps, TensorKind};
+use super::{TensorMetadata, narrow::narrow};
+use crate::{BasicOps, TensorKind, backend::Backend};
 use alloc::vec::Vec;
 
 /// Splits the tensor along the given dimension into equally sized chunks (if possible)

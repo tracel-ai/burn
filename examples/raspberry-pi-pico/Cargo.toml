@@ -1,6 +1,6 @@
 [package]
 authors = ["Bjorn Beishline (@bjorntheprogrammer)"]
-edition = "2021"
+edition.workspace = true
 name = "raspberry-pi-pico"
 license = "MIT OR Apache-2.0"
 version = "0.1.0"

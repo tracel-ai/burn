@@ -1,8 +1,8 @@
 use std::future::Future;
 
 use crate::{
-    stream::{execution::Operation, StreamId},
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionTensor,
+    stream::{StreamId, execution::Operation},
 };
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::{DType, TensorData};

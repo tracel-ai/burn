@@ -1,10 +1,10 @@
 use cubecl::{calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*};
 
 use crate::{
+    BoolElement, CubeRuntime,
     element::CubeElement,
     ops::{max_vectorization, numeric::empty_device},
     tensor::CubeTensor,
-    BoolElement, CubeRuntime,
 };
 
 #[cube(launch)]

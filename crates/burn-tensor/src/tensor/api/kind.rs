@@ -1,4 +1,4 @@
-use crate::{backend::Backend, DType, Shape};
+use crate::{DType, Shape, backend::Backend};
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]

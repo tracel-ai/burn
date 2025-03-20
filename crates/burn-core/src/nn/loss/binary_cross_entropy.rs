@@ -2,7 +2,7 @@ use crate as burn;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
 
 use crate::tensor::activation::log_sigmoid;
-use crate::tensor::{backend::Backend, Int, Tensor};
+use crate::tensor::{Int, Tensor, backend::Backend};
 use crate::{config::Config, module::Module};
 use alloc::vec::Vec;
 
@@ -168,8 +168,8 @@ impl<B: Backend> BinaryCrossEntropyLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{activation::sigmoid, TensorData};
     use crate::TestBackend;
+    use crate::tensor::{TensorData, activation::sigmoid};
 
     #[test]
     fn test_binary_cross_entropy_preds_all_correct() {

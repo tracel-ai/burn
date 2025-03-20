@@ -1,15 +1,15 @@
 use crate::{
-    self as burn, grad_clipping::GradientClippingConfig, module::AutodiffModule, record::Record,
-    LearningRate,
+    self as burn, LearningRate, grad_clipping::GradientClippingConfig, module::AutodiffModule,
+    record::Record,
 };
 
 use super::{
-    decay::{WeightDecay, WeightDecayConfig},
     SimpleOptimizer,
+    decay::{WeightDecay, WeightDecayConfig},
 };
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
-use crate::tensor::{backend::AutodiffBackend, ops::Device, Tensor};
+use crate::tensor::{Tensor, backend::AutodiffBackend, ops::Device};
 use burn_tensor::backend::Backend;
 
 /// Configuration to create the [RmsProp](RmsProp) optimizer.
@@ -321,7 +321,7 @@ mod tests {
     use crate::module::{Module, Param};
     use crate::optim::{GradientsParams, Optimizer};
     use crate::tensor::{Distribution, Tensor, TensorData};
-    use crate::{nn, TestAutodiffBackend};
+    use crate::{TestAutodiffBackend, nn};
 
     const LEARNING_RATE: LearningRate = 0.01;
     const ASSERT_PRECISION: usize = 6;
@@ -547,8 +547,8 @@ mod tests {
         )
     }
 
-    fn create_rmsprop(
-    ) -> OptimizerAdaptor<RmsProp, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend> {
+    fn create_rmsprop()
+    -> OptimizerAdaptor<RmsProp, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend> {
         RmsPropConfig {
             alpha: 0.99,
             epsilon: 1e-9,

@@ -1,19 +1,20 @@
 use std::marker::PhantomData;
 
 use burn_tensor::{
-    ops::{DeformConv2dBackward, DeformConvOptions, FloatTensorOps as _},
     Shape,
+    ops::{DeformConv2dBackward, DeformConvOptions, FloatTensorOps as _},
 };
 use cubecl::{
-    calculate_cube_count_elemwise, cube, ir::Elem, linalg::convolution::ConvLaunchError,
-    prelude::*, AtomicFeature, CubeDim, CubeLaunch, Feature,
+    AtomicFeature, CubeDim, CubeLaunch, Feature, calculate_cube_count_elemwise, cube, ir::Elem,
+    linalg::convolution::ConvLaunchError, prelude::*,
 };
 
 use crate::{
+    CubeBackend, CubeRuntime, FloatElement, IntElement,
     element::BoolElement,
     kernel::{
         cast, into_contiguous,
-        matmul::{matmul, MatmulStrategy},
+        matmul::{MatmulStrategy, matmul},
         slice_assign,
     },
     ops::{
@@ -21,7 +22,6 @@ use crate::{
         reshape, swap_dims,
     },
     tensor::CubeTensor,
-    CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
 
 use super::{bilinear_interpolate, deform_im2col, index};

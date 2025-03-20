@@ -1,9 +1,9 @@
 use crate as burn;
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use crate::tensor::backend::Backend;
 use crate::tensor::Int;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 use alloc::vec;
 
 #[cfg(not(feature = "std"))]

@@ -1,6 +1,6 @@
-use crate::{element::CubeElement, tensor::CubeTensor, CubeRuntime};
+use crate::{CubeRuntime, element::CubeElement, tensor::CubeTensor};
 use cubecl::prelude::*;
-use cubecl::{calculate_cube_count_elemwise, CubeDim};
+use cubecl::{CubeDim, calculate_cube_count_elemwise};
 
 #[cube(launch_unchecked)]
 fn select_assign_kernel<F: Numeric, I: Numeric>(
