@@ -1,5 +1,5 @@
 use crate::{
-    element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, BoolElement, CubeRuntime,
+    BoolElement, CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor,
 };
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 

@@ -1,9 +1,9 @@
 use crate::kernel::{
-    launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int, AddOp,
-    BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
+    AddOp, BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
+    launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int,
 };
-use crate::{element::CubeElement, tensor::CubeTensor};
 use crate::{CubeRuntime, FloatElement, IntElement};
+use crate::{element::CubeElement, tensor::CubeTensor};
 use burn_tensor::{ElementConversion, Shape};
 use cubecl::client::ComputeClient;
 use cubecl::tensor_vectorization_factor;

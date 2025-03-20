@@ -2,12 +2,12 @@ use burn_fusion::OptimizationBuilder;
 use cubecl::Runtime;
 
 use crate::{
+    CubeOptimization,
     shared::{
         builder::FuseBuilder,
         ir::ElemwisePrecision,
         settings::{FuseSettings, VectorizationSetting},
     },
-    CubeOptimization,
 };
 
 use super::optimization::ElemwiseOptimization;

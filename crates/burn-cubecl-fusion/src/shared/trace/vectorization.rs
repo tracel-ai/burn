@@ -3,18 +3,15 @@ use std::marker::PhantomData;
 use burn_fusion::stream::Context;
 use burn_ir::TensorId;
 use cubecl::{
-    ir::{Elem, UIntKind},
     Runtime,
+    ir::{Elem, UIntKind},
 };
 
-use crate::{
-    shared::{settings::VectorizationSetting, trace::Vect},
-    CubeFusionHandle,
-};
+use crate::{CubeFusionHandle, shared::settings::VectorizationSetting, shared::trace::Vect};
 
 use super::{
-    block::FuseBlock, BlockPlan, HandleInput, HandleOutput, KernelResources, LaunchPlan,
-    TensorView, Vectorization,
+    BlockPlan, HandleInput, HandleOutput, KernelResources, LaunchPlan, TensorView, Vectorization,
+    block::FuseBlock,
 };
 
 /// Select the best vectorization factor for each tensor handle.

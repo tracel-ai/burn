@@ -1,9 +1,9 @@
 use core::cmp::Ordering;
 
 use crate::{
+    BasicOps, Device, Element, ElementComparison, ElementConversion, TensorData, TensorKind,
     backend::Backend,
     ops::{IntElem, IntTensor},
-    BasicOps, Device, Element, ElementComparison, ElementConversion, TensorData, TensorKind,
 };
 use alloc::{vec, vec::Vec};
 use burn_common::reader::try_read_sync;
@@ -360,9 +360,5 @@ fn dim_indices<B: Backend>(dims: &[usize], dim: usize) -> Vec<IntElem<B>> {
 
 /// Compare two elements
 fn compare<E: ElementComparison>(a: &E, b: &E, descending: bool) -> Ordering {
-    if descending {
-        b.cmp(a)
-    } else {
-        a.cmp(b)
-    }
+    if descending { b.cmp(a) } else { a.cmp(b) }
 }

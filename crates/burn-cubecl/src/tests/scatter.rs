@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(scatter)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Distribution, Int, Tensor};
+    use burn_tensor::{Distribution, Int, Tensor, backend::Backend};
 
     #[test]
     fn scatter_should_work_with_multiple_workgroups_2d_dim0() {

@@ -3,8 +3,8 @@ use super::{
         ir::{Arg, ElemwiseOp, ElemwisePrecision, LayoutInfo},
         settings::FuseSettings,
     },
-    block::FuseBlockBuilder,
     KernelResources,
+    block::FuseBlockBuilder,
 };
 use super::{FuseTrace, RegisteredTensors};
 use burn_ir::TensorIr;

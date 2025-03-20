@@ -1,15 +1,15 @@
 use std::marker::PhantomData;
 
 use burn_tensor::{
+    Device,
     backend::{Backend, DeviceId, DeviceOps},
     quantization::QTensorPrimitive,
-    Device,
 };
-use candle_core::{backend::BackendDevice, DeviceLocation};
+use candle_core::{DeviceLocation, backend::BackendDevice};
 
 use crate::{
-    element::{CandleElement, FloatCandleElement, IntCandleElement},
     CandleQTensor, CandleTensor,
+    element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
 /// Tensor backend that uses the [candle](candle_core) crate for executing tensor operations.
@@ -180,7 +180,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     fn name(device: &Self::Device) -> String {
         match device {
             CandleDevice::Cpu => "candle<cpu>",
-            CandleDevice::Cuda(..) => "cancle<cuda>",
+            CandleDevice::Cuda(..) => "candle<cuda>",
             CandleDevice::Metal(..) => "candle<metal>",
         }
         .to_string()

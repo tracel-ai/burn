@@ -4,7 +4,7 @@ use burn_tensor::quantization::{BlockLayout, QuantizationMode, QuantizationSchem
 use cubecl::prelude::*;
 
 /// Quantization parameters.
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 pub struct QParams {
     #[cube(comptime)]
     scheme: QuantizationScheme,

@@ -15,9 +15,9 @@ use portable_atomic_util::Arc;
 
 use burn_common::stub::Mutex;
 use burn_tensor::{
+    Tensor,
     backend::{AutodiffBackend, Backend},
     ops::Device,
-    Tensor,
 };
 
 #[cfg(feature = "std")]

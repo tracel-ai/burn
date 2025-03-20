@@ -4,16 +4,16 @@ use burn_ir::{
     SwapDimsOpIr, TensorIr, UnaryOpIr,
 };
 use burn_tensor::{
-    ops::{binary_ops_shape, BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
     Device, Element, Shape, TensorData, TensorMetadata,
+    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor, binary_ops_shape},
 };
 use std::marker::PhantomData;
 
 use crate::{
+    Fusion, FusionBackend,
     client::FusionClient,
     get_client,
-    stream::{execution::Operation, StreamId},
-    Fusion, FusionBackend,
+    stream::{StreamId, execution::Operation},
 };
 
 use super::NoOp;

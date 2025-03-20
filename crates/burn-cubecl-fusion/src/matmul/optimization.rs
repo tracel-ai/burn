@@ -1,25 +1,25 @@
 use std::any::TypeId;
 use std::sync::Arc;
 
+use crate::CubeFusionHandle;
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::ir::ElemwisePrecision;
 use crate::shared::ir::RefLayout;
 use crate::shared::trace::TraceError;
 use crate::shared::trace::Vectorization;
-use crate::CubeFusionHandle;
 
 use burn_fusion::stream::Context;
 use burn_ir::{BinaryOpIr, TensorStatus};
 use cubecl::linalg::matmul::components;
-use cubecl::linalg::matmul::components::tile::accelerated::Accelerated;
-use cubecl::linalg::matmul::components::tile::TileMatmulFamily;
 use cubecl::linalg::matmul::components::MatmulProblem;
+use cubecl::linalg::matmul::components::tile::TileMatmulFamily;
+use cubecl::linalg::matmul::components::tile::accelerated::Accelerated;
 use cubecl::linalg::matmul::kernels::matmul::double_buffering::DoubleBufferingAlgorithm;
 use cubecl::linalg::matmul::kernels::matmul::simple::SimpleAlgorithm;
 use cubecl::linalg::matmul::kernels::matmul::specialized::SpecializedAlgorithm;
-use cubecl::linalg::matmul::kernels::matmul::{select_kernel, Algorithm};
+use cubecl::linalg::matmul::kernels::matmul::{Algorithm, select_kernel};
 use cubecl::linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
-use cubecl::linalg::tensor::{matrix_layout, MatrixLayout};
+use cubecl::linalg::tensor::{MatrixLayout, matrix_layout};
 use cubecl::{client::ComputeClient, prelude::*};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
@@ -359,7 +359,7 @@ impl FusedMatmul {
                 return Err(MatmulLaunchError::Unavailable(
                     MatmulAvailabilityError::PlaneDimUnknown,
                 )
-                .into())
+                .into());
             }
         };
 

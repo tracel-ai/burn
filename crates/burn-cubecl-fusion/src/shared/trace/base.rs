@@ -1,9 +1,12 @@
-use crate::{shared::ir::Arg, CubeFusionHandle};
+use crate::{
+    CubeFusionHandle,
+    shared::ir::{Arg, ElemwisePrecision},
+};
 
 use super::{
-    super::ir::ElemwisePrecision, block::FuseBlock, executor::LaunchPlanExecutor,
-    input::InputPlanner, output::OutputPlanner, vectorization::VectorizationPlanner, HandleInput,
-    HandleOutput, LaunchPlan, TraceRunner, Vectorization,
+    HandleInput, HandleOutput, LaunchPlan, TraceRunner, Vectorization, block::FuseBlock,
+    executor::LaunchPlanExecutor, input::InputPlanner, output::OutputPlanner,
+    vectorization::VectorizationPlanner,
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};

@@ -1,8 +1,8 @@
 #[burn_tensor_testgen::testgen(mask_fill)]
 mod tests {
     use super::*;
-    use burn_cubecl::kernel::{mask_fill, MaskFillStrategy};
-    use burn_tensor::{backend::Backend, Bool, Distribution, Tensor, TensorPrimitive};
+    use burn_cubecl::kernel::{MaskFillStrategy, mask_fill};
+    use burn_tensor::{Bool, Distribution, Tensor, TensorPrimitive, backend::Backend};
 
     #[test]
     fn mask_fill_should_match_reference_backend() {

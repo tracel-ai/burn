@@ -5,7 +5,7 @@ use crate::shared::{
 use burn_ir::{TensorId, TensorIr, TensorStatus};
 use cubecl::prelude::Sequence;
 use serde::{Deserialize, Serialize};
-use std::collections::{btree_map::Entry, BTreeMap};
+use std::collections::{BTreeMap, btree_map::Entry};
 
 use super::{KernelResources, RegisteredTensors, TensorView};
 

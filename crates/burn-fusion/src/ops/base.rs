@@ -1,4 +1,4 @@
-use crate::{stream::Operation, FusionBackend};
+use crate::{FusionBackend, stream::Operation};
 use burn_ir::HandleContainer;
 use std::marker::PhantomData;
 

@@ -1,7 +1,7 @@
 use crate::{QuantElement, TchQTensor};
 
-use super::element::TchElement;
 use super::TchTensor;
+use super::element::TchElement;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::IntTensorOps;
 use burn_tensor::{Int, Tensor};

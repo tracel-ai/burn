@@ -48,9 +48,9 @@ mod tests {
 
     use super::*;
     use crate::burn::{
+        TensorType,
         graph::BurnGraph,
         node::{test::assert_tokens, tile::TileConfig, tile::TileNode},
-        TensorType,
     };
 
     #[test]

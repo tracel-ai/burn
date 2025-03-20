@@ -125,9 +125,9 @@ impl<B: Backend> ConfusionStats<B> {
 mod tests {
     use super::{ConfusionStats, ConfusionStatsInput};
     use crate::{
-        metric::classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
-        tests::{dummy_classification_input, ClassificationType, THRESHOLD},
         TestBackend,
+        metric::classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
+        tests::{ClassificationType, THRESHOLD, dummy_classification_input},
     };
     use burn_core::prelude::TensorData;
     use rstest::{fixture, rstest};

@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(log_sigmoid)]
 mod tests {
     use super::*;
-    use burn_tensor::{activation, cast::ToElement, tests::Numeric, Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData, activation, cast::ToElement, tests::Numeric};
 
     #[test]
     fn test_log_sigmoid() {

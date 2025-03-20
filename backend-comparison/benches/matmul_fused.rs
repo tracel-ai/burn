@@ -1,10 +1,10 @@
 use backend_comparison::persistence::save;
 use burn::tensor::{
+    Distribution, Shape, Tensor,
     activation::{gelu, relu},
     backend::Backend,
-    Distribution, Shape, Tensor,
 };
-use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_common::benchmark::{Benchmark, run_benchmark};
 use derive_new::new;
 
 #[derive(new)]

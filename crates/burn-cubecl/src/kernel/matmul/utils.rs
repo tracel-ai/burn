@@ -1,4 +1,4 @@
-use crate::{element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
+use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
 use burn_tensor::Shape;
 
 /// Creates an empty output tensor with matmul output shape

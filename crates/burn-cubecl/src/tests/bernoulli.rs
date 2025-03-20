@@ -9,7 +9,7 @@ mod tests {
     use core::f32;
 
     use burn_cubecl::kernel::prng::tests_utils::calculate_bin_stats;
-    use burn_tensor::{backend::Backend, Distribution, Shape, Tensor};
+    use burn_tensor::{Distribution, Shape, Tensor, backend::Backend};
 
     #[test]
     #[serial]

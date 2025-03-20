@@ -3,7 +3,7 @@ use burn_tensor::backend::Backend;
 use crate as burn;
 
 use super::{LrScheduler, String};
-use crate::{config::Config, LearningRate};
+use crate::{LearningRate, config::Config};
 
 /// The configuration for create a [step learning rate scheduler](StepLrScheduler).
 ///

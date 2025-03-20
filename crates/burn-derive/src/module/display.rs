@@ -2,11 +2,9 @@ use quote::quote;
 
 pub fn attributes_fn(ast: &syn::DeriveInput) -> proc_macro2::TokenStream {
     match &ast.data {
-        syn::Data::Struct(ref data_struct) => {
+        syn::Data::Struct(data_struct) => {
             let fields = match &data_struct.fields {
-                syn::Fields::Named(ref named_fields) => {
-                    named_fields.named.iter().collect::<Vec<_>>()
-                }
+                syn::Fields::Named(named_fields) => named_fields.named.iter().collect::<Vec<_>>(),
                 syn::Fields::Unit => Vec::new(),
                 _ => panic!("attributes_fn only supports structs with named or unit fields"),
             };
@@ -24,7 +22,7 @@ pub fn attributes_fn(ast: &syn::DeriveInput) -> proc_macro2::TokenStream {
                 }
             }
         }
-        syn::Data::Enum(ref data_enum) => {
+        syn::Data::Enum(data_enum) => {
             let variant_prints = data_enum.variants.iter().map(|variant| {
                 let variant_name = &variant.ident;
                 match &variant.fields {
@@ -37,7 +35,7 @@ pub fn attributes_fn(ast: &syn::DeriveInput) -> proc_macro2::TokenStream {
                             }
                         }
                     }
-                    syn::Fields::Named(ref named_fields) => {
+                    syn::Fields::Named(named_fields) => {
                         let field_prints = named_fields.named.iter().map(|field| {
                             let field_name = &field.ident;
                             quote! { .add(stringify!(#field_name), &self.#field_name) }
@@ -56,7 +54,7 @@ pub fn attributes_fn(ast: &syn::DeriveInput) -> proc_macro2::TokenStream {
                             }
                         }
                     }
-                    syn::Fields::Unnamed(ref unnamed_fields) => {
+                    syn::Fields::Unnamed(unnamed_fields) => {
                         let field_names = (0..unnamed_fields.unnamed.len()).map(|i| {
                             syn::Ident::new(&format!("_{}", i), proc_macro2::Span::call_site())
                         });

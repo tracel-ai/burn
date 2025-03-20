@@ -1,14 +1,14 @@
-use crate::renderer::{tui::NumericMetricsState, MetricsRenderer};
-use crate::renderer::{MetricState, TrainingProgress};
 use crate::TrainingInterrupter;
+use crate::renderer::{MetricState, TrainingProgress};
+use crate::renderer::{MetricsRenderer, tui::NumericMetricsState};
 use ratatui::{
+    Terminal,
     crossterm::{
         event::{self, Event, KeyCode},
         execute,
-        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+        terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
     },
     prelude::*,
-    Terminal,
 };
 use std::panic::{set_hook, take_hook};
 use std::sync::Arc;

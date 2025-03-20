@@ -3,10 +3,10 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 
+use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 use burn_tensor::module::unfold4d;
 use burn_tensor::ops::UnfoldOptions;
-use burn_tensor::Tensor;
 
 /// Configuration to create an [unfold 4d](Unfold4d) layer using the [init function](Unfold4dConfig::init).
 #[derive(Config, Debug)]

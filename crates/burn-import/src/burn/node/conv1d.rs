@@ -131,12 +131,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv1dNode {
 mod tests {
     use super::*;
     use crate::burn::{
+        TensorType,
         graph::BurnGraph,
         node::{conv1d::Conv1dNode, test::assert_tokens},
-        TensorType,
     };
     use burn::{
-        nn::{conv::Conv1dConfig, PaddingConfig1d},
+        nn::{PaddingConfig1d, conv::Conv1dConfig},
         record::FullPrecisionSettings,
     };
 

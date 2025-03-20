@@ -1,13 +1,13 @@
 use burn_common::{iter_par, iter_range_par, run_par};
 use burn_tensor::{
-    ops::{
-        conv::{calculate_conv_output_size, calculate_conv_transpose_output_size},
-        ConvOptions, ConvTransposeOptions,
-    },
     ElementConversion, TensorMetadata,
+    ops::{
+        ConvOptions, ConvTransposeOptions,
+        conv::{calculate_conv_output_size, calculate_conv_transpose_output_size},
+    },
 };
 use ndarray::{
-    s, Array3, Array4, Array5, ArrayView2, ArrayView3, ArrayViewMut2, ArrayViewMut3, Axis, Dim,
+    Array3, Array4, Array5, ArrayView2, ArrayView3, ArrayViewMut2, ArrayViewMut3, Axis, Dim, s,
 };
 
 use crate::{
@@ -320,8 +320,13 @@ pub(crate) fn conv3d<E: FloatNdArrayElement>(
     let [padding_depth, padding_height, padding_width] = options.padding;
     let [stride_depth, stride_height, stride_width] = options.stride;
     let [batch_size, _in_channels, in_depth, in_height, in_width] = x.shape().dims();
-    let [out_channels, in_channels, kernel_depth, kernel_height, kernel_width] =
-        weight.shape().dims();
+    let [
+        out_channels,
+        in_channels,
+        kernel_depth,
+        kernel_height,
+        kernel_width,
+    ] = weight.shape().dims();
 
     let out_depth = calculate_conv_output_size(
         kernel_depth,
@@ -457,8 +462,13 @@ pub(crate) fn conv_transpose3d<E: FloatNdArrayElement>(
     let [stride_depth, stride_height, stride_width] = options.stride;
     let [out_padding_depth, out_padding_height, out_padding_width] = options.padding_out;
     let [batch_size, _in_channels, in_depth, in_height, in_width] = x.shape().dims();
-    let [in_channels, out_channels, kernel_depth, kernel_height, kernel_width] =
-        weight.shape().dims();
+    let [
+        in_channels,
+        out_channels,
+        kernel_depth,
+        kernel_height,
+        kernel_width,
+    ] = weight.shape().dims();
 
     let out_depth = calculate_conv_transpose_output_size(
         kernel_depth,

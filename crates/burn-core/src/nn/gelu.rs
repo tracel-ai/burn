@@ -1,8 +1,8 @@
 use crate as burn;
 
 use crate::module::Module;
-use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 
 /// Applies the Gaussian Error Linear Units function element-wise.
 /// See also [gelu](burn::tensor::activation::gelu)

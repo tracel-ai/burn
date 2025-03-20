@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(conv_transpose2d)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, module, Distribution, Tensor};
+    use burn_tensor::{Distribution, Tensor, backend::Backend, module};
 
     #[test]
     fn conv_transpose2d_should_match_reference_backend() {

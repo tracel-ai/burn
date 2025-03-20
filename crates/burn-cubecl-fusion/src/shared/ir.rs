@@ -146,15 +146,7 @@ impl ElemwiseOp {
     }
 }
 
-#[derive(CubeLaunch)]
-pub struct ReshapedTensor {
-    #[cube(comptime)]
-    original: Arg,
-    #[cube(comptime)]
-    shape: Sequence<Arg>,
-}
-
-#[derive(CubeLaunch, Default)]
+#[derive(CubeLaunch, CubeType, Default)]
 /// Global arguments that are used for fusing [element wise operations](ElemwiseOp).
 pub struct GlobalArgs {
     pub tensors: Sequence<GlobalTensor>,

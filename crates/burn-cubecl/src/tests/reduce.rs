@@ -2,11 +2,11 @@
 mod reduce {
     use super::*;
     use burn_cubecl::kernel::reduce::{
-        reduce, reduce_dim, ArgMax, ArgMin, Mean, Prod, ReduceStrategy, Sum,
+        ArgMax, ArgMin, Mean, Prod, ReduceStrategy, Sum, reduce, reduce_dim,
     };
     use burn_tensor::{
-        backend::Backend, ops::IntTensorOps, Distribution, Int, Shape, Tensor, TensorData,
-        TensorPrimitive,
+        Distribution, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend,
+        ops::IntTensorOps,
     };
 
     const RANK: usize = 4;

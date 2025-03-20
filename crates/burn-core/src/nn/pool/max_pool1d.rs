@@ -5,8 +5,8 @@ use crate::config::Config;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::module::{Ignored, Module};
 use crate::nn::PaddingConfig1d;
-use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 
 use crate::tensor::module::max_pool1d;
 

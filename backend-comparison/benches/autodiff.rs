@@ -3,11 +3,11 @@ use burn::{
     module::Module,
     nn,
     tensor::{
-        backend::{AutodiffBackend, Backend},
         Distribution, Tensor,
+        backend::{AutodiffBackend, Backend},
     },
 };
-use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_common::benchmark::{Benchmark, run_benchmark};
 
 pub struct AutodiffOverheadBenchmark<B: AutodiffBackend> {
     config: nn::LstmConfig,

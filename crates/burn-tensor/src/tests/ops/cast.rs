@@ -46,7 +46,7 @@ mod tests {
         let output = tensor.cast(DType::F32);
 
         assert_eq!(output.dtype(), DType::F32);
-        // Use precision 2 for parametrized tests in f16 and bf16
+        // Use precision 2 for parameterized tests in f16 and bf16
         output.into_data().assert_approx_eq(&data, 2);
     }
 }

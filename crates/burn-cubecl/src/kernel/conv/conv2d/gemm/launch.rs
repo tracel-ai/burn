@@ -1,35 +1,31 @@
 use std::any::TypeId;
 
 use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
+    ops::{ConvOptions, conv::calculate_conv_output_size},
 };
 use cubecl::{
-    flex32,
+    Feature, flex32,
     ir::{Elem, FloatKind},
-    linalg::matmul::{self, kernels::MatmulLaunchError},
-    tensor_line_size, tf32, Feature,
+    linalg::{
+        convolution::{
+            ConvLaunchError,
+            algorithm::{Algorithm, ImplicitCmmaConv},
+            base::ConvolutionProblem,
+            launch_conv2d_nhwc,
+            selection::{Balanced, ConvSelector, Large},
+        },
+        matmul::{self, components::MatmulPrecision},
+    },
+    tensor_line_size, tf32,
 };
 use half::{bf16, f16};
 
-use super::{
-    precision::ConvPrecision,
-    selection::{Balanced, ConvSelector, Large},
-};
 use crate::{
-    kernel::{
-        conv::{
-            conv2d::gemm::{
-                algorithm::{Algorithm, ImplicitCmmaConv},
-                base::{ConvolutionLaunch, ConvolutionProblem},
-            },
-            nchw_to_nhwc, ConvLaunchError,
-        },
-        into_contiguous,
-    },
+    CubeElement, CubeRuntime, FloatElement,
+    kernel::{conv::nchw_to_nhwc, into_contiguous},
     ops::{numeric::empty_device, permute, reshape},
     tensor::CubeTensor,
-    CubeElement, CubeRuntime, FloatElement,
 };
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -96,7 +92,7 @@ fn conv2d_gemm_cmma_strategy<
 /// * `options` - The options to use for the convolution
 pub fn conv2d_gemm_with_algo<
     R: CubeRuntime,
-    SP: ConvPrecision,
+    SP: MatmulPrecision,
     Alg: Algorithm,
     S: ConvSelector<Alg>,
 >(
@@ -176,44 +172,28 @@ where
         lhs_line_size,
         rhs_line_size,
         out_line_size,
-        kernel_size: (kernel_h as u32, kernel_w as u32),
-        options,
         out_shape_y: out_h,
         out_shape_x: out_w,
         has_bias: bias.is_some(),
+
+        kernel_size: (kernel_h as u32, kernel_w as u32),
+        stride: (options.stride[0] as u32, options.stride[1] as u32),
+        padding: (options.padding[0] as i32, options.padding[1] as i32),
+        dilation: (options.dilation[0] as u32, options.dilation[1] as u32),
     };
-
-    let plane_dim = input
-        .client
-        .properties()
-        .hardware_properties()
-        .defined_plane_size()
-        .unwrap_or(32);
-
-    let (selection, config_input) = S::select_kernel::<R, SP>(plane_dim);
-    let cube_dim = Alg::cube_dim(&selection);
-    let cube_count = Alg::cube_count(&selection, &problem);
-
-    let config = Alg::make_config(config_input, &problem, &cube_dim, &cube_count)
-        .map_err(MatmulLaunchError::InvalidConfig)?;
-    Alg::check_availability::<R, SP>(&input.client, &config)?;
 
     let bias = bias.unwrap_or_else(|| {
         empty_device::<R, SP::EG>(input.client.clone(), input.device.clone(), Shape::new([1]))
     });
 
-    unsafe {
-        Alg::GlobalConvolution::launch_unchecked::<SP, R>(
-            &input.client,
-            cube_dim,
-            cube_count,
-            input.as_tensor_arg::<SP::EG>(lhs_line_size),
-            weight.as_tensor_arg::<SP::EG>(rhs_line_size),
-            bias.as_tensor_arg::<SP::EG>(out_line_size),
-            out.as_tensor_arg::<SP::EG>(out_line_size),
-            config,
-        );
-    }
+    launch_conv2d_nhwc::<R, SP, Alg, S>(
+        &input.client,
+        input.as_tensor_arg::<SP::EG>(lhs_line_size),
+        weight.as_tensor_arg::<SP::EG>(rhs_line_size),
+        bias.as_tensor_arg::<SP::EG>(out_line_size),
+        out.as_tensor_arg::<SP::EG>(out_line_size),
+        problem,
+    )?;
 
     // Reset to NCHW
     let out = reshape(out, Shape::new([batch_size, out_h, out_w, out_channels]));

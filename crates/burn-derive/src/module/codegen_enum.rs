@@ -1,5 +1,5 @@
 use super::{codegen::ModuleCodegen, record_enum::EnumModuleRecordCodegen};
-use crate::shared::enum_variant::{parse_variants, EnumVariant};
+use crate::shared::enum_variant::{EnumVariant, parse_variants};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::Visibility;

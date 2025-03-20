@@ -2,8 +2,8 @@ use super::CheckpointingStrategy;
 use crate::{
     checkpoint::CheckpointingAction,
     metric::{
-        store::{Aggregate, Direction, EventStoreClient, Split},
         Metric,
+        store::{Aggregate, Direction, EventStoreClient, Split},
     },
 };
 
@@ -65,16 +65,16 @@ impl CheckpointingStrategy for MetricCheckpointingStrategy {
 #[cfg(test)]
 mod tests {
     use crate::{
+        TestBackend,
         logger::InMemoryMetricLogger,
         metric::{
+            LossMetric,
             processor::{
-                test_utils::{end_epoch, process_train},
                 Metrics, MinimalEventProcessor,
+                test_utils::{end_epoch, process_train},
             },
             store::LogEventStore,
-            LossMetric,
         },
-        TestBackend,
     };
 
     use super::*;

@@ -5,9 +5,9 @@ mod tests {
     use super::*;
     use burn_tensor::TensorData;
     use burn_vision::{
-        as_type, create_structuring_element,
+        BorderType, KernelShape, MorphOptions, Morphology, Point, Size, as_type,
+        create_structuring_element,
         tests::{save_test_image, test_image},
-        BorderType, KernelShape, MorphOptions, Morphology, Point, Size,
     };
 
     #[test]

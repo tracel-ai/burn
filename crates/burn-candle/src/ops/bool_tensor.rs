@@ -1,11 +1,11 @@
 use burn_tensor::{
-    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
     Device, Shape, TensorData, TensorMetadata,
+    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
 };
 
 use crate::{
-    element::{CandleElement, FloatCandleElement, IntCandleElement},
     Candle, CandleTensor,
+    element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
 use super::base::{expand, permute};

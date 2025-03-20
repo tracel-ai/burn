@@ -1,25 +1,25 @@
-use crate::element::CubeElement;
 use crate::BoolElement;
-use crate::{kernel, tensor::CubeTensor, CubeBackend, CubeRuntime, FloatElement, IntElement};
+use crate::element::CubeElement;
+use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, kernel, tensor::CubeTensor};
 
+use burn_cubecl_fusion::CubeFusionHandle;
 use burn_cubecl_fusion::elemwise::optimization::ElemwiseOptimization;
+use burn_cubecl_fusion::matmul::MatmulFallbackFn;
 use burn_cubecl_fusion::matmul::builder::MatmulBuilder;
 use burn_cubecl_fusion::matmul::optimization::MatmulOptimization;
-use burn_cubecl_fusion::matmul::MatmulFallbackFn;
 use burn_cubecl_fusion::reduce::builder::ReduceBuilder;
 use burn_cubecl_fusion::reduce::optimization::{
     ReduceFallbackFn, ReduceInstruction, ReduceOptimization,
 };
-use burn_cubecl_fusion::CubeFusionHandle;
 use burn_cubecl_fusion::{
-    elemwise::builder::ElementWiseBuilder, CubeOptimization, CubeOptimizationState,
+    CubeOptimization, CubeOptimizationState, elemwise::builder::ElementWiseBuilder,
 };
-use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
+use burn_fusion::{FusionBackend, FusionRuntime, client::MutexFusionClient};
 use burn_ir::{BackendIr, TensorHandle};
 use burn_tensor::{DType, Shape};
 use core::marker::PhantomData;
-use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
 use cubecl::reduce::Reduce;
+use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
 use half::{bf16, f16};
 use std::sync::Arc;
 

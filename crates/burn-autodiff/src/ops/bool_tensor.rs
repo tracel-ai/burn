@@ -1,10 +1,10 @@
-use crate::{checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor, Autodiff};
+use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor};
 use alloc::vec::Vec;
 
 use burn_tensor::{
+    Device, Shape, TensorData,
     backend::Backend,
     ops::{BoolTensor, BoolTensorOps, IntTensor},
-    Device, Shape, TensorData,
 };
 
 impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {

@@ -1,8 +1,8 @@
 #[burn_tensor_testgen::testgen(mask_where)]
 mod tests {
     use super::*;
-    use burn_cubecl::kernel::{mask_where, MaskWhereStrategy};
-    use burn_tensor::{backend::Backend, Bool, Distribution, Tensor, TensorPrimitive};
+    use burn_cubecl::kernel::{MaskWhereStrategy, mask_where};
+    use burn_tensor::{Bool, Distribution, Tensor, TensorPrimitive, backend::Backend};
 
     #[test]
     fn mask_where_should_match_reference_backend() {

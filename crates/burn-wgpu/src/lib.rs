@@ -4,29 +4,29 @@ extern crate alloc;
 
 #[cfg(feature = "template")]
 pub use burn_cubecl::{
-    kernel::{into_contiguous, Kernel},
+    kernel::{Kernel, into_contiguous},
     kernel_source,
-    template::{build_info, KernelSource, SourceKernel, SourceTemplate},
+    template::{KernelSource, SourceKernel, SourceTemplate, build_info},
 };
 
-pub use burn_cubecl::{tensor::CubeTensor, CubeBackend};
 pub use burn_cubecl::{BoolElement, FloatElement, IntElement};
-pub use cubecl::flex32;
+pub use burn_cubecl::{CubeBackend, tensor::CubeTensor};
 pub use cubecl::CubeDim;
+pub use cubecl::flex32;
 
 pub use cubecl::wgpu::{
-    init_device, init_setup, init_setup_async, AutoCompiler, MemoryConfiguration, RuntimeOptions,
-    WgpuDevice, WgpuResource, WgpuRuntime, WgpuSetup, WgpuStorage,
+    AutoCompiler, MemoryConfiguration, RuntimeOptions, WgpuDevice, WgpuResource, WgpuRuntime,
+    WgpuSetup, WgpuStorage, init_device, init_setup, init_setup_async,
 };
 // Vulkan and WebGpu would have conflicting type names
 pub mod graphics {
     pub use cubecl::wgpu::{AutoGraphicsApi, Dx12, GraphicsApi, Metal, OpenGl, Vulkan, WebGpu};
 }
 
-#[cfg(feature = "cubecl-spirv")]
-pub use cubecl::wgpu::vulkan::VkSpirvCompiler;
 #[cfg(feature = "cubecl-wgsl")]
 pub use cubecl::wgpu::WgslCompiler;
+#[cfg(feature = "cubecl-spirv")]
+pub use cubecl::wgpu::vulkan::VkSpirvCompiler;
 
 #[cfg(feature = "fusion")]
 /// Tensor backend that uses the wgpu crate for executing GPU compute shaders.

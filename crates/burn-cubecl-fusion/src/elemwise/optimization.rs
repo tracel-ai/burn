@@ -1,11 +1,11 @@
+use crate::CubeFusionHandle;
 use crate::shared::io::ref_len;
 use crate::shared::ir::{GlobalArgs, RefLayout};
 use crate::shared::kernel::fuse_on_write;
 use crate::shared::kernel::init_locals;
 use crate::shared::trace::Vectorization;
-use crate::CubeFusionHandle;
 use burn_fusion::stream::Context;
-use cubecl::{calculate_cube_count_elemwise, client::ComputeClient, prelude::*, CubeDim};
+use cubecl::{CubeDim, calculate_cube_count_elemwise, client::ComputeClient, prelude::*};
 use serde::{Deserialize, Serialize};
 
 use crate::shared::{

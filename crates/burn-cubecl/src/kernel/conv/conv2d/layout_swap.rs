@@ -1,10 +1,10 @@
 use burn_tensor::Shape;
-use cubecl::{prelude::*, CubeCount, CubeDim};
+use cubecl::{CubeCount, CubeDim, prelude::*};
 
 use crate::{
+    CubeElement, CubeRuntime,
     ops::{max_vectorization, numeric::empty_device},
     tensor::CubeTensor,
-    CubeElement, CubeRuntime,
 };
 
 /// Efficiently transpose an NCHW tensor to NHWC for use in kernels that prefer NHWC for performance.

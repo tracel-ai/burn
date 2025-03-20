@@ -1,25 +1,27 @@
 use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
+    ops::{ConvOptions, conv::calculate_conv_output_size},
 };
 use cmma::{Matrix, MatrixIdent, MatrixLayout};
 use cubecl::{
-    cube,
+    CubeCount, CubeDim, Feature, cube,
     ir::{Elem, FloatKind},
-    linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError},
+    linalg::{
+        convolution::ConvLaunchError,
+        matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError},
+    },
     prelude::*,
-    CubeCount, CubeDim, Feature,
 };
 use half::f16;
 
 use crate::{
-    kernel::{conv::ConvLaunchError, into_contiguous, slice, slice_assign},
+    CubeRuntime, FloatElement,
+    kernel::{into_contiguous, slice, slice_assign},
     ops::{
         numeric::{empty_device, zeros_device},
         permute,
     },
     tensor::CubeTensor,
-    CubeRuntime, FloatElement,
 };
 
 use super::nchw_to_nhwc;
@@ -217,17 +219,19 @@ fn find_common_vec(channels: usize, elems_per_thread: u32, supported_vecs: &[u8]
         .unwrap_or(1)
 }
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct ConvArgs {
     stride_h: u32,
     stride_w: u32,
+    #[allow(dead_code)]
     pad_h: i32,
+    #[allow(dead_code)]
     pad_w: i32,
     dilation_h: u32,
     dilation_w: u32,
 }
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct Dimensions {
     gemm_m: u32,
     gemm_n: u32,

@@ -2,8 +2,8 @@ use burn_ir::TensorIr;
 use burn_router::{RouterTensor, RunnerChannel, TensorHandle};
 
 use super::{
-    runner::{WsBridge, WsDevice},
     WsClient,
+    runner::{WsBridge, WsDevice},
 };
 
 /// A local channel with direct connection to the backend runner clients.

@@ -51,7 +51,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomNormalLikeNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorKind, TensorType};
+    use crate::burn::{TensorKind, TensorType, graph::BurnGraph, node::test::assert_tokens};
     use burn::record::FullPrecisionSettings;
 
     #[test]

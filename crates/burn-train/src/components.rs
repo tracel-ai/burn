@@ -21,20 +21,14 @@ pub trait LearnerComponents {
     /// The optimizer used for the training.
     type Optimizer: Optimizer<Self::Model, Self::Backend>;
     /// The checkpointer used for the model.
-    type CheckpointerModel: Checkpointer<
-        <Self::Model as Module<Self::Backend>>::Record,
-        Self::Backend,
-    >;
+    type CheckpointerModel: Checkpointer<<Self::Model as Module<Self::Backend>>::Record, Self::Backend>;
     /// The checkpointer used for the optimizer.
     type CheckpointerOptimizer: Checkpointer<
-        <Self::Optimizer as Optimizer<Self::Model, Self::Backend>>::Record,
-        Self::Backend,
-    >;
+            <Self::Optimizer as Optimizer<Self::Model, Self::Backend>>::Record,
+            Self::Backend,
+        >;
     /// The checkpointer used for the scheduler.
-    type CheckpointerLrScheduler: Checkpointer<
-        <Self::LrScheduler as LrScheduler>::Record<Self::Backend>,
-        Self::Backend,
-    >;
+    type CheckpointerLrScheduler: Checkpointer<<Self::LrScheduler as LrScheduler>::Record<Self::Backend>, Self::Backend>;
     type EventProcessor: EventProcessor + 'static;
     /// The strategy to save and delete checkpoints.
     type CheckpointerStrategy: CheckpointingStrategy;

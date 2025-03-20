@@ -2,10 +2,10 @@
 mod tests {
     use super::*;
     use burn_tensor::{
+        Tensor, TensorData,
         quantization::{
             BlockLayout, CalibrationRange, QuantizationMode, QuantizationScheme, QuantizationType,
         },
-        Tensor, TensorData,
     };
 
     #[test]

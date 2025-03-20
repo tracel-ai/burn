@@ -1,4 +1,4 @@
-use super::{block::FuseBlock, BlockPlan, InputReference, KernelResources, TensorView};
+use super::{BlockPlan, InputReference, KernelResources, TensorView, block::FuseBlock};
 use crate::CubeFusionHandle;
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};

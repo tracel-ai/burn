@@ -3,17 +3,17 @@ use std::marker::PhantomData;
 use burn_fusion::stream::Context;
 use burn_tensor::DType;
 use cubecl::{
+    CubeElement, Runtime,
     client::ComputeClient,
     prelude::{ScalarArg, Sequence, TensorArg},
-    CubeElement, Runtime,
 };
 
 use super::{
-    block::FuseBlock, HandleInput, HandleOutput, KernelResources, LaunchPlan, ReferenceSelection,
-    TensorView, TraceError, TraceRunner,
+    HandleInput, HandleOutput, KernelResources, LaunchPlan, ReferenceSelection, TensorView,
+    TraceError, TraceRunner, block::FuseBlock,
 };
 use crate::{
-    elem_dtype,
+    CubeFusionHandle, elem_dtype,
     shared::{
         ir::{
             ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch, RefLayout,
@@ -21,7 +21,6 @@ use crate::{
         },
         tensor::{GlobalScalar, GlobalTensorArg},
     },
-    CubeFusionHandle,
 };
 
 /// Execute a [plan](LaunchPlan) using a [runner](TraceRunner) modifying the [context](Context).

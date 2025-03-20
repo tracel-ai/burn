@@ -1,6 +1,6 @@
 use super::{
-    state::{FormatOptions, NumericMetricState},
     MetricMetadata, Numeric,
+    state::{FormatOptions, NumericMetricState},
 };
 use crate::metric::{Metric, MetricEntry};
 

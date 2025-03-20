@@ -1,10 +1,10 @@
-use super::{server::AutodiffServer, AutodiffClient};
+use super::{AutodiffClient, server::AutodiffServer};
 use crate::{
+    NodeID,
     checkpoint::builder::CheckpointerBuilder,
     grads::Gradients,
     graph::StepBoxed,
     tensor::{AutodiffTensor, NodeRefCount},
-    NodeID,
 };
 use burn_tensor::backend::Backend;
 use std::sync::mpsc::Sender;

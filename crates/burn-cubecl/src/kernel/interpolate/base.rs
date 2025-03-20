@@ -1,10 +1,10 @@
 use crate::{
-    kernel::into_contiguous, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime,
-    FloatElement,
+    CubeRuntime, FloatElement, kernel::into_contiguous, ops::numeric::empty_device,
+    tensor::CubeTensor,
 };
 use burn_tensor::{
-    ops::{InterpolateMode, InterpolateOptions},
     Shape,
+    ops::{InterpolateMode, InterpolateOptions},
 };
 
 use super::{

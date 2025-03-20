@@ -1,7 +1,7 @@
 use super::ParamId;
 use crate::module::{Module, ModuleVisitor};
 use alloc::vec::Vec;
-use burn_tensor::{backend::Backend, Bool, Int, Tensor};
+use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 use core::marker::PhantomData;
 
 struct ParamIdCollector<'a, M> {
