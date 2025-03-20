@@ -343,14 +343,33 @@ impl OnnxGraphBuilder {
 ///
 /// * If the file cannot be opened
 /// * If the file cannot be parsed
+/// * If the graph is missing from the parsed ModelProto
 /// * If the nodes are not topologically sorted
 pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     log::info!("Parsing ONNX file: {}", onnx_path.display());
 
     // Open the file
     let mut file = File::open(onnx_path).expect("Unable to open file");
-    let onnx_model: ModelProto =
+    let mut onnx_model: ModelProto =
         Message::parse_from_reader(&mut file).expect("Unable to parse ONNX file");
+
+    // Prune the node inputs and outputs of all empty strings. This can cause issues with
+    // checking the topology of the graph, as well as cause issues when guessing input and output
+    // types. Empty strings seem to be parsed from the ONNX file when an input or output is not populated.
+    // As an added bonus, this will also improve performance on model conversion.
+    onnx_model
+        .graph
+        .as_mut()
+        .expect("Graph not found")
+        .node
+        .iter_mut()
+        .for_each(|node| {
+            // Clear the input of empty string entries
+            node.input.retain(|s| !s.is_empty());
+
+            // Clear the output of empty string entries
+            node.output.retain(|s| !s.is_empty());
+        });
 
     // ONNX nodes must be topologically sorted per spec:
     // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
