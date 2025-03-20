@@ -80,10 +80,11 @@ mod tests {
     use super::*;
     use crate::tensor::TensorData;
     use crate::TestBackend;
+    #[cfg(feature = "std")]
     use serial_test::serial;
 
     #[test]
-    #[serial]
+    #[cfg_attr(feature = "std", serial)]
     fn initializer_default() {
         TestBackend::seed(0);
         let config = EmbeddingConfig::new(100, 10);

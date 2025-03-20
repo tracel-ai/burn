@@ -4,6 +4,7 @@ mod tests {
     use burn_tensor::{
         backend::Backend, module, ops::ModuleOps, Distribution, Tensor, TensorPrimitive,
     };
+    #[cfg(feature = "std")]
     use serial_test::serial;
 
     #[test]
@@ -30,7 +31,7 @@ mod tests {
     }
 
     #[test]
-    #[serial]
+    #[cfg_attr(feature = "std", serial)]
     fn avg_pool2d_backward_should_match_reference_backend() {
         TestBackend::seed(0);
         ReferenceBackend::seed(0);
