@@ -154,7 +154,7 @@ mod tests {
     }
 
     #[test]
-    fn test_features() {
+    fn test_input_output_dims() {
         TestBackend::seed(0);
 
         let d_input = 2;
