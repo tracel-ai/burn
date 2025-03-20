@@ -5,6 +5,7 @@ use crate::{
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
+    ir::UIntKind,
     reduce::tune_key::ReduceAutotuneKey,
     tune::{LocalTuner, TunableSet, local_tuner},
 };
@@ -16,11 +17,13 @@ use super::optimization::ReduceOptimization;
 pub struct FusedReduceAutotuneKey {
     reduce_key: ReduceAutotuneKey,
     #[autotune(anchor)]
-    num_out_buffers: usize,
+    fuse_num_reads: usize,
     #[autotune(anchor)]
-    num_ops: usize,
+    fuse_num_writes: usize,
     #[autotune(anchor)]
-    vect_count: usize,
+    fuse_num_ops: usize,
+    fuse_on_read_max_width: u8,
+    fuse_on_write_max_width: u8,
 }
 
 /// Executes autotune on reduce operations
@@ -61,10 +64,34 @@ pub(crate) fn create_key<R: Runtime>(
         &input.shape,
         opt.reduce.axis,
     );
-    let vect = opt.trace.vect(context, &opt.reduce);
-    let vect = vect.iter().map(|v| v.1.line_size() as usize).sum::<usize>();
+    let read = &opt.trace.blocks[0];
+    let write = &opt.trace.blocks[1];
 
-    FusedReduceAutotuneKey::new(key, opt.num_output_buffers(), opt.num_ops_fused(), vect)
+    // During fusion we perform the vectorization on the last dim.
+    let shape_input = *input.shape.last().unwrap() as u8;
+    let shape_output = *out.shape.last().unwrap() as u8;
+
+    let mut fuse_on_read_max_width = 1;
+    let mut fuse_on_write_max_width = 1;
+
+    // We use u8 as the best case scenario for vectorization.
+    for line_size in R::line_size_elem(&cubecl::ir::Elem::UInt(UIntKind::U8)) {
+        if fuse_on_read_max_width == 1 && shape_output % line_size == 0 {
+            fuse_on_read_max_width = line_size;
+        }
+        if fuse_on_write_max_width == 1 && shape_input % line_size == 0 {
+            fuse_on_write_max_width = line_size;
+        }
+    }
+
+    FusedReduceAutotuneKey::new(
+        key,
+        read.reads.len() + write.reads.len(),
+        read.writes.len() + write.writes.len(),
+        read.ops.len() + write.ops.len(),
+        fuse_on_read_max_width,
+        fuse_on_write_max_width,
+    )
 }
 
 fn input_gen<R: Runtime>(

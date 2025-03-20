@@ -4,7 +4,7 @@ use crate::{
 };
 
 use super::{
-    HandleInput, HandleOutput, LaunchPlan, TraceRunner, Vectorization, block::FuseBlock,
+    HandleInput, HandleOutput, LaunchPlan, TraceRunner, block::FuseBlock,
     executor::LaunchPlanExecutor, input::InputPlanner, output::OutputPlanner,
     vectorization::VectorizationPlanner,
 };
@@ -109,19 +109,6 @@ impl FuseTrace {
                 context.handles.register_handle(global_id, handle);
             }
         }
-    }
-
-    pub fn vect<R: Runtime, V: Vectorization<R>>(
-        &self,
-        context: &Context<'_, CubeFusionHandle<R>>,
-        runner: &V,
-    ) -> BTreeMap<TensorId, super::Vect> {
-        let mut plan = LaunchPlan::<R>::new(&self.blocks);
-
-        VectorizationPlanner::<R>::new(&self.resources, &self.blocks)
-            .run(runner, context, &mut plan);
-
-        plan.vectorizations
     }
 }
 

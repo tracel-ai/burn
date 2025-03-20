@@ -3,7 +3,7 @@ use cubecl::{linalg::matmul::components::global::args::MatmulArgs, prelude::*};
 use crate::shared::{
     io::{
         global_buffer_len, global_len, global_rank, global_shape, global_stride, num_elements,
-        read_input, ref_buffer_len, ref_len, ref_shape, ref_stride,
+        read_input, read_input_window, ref_buffer_len, ref_len, ref_shape, ref_stride,
     },
     ir::{Arg, FuseConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo, LocalArgs, LocalArgsExpand},
     kernel::{fuse_on_write, init_locals},
@@ -78,30 +78,34 @@ impl MatmulArgs for FusedMatmulArgs {
     }
 
     fn read_window_lhs<EG: Numeric>(
-        _state: &Self::State<EG>,
-        _start: u32,
-        _end: u32,
+        state: &Self::State<EG>,
+        start: u32,
+        end: u32,
     ) -> Slice<Line<EG>> {
-        comptime!(todo!());
-        // TODO This is a dummy return value to satisfy the type checker
-        //      before working on an implementation.
-        //      Remove the allow annotation after implementing this function.
-        #[allow(unreachable_code)]
-        SharedMemory::new_lined(0, 0_u32).to_slice()
+        let pos = comptime! {
+            match state.lhs {
+                Arg::Input(pos, ..) => pos,
+                _ => panic!("Lhs isn't an input"),
+            }
+        };
+
+        read_input_window(unsafe { &(*state.inputs) }, pos, start, end)
     }
 
     #[allow(unreachable_code)]
     fn read_window_rhs<EG: Numeric>(
-        _state: &Self::State<EG>,
-        _start: u32,
-        _end: u32,
+        state: &Self::State<EG>,
+        start: u32,
+        end: u32,
     ) -> Slice<Line<EG>> {
-        comptime!(todo!());
-        // TODO This is a dummy return value to satisfy the type checker
-        //      before working on an implementation.
-        //      Remove the allow annotation after implementing this function.
-        #[allow(unreachable_code)]
-        SharedMemory::new_lined(0, 0_u32).to_slice()
+        let pos = comptime! {
+            match state.rhs {
+                Arg::Input(pos, ..) => pos,
+                _ => panic!("Rhs isn't an input"),
+            }
+        };
+
+        read_input_window(unsafe { &(*state.inputs) }, pos, start, end)
     }
 
     fn write_out<EG: Numeric>(state: &mut Self::State<EG>, coordinate: u32, value: Line<EG>) {

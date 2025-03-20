@@ -167,6 +167,18 @@ pub fn read_input<C: CubePrimitive>(
 }
 
 #[cube]
+pub fn read_input_window<C: CubePrimitive>(
+    inputs: &GlobalArgs,
+    #[comptime] pos: u32,
+    start: u32,
+    end: u32,
+) -> Slice<C> {
+    let tensor = inputs.tensors.index(pos);
+    let slice = tensor.tensor.slice(start, end);
+    slice.try_cast_unchecked()
+}
+
+#[cube]
 pub fn read_input_aligned<C: CubePrimitive>(
     inputs: &GlobalArgs,
     locals: &LocalArgs,

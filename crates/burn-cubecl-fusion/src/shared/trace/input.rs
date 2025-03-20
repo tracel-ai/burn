@@ -7,8 +7,8 @@ use std::marker::PhantomData;
 
 use super::{HandleInput, LaunchPlan, PotentialInplace};
 
-/// Fetch and register [input handles](HandleInput) and itendify potential inputs that
-/// can be used inplace.
+/// Fetch and register [input handles](HandleInput). Also itendifies potential inputs that
+/// can be used inplace and/or as the [reference layout](super::super::ir::RefLayout).
 pub struct InputPlanner<'a, R: Runtime> {
     resources: &'a FuseResources,
     blocks: &'a Vec<FuseBlock>,
@@ -82,12 +82,12 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 return;
             }
 
-            self.analyze_inplace(plan, pos, tensor_relative, handle);
+            self.analyze_potential_inplace(plan, pos, tensor_relative, handle);
         }
     }
 
     /// Analyzes if the given tensor can be used inplace in one of the block.
-    fn analyze_inplace(
+    fn analyze_potential_inplace(
         &self,
         plan: &mut LaunchPlan<'a, R>,
         pos: usize,
@@ -133,6 +133,8 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     tensor_relative,
                     strides: handle.strides.clone(),
                 });
+                // Inplace tensors are normally really good as the reference layout, since
+                // it's normally better to be based on writes rather than on reads.
                 block_plan.potential_reference_input =
                     Some(InputReference::Normal { input_pos: pos });
             } else {
