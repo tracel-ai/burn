@@ -170,8 +170,6 @@ mod tests {
 
     #[test]
     fn initializer_default() {
-        TestBackend::seed(0);
-
         let config = Conv2dConfig::new([5, 1], [5, 5]);
         let k = (config.channels[0] * config.kernel_size[0] * config.kernel_size[1]) as f64;
         let k = (config.groups as f64 / k).sqrt() as f32;
@@ -183,8 +181,6 @@ mod tests {
 
     #[test]
     fn initializer_zeros() {
-        TestBackend::seed(0);
-
         let config = Conv2dConfig::new([5, 2], [5, 5]).with_initializer(Initializer::Zeros);
         let device = Default::default();
         let conv = config.init::<TestBackend>(&device);
@@ -197,8 +193,6 @@ mod tests {
 
     #[test]
     fn initializer_fan_out() {
-        TestBackend::seed(0);
-
         let init = Initializer::KaimingUniform {
             gain: 1.0 / 3.0f64.sqrt(),
             fan_out_only: true, // test that fan_out is passed to `init_with()`
@@ -212,8 +206,6 @@ mod tests {
 
     #[test]
     fn initializer_fan_with_groups_is_valid() {
-        TestBackend::seed(0);
-
         let init = Initializer::KaimingUniform {
             gain: 1.0 / 3.0f64.sqrt(),
             fan_out_only: true,

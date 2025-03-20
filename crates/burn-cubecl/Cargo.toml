@@ -65,6 +65,9 @@ burn-ndarray = { path = "../burn-ndarray", version = "0.17.0", optional = true }
 paste = { workspace = true, optional = true }
 serial_test = { workspace = true, optional = true }
 
+[dev-dependencies]
+serial_test.workspace = true
+
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]

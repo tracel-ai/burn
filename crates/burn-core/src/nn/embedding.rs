@@ -80,11 +80,13 @@ mod tests {
     use super::*;
     use crate::tensor::TensorData;
     use crate::TestBackend;
+    #[cfg(feature = "std")]
+    use serial_test::serial;
 
     #[test]
+    #[cfg_attr(feature = "std", serial)]
     fn initializer_default() {
         TestBackend::seed(0);
-
         let config = EmbeddingConfig::new(100, 10);
         let embed = config.init::<TestBackend>(&Default::default());
         let weights = embed.weight.val().reshape([1000]);
@@ -99,10 +101,10 @@ mod tests {
         );
         var_act
             .to_data()
-            .assert_approx_eq(&TensorData::from([1.0f32]), 0);
+            .assert_approx_eq(&TensorData::from([1.0f32]), 1);
         mean_act
             .to_data()
-            .assert_approx_eq(&TensorData::from([0.0f32]), 0);
+            .assert_approx_eq(&TensorData::from([0.0f32]), 1);
     }
 
     #[test]

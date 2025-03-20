@@ -5,8 +5,6 @@ mod tests {
 
     #[test]
     fn conv_transpose3d_should_match_reference_backend() {
-        TestBackend::seed(0);
-
         let depth = 8;
         let height = 8;
         let width = 8;
