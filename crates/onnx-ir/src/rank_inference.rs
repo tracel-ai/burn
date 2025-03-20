@@ -235,6 +235,14 @@ fn random_like_update_output(node: &mut Node) {
                 rank: shape.len(),
                 shape: Some(shape),
             })
+        } else {
+            // Handle the edge case that we don't have a shape (None) for the input tensor
+            // but we do have an explicit rank/dim defined in the Operator.
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type,
+                rank: tensor.rank,
+                shape: tensor.shape.clone(),
+            })
         }
     } else {
         panic!("Only tensor input is valid");
