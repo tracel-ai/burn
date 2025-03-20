@@ -6,10 +6,10 @@ use crate::config::Config;
 use crate::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param};
 use crate::nn::Initializer;
 use crate::nn::PaddingConfig2d;
+use crate::tensor::Tensor;
 use crate::tensor::backend::Backend;
 use crate::tensor::module::conv2d;
 use crate::tensor::ops::ConvOptions;
-use crate::tensor::Tensor;
 
 use crate::nn::conv::checks;
 
@@ -165,8 +165,8 @@ impl<B: Backend> Conv2d<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
 
     #[test]
     fn initializer_default() {

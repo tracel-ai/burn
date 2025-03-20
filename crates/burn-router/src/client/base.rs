@@ -10,8 +10,8 @@ use spin::Mutex;
 
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::{
-    backend::{DeviceId, DeviceOps},
     DType, FloatDType, TensorData,
+    backend::{DeviceId, DeviceOps},
 };
 
 use crate::{RouterTensor, RunnerChannel};

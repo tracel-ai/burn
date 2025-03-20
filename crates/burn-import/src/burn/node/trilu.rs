@@ -48,9 +48,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TriluNode {
 mod tests {
     use super::*;
     use crate::burn::{
+        TensorType,
         graph::BurnGraph,
         node::{test::assert_tokens, trilu::TriluConfig, trilu::TriluNode},
-        TensorType,
     };
     use burn::record::FullPrecisionSettings;
 

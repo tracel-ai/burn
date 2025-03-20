@@ -1,7 +1,7 @@
 use crate::{
+    Int, Tensor, TensorPrimitive,
     backend::Backend,
     ops::{ConvOptions, ConvTransposeOptions, InterpolateOptions, UnfoldOptions},
-    Int, Tensor, TensorPrimitive,
 };
 
 use super::ops::DeformConvOptions;

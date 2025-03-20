@@ -2,8 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{
-        quantization::{BlockLayout, QuantizationMode, QuantizationScheme, QuantizationType},
         Tensor,
+        quantization::{BlockLayout, QuantizationMode, QuantizationScheme, QuantizationType},
     };
 
     #[test]

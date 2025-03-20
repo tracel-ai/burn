@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(module_forward)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, module::embedding, Int, Tensor, TensorData};
+    use burn_tensor::{Int, Tensor, TensorData, backend::Backend, module::embedding};
 
     #[test]
     fn test_embedding_forward() {

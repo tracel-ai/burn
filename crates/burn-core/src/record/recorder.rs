@@ -4,7 +4,7 @@ use core::marker::PhantomData;
 use alloc::format;
 use alloc::string::{String, ToString};
 use burn_tensor::backend::Backend;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use super::{BinBytesRecorder, FullPrecisionSettings, PrecisionSettings, Record};
 

@@ -1,8 +1,8 @@
 use crate as burn;
 
 use crate::module::Module;
-use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 
 /// Applies the rectified linear unit function element-wise
 /// See also [relu](burn::tensor::activation::relu)

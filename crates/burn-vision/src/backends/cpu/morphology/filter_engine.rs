@@ -1,7 +1,7 @@
 use std::{fmt::Debug, ptr::null_mut};
 
 use burn_tensor::Shape;
-use bytemuck::{cast_slice, cast_slice_mut, Zeroable};
+use bytemuck::{Zeroable, cast_slice, cast_slice_mut};
 use macerator::{Simd, VOrd, Vector};
 
 use crate::{BorderType, Point, Size};

@@ -16,10 +16,10 @@ pub use async_wrapper::AsyncProcessor;
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::metric::{
-        processor::{Event, EventProcessor, LearnerItem, MinimalEventProcessor},
         Adaptor, LossInput,
+        processor::{Event, EventProcessor, LearnerItem, MinimalEventProcessor},
     };
-    use burn_core::tensor::{backend::Backend, ElementConversion, Tensor};
+    use burn_core::tensor::{ElementConversion, Tensor, backend::Backend};
 
     use super::ItemLazy;
 

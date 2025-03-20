@@ -4,8 +4,8 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
-use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 
 /// Hard Sigmoid layer.
 ///
@@ -69,8 +69,8 @@ impl HardSigmoid {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
 
     #[test]
     fn test_hard_sigmoid_forward() {

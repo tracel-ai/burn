@@ -1,4 +1,4 @@
-use crate::{element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
+use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
     tensor_line_size_parallel,
@@ -144,7 +144,7 @@ pub(crate) mod unary_basic {
         Recip,
     }
 
-    #[derive(CubeLaunch)]
+    #[derive(CubeLaunch, CubeType)]
     struct BasicFloatUnaryOptions {
         #[cube(comptime)]
         kind: BasicFloatUnaryKind,

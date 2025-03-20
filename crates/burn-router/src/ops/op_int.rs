@@ -9,13 +9,13 @@ use burn_ir::{
     ScatterOpIr, SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
 };
 use burn_tensor::ops::{
-    binary_ops_shape, BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, IntTensorOps,
+    BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, IntTensorOps, binary_ops_shape,
 };
 use burn_tensor::{
     Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
 };
 
-use crate::{get_client, BackendRouter, RunnerChannel, RunnerClient};
+use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 
 impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {

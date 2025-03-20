@@ -3,14 +3,14 @@ use crate::FloatTensor;
 use super::{AutodiffBackend, Backend};
 use burn::{
     backend::autodiff::{
+        Autodiff, NodeID,
         checkpoint::{base::Checkpointer, strategy::CheckpointStrategy},
         grads::Gradients,
-        ops::{broadcast_shape, Backward, Ops, OpsKind},
-        Autodiff, NodeID,
+        ops::{Backward, Ops, OpsKind, broadcast_shape},
     },
     tensor::{Shape, TensorMetadata},
 };
-use burn_cubecl::{element::BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
+use burn_cubecl::{CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement};
 
 impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
     for Autodiff<CubeBackend<R, F, I, BT>>

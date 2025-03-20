@@ -8,12 +8,12 @@ use crate::module::DisplaySettings;
 use crate::module::Module;
 use crate::module::ModuleDisplay;
 use crate::module::Param;
-use crate::nn::conv::checks;
 use crate::nn::Initializer;
+use crate::nn::conv::checks;
+use crate::tensor::Tensor;
 use crate::tensor::backend::Backend;
 use crate::tensor::module::conv_transpose3d;
 use crate::tensor::ops::ConvTransposeOptions;
-use crate::tensor::Tensor;
 
 /// Configuration to create an [3D transposed convolution](ConvTranspose3d) layer
 /// using the [init function](ConvTranspose3dConfig::init).
@@ -160,8 +160,8 @@ impl<B: Backend> ConvTranspose3d<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
 
     #[test]
     fn initializer_default() {

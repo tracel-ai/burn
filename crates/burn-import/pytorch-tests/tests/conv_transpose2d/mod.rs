@@ -1,7 +1,7 @@
 use burn::{
     module::Module,
     nn::conv::{ConvTranspose2d, ConvTranspose2dConfig},
-    tensor::{backend::Backend, Tensor},
+    tensor::{Tensor, backend::Backend},
 };
 
 #[derive(Module, Debug)]

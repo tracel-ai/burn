@@ -1,11 +1,11 @@
 use axum::{
+    Router,
     extract::{
-        ws::{self, WebSocket, WebSocketUpgrade},
         State,
+        ws::{self, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
     routing::any,
-    Router,
 };
 use std::{net::SocketAddr, sync::Arc};
 

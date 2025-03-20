@@ -97,9 +97,9 @@ mod tests {
 
     use super::*;
     use crate::burn::{
+        TensorType,
         graph::BurnGraph,
         node::{matmul::MatmulNode, test::assert_tokens},
-        TensorType,
     };
 
     #[test]

@@ -1,6 +1,6 @@
 use super::{ItemLazy, LearnerItem};
 use crate::{
-    metric::{store::MetricsUpdate, Adaptor, Metric, MetricEntry, MetricMetadata, Numeric},
+    metric::{Adaptor, Metric, MetricEntry, MetricMetadata, Numeric, store::MetricsUpdate},
     renderer::TrainingProgress,
 };
 

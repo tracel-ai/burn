@@ -5,9 +5,9 @@ mod hardware_accelerated;
 mod prefix_sum;
 
 use burn_cubecl::{
+    BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
     ops::numeric::{full_device, zeros_device},
     tensor::CubeTensor,
-    BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
 use burn_tensor::Shape;
 pub use hardware_accelerated::*;

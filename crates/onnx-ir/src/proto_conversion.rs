@@ -1,4 +1,4 @@
-use std::str::{from_utf8, FromStr};
+use std::str::{FromStr, from_utf8};
 
 use crate::ir::TensorType;
 
@@ -8,8 +8,9 @@ use super::ir::{
     ArgType, Argument, AttributeValue, Attributes, Data, ElementType, Node, NodeType, Tensor,
 };
 use super::protos::{
+    AttributeProto, NodeProto, TensorProto, TensorShapeProto, ValueInfoProto,
     attribute_proto::AttributeType, tensor_proto::DataType, tensor_shape_proto::dimension::Value,
-    type_proto, AttributeProto, NodeProto, TensorProto, TensorShapeProto, ValueInfoProto,
+    type_proto,
 };
 
 use bytemuck::cast_slice;

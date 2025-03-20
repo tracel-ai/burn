@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use tracing_core::{Level, LevelFilter};
 use tracing_subscriber::filter::filter_fn;
 use tracing_subscriber::prelude::*;
-use tracing_subscriber::{registry, Layer};
+use tracing_subscriber::{Layer, registry};
 
 /// This trait is used to install an application logger.
 pub trait ApplicationLoggerInstaller {

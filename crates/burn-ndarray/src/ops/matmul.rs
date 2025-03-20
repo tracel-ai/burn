@@ -1,5 +1,5 @@
 use crate::ops::NdArrayOps;
-use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, UnsafeSharedRef};
+use crate::{UnsafeSharedRef, element::FloatNdArrayElement, tensor::NdArrayTensor};
 
 use alloc::{vec, vec::Vec};
 use burn_common::{iter_range_par, run_par};

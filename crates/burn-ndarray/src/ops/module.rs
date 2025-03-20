@@ -1,7 +1,7 @@
 use super::{
     adaptive_avgpool::{adaptive_avg_pool2d, adaptive_avg_pool2d_backward},
     avgpool::{avg_pool2d, avg_pool2d_backward},
-    conv::{conv2d, conv3d, conv_transpose2d, conv_transpose3d},
+    conv::{conv_transpose2d, conv_transpose3d, conv2d, conv3d},
     deform_conv::{backward::deform_conv2d_backward, deform_conv2d},
     interpolate::{bicubic_interpolate, bilinear_interpolate, nearest_interpolate},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
@@ -10,7 +10,7 @@ use super::{
 use crate::ops::simd::{
     avgpool::try_avg_pool2d_simd, conv::try_conv2d_simd, maxpool::try_max_pool2d_simd,
 };
-use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray, NdArrayTensorFloat};
+use crate::{NdArray, NdArrayTensorFloat, element::FloatNdArrayElement, tensor::NdArrayTensor};
 use crate::{
     element::{IntNdArrayElement, QuantElement},
     ops::interpolate::nearest_interpolate_backward,

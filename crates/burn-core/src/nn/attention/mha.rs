@@ -1,12 +1,12 @@
 use crate as burn;
 
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use crate::nn::cache::TensorCache;
 use crate::nn::Initializer;
+use crate::nn::cache::TensorCache;
 use crate::{
     config::Config,
     nn,
-    tensor::{activation, backend::Backend, Bool, Tensor},
+    tensor::{Bool, Tensor, activation, backend::Backend},
 };
 
 #[cfg(not(feature = "std"))]
@@ -355,7 +355,7 @@ mod tests {
     use super::*;
     use crate::tensor::Int;
     use crate::tensor::{Distribution, Shape};
-    use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
+    use crate::{TestBackend, nn::attention::generate_autoregressive_mask};
     use alloc::vec::Vec;
 
     #[test]

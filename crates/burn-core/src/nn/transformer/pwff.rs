@@ -5,7 +5,7 @@ use crate::nn::Initializer;
 use crate::{
     config::Config,
     nn::{Dropout, DropoutConfig, Gelu, Linear, LinearConfig},
-    tensor::{backend::Backend, Tensor},
+    tensor::{Tensor, backend::Backend},
 };
 
 /// Configuration to create a [position-wise feed-forward](PositionWiseFeedForward) layer using the [init function](PositionWiseFeedForwardConfig::init).

@@ -1,5 +1,5 @@
 #[cfg(feature = "audio")]
-use burn_dataset::{audio::SpeechCommandsDataset, Dataset};
+use burn_dataset::{Dataset, audio::SpeechCommandsDataset};
 
 #[cfg(feature = "audio")]
 fn speech_command() {

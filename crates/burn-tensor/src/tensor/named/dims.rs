@@ -1,8 +1,8 @@
 use alloc::format;
 use alloc::string::String;
 
-use crate::backend::Backend;
 use crate::Tensor;
+use crate::backend::Backend;
 
 /// Dimension trait.
 pub trait Dim: core::fmt::Debug {

@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(max_pool2d_backward)]
 mod tests {
     use super::*;
-    use burn_tensor::{module, ops::ModuleOps, Distribution, Tensor, TensorPrimitive};
+    use burn_tensor::{Distribution, Tensor, TensorPrimitive, module, ops::ModuleOps};
 
     #[test]
     pub fn max_pool2d_with_indices_backward_should_match_reference_backend() {

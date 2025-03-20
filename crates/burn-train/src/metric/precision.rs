@@ -1,8 +1,8 @@
 use super::{
+    Metric, MetricEntry, MetricMetadata, Numeric,
     classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
     confusion_stats::{ConfusionStats, ConfusionStatsInput},
     state::{FormatOptions, NumericMetricState},
-    Metric, MetricEntry, MetricMetadata, Numeric,
 };
 use burn_core::{
     prelude::{Backend, Tensor},
@@ -139,8 +139,8 @@ mod tests {
         Metric, MetricMetadata, Numeric, PrecisionMetric,
     };
     use crate::{
-        tests::{dummy_classification_input, ClassificationType, THRESHOLD},
         TestBackend,
+        tests::{ClassificationType, THRESHOLD, dummy_classification_input},
     };
     use burn_core::tensor::TensorData;
     use rstest::rstest;

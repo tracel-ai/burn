@@ -2,11 +2,11 @@ use alloc::vec::Vec;
 use core::{future::Future, ops::Range};
 
 use crate::{
+    Device, Shape, TensorData, TensorMetadata,
     backend::Backend,
     quantization::{
         Calibration, QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme,
     },
-    Device, Shape, TensorData, TensorMetadata,
 };
 
 use super::{BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, QuantizedTensor};
@@ -120,7 +120,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// The data structure with the tensor's data.
     fn q_into_data(tensor: QuantizedTensor<B>)
-        -> impl Future<Output = TensorData> + 'static + Send;
+    -> impl Future<Output = TensorData> + 'static + Send;
 
     /// Detaches a tensor from the computation graph.
     fn q_detach(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {

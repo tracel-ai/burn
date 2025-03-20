@@ -1,8 +1,8 @@
 use super::GradientsParams;
+use crate::LearningRate;
 use crate::module::AutodiffModule;
 use crate::record::Record;
 use crate::tensor::backend::AutodiffBackend;
-use crate::LearningRate;
 
 /// General trait to optimize [module](AutodiffModule).
 pub trait Optimizer<M, B>: Send

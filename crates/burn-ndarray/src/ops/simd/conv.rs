@@ -2,13 +2,13 @@ use core::{marker::PhantomData, mem::transmute};
 
 use burn_common::{iter_range_par, run_par};
 use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, ConvOptions},
     DType, Element, TensorMetadata,
+    ops::{ConvOptions, conv::calculate_conv_output_size},
 };
 use bytemuck::Zeroable;
-use macerator::{vload_unaligned, vstore_unaligned, Simd, VMulAdd, Vector};
+use macerator::{Simd, VMulAdd, Vector, vload_unaligned, vstore_unaligned};
 use ndarray::{
-    s, ArcArray1, Array4, ArrayView3, ArrayView4, ArrayViewMut2, ArrayViewMut3, Dim, Ix1, Ix4,
+    ArcArray1, Array4, ArrayView3, ArrayView4, ArrayViewMut2, ArrayViewMut3, Dim, Ix1, Ix4, s,
 };
 use seq_macro::seq;
 
@@ -302,13 +302,13 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
                         // Load a full vector from the weights. This is guaranteed to be in bounds
                         // as long as `oc <= out_channels - simd_lanes` and out channels are last.
                         // We need to ensure the weights are reshaped appropriately.
-                        let f0 = vload_unaligned(&weights[[ic, kh, kw, oc]]);
+                        let f0 = unsafe { vload_unaligned(&weights[[ic, kh, kw, oc]]) };
 
                         // The loop bounds ensure `ic`, `ih` and `iw` are always in bounds, but the
                         // compiler can't prove this. We can't use `as_slice` with fixed bounds
                         // because we want to support arbitrary input layouts. So an unchecked load
                         // is used.
-                        let i0 = x.uget([ic, ih, iw]).splat::<S>();
+                        let i0 = unsafe { x.uget([ic, ih, iw]) }.splat::<S>();
                         acc = i0.mul_add(f0, acc);
                     }
                 }
@@ -317,7 +317,7 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
             // Store a full vector from the output. This is guaranteed to be in bounds
             // as long as `oc <= out_channels - simd_lanes` and oc stride is 1. We create `out` with
             // channels last, so this always holds.
-            vstore_unaligned(&mut out[[oh, ow, oc]], acc);
+            unsafe { vstore_unaligned(&mut out[[oh, ow, oc]], acc) };
         }
     }
     for ow in (0..ow_start).chain(owb_end..out_width) {
@@ -342,13 +342,13 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
                         // Load a full vector from the weights. This is guaranteed to be in bounds
                         // as long as `oc <= out_channels - simd_lanes` and out channels are last.
                         // We need to ensure the weights are reshaped appropriately.
-                        let f0 = vload_unaligned(&weights[[ic, kh, kw, oc]]);
+                        let f0 = unsafe { vload_unaligned(&weights[[ic, kh, kw, oc]]) };
 
                         // The loop bounds ensure `ic`, `ih` and `iw` are always in bounds, but the
                         // compiler can't prove this. We can't use `as_slice` with fixed bounds
                         // because we want to support arbitrary input layouts. So an unchecked load
                         // is used.
-                        let i0 = x.uget([ic_off + ic, ih, iw]).splat::<S>();
+                        let i0 = unsafe { x.uget([ic_off + ic, ih, iw]) }.splat::<S>();
                         acc = i0.mul_add(f0, acc);
                     }
                 }
@@ -357,7 +357,7 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
             // Store a full vector from the output. This is guaranteed to be in bounds
             // as long as `oc <= out_channels - simd_lanes` and oc stride is 1. We create `out` with
             // channels last, so this always holds.
-            vstore_unaligned(&mut out[[oh, ow, oc]], acc);
+            unsafe { vstore_unaligned(&mut out[[oh, ow, oc]], acc) };
         }
     }
 }
@@ -404,7 +404,7 @@ macro_rules! inner_with_register_blocking_size {
                         // Load a full vector from the weights. This is guaranteed to be in bounds
                         // as long as `oc <= out_channels - simd_lanes` and out channels are last.
                         // We need to ensure the weights are reshaped appropriately.
-                        let f0 = vload_unaligned(&weights[[ic, kh, kw, oc]]);
+                        let f0 = unsafe { vload_unaligned(&weights[[ic, kh, kw, oc]]) };
                         let iw = ow * stride_w + kw * dilate_w - pad_w;
 
                         seq!(N in 0..$rb {
@@ -412,7 +412,7 @@ macro_rules! inner_with_register_blocking_size {
                             // compiler can't prove this. We can't use `as_slice` with fixed bounds
                             // because we want to support arbitrary input layouts. So an unchecked load
                             // is used.
-                            let i~N = x.uget([ic + ic_off, ih, iw + N * stride_w]).splat::<S>();
+                            let i~N = unsafe { x.uget([ic + ic_off, ih, iw + N * stride_w]) }.splat::<S>();
                         });
                         seq!(N in 0..$rb {
                             acc~N = i~N.mul_add(f0, acc~N);
@@ -425,7 +425,7 @@ macro_rules! inner_with_register_blocking_size {
                 // Store a full vector from the output. This is guaranteed to be in bounds
                 // as long as `oc <= out_channels - simd_lanes` and oc stride is 1. We create `out` with
                 // channels last, so this always holds.
-                vstore_unaligned(&mut out[[ow + N, oc]], acc~N);
+                unsafe { vstore_unaligned(&mut out[[ow + N, oc]], acc~N) };
             });
         }
 
@@ -465,7 +465,7 @@ macro_rules! inner_with_register_blocking_size {
                         // Load a full vector from the weights. This is guaranteed to be in bounds
                         // as long as `oc <= out_channels - simd_lanes` and out channels are last.
                         // We need to ensure the weights are reshaped appropriately.
-                        let f0 = vload_unaligned(&weights[[ic, kh, kw, oc]]);
+                        let f0 = unsafe { vload_unaligned(&weights[[ic, kh, kw, oc]]) };
                         let iw = ow + kw - pad_w;
 
                         seq!(N in 0..$rb {
@@ -473,7 +473,7 @@ macro_rules! inner_with_register_blocking_size {
                             // compiler can't prove this. We can't use `as_slice` with fixed bounds
                             // because we want to support arbitrary input layouts. So an unchecked load
                             // is used.
-                            let i~N = x.uget([ic + ic_off, ih, iw + N]).splat::<S>();
+                            let i~N = unsafe { x.uget([ic + ic_off, ih, iw + N]) }.splat::<S>();
                         });
                         seq!(N in 0..$rb {
                             acc~N = i~N.mul_add(f0, acc~N);
@@ -486,7 +486,7 @@ macro_rules! inner_with_register_blocking_size {
                 // Store a full vector from the output. This is guaranteed to be in bounds
                 // as long as `oc <= out_channels - simd_lanes` and oc stride is 1. We create `out` with
                 // channels last, so this always holds.
-                vstore_unaligned(&mut out[[ow + N, oc]], acc~N);
+                unsafe { vstore_unaligned(&mut out[[ow + N, oc]], acc~N) };
             });
         }
     };

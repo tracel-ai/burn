@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use bytemuck::cast;
 use macerator::{
-    vload, vload_unaligned, vstore, vstore_unaligned, Scalar, Simd, VAbs, VBitNot, VRecip, Vector,
+    Scalar, Simd, VAbs, VBitNot, VRecip, Vector, vload, vload_unaligned, vstore, vstore_unaligned,
 };
 use ndarray::ArrayD;
 use num_traits::Signed;
@@ -116,7 +116,7 @@ unsafe fn unary_scalar_simd_inplace<
     let mut buffer = input.array.into_owned();
     let slice = buffer.as_slice_memory_order_mut().unwrap();
     // This is only called when in and out have the same size, so it's safe
-    unary_slice_inplace::<T, Out, Op>(slice, PhantomData);
+    unsafe { unary_slice_inplace::<T, Out, Op>(slice, PhantomData) };
     // Buffer has the same elem size and is filled with the operation output, so this is safe
     let out = unsafe { core::mem::transmute::<ArrayD<T>, ArrayD<Out>>(buffer) };
     NdArrayTensor::new(out.into_shared())

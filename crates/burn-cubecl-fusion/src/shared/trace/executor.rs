@@ -3,9 +3,9 @@ use std::marker::PhantomData;
 use burn_fusion::stream::Context;
 use burn_tensor::DType;
 use cubecl::{
+    CubeElement, Runtime,
     client::ComputeClient,
     prelude::{ScalarArg, Sequence, TensorArg},
-    CubeElement, Runtime,
 };
 
 use super::{
@@ -13,7 +13,7 @@ use super::{
     TraceError, TraceRunner,
 };
 use crate::{
-    elem_dtype,
+    CubeFusionHandle, elem_dtype,
     shared::{
         ir::{
             ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch, RefLayout,
@@ -21,7 +21,6 @@ use crate::{
         },
         tensor::{GlobalScalar, GlobalTensorArg},
     },
-    CubeFusionHandle,
 };
 
 /// Execute a [plan](LaunchPlan) using a [runner](TraceRunner) modifying the [context](Context).
@@ -105,7 +104,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
                     plans.0.handle_outputs,
                     plans.1.handle_inputs,
                     plans.1.handle_outputs,
-                ))
+                ));
             }
         };
 
@@ -157,7 +156,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
                     plans.0.handle_outputs,
                     plans.1.handle_inputs,
                     plans.1.handle_outputs,
-                ))
+                ));
             }
         };
 

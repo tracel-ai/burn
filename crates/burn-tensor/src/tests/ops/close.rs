@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(close)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, TensorData, DEFAULT_ATOL, DEFAULT_RTOL};
+    use burn_tensor::{DEFAULT_ATOL, DEFAULT_RTOL, Tensor, TensorData};
 
     #[test]
     fn test_is_close() {

@@ -1,10 +1,10 @@
 use burn_ir::OperationIr;
 
+use super::ExecutionMode;
 use super::validator::{
     ExecutionPlanOperationsStore, TriggerOperationsStore, TriggerProgress, TriggerValidator,
     ValidatorState,
 };
-use super::ExecutionMode;
 use crate::stream::execution::validator::OperationsValidator;
 use crate::stream::store::{ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger, SearchQuery};
 use std::marker::PhantomData;
@@ -76,7 +76,9 @@ impl<O> Policy<O> {
         mode: ExecutionMode,
     ) -> Action {
         if self.num_operations < operations.len() {
-            panic!("Internal Error: Can't retrieve the policy action on a list of operations bigger than what is analyzed.");
+            panic!(
+                "Internal Error: Can't retrieve the policy action on a list of operations bigger than what is analyzed."
+            );
         }
 
         if let Some((id, _length)) = self.found {

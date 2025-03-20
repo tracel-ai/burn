@@ -2,7 +2,7 @@ use crate as burn;
 
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::tensor::activation::log_softmax;
-use crate::tensor::{backend::Backend, Bool, Int, Tensor};
+use crate::tensor::{Bool, Int, Tensor, backend::Backend};
 use crate::{config::Config, module::Module};
 use alloc::string::ToString;
 use alloc::vec;
@@ -245,8 +245,8 @@ impl<B: Backend> CrossEntropyLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{loss::cross_entropy_with_logits, ops::IntElem, Distribution, TensorData};
     use crate::TestBackend;
+    use crate::tensor::{Distribution, TensorData, loss::cross_entropy_with_logits, ops::IntElem};
 
     macro_rules! setup {
         () => {{

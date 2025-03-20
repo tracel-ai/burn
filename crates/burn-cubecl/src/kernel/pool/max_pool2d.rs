@@ -1,15 +1,15 @@
 use super::pool2d::{
-    pool2d_direct, Pool2dDirectArgsLaunch, Pool2dDirectStrategy, Pool2dDirectStrategyFamily,
+    Pool2dDirectArgsLaunch, Pool2dDirectStrategy, Pool2dDirectStrategyFamily, pool2d_direct,
 };
 use crate::{
+    CubeRuntime,
     element::CubeElement,
     kernel::conv::nchw_to_nhwc,
     ops::{max_vectorization, numeric::empty_device, permute},
     tensor::CubeTensor,
-    CubeRuntime,
 };
-use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
-use cubecl::{calculate_cube_count_elemwise, prelude::*, CubeDim};
+use burn_tensor::{Shape, ops::conv::calculate_pool_output_size};
+use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::*};
 
 struct MaxPoolStrategy;
 struct MaxPoolWithIndicesStrategy;

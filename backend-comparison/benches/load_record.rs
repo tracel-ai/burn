@@ -1,8 +1,8 @@
 use backend_comparison::persistence::save;
-use burn::tensor::backend::Backend;
 use burn::tensor::Device;
+use burn::tensor::backend::Backend;
 use burn::{config::Config, module::Module, nn};
-use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_common::benchmark::{Benchmark, run_benchmark};
 use derive_new::new;
 
 #[derive(Module, Debug)]

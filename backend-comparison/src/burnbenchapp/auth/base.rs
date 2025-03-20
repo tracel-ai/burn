@@ -83,7 +83,9 @@ fn auth() -> Option<Tokens> {
             return None;
         }
     };
-    println!("🌐 Please visit for following URL in your browser (CTRL+click if your terminal supports it):");
+    println!(
+        "🌐 Please visit for following URL in your browser (CTRL+click if your terminal supports it):"
+    );
     println!("\n    {}\n", flow.verification_uri.clone().unwrap());
     let user_code = flow.user_code.clone().unwrap();
     println!("👉 And enter code: {}", &user_code);
@@ -185,7 +187,7 @@ fn save_tokens(tokens: &Tokens) {
 #[cfg(test)]
 use serial_test::serial;
 
-use crate::burnbenchapp::{auth::github_device_flow::DeviceFlow, USER_BENCHMARK_SERVER_URL};
+use crate::burnbenchapp::{USER_BENCHMARK_SERVER_URL, auth::github_device_flow::DeviceFlow};
 
 #[cfg(test)]
 mod tests {

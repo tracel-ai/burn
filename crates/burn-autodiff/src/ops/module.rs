@@ -1,10 +1,10 @@
+use crate::Autodiff;
 use crate::checkpoint::base::Checkpointer;
 use crate::checkpoint::strategy::CheckpointStrategy;
 use crate::grads::Gradients;
 use crate::graph::NodeID;
-use crate::ops::{unary, Backward, Ops};
+use crate::ops::{Backward, Ops, unary};
 use crate::tensor::AutodiffTensor;
-use crate::Autodiff;
 
 use burn_tensor::backend::Backend;
 use burn_tensor::ops::*;
