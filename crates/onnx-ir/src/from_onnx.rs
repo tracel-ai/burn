@@ -223,6 +223,7 @@ impl OnnxGraphBuilder {
             // can filter, coalesce, or modify the nodes here
             // args : node, peek_iter, graph_data
             self.handle_unsqueeze(&mut node, &graph_data);
+            self.handle_output_rewrite(&mut node);
 
             rank_inference(&mut node);
             graph_data.add_node(node);
@@ -244,6 +245,20 @@ impl OnnxGraphBuilder {
             nodes: processed_nodes,
             inputs,
             outputs,
+        }
+    }
+
+    // Used to handle the output rewriting of inferred size outputs such as RandomNormalLike and RandomUniformLike
+    // By changing it here, we can leave the rest of the code alone
+    fn handle_output_rewrite(&mut self, node: &mut Node) {
+        match node.node_type {
+            NodeType::RandomNormalLike => {
+                node.outputs[0].ty = node.inputs[0].ty.clone();
+            }
+            NodeType::RandomUniformLike => {
+                node.outputs[0].ty = node.inputs[0].ty.clone();
+            }
+            _ => {}
         }
     }
 
