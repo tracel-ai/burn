@@ -353,24 +353,6 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     let mut onnx_model: ModelProto =
         Message::parse_from_reader(&mut file).expect("Unable to parse ONNX file");
 
-    // Prune the node inputs and outputs of all empty strings. This can cause issues with
-    // checking the topology of the graph, as well as cause issues when guessing input and output
-    // types. Empty strings seem to be parsed from the ONNX file when an input or output is not populated.
-    // As an added bonus, this will also improve performance on model conversion.
-    onnx_model
-        .graph
-        .as_mut()
-        .expect("Graph not found")
-        .node
-        .iter_mut()
-        .for_each(|node| {
-            // Clear the input of empty string entries
-            node.input.retain(|s| !s.is_empty());
-
-            // Clear the output of empty string entries
-            node.output.retain(|s| !s.is_empty());
-        });
-
     // ONNX nodes must be topologically sorted per spec:
     // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
     debug_assert!(
@@ -445,6 +427,11 @@ impl TopologicalSortable for Vec<NodeProto> {
         for node in self {
             // Iterate over each output of the node
             for output in &node.output {
+                // If the output is empty, we don't want to check the rest of the graph, inputs and outputs that are optional
+                // can end up as empty strings, so we can't use that as a reason to count the graph as not sorted
+                if output.is_empty() {
+                    continue;
+                }
                 // Iterate over each other node in the vector
                 for other_node in self {
                     // If the other node has an input that matches the current output
