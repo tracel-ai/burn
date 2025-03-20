@@ -426,6 +426,11 @@ impl TopologicalSortable for Vec<NodeProto> {
         for node in self {
             // Iterate over each output of the node
             for output in &node.output {
+                // In certain cases, the outputs and inputs of a node can contain empty strings
+                // this causes false positives that the graph isn't sorted.
+                if output.is_empty() {
+                    continue;
+                }
                 // Iterate over each other node in the vector
                 for other_node in self {
                     // If the other node has an input that matches the current output
