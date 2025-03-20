@@ -40,8 +40,7 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
     artifact_dir: &str,
 ) {
     let tokenizer = Arc::new(Gpt2Tokenizer::default());
-    let batcher_train = TextGenerationBatcher::new(tokenizer.clone(), config.max_seq_length);
-    let batcher_test = TextGenerationBatcher::new(tokenizer.clone(), config.max_seq_length);
+    let batcher = TextGenerationBatcher::new(tokenizer.clone(), config.max_seq_length);
 
     let model = TextGenerationModelConfig::new(
         config.transformer.clone(),
@@ -51,12 +50,12 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
     )
     .init::<B>(&device);
 
-    let dataloader_train = DataLoaderBuilder::new(batcher_train)
+    let dataloader_train = DataLoaderBuilder::new(batcher.clone())
         .batch_size(config.batch_size)
         .num_workers(4)
         .build(SamplerDataset::new(dataset_train, 10_000));
 
-    let dataloader_test = DataLoaderBuilder::new(batcher_test)
+    let dataloader_test = DataLoaderBuilder::new(batcher)
         .batch_size(config.batch_size)
         .num_workers(4)
         .build(SamplerDataset::new(dataset_test, 1000));

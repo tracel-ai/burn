@@ -21,8 +21,8 @@ pub struct TrainingTextGenerationBatch<B: Backend> {
     pub mask_pad: Tensor<B, 2, Bool>,
 }
 
-impl<B: Backend> Batcher<TextGenerationItem, TextGenerationBatch<B>> for TextGenerationBatcher {
-    fn batch(&self, items: Vec<TextGenerationItem>) -> TextGenerationBatch<B> {
+impl<B: Backend> Batcher<B, TextGenerationItem, TextGenerationBatch<B>> for TextGenerationBatcher {
+    fn batch(&self, items: Vec<TextGenerationItem>, device: &B::Device) -> TextGenerationBatch<B> {
         let mut tokens_list = Vec::with_capacity(items.len());
 
         for item in items {
@@ -33,7 +33,7 @@ impl<B: Backend> Batcher<TextGenerationItem, TextGenerationBatch<B>> for TextGen
             self.tokenizer.pad_token(),
             tokens_list,
             Some(self.max_seq_length),
-            &B::Device::default(),
+            device,
         );
 
         TextGenerationBatch {
@@ -43,11 +43,15 @@ impl<B: Backend> Batcher<TextGenerationItem, TextGenerationBatch<B>> for TextGen
     }
 }
 
-impl<B: Backend> Batcher<TextGenerationItem, TrainingTextGenerationBatch<B>>
+impl<B: Backend> Batcher<B, TextGenerationItem, TrainingTextGenerationBatch<B>>
     for TextGenerationBatcher
 {
-    fn batch(&self, items: Vec<TextGenerationItem>) -> TrainingTextGenerationBatch<B> {
-        let item: TextGenerationBatch<B> = self.batch(items);
+    fn batch(
+        &self,
+        items: Vec<TextGenerationItem>,
+        device: &B::Device,
+    ) -> TrainingTextGenerationBatch<B> {
+        let item: TextGenerationBatch<B> = self.batch(items, device);
         let [batch_size, seq_length] = item.tokens.dims();
 
         let inputs = item
