@@ -1,6 +1,7 @@
 use cubecl::{linalg::matmul::components::global::args::MatmulArgs, prelude::*};
 
 use crate::shared::{
+    DYN_ELEM_ID,
     io::{
         global_buffer_len, global_len, global_rank, global_shape, global_stride, num_elements,
         read_input, read_input_window, ref_buffer_len, ref_len, ref_shape, ref_stride,
@@ -82,13 +83,14 @@ impl MatmulArgs for FusedMatmulArgs {
         start: u32,
         end: u32,
     ) -> Slice<Line<EG>> {
-        let pos = comptime! {
+        let (pos, elem) = comptime! {
             match state.lhs {
-                Arg::Input(pos, ..) => pos,
+                Arg::Input(pos, precision,..) => (pos, precision.into_elem()),
                 _ => panic!("Lhs isn't an input"),
             }
         };
 
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(elem);
         read_input_window(unsafe { &(*state.inputs) }, pos, start, end)
     }
 
@@ -98,13 +100,14 @@ impl MatmulArgs for FusedMatmulArgs {
         start: u32,
         end: u32,
     ) -> Slice<Line<EG>> {
-        let pos = comptime! {
+        let (pos, elem) = comptime! {
             match state.rhs {
-                Arg::Input(pos, ..) => pos,
+                Arg::Input(pos, precision,..) => (pos, precision.into_elem()),
                 _ => panic!("Rhs isn't an input"),
             }
         };
 
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(elem);
         read_input_window(unsafe { &(*state.inputs) }, pos, start, end)
     }
 
