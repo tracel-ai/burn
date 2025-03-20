@@ -30,9 +30,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomUniformLikeNode {
         vec![Type::Tensor(self.output.clone())]
     }
 
-    fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let output = &self.output.name;
-        let input = &self.input.name;
+        let input = scope.tensor_use_owned(&self.input, node_position);
         let dist = self.get_distribution();
         quote! {
             let #output = #input.random_like(#dist);
