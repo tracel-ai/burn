@@ -1,15 +1,15 @@
 use std::ops::Range;
 
 use burn_tensor::{
+    DType, Device, Shape, TensorData,
     backend::Backend,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantizationParametersPrimitive, QuantizationScheme},
-    DType, Device, Shape, TensorData,
 };
 
 use crate::{
-    element::{FloatCandleElement, IntCandleElement},
     Candle, CandleQTensor,
+    element::{FloatCandleElement, IntCandleElement},
 };
 
 impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, I> {

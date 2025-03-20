@@ -3,13 +3,13 @@ use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
 use burn::{
     module::Module,
     nn::{
-        conv::{Conv2d, Conv2dConfig},
         BatchNorm, BatchNormConfig, Linear, LinearConfig,
+        conv::{Conv2d, Conv2dConfig},
     },
     tensor::{
+        Tensor,
         activation::{log_softmax, relu},
         backend::Backend,
-        Tensor,
     },
 };
 use burn_autodiff::Autodiff;

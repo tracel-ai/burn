@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand, ValueEnum};
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use std::io;
 use std::process::ExitStatus;
 use std::sync::{Arc, Mutex};
@@ -9,12 +9,12 @@ use strum_macros::{Display, EnumIter};
 use crate::burnbenchapp::auth::Tokens;
 use crate::persistence::system_info::BenchmarkSystemInfo;
 
+use super::USER_BENCHMARK_WEBSITE_URL;
 use super::auth::get_tokens;
 use super::auth::get_username;
 use super::progressbar::RunnerProgressBar;
 use super::reports::{BenchmarkCollection, FailedBenchmark};
 use super::runner::{CargoRunner, NiceProcessor, OutputProcessor, VerboseProcessor};
-use super::USER_BENCHMARK_WEBSITE_URL;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]

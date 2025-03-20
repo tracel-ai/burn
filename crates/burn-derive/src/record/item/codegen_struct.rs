@@ -1,7 +1,7 @@
-use crate::shared::field::{parse_fields, FieldTypeAnalyzer};
+use crate::shared::field::{FieldTypeAnalyzer, parse_fields};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{parse_quote, Generics, Visibility};
+use syn::{Generics, Visibility, parse_quote};
 
 use super::codegen::RecordItemCodegen;
 

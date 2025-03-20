@@ -1,4 +1,4 @@
-use crate::{backend::Backend, cast::ToElement, BasicOps, Numeric, Shape, Tensor};
+use crate::{BasicOps, Numeric, Shape, Tensor, backend::Backend, cast::ToElement};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -686,7 +686,7 @@ impl TensorCheck {
 
         let mut shape_reference = tensors.first().unwrap().shape();
         shape_reference.dims[dim] = 1; // We want to check every dims except the one where the
-                                       // concatenation happens.
+        // concatenation happens.
 
         for tensor in tensors {
             let mut shape = tensor.shape();

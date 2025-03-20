@@ -1,7 +1,7 @@
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient};
 use burn_tensor::{
-    backend::{DeviceId, DeviceOps},
     DType, TensorData,
+    backend::{DeviceId, DeviceOps},
 };
 use std::{future::Future, sync::Arc};
 

@@ -1,6 +1,6 @@
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-use crate::{tensor::CubeTensor, CubeRuntime, FloatElement};
+use crate::{CubeRuntime, FloatElement, tensor::CubeTensor};
 
 #[cube(launch)]
 fn interpolate_bicubic_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<F>) {

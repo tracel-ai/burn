@@ -539,9 +539,5 @@ pub fn extract_type_name<T: ?Sized>() -> &'static str {
     // If the start index is less than the end index,
     // return the slice of the type name from start to end
     // Otherwise, return the entire sliced type name
-    if start < end {
-        &ty[start..end]
-    } else {
-        ty
-    }
+    if start < end { &ty[start..end] } else { ty }
 }

@@ -1,4 +1,4 @@
-use crate::{tensor::CubeTensor, CubeElement, CubeRuntime};
+use crate::{CubeElement, CubeRuntime, tensor::CubeTensor};
 use cubecl::linalg::tensor::index_offset_with_layout;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor};
 use std::any::TypeId;

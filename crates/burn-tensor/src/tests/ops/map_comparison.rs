@@ -2,8 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{
-        backend::Backend, BasicOps, Bool, Element, Float, Int, Numeric, Tensor, TensorData,
-        TensorKind,
+        BasicOps, Bool, Element, Float, Int, Numeric, Tensor, TensorData, TensorKind,
+        backend::Backend,
     };
 
     type IntElem = <TestBackend as Backend>::IntElem;

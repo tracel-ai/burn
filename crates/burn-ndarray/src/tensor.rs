@@ -1,11 +1,11 @@
 use core::mem;
 
 use burn_tensor::{
+    DType, Element, Shape, TensorData, TensorMetadata,
     quantization::{
         AffineQuantization, QParams, QTensorPrimitive, QuantizationMode, QuantizationScheme,
         QuantizationStrategy, QuantizationType, SymmetricQuantization,
     },
-    DType, Element, Shape, TensorData, TensorMetadata,
 };
 
 use alloc::vec::Vec;
@@ -408,9 +408,9 @@ mod tests {
     use super::*;
     use burn_common::rand::get_seeded_rng;
     use burn_tensor::{
+        Distribution,
         ops::{FloatTensorOps, IntTensorOps, QTensorOps},
         quantization::{AffineQuantization, QuantizationParametersPrimitive, QuantizationType},
-        Distribution,
     };
 
     #[test]

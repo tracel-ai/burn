@@ -1,9 +1,9 @@
 use crate::{
+    CubeRuntime,
     element::CubeElement,
     kernel::conv::nchw_to_nhwc,
     ops::{max_vectorization, numeric::empty_device, permute},
     tensor::CubeTensor,
-    CubeRuntime,
 };
 use burn_tensor::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};

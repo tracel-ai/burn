@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use core::f32;
 
-    use burn_tensor::{backend::Backend, ops::IntTensorOps, Distribution, Int, Shape, Tensor};
+    use burn_tensor::{Distribution, Int, Shape, Tensor, backend::Backend, ops::IntTensorOps};
 
     use burn_cubecl::kernel::prng::tests_utils::calculate_bin_stats;
     use serial_test::serial;

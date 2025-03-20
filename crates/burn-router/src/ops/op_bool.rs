@@ -7,7 +7,7 @@ use burn_ir::{
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{Device, Element, Shape, TensorData, TensorMetadata};
 
-use crate::{get_client, BackendRouter, RunnerChannel, RunnerClient};
+use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 
 impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {

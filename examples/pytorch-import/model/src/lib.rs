@@ -3,8 +3,8 @@ use std::path::Path;
 
 use burn::{
     nn::{
-        conv::{Conv2d, Conv2dConfig},
         BatchNorm, BatchNormConfig, Linear, LinearConfig,
+        conv::{Conv2d, Conv2dConfig},
     },
     prelude::*,
     record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder},

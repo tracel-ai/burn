@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(nan)]
 mod tests {
     use super::*;
-    use burn_tensor::{cast::ToElement, Int, Tensor, TensorData};
+    use burn_tensor::{Int, Tensor, TensorData, cast::ToElement};
 
     #[test]
     #[ignore = "https://github.com/tracel-ai/burn/issues/2089"]

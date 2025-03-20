@@ -1,4 +1,4 @@
-use crate::{element::TchElement, LibTorch, QuantElement, TchTensor};
+use crate::{LibTorch, QuantElement, TchTensor, element::TchElement};
 use burn_tensor::ops::ActivationOps;
 
 impl<E: TchElement, Q: QuantElement> ActivationOps<Self> for LibTorch<E, Q> {

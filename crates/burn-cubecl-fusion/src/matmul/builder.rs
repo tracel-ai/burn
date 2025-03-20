@@ -6,8 +6,8 @@ use burn_ir::{FloatOperationIr, OperationIr};
 use cubecl::Runtime;
 
 use crate::{
-    shared::{builder::FuseBuilder, ir::ElemwisePrecision, settings::FuseSettings},
     CubeOptimization,
+    shared::{builder::FuseBuilder, ir::ElemwisePrecision, settings::FuseSettings},
 };
 
 use super::optimization::{FusedMatmul, MatmulOptimization};

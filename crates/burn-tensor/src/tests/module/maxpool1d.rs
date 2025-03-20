@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::module::{max_pool1d, max_pool1d_with_indices};
-    use burn_tensor::{backend::Backend, Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData, backend::Backend};
 
     #[test]
     fn test_max_pool1d_simple() {

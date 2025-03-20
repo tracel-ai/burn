@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(repeat)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Bool, Int, Tensor, TensorData};
+    use burn_tensor::{Bool, Int, Tensor, TensorData, backend::Backend};
 
     #[test]
     fn should_support_repeat_ops_one_dimension() {

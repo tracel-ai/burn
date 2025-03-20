@@ -2,8 +2,8 @@ use core::{marker::PhantomData, slice};
 
 use burn_tensor::{Element, TensorMetadata};
 use macerator::{
-    vload_unaligned, vstore_unaligned, Scalar, Simd, VAdd, VBitAnd, VBitOr, VBitXor, VDiv, VMul,
-    VOrd, VSub, Vector,
+    Scalar, Simd, VAdd, VBitAnd, VBitOr, VBitXor, VDiv, VMul, VOrd, VSub, Vector, vload_unaligned,
+    vstore_unaligned,
 };
 use ndarray::ArrayD;
 use seq_macro::seq;
@@ -11,10 +11,11 @@ use seq_macro::seq;
 use crate::{NdArrayElement, NdArrayTensor};
 
 use super::{
+    MinMax,
     binary_elemwise::{
         VecAdd, VecBitAnd, VecBitOr, VecBitXor, VecDiv, VecMax, VecMin, VecMul, VecSub,
     },
-    should_use_simd, MinMax,
+    should_use_simd,
 };
 
 pub trait SimdBinop<T: Scalar, Out: Scalar> {

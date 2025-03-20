@@ -1,6 +1,6 @@
 use cubecl::prelude::*;
 
-use crate::{ops::numeric::empty_device, tensor::CubeTensor, CubeElement, CubeRuntime, SEED};
+use crate::{CubeElement, CubeRuntime, SEED, ops::numeric::empty_device, tensor::CubeTensor};
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::Shape;
 use rand::Rng;

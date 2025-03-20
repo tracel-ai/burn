@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(full)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Bool, Int, Shape, Tensor, TensorData};
+    use burn_tensor::{Bool, Int, Shape, Tensor, TensorData, backend::Backend};
 
     #[test]
     fn test_data_full() {

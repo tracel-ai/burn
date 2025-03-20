@@ -1,4 +1,4 @@
-use super::{ir::*, tensor::GlobalTensor, DYN_ELEM_ID};
+use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
 use cubecl::{
     ir::{ExpandElement, Variable},
     prelude::*,

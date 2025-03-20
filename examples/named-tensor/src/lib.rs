@@ -1,4 +1,4 @@
-use burn::tensor::{backend::Backend, Dim, Distribution, NamedDim, NamedTensor};
+use burn::tensor::{Dim, Distribution, NamedDim, NamedTensor, backend::Backend};
 
 NamedDim!(Batch);
 NamedDim!(SeqLength);

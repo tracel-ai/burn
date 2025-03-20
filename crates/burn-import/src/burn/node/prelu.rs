@@ -99,7 +99,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorType};
+    use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
     use burn::record::FullPrecisionSettings;
 
     #[test]

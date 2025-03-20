@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    shared::ir::{Arg, ElemwiseOp, ElemwisePrecision},
     CubeFusionHandle,
+    shared::ir::{Arg, ElemwiseOp, ElemwisePrecision},
 };
 use burn_ir::{TensorId, TensorIr};
 use cubecl::Runtime;

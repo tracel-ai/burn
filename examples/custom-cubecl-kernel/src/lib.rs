@@ -2,7 +2,7 @@ mod backward;
 mod forward;
 mod kernel;
 
-use burn::tensor::{activation, ops::FloatTensor, Tensor, TensorPrimitive};
+use burn::tensor::{Tensor, TensorPrimitive, activation, ops::FloatTensor};
 
 /// We create our own Backend trait that extends the Burn backend trait.
 pub trait Backend: burn::tensor::backend::Backend {

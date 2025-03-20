@@ -166,7 +166,10 @@ impl Display for LearnerSummary {
         writeln!(
             f,
             "| {:<width_split$} | {:<width_metric$} | Min.     | Epoch    | Max.     | Epoch    |\n|{:->width_split$}--|{:->width_metric$}--|----------|----------|----------|----------|",
-            "Split", "Metric", "", "",
+            "Split",
+            "Metric",
+            "",
+            "",
             width_split = max_split_len,
             width_metric = max_metric_len,
         )?;

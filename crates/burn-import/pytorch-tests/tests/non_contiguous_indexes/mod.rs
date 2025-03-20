@@ -1,10 +1,10 @@
 use burn::{
     module::Module,
     nn::{
-        conv::{Conv2d, Conv2dConfig},
         PaddingConfig2d,
+        conv::{Conv2d, Conv2dConfig},
     },
-    tensor::{activation::relu, backend::Backend, Tensor},
+    tensor::{Tensor, activation::relu, backend::Backend},
 };
 
 #[derive(Module, Debug)]

@@ -1,11 +1,11 @@
 use burn::nn::{
+    BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
+    PaddingConfig2d, PaddingConfig3d,
     conv::{
         Conv1dConfig, Conv2dConfig, Conv3dConfig, ConvTranspose1dConfig, ConvTranspose2dConfig,
         ConvTranspose3dConfig,
     },
     pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
-    BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
-    PaddingConfig2d, PaddingConfig3d,
 };
 
 use crate::burn::node::{
@@ -1045,7 +1045,9 @@ pub fn pad_config(node: &Node) -> PadConfig {
 
         for (index, &item) in pads.iter().enumerate() {
             if !index_list.contains(&index) && item != 0 {
-                panic!("Pad: padding will only be applied to the last two dimensions but found non zero padding for other dimensions");
+                panic!(
+                    "Pad: padding will only be applied to the last two dimensions but found non zero padding for other dimensions"
+                );
             }
         }
 
@@ -1917,7 +1919,9 @@ pub fn split_config(node: &Node) -> SplitConfig {
 
     // Only one of 'split_sizes' or 'num_outputs' is provided
     if split_sizes.is_some() && split_size.is_some() {
-        panic!("Split: Either 'split' input or 'num_outputs' attribute should be specified, but not both.");
+        panic!(
+            "Split: Either 'split' input or 'num_outputs' attribute should be specified, but not both."
+        );
     }
 
     // Infer split_size if neither split_sizes nor split_size is provided

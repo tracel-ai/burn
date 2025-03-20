@@ -6,13 +6,13 @@ use std::{
 use burn_fusion::stream::Context;
 use burn_ir::TensorId;
 use cubecl::{
-    ir::{Elem, UIntKind},
     Runtime,
+    ir::{Elem, UIntKind},
 };
 
 use crate::{
-    shared::{ir::ElemwiseOp, trace::Vect},
     CubeFusionHandle,
+    shared::{ir::ElemwiseOp, trace::Vect},
 };
 
 use super::{HandleOutput, LaunchPlan, TensorView, Vectorization};

@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(neg)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData, backend::Backend};
 
     #[test]
     fn should_support_neg_ops() {

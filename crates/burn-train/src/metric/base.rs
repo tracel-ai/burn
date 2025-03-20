@@ -1,4 +1,4 @@
-use burn_core::{data::dataloader::Progress, LearningRate};
+use burn_core::{LearningRate, data::dataloader::Progress};
 
 /// Metric metadata that can be used when computing metrics.
 pub struct MetricMetadata {

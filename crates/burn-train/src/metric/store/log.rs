@@ -1,4 +1,4 @@
-use super::{aggregate::NumericMetricsAggregate, Aggregate, Direction, Event, EventStore, Split};
+use super::{Aggregate, Direction, Event, EventStore, Split, aggregate::NumericMetricsAggregate};
 use crate::logger::MetricLogger;
 
 #[derive(Default)]

@@ -2,15 +2,15 @@
 
 use burn_tensor::ElementConversion;
 use cubecl::{
-    client::ComputeClient,
-    tune::{local_tuner, LocalTuner, TunableSet},
     AutotuneKey,
+    client::ComputeClient,
+    tune::{LocalTuner, TunableSet, local_tuner},
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    kernel::prng::random_like_uniform, ops::numeric::empty_device, tensor::CubeTensor,
-    CubeAutotuneKey, CubeElement, CubeRuntime, CubeTuneId,
+    CubeAutotuneKey, CubeElement, CubeRuntime, CubeTuneId, kernel::prng::random_like_uniform,
+    ops::numeric::empty_device, tensor::CubeTensor,
 };
 
 /// Executes autotune on reduce operations.

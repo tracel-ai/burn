@@ -1,6 +1,6 @@
 use super::{LrScheduler, String};
 use crate as burn;
-use crate::{config::Config, LearningRate};
+use crate::{LearningRate, config::Config};
 use burn_tensor::backend::Backend;
 
 /// The configuration for creating a [linear learning rate scheduler](LinearLrScheduler).

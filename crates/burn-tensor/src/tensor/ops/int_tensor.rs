@@ -3,12 +3,12 @@ use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use crate::cast::ToElement;
 use crate::tensor::api::{chunk, narrow, split, split_with_sizes};
-use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Int, TensorData};
+use crate::{Distribution, ElementConversion, Int, TensorData, backend::Backend, tensor::Shape};
 use alloc::vec::Vec;
 use core::future::Future;
 use core::ops::Range;
 
-use crate::{argsort, sort, sort_with_indices, TensorMetadata};
+use crate::{TensorMetadata, argsort, sort, sort_with_indices};
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
 /// for documentation on each function.

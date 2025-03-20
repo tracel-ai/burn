@@ -1,7 +1,7 @@
-use super::{bin_config, PrecisionSettings, Recorder, RecorderError};
+use super::{PrecisionSettings, Recorder, RecorderError, bin_config};
 use alloc::vec::Vec;
 use burn_tensor::backend::Backend;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 /// Recorder trait specialized to save and load data to and from bytes.
 ///
@@ -79,7 +79,7 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkBytesRecorder<S> 
 mod tests {
     use super::*;
     use crate::{
-        module::Module, nn, record::FullPrecisionSettings, tensor::backend::Backend, TestBackend,
+        TestBackend, module::Module, nn, record::FullPrecisionSettings, tensor::backend::Backend,
     };
 
     #[test]

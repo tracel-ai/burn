@@ -1,8 +1,8 @@
 use crate::dataset::{HousingBatch, NUM_FEATURES};
 use burn::{
     nn::{
-        loss::{MseLoss, Reduction::Mean},
         Linear, LinearConfig, Relu,
+        loss::{MseLoss, Reduction::Mean},
     },
     prelude::*,
     tensor::backend::AutodiffBackend,

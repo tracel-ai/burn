@@ -1,16 +1,16 @@
 use crate::{
-    binary_float_cmp_ops, binary_float_ops,
+    Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops,
     client::FusionClient,
     get_client,
     ops::binary::check_binary_op_types,
-    reduce_float2int_ops, reduce_float_ops, scalar_float_cmp_ops, scalar_float_ops,
-    stream::{execution::Operation, StreamId},
-    unary_float_ops, Fusion, FusionBackend,
+    reduce_float_ops, reduce_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
+    stream::{StreamId, execution::Operation},
+    unary_float_ops,
 };
 use burn_ir::*;
 use burn_tensor::{
-    ops::{binary_ops_shape, BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
     Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
+    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor, binary_ops_shape},
 };
 use std::{marker::PhantomData, ops::Range};
 

@@ -1,8 +1,8 @@
-use super::{bin_config, PrecisionSettings, Recorder, RecorderError};
+use super::{PrecisionSettings, Recorder, RecorderError, bin_config};
 use burn_tensor::backend::Backend;
 use core::marker::PhantomData;
-use flate2::{read::GzDecoder, write::GzEncoder, Compression};
-use serde::{de::DeserializeOwned, Serialize};
+use flate2::{Compression, read::GzDecoder, write::GzEncoder};
+use serde::{Serialize, de::DeserializeOwned};
 use std::io::{BufReader, BufWriter};
 use std::{fs::File, path::PathBuf};
 
@@ -304,13 +304,13 @@ mod tests {
 
     use super::*;
     use crate::{
+        TestBackend,
         module::Module,
         nn::{
-            conv::{Conv2d, Conv2dConfig},
             Linear, LinearConfig,
+            conv::{Conv2d, Conv2dConfig},
         },
         record::{BinBytesRecorder, FullPrecisionSettings},
-        TestBackend,
     };
 
     use crate as burn;

@@ -1,7 +1,7 @@
 use burn::{
     module::Module,
     nn::{LayerNorm, LayerNormConfig},
-    tensor::{backend::Backend, Tensor},
+    tensor::{Tensor, backend::Backend},
 };
 
 #[derive(Module, Debug)]

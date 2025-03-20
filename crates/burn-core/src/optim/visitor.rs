@@ -1,6 +1,6 @@
 use super::GradientsParams;
 use crate::module::{AutodiffModule, ModuleVisitor, ParamId};
-use burn_tensor::{backend::AutodiffBackend, Tensor};
+use burn_tensor::{Tensor, backend::AutodiffBackend};
 use core::marker::PhantomData;
 
 #[cfg(not(feature = "std"))]

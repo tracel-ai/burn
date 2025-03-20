@@ -1,7 +1,7 @@
 use crate::{
+    NodeID,
     collections::{HashMap, HashSet},
     tensor::NodeRefCount,
-    NodeID,
 };
 use alloc::{borrow::ToOwned, sync::Arc, vec, vec::Vec};
 use core::mem;

@@ -19,7 +19,7 @@
 use std::cmp::Ordering;
 
 use burn_tensor::{Element, ElementConversion};
-use ndarray::{s, Array2, Axis};
+use ndarray::{Array2, Axis, s};
 
 #[allow(non_snake_case)]
 mod Spaghetti_forest_labels;
@@ -27,7 +27,7 @@ pub(crate) use Spaghetti_forest_labels::*;
 
 use crate::Connectivity;
 
-use super::{max_labels, Solver, StatsOp};
+use super::{Solver, StatsOp, max_labels};
 
 pub fn process<I: Element, B: Element, LabelsSolver: Solver<I>>(
     img_arr: Array2<B>,

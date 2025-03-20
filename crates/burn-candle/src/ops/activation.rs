@@ -1,8 +1,9 @@
 use burn_tensor::ops::{ActivationOps, FloatTensor};
 
 use crate::{
+    Candle, CandleTensor,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
-    tensor, Candle, CandleTensor,
+    tensor,
 };
 
 impl<F: FloatCandleElement, I: IntCandleElement> ActivationOps<Self> for Candle<F, I> {

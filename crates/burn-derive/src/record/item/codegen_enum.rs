@@ -1,7 +1,7 @@
-use crate::shared::enum_variant::{parse_variants, EnumVariant};
+use crate::shared::enum_variant::{EnumVariant, parse_variants};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{parse_quote, Generics, Visibility};
+use syn::{Generics, Visibility, parse_quote};
 
 use super::codegen::RecordItemCodegen;
 

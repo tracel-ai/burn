@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_cubecl::kernel::prng::tests_utils::calculate_bin_stats;
-    use burn_tensor::{backend::Backend, Distribution, Shape, Tensor, TensorData};
+    use burn_tensor::{Distribution, Shape, Tensor, TensorData, backend::Backend};
     use serial_test::serial;
 
     #[test]

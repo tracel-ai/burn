@@ -6,15 +6,15 @@ use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::Bool;
 use crate::{
     self as burn,
-    nn::{attention::MhaCache, cache::TensorCache, Initializer},
+    nn::{Initializer, attention::MhaCache, cache::TensorCache},
 };
 use crate::{
     config::Config,
     nn::{
-        attention::{MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
         Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
+        attention::{MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
     },
-    tensor::{backend::Backend, Tensor},
+    tensor::{Tensor, backend::Backend},
 };
 
 /// Configuration to create a [Transformer Decoder](TransformerDecoder) layer using the [init function](TransformerDecoderConfig::init).
@@ -458,7 +458,7 @@ mod tests {
     use burn_tensor::Device;
 
     use super::*;
-    use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
+    use crate::{TestBackend, nn::attention::generate_autoregressive_mask};
 
     #[test]
     fn test_autoregressive_norm_last() {

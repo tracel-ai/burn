@@ -2,9 +2,9 @@ use core::future::Future;
 
 use super::{BasicOps, Tensor, TensorPrimitive};
 use crate::{
+    TensorData,
     backend::Backend,
     ops::{BoolTensor, IntTensor, TransactionPrimitive},
-    TensorData,
 };
 use alloc::vec::Vec;
 

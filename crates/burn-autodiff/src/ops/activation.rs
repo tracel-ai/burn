@@ -1,14 +1,15 @@
 use core::marker::PhantomData;
 
 use crate::{
+    Autodiff,
     checkpoint::{
         base::Checkpointer, retro_forward::RetroForward, state::BackwardStates,
         strategy::CheckpointStrategy,
     },
     grads::Gradients,
     graph::NodeID,
-    ops::{unary, Backward, Ops, OpsKind},
-    retro_unary, Autodiff,
+    ops::{Backward, Ops, OpsKind, unary},
+    retro_unary,
 };
 use burn_tensor::{
     backend::Backend,

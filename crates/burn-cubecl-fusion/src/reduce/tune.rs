@@ -1,12 +1,12 @@
 use crate::{
-    tune::{TuneContext, TuneInput},
     CubeFusionHandle,
+    tune::{TuneContext, TuneInput},
 };
 use burn_fusion::stream::Context;
 use cubecl::{
-    reduce::tune_key::ReduceAutotuneKey,
-    tune::{local_tuner, LocalTuner, TunableSet},
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
+    reduce::tune_key::ReduceAutotuneKey,
+    tune::{LocalTuner, TunableSet, local_tuner},
 };
 use serde::{Deserialize, Serialize};
 

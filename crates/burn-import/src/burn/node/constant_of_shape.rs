@@ -145,9 +145,9 @@ mod tests {
 
     use super::*;
     use crate::burn::{
+        ShapeType, TensorType,
         graph::BurnGraph,
         node::{constant_of_shape::ConstantOfShapeNode, test::assert_tokens},
-        ShapeType, TensorType,
     };
 
     #[test]

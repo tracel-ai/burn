@@ -3,7 +3,7 @@
 use burn_no_std_tests::mlp::*;
 use burn_no_std_tests::model::*;
 
-use burn::tensor::{backend::Backend, Distribution, Tensor};
+use burn::tensor::{Distribution, Tensor, backend::Backend};
 use burn_ndarray::NdArray;
 
 #[test]
