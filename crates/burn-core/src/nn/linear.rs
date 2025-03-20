@@ -84,6 +84,16 @@ impl<B: Backend> Linear<B> {
             None => output,
         }
     }
+
+    /// Returns the input dimension size.
+    pub fn d_input(&self) -> usize {
+        self.weight.dims()[0]
+    }
+
+    /// Returns the output dimension size.
+    pub fn d_output(&self) -> usize {
+        self.weight.dims()[1]
+    }
 }
 
 impl<B: Backend> ModuleDisplay for Linear<B> {
@@ -141,6 +151,21 @@ mod tests {
             .weight
             .to_data()
             .assert_approx_eq(&TensorData::zeros::<f32, _>(linear.weight.shape()), 3);
+    }
+
+    #[test]
+    fn test_features() {
+        TestBackend::seed(0);
+
+        let d_input = 2;
+        let d_output = 3;
+
+        let config = LinearConfig::new(d_input, d_output);
+        let device = Default::default();
+        let linear = config.init::<TestBackend>(&device);
+
+        assert_eq!(linear.d_input(), d_input);
+        assert_eq!(linear.d_output(), d_output);
     }
 
     #[test]
