@@ -156,10 +156,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         }
     }
 
-    fn select_reference_from_inputs(
-        block: &mut BlockPlan<'_>,
-        handle_inputs: &Vec<HandleInput<R>>,
-    ) {
+    fn select_reference_from_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput<R>]) {
         if let Some(input_ref) = block.potential_reference_input.take() {
             match input_ref {
                 InputReference::Normal { input_pos } => {
@@ -195,7 +192,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         }
     }
 
-    fn add_layout_info_inputs(block: &mut BlockPlan<'_>, handle_inputs: &Vec<HandleInput<R>>) {
+    fn add_layout_info_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput<R>]) {
         for hi in handle_inputs.iter() {
             if let ReferenceSelection::Concrete { strides, shape, .. } = &block.reference {
                 if strides == &hi.handle.strides && shape == &hi.global_shape {
@@ -220,7 +217,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     ) -> (OutputKind, usize) {
         let mut block_idx = None;
         for (i, block) in plan.blocks.iter().enumerate() {
-            if block.writes.get(&output.tensor_relative.id).is_some() {
+            if block.writes.contains_key(&output.tensor_relative.id) {
                 block_idx = Some(i);
                 break;
             }

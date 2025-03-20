@@ -151,7 +151,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             } = handle
             {
                 for (block_pos, block_plan) in plan.blocks.iter().enumerate() {
-                    if block_plan.writes.contains_key(&relative_id) {
+                    if block_plan.writes.contains_key(relative_id) {
                         let vectorization = plan.vectorizations.get(global_id).unwrap().line_size();
                         block_vectorization[block_pos].push(BlockVectorization {
                             action: VectorizationAction::Output(output_pos),
@@ -217,8 +217,8 @@ struct BlockVectorization {
 
 fn apply_vectorization_block<R: Runtime>(
     block_vectorization: Vec<BlockVectorization>,
-    inputs: &mut Vec<HandleInput<R>>,
-    outputs: &mut Vec<HandleOutput<R>>,
+    inputs: &mut [HandleInput<R>],
+    outputs: &mut [HandleOutput<R>],
     block_plan: &mut BlockPlan,
     max: u8,
 ) {

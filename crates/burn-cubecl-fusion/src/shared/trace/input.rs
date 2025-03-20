@@ -105,7 +105,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
         let mut block_inplace_selection = BlockInplaceSelection::Notinit;
 
         for (idx, block) in plan.blocks.iter().enumerate() {
-            if block.reads.get(&tensor_relative.id).is_some() {
+            if block.reads.contains_key(&tensor_relative.id) {
                 match block_inplace_selection {
                     BlockInplaceSelection::Notinit => {
                         block_inplace_selection = BlockInplaceSelection::Selected(idx);
@@ -119,7 +119,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
         }
 
         if let BlockInplaceSelection::Selected(idx) = block_inplace_selection {
-            if &self.blocks[idx].shape_ref != &tensor_relative.shape {
+            if self.blocks[idx].shape_ref != tensor_relative.shape {
                 return;
             }
 
@@ -183,8 +183,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     let mut shape = tensor_relative.shape.clone();
                     shape.swap(dims.0 as usize, dims.1 as usize);
 
-                    if block_plan.potential_reference_input.is_none() && &shape == &block.shape_ref
-                    {
+                    if block_plan.potential_reference_input.is_none() && shape == block.shape_ref {
                         block_plan.potential_reference_input = Some(InputReference::SwapDims {
                             original_pos: pos,
                             dims: *dims,

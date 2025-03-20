@@ -105,7 +105,7 @@ impl Vect {
 }
 
 impl<R: Runtime> LaunchPlan<'_, R> {
-    pub fn new(fuse_blocks: &Vec<FuseBlock>) -> Self {
+    pub fn new(fuse_blocks: &[FuseBlock]) -> Self {
         let mut rank = 0;
         let mut blocks = Vec::with_capacity(fuse_blocks.len());
 
