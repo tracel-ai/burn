@@ -18,7 +18,7 @@ use crate::{
     tensor::CubeTensor,
 };
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct DeformConv2dArgs<F: Float> {
     conv_stride_h: u32,
     conv_stride_w: u32,

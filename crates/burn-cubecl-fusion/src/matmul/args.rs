@@ -14,7 +14,7 @@ use crate::shared::{
 #[derive(Clone)]
 pub struct FusedMatmulArgs;
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 pub struct FusedMatmulInput {
     global: GlobalArgs,
     #[cube(comptime)]

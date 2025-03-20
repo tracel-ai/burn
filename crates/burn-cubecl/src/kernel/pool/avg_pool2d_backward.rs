@@ -8,7 +8,7 @@ use crate::{
 use burn_tensor::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 pub(crate) struct PoolBackwardArgs {
     pub stride_0: i32,
     pub stride_1: i32,

@@ -11,7 +11,7 @@ use crate::{
 
 use super::{PrngArgs, PrngRuntime, random};
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 pub(crate) struct Normal<E: Numeric> {
     mean: E,
     std: E,

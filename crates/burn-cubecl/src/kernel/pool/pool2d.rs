@@ -35,7 +35,7 @@ pub(crate) trait Pool2dDirectStrategy<N: Numeric>: Send + Sync + 'static {
     );
 }
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 pub struct Pool2dDirectArgs {
     pub strides_0: u32,
     pub strides_1: u32,

@@ -144,7 +144,7 @@ pub(crate) mod unary_basic {
         Recip,
     }
 
-    #[derive(CubeLaunch)]
+    #[derive(CubeLaunch, CubeType)]
     struct BasicFloatUnaryOptions {
         #[cube(comptime)]
         kind: BasicFloatUnaryKind,
