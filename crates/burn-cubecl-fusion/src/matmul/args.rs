@@ -6,7 +6,9 @@ use crate::shared::{
         global_buffer_len, global_len, global_rank, global_shape, global_stride, num_elements,
         read_input, read_input_window, ref_buffer_len, ref_len, ref_shape, ref_stride,
     },
-    ir::{Arg, FuseConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo, LocalArgs, LocalArgsExpand},
+    ir::{
+        Arg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo, LocalArgs, LocalArgsExpand,
+    },
     kernel::{fuse_on_write, init_locals},
 };
 
@@ -17,7 +19,7 @@ pub struct FusedMatmulArgs;
 pub struct FusedMatmulInput {
     global: GlobalArgs,
     #[cube(comptime)]
-    config: FuseConfig,
+    config: FuseBlockConfig,
     #[cube(comptime)]
     lhs: Arg,
     #[cube(comptime)]
@@ -268,7 +270,7 @@ pub struct FusedMatmulState {
     inputs: *const GlobalArgs,
     outputs: *mut GlobalArgs,
     locals: *mut LocalArgs,
-    config: FuseConfig,
+    config: FuseBlockConfig,
     lhs: Arg,
     rhs: Arg,
     out: Arg,
@@ -280,7 +282,7 @@ impl FusedMatmulState {
         inputs: &FusedMatmulInput,
         outputs: &mut GlobalArgs,
         locals: &mut LocalArgs,
-        #[comptime] config: &FuseConfig,
+        #[comptime] config: &FuseBlockConfig,
     ) -> FusedMatmulState {
         FusedMatmulState {
             inputs: &inputs.global,
@@ -298,7 +300,7 @@ impl FusedMatmulState {
 pub struct FusedMatmulStateExpand {
     inputs: GlobalArgsExpand,
     outputs: GlobalArgsExpand,
-    config: FuseConfig,
+    config: FuseBlockConfig,
     locals: LocalArgsExpand,
     lhs: Arg,
     rhs: Arg,

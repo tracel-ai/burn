@@ -135,17 +135,9 @@ impl FuseOptimizationBuilder {
     }
 
     /// Declares an input tensor argument where the kernel is responsible to load.
-    ///
-    /// See [Self::input] for a version where the input is automatically loaded in a local
-    /// variable.
     pub fn input_unhandled(&mut self, tensor: &TensorIr) -> Arg {
         self.builder.builder.input_unhandled(tensor)
     }
-
-    // /// Declares an input tensor argument.
-    // pub fn input(&mut self, tensor: &TensorIr) -> Arg {
-    //     self.builder.builder.input(tensor).unwrap()
-    // }
 
     /// Declares an output tensor argument where the kernel is responsible to write values.
     ///

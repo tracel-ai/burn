@@ -25,7 +25,7 @@ use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
 use crate::shared::{
-    ir::{Arg, FuseConfig, GlobalArgsLaunch},
+    ir::{Arg, FuseBlockConfig, GlobalArgsLaunch},
     trace::{FuseTrace, TraceRunner},
 };
 
@@ -259,7 +259,7 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmul {
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        configs: &'a [FuseConfig],
+        configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedMatmulError> {
         match self.out.precision() {
             FusePrecision::F32 => self.matmul_fused::<R, f32>(client, inputs, outputs, &configs[0]),
@@ -278,7 +278,7 @@ impl FusedMatmul {
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        config: &'a FuseConfig,
+        config: &'a FuseBlockConfig,
     ) -> Result<(), FusedMatmulError> {
         let lhs_shape = inputs.shape(&self.lhs);
         let rhs_shape = inputs.shape(&self.rhs);

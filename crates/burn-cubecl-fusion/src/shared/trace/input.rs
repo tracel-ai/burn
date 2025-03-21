@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 
 use super::{HandleInput, LaunchPlan, PotentialInplace};
 
-/// Fetch and register [input handles](HandleInput). Also itendifies potential inputs that
+/// Fetch and register [input handles](HandleInput). Also identifies potential inputs that
 /// can be used inplace and/or as the [reference layout](super::super::ir::RefLayout).
 pub struct InputPlanner<'a, R: Runtime> {
     resources: &'a FuseResources,
@@ -99,7 +99,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
             /// The block reads the input, and therefore can use it for inplace.
             Selected(usize),
             /// The same input is used in multiple blocks.
-            Duplicated,
+            Unavailable,
         }
 
         let mut block_inplace_selection = BlockInplaceSelection::Notinit;
@@ -111,9 +111,9 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                         block_inplace_selection = BlockInplaceSelection::Selected(idx);
                     }
                     BlockInplaceSelection::Selected(_) => {
-                        block_inplace_selection = BlockInplaceSelection::Duplicated;
+                        block_inplace_selection = BlockInplaceSelection::Unavailable;
                     }
-                    BlockInplaceSelection::Duplicated => {}
+                    BlockInplaceSelection::Unavailable => {}
                 }
             }
         }

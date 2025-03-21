@@ -418,7 +418,7 @@ impl From<DType> for FusePrecision {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 /// Configuration that encapsulates all comptime information necessary for element wise fusion.
-pub struct FuseConfig {
+pub struct FuseBlockConfig {
     pub rank: u32,
     pub ref_layout: RefLayout,
     pub ops: Sequence<FuseOp>,

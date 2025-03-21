@@ -46,7 +46,7 @@ impl<R: Runtime> ReduceBuilder<R> {
             broadcast: true,
             output_shape_updates: false,
             inplace: true,
-            vectorization: VectorizationSetting::SmallerThanPreviousBlock,
+            vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock,
         };
 
         Self {
@@ -89,8 +89,10 @@ impl<R: Runtime> ReduceBuilder<R> {
         let output = self.builder.output_unhandled(&op.out);
         let axis = op.axis;
 
-        // We only activate fuse on write when the reduction isn't on the last dimension, otherwise
-        // vectorization is impossible and will probably lead to worse performance.
+        // We only activate fuse-on-write when the reduction isn't on the last dimension, otherwise
+        // vectorization is impossible. Only [LineMode::Perpendicular] supports vectorization.
+        //
+        // We could still fuse some output operations, but it would probably lead to worse performance.
         let fuse_on_write_activated = axis != op.input.shape.len() - 1;
 
         if fuse_on_write_activated {
@@ -239,6 +241,6 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
     }
 
     fn len(&self) -> usize {
-        self.builder.len() + self.reduce.as_ref().map(|_| 1).unwrap_or(0)
+        self.builder.len() + if self.reduce.is_some() { 1 } else { 0 }
     }
 }

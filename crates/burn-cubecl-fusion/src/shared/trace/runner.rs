@@ -1,5 +1,5 @@
 use super::{
-    super::ir::{FuseConfig, GlobalArgsLaunch},
+    super::ir::{FuseBlockConfig, GlobalArgsLaunch},
     Vect,
 };
 use crate::CubeFusionHandle;
@@ -14,13 +14,16 @@ pub trait TraceRunner<R: Runtime>: Vectorization<R> {
     /// The error that might happen while running the trace.
     type Error;
 
-    /// Run the trace.
+    /// Run the trace with the given inputs and outputs.
+    ///
+    /// There is one [fuse config](FuseBlockConfig) for each [block](super::block::FuseBlock) registered
+    /// in the [optimization builder](burn_fusion::OptimizationBuilder).
     fn run<'a>(
         &'a self,
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        configs: &'a [FuseConfig],
+        configs: &'a [FuseBlockConfig],
     ) -> Result<(), Self::Error>;
 }
 

@@ -18,7 +18,7 @@ use burn_tensor::{DType, Element};
 pub struct FuseTraceBuilder {
     settings: FuseSettings,
     pub bool_precision: FusePrecision,
-    // The tensors returned by the block that doesn't need to be written to global memory.
+    // The tensors returned by the block that don't need to be written to global memory.
     block_current: FuseBlockBuilder,
     blocks_previous: Vec<(FuseBlockBuilder, Vec<usize>)>,
     resources: FuseResources,

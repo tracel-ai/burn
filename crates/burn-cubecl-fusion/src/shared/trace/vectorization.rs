@@ -137,7 +137,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                     block_vectorization[block_pos].push(BlockVectorization {
                         action: VectorizationAction::Input(input_pos),
                         potential: vect,
-                        broadcated: br,
+                        broadcasted: br,
                     });
                 }
             }
@@ -156,7 +156,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                         block_vectorization[block_pos].push(BlockVectorization {
                             action: VectorizationAction::Output(output_pos),
                             potential: vectorization,
-                            broadcated: false,
+                            broadcasted: false,
                         });
                     }
                 }
@@ -180,7 +180,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                         u8::MAX,
                     );
                 }
-                VectorizationSetting::SmallerThanPreviousBlock => {
+                VectorizationSetting::SmallerOrEqualThanPreviousBlock => {
                     apply_vectorization_block(
                         tmp,
                         &mut plan.handle_inputs,
@@ -212,7 +212,7 @@ enum VectorizationAction {
 struct BlockVectorization {
     action: VectorizationAction,
     potential: u8,
-    broadcated: bool,
+    broadcasted: bool,
 }
 
 fn apply_vectorization_block<R: Runtime>(
@@ -226,7 +226,7 @@ fn apply_vectorization_block<R: Runtime>(
         match item.action {
             VectorizationAction::Input(pos) => {
                 let (vect, br) = if item.potential <= max {
-                    (item.potential, item.broadcated)
+                    (item.potential, item.broadcasted)
                 } else {
                     (1, false)
                 };

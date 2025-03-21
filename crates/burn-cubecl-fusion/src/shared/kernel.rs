@@ -15,7 +15,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
     write_pos: u32,
     write_values: Registry<Arg, Line<E>>,
     #[comptime] write_args: Sequence<Arg>,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) {
     // Write the values given as arguments.
     #[unroll]
@@ -37,7 +37,7 @@ pub fn fuse_on_read<E: CubePrimitive>(
     locals: &mut LocalArgs,
     read_pos: u32,
     #[comptime] read_args: Sequence<Arg>,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) -> Sequence<Line<E>> {
     fuse(inputs, outputs, locals, read_pos, config);
 
@@ -58,7 +58,7 @@ pub fn fuse_on_read<E: CubePrimitive>(
 pub fn init_locals(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) -> LocalArgs {
     let mut ref_shape = Array::new(config.rank);
     let mut ref_strides = Array::new(config.rank);
@@ -154,7 +154,7 @@ fn fuse(
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
     pos: u32,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) {
     #[unroll]
     for index in 0..config.ops.len() {
@@ -259,7 +259,7 @@ macro_rules! binary_op {
             locals: &mut LocalArgs,
             write_pos: u32,
             #[comptime] op: BinaryFuseArgs,
-            #[comptime] config: &FuseConfig,
+            #[comptime] config: &FuseBlockConfig,
         ) {
             let lhs = read::<C>(inputs, outputs, &locals, write_pos, op.lhs, config);
             let rhs = read::<C>(inputs, outputs, &locals, write_pos, op.rhs, config);
@@ -279,7 +279,7 @@ macro_rules! binary_func {
             locals: &mut LocalArgs,
             write_pos: u32,
             #[comptime] op: BinaryFuseArgs,
-            #[comptime] config: &FuseConfig,
+            #[comptime] config: &FuseBlockConfig,
         ) {
             let lhs = read::<C>(inputs, outputs, &locals, write_pos, op.lhs, config);
             let rhs = read::<C>(inputs, outputs, &locals, write_pos, op.rhs, config);
@@ -299,7 +299,7 @@ macro_rules! comparison_op {
             locals: &mut LocalArgs,
             write_pos: u32,
             #[comptime] op: BinaryFuseArgs,
-            #[comptime] config: &FuseConfig,
+            #[comptime] config: &FuseBlockConfig,
         ) {
             let lhs = read::<C>(inputs, outputs, &locals, write_pos, op.lhs, config);
             let rhs = read::<C>(inputs, outputs, &locals, write_pos, op.rhs, config);
@@ -319,7 +319,7 @@ macro_rules! unary_func {
             locals: &mut LocalArgs,
             write_pos: u32,
             #[comptime] op: UnaryFuseArgs,
-            #[comptime] config: &FuseConfig,
+            #[comptime] config: &FuseBlockConfig,
         ) {
             let input = read::<C>(inputs, outputs, &locals, write_pos, op.input, config);
             let result = $func(input);
@@ -336,7 +336,7 @@ fn assign<C: CubePrimitive>(
     locals: &mut LocalArgs,
     write_pos: u32,
     #[comptime] op: UnaryFuseArgs,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) {
     let input = read::<C>(inputs, outputs, locals, write_pos, op.input, config);
 
@@ -353,7 +353,7 @@ fn gather<C: Numeric>(
     #[comptime] input: Arg,
     #[comptime] indices: Arg,
     #[comptime] output: Arg,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) {
     let mut index = read::<u32>(inputs, outputs, locals, write_pos, indices, config);
     let (pos, _precision) = comptime! {
@@ -416,7 +416,7 @@ fn select_indices<C: Numeric>(
     #[comptime] input: Arg,
     #[comptime] indices: Arg,
     #[comptime] output: Arg,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) {
     let (line_size_ref, stride_dim_ref, shape_dim_ref) = (
         locals.ref_line_size,
@@ -572,7 +572,7 @@ fn conditional_assign<C: CubePrimitive>(
     #[comptime] lhs: Arg,
     #[comptime] rhs: Arg,
     #[comptime] out: Arg,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) {
     let cond = read::<bool>(inputs, outputs, locals, write_pos, cond, config);
     let lhs = read::<C>(inputs, outputs, locals, write_pos, lhs, config);

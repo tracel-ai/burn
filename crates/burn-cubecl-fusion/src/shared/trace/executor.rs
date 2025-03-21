@@ -15,7 +15,7 @@ use super::{
 use crate::{
     CubeFusionHandle, elem_dtype,
     shared::{
-        ir::{FuseConfig, FuseOp, FusePrecision, GlobalArgsLaunch, RefLayout, VirtualLayout},
+        ir::{FuseBlockConfig, FuseOp, FusePrecision, GlobalArgsLaunch, RefLayout, VirtualLayout},
         tensor::{GlobalScalar, GlobalTensorArg},
     },
 };
@@ -108,7 +108,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 ops.push(op);
             }
 
-            let config = FuseConfig {
+            let config = FuseBlockConfig {
                 rank: plan.rank as u32,
                 ref_layout: reference,
                 ops,

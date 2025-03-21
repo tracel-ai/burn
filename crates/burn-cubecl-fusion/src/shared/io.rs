@@ -20,7 +20,7 @@ pub fn read<C: CubePrimitive>(
     locals: &LocalArgs,
     ref_pos: u32,
     #[comptime] arg: Arg,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) -> Line<C> {
     match arg {
         Arg::Input(pos, _precision, layout) => {
@@ -154,7 +154,7 @@ pub fn read_input<C: CubePrimitive>(
     #[comptime] pos: u32,
     ref_pos: u32,
     #[comptime] layout: LayoutInfo,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
 ) -> Line<C> {
     let tensor = inputs.tensors.index(pos);
@@ -185,7 +185,7 @@ pub fn read_input_aligned<C: CubePrimitive>(
     #[comptime] pos: u32,
     ref_pos: u32,
     #[comptime] layout: LayoutInfo,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
 ) -> Line<C> {
     let mut result: Line<C> = Line::<C>::empty(comptime![config.width as u32]);
@@ -243,7 +243,7 @@ pub fn get_offset_aligned(
     tensor: &GlobalTensor,
     ref_pos: u32,
     #[comptime] layout: LayoutInfo,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
 ) -> u32 {
     match layout {
@@ -270,7 +270,7 @@ pub fn read_output<C: CubePrimitive>(
     pos: u32,
     ref_pos: u32,
     #[comptime] layout: LayoutInfo,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) -> Line<C> {
     let tensor = outputs.tensors.index(pos);
     let offset = match layout {
@@ -290,7 +290,7 @@ pub fn write<C: CubePrimitive>(
     ref_pos: u32,
     value: Line<C>,
     #[comptime] arg: Arg,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) {
     match arg {
         Arg::Output(pos, precision, layout) => {
@@ -332,7 +332,7 @@ pub(crate) fn global_offset(
     index: u32,
     #[comptime] arg: Arg,
     #[comptime] range: Option<(u32, u32)>,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) -> u32 {
     match arg {
         Arg::Input(pos, _precision, _layout) => {
@@ -354,7 +354,7 @@ fn get_offset(
     tensor: &GlobalTensor,
     ref_pos: u32,
     #[comptime] range: Option<(u32, u32)>,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
 ) -> u32 {
     index_offset_with_layout(
@@ -397,7 +397,7 @@ pub fn ref_len(
     inputs: &GlobalArgs,
     outputs: &GlobalArgs,
     locals: &LocalArgs,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) -> u32 {
     match comptime![config.ref_layout.clone()] {
         RefLayout::Concrete(arg) => match comptime![arg] {
@@ -414,7 +414,7 @@ pub fn ref_buffer_len(
     inputs: &GlobalArgs,
     outputs: &GlobalArgs,
     locals: &LocalArgs,
-    #[comptime] config: &FuseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) -> u32 {
     match comptime![config.ref_layout.clone()] {
         RefLayout::Concrete(arg) => match comptime![arg] {
@@ -427,7 +427,7 @@ pub fn ref_buffer_len(
 }
 
 #[cube]
-pub fn num_elements(locals: &LocalArgs, #[comptime] config: &FuseConfig) -> u32 {
+pub fn num_elements(locals: &LocalArgs, #[comptime] config: &FuseBlockConfig) -> u32 {
     let mut length = 1u32;
 
     for i in 0..config.rank {
