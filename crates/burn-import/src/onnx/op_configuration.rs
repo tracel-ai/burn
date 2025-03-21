@@ -1257,9 +1257,14 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
     match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {
             assert_eq!(tensor.rank, 1, "Reshape: shape tensor must be 1D");
+            assert_eq!(
+                tensor.elem_type,
+                ElementType::Int64,
+                "Reshape: shape tensor must have element type int64"
+            );
 
-            if tensor.elem_type != ElementType::Int64 {
-                panic!("Reshape: shape tensor must have element type int64");
+            if let Some(Data::Int64s(shape)) = &node.inputs[1].value {
+                shape.clone()
             } else {
                 tensor
                     .shape

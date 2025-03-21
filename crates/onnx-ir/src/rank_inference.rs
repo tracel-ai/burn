@@ -337,7 +337,12 @@ fn concat_update_outputs(node: &mut Node) {
 
 fn reshape_update_outputs(node: &mut Node) {
     let shape = if node.inputs.len() == 2 {
-        if let ArgType::Tensor(tensor) = &node.inputs[1].ty {
+        if let Some(value) = &node.inputs[1].value {
+            match value {
+                Data::Int64s(shape) => shape.clone(),
+                _ => panic!("Reshape: invalid input types"),
+            }
+        } else if let ArgType::Tensor(tensor) = &node.inputs[1].ty {
             tensor
                 .shape
                 .clone()
@@ -360,7 +365,7 @@ fn reshape_update_outputs(node: &mut Node) {
     node.outputs[0].ty = ArgType::Tensor(TensorType {
         rank: shape.len(),
         shape: None, // shape is calculated at runtime
-        elem_type: ElementType::Int64,
+        elem_type: node.inputs[0].ty.elem_type().clone(),
     });
 }
 
