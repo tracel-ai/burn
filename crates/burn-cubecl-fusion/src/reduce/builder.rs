@@ -89,6 +89,16 @@ impl<R: Runtime> ReduceBuilder<R> {
         let output = self.builder.output_unhandled(&op.out);
         let axis = op.axis;
 
+        // We only activate fuse on write when the reduction isn't on the last dimension, otherwise
+        // vectorization is impossible and will probably lead to worse performance.
+        let fuse_on_write_activated = axis != op.input.shape.len() - 1;
+
+        if fuse_on_write_activated {
+            self.status = OptimizationStatus::Open;
+        } else {
+            self.status = OptimizationStatus::Closed;
+        }
+
         self.reduce = Some(FusedReduce::new(
             input,
             output,
@@ -101,7 +111,6 @@ impl<R: Runtime> ReduceBuilder<R> {
             inst,
         ));
         self.builder_read_fallback.close();
-        self.status = OptimizationStatus::Open;
     }
 
     fn on_elemwise_read(&mut self, operation: &OperationIr) {
