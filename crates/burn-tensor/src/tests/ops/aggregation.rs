@@ -275,7 +275,7 @@ mod tests {
     #[test]
     fn test_sum_dim_2_maybe_fused_on_write() {
         let tensor_1 = TestTensorInt::arange(0..8, &Default::default()).float();
-        let tensor_2 = TestTensorInt::arange(10..14, &Default::default()).float();
+        let tensor_2 = TestTensorInt::arange(10..12, &Default::default()).float();
         let tensor_1 = tensor_1.reshape([1, 2, 4]);
         let tensor_2 = tensor_2.reshape([1, 2, 1]);
         TestBackend::sync(&tensor_1.device());
