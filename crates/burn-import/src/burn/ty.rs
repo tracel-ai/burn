@@ -69,7 +69,9 @@ impl Type {
         if name_is_number {
             format!("_{}", name)
         } else {
-            name.to_string()
+            // Format the name by replacing invalid rust variable names, there is probably more to do here
+            // but these are the ones I ran into.
+            name.replace(".", "_").replace(":", "_")
         }
     }
     pub fn name(&self) -> &Ident {
