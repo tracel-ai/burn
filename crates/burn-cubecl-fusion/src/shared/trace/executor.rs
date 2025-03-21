@@ -9,37 +9,21 @@ use cubecl::{
 };
 
 use super::{
-    HandleInput, HandleOutput, LaunchPlan, MultiTraceRunner, ReferenceSelection, TensorView,
-    TraceError, TraceRunner,
+    FuseResources, HandleInput, HandleOutput, LaunchPlan, ReferenceSelection, TensorView,
+    TraceError, TraceRunner, block::FuseBlock,
 };
 use crate::{
     CubeFusionHandle, elem_dtype,
     shared::{
-        ir::{
-            ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch, RefLayout,
-            VirtualLayout,
-        },
+        ir::{FuseBlockConfig, FuseOp, FusePrecision, GlobalArgsLaunch, RefLayout, VirtualLayout},
         tensor::{GlobalScalar, GlobalTensorArg},
     },
 };
 
 /// Execute a [plan](LaunchPlan) using a [runner](TraceRunner) modifying the [context](Context).
 pub struct LaunchPlanExecutor<'a, R: Runtime> {
-    scalars: &'a Vec<(ElemwisePrecision, u32)>,
-    views: &'a Vec<TensorView>,
-    ops: &'a Vec<ElemwiseOp>,
-    _r: PhantomData<R>,
-}
-
-/// Execute a [plan](LaunchPlan) using a [runner](TraceRunner) modifying the [context](Context).
-#[allow(clippy::type_complexity)]
-pub struct LaunchMultiPlanExecutor<'a, R: Runtime> {
-    scalars: (
-        &'a Vec<(ElemwisePrecision, u32)>,
-        &'a Vec<(ElemwisePrecision, u32)>,
-    ),
-    views: (&'a Vec<TensorView>, &'a Vec<TensorView>),
-    ops: (&'a Vec<ElemwiseOp>, &'a Vec<ElemwiseOp>),
+    resources: &'a FuseResources,
+    blocks: &'a Vec<FuseBlock>,
     _r: PhantomData<R>,
 }
 
@@ -50,168 +34,11 @@ pub struct ExecutionError<R: Runtime, Runner: TraceRunner<R>> {
     pub handles_output: Vec<HandleOutput<R>>,
 }
 
-#[derive(new, Debug)]
-pub struct MultiExecutionError<R: Runtime, Runner: MultiTraceRunner<R>> {
-    pub error: TraceError<Runner::Error>,
-    pub plan_0_handles_input: Vec<HandleInput<R>>,
-    pub plan_0_handles_output: Vec<HandleOutput<R>>,
-    pub plan_1_handles_input: Vec<HandleInput<R>>,
-    pub plan_1_handles_output: Vec<HandleOutput<R>>,
-}
-
-impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
-    #[allow(clippy::type_complexity)]
-    pub fn new(
-        scalars: (
-            &'a Vec<(ElemwisePrecision, u32)>,
-            &'a Vec<(ElemwisePrecision, u32)>,
-        ),
-        views: (&'a Vec<TensorView>, &'a Vec<TensorView>),
-        ops: (&'a Vec<ElemwiseOp>, &'a Vec<ElemwiseOp>),
-    ) -> Self {
-        Self {
-            scalars,
-            views,
-            ops,
-            _r: PhantomData,
-        }
-    }
-
-    pub fn execute<Runner: MultiTraceRunner<R>, BT: CubeElement>(
-        self,
-        client: &ComputeClient<R::Server, R::Channel>,
-        runner: &Runner,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-        mut plans: (LaunchPlan<'a, R>, LaunchPlan<'a, R>),
-    ) -> Result<(), MultiExecutionError<R, Runner>> {
-        if plans.0.writes.is_empty() && plans.1.writes.is_empty() {
-            // Nothing to write, can skip execution.
-            return Ok(());
-        }
-
-        let reference = match plans.0.reference {
-            ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
-            ReferenceSelection::SwapDims { original, dims } => {
-                RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
-            }
-            ReferenceSelection::Reshaped { reshape_pos } => {
-                RefLayout::Virtual(VirtualLayout::Reshaped(reshape_pos as u32))
-            }
-            ReferenceSelection::Searching | ReferenceSelection::NotFound => {
-                return Err(MultiExecutionError::new(
-                    TraceError::ReferenceNotFound,
-                    plans.0.handle_inputs,
-                    plans.0.handle_outputs,
-                    plans.1.handle_inputs,
-                    plans.1.handle_outputs,
-                ));
-            }
-        };
-
-        let mut inputs = GlobalArgsLaunch::default();
-        let mut outputs = GlobalArgsLaunch::default();
-
-        register_inputs(&plans.0.handle_inputs, &mut inputs);
-        register_outputs::<BT, R>(&plans.0.handle_outputs, &mut outputs);
-
-        let output_offset = outputs.tensors.values.len() as u32;
-
-        let mut ops = Sequence::<ElemwiseOp>::new();
-
-        for read_ops in plans.0.reads.into_values() {
-            for op in read_ops {
-                ops.push(op);
-            }
-        }
-
-        for op in self.ops.0.iter() {
-            ops.push(op.clone());
-        }
-
-        for op in plans.0.writes.into_values() {
-            ops.push(op);
-        }
-
-        let config_0 = ElemwiseConfig {
-            rank: plans.0.rank as u32,
-            ref_layout: reference,
-            ops,
-            width: plans.0.width,
-        };
-
-        plans.1.output_offset(output_offset);
-
-        let reference = match plans.1.reference {
-            ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
-            ReferenceSelection::SwapDims { original, dims } => {
-                RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
-            }
-            ReferenceSelection::Reshaped { reshape_pos } => {
-                RefLayout::Virtual(VirtualLayout::Reshaped(reshape_pos as u32))
-            }
-            ReferenceSelection::Searching | ReferenceSelection::NotFound => {
-                return Err(MultiExecutionError::new(
-                    TraceError::ReferenceNotFound,
-                    plans.0.handle_inputs,
-                    plans.0.handle_outputs,
-                    plans.1.handle_inputs,
-                    plans.1.handle_outputs,
-                ));
-            }
-        };
-
-        register_inputs(&plans.1.handle_inputs, &mut inputs);
-        register_outputs::<BT, R>(&plans.1.handle_outputs, &mut outputs);
-        register_scalars::<R>(
-            self.scalars.0.iter().chain(self.scalars.1.iter()),
-            self.views.0.iter().chain(self.views.1.iter()),
-            context,
-            &mut inputs,
-        );
-
-        let mut ops = Sequence::<ElemwiseOp>::new();
-
-        for read_ops in plans.1.reads.into_values() {
-            for op in read_ops {
-                ops.push(op);
-            }
-        }
-
-        for op in self.ops.1.iter() {
-            ops.push(op.clone());
-        }
-
-        for op in plans.1.writes.into_values() {
-            ops.push(op);
-        }
-        let config_1 = ElemwiseConfig {
-            rank: plans.1.rank as u32,
-            ref_layout: reference,
-            ops,
-            width: plans.1.width,
-        };
-
-        Runner::run(runner, client, inputs, outputs, &config_0, &config_1).map_err(|err| {
-            MultiExecutionError::new(
-                TraceError::RunnerError(err),
-                plans.0.handle_inputs,
-                plans.0.handle_outputs,
-                plans.1.handle_inputs,
-                plans.1.handle_outputs,
-            )
-        })
-    }
-}
 impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
-    pub fn new(
-        scalars: &'a Vec<(ElemwisePrecision, u32)>,
-        views: &'a Vec<TensorView>,
-        ops: &'a Vec<ElemwiseOp>,
-    ) -> Self {
+    pub fn new(resources: &'a FuseResources, blocks: &'a Vec<FuseBlock>) -> Self {
         Self {
-            scalars,
-            views,
-            ops,
+            resources,
+            blocks,
             _r: PhantomData,
         }
     }
@@ -223,59 +50,74 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
     ) -> Result<(), ExecutionError<R, Runner>> {
-        if plan.writes.is_empty() {
+        let mut num_writes = 0;
+        for b in plan.blocks.iter() {
+            num_writes += b.writes.len();
+        }
+
+        if num_writes == 0 {
             // Nothing to write, can skip execution.
             return Ok(());
         }
-
-        let reference = match plan.reference {
-            ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
-            ReferenceSelection::SwapDims { original, dims } => {
-                RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
-            }
-            ReferenceSelection::Reshaped { reshape_pos } => {
-                RefLayout::Virtual(VirtualLayout::Reshaped(reshape_pos as u32))
-            }
-            ReferenceSelection::NotFound | ReferenceSelection::Searching => {
-                return Err(ExecutionError::new(
-                    TraceError::ReferenceNotFound,
-                    plan.handle_inputs,
-                    plan.handle_outputs,
-                ));
-            }
-        };
 
         let mut inputs = GlobalArgsLaunch::default();
         let mut outputs = GlobalArgsLaunch::default();
 
         register_inputs(&plan.handle_inputs, &mut inputs);
-        register_scalars(self.scalars.iter(), self.views.iter(), context, &mut inputs);
+        register_scalars(
+            self.resources.scalars.iter(),
+            self.resources.views.iter(),
+            context,
+            &mut inputs,
+        );
         register_outputs::<BT, R>(&plan.handle_outputs, &mut outputs);
 
-        let mut ops = Sequence::<ElemwiseOp>::new();
+        let mut configs = Vec::with_capacity(plan.blocks.len());
 
-        for read_ops in plan.reads.into_values() {
-            for op in read_ops {
+        for (block_plan, block) in plan.blocks.into_iter().zip(self.blocks) {
+            let reference = match block_plan.reference {
+                ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
+                ReferenceSelection::SwapDims { original, dims } => {
+                    RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
+                }
+                ReferenceSelection::Reshaped { reshape_pos } => {
+                    RefLayout::Virtual(VirtualLayout::Reshaped(reshape_pos as u32))
+                }
+                ReferenceSelection::NotFound | ReferenceSelection::Searching => {
+                    return Err(ExecutionError::new(
+                        TraceError::ReferenceNotFound,
+                        plan.handle_inputs,
+                        plan.handle_outputs,
+                    ));
+                }
+            };
+
+            let mut ops = Sequence::<FuseOp>::new();
+
+            for read_ops in block_plan.reads.into_values() {
+                for op in read_ops {
+                    ops.push(op);
+                }
+            }
+
+            for op in block.ops.iter() {
+                ops.push(op.clone());
+            }
+
+            for op in block_plan.writes.into_values() {
                 ops.push(op);
             }
+
+            let config = FuseBlockConfig {
+                rank: plan.rank as u32,
+                ref_layout: reference,
+                ops,
+                width: block_plan.width,
+            };
+            configs.push(config);
         }
 
-        for op in self.ops.iter() {
-            ops.push(op.clone());
-        }
-
-        for op in plan.writes.into_values() {
-            ops.push(op);
-        }
-
-        let config = ElemwiseConfig {
-            rank: plan.rank as u32,
-            ref_layout: reference,
-            ops,
-            width: plan.width,
-        };
-
-        Runner::run(runner, client, inputs, outputs, &config).map_err(|err| {
+        Runner::run(runner, client, inputs, outputs, &configs).map_err(|err| {
             ExecutionError::new(
                 TraceError::RunnerError(err),
                 plan.handle_inputs,
@@ -325,9 +167,9 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                 let arg = handle.as_tensor_arg(global_shape, *vectorization);
 
                 let elem = match precision {
-                    ElemwisePrecision::Bool => match elem_dtype::<BT>() {
-                        DType::U32 => ElemwisePrecision::U32.into_elem(),
-                        DType::U8 => ElemwisePrecision::U8.into_elem(),
+                    FusePrecision::Bool => match elem_dtype::<BT>() {
+                        DType::U32 => FusePrecision::U32.into_elem(),
+                        DType::U8 => FusePrecision::U8.into_elem(),
                         _ => todo!(),
                     },
                     _ => precision.into_elem(),
@@ -339,7 +181,7 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
 }
 
 fn register_scalars<'h, R: Runtime>(
-    scalars: impl Iterator<Item = &'h (ElemwisePrecision, u32)>,
+    scalars: impl Iterator<Item = &'h (FusePrecision, u32)>,
     views: impl DoubleEndedIterator<Item = &'h TensorView>,
     context: &mut Context<'_, CubeFusionHandle<R>>,
     inputs: &mut GlobalArgsLaunch<'h, R>,
@@ -358,73 +200,73 @@ fn register_scalars<'h, R: Runtime>(
 
     for (precision, _pos) in scalars {
         match precision {
-            ElemwisePrecision::F32 => {
+            FusePrecision::F32 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::F32(context.scalar_f32[index_f32]));
                 index_f32 += 1;
             }
-            ElemwisePrecision::F16 => {
+            FusePrecision::F16 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::F16(context.scalar_f16[index_f16]));
                 index_f16 += 1;
             }
-            ElemwisePrecision::BF16 => {
+            FusePrecision::BF16 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::BF16(context.scalar_bf16[index_bf16]));
                 index_bf16 += 1;
             }
-            ElemwisePrecision::I64 => {
+            FusePrecision::I64 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::I64(context.scalar_i64[index_i64]));
                 index_i64 += 1;
             }
-            ElemwisePrecision::I32 => {
+            FusePrecision::I32 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::I32(context.scalar_i32[index_i32]));
                 index_i32 += 1;
             }
-            ElemwisePrecision::I16 => {
+            FusePrecision::I16 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::I16(context.scalar_i16[index_i16]));
                 index_i16 += 1;
             }
-            ElemwisePrecision::I8 => {
+            FusePrecision::I8 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::I8(context.scalar_i8[index_i8]));
                 index_i8 += 1;
             }
-            ElemwisePrecision::U64 => {
+            FusePrecision::U64 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::U64(context.scalar_u64[index_u64]));
                 index_u64 += 1;
             }
-            ElemwisePrecision::U32 => {
+            FusePrecision::U32 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::U32(context.scalar_u32[index_u32]));
                 index_u32 += 1;
             }
-            ElemwisePrecision::U16 => {
+            FusePrecision::U16 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::U16(context.scalar_u16[index_u16]));
                 index_u16 += 1;
             }
-            ElemwisePrecision::U8 => {
+            FusePrecision::U8 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::U8(context.scalar_u8[index_u8]));
                 index_u8 += 1;
             }
-            ElemwisePrecision::Bool => todo!(),
+            FusePrecision::Bool => todo!(),
         }
     }
 

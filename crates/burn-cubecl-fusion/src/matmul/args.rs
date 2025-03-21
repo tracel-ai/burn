@@ -1,12 +1,13 @@
 use cubecl::{linalg::matmul::components::global::args::MatmulArgs, prelude::*};
 
 use crate::shared::{
+    DYN_ELEM_ID,
     io::{
         global_buffer_len, global_len, global_rank, global_shape, global_stride, num_elements,
-        read_input, ref_buffer_len, ref_len, ref_shape, ref_stride,
+        read_input, read_input_window, ref_buffer_len, ref_len, ref_shape, ref_stride,
     },
     ir::{
-        Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo, LocalArgs, LocalArgsExpand,
+        Arg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo, LocalArgs, LocalArgsExpand,
     },
     kernel::{fuse_on_write, init_locals},
 };
@@ -18,7 +19,7 @@ pub struct FusedMatmulArgs;
 pub struct FusedMatmulInput {
     global: GlobalArgs,
     #[cube(comptime)]
-    config: ElemwiseConfig,
+    config: FuseBlockConfig,
     #[cube(comptime)]
     lhs: Arg,
     #[cube(comptime)]
@@ -80,30 +81,36 @@ impl MatmulArgs for FusedMatmulArgs {
     }
 
     fn read_window_lhs<EG: Numeric>(
-        _state: &Self::State<EG>,
-        _start: u32,
-        _end: u32,
+        state: &Self::State<EG>,
+        start: u32,
+        end: u32,
     ) -> Slice<Line<EG>> {
-        comptime!(todo!());
-        // TODO This is a dummy return value to satisfy the type checker
-        //      before working on an implementation.
-        //      Remove the allow annotation after implementing this function.
-        #[allow(unreachable_code)]
-        SharedMemory::new_lined(0, 0_u32).to_slice()
+        let (pos, elem) = comptime! {
+            match state.lhs {
+                Arg::Input(pos, precision,..) => (pos, precision.into_elem()),
+                _ => panic!("Lhs isn't an input"),
+            }
+        };
+
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(elem);
+        read_input_window(unsafe { &(*state.inputs) }, pos, start, end)
     }
 
     #[allow(unreachable_code)]
     fn read_window_rhs<EG: Numeric>(
-        _state: &Self::State<EG>,
-        _start: u32,
-        _end: u32,
+        state: &Self::State<EG>,
+        start: u32,
+        end: u32,
     ) -> Slice<Line<EG>> {
-        comptime!(todo!());
-        // TODO This is a dummy return value to satisfy the type checker
-        //      before working on an implementation.
-        //      Remove the allow annotation after implementing this function.
-        #[allow(unreachable_code)]
-        SharedMemory::new_lined(0, 0_u32).to_slice()
+        let (pos, elem) = comptime! {
+            match state.rhs {
+                Arg::Input(pos, precision,..) => (pos, precision.into_elem()),
+                _ => panic!("Rhs isn't an input"),
+            }
+        };
+
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(elem);
+        read_input_window(unsafe { &(*state.inputs) }, pos, start, end)
     }
 
     fn write_out<EG: Numeric>(state: &mut Self::State<EG>, coordinate: u32, value: Line<EG>) {
@@ -263,7 +270,7 @@ pub struct FusedMatmulState {
     inputs: *const GlobalArgs,
     outputs: *mut GlobalArgs,
     locals: *mut LocalArgs,
-    config: ElemwiseConfig,
+    config: FuseBlockConfig,
     lhs: Arg,
     rhs: Arg,
     out: Arg,
@@ -275,7 +282,7 @@ impl FusedMatmulState {
         inputs: &FusedMatmulInput,
         outputs: &mut GlobalArgs,
         locals: &mut LocalArgs,
-        #[comptime] config: &ElemwiseConfig,
+        #[comptime] config: &FuseBlockConfig,
     ) -> FusedMatmulState {
         FusedMatmulState {
             inputs: &inputs.global,
@@ -293,7 +300,7 @@ impl FusedMatmulState {
 pub struct FusedMatmulStateExpand {
     inputs: GlobalArgsExpand,
     outputs: GlobalArgsExpand,
-    config: ElemwiseConfig,
+    config: FuseBlockConfig,
     locals: LocalArgsExpand,
     lhs: Arg,
     rhs: Arg,

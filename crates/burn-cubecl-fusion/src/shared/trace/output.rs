@@ -5,21 +5,20 @@ use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::Elem};
 
 use crate::{
     CubeFusionHandle, elem_dtype, is_contiguous,
-    shared::ir::{Arg, ElemwiseOp, LayoutInfo},
+    shared::ir::{Arg, FuseOp, LayoutInfo},
     strides_dyn_rank,
 };
 
 use super::{
-    super::ir::ElemwisePrecision, HandleOutput, InputReference, LaunchPlan, ReferenceSelection,
-    RegisteredTensors, TensorView,
+    super::ir::FusePrecision, BlockPlan, FuseResources, HandleInput, HandleOutput, InputReference,
+    LaunchPlan, ReferenceSelection, TensorView,
 };
 
 /// Create or reuse handles for the outputs.
 ///
 /// It is also responsible to select the reference tensor.
 pub struct OutputPlanner<'a, R: Runtime> {
-    inputs: &'a RegisteredTensors,
-    views: &'a Vec<TensorView>,
+    resources: &'a FuseResources,
     outputs_sorted: Vec<OutputSorted<'a>>,
     handles: Vec<Option<HandleOutput<R>>>,
     globals: Vec<Option<TensorIr>>,
@@ -28,10 +27,11 @@ pub struct OutputPlanner<'a, R: Runtime> {
 #[derive(Debug)]
 struct OutputSorted<'a> {
     pos_original: usize,
-    precision: ElemwisePrecision,
+    precision: FusePrecision,
     tensor_relative: &'a TensorIr,
 }
 
+#[derive(Debug)]
 enum OutputKind {
     Normal,
     Inplace {
@@ -42,12 +42,9 @@ enum OutputKind {
 }
 
 impl<'a, R: Runtime> OutputPlanner<'a, R> {
-    pub fn new(
-        inputs: &'a RegisteredTensors,
-        outputs: &'a RegisteredTensors,
-        views: &'a Vec<TensorView>,
-    ) -> Self {
-        let mut outputs_sorted: Vec<_> = outputs
+    pub fn new(resources: &'a FuseResources) -> Self {
+        let mut outputs_sorted: Vec<_> = resources
+            .outputs
             .iter()
             .enumerate()
             .map(|(pos, (tensor, precision))| OutputSorted {
@@ -64,18 +61,17 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             b_val.cmp(&a_val)
         });
 
-        let mut handles = Vec::with_capacity(outputs.len());
-        let mut globals = Vec::with_capacity(outputs.len());
+        let mut handles = Vec::with_capacity(resources.outputs.len());
+        let mut globals = Vec::with_capacity(resources.outputs.len());
 
-        for _ in 0..outputs.len() {
+        for _ in 0..resources.outputs.len() {
             handles.push(None);
             globals.push(None);
         }
 
         Self {
-            inputs,
+            resources,
             outputs_sorted,
-            views,
             handles,
             globals,
         }
@@ -100,9 +96,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 .clone();
             let strides = strides_dyn_rank(&tensor_global.shape);
 
-            match self.output_kind(plan, &tensor_global, &output, &strides) {
+            let (kind, block_idx) = self.output_kind(plan, &tensor_global, &output, &strides);
+            match kind {
                 OutputKind::Inplace { input_pos } => {
-                    self.inplace_output(context, plan, output, tensor_global, input_pos);
+                    self.inplace_output(context, plan, output, tensor_global, input_pos, block_idx);
                 }
                 OutputKind::Normal => {
                     self.normal_output::<BT>(
@@ -113,6 +110,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         output,
                         tensor_global,
                         strides,
+                        block_idx,
                     );
                 }
                 OutputKind::Transform(TensorView::Reshape { original, .. }) => {
@@ -125,6 +123,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         tensor_global,
                         strides,
                         original,
+                        block_idx,
                     );
                 }
                 OutputKind::Transform(TensorView::SwapDims { original, dims, .. }) => {
@@ -137,6 +136,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         tensor_global,
                         original,
                         dims,
+                        block_idx,
                     );
                 }
             }
@@ -147,19 +147,21 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             plan.global_outputs.push(global.unwrap());
         }
 
-        if !plan.reference.is_found() {
-            Self::select_reference_from_inputs(plan);
-        } else {
-            Self::add_layout_info_inputs(plan);
+        for block in plan.blocks.iter_mut() {
+            if !block.reference.is_found() {
+                Self::select_reference_from_inputs(block, &plan.handle_inputs);
+            } else {
+                Self::add_layout_info_inputs(block, &plan.handle_inputs);
+            }
         }
     }
 
-    fn select_reference_from_inputs(plan: &mut LaunchPlan<'_, R>) {
-        if let Some(input_ref) = plan.potential_reference_input.take() {
+    fn select_reference_from_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput<R>]) {
+        if let Some(input_ref) = block.potential_reference_input.take() {
             match input_ref {
                 InputReference::Normal { input_pos } => {
-                    let reference = plan.handle_inputs.get(input_pos).unwrap();
-                    plan.reference = ReferenceSelection::Concrete {
+                    let reference = handle_inputs.get(input_pos).unwrap();
+                    block.reference = ReferenceSelection::Concrete {
                         layout: Arg::Input(
                             input_pos as u32,
                             reference.precision,
@@ -168,11 +170,11 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         shape: reference.global_shape.clone(),
                         strides: reference.handle.strides.clone(),
                     };
-                    Self::add_layout_info_inputs(plan);
+                    Self::add_layout_info_inputs(block, handle_inputs);
                 }
                 InputReference::SwapDims { original_pos, dims } => {
-                    let reference = plan.handle_inputs.get(original_pos).unwrap();
-                    plan.reference = ReferenceSelection::SwapDims {
+                    let reference = handle_inputs.get(original_pos).unwrap();
+                    block.reference = ReferenceSelection::SwapDims {
                         original: Arg::Input(
                             original_pos as u32,
                             reference.precision,
@@ -182,21 +184,21 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     };
                 }
                 InputReference::Reshaped { reshape_pos } => {
-                    plan.reference = ReferenceSelection::Reshaped { reshape_pos };
+                    block.reference = ReferenceSelection::Reshaped { reshape_pos };
                 }
             };
         } else {
-            plan.reference = ReferenceSelection::NotFound;
+            block.reference = ReferenceSelection::NotFound;
         }
     }
 
-    fn add_layout_info_inputs(plan: &mut LaunchPlan<'_, R>) {
-        for hi in plan.handle_inputs.iter() {
-            if let ReferenceSelection::Concrete { strides, shape, .. } = &plan.reference {
+    fn add_layout_info_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput<R>]) {
+        for hi in handle_inputs.iter() {
+            if let ReferenceSelection::Concrete { strides, shape, .. } = &block.reference {
                 if strides == &hi.handle.strides && shape == &hi.global_shape {
-                    if let Some(ops) = plan.reads.get_mut(&hi.relative_id) {
+                    if let Some(ops) = block.reads.get_mut(&hi.relative_id) {
                         for op in ops.iter_mut() {
-                            if let ElemwiseOp::Assign(op) = op {
+                            if let FuseOp::Assign(op) = op {
                                 op.input.add_layout_info(LayoutInfo::SameAsRef);
                             }
                         }
@@ -212,25 +214,38 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         tensor_global: &TensorIr,
         output: &OutputSorted,
         strides: &[usize],
-    ) -> OutputKind {
-        if let Some(transform) = self.views.iter().find(|v| match v {
+    ) -> (OutputKind, usize) {
+        let mut block_idx = None;
+        for (i, block) in plan.blocks.iter().enumerate() {
+            if block.writes.contains_key(&output.tensor_relative.id) {
+                block_idx = Some(i);
+                break;
+            }
+        }
+        let block_idx = block_idx.unwrap();
+
+        if let Some(transform) = self.resources.views.iter().find(|v| match v {
             TensorView::Reshape { reshaped, .. } => reshaped == &output.tensor_relative.id,
             TensorView::SwapDims { swapped, .. } => swapped == &output.tensor_relative.id,
         }) {
-            return OutputKind::Transform(transform.clone());
+            return (OutputKind::Transform(transform.clone()), block_idx);
         }
 
-        plan.potential_inplaces
+        let block = &plan.blocks[block_idx];
+        let kind = block
+            .potential_inplaces
             .iter()
             .enumerate()
             .find(|(_pos, pi)| {
                 pi.tensor_relative.dtype == tensor_global.dtype
                     && pi.tensor_relative.shape == output.tensor_relative.shape
                     && pi.strides == strides
-                    && plan.reference.compatible_strides_for_inplace(strides)
+                    && block.reference.compatible_strides_for_inplace(strides)
             })
             .map(|(pos, _)| OutputKind::Inplace { input_pos: pos })
-            .unwrap_or(OutputKind::Normal)
+            .unwrap_or(OutputKind::Normal);
+
+        (kind, block_idx)
     }
 
     fn inplace_output(
@@ -240,36 +255,39 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         output: OutputSorted,
         tensor_global: TensorIr,
         input_index: usize,
+        block_idx: usize,
     ) {
-        let potential_inplace = plan.potential_inplaces.remove(input_index);
+        let block = &mut plan.blocks[block_idx];
+        let potential_inplace = block.potential_inplaces.remove(input_index);
         let handle_input = plan.handle_inputs.get(potential_inplace.input_pos).unwrap();
 
-        if !plan.reference.is_found() {
+        if !block.reference.is_found() {
             let index_input = self
+                .resources
                 .inputs
                 .get_index(potential_inplace.tensor_relative.id)
                 .unwrap();
 
-            plan.reference = ReferenceSelection::Concrete {
+            block.reference = ReferenceSelection::Concrete {
                 layout: Arg::Input(index_input, output.precision, LayoutInfo::IsRef),
                 shape: tensor_global.shape.clone(),
                 strides: handle_input.handle.strides.clone(),
             };
 
-            if let Some(ops) = plan.reads.get_mut(&handle_input.relative_id) {
+            if let Some(ops) = block.reads.get_mut(&handle_input.relative_id) {
                 for op in ops.iter_mut() {
-                    if let ElemwiseOp::Assign(op) = op {
+                    if let FuseOp::Assign(op) = op {
                         op.input.add_layout_info(LayoutInfo::IsRef);
                     };
                 }
             }
 
-            if let Some(ElemwiseOp::Assign(op)) = plan.writes.get_mut(&output.tensor_relative.id) {
+            if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
                 op.out.add_layout_info(LayoutInfo::IsRef);
             };
         } else {
             // Already validated, necessary for correctness.
-            if let Some(ElemwiseOp::Assign(op)) = plan.writes.get_mut(&output.tensor_relative.id) {
+            if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
                 op.out.add_layout_info(LayoutInfo::SameAsRef);
             };
         }
@@ -295,9 +313,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         output: OutputSorted,
         tensor_global: TensorIr,
         strides: Vec<usize>,
+        block_idx: usize,
     ) {
-        if !plan.reference.is_found() {
-            plan.reference = ReferenceSelection::Concrete {
+        let block = &mut plan.blocks[block_idx];
+
+        if !block.reference.is_found() {
+            block.reference = ReferenceSelection::Concrete {
                 layout: Arg::Output(
                     output.pos_original as u32,
                     output.precision,
@@ -308,18 +329,18 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             };
 
             // Sometimes outputs that are manually handled don't have any write registered.
-            if let Some(ElemwiseOp::Assign(op)) = plan.writes.get_mut(&output.tensor_relative.id) {
+            if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
                 op.out.add_layout_info(LayoutInfo::IsRef);
             };
         } else if let ReferenceSelection::Concrete {
             shape: ref_shape,
             strides: ref_strides,
             ..
-        } = &plan.reference
+        } = &block.reference
         {
             if ref_strides == &strides && ref_shape == &tensor_global.shape {
-                if let ElemwiseOp::Assign(op) =
-                    plan.writes.get_mut(&output.tensor_relative.id).unwrap()
+                if let FuseOp::Assign(op) =
+                    block.writes.get_mut(&output.tensor_relative.id).unwrap()
                 {
                     op.out.add_layout_info(LayoutInfo::SameAsRef);
                 };
@@ -351,6 +372,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             handle,
             global_shape: tensor_global.shape.clone(),
             global_id: tensor_global.id,
+            relative_id: output.tensor_relative.id,
             vectorization: 1,
         });
         self.globals[output.pos_original] = Some(tensor_global);
@@ -367,7 +389,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         tensor_global: TensorIr,
         strides: Vec<usize>,
         original: TensorId,
+        block_idx: usize,
     ) {
+        let block = &mut plan.blocks[block_idx];
+
         let (pos_input, original_handle) = plan
             .handle_inputs
             .iter()
@@ -385,7 +410,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             &original_handle.global_shape,
             &original_handle.handle.strides,
         ) {
-            plan.writes.remove(&output.tensor_relative.id);
+            block.writes.remove(&output.tensor_relative.id);
 
             let handle = CubeFusionHandle {
                 client: client.clone(),
@@ -413,6 +438,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 output,
                 tensor_global,
                 strides,
+                block_idx,
             );
         }
     }
@@ -428,7 +454,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         tensor_global: TensorIr,
         original: TensorId,
         dims: (u32, u32),
+        block_idx: usize,
     ) {
+        let block = &mut plan.blocks[block_idx];
+
         let (pos_input, original_handle) = plan
             .handle_inputs
             .iter()
@@ -443,7 +472,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         };
 
         // TODO: Check if we can also remove the read, if we have a dead partial graph.
-        plan.writes.remove(&output.tensor_relative.id);
+        block.writes.remove(&output.tensor_relative.id);
 
         let strides = original_handle.handle.strides.clone();
         let mut handle = CubeFusionHandle {

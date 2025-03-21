@@ -20,7 +20,7 @@ pub fn read<C: CubePrimitive>(
     locals: &LocalArgs,
     ref_pos: u32,
     #[comptime] arg: Arg,
-    #[comptime] config: &ElemwiseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) -> Line<C> {
     match arg {
         Arg::Input(pos, _precision, layout) => {
@@ -37,18 +37,18 @@ pub fn read<C: CubePrimitive>(
             read_output(inputs, outputs, locals, pos, ref_pos, layout, config)
         }
         Arg::Local(pos, precision) => match comptime![precision] {
-            ElemwisePrecision::F32 => Line::cast_from(locals.l_f32.find(pos)),
-            ElemwisePrecision::F16 => Line::cast_from(locals.l_f16.find(pos)),
-            ElemwisePrecision::BF16 => Line::cast_from(locals.l_bf16.find(pos)),
-            ElemwisePrecision::U64 => Line::cast_from(locals.l_u64.find(pos)),
-            ElemwisePrecision::U32 => Line::cast_from(locals.l_u32.find(pos)),
-            ElemwisePrecision::U16 => Line::cast_from(locals.l_u16.find(pos)),
-            ElemwisePrecision::U8 => Line::cast_from(locals.l_u8.find(pos)),
-            ElemwisePrecision::I64 => Line::cast_from(locals.l_i64.find(pos)),
-            ElemwisePrecision::I32 => Line::cast_from(locals.l_i32.find(pos)),
-            ElemwisePrecision::I16 => Line::cast_from(locals.l_i16.find(pos)),
-            ElemwisePrecision::I8 => Line::cast_from(locals.l_i8.find(pos)),
-            ElemwisePrecision::Bool => Line::cast_from(locals.l_bool.find(pos)),
+            FusePrecision::F32 => Line::cast_from(locals.l_f32.find(pos)),
+            FusePrecision::F16 => Line::cast_from(locals.l_f16.find(pos)),
+            FusePrecision::BF16 => Line::cast_from(locals.l_bf16.find(pos)),
+            FusePrecision::U64 => Line::cast_from(locals.l_u64.find(pos)),
+            FusePrecision::U32 => Line::cast_from(locals.l_u32.find(pos)),
+            FusePrecision::U16 => Line::cast_from(locals.l_u16.find(pos)),
+            FusePrecision::U8 => Line::cast_from(locals.l_u8.find(pos)),
+            FusePrecision::I64 => Line::cast_from(locals.l_i64.find(pos)),
+            FusePrecision::I32 => Line::cast_from(locals.l_i32.find(pos)),
+            FusePrecision::I16 => Line::cast_from(locals.l_i16.find(pos)),
+            FusePrecision::I8 => Line::cast_from(locals.l_i8.find(pos)),
+            FusePrecision::Bool => Line::cast_from(locals.l_bool.find(pos)),
         },
         Arg::Scalar(..) => {
             let scalar = read_scalar::<C>(inputs, arg);
@@ -154,7 +154,7 @@ pub fn read_input<C: CubePrimitive>(
     #[comptime] pos: u32,
     ref_pos: u32,
     #[comptime] layout: LayoutInfo,
-    #[comptime] config: &ElemwiseConfig,
+    #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
 ) -> Line<C> {
     let tensor = inputs.tensors.index(pos);
@@ -167,13 +167,25 @@ pub fn read_input<C: CubePrimitive>(
 }
 
 #[cube]
+pub fn read_input_window<C: CubePrimitive>(
+    inputs: &GlobalArgs,
+    #[comptime] pos: u32,
+    start: u32,
+    end: u32,
+) -> Slice<Line<C>> {
+    let tensor = inputs.tensors.index(pos);
+    let slice = tensor.tensor.slice(start, end);
+    slice.try_cast_unchecked()
+}
+
+#[cube]
 pub fn read_input_aligned<C: CubePrimitive>(
     inputs: &GlobalArgs,
     locals: &LocalArgs,
     #[comptime] pos: u32,
     ref_pos: u32,
     #[comptime] layout: LayoutInfo,
-    #[comptime] config: &ElemwiseConfig,
+    #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
 ) -> Line<C> {
     let mut result: Line<C> = Line::<C>::empty(comptime![config.width as u32]);
@@ -231,7 +243,7 @@ pub fn get_offset_aligned(
     tensor: &GlobalTensor,
     ref_pos: u32,
     #[comptime] layout: LayoutInfo,
-    #[comptime] config: &ElemwiseConfig,
+    #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
 ) -> u32 {
     match layout {
@@ -258,7 +270,7 @@ pub fn read_output<C: CubePrimitive>(
     pos: u32,
     ref_pos: u32,
     #[comptime] layout: LayoutInfo,
-    #[comptime] config: &ElemwiseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) -> Line<C> {
     let tensor = outputs.tensors.index(pos);
     let offset = match layout {
@@ -278,7 +290,7 @@ pub fn write<C: CubePrimitive>(
     ref_pos: u32,
     value: Line<C>,
     #[comptime] arg: Arg,
-    #[comptime] config: &ElemwiseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) {
     match arg {
         Arg::Output(pos, precision, layout) => {
@@ -295,18 +307,18 @@ pub fn write<C: CubePrimitive>(
             tensor.tensor[offset] = Line::cast_from(value);
         }
         Arg::Local(pos, precision) => match comptime![precision] {
-            ElemwisePrecision::F32 => locals.l_f32.insert(pos, Line::cast_from(value)),
-            ElemwisePrecision::F16 => locals.l_f16.insert(pos, Line::cast_from(value)),
-            ElemwisePrecision::BF16 => locals.l_bf16.insert(pos, Line::cast_from(value)),
-            ElemwisePrecision::U64 => locals.l_u64.insert(pos, Line::cast_from(value)),
-            ElemwisePrecision::U32 => locals.l_u32.insert(pos, Line::cast_from(value)),
-            ElemwisePrecision::U16 => locals.l_u16.insert(pos, Line::cast_from(value)),
-            ElemwisePrecision::U8 => locals.l_u8.insert(pos, Line::cast_from(value)),
-            ElemwisePrecision::I64 => locals.l_i64.insert(pos, Line::cast_from(value)),
-            ElemwisePrecision::I32 => locals.l_i32.insert(pos, Line::cast_from(value)),
-            ElemwisePrecision::I16 => locals.l_i16.insert(pos, Line::cast_from(value)),
-            ElemwisePrecision::I8 => locals.l_i8.insert(pos, Line::cast_from(value)),
-            ElemwisePrecision::Bool => locals.l_bool.insert(pos, Line::cast_from(value)),
+            FusePrecision::F32 => locals.l_f32.insert(pos, Line::cast_from(value)),
+            FusePrecision::F16 => locals.l_f16.insert(pos, Line::cast_from(value)),
+            FusePrecision::BF16 => locals.l_bf16.insert(pos, Line::cast_from(value)),
+            FusePrecision::U64 => locals.l_u64.insert(pos, Line::cast_from(value)),
+            FusePrecision::U32 => locals.l_u32.insert(pos, Line::cast_from(value)),
+            FusePrecision::U16 => locals.l_u16.insert(pos, Line::cast_from(value)),
+            FusePrecision::U8 => locals.l_u8.insert(pos, Line::cast_from(value)),
+            FusePrecision::I64 => locals.l_i64.insert(pos, Line::cast_from(value)),
+            FusePrecision::I32 => locals.l_i32.insert(pos, Line::cast_from(value)),
+            FusePrecision::I16 => locals.l_i16.insert(pos, Line::cast_from(value)),
+            FusePrecision::I8 => locals.l_i8.insert(pos, Line::cast_from(value)),
+            FusePrecision::Bool => locals.l_bool.insert(pos, Line::cast_from(value)),
         },
         _ => comptime![panic!("Can't write into inputs and scalars")],
     }
@@ -320,7 +332,7 @@ pub(crate) fn global_offset(
     index: u32,
     #[comptime] arg: Arg,
     #[comptime] range: Option<(u32, u32)>,
-    #[comptime] config: &ElemwiseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) -> u32 {
     match arg {
         Arg::Input(pos, _precision, _layout) => {
@@ -342,7 +354,7 @@ fn get_offset(
     tensor: &GlobalTensor,
     ref_pos: u32,
     #[comptime] range: Option<(u32, u32)>,
-    #[comptime] config: &ElemwiseConfig,
+    #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
 ) -> u32 {
     index_offset_with_layout(
@@ -385,7 +397,7 @@ pub fn ref_len(
     inputs: &GlobalArgs,
     outputs: &GlobalArgs,
     locals: &LocalArgs,
-    #[comptime] config: &ElemwiseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) -> u32 {
     match comptime![config.ref_layout.clone()] {
         RefLayout::Concrete(arg) => match comptime![arg] {
@@ -402,7 +414,7 @@ pub fn ref_buffer_len(
     inputs: &GlobalArgs,
     outputs: &GlobalArgs,
     locals: &LocalArgs,
-    #[comptime] config: &ElemwiseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) -> u32 {
     match comptime![config.ref_layout.clone()] {
         RefLayout::Concrete(arg) => match comptime![arg] {
@@ -415,7 +427,7 @@ pub fn ref_buffer_len(
 }
 
 #[cube]
-pub fn num_elements(locals: &LocalArgs, #[comptime] config: &ElemwiseConfig) -> u32 {
+pub fn num_elements(locals: &LocalArgs, #[comptime] config: &FuseBlockConfig) -> u32 {
     let mut length = 1u32;
 
     for i in 0..config.rank {

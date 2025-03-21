@@ -9,7 +9,7 @@ use cubecl::{CubeDim, calculate_cube_count_elemwise, client::ComputeClient, prel
 use serde::{Deserialize, Serialize};
 
 use crate::shared::{
-    ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
+    ir::{Arg, FuseBlockConfig, GlobalArgsLaunch},
     trace::{FuseTrace, TraceRunner},
 };
 
@@ -72,8 +72,9 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        config: &'a ElemwiseConfig,
+        configs: &[FuseBlockConfig],
     ) -> Result<(), Self::Error> {
+        let config = &configs[0];
         let shape = match &config.ref_layout {
             RefLayout::Concrete(arg) => match arg {
                 Arg::Input(..) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
@@ -105,7 +106,7 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
 fn elemwise_fuse(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
-    #[comptime] config: &ElemwiseConfig,
+    #[comptime] config: &FuseBlockConfig,
 ) {
     // We write no values for this fusion.
     let values = Registry::<Arg, Line<f32>>::new();

@@ -15,10 +15,10 @@ use serde::{Deserialize, Serialize};
 use crate::CubeFusionHandle;
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::ir::RefLayout;
-use crate::shared::trace::TraceError;
-use crate::shared::trace::{MultiTraceRunner, Vectorization};
+use crate::shared::trace::Vectorization;
+use crate::shared::trace::{TraceError, TraceRunner};
 use crate::shared::{
-    ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
+    ir::{Arg, FuseBlockConfig, GlobalArgsLaunch},
     trace::FuseTrace,
 };
 
@@ -26,8 +26,7 @@ use super::args::{FusedReduceArgs, FusedReduceInputLaunch, FusedReduceOutputLaun
 use super::tune::fused_reduce_autotune;
 
 pub struct ReduceOptimization<R: Runtime> {
-    pub(crate) trace_read: FuseTrace,
-    trace_write: FuseTrace,
+    pub(crate) trace: FuseTrace,
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
     pub(crate) client: ComputeClient<R::Server, R::Channel>,
@@ -61,8 +60,7 @@ pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReduceOptimizationState {
-    trace_read: FuseTrace,
-    trace_write: FuseTrace,
+    trace: FuseTrace,
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
     pub(crate) reduce: FusedReduce,
@@ -104,8 +102,7 @@ pub enum FusedReduceError {
 #[allow(clippy::too_many_arguments)]
 impl<R: Runtime> ReduceOptimization<R> {
     pub fn new(
-        trace_read: FuseTrace,
-        trace_write: FuseTrace,
+        trace: FuseTrace,
         trace_read_fallback: FuseTrace,
         trace_write_fallback: FuseTrace,
         client: ComputeClient<R::Server, R::Channel>,
@@ -123,8 +120,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             shared: true,
         });
         Self {
-            trace_read,
-            trace_write,
+            trace,
             trace_read_fallback,
             trace_write_fallback,
             client,
@@ -148,13 +144,12 @@ impl<R: Runtime> ReduceOptimization<R> {
     }
 
     pub fn num_output_buffers(&self) -> usize {
-        self.trace_read_fallback.outputs.len()
+        self.trace_read_fallback.resources.outputs.len()
     }
 
     pub fn to_state(&self) -> ReduceOptimizationState {
         ReduceOptimizationState {
-            trace_read: self.trace_read.clone(),
-            trace_write: self.trace_write.clone(),
+            trace: self.trace.clone(),
             trace_read_fallback: self.trace_read_fallback.clone(),
             trace_write_fallback: self.trace_write_fallback.clone(),
             reduce: self.reduce.clone(),
@@ -172,8 +167,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         let client = R::client(device);
 
         Self {
-            trace_read: state.trace_read,
-            trace_write: state.trace_write,
+            trace: state.trace,
             trace_read_fallback: state.trace_read_fallback,
             trace_write_fallback: state.trace_write_fallback,
             reduce: state.reduce,
@@ -190,8 +184,8 @@ impl<R: Runtime> ReduceOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), TraceError<FusedReduceError>> {
-        FuseTrace::run_multi::<R, BT, FusedReduce>(
-            (&self.trace_read, &self.trace_write),
+        FuseTrace::run::<R, BT, FusedReduce>(
+            &self.trace,
             &self.client,
             &self.device,
             context,
@@ -203,8 +197,8 @@ impl<R: Runtime> ReduceOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), TraceError<FusedReduceError>> {
-        FuseTrace::run_multi::<R, BT, FusedReduce>(
-            (&self.trace_read, &self.trace_write),
+        FuseTrace::run::<R, BT, FusedReduce>(
+            &self.trace,
             &self.client,
             &self.device,
             context,
@@ -216,8 +210,8 @@ impl<R: Runtime> ReduceOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), TraceError<FusedReduceError>> {
-        FuseTrace::run_multi::<R, BT, FusedReduce>(
-            (&self.trace_read, &self.trace_write),
+        FuseTrace::run::<R, BT, FusedReduce>(
+            &self.trace,
             &self.client,
             &self.device,
             context,
@@ -266,7 +260,7 @@ impl<R: Runtime> ReduceOptimization<R> {
 
 impl<R: Runtime> Vectorization<R> for FusedReduce {}
 
-impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
+impl<R: Runtime> TraceRunner<R> for FusedReduce {
     type Error = FusedReduceError;
 
     fn run<'a>(
@@ -274,9 +268,9 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        config_read: &'a ElemwiseConfig,
-        config_write: &'a ElemwiseConfig,
+        configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedReduceError> {
+        let [config_read, config_write] = [&configs[0], &configs[1]];
         self.strategy
             .validate::<R>(client)
             .map_err(FusedReduceError::LaunchError)?;
@@ -304,7 +298,8 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             cube_count: CubeCount::new_single(),
             cube_dim: CubeDim::new_single(),
             line_mode,
-            line_size: config_read.width as u32,
+            line_size_input: config_read.width as u32,
+            line_size_output: config_write.width as u32,
             bound_checks: false,
             bound_checks_inner: if strategy.use_planes {
                 BoundChecksInner::Branch
@@ -354,8 +349,8 @@ struct ReduceKwArgs<'a, 'b, Run: Runtime> {
     axis: u32,
     strategy: &'b ReduceStrategy,
     config_reduce: ReduceConfig,
-    config_fuse_read: &'a ElemwiseConfig,
-    config_fuse_write: &'a ElemwiseConfig,
+    config_fuse_read: &'a FuseBlockConfig,
+    config_fuse_write: &'a FuseBlockConfig,
     input: &'a Arg,
     output: &'a Arg,
 }
@@ -445,7 +440,8 @@ fn launch_reduce<Run: Runtime, In: Numeric, Out: Numeric, Rd: Reduce>(
             }
         }),
         use_planes: kwargs.strategy.use_planes,
-        line_size: kwargs.config_reduce.line_size,
+        line_size_input: kwargs.config_reduce.line_size_input,
+        line_size_output: kwargs.config_reduce.line_size_output,
         line_mode: kwargs.config_reduce.line_mode,
         bound_checks: kwargs.config_reduce.bound_checks,
         bound_checks_inner: kwargs.config_reduce.bound_checks_inner,

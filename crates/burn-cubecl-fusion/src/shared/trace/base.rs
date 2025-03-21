@@ -1,36 +1,43 @@
-use crate::CubeFusionHandle;
+use crate::{
+    CubeFusionHandle,
+    shared::ir::{Arg, FusePrecision},
+};
 
 use super::{
-    super::{
-        ir::{ElemwiseOp, ElemwisePrecision},
-        settings::FuseSettings,
-    },
-    HandleInput, HandleOutput, LaunchPlan, MultiTraceRunner, TraceRunner, Vectorization,
-    executor::{LaunchMultiPlanExecutor, LaunchPlanExecutor},
-    input::InputPlanner,
-    output::OutputPlanner,
+    HandleInput, HandleOutput, LaunchPlan, TraceRunner, block::FuseBlock,
+    executor::LaunchPlanExecutor, input::InputPlanner, output::OutputPlanner,
     vectorization::VectorizationPlanner,
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-/// Trace containing all element wise operations as well as reads and writes.
+/// A trace contains all [blocks](FuseBlock) and the [resources](KernelResources) used by the
+/// kernel.
 pub struct FuseTrace {
+    pub blocks: Vec<FuseBlock>,
+    pub resources: FuseResources,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+/// Declare all resources used by the kernel, and potentially multiple [blocks](FuseBlock).
+///
+/// # Notes
+///
+/// Each block can't contain their own resources, since they are shared between blocks. The
+/// vectorization factor of one input tensor must be the same for all blocks.
+pub struct FuseResources {
     pub outputs: RegisteredTensors,
     pub inputs: RegisteredTensors,
-    pub settings: FuseSettings,
-    pub scalars: Vec<(ElemwisePrecision, u32)>,
+    pub scalars: Vec<(FusePrecision, u32)>,
     pub views: Vec<TensorView>,
-    pub indexed: BTreeSet<TensorId>,
-    pub shape_ref: Vec<usize>,
-    pub ops: Vec<ElemwiseOp>,
-    pub reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
-    pub writes: BTreeMap<TensorId, ElemwiseOp>,
+    pub indexed: BTreeMap<TensorId, Arg>,
     pub inputs_unhandled: Vec<TensorId>,
+    pub outputs_unhandled: Vec<Arg>,
+    pub num_reshaped: usize,
 }
 
 #[derive(Debug)]
@@ -63,26 +70,16 @@ impl FuseTrace {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         runner: &Runner,
     ) -> Result<(), TraceError<Runner::Error>> {
-        let mut plan = LaunchPlan::new(&self.reads, &self.writes, self.shape_ref.len());
+        let mut plan = LaunchPlan::<R>::new(&self.blocks);
 
-        InputPlanner::<R>::new(
-            &self.inputs,
-            &self.inputs_unhandled,
-            &self.views,
-            &self.shape_ref,
-            &self.settings,
-        )
-        .run(context, &mut plan);
+        InputPlanner::<R>::new(&self.resources, &self.blocks).run(context, &mut plan);
 
-        OutputPlanner::<R>::new(&self.inputs, &self.outputs, &self.views)
-            .run::<BT>(client, device, context, &mut plan);
+        OutputPlanner::<R>::new(&self.resources).run::<BT>(client, device, context, &mut plan);
 
-        if self.settings.vectorization {
-            VectorizationPlanner::<R>::new(&self.views, &self.reads, &self.indexed)
-                .run(runner, context, &mut plan);
-        }
+        VectorizationPlanner::<R>::new(&self.resources, &self.blocks)
+            .run(runner, context, &mut plan);
 
-        match LaunchPlanExecutor::<R>::new(&self.scalars, &self.views, &self.ops)
+        match LaunchPlanExecutor::<R>::new(&self.resources, &self.blocks)
             .execute::<_, BT>(client, runner, context, plan)
         {
             Err(err) => {
@@ -113,104 +110,19 @@ impl FuseTrace {
             }
         }
     }
-
-    pub fn vect<R: Runtime, V: Vectorization<R>>(
-        &self,
-        context: &Context<'_, CubeFusionHandle<R>>,
-        runner: &V,
-    ) -> BTreeMap<TensorId, super::Vect> {
-        let mut plan = LaunchPlan::new(&self.reads, &self.writes, self.shape_ref.len());
-        VectorizationPlanner::<R>::new(&self.views, &self.reads, &self.indexed)
-            .run(runner, context, &mut plan);
-
-        plan.vectorization
-    }
-
-    /// Run a trace with the given [runner](TraceRunner).
-    pub fn run_multi<R: Runtime, BT: CubeElement, Runner: MultiTraceRunner<R>>(
-        this: (&Self, &Self),
-        client: &ComputeClient<R::Server, R::Channel>,
-        device: &R::Device,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-        runner: &Runner,
-    ) -> Result<(), TraceError<Runner::Error>> {
-        let (read, write) = this;
-        let mut plan_read = LaunchPlan::new(&read.reads, &read.writes, read.shape_ref.len());
-        let mut plan_write = LaunchPlan::new(&write.reads, &write.writes, write.shape_ref.len());
-
-        InputPlanner::<R>::new(
-            &read.inputs,
-            &read.inputs_unhandled,
-            &read.views,
-            &read.shape_ref,
-            &read.settings,
-        )
-        .run(context, &mut plan_read);
-
-        OutputPlanner::<R>::new(&read.inputs, &read.outputs, &read.views).run::<BT>(
-            client,
-            device,
-            context,
-            &mut plan_read,
-        );
-
-        if read.settings.vectorization {
-            VectorizationPlanner::<R>::new(&read.views, &read.reads, &read.indexed).run(
-                runner,
-                context,
-                &mut plan_read,
-            );
-        }
-
-        InputPlanner::<R>::new(
-            &write.inputs,
-            &write.inputs_unhandled,
-            &write.views,
-            &write.shape_ref,
-            &write.settings,
-        )
-        .run(context, &mut plan_write);
-
-        OutputPlanner::<R>::new(&write.inputs, &write.outputs, &write.views).run::<BT>(
-            client,
-            device,
-            context,
-            &mut plan_write,
-        );
-
-        if write.settings.vectorization {
-            VectorizationPlanner::<R>::new(&write.views, &write.reads, &write.indexed).run(
-                runner,
-                context,
-                &mut plan_write,
-            );
-        }
-
-        match LaunchMultiPlanExecutor::<R>::new(
-            (&read.scalars, &write.scalars),
-            (&read.views, &write.views),
-            (&read.ops, &write.ops),
-        )
-        .execute::<_, BT>(client, runner, context, (plan_read, plan_write))
-        {
-            Err(err) => {
-                read.rollback(context, err.plan_0_handles_input, err.plan_0_handles_output);
-                write.rollback(context, err.plan_1_handles_input, err.plan_1_handles_output);
-                Err(err.error)
-            }
-            Ok(val) => Ok(val),
-        }
-    }
 }
 
 #[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub struct RegisteredTensors {
-    tensors: Vec<(TensorIr, ElemwisePrecision)>,
+    tensors: Vec<(TensorIr, FusePrecision)>,
 }
 
 impl RegisteredTensors {
-    pub fn iter(&self) -> impl Iterator<Item = &(TensorIr, ElemwisePrecision)> {
+    pub fn iter(&self) -> impl Iterator<Item = &(TensorIr, FusePrecision)> {
         self.tensors.iter()
+    }
+    pub fn into_iter(self) -> impl Iterator<Item = (TensorIr, FusePrecision)> {
+        self.tensors.into_iter()
     }
 
     pub fn len(&self) -> usize {
@@ -225,13 +137,13 @@ impl RegisteredTensors {
             .map(|(pos, (_, _))| pos as u32)
     }
 
-    pub fn get(&self, tensor_id: TensorId) -> Option<&(TensorIr, ElemwisePrecision)> {
+    pub fn get(&self, tensor_id: TensorId) -> Option<&(TensorIr, FusePrecision)> {
         self.tensors
             .iter()
             .find(|(tensor, _)| tensor.id == tensor_id)
     }
 
-    pub fn insert(&mut self, precision: ElemwisePrecision, tensor: TensorIr) -> u32 {
+    pub fn insert(&mut self, precision: FusePrecision, tensor: TensorIr) -> u32 {
         let value = (tensor, precision);
         if let Some(old) = self
             .tensors
