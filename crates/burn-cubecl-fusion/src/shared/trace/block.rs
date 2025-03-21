@@ -21,7 +21,7 @@ pub struct FuseBlock {
 }
 
 #[derive(Clone, Debug)]
-/// It is responsable to build a [trace](FuseBlock).
+/// It is responsible to build a [trace](FuseBlock).
 pub struct FuseBlockBuilder {
     pub settings: FuseSettings,
     locals: LocalVariablePool,
