@@ -343,14 +343,13 @@ impl OnnxGraphBuilder {
 ///
 /// * If the file cannot be opened
 /// * If the file cannot be parsed
-/// * If the graph is missing from the parsed ModelProto
 /// * If the nodes are not topologically sorted
 pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     log::info!("Parsing ONNX file: {}", onnx_path.display());
 
     // Open the file
     let mut file = File::open(onnx_path).expect("Unable to open file");
-    let mut onnx_model: ModelProto =
+    let onnx_model: ModelProto =
         Message::parse_from_reader(&mut file).expect("Unable to parse ONNX file");
 
     // ONNX nodes must be topologically sorted per spec:
