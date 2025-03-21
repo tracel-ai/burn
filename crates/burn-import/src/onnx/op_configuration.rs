@@ -1251,26 +1251,26 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
     // Burn does not support zero size shape (0 means false in ONNX)
     // (see https://onnx.ai/onnx/operators/onnx__Reshape.html#attributes)
     if allowzero != 0 {
-        panic!("Zero shape size is not supported");
+        panic!("Reshape: Zero shape size is not supported");
     }
 
-    // TODO: check "shape" attribute
-    if node.inputs.len() != 2 || node.inputs[1].value.is_none() {
-        panic!("Reshape: shape tensor must be present for {:?}", node);
-    }
-
-    let input_value = &node.inputs[1].value;
     match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {
             assert_eq!(tensor.rank, 1, "Reshape: shape tensor must be 1D");
 
-            if let Some(Data::Int64s(shape)) = input_value.as_ref() {
-                shape.clone()
+            if tensor.elem_type != ElementType::Int64 {
+                panic!("Reshape: shape tensor must have element type int64");
             } else {
-                panic!("Tensor data type must be int64")
+                tensor
+                    .shape
+                    .clone()
+                    .unwrap()
+                    .iter()
+                    .map(|x| *x as i64)
+                    .collect()
             }
         }
-        _ => panic!("Only tensor input is valid for shape"),
+        _ => panic!("Reshape: Only tensor input is valid for shape"),
     }
 }
 

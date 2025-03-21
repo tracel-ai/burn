@@ -337,24 +337,31 @@ fn concat_update_outputs(node: &mut Node) {
 
 fn reshape_update_outputs(node: &mut Node) {
     let shape = if node.inputs.len() == 2 {
-        match &node.inputs[1].value {
-            Some(value) => match value {
-                Data::Int64s(shape) => Some(shape.clone()),
-                _ => panic!("Reshape: invalid input types"),
-            },
-            None => None,
+        if let ArgType::Tensor(tensor) = &node.inputs[1].ty {
+            tensor
+                .shape
+                .clone()
+                .expect("Reshape: Tensor must have a shape.")
+                .iter()
+                .map(|x| *x as i64)
+                .collect()
+        } else {
+            panic!("Reshape: Invalid input type, expected a tensor as second input.")
         }
     } else {
-        node.attrs.get("shape").cloned().map(|v| v.into_i64s())
+        node.attrs
+            .get("shape")
+            .cloned()
+            .map(|v| v.into_i64s())
+            .expect("Reshape: Failed to retrieve shape attribute")
     };
 
-    if let Some(shape) = shape {
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: node.inputs[0].ty.elem_type().clone(),
-            rank: shape.len(),
-            shape: None, // shape is calculated at runtime
-        });
-    }
+    // reshape the output in place
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        rank: shape.len(),
+        shape: None, // shape is calculated at runtime
+        elem_type: ElementType::Int64,
+    });
 }
 
 fn reduce_mean_update_outputs(node: &mut Node) {
@@ -612,7 +619,11 @@ fn shape_update_outputs(node: &mut Node) {
 
     let (start, end) = shape_config(node);
     let dim = end - start;
-    node.outputs[0].ty = ArgType::Shape(dim);
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: ElementType::Int64,
+        rank: 1,
+        shape: Some(vec![dim]),
+    });
 }
 
 /// Infers the shape of a Flatten node and replaces the shape of the output tensor.
