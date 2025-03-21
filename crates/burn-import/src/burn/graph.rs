@@ -326,6 +326,16 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                             .tensor_register_future_use(&tensor, node_position)
                     });
             });
+
+        // Register graph tensor output with the last node position
+        self.graph_output_types
+            .clone()
+            .into_iter()
+            .flat_map(to_tensor)
+            .for_each(|tensor| {
+                self.scope
+                    .tensor_register_future_use(&tensor, self.nodes.len());
+            });
     }
 
     fn register_record_file(&mut self, file: PathBuf, recorder_str: &str) {
