@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-/// A trace constains all [blocks](FuseBlock) and the [resources](KernelResources) used by the
+/// A trace contains all [blocks](FuseBlock) and the [resources](KernelResources) used by the
 /// kernel.
 pub struct FuseTrace {
     pub blocks: Vec<FuseBlock>,
