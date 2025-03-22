@@ -171,7 +171,7 @@ pub(crate) fn group_norm<B: Backend, const D: usize>(
     let input = input.sub(mean);
 
     let var = input.clone().powf_scalar(2.).sum_dim(2) / hidden_size as f64;
-    let input_normalized = input.div(var.sqrt().add_scalar(epsilon));
+    let input_normalized = input.div(var.add_scalar(epsilon).sqrt());
 
     if affine {
         let mut affine_shape = [1; D];
