@@ -142,6 +142,12 @@ impl<B: Backend> ConvTranspose3d<B> {
     /// - input: `[batch_size, channels_in, depth_in, height_in, width_in]`
     /// - output: `[batch_size, channels_out, depth_out, height_out, width_out]`
     pub fn forward(&self, input: Tensor<B, 5>) -> Tensor<B, 5> {
+        let channels_in = input.dims()[1];
+        let expected = self.weight.dims()[1] * self.groups;
+        assert_eq!(
+            channels_in, expected,
+            "This conv layer requies a channels_in dimension of {expected}, but got {channels_in}"
+        );
         conv_transpose3d(
             input,
             self.weight.val(),
@@ -201,5 +207,15 @@ mod tests {
             format!("{}", conv),
             "ConvTranspose3d {channels: [5, 2], stride: [1, 1, 1], kernel_size: [5, 5, 5], dilation: [1, 1, 1], groups: 1, padding: [0, 0, 0], padding_out: [0, 0, 0], params: 1252}"
         );
+    }
+
+    #[test]
+    #[should_panic = "This conv layer requies a channels_in dimension of 5, but got 3"]
+    fn input_channels_mismatch() {
+        let config = ConvTranspose3dConfig::new([5, 5], [5, 5, 5]);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        let input = Tensor::<TestBackend, 5>::zeros([1, 3, 10, 10, 10], &Default::default());
+        let _ = conv.forward(input);
     }
 }
