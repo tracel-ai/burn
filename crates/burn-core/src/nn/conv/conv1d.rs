@@ -137,7 +137,13 @@ impl<B: Backend> Conv1d<B> {
     /// - input: `[batch_size, channels_in, length_in]`
     /// - output: `[batch_size, channels_out, length_out]`
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
-        let [_batch_size, _channels, length] = input.dims();
+        let [_batch_size, channels_in, length] = input.dims();
+        let expected = self.weight.dims()[1] * self.groups;
+        assert_eq!(
+            channels_in, expected,
+            "This conv layer requies a channels_in dimension of {expected}, but got {channels_in}"
+        );
+
         let padding = self
             .padding
             .calculate_padding_1d(length, self.kernel_size, self.stride);
@@ -199,5 +205,15 @@ mod tests {
             alloc::format!("{}", conv),
             "Conv1d {stride: 1, kernel_size: 5, dilation: 1, groups: 1, padding: Valid, params: 130}"
         );
+    }
+
+    #[test]
+    #[should_panic = "This conv layer requies a channels_in dimension of 5, but got 3"]
+    fn input_channels_mismatch() {
+        let config = Conv1dConfig::new(5, 5, 5);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        let input = Tensor::<TestBackend, 3>::zeros([1, 3, 10], &Default::default());
+        let _ = conv.forward(input);
     }
 }
