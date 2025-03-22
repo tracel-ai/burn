@@ -130,6 +130,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
                     let #output: [usize;#dim] = #function.try_into().unwrap();
                 }
             }
+            Type::Tensor(tensor_type) => {
+                let dim = tensor_type.rank.to_tokens();
+                quote! {
+                    let #output: Tensor<B, #dim> = #function;
+                }
+            }
             _ => {
                 quote! {
                     let #output = #function;
@@ -508,7 +514,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.flatten(1, 2);
+                    let tensor2: Tensor<B, 4> = tensor1.flatten(1, 2);
 
                     tensor2
                 }
@@ -527,7 +533,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.erf();
+                    let tensor2: Tensor<B, 4> = tensor1.erf();
 
                     tensor2
                 }
@@ -546,7 +552,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = burn::tensor::activation::relu(tensor1);
+                    let tensor2: Tensor<B, 4> = burn::tensor::activation::relu(tensor1);
 
                     tensor2
                 }
@@ -566,7 +572,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = burn::tensor::activation::leaky_relu(tensor1, 0.1);
+                    let tensor2: Tensor<B, 4> = burn::tensor::activation::leaky_relu(tensor1, 0.1);
 
                     tensor2
                 }
@@ -585,7 +591,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = burn::tensor::activation::sigmoid(tensor1);
+                    let tensor2: Tensor<B, 4> = burn::tensor::activation::sigmoid(tensor1);
 
                     tensor2
                 }
@@ -606,7 +612,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = burn::tensor::activation::hard_sigmoid(tensor1, 0.2, 0.5);
+                    let tensor2: Tensor<B, 4> = burn::tensor::activation::hard_sigmoid(tensor1, 0.2, 0.5);
 
                     tensor2
                 }
@@ -626,7 +632,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = burn::tensor::activation::log_softmax(tensor1, 1);
+                    let tensor2: Tensor<B, 4> = burn::tensor::activation::log_softmax(tensor1, 1);
 
                     tensor2
                 }
@@ -646,7 +652,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = burn::tensor::activation::softmax(tensor1, 1);
+                    let tensor2: Tensor<B, 4> = burn::tensor::activation::softmax(tensor1, 1);
 
                     tensor2
                 }
@@ -665,7 +671,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.tan();
+                    let tensor2: Tensor<B, 4> = tensor1.tan();
 
                     tensor2
                 }
@@ -684,7 +690,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = burn::tensor::activation::tanh(tensor1);
+                    let tensor2: Tensor<B, 4> = burn::tensor::activation::tanh(tensor1);
 
                     tensor2
                 }
@@ -704,7 +710,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.permute([0, 3, 1, 2]);
+                    let tensor2: Tensor<B, 4> = tensor1.permute([0, 3, 1, 2]);
 
                     tensor2
                 }
@@ -724,7 +730,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.max_dim(1);
+                    let tensor2: Tensor<B, 4> = tensor1.max_dim(1);
 
                     tensor2
                 }
@@ -741,7 +747,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
-                    let tensor2 = tensor1.max();
+                    let tensor2: Tensor<B, 1> = tensor1.max();
 
                     tensor2
                 }
@@ -761,7 +767,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.min_dim(1);
+                    let tensor2: Tensor<B, 4> = tensor1.min_dim(1);
 
                     tensor2
                 }
@@ -778,7 +784,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
-                    let tensor2 = tensor1.min();
+                    let tensor2: Tensor<B, 1> = tensor1.min();
 
                     tensor2
                 }
@@ -798,7 +804,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.mean_dim(1);
+                    let tensor2: Tensor<B, 4> = tensor1.mean_dim(1);
 
                     tensor2
                 }
@@ -815,7 +821,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
-                    let tensor2 = tensor1.mean();
+                    let tensor2: Tensor<B, 1> = tensor1.mean();
 
                     tensor2
                 }
@@ -835,7 +841,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.prod_dim(1);
+                    let tensor2: Tensor<B, 4> = tensor1.prod_dim(1);
 
                     tensor2
                 }
@@ -852,7 +858,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
-                    let tensor2 = tensor1.prod();
+                    let tensor2: Tensor<B, 1> = tensor1.prod();
 
                     tensor2
                 }
@@ -872,7 +878,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.sum_dim(1);
+                    let tensor2: Tensor<B, 4> = tensor1.sum_dim(1);
 
                     tensor2
                 }
@@ -889,7 +895,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
-                    let tensor2 = tensor1.sum();
+                    let tensor2: Tensor<B, 1> = tensor1.sum();
 
                     tensor2
                 }
@@ -908,7 +914,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.recip();
+                    let tensor2: Tensor<B, 4> = tensor1.recip();
 
                     tensor2
                 }
@@ -957,7 +963,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Int> {
-                    let tensor2 = tensor1.int();
+                    let tensor2: Tensor<B, 4> = tensor1.int();
 
                     tensor2
                 }
@@ -972,7 +978,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4, Int>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.float();
+                    let tensor2: Tensor<B, 4> = tensor1.float();
 
                     tensor2
                 }
@@ -987,7 +993,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
-                    let tensor2 = tensor1.bool();
+                    let tensor2: Tensor<B, 4> = tensor1.bool();
 
                     tensor2
                 }
@@ -1006,7 +1012,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.cos();
+                    let tensor2: Tensor<B, 4> = tensor1.cos();
 
                     tensor2
                 }
@@ -1025,7 +1031,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.sin();
+                    let tensor2: Tensor<B, 4> = tensor1.sin();
 
                     tensor2
                 }
@@ -1044,7 +1050,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.exp();
+                    let tensor2: Tensor<B, 4> = tensor1.exp();
 
                     tensor2
                 }
@@ -1063,7 +1069,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.gelu();
+                    let tensor2: Tensor<B, 4> = tensor1.gelu();
 
                     tensor2
                 }
@@ -1082,7 +1088,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.log();
+                    let tensor2: Tensor<B, 4> = tensor1.log();
 
                     tensor2
                 }
@@ -1120,7 +1126,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.neg();
+                    let tensor2: Tensor<B, 4> = tensor1.neg();
 
                     tensor2
                 }
@@ -1139,7 +1145,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4, Bool>) -> Tensor<B, 4, Bool> {
-                    let tensor2 = tensor1.bool_not();
+                    let tensor2: Tensor<B, 4> = tensor1.bool_not();
 
                     tensor2
                 }
@@ -1179,7 +1185,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.sign();
+                    let tensor2: Tensor<B, 4> = tensor1.sign();
 
                     tensor2
                 }
