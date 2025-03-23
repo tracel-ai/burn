@@ -143,7 +143,7 @@ impl<B: Backend> ConvTranspose3d<B> {
     /// - output: `[batch_size, channels_out, depth_out, height_out, width_out]`
     pub fn forward(&self, input: Tensor<B, 5>) -> Tensor<B, 5> {
         let channels_in = input.dims()[1];
-        let expected = self.weight.dims()[1] * self.groups;
+        let expected = self.weight.dims()[0];
         assert_eq!(
             channels_in, expected,
             "This conv layer requies a channels_in dimension of {expected}, but got {channels_in}"
