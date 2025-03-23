@@ -1,4 +1,6 @@
-use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
+use crate::{
+    CubeRuntime, element::CubeElement, ops::numeric::empty_device_contiguous, tensor::CubeTensor,
+};
 use cubecl::prelude::*;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
 
@@ -33,12 +35,13 @@ pub(crate) fn select<R: CubeRuntime, E: CubeElement, I: CubeElement>(
     dim: usize,
     indices: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let ndims = tensor.shape.num_dims();
-    let mut shape_output = tensor.shape.clone();
-    shape_output.dims[dim] = indices.shape.dims[0];
+    let ndims = tensor.shape().num_dims();
+    let mut shape_output = tensor.shape().clone();
+    shape_output.dims[dim] = indices.shape().dims[0];
     let total_elem = shape_output.num_elements();
 
-    let output = empty_device::<R, E>(tensor.client.clone(), tensor.device.clone(), shape_output);
+    let output =
+        empty_device_contiguous::<R, E>(tensor.client.clone(), tensor.device.clone(), shape_output);
 
     let dummy_array = vec![1; ndims];
     let cube_dim = CubeDim::default();
@@ -49,10 +52,10 @@ pub(crate) fn select<R: CubeRuntime, E: CubeElement, I: CubeElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg::<E>(1),
+            tensor.as_tensor_arg(1),
             // Ignore shape and stride
-            TensorArg::from_raw_parts::<I>(&indices.handle, &dummy_array, &dummy_array, 1),
-            output.as_tensor_arg::<E>(1),
+            TensorArg::from_raw_parts::<I>(&indices.handle.handle, &dummy_array, &dummy_array, 1),
+            output.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
         )
     };

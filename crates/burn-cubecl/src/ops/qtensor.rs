@@ -93,10 +93,13 @@ where
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
         let tensor = kernel::into_contiguous(tensor);
-        let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
+        let bytes = tensor
+            .client
+            .read_one_async(tensor.handle.handle.clone().binding())
+            .await;
 
         // We use the same internal representation
-        TensorData::from_bytes(bytes, tensor.shape, tensor.dtype)
+        TensorData::from_bytes(bytes, tensor.shape().clone(), tensor.dtype)
     }
 
     fn q_swap_dims(

@@ -24,7 +24,7 @@ use half::{bf16, f16};
 use crate::{
     CubeElement, CubeRuntime, FloatElement,
     kernel::{conv::nchw_to_nhwc, into_contiguous},
-    ops::{numeric::empty_device, permute, reshape},
+    ops::{numeric::empty_device_contiguous, permute, reshape},
     tensor::CubeTensor,
 };
 
@@ -108,8 +108,8 @@ where
         return Err(ConvLaunchError::Groups(options.groups));
     }
 
-    let [batch_size, in_channels, height, width] = input.shape.dims();
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
+    let [batch_size, in_channels, height, width] = input.shape().dims();
+    let [out_channels, _, kernel_h, kernel_w] = weight.shape().dims();
 
     let out_h = calculate_conv_output_size(
         kernel_h,
@@ -140,7 +140,8 @@ where
     let weight = reshape(weight, Shape::new([gemm_k, gemm_n]));
 
     let out_shape = Shape::new([gemm_m, gemm_n]);
-    let out = empty_device::<R, SP::EG>(input.client.clone(), input.device.clone(), out_shape);
+    let out =
+        empty_device_contiguous::<R, SP::EG>(input.client.clone(), input.device.clone(), out_shape);
 
     // Target 128 bit accesses
     let available_vectorizations = R::supported_line_sizes()
@@ -150,18 +151,22 @@ where
         .collect::<Vec<_>>();
     let lhs_line_size = tensor_line_size(
         &available_vectorizations,
-        &input.shape.dims,
-        &input.strides,
+        &input.shape().dims,
+        input.strides(),
         3,
     );
     let rhs_line_size = tensor_line_size(
         &available_vectorizations,
-        &weight.shape.dims,
-        &weight.strides,
+        &weight.shape().dims,
+        weight.strides(),
         1,
     );
-    let out_line_size =
-        tensor_line_size(&available_vectorizations, &out.shape.dims, &out.strides, 1);
+    let out_line_size = tensor_line_size(
+        &available_vectorizations,
+        &out.shape().dims,
+        out.strides(),
+        1,
+    );
 
     let problem = ConvolutionProblem {
         m: gemm_m,
@@ -183,15 +188,19 @@ where
     };
 
     let bias = bias.unwrap_or_else(|| {
-        empty_device::<R, SP::EG>(input.client.clone(), input.device.clone(), Shape::new([1]))
+        empty_device_contiguous::<R, SP::EG>(
+            input.client.clone(),
+            input.device.clone(),
+            Shape::new([1]),
+        )
     });
 
     launch_conv2d_nhwc::<R, SP, Alg, S>(
         &input.client,
-        input.as_tensor_arg::<SP::EG>(lhs_line_size),
-        weight.as_tensor_arg::<SP::EG>(rhs_line_size),
-        bias.as_tensor_arg::<SP::EG>(out_line_size),
-        out.as_tensor_arg::<SP::EG>(out_line_size),
+        input.as_tensor_arg(lhs_line_size),
+        weight.as_tensor_arg(rhs_line_size),
+        bias.as_tensor_arg(out_line_size),
+        out.as_tensor_arg(out_line_size),
         problem,
     )?;
 

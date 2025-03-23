@@ -179,6 +179,23 @@ pub fn read_input_window<C: CubePrimitive>(
 }
 
 #[cube]
+pub fn to_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: u32) -> Slice<Line<C>> {
+    let tensor = inputs.tensors.index(pos);
+    let slice = tensor.tensor.to_slice();
+    slice.try_cast_unchecked()
+}
+
+#[cube]
+pub fn to_slice_mut<C: CubePrimitive>(
+    outputs: &mut GlobalArgs,
+    #[comptime] pos: u32,
+) -> SliceMut<Line<C>> {
+    let tensor = outputs.tensors.index_mut(pos);
+    let slice = tensor.tensor.to_slice_mut();
+    slice.try_cast_unchecked()
+}
+
+#[cube]
 pub fn read_input_aligned<C: CubePrimitive>(
     inputs: &GlobalArgs,
     locals: &LocalArgs,

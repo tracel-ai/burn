@@ -60,15 +60,15 @@ pub(crate) fn interpolate_nearest_backward_launch<R: CubeRuntime, E: FloatElemen
     output: CubeTensor<R>,
 ) -> CubeTensor<R> {
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let cube_count = calculate_cube_count_elemwise(output.shape().num_elements(), cube_dim);
 
     unsafe {
         interpolate_nearest_backward_kernel::launch_unchecked::<E, R>(
             &out_grad.client,
             cube_count,
             cube_dim,
-            out_grad.as_tensor_arg::<E>(1),
-            output.as_tensor_arg::<E>(1),
+            out_grad.as_tensor_arg(1),
+            output.as_tensor_arg(1),
         )
     };
 

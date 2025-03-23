@@ -13,9 +13,15 @@ pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) ->
 pub(crate) async fn into_data<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
 
-    let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
-    let actual_len = tensor.shape.num_elements() * size_of::<E>();
-    TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
+    let bytes = tensor
+        .client
+        .read_one_async(tensor.handle.handle.clone().binding())
+        .await;
+    let actual_len = tensor.shape().num_elements() * size_of::<E>();
+    TensorData::new(
+        E::from_bytes(&bytes[..actual_len]).to_vec(),
+        tensor.shape().dims.clone(),
+    )
 }
 
 /// Read data from a `CubeTensor` synchronously
@@ -23,9 +29,14 @@ pub(crate) async fn into_data<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor
 pub fn into_data_sync<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
 
-    let bytes = tensor.client.read_one(tensor.handle.binding());
-    let actual_len = tensor.shape.num_elements() * size_of::<E>();
-    TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
+    let bytes = tensor
+        .client
+        .read_one(tensor.handle.handle.clone().binding());
+    let actual_len = tensor.shape().num_elements() * size_of::<E>();
+    TensorData::new(
+        E::from_bytes(&bytes[..actual_len]).to_vec(),
+        tensor.shape().dims.clone(),
+    )
 }
 
 pub(crate) fn to_device<R: CubeRuntime>(
@@ -55,8 +66,8 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
     dim1: usize,
     dim2: usize,
 ) -> CubeTensor<R> {
-    tensor.strides.swap(dim1, dim2);
-    tensor.shape.dims.swap(dim1, dim2);
+    tensor.strides_mut().swap(dim1, dim2);
+    tensor.shape_mut().dims.swap(dim1, dim2);
 
     tensor
 }
@@ -64,15 +75,18 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
 /// Permute a tensor's dimensions
 pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> CubeTensor<R> {
     // remap strides
-    tensor.strides = axes.iter().map(|i| tensor.strides[*i]).collect();
+    *tensor.strides_mut() = axes.iter().map(|i| tensor.strides()[*i]).collect();
 
     // remap shape
-    tensor.shape.dims = axes.iter().map(|i| tensor.shape.dims[*i]).collect();
+    tensor.shape_mut().dims = axes.iter().map(|i| tensor.shape().dims[*i]).collect();
 
     tensor
 }
-pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape) -> CubeTensor<R> {
-    let ndims_in = tensor.shape.num_dims();
+pub(crate) fn expand<R: CubeRuntime>(
+    mut tensor: CubeTensor<R>,
+    target_shape: Shape,
+) -> CubeTensor<R> {
+    let ndims_in = tensor.shape().num_dims();
     let ndims_out = target_shape.num_dims();
 
     // Initialize new strides with zeros
@@ -82,14 +96,14 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
     let dim_diff = ndims_out.saturating_sub(ndims_in);
 
     // Compare dimensions from the end, setting strides for matching dimensions or broadcasted ones
-    let mut tensor_dim_iter = tensor.shape.dims.iter().rev();
+    let mut tensor_dim_iter = tensor.shape().dims.iter().rev();
     for i in (0..ndims_out).rev() {
         if i >= dim_diff {
             if let Some(&tensor_dim) = tensor_dim_iter.next() {
                 if tensor_dim == target_shape.dims[i] || tensor_dim == 1 {
                     // Copy stride for non-broadcast dimensions or set to 0 for broadcast ones
                     new_strides[i] = if tensor_dim == target_shape.dims[i] {
-                        tensor.strides[i - dim_diff]
+                        tensor.strides()[i - dim_diff]
                     } else {
                         0
                     };
@@ -111,11 +125,12 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
         }
     }
 
+    *tensor.shape_mut() = target_shape;
+    *tensor.strides_mut() = new_strides;
+
     CubeTensor {
         client: tensor.client,
         device: tensor.device,
-        shape: target_shape,
-        strides: new_strides,
         handle: tensor.handle,
         dtype: tensor.dtype,
     }
@@ -130,16 +145,16 @@ pub fn reshape<R: CubeRuntime>(tensor: CubeTensor<R>, shape: Shape) -> CubeTenso
         tensor.client,
         tensor.device,
         shape,
-        tensor.handle,
+        tensor.handle.handle,
         tensor.dtype,
     )
 }
 
-pub(crate) fn max_vectorization<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {
+pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {
     tensor_vectorization_factor(
         R::supported_line_sizes(),
-        &tensor.shape.dims,
-        &tensor.strides,
-        tensor.shape.num_dims() - 1,
+        &tensor.shape().dims,
+        tensor.strides(),
+        tensor.shape().num_dims() - 1,
     )
 }

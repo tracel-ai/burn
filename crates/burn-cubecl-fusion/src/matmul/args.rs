@@ -1,10 +1,14 @@
-use cubecl::{linalg::matmul::components::global::args::MatmulArgs, prelude::*};
+use cubecl::{
+    linalg::matmul::components::global::{self, args::MatmulArgs},
+    prelude::*,
+};
 
 use crate::shared::{
     DYN_ELEM_ID,
     io::{
         global_buffer_len, global_len, global_rank, global_shape, global_stride, num_elements,
-        read_input, read_input_window, ref_buffer_len, ref_len, ref_shape, ref_stride,
+        read_input, read_input_window, ref_buffer_len, ref_len, ref_shape, ref_stride, to_slice,
+        to_slice_mut,
     },
     ir::{
         Arg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo, LocalArgs, LocalArgsExpand,
@@ -96,6 +100,13 @@ impl MatmulArgs for FusedMatmulArgs {
         read_input_window(unsafe { &(*state.inputs) }, pos, start, end)
     }
 
+    fn as_tensor_map_lhs<EG: Numeric>(_state: &Self::State<EG>) -> TensorMap<EG> {
+        comptime!(todo!("No support for TMA yet"));
+        // Dummy value for type checking
+        #[allow(unreachable_code)]
+        TensorMap::dummy()
+    }
+
     #[allow(unreachable_code)]
     fn read_window_rhs<EG: Numeric>(
         state: &Self::State<EG>,
@@ -111,6 +122,13 @@ impl MatmulArgs for FusedMatmulArgs {
 
         set_polyfill::<NumericExpand<DYN_ELEM_ID>>(elem);
         read_input_window(unsafe { &(*state.inputs) }, pos, start, end)
+    }
+
+    fn as_tensor_map_rhs<EG: Numeric>(_state: &Self::State<EG>) -> TensorMap<EG> {
+        comptime!(todo!("No support for TMA yet"));
+        // Dummy value for type checking
+        #[allow(unreachable_code)]
+        TensorMap::dummy()
     }
 
     fn write_out<EG: Numeric>(state: &mut Self::State<EG>, coordinate: u32, value: Line<EG>) {
@@ -263,6 +281,40 @@ impl MatmulArgs for FusedMatmulArgs {
 
     fn stride_out<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
         ref_stride(unsafe { &(*state.locals) }, dim)
+    }
+
+    fn quantization<EG: Numeric>(state: &Self::State<EG>) -> global::Quantization<EG> {
+        let (pos, elem) = comptime! {
+            match state.lhs {
+                Arg::Input(pos, precision,..) => (pos, precision.into_elem()),
+                _ => panic!("Lhs isn't an input"),
+            }
+        };
+
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(elem);
+        let lhs = unsafe { to_slice(&(*state.inputs), pos) };
+
+        let (pos, elem) = comptime! {
+            match state.rhs {
+                Arg::Input(pos, precision,..) => (pos, precision.into_elem()),
+                _ => panic!("Rhs isn't an input"),
+            }
+        };
+
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(elem);
+        let rhs = unsafe { to_slice(&(*state.inputs), pos) };
+
+        let (pos, elem) = comptime! {
+            match state.out {
+                Arg::Output(pos, precision,..) => (pos, precision.into_elem()),
+                _ => panic!("Out isn't an input"),
+            }
+        };
+
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(elem);
+        let out = unsafe { to_slice_mut(&mut (*state.outputs), pos) };
+
+        global::Quantization::<EG> { lhs, rhs, out }
     }
 }
 

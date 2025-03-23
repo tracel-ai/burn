@@ -18,7 +18,7 @@ use crate::{
         slice_assign,
     },
     ops::{
-        numeric::{empty_device, ones_device, zeros_device},
+        numeric::{empty_device_contiguous, ones_device, zeros_device},
         reshape, swap_dims,
     },
     tensor::CubeTensor,
@@ -42,15 +42,15 @@ pub(crate) fn deform_conv2d_backward<
     out_grad: CubeTensor<R>,
     options: DeformConvOptions<2>,
 ) -> Result<DeformConv2dBackward<CubeBackend<R, E, I, BT>>, ConvLaunchError> {
-    let [_, _, out_h, out_w] = out_grad.shape.dims();
-    let [_, _, kernel_h, kernel_w] = weight.shape.dims();
+    let [_, _, out_h, out_w] = out_grad.shape().dims();
+    let [_, _, kernel_h, kernel_w] = weight.shape().dims();
 
     let gradient_bias = bias.map(|bias| {
         let grad = CubeBackend::<R, E, I, BT>::float_sum_dim(out_grad.clone(), 0);
         let grad = CubeBackend::<R, E, I, BT>::float_sum_dim(grad, 2);
         let grad = CubeBackend::<R, E, I, BT>::float_sum_dim(grad, 3);
 
-        reshape(grad, bias.shape)
+        reshape(grad, bias.shape().clone())
     });
 
     let input = into_contiguous(input);
@@ -95,8 +95,8 @@ fn compute_weight_grad<R: CubeRuntime, E: FloatElement>(
     kernel_dims: (usize, usize),
     out_dims: (usize, usize),
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    let [_, in_channels, _, _] = input.shape.dims();
-    let [_, out_channels, _, _] = out_grad.shape.dims();
+    let [_, in_channels, _, _] = input.shape().dims();
+    let [_, out_channels, _, _] = out_grad.shape().dims();
     let (kernel_h, kernel_w) = kernel_dims;
     let groups = options.weight_groups;
 
@@ -104,7 +104,7 @@ fn compute_weight_grad<R: CubeRuntime, E: FloatElement>(
     let out_c_per_group = out_channels / groups;
 
     let columns = deform_im2col::<R, E>(input, offset, mask, options, out_dims, kernel_dims);
-    let [col_size_0, col_size_1] = columns.shape.dims();
+    let [col_size_0, col_size_1] = columns.shape().dims();
     let col_size_0 = col_size_0 / groups;
 
     let out_grad = swap_dims(out_grad, 0, 1);
@@ -135,8 +135,8 @@ fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
     let client = out_grad.client.clone();
     let device = out_grad.device.clone();
 
-    let [out_channels, in_c_per_group, kernel_h, kernel_w] = weight.shape.dims();
-    let [batch_size, _, out_h, out_w] = out_grad.shape.dims();
+    let [out_channels, in_c_per_group, kernel_h, kernel_w] = weight.shape().dims();
+    let [batch_size, _, out_h, out_w] = out_grad.shape().dims();
 
     let groups = options.weight_groups;
     let out_c_per_group = out_channels / groups;
@@ -144,7 +144,7 @@ fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
     let col_shape_0 = in_c_per_group * kernel_h * kernel_w;
     let col_shape_1 = batch_size * out_h * out_w;
     let col_shape = Shape::new([groups, col_shape_0, col_shape_1]);
-    let mut columns = empty_device::<R, E>(client, device, col_shape);
+    let mut columns = empty_device_contiguous::<R, E>(client, device, col_shape);
 
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
 
@@ -166,7 +166,7 @@ fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
 
     let columns = reshape(columns, Shape::new([col_shape_0 * groups, col_shape_1]));
 
-    let input_shape = image.shape.clone();
+    let input_shape = image.shape().clone();
     let (offset_gradient, mask_gradient) = compute_offset_and_mask_gradient::<R, E>(
         columns.clone(),
         image,
@@ -201,18 +201,20 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime, E: FloatElement>(
             client.clone(),
             device.clone(),
             Shape::new([
-                offset.shape.dims[0],
-                offset.shape.dims[1] / 2,
-                offset.shape.dims[2],
-                offset.shape.dims[3],
+                offset.shape().dims[0],
+                offset.shape().dims[1] / 2,
+                offset.shape().dims[2],
+                offset.shape().dims[3],
             ]),
         )
     });
 
-    let grad_offset = empty_device::<R, E>(client.clone(), device.clone(), offset.shape.clone());
-    let grad_mask = empty_device::<R, E>(client.clone(), device.clone(), mask.shape.clone());
+    let grad_offset =
+        empty_device_contiguous::<R, E>(client.clone(), device.clone(), offset.shape().clone());
+    let grad_mask =
+        empty_device_contiguous::<R, E>(client.clone(), device.clone(), mask.shape().clone());
 
-    let num_elements_offset = offset.shape.num_elements();
+    let num_elements_offset = offset.shape().num_elements();
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elements_offset, cube_dim);
 
@@ -464,8 +466,8 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
         false => zeros_device::<R, f32>(client.clone(), device.clone(), shape),
     };
     let grad_arg = match supports_fadd && supports_same_type {
-        true => grad_in.as_tensor_arg::<E>(1),
-        false => grad_in.as_tensor_arg::<f32>(1),
+        true => grad_in.as_tensor_arg(1),
+        false => grad_in.as_tensor_arg(1),
     };
 
     let use_mask = mask.is_some();
@@ -473,7 +475,7 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
         ones_device::<R, E>(client.clone(), device.clone(), Shape::new([1, 1, 1, 1]))
     });
 
-    let num_elements = columns.shape.num_elements();
+    let num_elements = columns.shape().num_elements();
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elements, cube_dim);
 
@@ -493,9 +495,9 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
             &offset.client,
             cube_count,
             cube_dim,
-            offset.as_tensor_arg::<E>(1),
-            mask.as_tensor_arg::<E>(1),
-            columns.as_tensor_arg::<E>(1),
+            offset.as_tensor_arg(1),
+            mask.as_tensor_arg(1),
+            columns.as_tensor_arg(1),
             grad_arg,
             DeformConv2dCol2ImgArgsLaunch::new(
                 ScalarArg::new(options.stride[0] as u32),

@@ -1,6 +1,8 @@
-use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
+use crate::{
+    CubeRuntime, element::CubeElement, ops::numeric::empty_device_contiguous, tensor::CubeTensor,
+};
 use burn_tensor::Shape;
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, server};
 use std::ops::Range;
 
 /// Slice a jit tensor with a set of ranges
@@ -8,13 +10,13 @@ pub fn slice<R: CubeRuntime, E: CubeElement>(
     tensor: CubeTensor<R>,
     indices: &[Range<usize>],
 ) -> CubeTensor<R> {
-    let mut dims = tensor.shape.dims.clone();
+    let mut dims = tensor.shape().dims.clone();
     let mut offset_start = 0u64;
     let mut offset_end = 0u64;
 
     for i in 0..indices.len() {
-        offset_start += (tensor.strides[i] * indices[i].start) as u64;
-        offset_end += (tensor.strides[i] * (dims[i] - indices[i].end)) as u64;
+        offset_start += (tensor.strides()[i] * indices[i].start) as u64;
+        offset_end += (tensor.strides()[i] * (dims[i] - indices[i].end)) as u64;
         dims[i] = indices[i].end - indices[i].start;
     }
 
@@ -26,21 +28,25 @@ pub fn slice<R: CubeRuntime, E: CubeElement>(
     if offset_start % memory_offset_alignment == 0u64
         && offset_end % memory_offset_alignment == 0u64
     {
-        CubeTensor::new(
-            tensor.client,
-            tensor
-                .handle
-                .offset_start(offset_start)
-                .offset_end(offset_end),
-            Shape::from(dims),
-            tensor.device,
-            tensor.strides,
-            tensor.dtype,
-        )
+        let inner_handle = tensor
+            .handle
+            .handle
+            .offset_start(offset_start)
+            .offset_end(offset_end);
+        let handle = server::TensorHandle::new(
+            inner_handle,
+            tensor.handle.strides,
+            dims,
+            tensor.handle.elem_size,
+        );
+        CubeTensor::new(tensor.client, handle, tensor.device, tensor.dtype)
     } else {
         let shape_output = Shape::from(dims);
-        let output =
-            empty_device::<R, E>(tensor.client.clone(), tensor.device.clone(), shape_output);
+        let output = empty_device_contiguous::<R, E>(
+            tensor.client.clone(),
+            tensor.device.clone(),
+            shape_output,
+        );
         slice_on_output::<R, E>(tensor, output, indices)
     }
 }
@@ -74,7 +80,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime, E: CubeElement>(
     output: CubeTensor<R>,
     indices: &[Range<usize>],
 ) -> CubeTensor<R> {
-    let ndims = tensor.shape.num_dims();
+    let ndims = tensor.shape().num_dims();
     let mut indices_sequence = SequenceArg::<R, u32>::new();
 
     for i in 0..ndims {
@@ -83,15 +89,15 @@ pub(crate) fn slice_on_output<R: CubeRuntime, E: CubeElement>(
     }
 
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let cube_count = calculate_cube_count_elemwise(output.shape().num_elements(), cube_dim);
 
     unsafe {
         slice_kernel::launch_unchecked::<E, R>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg::<E>(1),
-            output.as_tensor_arg::<E>(1),
+            tensor.as_tensor_arg(1),
+            output.as_tensor_arg(1),
             indices_sequence,
             ndims as u32,
         )

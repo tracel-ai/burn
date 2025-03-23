@@ -3,7 +3,7 @@ use cubecl::{calculate_cube_count_elemwise, linalg::tensor::index_offset_with_la
 use crate::{
     BoolElement, CubeRuntime,
     element::CubeElement,
-    ops::{max_vectorization, numeric::empty_device},
+    ops::{max_line_size, numeric::empty_device_contiguous},
     tensor::CubeTensor,
 };
 
@@ -75,24 +75,24 @@ fn mask_fill_readonly<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
     mask: CubeTensor<R>,
     value: EI,
 ) -> CubeTensor<R> {
-    let ndims = input.shape.num_dims();
-    let output = empty_device::<R, EI>(
+    let ndims = input.shape().num_dims();
+    let output = empty_device_contiguous::<R, EI>(
         input.client.clone(),
         input.device.clone(),
-        input.shape.clone(),
+        input.shape().clone(),
     );
 
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
-    let vectorization = max_vectorization(&input);
+    let cube_count = calculate_cube_count_elemwise(input.shape().num_elements(), cube_dim);
+    let vectorization = max_line_size(&input);
 
     mask_fill_readonly_kernel::launch::<EI, EM, R>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<EI>(vectorization),
-        mask.as_tensor_arg::<EM>(vectorization),
-        output.as_tensor_arg::<EI>(vectorization),
+        input.as_tensor_arg(vectorization),
+        mask.as_tensor_arg(vectorization),
+        output.as_tensor_arg(vectorization),
         ScalarArg::new(value),
         ndims as u32,
     );
@@ -105,17 +105,17 @@ fn mask_fill_inplace<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
     mask: CubeTensor<R>,
     value: EI,
 ) -> CubeTensor<R> {
-    let ndims = input.shape.num_dims();
+    let ndims = input.shape().num_dims();
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
-    let vectorization = max_vectorization(&input);
+    let cube_count = calculate_cube_count_elemwise(input.shape().num_elements(), cube_dim);
+    let vectorization = max_line_size(&input);
 
     mask_fill_inplace_kernel::launch::<EI, EM, R>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<EI>(vectorization),
-        mask.as_tensor_arg::<EM>(vectorization),
+        input.as_tensor_arg(vectorization),
+        mask.as_tensor_arg(vectorization),
         ScalarArg::new(value),
         ndims as u32,
     );

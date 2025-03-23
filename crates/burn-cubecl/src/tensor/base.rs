@@ -3,12 +3,11 @@ use crate::element::CubeElement;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
 use burn_tensor::quantization::QTensorPrimitive;
 use burn_tensor::{DType, Shape, TensorMetadata};
-use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
 use cubecl::linalg::tensor::TensorHandle;
 use cubecl::prelude::{TensorHandleRef, *};
 use cubecl::server::Handle;
-use std::marker::PhantomData;
+use cubecl::{client::ComputeClient, server};
 
 /// The basic tensor primitive struct.
 #[derive(new)]
@@ -16,20 +15,16 @@ pub struct CubeTensor<R: CubeRuntime> {
     /// Compute client for the [runtime](CubeRuntime).
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
-    pub handle: Handle,
-    /// The shape of the tensor.
-    pub shape: Shape,
+    pub handle: server::TensorHandle,
     /// The device of the tensor.
     pub device: R::Device,
-    /// The strides of the tensor.
-    pub strides: Vec<usize>,
     /// The datatype of the tensor.
     pub dtype: DType,
 }
 
 impl<R: CubeRuntime, E: CubeElement> From<CubeTensor<R>> for TensorHandle<R, E> {
     fn from(val: CubeTensor<R>) -> Self {
-        TensorHandle::new(val.shape.dims.to_vec(), val.strides.to_vec(), val.handle)
+        TensorHandle::new(val.handle)
     }
 }
 
@@ -40,9 +35,9 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "CubeTensor {{ shape: {:?}, device: {:?}, strides: {:?}, elem: {}, runtime: {}}}",
-            self.shape,
+            self.shape(),
             self.device,
-            self.strides,
+            self.strides(),
             self.dtype.name(),
             R::name(&self.client),
         ))
@@ -57,9 +52,7 @@ where
         Self {
             client: self.client.clone(),
             handle: self.handle.clone(),
-            shape: self.shape.clone(),
             device: self.device.clone(),
-            strides: self.strides.clone(),
             dtype: self.dtype,
         }
     }
@@ -71,7 +64,7 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
     }
 
     fn shape(&self) -> Shape {
-        self.shape.clone()
+        self.shape().clone()
     }
 }
 
@@ -217,11 +210,11 @@ where
                 current *= val;
             });
 
+        let handle = server::TensorHandle::new(handle, strides, shape.dims, elem_size(dtype));
+
         Self {
             client,
             handle,
-            shape,
-            strides,
             device,
             dtype,
         }
@@ -237,13 +230,11 @@ where
             self.client.read_one_async(self.handle.clone().binding()),
         )
         .expect("Can only change client synchronously");
-        let handle = client.create(&bytes);
+        let handle = client.create_tensor(&bytes, self.handle.shape.clone(), self.elem_size());
 
         Self {
             client,
             handle,
-            shape: self.shape.clone(),
-            strides: self.strides.clone(),
             device,
             dtype: self.dtype,
         }
@@ -251,44 +242,69 @@ where
 
     /// Return the reference to a tensor handle.
     pub fn as_handle_ref(&self) -> TensorHandleRef<'_, R> {
-        TensorHandleRef {
-            handle: &self.handle,
-            strides: &self.strides,
-            shape: &self.shape.dims,
-            runtime: PhantomData,
-            elem_size: self.elem_size(),
-        }
+        TensorHandleRef::from_handle(&self.handle)
+    }
+
+    /// Return the strides of the tensor handle.
+    pub fn strides(&self) -> &[usize] {
+        &self.handle.strides
+    }
+
+    /// Return the mutable strides of the tensor handle
+    pub fn strides_mut(&mut self) -> &mut Vec<usize> {
+        &mut self.handle.strides
+    }
+
+    /// Return the shape of the tensor handle
+    pub fn shape(&self) -> &Shape {
+        const _: () = assert!(
+            size_of::<Shape>() == size_of::<Vec<usize>>(),
+            "Shape must be transparent wrapper around `Vec<usize>` for the cast to be safe."
+        );
+        unsafe { core::mem::transmute::<&Vec<usize>, &Shape>(&self.handle.shape) }
+    }
+
+    /// Return the mutable shape of the tensor handle
+    pub fn shape_mut(&mut self) -> &mut Shape {
+        const _: () = assert!(
+            size_of::<Shape>() == size_of::<Vec<usize>>(),
+            "Shape must be transparent wrapper around `Vec<usize>` for the cast to be safe."
+        );
+        unsafe { core::mem::transmute::<&mut Vec<usize>, &mut Shape>(&mut self.handle.shape) }
     }
 
     fn elem_size(&self) -> usize {
-        if let DType::QFloat(_) = self.dtype {
-            // Encoded as u32
-            core::mem::size_of::<u32>()
-        } else {
-            self.dtype.size()
-        }
+        elem_size(self.dtype)
     }
 
     /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a, E: CubeElement>(&'a self, vectorisation: u8) -> TensorArg<'a, R> {
-        let handle: TensorHandleRef<'a, R> = self.as_handle_ref();
-
-        unsafe {
-            TensorArg::from_raw_parts::<E>(
-                handle.handle,
-                handle.strides,
-                handle.shape,
-                vectorisation,
-            )
-        }
+    pub fn as_tensor_arg(&self, line_size: u8) -> TensorArg<'_, R> {
+        TensorArg::from_handle(&self.handle, line_size)
     }
 
-    /// Return the reference to an array argument.
-    pub fn as_array_arg<E: CubeElement>(&self, vectorisation: u8) -> ArrayArg<'_, R> {
+    /// Return the reference to an array argument. Must be fully contiguous.
+    pub fn as_array_arg<E: CubeElement>(&self, line_size: u8) -> ArrayArg<'_, R> {
+        debug_assert_eq!(
+            self.handle.size() * self.handle.elem_size,
+            self.handle.handle.size() as usize,
+            "`as_array_arg` requires contiguous buffer.
+Use `as_full_array_arg` instead if accessing out of bounds areas is safe."
+        );
+        unsafe { ArrayArg::from_raw_parts::<E>(&self.handle.handle, self.handle.size(), line_size) }
+    }
+
+    /// Return the reference to an array argument that encompasses the entire tensor, regardless
+    /// of gaps in strides.
+    ///
+    /// # Safety
+    ///
+    /// Only safe if the entire tensor memory can be mutated (i.e. a new empty
+    /// tensor).
+    pub unsafe fn as_full_array_arg<E: CubeElement>(&self, vectorisation: u8) -> ArrayArg<'_, R> {
         unsafe {
             ArrayArg::from_raw_parts::<E>(
-                &self.handle,
-                self.handle.size() as usize / core::mem::size_of::<E>(),
+                &self.handle.handle,
+                self.handle.handle.size() as usize / self.handle.elem_size,
                 vectorisation,
             )
         }
@@ -298,11 +314,11 @@ where
         if !self.handle.can_mut() || !self.is_contiguous_buffer() {
             return false;
         }
-        let ndims = self.shape.num_dims();
+        let ndims = self.shape().num_dims();
 
         for i in 0..ndims {
-            let shape_lhs = self.shape.dims[i];
-            let shape_rhs = rhs.shape.dims[i];
+            let shape_lhs = self.shape().dims[i];
+            let shape_rhs = rhs.shape().dims[i];
 
             // Output tensor will be different from the mutable tensor.
             if shape_lhs < shape_rhs {
@@ -357,13 +373,30 @@ where
 
     /// Check if the current tensor is contiguous.
     pub fn is_contiguous(&self) -> bool {
-        is_contiguous(&self.shape.dims, &self.strides)
+        is_contiguous(&self.handle.shape, self.strides())
+    }
+
+    /// Check if the current tensor is contiguous, but allows for the last dimension to be padded.
+    /// Matches `create_tensor` and `read_tensor`.
+    pub fn is_contiguous_pitched(&self) -> bool {
+        is_contiguous_pitched(&self.handle.shape, self.strides())
+    }
+
+    /// Check if the current tensor is pitched (padded on the innermost dim).
+    pub fn is_pitched(&self) -> bool {
+        let rank = self.rank();
+        rank > 1 && self.shape().dims[rank - 1] != self.strides()[rank - 2]
     }
 
     /// Check if the current tensor has a contiguous backing buffer (no overlap and no empty memory
     /// regions within the shape).
     pub fn is_contiguous_buffer(&self) -> bool {
-        self.shape.num_elements() * self.dtype.size() == self.handle.size() as usize
+        self.shape().num_elements() * self.elem_size() == self.handle.handle.size() as usize
+    }
+
+    /// Return the rank of the tensor handle
+    pub fn rank(&self) -> usize {
+        self.handle.shape.len()
     }
 }
 
@@ -397,9 +430,52 @@ pub(crate) fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
     true
 }
 
+pub(crate) fn is_contiguous_pitched(shape: &[usize], strides: &[usize]) -> bool {
+    if shape.is_empty() {
+        return true;
+    }
+
+    if shape.len() <= 1 {
+        return strides[0] == 1;
+    }
+
+    if strides.last() != Some(&1) {
+        return false;
+    }
+
+    let mut prev_stride = 1;
+    let mut current_num_elems_shape = *shape.last().unwrap();
+
+    for (i, (stride, shape)) in strides.iter().zip(shape).rev().skip(1).enumerate() {
+        if i > 0 {
+            if current_num_elems_shape != *stride || prev_stride > *stride {
+                return false;
+            }
+            current_num_elems_shape *= shape;
+        } else {
+            if current_num_elems_shape > *stride {
+                return false;
+            }
+            current_num_elems_shape = *stride * *shape;
+        }
+        prev_stride = *stride;
+    }
+
+    true
+}
+
+pub(crate) fn elem_size(dtype: DType) -> usize {
+    if let DType::QFloat(_) = dtype {
+        // Encoded as u32
+        core::mem::size_of::<u32>()
+    } else {
+        dtype.size()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::tensor::base::is_contiguous;
+    use crate::tensor::{base::is_contiguous, is_contiguous_pitched};
 
     #[test]
     fn is_contiguous_basic() {
@@ -424,5 +500,21 @@ mod tests {
     #[test]
     fn is_contiguous_4d_negative() {
         assert!(!is_contiguous(&[256, 8, 32, 32], &[1024, 262144, 32, 1]));
+    }
+
+    #[test]
+    fn is_contiguous_pitched_4d_positive() {
+        assert!(is_contiguous_pitched(
+            &[8, 256, 32, 3],
+            &[131072, 512, 16, 1]
+        ));
+    }
+
+    #[test]
+    fn is_contiguous_pitched_4d_negative() {
+        assert!(!is_contiguous_pitched(
+            &[8, 256, 32, 3],
+            &[131072, 1024, 16, 1]
+        ));
     }
 }

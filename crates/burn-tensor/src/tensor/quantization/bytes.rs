@@ -18,6 +18,7 @@ use super::{
 /// 2) Quantization parameters are appended to the tensor data.
 ///    As such, the last bytes always correspond to the scale parameter.
 ///    If the quantization scheme includes an offset (zero-point) parameter, it is next to last.
+#[derive(Debug)]
 pub struct QuantizedBytes {
     /// The quantized values and quantization parameters represented as bytes.
     pub bytes: Bytes,
@@ -108,6 +109,9 @@ impl QuantizedBytes {
         let (values, (qparams, num_params)) = self.split_values_off();
 
         let values = unpack_u32s_to_i8s(values, numel);
+        println!("values: {values:?}");
+        println!("qparams: {qparams:?}");
+        println!("num_params: {num_params:?}");
 
         // Quantization parameters are added at the end of the tensor data.
         // As such, the last bytes always correspond to the scale parameter(s).

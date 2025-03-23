@@ -481,9 +481,9 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
         return Err("Requires plane size of at least 32".into());
     }
 
-    let [rows, cols] = img.shape.dims();
+    let [rows, cols] = img.shape().dims();
 
-    let labels = zeros_device::<R, I>(client.clone(), device.clone(), img.shape.clone());
+    let labels = zeros_device::<R, I>(client.clone(), device.clone(), img.shape().clone());
 
     // Assume 32 wide warp. Currently, larger warps are handled by just exiting everything past 32.
     // This isn't ideal but we require CUBE_DIM_X == warp_size, and we can't query the actual warp
@@ -498,8 +498,8 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
             &client,
             cube_count,
             cube_dim,
-            img.as_tensor_arg::<BT>(1),
-            labels.as_tensor_arg::<I>(1),
+            img.as_tensor_arg(1),
+            labels.as_tensor_arg(1),
             connectivity,
         )
     };
@@ -516,8 +516,8 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
             &client,
             cube_count,
             cube_dim_merge,
-            img.as_tensor_arg::<BT>(1),
-            labels.as_tensor_arg::<I>(1),
+            img.as_tensor_arg(1),
+            labels.as_tensor_arg(1),
             connectivity,
         )
     };
@@ -535,8 +535,8 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                 &client,
                 cube_count,
                 cube_dim,
-                img.as_tensor_arg::<BT>(1),
-                labels.as_tensor_arg::<I>(1),
+                img.as_tensor_arg(1),
+                labels.as_tensor_arg(1),
             )
         };
     } else {
@@ -545,14 +545,14 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                 &client,
                 cube_count,
                 cube_dim,
-                img.as_tensor_arg::<BT>(1),
-                labels.as_tensor_arg::<I>(1),
-                stats.area.as_tensor_arg::<I>(1),
-                stats.top.as_tensor_arg::<I>(1),
-                stats.left.as_tensor_arg::<I>(1),
-                stats.right.as_tensor_arg::<I>(1),
-                stats.bottom.as_tensor_arg::<I>(1),
-                stats.max_label.as_tensor_arg::<I>(1),
+                img.as_tensor_arg(1),
+                labels.as_tensor_arg(1),
+                stats.area.as_tensor_arg(1),
+                stats.top.as_tensor_arg(1),
+                stats.left.as_tensor_arg(1),
+                stats.right.as_tensor_arg(1),
+                stats.bottom.as_tensor_arg(1),
+                stats.max_label.as_tensor_arg(1),
                 stats_opt,
             )
         };
@@ -578,9 +578,9 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                     &client,
                     cube_count,
                     cube_dim,
-                    labels.as_tensor_arg::<I>(1),
-                    relabel.as_tensor_arg::<I>(1),
-                    stats.max_label.as_tensor_arg::<I>(1),
+                    labels.as_tensor_arg(1),
+                    relabel.as_tensor_arg(1),
+                    stats.max_label.as_tensor_arg(1),
                 )
             };
 
@@ -591,17 +591,17 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                     &client,
                     cube_count,
                     cube_dim,
-                    stats.area.copy().as_tensor_arg::<I>(1),
-                    stats.area.as_tensor_arg::<I>(1),
-                    stats.top.copy().as_tensor_arg::<I>(1),
-                    stats.top.as_tensor_arg::<I>(1),
-                    stats.left.copy().as_tensor_arg::<I>(1),
-                    stats.left.as_tensor_arg::<I>(1),
-                    stats.right.copy().as_tensor_arg::<I>(1),
-                    stats.right.as_tensor_arg::<I>(1),
-                    stats.bottom.copy().as_tensor_arg::<I>(1),
-                    stats.bottom.as_tensor_arg::<I>(1),
-                    relabel.as_tensor_arg::<I>(1),
+                    stats.area.copy().as_tensor_arg(1),
+                    stats.area.as_tensor_arg(1),
+                    stats.top.copy().as_tensor_arg(1),
+                    stats.top.as_tensor_arg(1),
+                    stats.left.copy().as_tensor_arg(1),
+                    stats.left.as_tensor_arg(1),
+                    stats.right.copy().as_tensor_arg(1),
+                    stats.right.as_tensor_arg(1),
+                    stats.bottom.copy().as_tensor_arg(1),
+                    stats.bottom.as_tensor_arg(1),
+                    relabel.as_tensor_arg(1),
                 )
             };
         }

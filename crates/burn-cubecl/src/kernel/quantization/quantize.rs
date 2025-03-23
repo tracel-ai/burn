@@ -289,7 +289,7 @@ where
 {
     let client = tensor.client.clone();
     // Output tensor contains 4x less elements (four int8 values packed in a single u32)
-    let num_elems = tensor.shape.num_elements();
+    let num_elems = tensor.shape().num_elements();
 
     // Force vectorization to process 4 quantized values packed for 1 output value
     let line_size: u8 = if num_elems < 4 { 1 } else { 4 };
@@ -300,13 +300,13 @@ where
         client.clone(),
         num_elems,
         tensor.device.clone(),
-        tensor.shape.clone(),
+        tensor.shape().clone(),
         *scheme,
     );
 
     match scheme {
         QuantizationScheme::PerTensor(mode, QuantizationType::QInt8) => {
-            let ndims = tensor.shape.num_dims();
+            let ndims = tensor.shape().num_dims();
             let dummy_array = vec![1; ndims];
 
             match mode {
@@ -316,23 +316,23 @@ where
                             &client,
                             cube_count,
                             cube_dim,
-                            tensor.as_tensor_arg::<F>(line_size),
+                            tensor.as_tensor_arg(line_size),
                             // Ignore shape and stride
                             TensorArg::from_raw_parts::<F>(
-                                &scale.handle,
+                                &scale.handle.handle,
                                 &dummy_array,
                                 &dummy_array,
                                 1,
                             ),
                             TensorArg::from_raw_parts::<I>(
-                                &offset.expect("Should have offset").handle,
+                                &offset.expect("Should have offset").handle.handle,
                                 &dummy_array,
                                 &dummy_array,
                                 1,
                             ),
                             ScalarArg::new(i8::MIN as f32),
                             ScalarArg::new(i8::MAX as f32),
-                            output.as_array_arg::<u32>(1),
+                            output.as_full_array_arg::<u32>(1),
                         )
                     };
                 }
@@ -342,17 +342,17 @@ where
                             &client,
                             cube_count,
                             cube_dim,
-                            tensor.as_tensor_arg::<F>(line_size),
+                            tensor.as_tensor_arg(line_size),
                             // Ignore shape and stride
                             TensorArg::from_raw_parts::<F>(
-                                &scale.handle,
+                                &scale.handle.handle,
                                 &dummy_array,
                                 &dummy_array,
                                 1,
                             ),
                             ScalarArg::new(-i8::MAX as f32),
                             ScalarArg::new(i8::MAX as f32),
-                            output.as_array_arg::<u32>(1),
+                            output.as_full_array_arg::<u32>(1),
                         )
                     };
                 }
@@ -381,13 +381,13 @@ where
                             &client,
                             cube_count,
                             cube_dim,
-                            tensor.as_tensor_arg::<F>(line_size),
-                            scale.as_tensor_arg::<F>(1),
-                            offset.expect("Should have offset").as_tensor_arg::<I>(1),
+                            tensor.as_tensor_arg(line_size),
+                            scale.as_tensor_arg(1),
+                            offset.expect("Should have offset").as_tensor_arg(1),
                             ScalarArg::new(i8::MIN as f32),
                             ScalarArg::new(i8::MAX as f32),
                             ScalarArg::new(*block_size),
-                            output.as_array_arg::<u32>(1),
+                            output.as_full_array_arg::<u32>(1),
                             num_blocks,
                         )
                     };
@@ -398,12 +398,12 @@ where
                             &client,
                             cube_count,
                             cube_dim,
-                            tensor.as_tensor_arg::<F>(line_size),
-                            scale.as_tensor_arg::<F>(1),
+                            tensor.as_tensor_arg(line_size),
+                            scale.as_tensor_arg(1),
                             ScalarArg::new(-i8::MAX as f32),
                             ScalarArg::new(i8::MAX as f32),
                             ScalarArg::new(*block_size),
-                            output.as_array_arg::<u32>(1),
+                            output.as_full_array_arg::<u32>(1),
                             num_blocks,
                         )
                     };

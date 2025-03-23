@@ -12,7 +12,7 @@ use crate::{
         into_contiguous, launch_binop,
         matmul::{MatmulStrategy, matmul},
     },
-    ops::{numeric::empty_device, reshape, swap_dims},
+    ops::{numeric::empty_device_contiguous, reshape, swap_dims},
     tensor::CubeTensor,
 };
 
@@ -141,12 +141,12 @@ fn im2col<R: CubeRuntime, E: FloatElement>(
     out_w: usize,
 ) -> CubeTensor<R> {
     let input = into_contiguous(input);
-    let [batch_size, in_channels, _, _] = input.shape.dims();
+    let [batch_size, in_channels, _, _] = input.shape().dims();
 
     let col_shape_0 = in_channels * kernel_h * kernel_w;
     let col_shape_1 = batch_size * out_h * out_w;
     let shape_col = Shape::new([col_shape_0, col_shape_1]);
-    let columns = empty_device::<R, E>(
+    let columns = empty_device_contiguous::<R, E>(
         input.client.clone(),
         input.device.clone(),
         shape_col.clone(),
@@ -202,8 +202,8 @@ pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    let [batch_size, in_channels, in_height, in_width] = input.shape.dims();
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
+    let [batch_size, in_channels, in_height, in_width] = input.shape().dims();
+    let [out_channels, _, kernel_h, kernel_w] = weight.shape().dims();
     let groups = options.groups;
     let out_c_per_group = out_channels / groups;
 
@@ -233,7 +233,8 @@ pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
     let mut out = if batches_per_run != batch_size {
         let runs = batch_size / batches_per_run;
         let out_shape = Shape::new([runs, out_channels, batches_per_run, out_h, out_w]);
-        let out = empty_device::<R, E>(input.client.clone(), input.device.clone(), out_shape);
+        let out =
+            empty_device_contiguous::<R, E>(input.client.clone(), input.device.clone(), out_shape);
         let in_shape = Shape::new([runs, batches_per_run, in_channels, in_height, in_width]);
         let input = reshape(input, in_shape);
         let in_shape_run = Shape::new([batches_per_run, in_channels, in_height, in_width]);
@@ -254,7 +255,11 @@ pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
         let out = swap_dims(out, 1, 2);
         reshape(out, Shape::new([batch_size, out_channels, out_h, out_w]))
     } else {
-        let out = empty_device::<R, E>(input.client.clone(), input.device.clone(), matmul_shape);
+        let out = empty_device_contiguous::<R, E>(
+            input.client.clone(),
+            input.device.clone(),
+            matmul_shape,
+        );
         execute::<R, E>(input, weight, out.clone(), options, out_h, out_w)?;
         let out = reshape(out, Shape::new([out_channels, batch_size, out_h, out_w]));
         swap_dims(out, 0, 1)
@@ -274,8 +279,8 @@ fn execute_1x1_kernel<R: CubeRuntime, E: FloatElement>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    let [batch_size, _, height, width] = input.shape.dims();
-    let [out_channels, in_c_per_grp, _, _] = weight.shape.dims();
+    let [batch_size, _, height, width] = input.shape().dims();
+    let [out_channels, in_c_per_grp, _, _] = weight.shape().dims();
     let groups = options.groups;
     let out_c_per_grp = out_channels / groups;
 
@@ -303,11 +308,11 @@ fn execute<R: CubeRuntime, E: FloatElement>(
     out_h: usize,
     out_w: usize,
 ) -> Result<(), ConvLaunchError> {
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
+    let [out_channels, _, kernel_h, kernel_w] = weight.shape().dims();
     let groups = options.groups;
 
     let columns = im2col::<R, E>(input, options.clone(), kernel_h, kernel_w, out_h, out_w);
-    let [col_shape_0, col_shape_1] = columns.shape.dims();
+    let [col_shape_0, col_shape_1] = columns.shape().dims();
     let col_shape_0 = col_shape_0 / groups;
     let out_c_per_group = out_channels / groups;
 

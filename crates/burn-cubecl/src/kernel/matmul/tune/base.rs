@@ -11,7 +11,7 @@ use crate::{
     CubeRuntime, CubeTuneId,
     element::FloatElement,
     kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
-    ops::numeric::empty_device,
+    ops::numeric::empty_device_contiguous,
     tensor::CubeTensor,
 };
 
@@ -25,7 +25,11 @@ fn matmul_input_gen<R: CubeRuntime, E: FloatElement>(
     let lhs = random_like_uniform(lhs, random_bounds.0, random_bounds.1);
     let rhs = random_like_uniform(rhs, random_bounds.0, random_bounds.1);
 
-    let out = empty_device::<R, E>(out.client.clone(), out.device.clone(), out.shape.clone());
+    let out = empty_device_contiguous::<R, E>(
+        out.client.clone(),
+        out.device.clone(),
+        out.shape().clone(),
+    );
 
     (lhs, rhs, out)
 }
@@ -63,10 +67,10 @@ fn create_key<R: CubeRuntime, E: FloatElement>(
     _out: &CubeTensor<R>,
 ) -> MatmulAutotuneKey {
     MatmulAutotuneKey::generate(
-        &lhs.shape.dims,
-        &rhs.shape.dims,
-        &lhs.strides,
-        &rhs.strides,
+        &lhs.shape().dims,
+        &rhs.shape().dims,
+        lhs.strides(),
+        rhs.strides(),
         E::dtype().into(),
         E::dtype().into(),
         E::dtype().into(),

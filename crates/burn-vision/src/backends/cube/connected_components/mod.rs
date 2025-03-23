@@ -24,17 +24,16 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    let [height, width] = l.shape.dims();
+    let [height, width] = l.shape().dims();
     let shape = Shape::new([height * width]);
     let zeros = || zeros_device::<R, I>(l.client.clone(), l.device.clone(), shape.clone());
     let max = I::max_value();
     let max = || full_device::<R, I>(l.client.clone(), shape.clone(), l.device.clone(), max);
     let dummy = || {
-        CubeTensor::new_contiguous(
+        CubeTensor::new(
             l.client.clone(),
-            l.device.clone(),
-            shape.clone(),
             l.handle.clone(),
+            l.device.clone(),
             l.dtype,
         )
     };

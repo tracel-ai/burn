@@ -174,7 +174,7 @@ where
 {
     // The actual number of elements is 1/4 (four int8 values packed in a single u32)
     // so we choose a line size to match a valid input binding size.
-    let num_out_elems = tensor.shape.num_elements();
+    let num_out_elems = tensor.shape().num_elements();
     let num_elems = usize::div_ceil(num_out_elems, 4);
     let line_size_in = 1;
     let line_size_out = if num_out_elems < 4 { 1 } else { 4 };
@@ -187,7 +187,7 @@ where
     let output = CubeTensor::new_contiguous(
         client.clone(),
         tensor.device.clone(),
-        tensor.shape.clone(),
+        tensor.shape().clone(),
         handle,
         F::dtype(),
     );
@@ -200,8 +200,8 @@ where
                         &client,
                         cube_count,
                         cube_dim,
-                        tensor.as_array_arg::<u32>(line_size_in),
-                        output.as_tensor_arg::<F>(line_size_out),
+                        tensor.as_full_array_arg::<u32>(line_size_in),
+                        output.as_tensor_arg(line_size_out),
                         scheme,
                     )
                 };
@@ -212,8 +212,8 @@ where
                         &client,
                         cube_count,
                         cube_dim,
-                        tensor.as_array_arg::<u32>(line_size_in),
-                        output.as_tensor_arg::<F>(line_size_out),
+                        tensor.as_full_array_arg::<u32>(line_size_in),
+                        output.as_tensor_arg(line_size_out),
                         scheme,
                     )
                 };
@@ -229,8 +229,8 @@ where
                         &client,
                         cube_count,
                         cube_dim,
-                        tensor.as_array_arg::<u32>(line_size_in),
-                        output.as_tensor_arg::<F>(line_size_out),
+                        tensor.as_full_array_arg::<u32>(line_size_in),
+                        output.as_tensor_arg(line_size_out),
                         scheme,
                         num_blocks,
                     )
@@ -247,8 +247,8 @@ where
                         &client,
                         cube_count,
                         cube_dim,
-                        tensor.as_array_arg::<u32>(line_size_in),
-                        output.as_tensor_arg::<F>(line_size_out),
+                        tensor.as_full_array_arg::<u32>(line_size_in),
+                        output.as_tensor_arg(line_size_out),
                         scheme,
                         num_blocks,
                     )

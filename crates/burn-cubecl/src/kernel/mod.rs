@@ -1,3 +1,4 @@
+mod base;
 mod binary;
 mod binary_int;
 mod cast;
@@ -10,6 +11,7 @@ mod unary_float;
 mod unary_int;
 mod unary_numeric;
 
+pub(crate) use base::*;
 pub(crate) use binary::*;
 pub(crate) use binary_int::*;
 pub use cast::*;

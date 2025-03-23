@@ -71,7 +71,7 @@ pub(crate) fn scatter<R: CubeRuntime, E: CubeElement, I: IntElement>(
     indices: CubeTensor<R>,
     value: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let ndims = tensor.shape.num_dims();
+    let ndims = tensor.rank();
     let mut indices = kernel::into_contiguous(indices);
     let tensor = kernel::into_contiguous(tensor);
     let value = kernel::into_contiguous(value);
@@ -86,7 +86,7 @@ pub(crate) fn scatter<R: CubeRuntime, E: CubeElement, I: IntElement>(
     let mut num_elems = 1;
 
     tensor
-        .shape
+        .shape()
         .dims
         .iter()
         .enumerate()
@@ -95,11 +95,11 @@ pub(crate) fn scatter<R: CubeRuntime, E: CubeElement, I: IntElement>(
         .for_each(|(index, val)| {
             strides[index] = current;
             current *= val;
-            num_elems *= tensor.shape.dims[index];
+            num_elems *= tensor.shape().dims[index];
         });
 
     // Fake strides of the virtual output where the strides of dim is hardcoded to one.
-    indices.strides = strides;
+    *indices.strides_mut() = strides;
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
@@ -109,9 +109,9 @@ pub(crate) fn scatter<R: CubeRuntime, E: CubeElement, I: IntElement>(
             &indices.client.clone(),
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg::<E>(1),
-            indices.as_tensor_arg::<I>(1),
-            value.as_tensor_arg::<E>(1),
+            tensor.as_tensor_arg(1),
+            indices.as_tensor_arg(1),
+            value.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
         )
     }

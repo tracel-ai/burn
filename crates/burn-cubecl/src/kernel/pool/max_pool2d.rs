@@ -5,7 +5,7 @@ use crate::{
     CubeRuntime,
     element::CubeElement,
     kernel::conv::nchw_to_nhwc,
-    ops::{max_vectorization, numeric::empty_device, permute},
+    ops::{max_line_size, numeric::empty_device_contiguous, permute},
     tensor::CubeTensor,
 };
 use burn_tensor::{Shape, ops::conv::calculate_pool_output_size};
@@ -104,21 +104,21 @@ pub(crate) fn max_pool2d<R: CubeRuntime, E: CubeElement>(
     padding: [usize; 2],
     dilation: [usize; 2],
 ) -> CubeTensor<R> {
-    let [batch_size, channels, _, _] = x.shape.dims();
+    let [batch_size, channels, _, _] = x.shape().dims();
 
     let size_0 = calculate_pool_output_size(
         kernel_size[0],
         stride[0],
         padding[0],
         dilation[0],
-        x.shape.dims[2],
+        x.shape().dims[2],
     );
     let size_1 = calculate_pool_output_size(
         kernel_size[1],
         stride[1],
         padding[1],
         dilation[1],
-        x.shape.dims[3],
+        x.shape().dims[3],
     );
 
     let x = if x.is_contiguous() {
@@ -127,21 +127,21 @@ pub(crate) fn max_pool2d<R: CubeRuntime, E: CubeElement>(
         permute(x, &[0, 2, 3, 1])
     };
 
-    let line_size = max_vectorization(&x);
+    let line_size = max_line_size(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
-    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), shape_out);
+    let output = empty_device_contiguous::<R, E>(x.client.clone(), x.device.clone(), shape_out);
 
     let cube_dim = CubeDim::default();
     let cube_count =
-        calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
+        calculate_cube_count_elemwise(output.shape().num_elements() / line_size as usize, cube_dim);
 
     pool2d_direct::launch::<E, MaxPoolStrategy, R>(
         &x.client,
         cube_count,
         cube_dim,
-        x.as_tensor_arg::<E>(line_size),
-        output.as_tensor_arg::<E>(line_size),
+        x.as_tensor_arg(line_size),
+        output.as_tensor_arg(line_size),
         (),
         Pool2dDirectArgsLaunch::new(
             ScalarArg::new(stride[0] as u32),
@@ -165,21 +165,21 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime, E: CubeElement, I: CubeEle
     padding: [usize; 2],
     dilation: [usize; 2],
 ) -> (CubeTensor<R>, CubeTensor<R>) {
-    let [batch_size, channels, _, _] = x.shape.dims();
+    let [batch_size, channels, _, _] = x.shape().dims();
 
     let size_0 = calculate_pool_output_size(
         kernel_size[0],
         stride[0],
         padding[0],
         dilation[0],
-        x.shape.dims[2],
+        x.shape().dims[2],
     );
     let size_1 = calculate_pool_output_size(
         kernel_size[1],
         stride[1],
         padding[1],
         dilation[1],
-        x.shape.dims[3],
+        x.shape().dims[3],
     );
 
     let x = if x.is_contiguous() {
@@ -187,23 +187,24 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime, E: CubeElement, I: CubeEle
     } else {
         permute(x, &[0, 2, 3, 1])
     };
-    let line_size = max_vectorization(&x);
+    let line_size = max_line_size(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
-    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), shape_out.clone());
-    let indices = empty_device::<R, I>(x.client.clone(), x.device.clone(), shape_out);
+    let output =
+        empty_device_contiguous::<R, E>(x.client.clone(), x.device.clone(), shape_out.clone());
+    let indices = empty_device_contiguous::<R, I>(x.client.clone(), x.device.clone(), shape_out);
 
     let cube_dim = CubeDim::default();
     let cube_count =
-        calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
+        calculate_cube_count_elemwise(output.shape().num_elements() / line_size as usize, cube_dim);
 
     pool2d_direct::launch::<E, MaxPoolWithIndicesStrategy, R>(
         &x.client,
         cube_count,
         cube_dim,
-        x.as_tensor_arg::<E>(line_size),
-        output.as_tensor_arg::<E>(line_size),
-        indices.as_tensor_arg::<I>(line_size),
+        x.as_tensor_arg(line_size),
+        output.as_tensor_arg(line_size),
+        indices.as_tensor_arg(line_size),
         Pool2dDirectArgsLaunch::new(
             ScalarArg::new(stride[0] as u32),
             ScalarArg::new(stride[1] as u32),

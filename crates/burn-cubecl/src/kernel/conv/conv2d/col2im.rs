@@ -11,7 +11,7 @@ use crate::{
         matmul::{MatmulStrategy, matmul},
         slice,
     },
-    ops::{numeric::empty_device, reshape, swap_dims},
+    ops::{numeric::empty_device_contiguous, reshape, swap_dims},
     tensor::CubeTensor,
 };
 
@@ -30,8 +30,8 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime, E: FloatElement>(
     bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<2>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    let [input_channels, im_ch_per_group, kernel_h, kernel_w] = weight.shape.dims();
-    let [batch_size, _, input_h, input_w] = input.shape.dims();
+    let [input_channels, im_ch_per_group, kernel_h, kernel_w] = weight.shape().dims();
+    let [batch_size, _, input_h, input_w] = input.shape().dims();
     let groups = options.groups;
     let input_ch_per_group = input_channels / groups;
     let ConvTransposeOptions {
@@ -73,7 +73,8 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime, E: FloatElement>(
         let runs = batch_size / batches_per_run;
 
         let im_shape = Shape::new([runs, batches_per_run, im_channels, im_h, im_w]);
-        let image = empty_device::<R, E>(input.client.clone(), input.device.clone(), im_shape);
+        let image =
+            empty_device_contiguous::<R, E>(input.client.clone(), input.device.clone(), im_shape);
 
         let input_shape = Shape::new([runs, batches_per_run, input_channels, input_h, input_w]);
         let input = reshape(input, input_shape);
@@ -101,7 +102,8 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime, E: FloatElement>(
         ))
     } else {
         let im_shape = Shape::new([batches_per_run, im_channels, im_h, im_w]);
-        let image = empty_device::<R, E>(input.client.clone(), input.device.clone(), im_shape);
+        let image =
+            empty_device_contiguous::<R, E>(input.client.clone(), input.device.clone(), im_shape);
         execute::<R, E>(
             input,
             weight,
@@ -121,11 +123,11 @@ pub(crate) fn index<R: CubeRuntime, E: CubeElement>(
 ) -> CubeTensor<R> {
     #[allow(clippy::single_range_in_vec_init)]
     let mut indices = vec![i..i + 1];
-    for dim in tensor.shape.dims[1..].iter() {
+    for dim in tensor.shape().dims[1..].iter() {
         indices.push(0..*dim);
     }
     let new_shape = Shape {
-        dims: tensor.shape.dims[1..].to_vec(),
+        dims: tensor.shape().dims[1..].to_vec(),
     };
     let tensor = slice::<R, E>(tensor, &indices);
     reshape(tensor, new_shape)
@@ -141,8 +143,8 @@ fn execute<R: CubeRuntime, E: FloatElement>(
     kernel_h: usize,
     kernel_w: usize,
 ) -> Result<(), ConvLaunchError> {
-    let [batch_size, _, input_h, input_w] = input.shape.dims();
-    let [groups, col_shape_0, input_ch_per_group] = weight.shape.dims();
+    let [batch_size, _, input_h, input_w] = input.shape().dims();
+    let [groups, col_shape_0, input_ch_per_group] = weight.shape().dims();
 
     let col_shape_1 = batch_size * input_h * input_w;
 
@@ -171,19 +173,19 @@ fn col2im<R: CubeRuntime, E: FloatElement>(
     out_w: usize,
     options: ConvTransposeOptions<2>,
 ) {
-    let [_, col_size_1] = columns.shape.dims();
+    let [_, col_size_1] = columns.shape().dims();
 
     let columns = into_contiguous(columns);
     let has_bias = bias.is_some();
     let bias = bias.map(into_contiguous).unwrap_or_else(|| {
-        empty_device::<R, E>(
+        empty_device_contiguous::<R, E>(
             columns.client.clone(),
             columns.device.clone(),
             Shape::new([1]),
         )
     });
 
-    let num_elems = out.shape.num_elements();
+    let num_elems = out.shape().num_elements();
 
     let vectorization = 1;
     let cube_dim = CubeDim::default();
@@ -194,9 +196,9 @@ fn col2im<R: CubeRuntime, E: FloatElement>(
             &columns.client,
             cube_count,
             cube_dim,
-            columns.as_tensor_arg::<E>(vectorization),
-            bias.as_tensor_arg::<E>(vectorization),
-            out.as_tensor_arg::<E>(vectorization),
+            columns.as_tensor_arg(vectorization),
+            bias.as_tensor_arg(vectorization),
+            out.as_tensor_arg(vectorization),
             Col2ImArgsLaunch::new(
                 ScalarArg::new(out_h as u32),
                 ScalarArg::new(out_w as u32),

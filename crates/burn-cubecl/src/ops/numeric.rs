@@ -1,12 +1,14 @@
-use crate::kernel::{
-    AddOp, BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
-    launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int,
-};
 use crate::{CubeRuntime, FloatElement, IntElement};
 use crate::{element::CubeElement, tensor::CubeTensor};
+use crate::{
+    kernel::{
+        AddOp, BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
+        launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int,
+    },
+    tensor::elem_size,
+};
 use burn_tensor::{ElementConversion, Shape};
 use cubecl::client::ComputeClient;
-use cubecl::tensor_vectorization_factor;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 /// Create a tensor filled with `value`
@@ -27,11 +29,10 @@ pub fn full_device<R: CubeRuntime, E: CubeElement>(
     device: R::Device,
     value: E,
 ) -> CubeTensor<R> {
-    let ndims = shape.num_dims();
-    let empty = empty_device::<R, E>(client, device, shape);
+    let empty = empty_device_contiguous::<R, E>(client, device, shape);
 
     #[cube(launch)]
-    pub fn full_kernel<C: Numeric>(tensor: &mut Tensor<C>, value: C) {
+    pub fn full_kernel<C: Numeric>(tensor: &mut Array<C>, value: C) {
         if ABSOLUTE_POS >= tensor.len() {
             terminate!();
         }
@@ -39,9 +40,12 @@ pub fn full_device<R: CubeRuntime, E: CubeElement>(
         tensor[ABSOLUTE_POS] = value;
     }
 
-    let num_elems = empty.shape.num_elements();
-    let vectorization_factor =
-        tensor_vectorization_factor(&[4, 2], &empty.shape.dims, &empty.strides, ndims - 1);
+    let num_elems = empty.handle.handle.size() as usize / empty.handle.elem_size;
+    let vectorization_factor = *R::supported_line_sizes()
+        .iter()
+        .filter(|factor| num_elems % **factor as usize == 0)
+        .max()
+        .unwrap_or(&1);
 
     let cube_dim = CubeDim::default();
     let cube_count =
@@ -51,7 +55,9 @@ pub fn full_device<R: CubeRuntime, E: CubeElement>(
         &empty.client,
         cube_count,
         cube_dim,
-        empty.as_tensor_arg::<E>(vectorization_factor),
+        // SAFETY: The tensor is unused, and overwriting the zero-fill is fine since the values
+        // there are undefined.
+        unsafe { empty.as_full_array_arg::<E>(vectorization_factor) },
         ScalarArg::new(value),
     );
 
@@ -90,15 +96,28 @@ pub fn ones_device<R: CubeRuntime, E: CubeElement>(
     full_device::<R, E>(client, shape, device, 1.elem())
 }
 
-/// Create a tensor with uninitialized memory
+/// Create a tensor with uninitialized memory and potentially pitched strides
 pub fn empty_device<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
-    let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
+    let dtype = E::dtype();
+    let buffer = client.empty_tensor(shape.dims, elem_size(dtype));
 
-    CubeTensor::new_contiguous(client, device, shape, buffer, E::dtype())
+    CubeTensor::new(client, buffer, device, dtype)
+}
+
+/// Create a tensor with uninitialized memory
+pub fn empty_device_contiguous<R: CubeRuntime, E: CubeElement>(
+    client: ComputeClient<R::Server, R::Channel>,
+    device: R::Device,
+    shape: Shape,
+) -> CubeTensor<R> {
+    let dtype = E::dtype();
+    let buffer = client.empty(shape.num_elements() * elem_size(dtype));
+
+    CubeTensor::new_contiguous(client, device, shape, buffer, dtype)
 }
 
 /// Add two tensors

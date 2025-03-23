@@ -1,5 +1,5 @@
 use crate::{
-    CubeRuntime, FloatElement, kernel::into_contiguous, ops::numeric::empty_device,
+    CubeRuntime, FloatElement, kernel::into_contiguous, ops::numeric::empty_device_contiguous,
     tensor::CubeTensor,
 };
 use burn_tensor::{
@@ -21,11 +21,12 @@ pub fn interpolate<R: CubeRuntime, E: FloatElement>(
     options: InterpolateOptions,
 ) -> CubeTensor<R> {
     let input = into_contiguous(input);
-    let [batch_size, channels, _, _] = input.shape.dims();
+    let [batch_size, channels, _, _] = input.shape().dims();
     let [out_height, out_width] = output_size;
 
     let shape_out = Shape::new([batch_size, channels, out_height, out_width]);
-    let output = empty_device::<R, E>(input.client.clone(), input.device.clone(), shape_out);
+    let output =
+        empty_device_contiguous::<R, E>(input.client.clone(), input.device.clone(), shape_out);
 
     match options.mode {
         InterpolateMode::Nearest => interpolate_nearest_launch::<R, E>(input, output),
@@ -44,16 +45,9 @@ pub fn interpolate_backward<R: CubeRuntime, E: FloatElement>(
     options: InterpolateOptions,
 ) -> CubeTensor<R> {
     let out_grad = into_contiguous(out_grad);
-    let output_shape = input.shape.clone();
-    let num_elems = input.shape.num_elements();
-    let buffer = input.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = CubeTensor::new_contiguous(
-        input.client.clone(),
-        input.device.clone(),
-        output_shape,
-        buffer,
-        input.dtype,
-    );
+    let output_shape = input.shape().clone();
+    let output =
+        empty_device_contiguous::<R, E>(input.client.clone(), input.device.clone(), output_shape);
 
     match options.mode {
         InterpolateMode::Nearest => interpolate_nearest_backward_launch::<R, E>(out_grad, output),

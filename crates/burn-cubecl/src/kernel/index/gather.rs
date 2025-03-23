@@ -1,4 +1,6 @@
-use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
+use crate::{
+    CubeRuntime, element::CubeElement, ops::numeric::empty_device_contiguous, tensor::CubeTensor,
+};
 use cubecl::CubeDim;
 use cubecl::frontend::{ABSOLUTE_POS, Numeric, Tensor};
 use cubecl::linalg::tensor::index_offset_with_layout;
@@ -37,9 +39,10 @@ pub(crate) fn gather<R: CubeRuntime, E: CubeElement, I: CubeElement>(
     tensor: CubeTensor<R>,
     indices: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let shape_output = indices.shape.clone();
+    let shape_output = indices.shape().clone();
     let total_elem = shape_output.num_elements();
-    let output = empty_device::<R, E>(tensor.client.clone(), tensor.device.clone(), shape_output);
+    let output =
+        empty_device_contiguous::<R, E>(tensor.client.clone(), tensor.device.clone(), shape_output);
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
@@ -48,9 +51,9 @@ pub(crate) fn gather<R: CubeRuntime, E: CubeElement, I: CubeElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg::<E>(1),
-            indices.as_tensor_arg::<I>(1),
-            output.as_tensor_arg::<E>(1),
+            tensor.as_tensor_arg(1),
+            indices.as_tensor_arg(1),
+            output.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
         )
     }

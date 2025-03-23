@@ -8,7 +8,7 @@ use crate::{
     CubeRuntime, FloatElement,
     kernel::into_contiguous,
     ops::{
-        numeric::{empty_device, zeros_device},
+        numeric::{empty_device_contiguous, zeros_device},
         reshape,
     },
     tensor::CubeTensor,
@@ -126,8 +126,8 @@ pub fn conv2d_direct<R: CubeRuntime, E: FloatElement>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    let [batch_size, _, in_height, in_width] = input.shape.dims();
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
+    let [batch_size, _, in_height, in_width] = input.shape().dims();
+    let [out_channels, _, kernel_h, kernel_w] = weight.shape().dims();
     let channels_per_group = out_channels / options.groups;
 
     // Limit loop unrolling factor to 8 or smaller
@@ -152,7 +152,7 @@ pub fn conv2d_direct<R: CubeRuntime, E: FloatElement>(
     let weight = into_contiguous(weight);
 
     let shape_out = Shape::new([batch_size, out_channels, out_h, out_w]);
-    let output = empty_device::<R, E>(
+    let output = empty_device_contiguous::<R, E>(
         input.client.clone(),
         input.device.clone(),
         shape_out.clone(),
@@ -160,16 +160,16 @@ pub fn conv2d_direct<R: CubeRuntime, E: FloatElement>(
 
     let bias = match bias {
         Some(bias) => {
-            let shape = Shape::from([bias.shape.dims[0], 1, 1, 1]);
+            let shape = Shape::from([bias.shape().dims[0], 1, 1, 1]);
             reshape(bias, shape)
         }
         None => {
-            let shape = Shape::from([output.shape.dims[0], 1, 1, 1]);
+            let shape = Shape::from([output.shape().dims[0], 1, 1, 1]);
             zeros_device::<R, E>(input.client.clone(), input.device.clone(), shape)
         }
     };
 
-    let num_elems_output = output.shape.num_elements();
+    let num_elems_output = output.shape().num_elements();
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems_output, cube_dim);
 
@@ -177,10 +177,10 @@ pub fn conv2d_direct<R: CubeRuntime, E: FloatElement>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<E>(1),
-        weight.as_tensor_arg::<E>(1),
-        bias.as_tensor_arg::<E>(1),
-        output.as_tensor_arg::<E>(1),
+        input.as_tensor_arg(1),
+        weight.as_tensor_arg(1),
+        bias.as_tensor_arg(1),
+        output.as_tensor_arg(1),
         Conv2dArgsLaunch::new(
             ScalarArg::new(options.stride[0] as u32),
             ScalarArg::new(options.stride[1] as u32),

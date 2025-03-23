@@ -1,6 +1,8 @@
 use cubecl::prelude::*;
 
-use crate::{CubeElement, CubeRuntime, SEED, ops::numeric::empty_device, tensor::CubeTensor};
+use crate::{
+    CubeElement, CubeRuntime, SEED, ops::numeric::empty_device_contiguous, tensor::CubeTensor,
+};
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::Shape;
 use rand::Rng;
@@ -14,18 +16,18 @@ pub(crate) fn random<P: PrngRuntime<E>, R: CubeRuntime, E: CubeElement>(
     prng: P,
 ) -> CubeTensor<R> {
     let client = R::client(device);
-    let output = empty_device::<R, E>(client.clone(), device.clone(), shape);
+    let output = empty_device_contiguous::<R, E>(client.clone(), device.clone(), shape);
     let seeds = get_seeds();
     let args = prng.args();
 
     let cube_dim = CubeDim::default();
-    let cube_count = prng_cube_count(output.shape.num_elements(), cube_dim, N_VALUES_PER_THREAD);
+    let cube_count = prng_cube_count(output.shape().num_elements(), cube_dim, N_VALUES_PER_THREAD);
 
     prng_kernel::launch::<P, E, R>(
         &client,
         cube_count,
         cube_dim,
-        output.as_tensor_arg::<E>(1),
+        output.as_tensor_arg(1),
         ScalarArg::new(seeds[0]),
         ScalarArg::new(seeds[1]),
         ScalarArg::new(seeds[2]),

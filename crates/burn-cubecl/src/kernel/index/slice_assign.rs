@@ -34,7 +34,7 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
         true => tensor,
         false => tensor.copy(),
     };
-    let ndims = tensor.shape.num_dims();
+    let ndims = tensor.shape().num_dims();
     let mut indices_sequence = SequenceArg::<R, u32>::new();
 
     for i in 0..ndims {
@@ -43,14 +43,14 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
     }
 
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(tensor.shape.num_elements(), cube_dim);
+    let cube_count = calculate_cube_count_elemwise(tensor.shape().num_elements(), cube_dim);
 
     slice_assign_kernel::launch::<E, R>(
         &tensor.client,
         cube_count,
         cube_dim,
-        tensor.as_tensor_arg::<E>(1),
-        value.as_tensor_arg::<E>(1),
+        tensor.as_tensor_arg(1),
+        value.as_tensor_arg(1),
         indices_sequence,
         ndims as u32,
     );

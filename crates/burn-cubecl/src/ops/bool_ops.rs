@@ -80,8 +80,8 @@ where
     }
 
     fn bool_swap_dims(mut tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {
-        tensor.strides.swap(dim1, dim2);
-        tensor.shape.dims.swap(dim1, dim2);
+        tensor.strides_mut().swap(dim1, dim2);
+        tensor.shape_mut().dims.swap(dim1, dim2);
 
         tensor
     }

@@ -4,7 +4,7 @@ use cubecl::prelude::*;
 use burn_cubecl::{
     CubeRuntime, IntElement,
     ops::{
-        numeric::{empty_device, zeros_device},
+        numeric::{empty_device_contiguous, zeros_device},
         reshape,
     },
     tensor::CubeTensor,
@@ -217,12 +217,13 @@ fn count_trailing_zeros(num: u32) -> u32 {
 pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTensor<R> {
     let client = input.client.clone();
     let device = input.device.clone();
-    let num_elems = input.shape.num_elements() as u32;
-    let numbers = *input.shape.dims.last().unwrap() as u32;
+    let num_elems = input.shape().num_elements() as u32;
+    let numbers = *input.shape().dims.last().unwrap() as u32;
     let batches = num_elems / numbers;
 
     let input = reshape(input, Shape::new([batches as usize, numbers as usize]));
-    let out = empty_device::<R, I>(client.clone(), device.clone(), input.shape.clone());
+    let out =
+        empty_device_contiguous::<R, I>(client.clone(), device.clone(), input.shape().clone());
 
     let cubes = numbers.div_ceil(PART_SIZE);
     let cube_dim = CubeDim::new_1d(CUBE_SIZE);
@@ -244,10 +245,10 @@ pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTe
             &input.client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg::<I>(4),
-            out.as_tensor_arg::<I>(4),
-            bump.as_tensor_arg::<I>(1),
-            reduction.as_tensor_arg::<I>(1),
+            input.as_tensor_arg(4),
+            out.as_tensor_arg(4),
+            bump.as_tensor_arg(1),
+            reduction.as_tensor_arg(1),
             ScalarArg::new(cubes),
         )
     };

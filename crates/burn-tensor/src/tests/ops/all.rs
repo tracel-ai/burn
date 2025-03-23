@@ -4,8 +4,7 @@ mod tests {
     use burn_tensor::{Tensor, TensorData};
 
     #[test]
-    fn test_all() {
-        // test float tensor
+    fn test_all_float() {
         let tensor = TestTensor::<2>::from([[0.0, 1.0, 0.0], [1.0, -1.0, 1.0]]);
         let data_actual = tensor.all().into_data();
         let data_expected = TensorData::from([false]);
@@ -15,8 +14,10 @@ mod tests {
         let data_actual = tensor.all().into_data();
         let data_expected = TensorData::from([true]);
         data_expected.assert_eq(&data_actual, false);
+    }
 
-        // test int tensor
+    #[test]
+    fn test_all_int() {
         let tensor = TestTensorInt::<2>::from([[0, 1, 0], [1, -1, 1]]);
         let data_actual = tensor.all().into_data();
         let data_expected = TensorData::from([false]);
@@ -26,8 +27,10 @@ mod tests {
         let data_actual = tensor.all().into_data();
         let data_expected = TensorData::from([true]);
         data_expected.assert_eq(&data_actual, false);
+    }
 
-        // test bool tensor
+    #[test]
+    fn test_all_bool() {
         let tensor = TestTensorBool::<2>::from([[false, true, false], [true, true, true]]);
         let data_actual = tensor.all().into_data();
         let data_expected = TensorData::from([false]);

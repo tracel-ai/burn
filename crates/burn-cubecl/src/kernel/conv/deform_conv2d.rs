@@ -196,7 +196,7 @@ pub(crate) fn deform_im2col<R: CubeRuntime, E: FloatElement>(
     let client = input.client.clone();
     let device = input.device.clone();
 
-    let [batch_size, in_channels, _, _] = input.shape.dims();
+    let [batch_size, in_channels, _, _] = input.shape().dims();
     let (out_height, out_width) = out_dims;
     let (kernel_height, kernel_width) = kernel_dims;
 
@@ -212,10 +212,10 @@ pub(crate) fn deform_im2col<R: CubeRuntime, E: FloatElement>(
             client.clone(),
             device.clone(),
             Shape::new([
-                offset.shape.dims[0],
-                offset.shape.dims[1] / 2,
-                offset.shape.dims[2],
-                offset.shape.dims[3],
+                offset.shape().dims[0],
+                offset.shape().dims[1] / 2,
+                offset.shape().dims[2],
+                offset.shape().dims[3],
             ]),
         )
     });
@@ -244,7 +244,7 @@ pub(crate) fn deform_im2col<R: CubeRuntime, E: FloatElement>(
             ScalarArg::new(kernel_width as u32),
             ScalarArg::new(out_height as u32),
             ScalarArg::new(out_width as u32),
-            ScalarArg::new(output.strides[0] as u32),
+            ScalarArg::new(output.strides()[0] as u32),
         ),
         Some(kernel_height as u32),
         Some(kernel_width as u32),
@@ -268,8 +268,8 @@ pub(crate) fn deform_conv2d<R: CubeRuntime, E: FloatElement>(
     let mask = mask.map(|it| into_contiguous(it));
     let bias = bias.map(|it| into_contiguous(it));
 
-    let [batch_size, _, in_height, in_width] = input.shape.dims();
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
+    let [batch_size, _, in_height, in_width] = input.shape().dims();
+    let [out_channels, _, kernel_h, kernel_w] = weight.shape().dims();
     let groups = options.weight_groups;
 
     let out_h = calculate_conv_output_size(
@@ -291,7 +291,7 @@ pub(crate) fn deform_conv2d<R: CubeRuntime, E: FloatElement>(
     let columns =
         deform_im2col::<R, E>(input, offset, mask, options, out_dims, (kernel_h, kernel_w));
 
-    let [col_size_0, col_size_1] = columns.shape.dims();
+    let [col_size_0, col_size_1] = columns.shape().dims();
     let col_size_0 = col_size_0 / groups;
     let out_c_per_group = out_channels / groups;
 

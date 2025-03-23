@@ -1,13 +1,31 @@
-use crate::{BoolElement, CubeElement, CubeRuntime, tensor::CubeTensor};
-use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::*};
+use crate::{
+    BoolElement, CubeElement, CubeRuntime,
+    kernel::index_pitched,
+    ops::{max_line_size, numeric::empty_device},
+    tensor::CubeTensor,
+};
+use cubecl::{
+    CubeDim, calculate_cube_count_elemwise, linalg::tensor::index_offset_contiguous, prelude::*,
+};
 
 #[cube(launch)]
-fn bool_cast_kernel<B: Numeric, T: Numeric>(input: &Tensor<B>, output: &mut Tensor<T>) {
-    if input[ABSOLUTE_POS] >= B::from_int(1) {
-        output[ABSOLUTE_POS] = T::from_int(1);
-    } else {
-        output[ABSOLUTE_POS] = T::from_int(0);
+fn bool_cast_kernel<B: Numeric, T: Numeric>(
+    input: &Tensor<Line<B>>,
+    output: &mut Tensor<Line<T>>,
+    #[comptime] rank: Option<u32>,
+    #[comptime] pitched: bool,
+) {
+    let offset_out = ABSOLUTE_POS;
+
+    if offset_out >= output.len() {
+        terminate!();
     }
+
+    let offset_in = index_offset_contiguous(input, offset_out, rank);
+    let offset_out = index_pitched(output, offset_out, pitched);
+
+    let val = Line::<bool>::cast_from(input[offset_in]);
+    output[offset_out] = Line::cast_from(val);
 }
 
 /// Cast a bool tensor to the given element type.
@@ -19,15 +37,14 @@ fn bool_cast_kernel<B: Numeric, T: Numeric>(input: &Tensor<B>, output: &mut Tens
 pub fn bool_cast<R: CubeRuntime, BT: BoolElement, EO: CubeElement>(
     tensor: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let num_elems = tensor.shape.num_elements();
-    let buffer = tensor.client.empty(num_elems * core::mem::size_of::<EO>());
-    let output = CubeTensor::new_contiguous(
+    let num_elems = tensor.shape().num_elements();
+    let output = empty_device::<R, EO>(
         tensor.client.clone(),
         tensor.device.clone(),
-        tensor.shape.clone(),
-        buffer,
-        EO::dtype(),
+        tensor.shape().clone(),
     );
+
+    let line_size = max_line_size(&tensor);
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
@@ -36,8 +53,10 @@ pub fn bool_cast<R: CubeRuntime, BT: BoolElement, EO: CubeElement>(
         &tensor.client,
         cube_count,
         cube_dim,
-        tensor.as_tensor_arg::<BT>(1),
-        output.as_tensor_arg::<EO>(1),
+        tensor.as_tensor_arg(line_size),
+        output.as_tensor_arg(line_size),
+        Some(tensor.rank() as u32),
+        tensor.is_pitched() || output.is_pitched(),
     );
 
     output

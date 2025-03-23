@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 
 use crate::{
-    BoolElement, CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor,
+    BoolElement, CubeRuntime, element::CubeElement, ops::numeric::empty_device_contiguous,
+    tensor::CubeTensor,
 };
 use burn_tensor::Shape;
 use cubecl::{
@@ -134,19 +135,19 @@ pub(crate) fn launch_cmp<R: CubeRuntime, E: CubeElement, BT: BoolElement, O: Com
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let ndims = lhs.shape.num_dims();
+    let ndims = lhs.shape().num_dims();
     let vectorization_factor_lhs =
-        tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, ndims - 1);
+        tensor_vectorization_factor(&[4, 2], &lhs.shape().dims, lhs.strides(), ndims - 1);
     let vectorization_factor_rhs =
-        tensor_vectorization_factor(&[4, 2], &rhs.shape.dims, &rhs.strides, ndims - 1);
+        tensor_vectorization_factor(&[4, 2], &rhs.shape().dims, rhs.strides(), ndims - 1);
 
     let vectorization_factor = Ord::min(vectorization_factor_lhs, vectorization_factor_rhs);
 
     let mut shape_out = vec![0; ndims];
-    lhs.shape
+    lhs.shape()
         .dims
         .iter()
-        .zip(rhs.shape.dims.iter())
+        .zip(rhs.shape().dims.iter())
         .enumerate()
         .for_each(|(index, (dim_lhs, dim_rhs))| {
             shape_out[index] = usize::max(*dim_lhs, *dim_rhs);
@@ -166,55 +167,42 @@ pub(crate) fn launch_cmp<R: CubeRuntime, E: CubeElement, BT: BoolElement, O: Com
             &client,
             cube_count,
             cube_dim,
-            lhs.as_tensor_arg::<E>(vectorization_factor),
-            rhs.as_tensor_arg::<E>(vectorization_factor),
+            lhs.as_tensor_arg(vectorization_factor),
+            rhs.as_tensor_arg(vectorization_factor),
             TensorArg::alias(0),
             None,
             false,
-            rhs.strides != lhs.strides || rhs.shape != lhs.shape,
+            rhs.strides() != lhs.strides() || rhs.shape() != lhs.shape(),
         );
 
-        CubeTensor::new(
-            lhs.client,
-            lhs.handle,
-            lhs.shape,
-            lhs.device,
-            lhs.strides,
-            BT::dtype(),
-        )
+        CubeTensor::new(lhs.client, lhs.handle, lhs.device, BT::dtype())
     } else if same_tensor_type && rhs.can_mut_broadcast(&lhs) {
         kernel_cmp::launch::<Spec<E, BT>, O, R>(
             &client,
             cube_count,
             CubeDim::default(),
-            lhs.as_tensor_arg::<E>(vectorization_factor),
-            rhs.as_tensor_arg::<E>(vectorization_factor),
+            lhs.as_tensor_arg(vectorization_factor),
+            rhs.as_tensor_arg(vectorization_factor),
             TensorArg::alias(1),
             None,
-            rhs.strides != lhs.strides || rhs.shape != lhs.shape,
+            rhs.strides() != lhs.strides() || rhs.shape() != lhs.shape(),
             false,
         );
 
-        CubeTensor::new(
-            rhs.client,
-            rhs.handle,
-            rhs.shape,
-            rhs.device,
-            rhs.strides,
-            BT::dtype(),
-        )
+        CubeTensor::new(rhs.client, rhs.handle, rhs.device, BT::dtype())
     } else {
-        let output = empty_device::<R, BT>(lhs.client.clone(), lhs.device.clone(), shape_out);
-        let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
-        let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
+        let output =
+            empty_device_contiguous::<R, BT>(lhs.client.clone(), lhs.device.clone(), shape_out);
+        let to_contiguous_lhs = lhs.strides() != output.strides() || lhs.shape() != output.shape();
+        let to_contiguous_rhs = rhs.strides() != output.strides() || rhs.shape() != output.shape();
 
         kernel_cmp::launch::<Spec<E, BT>, O, R>(
             &client,
             cube_count,
             CubeDim::default(),
-            lhs.as_tensor_arg::<E>(vectorization_factor),
-            rhs.as_tensor_arg::<E>(vectorization_factor),
-            output.as_tensor_arg::<BT>(vectorization_factor),
+            lhs.as_tensor_arg(vectorization_factor),
+            rhs.as_tensor_arg(vectorization_factor),
+            output.as_tensor_arg(vectorization_factor),
             None,
             to_contiguous_lhs,
             to_contiguous_rhs,
@@ -237,12 +225,12 @@ pub(crate) fn launch_scalar_cmp<
         tensor = into_contiguous(tensor);
     }
 
-    let ndims = tensor.shape.num_dims();
+    let ndims = tensor.shape().num_dims();
     // Vectorization is only enabled when the last dimension is contiguous.
     let vectorization_factor =
-        tensor_vectorization_factor(&[4, 2], &tensor.shape.dims, &tensor.strides, ndims - 1);
+        tensor_vectorization_factor(&[4, 2], &tensor.shape().dims, tensor.strides(), ndims - 1);
     let client = tensor.client.clone();
-    let num_elems = tensor.shape.num_elements();
+    let num_elems = tensor.shape().num_elements();
 
     let cube_dim = CubeDim::default();
     let cube_count =
@@ -254,33 +242,26 @@ pub(crate) fn launch_scalar_cmp<
             &client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg::<E>(vectorization_factor),
+            tensor.as_tensor_arg(vectorization_factor),
             ScalarArg::new(scalar),
             TensorArg::alias(0),
         );
 
-        CubeTensor::new(
-            tensor.client,
-            tensor.handle,
-            tensor.shape,
-            tensor.device,
-            tensor.strides,
-            BT::dtype(),
-        )
+        CubeTensor::new(tensor.client, tensor.handle, tensor.device, BT::dtype())
     } else {
-        let output = empty_device::<R, BT>(
+        let output = empty_device_contiguous::<R, BT>(
             tensor.client.clone(),
             tensor.device.clone(),
-            tensor.shape.clone(),
+            tensor.shape().clone(),
         );
 
         kernel_scalar_cmp::launch::<Spec<E, BT>, O, R>(
             &client,
             cube_count,
             CubeDim::default(),
-            tensor.as_tensor_arg::<E>(vectorization_factor),
+            tensor.as_tensor_arg(vectorization_factor),
             ScalarArg::new(scalar),
-            output.as_tensor_arg::<BT>(vectorization_factor),
+            output.as_tensor_arg(vectorization_factor),
         );
 
         output

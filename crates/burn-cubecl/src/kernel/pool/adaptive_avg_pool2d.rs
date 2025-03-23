@@ -2,7 +2,7 @@ use crate::{
     CubeRuntime,
     element::CubeElement,
     kernel::conv::nchw_to_nhwc,
-    ops::{max_vectorization, numeric::empty_device, permute},
+    ops::{max_line_size, numeric::empty_device_contiguous, permute},
     tensor::CubeTensor,
 };
 use burn_tensor::Shape;
@@ -82,18 +82,19 @@ pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime, E: CubeElement>(
     input: CubeTensor<R>,
     output_size: [usize; 2],
 ) -> CubeTensor<R> {
-    let [batch_size, channels, _, _] = input.shape.dims();
+    let [batch_size, channels, _, _] = input.shape().dims();
 
     let input = if input.is_contiguous() {
         nchw_to_nhwc::<R, E>(input)
     } else {
         permute(input, &[0, 2, 3, 1])
     };
-    let line_size = max_vectorization(&input);
+    let line_size = max_line_size(&input);
 
     let output_shape = Shape::new([batch_size, output_size[0], output_size[1], channels]);
     let num_elems: usize = output_shape.num_elements();
-    let output = empty_device::<R, E>(input.client.clone(), input.device.clone(), output_shape);
+    let output =
+        empty_device_contiguous::<R, E>(input.client.clone(), input.device.clone(), output_shape);
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
@@ -102,8 +103,8 @@ pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime, E: CubeElement>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<E>(line_size),
-        output.as_tensor_arg::<E>(line_size),
+        input.as_tensor_arg(line_size),
+        output.as_tensor_arg(line_size),
     );
 
     permute(output, &[0, 3, 1, 2])

@@ -89,7 +89,7 @@ pub fn random_like_uniform<R: CubeRuntime, E: CubeElement>(
     upper_bound: E,
 ) -> CubeTensor<R> {
     random_uniform(
-        tensor.shape.clone(),
+        tensor.shape().clone(),
         &tensor.device,
         lower_bound,
         upper_bound,

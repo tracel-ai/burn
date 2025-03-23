@@ -2,7 +2,7 @@ use crate::{
     CubeRuntime, IntElement,
     element::CubeElement,
     kernel::conv::nchw_to_nhwc,
-    ops::{max_vectorization, numeric::empty_device, permute},
+    ops::{max_line_size, numeric::empty_device_contiguous, permute},
     tensor::CubeTensor,
 };
 use burn_tensor::Shape;
@@ -95,7 +95,7 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime, E: CubeElement, I
     padding: [usize; 2],
     dilation: [usize; 2],
 ) -> CubeTensor<R> {
-    let [batches, channels, height, width] = x.shape.dims();
+    let [batches, channels, height, width] = x.shape().dims();
 
     let grad = if grad.is_contiguous() {
         nchw_to_nhwc::<R, E>(grad)
@@ -107,26 +107,26 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime, E: CubeElement, I
     } else {
         permute(indices, &[0, 2, 3, 1])
     };
-    let line_size = if grad.strides[3] == indices.strides[3] {
-        max_vectorization(&grad)
+    let line_size = if grad.strides()[3] == indices.strides()[3] {
+        max_line_size(&grad)
     } else {
         1
     };
 
     let out_shape = Shape::new([batches, height, width, channels]);
-    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), out_shape);
+    let output = empty_device_contiguous::<R, E>(x.client.clone(), x.device.clone(), out_shape);
     let cube_dim = CubeDim::default();
     let cube_count =
-        calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
+        calculate_cube_count_elemwise(output.shape().num_elements() / line_size as usize, cube_dim);
 
     unsafe {
         max_pool2d_with_indices_backward_kernel::launch_unchecked::<E, I, R>(
             &x.client,
             cube_count,
             cube_dim,
-            grad.as_tensor_arg::<E>(line_size),
-            indices.as_tensor_arg::<I>(line_size),
-            output.as_tensor_arg::<E>(line_size),
+            grad.as_tensor_arg(line_size),
+            indices.as_tensor_arg(line_size),
+            output.as_tensor_arg(line_size),
             PoolBackwardArgsLaunch::new(
                 ScalarArg::new(stride[0] as i32),
                 ScalarArg::new(stride[1] as i32),

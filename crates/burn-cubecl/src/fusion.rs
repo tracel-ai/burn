@@ -1,5 +1,5 @@
-use crate::BoolElement;
 use crate::element::CubeElement;
+use crate::{BoolElement, tensor::elem_size};
 use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, kernel, tensor::CubeTensor};
 
 use burn_cubecl_fusion::CubeFusionHandle;
@@ -18,8 +18,8 @@ use burn_fusion::{FusionBackend, FusionRuntime, client::MutexFusionClient};
 use burn_ir::{BackendIr, TensorHandle};
 use burn_tensor::{DType, Shape};
 use core::marker::PhantomData;
-use cubecl::reduce::Reduce;
 use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
+use cubecl::{reduce::Reduce, server};
 use half::{bf16, f16};
 use std::sync::Arc;
 
@@ -136,10 +136,10 @@ fn run_fallback_matmul<R: CubeRuntime, EG: FloatElement>(
 
     CubeFusionHandle {
         client: out_tensor.client,
-        handle: out_tensor.handle,
+        handle: out_tensor.handle.handle,
         device: out_tensor.device,
         dtype: out_tensor.dtype,
-        strides: out_tensor.strides,
+        strides: out_tensor.handle.strides,
     }
 }
 
@@ -206,10 +206,10 @@ fn reduce<R: CubeRuntime, In: CubeElement, Out: CubeElement, Red: Reduce>(
 
     CubeFusionHandle {
         client: out_tensor.client,
-        handle: out_tensor.handle,
+        handle: out_tensor.handle.handle,
         device: out_tensor.device,
         dtype: out_tensor.dtype,
-        strides: out_tensor.strides,
+        strides: out_tensor.handle.strides,
     }
 }
 
@@ -314,12 +314,16 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBack
 }
 
 fn into_tensor<R: CubeRuntime>(handle: CubeFusionHandle<R>, shape: Shape) -> CubeTensor<R> {
+    let t_handle = server::TensorHandle::new(
+        handle.handle,
+        handle.strides,
+        shape.dims,
+        elem_size(handle.dtype),
+    );
     CubeTensor {
         client: handle.client,
-        handle: handle.handle,
+        handle: t_handle,
         device: handle.device,
-        shape,
-        strides: handle.strides,
         dtype: handle.dtype,
     }
 }
@@ -328,9 +332,9 @@ impl<R: CubeRuntime> From<CubeTensor<R>> for CubeFusionHandle<R> {
     fn from(value: CubeTensor<R>) -> Self {
         Self {
             client: value.client,
-            handle: value.handle,
+            handle: value.handle.handle,
             device: value.device,
-            strides: value.strides,
+            strides: value.handle.strides,
             dtype: value.dtype,
         }
     }

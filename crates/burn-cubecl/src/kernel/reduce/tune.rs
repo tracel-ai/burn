@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     CubeAutotuneKey, CubeElement, CubeRuntime, CubeTuneId, kernel::prng::random_like_uniform,
-    ops::numeric::empty_device, tensor::CubeTensor,
+    ops::numeric::empty_device_contiguous, tensor::CubeTensor,
 };
 
 /// Executes autotune on reduce operations.
@@ -57,20 +57,20 @@ pub struct ReduceAutotuneKey {
 
 impl ReduceAutotuneKey {
     pub(crate) fn generate<Run: CubeRuntime>(input: &CubeTensor<Run>, axis: usize) -> Self {
-        let rank = input.shape.num_dims();
+        let rank = input.shape().num_dims();
 
         if axis > rank {
             panic!("axis {axis} is out-of-bound for a rank of {rank}");
         }
 
         let dtype = input.dtype;
-        let reduce_axis_shape = input.shape.dims[axis];
-        let reduce_axis_stride = input.strides[axis];
+        let reduce_axis_shape = input.shape().dims[axis];
+        let reduce_axis_stride = input.strides()[axis];
 
         let outer_axes_product = input
-            .strides
+            .strides()
             .iter()
-            .zip(input.shape.dims.iter())
+            .zip(input.shape().dims.iter())
             .filter_map(|(stride, shape)| (*stride > reduce_axis_stride).then_some(shape))
             .product();
 
@@ -105,10 +105,10 @@ mod reduce_ops {
         let random_bounds: (In, In) = ((-10.0_f32).elem::<In>(), (10.0_f32).elem::<In>());
         let input = random_like_uniform(input, random_bounds.0, random_bounds.1);
 
-        let output = empty_device::<Run, Out>(
+        let output = empty_device_contiguous::<Run, Out>(
             output.client.clone(),
             output.device.clone(),
-            output.shape.clone(),
+            output.shape().clone(),
         );
 
         (input, output, *dim)
@@ -250,7 +250,7 @@ pub struct SumAutotuneKey {
 impl SumAutotuneKey {
     pub(crate) fn generate<Run: CubeRuntime>(input: &CubeTensor<Run>) -> Self {
         let dtype = input.dtype;
-        let length = input.shape.num_elements();
+        let length = input.shape().num_elements();
         Self { dtype, length }
     }
 }
@@ -274,8 +274,7 @@ mod sum_ops {
     ) -> Result<CubeTensor<Run>, String> {
         let client = input.client.clone();
         let device = input.device.clone();
-        let handle = client.create(E::as_bytes(&[E::from_int(0)]));
-        let output = CubeTensor::new_contiguous(client, device, [1].into(), handle, E::dtype());
+        let output = empty_device_contiguous::<Run, E>(client, device, [1].into());
 
         cubecl::reduce::shared_sum::<Run, E>(
             &input.client,

@@ -1,5 +1,6 @@
 use crate::{
-    BoolElement, CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor,
+    BoolElement, CubeRuntime, element::CubeElement, kernel::into_contiguous,
+    ops::numeric::empty_device_contiguous, tensor::CubeTensor,
 };
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
@@ -37,10 +38,10 @@ pub(crate) fn flip<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
     tensor: CubeTensor<R>,
     indices: &[usize],
 ) -> CubeTensor<R> {
-    let output = empty_device::<R, E>(
+    let output = empty_device_contiguous::<R, E>(
         tensor.client.clone(),
         tensor.device.clone(),
-        tensor.shape.clone(),
+        tensor.shape().clone(),
     );
     flip_on_output::<R, E, BT>(tensor, output, indices)
 }
@@ -50,7 +51,8 @@ pub(crate) fn flip_on_output<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
     output: CubeTensor<R>,
     indices: &[usize],
 ) -> CubeTensor<R> {
-    let ndims = tensor.shape.num_dims();
+    let tensor = into_contiguous(tensor);
+    let ndims = tensor.shape().num_dims();
     let mut indices_sequence = SequenceArg::<'_, R, BT>::new();
 
     for i in 0..ndims {
@@ -58,15 +60,15 @@ pub(crate) fn flip_on_output<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
     }
 
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let cube_count = calculate_cube_count_elemwise(output.shape().num_elements(), cube_dim);
 
     unsafe {
         flip_kernel::launch_unchecked::<E, BT, R>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg::<E>(1),
-            output.as_tensor_arg::<E>(1),
+            tensor.as_tensor_arg(1),
+            output.as_tensor_arg(1),
             indices_sequence,
             ndims as u32,
         );

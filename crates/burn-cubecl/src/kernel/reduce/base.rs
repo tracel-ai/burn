@@ -1,6 +1,9 @@
 #[cfg(feature = "autotune")]
 use super::{autotune_reduce, autotune_sum};
-use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
+use crate::{
+    CubeRuntime, element::CubeElement, kernel::into_contiguous,
+    ops::numeric::empty_device_contiguous, tensor::CubeTensor,
+};
 use burn_tensor::Shape;
 pub use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
 use cubecl::reduce::shared_sum;
@@ -15,14 +18,14 @@ pub fn sum<Run: CubeRuntime, E: CubeElement>(
     tensor: CubeTensor<Run>,
     cube_count: SumStrategy,
 ) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
+    let tensor = into_contiguous(tensor);
     let client = tensor.client.clone();
     let device = tensor.device.clone();
 
     match cube_count {
         SumStrategy::OneShot(cube_count) => {
-            let handle = client.create(E::as_bytes(&[E::from_int(0)]));
-            let output =
-                CubeTensor::new_contiguous(client.clone(), device, [1].into(), handle, E::dtype());
+            let output = empty_device_contiguous::<Run, E>(client.clone(), device, [1].into());
+
             shared_sum::<Run, E>(
                 &client,
                 tensor.as_handle_ref(),
@@ -39,6 +42,7 @@ pub fn sum<Run: CubeRuntime, E: CubeElement>(
 }
 
 /// Select a strategy to perform a sum.
+#[derive(Debug)]
 pub enum SumStrategy {
     /// Run a single kernel with many cubes working in parallel to sum all elements.
     /// The provided value is the number of elements summed per unit (up-to-rounding )
@@ -72,13 +76,13 @@ pub fn reduce<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Rd: cubecl::r
 ) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
     // In practice, it looks like starting by the axis with the smallest shape
     // and going in increasing order lead to the fastest calculation.
-    let sorted_axis = argsort(&tensor.shape.dims);
+    let sorted_axis = argsort(&tensor.shape().dims);
     for axis in sorted_axis {
         tensor = reduce_dim::<Run, In, Out, Rd>(tensor, axis, strategy)?;
     }
     // reshape to scalar tensor
-    tensor.shape = Shape::new([1]);
-    tensor.strides = vec![1];
+    *tensor.shape_mut() = Shape::new([1]);
+    *tensor.strides_mut() = vec![1];
     Ok(tensor)
 }
 
@@ -105,11 +109,12 @@ pub fn reduce_dim<
     dim: usize,
     strategy: ReduceStrategy,
 ) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
+    let input = into_contiguous(input);
     let client = input.client.clone();
     let output = init_reduce_output::<Run, In, Out>(&input, dim).ok_or(
         cubecl::reduce::ReduceError::InvalidAxis {
             axis: dim,
-            rank: input.shape.num_dims(),
+            rank: input.shape().num_dims(),
         },
     )?;
     let result = match strategy {
@@ -142,10 +147,10 @@ pub fn init_reduce_output<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
     input: &CubeTensor<Run>,
     dim: usize,
 ) -> Option<CubeTensor<Run>> {
-    (dim < input.shape.num_dims()).then(|| {
-        let mut shape_out = input.shape.clone();
+    (dim < input.shape().num_dims()).then(|| {
+        let mut shape_out = input.shape().clone();
         shape_out.dims[dim] = 1;
-        empty_device::<Run, Out>(input.client.clone(), input.device.clone(), shape_out)
+        empty_device_contiguous::<Run, Out>(input.client.clone(), input.device.clone(), shape_out)
     })
 }
 

@@ -3,7 +3,7 @@ use cubecl::{CubeCount, CubeDim, prelude::*};
 
 use crate::{
     CubeElement, CubeRuntime,
-    ops::{max_vectorization, numeric::empty_device},
+    ops::{max_line_size, numeric::empty_device_contiguous},
     tensor::CubeTensor,
 };
 
@@ -23,11 +23,12 @@ pub fn nchw_to_nhwc<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> Cub
     let warp_size = 32;
     let tile_dim = 16;
 
-    let [batch_size, in_c, h, w] = input.shape.dims();
+    let [batch_size, in_c, h, w] = input.shape().dims();
     let hw = h * w;
 
     let out_shape = Shape::new([batch_size, h, w, in_c]);
-    let out = empty_device::<R, E>(input.client.clone(), input.device.clone(), out_shape);
+    let out =
+        empty_device_contiguous::<R, E>(input.client.clone(), input.device.clone(), out_shape);
 
     let tiles_channel = in_c.div_ceil(tile_dim) as u32;
     let tiles_hw = hw.div_ceil(tile_dim) as u32;
@@ -54,7 +55,7 @@ pub fn nchw_to_nhwc<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> Cub
     };
     let cube_count = CubeCount::Static(cube_count_x, cube_count_y, cube_count_z);
 
-    let in_vec = max_vectorization(&input);
+    let in_vec = max_line_size(&input);
     let out_vec = R::supported_line_sizes()
         .iter()
         .copied()
@@ -66,8 +67,8 @@ pub fn nchw_to_nhwc<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> Cub
             &input.client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg::<E>(in_vec),
-            out.as_tensor_arg::<E>(out_vec),
+            input.as_tensor_arg(in_vec),
+            out.as_tensor_arg(out_vec),
             ScalarArg::new(hw as u32),
             config,
         )

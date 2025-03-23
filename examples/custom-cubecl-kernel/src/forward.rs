@@ -29,15 +29,15 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
         let bias = into_contiguous(bias);
 
         // Get the matmul relevant shapes.
-        let ndims = lhs.shape.num_dims();
-        let num_rows = lhs.shape.dims[ndims - 2];
-        let num_cols = rhs.shape.dims[ndims - 1];
+        let ndims = lhs.shape().num_dims();
+        let num_rows = lhs.shape().dims[ndims - 2];
+        let num_cols = rhs.shape().dims[ndims - 1];
 
         // Compute shape of output, while tracking number of batches.
         let mut num_batches = 1;
         let mut shape_out = vec![0; ndims];
         for i in shape_out.clone().into_iter().take(ndims - 2) {
-            shape_out[i] = usize::max(lhs.shape.dims[i], rhs.shape.dims[i]);
+            shape_out[i] = usize::max(lhs.shape().dims[i], rhs.shape().dims[i]);
             num_batches *= shape_out[i];
         }
         shape_out[ndims - 2] = num_rows;
@@ -70,10 +70,10 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
             &lhs.client,
             cube_count,
             cube_dim,
-            lhs.as_tensor_arg::<F>(1),
-            rhs.as_tensor_arg::<F>(1),
-            bias.as_tensor_arg::<F>(1),
-            output.as_tensor_arg::<F>(1),
+            lhs.as_tensor_arg(1),
+            rhs.as_tensor_arg(1),
+            bias.as_tensor_arg(1),
+            output.as_tensor_arg(1),
         );
 
         // Return the output tensor.

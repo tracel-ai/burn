@@ -79,8 +79,8 @@ fn create_key<R: CubeRuntime, E: FloatElement>(
     bias: &Option<CubeTensor<R>>,
     options: &ConvOptions<2>,
 ) -> CubeAutotuneKey {
-    let [batch_size, in_channels, height, width] = input.shape.dims();
-    let [out_channels, _, kernel_h, kernel_w] = weights.shape.dims();
+    let [batch_size, in_channels, height, width] = input.shape().dims();
+    let [out_channels, _, kernel_h, kernel_w] = weights.shape().dims();
     let ConvOptions {
         stride,
         padding,

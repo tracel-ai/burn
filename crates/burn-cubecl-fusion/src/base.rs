@@ -119,7 +119,7 @@ impl<R: Runtime> CubeFusionHandle<R> {
             strides: &self.strides,
             shape,
             runtime: PhantomData,
-            elem_size: self.dtype.size(),
+            elem_size: self.elem_size(),
         }
     }
     /// Return the reference to a tensor argument.
@@ -132,8 +132,17 @@ impl<R: Runtime> CubeFusionHandle<R> {
                 handle.strides,
                 handle.shape,
                 vectorisation,
-                self.dtype.size(),
+                handle.elem_size,
             )
+        }
+    }
+
+    fn elem_size(&self) -> usize {
+        if let DType::QFloat(_) = self.dtype {
+            // Encoded as u32
+            core::mem::size_of::<u32>()
+        } else {
+            self.dtype.size()
         }
     }
 }

@@ -1,4 +1,6 @@
-use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
+use crate::{
+    CubeRuntime, element::CubeElement, ops::numeric::empty_device_contiguous, tensor::CubeTensor,
+};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch_unchecked)]
@@ -24,22 +26,22 @@ pub(crate) fn repeat_dim<R: CubeRuntime, E: CubeElement>(
     dim: usize,
     times: usize,
 ) -> CubeTensor<R> {
-    let mut shape = input.shape.clone();
+    let mut shape = input.shape().clone();
 
     // Create output handle
     shape.dims[dim] *= times;
-    let output = empty_device::<R, E>(input.client.clone(), input.device.clone(), shape);
+    let output = empty_device_contiguous::<R, E>(input.client.clone(), input.device.clone(), shape);
 
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let cube_count = calculate_cube_count_elemwise(output.shape().num_elements(), cube_dim);
 
     unsafe {
         repeat_dim_kernel::launch_unchecked::<E, R>(
             &input.client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg::<E>(1),
-            output.as_tensor_arg::<E>(1),
+            input.as_tensor_arg(1),
+            output.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
         )
     };

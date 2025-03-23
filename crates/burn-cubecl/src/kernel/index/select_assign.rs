@@ -50,7 +50,7 @@ pub(crate) fn select_assign<R: CubeRuntime, E: CubeElement, I: CubeElement>(
     indices: CubeTensor<R>,
     value: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let ndims = tensor.shape.num_dims();
+    let ndims = tensor.shape().num_dims();
     let tensor = match tensor.can_mut() {
         true => tensor,
         false => tensor.copy(),
@@ -61,7 +61,7 @@ pub(crate) fn select_assign<R: CubeRuntime, E: CubeElement, I: CubeElement>(
     let mut num_elems = 1;
 
     tensor
-        .shape
+        .shape()
         .dims
         .iter()
         .enumerate()
@@ -70,7 +70,7 @@ pub(crate) fn select_assign<R: CubeRuntime, E: CubeElement, I: CubeElement>(
         .for_each(|(index, val)| {
             strides[index] = current;
             current *= val;
-            num_elems *= tensor.shape.dims[index];
+            num_elems *= tensor.shape().dims[index];
         });
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
@@ -80,10 +80,10 @@ pub(crate) fn select_assign<R: CubeRuntime, E: CubeElement, I: CubeElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg::<E>(1),
+            tensor.as_tensor_arg(1),
             // Ignored shape + custom strides.
-            TensorArg::from_raw_parts::<I>(&indices.handle, &strides, &strides, 1),
-            value.as_tensor_arg::<E>(1),
+            TensorArg::from_raw_parts::<I>(&indices.handle.handle, &strides, &strides, 1),
+            value.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
         );
     };

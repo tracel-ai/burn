@@ -5,7 +5,7 @@ use crate::{
     element::CubeElement,
     kernel::into_contiguous,
     ops::{
-        numeric::{empty_device, zeros_device},
+        numeric::{empty_device_contiguous, zeros_device},
         reshape,
     },
     tensor::CubeTensor,
@@ -129,8 +129,8 @@ pub fn conv_transpose2d_direct<R: CubeRuntime, E: CubeElement>(
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
     let input = into_contiguous(input);
     let weight = into_contiguous(weight);
-    let [batch_size, _, in_height, in_width] = input.shape.dims();
-    let [_, out_channels, kernel_0, kernel_1] = weight.shape.dims();
+    let [batch_size, _, in_height, in_width] = input.shape().dims();
+    let [_, out_channels, kernel_0, kernel_1] = weight.shape().dims();
 
     let out_0 = (in_height - 1) * options.stride[0]
         + options.dilation[0] * (kernel_0 - 1)
@@ -145,7 +145,7 @@ pub fn conv_transpose2d_direct<R: CubeRuntime, E: CubeElement>(
 
     let shape_out = Shape::new([batch_size, out_channels * options.groups, out_0, out_1]);
 
-    let output = empty_device::<R, E>(
+    let output = empty_device_contiguous::<R, E>(
         input.client.clone(),
         input.device.clone(),
         shape_out.clone(),
@@ -153,26 +153,26 @@ pub fn conv_transpose2d_direct<R: CubeRuntime, E: CubeElement>(
 
     let bias = match bias {
         Some(bias) => {
-            let shape = Shape::from([bias.shape.dims[0], 1, 1, 1]);
+            let shape = Shape::from([bias.shape().dims[0], 1, 1, 1]);
             reshape(bias, shape)
         }
         None => {
-            let shape = Shape::from([output.shape.dims[0], 1, 1, 1]);
+            let shape = Shape::from([output.shape().dims[0], 1, 1, 1]);
             zeros_device::<R, E>(input.client.clone(), input.device.clone(), shape)
         }
     };
 
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let cube_count = calculate_cube_count_elemwise(output.shape().num_elements(), cube_dim);
 
     conv_transpose2d_direct_kernel::launch::<E, R>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<E>(1),
-        weight.as_tensor_arg::<E>(1),
-        bias.as_tensor_arg::<E>(1),
-        output.as_tensor_arg::<E>(1),
+        input.as_tensor_arg(1),
+        weight.as_tensor_arg(1),
+        bias.as_tensor_arg(1),
+        output.as_tensor_arg(1),
         ConvArgsLaunch::new(
             ScalarArg::new(options.stride[0] as u32),
             ScalarArg::new(options.stride[1] as u32),

@@ -126,14 +126,14 @@ pub(crate) fn interpolate_bicubic_launch<R: CubeRuntime, E: FloatElement>(
     output: CubeTensor<R>,
 ) -> CubeTensor<R> {
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let cube_count = calculate_cube_count_elemwise(output.shape().num_elements(), cube_dim);
 
     interpolate_bicubic_kernel::launch::<E, R>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<E>(1),
-        output.as_tensor_arg::<E>(1),
+        input.as_tensor_arg(1),
+        output.as_tensor_arg(1),
     );
 
     output

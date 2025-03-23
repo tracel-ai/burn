@@ -34,7 +34,11 @@ where
                 client = Some(t.client.clone());
             }
 
-            kinds.push(Kind::Float(num_bindings, t.shape.into(), F::dtype()));
+            kinds.push(Kind::Float(
+                num_bindings,
+                t.handle.shape.clone(),
+                F::dtype(),
+            ));
             num_bindings += 1;
             bindings.push(t.handle.binding())
         });
@@ -43,7 +47,7 @@ where
                 client = Some(t.client.clone());
             }
 
-            kinds.push(Kind::Int(num_bindings, t.shape.into(), I::dtype()));
+            kinds.push(Kind::Int(num_bindings, t.handle.shape.clone(), I::dtype()));
             num_bindings += 1;
             bindings.push(t.handle.binding())
         });
@@ -52,7 +56,11 @@ where
                 client = Some(t.client.clone());
             }
 
-            kinds.push(Kind::Bool(num_bindings, t.shape.into(), BT::dtype()));
+            kinds.push(Kind::Bool(
+                num_bindings,
+                t.handle.shape.clone(),
+                BT::dtype(),
+            ));
             num_bindings += 1;
             bindings.push(t.handle.binding())
         });

@@ -1,4 +1,6 @@
-use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
+use crate::{
+    CubeRuntime, element::CubeElement, ops::numeric::empty_device_contiguous, tensor::CubeTensor,
+};
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
     tensor_line_size_parallel,
@@ -55,16 +57,16 @@ where
     E: CubeElement + Float,
     O: FloatUnaryOpFamily,
 {
-    let ndims = tensor.shape.num_dims();
+    let ndims = tensor.shape().num_dims();
     let line_size = tensor_line_size_parallel(
         R::line_size_elem(&E::as_elem_native_unchecked()),
-        &tensor.shape.dims,
-        &tensor.strides,
+        &tensor.shape().dims,
+        tensor.strides(),
         ndims - 1,
     );
 
     let client = tensor.client.clone();
-    let num_elems = tensor.shape.num_elements();
+    let num_elems = tensor.shape().num_elements();
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
@@ -76,7 +78,7 @@ where
                 &client,
                 cube_count,
                 cube_dim,
-                tensor.as_tensor_arg::<E>(line_size),
+                tensor.as_tensor_arg(line_size),
                 TensorArg::alias(0),
                 args(&()),
                 None,
@@ -85,18 +87,18 @@ where
 
             tensor
         } else {
-            let output = empty_device::<R, E>(
+            let output = empty_device_contiguous::<R, E>(
                 tensor.client.clone(),
                 tensor.device.clone(),
-                tensor.shape.clone(),
+                tensor.shape().clone(),
             );
 
             unary_float::launch_unchecked::<E, O, R>(
                 &client,
                 cube_count,
                 CubeDim::default(),
-                tensor.as_tensor_arg::<E>(line_size),
-                output.as_tensor_arg::<E>(line_size),
+                tensor.as_tensor_arg(line_size),
+                output.as_tensor_arg(line_size),
                 args(&()),
                 Some(ndims as u32),
                 !is_contiguous,

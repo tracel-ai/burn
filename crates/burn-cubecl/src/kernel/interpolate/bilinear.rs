@@ -84,14 +84,14 @@ pub(crate) fn interpolate_bilinear_launch<R: CubeRuntime, F: FloatElement>(
     output: CubeTensor<R>,
 ) -> CubeTensor<R> {
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let cube_count = calculate_cube_count_elemwise(output.shape().num_elements(), cube_dim);
 
     interpolate_bilinear_kernel::launch::<F, R>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<F>(1),
-        output.as_tensor_arg::<F>(1),
+        input.as_tensor_arg(1),
+        output.as_tensor_arg(1),
     );
 
     output
