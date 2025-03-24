@@ -211,6 +211,8 @@ where
     /// # Arguments
     ///
     /// * `shape`: The shape of the matrix.
+    /// * `offset`: The offset from the diagonal, where 0 means the diagonal, and positive values shift
+    ///    towards the upper triangle.
     /// * `device`: The device on which the tensor will be allocated.
     ///
     /// # Returns
