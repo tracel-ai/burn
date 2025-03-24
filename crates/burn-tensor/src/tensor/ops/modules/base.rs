@@ -5,7 +5,7 @@ use super::{conv, pool, unfold::unfold4d_using_conv2d};
 use crate::{
     Shape, TensorMetadata,
     backend::Backend,
-    ops::{BoolTensor, FloatTensor, IntTensor},
+    ops::{FloatTensor, IntTensor},
 };
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
@@ -774,8 +774,6 @@ pub trait ModuleOps<B: Backend> {
     /// - `query` (Q): The query tensor of shape (batch, num_heads, seq_len_q, d_k).
     /// - `key` (K): The key tensor of shape (batch, num_heads, seq_len_k, d_k).
     /// - `value` (V): The value tensor of shape (batch, num_heads, seq_len_k, d_v).
-    /// - `mask_pad`: [TODO] Optional padding mask of shape (batch, 1, 1, seq_len_k).
-    /// - `mask_attn`: [TODO] Optional attention mask of shape (batch, num_heads, seq_len_q, seq_len_k).
     ///
     /// # Returns
     /// - A tensor of shape (batch, num_heads, seq_len_q, d_v) containing the attention output.
@@ -783,8 +781,6 @@ pub trait ModuleOps<B: Backend> {
         query: FloatTensor<B>,
         key: FloatTensor<B>,
         value: FloatTensor<B>,
-        _mask_pad: Option<BoolTensor<B>>,
-        _mask_attn: Option<BoolTensor<B>>,
     ) -> FloatTensor<B> {
         let d_k_sqrt = (query.shape().dims[3] as f32).sqrt();
         let scores = B::float_matmul(query, B::float_transpose(key));
