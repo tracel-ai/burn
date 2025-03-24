@@ -173,7 +173,9 @@ where
         self.primitive.shape()
     }
 
-    /// Reshape the tensor to have the given shape, keeping the same values in the same order.
+    /// Reshape the tensor to have the given shape.
+    ///
+    /// The tensor has the same data and number of elements as the input.
     ///
     /// A `-1` in the shape is used to infer the remaining dimensions, e.g.: `[2, -1]`
     /// will reshape the tensor with [2, 3, 4] dimensions to [2, 12].
@@ -215,7 +217,9 @@ where
 
     /// Transpose the tensor. Permute the 2 last dimensions of the tensor.
     ///
-    /// For a tensor with a shape `[1, 2, 3, 4]` the result will be a tensor with a shape `[1, 2, 4, 3]`.
+    /// For a 2D tensor, this is the standard matrix transpose. For `D > 2`, the transpose is
+    /// applied on the last two dimensions. For example, the transpose of a tensor with shape
+    /// `[1, 2, 3, 4]` will have shape `[1, 2, 4, 3]`.
     ///
     /// See also [`permute`](Tensor::permute).
     ///
@@ -660,8 +664,7 @@ where
         Tensor::new(K::reshape(self.primitive, new_dims.into()))
     }
 
-    /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
-    /// New dimensions will be added in front of existing dimensions.
+    /// Unsqueeze the current tensor. Create new leading dimensions to fit the given size.
     ///
     /// # Type Parameters
     ///
@@ -669,7 +672,7 @@ where
     ///
     /// # Panics
     ///
-    /// If `D2` is lower than the actual number of dimensions.
+    /// If the output size `D2` is smaller than the current number of dimensions.
     ///
     /// # Returns
     ///
@@ -927,11 +930,7 @@ where
         K::device(&self.primitive)
     }
 
-    /// Returns a new tensor on the given device filled with the values of the current tensor.
-    ///
-    /// # Note
-    ///
-    /// Unlike the name implies, this is a `into_` conversion that takes ownership of current tensor.
+    /// Move the tensor to the given device.
     pub fn to_device(self, device: &B::Device) -> Self {
         Self::new(K::to_device(self.primitive, device))
     }
@@ -1000,6 +999,7 @@ where
 
     /// Repeat the tensor along the given dimension.
     ///
+    /// The output tensor has the same shape, except along the given dimension.
     ///
     /// # Arguments
     /// - `dim`: The dimension to repeat.
@@ -1007,8 +1007,7 @@ where
     ///
     /// # Returns
     ///
-    /// A new tensor with the given dimension repeated `times` times, the new tensor has the same rank but
-    /// a modified shape with a size multiplied by `times` in the given dimension.
+    /// A new tensor with the given dimension repeated `times` times.
     ///
     /// # Example
     ///
@@ -1072,7 +1071,10 @@ where
         tensor
     }
 
-    /// Applies element-wise equal comparison and returns a boolean tensor with the same shape.
+    /// Applies element-wise equal comparison.
+    ///
+    /// # Returns
+    /// A boolean tensor that is `true` where input is equal to `other` and `false` elsewhere.
     ///
     /// # Panics
     ///
@@ -1099,7 +1101,10 @@ where
         Tensor::new(K::equal(self.primitive, other.primitive))
     }
 
-    /// Applies element-wise non-equality comparison and returns a boolean tensor with the same shape.
+    /// Applies element-wise non-equality comparison.
+    ///
+    /// # Returns
+    /// A boolean tensor that is `true` where input is not equal to `other` and `false` elsewhere.
     ///
     /// # Panics
     ///
@@ -1581,12 +1586,8 @@ where
 
     /// Broadcast the tensor to the given shape.
     ///
-    /// For each dimension:
-    /// - If current size is `1` and the requested size is `n` > 1, the tensor will be extended by
-    ///   repeating itself in this dimension.
-    /// - If the current size is `n` > 1, then output size must be `n`. `-1` can be used to inferred this
-    ///   automatically.
-    /// - Otherwise tensor cannot be broadcasted.
+    /// Only singleton dimensions can be expanded to a larger size. Other dimensions must have the same size
+    /// (which can be inferred with `-1`).
     ///
     /// # Arguments
     ///
