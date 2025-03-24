@@ -372,9 +372,9 @@ where
     ///     println!("{moved}");
     /// }
     /// ```
-    /// 
+    ///
     /// # Note
-    /// 
+    ///
     /// This is a syntactic sugar for `permute`. It is used widely enough, so we define a separate Op
     /// for it
     pub fn movedim<S1: MovedimArgs, S2: MovedimArgs>(self, src: S1, dst: S2) -> Tensor<B, D, K> {
@@ -531,7 +531,7 @@ where
     ///  - `D2`: The resulting number of dimensions in the squeezed tensor.
     ///
     /// # Panics
-    /// 
+    ///
     /// If the size in the squeezed dimension is not 1.
     ///  
     /// # Returns
@@ -668,7 +668,7 @@ where
     ///  - `D2`: The resulting number of dimensions in the unsqueezed tensor.
     ///
     /// # Panics
-    /// 
+    ///
     /// If `D2` is lower than the actual number of dimensions.
     ///  
     /// # Returns
@@ -928,7 +928,7 @@ where
     }
 
     /// Returns a new tensor on the given device filled with the values of the current tensor.
-    /// 
+    ///
     /// # Note
     ///
     /// Unlike the name implies, this is a `into_` conversion that takes ownership of current tensor.
@@ -1580,7 +1580,7 @@ where
     }
 
     /// Broadcast the tensor to the given shape.
-    /// 
+    ///
     /// For each dimension:
     /// - If current size is `1` and the requested size is `n` > 1, the tensor will be extended by
     /// repeating itself in this dimension.

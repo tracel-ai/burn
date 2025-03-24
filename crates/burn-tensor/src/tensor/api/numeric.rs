@@ -1437,7 +1437,7 @@ where
     ///
     /// * `diagonal` - The offset from the diagonal, where 0 means the diagonal, and positive values shift
     ///    towards the upper triangle.
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// use burn_tensor::backend::Backend;
@@ -1564,7 +1564,7 @@ where
     ///    let tensor = Tensor::<B, 2, Int>::from_ints([[1, -2, 3], [5, 9, 6]], &device);
     ///    let tensor = tensor.powi_scalar(2);
     ///    println!("{tensor}");
-    /// 
+    ///
     ///    // [[1, 4, 9], [25, 81, 36]]
     ///    let tensor = Tensor::<B, 2>::from_data([[1.5, -2., 3.], [5., 9., 6.]], &device);
     ///    let tensor = tensor.powi_scalar(2);

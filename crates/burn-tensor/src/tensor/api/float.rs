@@ -65,9 +65,9 @@ where
         )))
     }
 
-    /// Applies [reciprocal operation](https://en.wikipedia.org/wiki/Multiplicative_inverse) 
+    /// Applies [reciprocal operation](https://en.wikipedia.org/wiki/Multiplicative_inverse)
     /// (or multiplicative inverse) element wise.
-    /// 
+    ///
     /// `y = 1/x`
     pub fn recip(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_recip(
