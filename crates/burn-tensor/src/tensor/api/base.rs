@@ -533,7 +533,7 @@ where
     /// # Panics
     ///
     /// If the size in the squeezed dimension is not 1.
-    ///  
+    ///
     /// # Returns
     ///
     /// A new `Tensor<B, D2, K>` instance with the specified dimension removed.
@@ -670,7 +670,7 @@ where
     /// # Panics
     ///
     /// If `D2` is lower than the actual number of dimensions.
-    ///  
+    ///
     /// # Returns
     ///
     /// A new `Tensor<B, D2, K>` instance with the specified dimensions added.
