@@ -1583,9 +1583,9 @@ where
     ///
     /// For each dimension:
     /// - If current size is `1` and the requested size is `n` > 1, the tensor will be extended by
-    /// repeating itself in this dimension.
+    ///   repeating itself in this dimension.
     /// - If the current size is `n` > 1, then output size must be `n`. `-1` can be used to inferred this
-    /// automatically.
+    ///   automatically.
     /// - Otherwise tensor cannot be broadcasted.
     ///
     /// # Arguments
