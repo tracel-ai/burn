@@ -203,12 +203,18 @@ pub fn swizzle(offset: u32, #[comptime] bank_count: i32) -> u32 {
 
 /// Transpose an NCHW tensor to NHWC.
 pub fn permute_nchw_to_nhwc<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> CubeTensor<R> {
-    if input.is_contiguous()
-        && input
+    let use_plane = if cfg!(target_family = "wasm") {
+        // Any plane op enables subgroups on wasm so we need to make sure it is entirely supported.
+        // Otherwise, `nchw_to_nhwc` will cause compilation issues on wasm.
+        input
             .client
             .properties()
             .feature_enabled(cubecl::Feature::Plane)
-    {
+    } else {
+        true // plane broadcast was/is always used on other platforms
+    };
+
+    if input.is_contiguous() && use_plane {
         nchw_to_nhwc::<R, E>(input)
     } else {
         crate::ops::permute(input, &[0, 2, 3, 1])
