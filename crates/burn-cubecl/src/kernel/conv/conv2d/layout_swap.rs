@@ -200,3 +200,17 @@ pub fn swizzle(offset: u32, #[comptime] bank_count: i32) -> u32 {
 
     offset ^ ((offset & yyy_mask) >> mask_shift)
 }
+
+/// Transpose an NCHW tensor to NHWC.
+pub fn permute_nchw_to_nhwc<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> CubeTensor<R> {
+    if input.is_contiguous()
+        && input
+            .client
+            .properties()
+            .feature_enabled(cubecl::Feature::Plane)
+    {
+        nchw_to_nhwc::<R, E>(input)
+    } else {
+        crate::ops::permute(input, &[0, 2, 3, 1])
+    }
+}
