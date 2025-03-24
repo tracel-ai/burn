@@ -281,4 +281,16 @@ pub trait ActivationOps<B: Backend> {
             ),
         )
     }
+
+    /// Applies the softmax function on the input tensor along the given dimension.
+    ///
+    /// `softmax(x_i) = exp(x_i) / sum_j(exp(x_j))`
+    fn softmax(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
+        let max_dim = B::float_max_dim(tensor.clone(), dim);
+        let tensor = B::float_sub(tensor, max_dim);
+        let tensor = B::float_exp(tensor);
+        let tensor_tmp = B::float_sum_dim(tensor.clone(), dim);
+
+        B::float_div(tensor, tensor_tmp)
+    }
 }

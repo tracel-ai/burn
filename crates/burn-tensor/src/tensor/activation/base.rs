@@ -71,11 +71,10 @@ pub fn prelu<const D: usize, B: Backend>(
 pub fn softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
     check!(TensorCheck::dim_ops::<D>("softmax", dim));
 
-    let tensor = tensor.clone() - tensor.detach().max_dim(dim);
-    let tensor = tensor.exp();
-    let tensor_tmp = tensor.clone().sum_dim(dim);
-
-    tensor.div(tensor_tmp)
+    Tensor::from_primitive(TensorPrimitive::Float(B::softmax(
+        tensor.primitive.tensor(),
+        dim,
+    )))
 }
 
 /// Applies the softmin function on the input tensor along the given dimension.

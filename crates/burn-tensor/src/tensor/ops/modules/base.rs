@@ -1,10 +1,11 @@
+use crate::ElementConversion;
 use core::num::NonZeroUsize;
 
 use super::{conv, pool, unfold::unfold4d_using_conv2d};
 use crate::{
     Shape, TensorMetadata,
     backend::Backend,
-    ops::{FloatTensor, IntTensor},
+    ops::{BoolTensor, FloatTensor, IntTensor},
 };
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
@@ -764,6 +765,33 @@ pub trait ModuleOps<B: Backend> {
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<B>;
+
+    /// Attention forward pass
+    ///
+    /// Computes: softmax((Q K^T) / sqrt(d_k)) V
+    ///
+    /// # Arguments
+    /// - `query` (Q): The query tensor of shape (batch, num_heads, seq_len_q, d_k).
+    /// - `key` (K): The key tensor of shape (batch, num_heads, seq_len_k, d_k).
+    /// - `value` (V): The value tensor of shape (batch, num_heads, seq_len_k, d_v).
+    /// - `mask_pad`: [TODO] Optional padding mask of shape (batch, 1, 1, seq_len_k).
+    /// - `mask_attn`: [TODO] Optional attention mask of shape (batch, num_heads, seq_len_q, seq_len_k).
+    ///
+    /// # Returns
+    /// - A tensor of shape (batch, num_heads, seq_len_q, d_v) containing the attention output.
+    fn attention(
+        query: FloatTensor<B>,
+        key: FloatTensor<B>,
+        value: FloatTensor<B>,
+        _mask_pad: Option<BoolTensor<B>>,
+        _mask_attn: Option<BoolTensor<B>>,
+    ) -> FloatTensor<B> {
+        let d_k_sqrt = (query.shape().dims[3] as f32).sqrt();
+        let scores = B::float_matmul(query, B::float_transpose(key));
+        let scaled_scores = B::float_div_scalar(scores, B::FloatElem::from_elem(d_k_sqrt));
+        let attention_weights = B::softmax(scaled_scores, 3);
+        B::float_matmul(attention_weights, value)
+    }
 }
 
 #[cfg(test)]
