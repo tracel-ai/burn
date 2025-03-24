@@ -5,7 +5,7 @@ use burn::{
 };
 
 #[cfg(feature = "wgpu")]
-use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice, init_setup_async};
+use burn::backend::wgpu::{Wgpu, WgpuDevice, graphics::AutoGraphicsApi, init_setup_async};
 
 #[cfg(feature = "wgpu")]
 pub type Backend = Wgpu<f32, i32>;
