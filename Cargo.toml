@@ -124,7 +124,7 @@ cfg-if = "1.0.0"
 derive-new = { version = "0.7.0", default-features = false }
 
 blas-src = { version = "0.10.0", default-features = false }
-bon = "3.5.0"
+bon = "3.5.1"
 half = { version = "2.5.0", features = [
     "alloc",
     "num-traits",
