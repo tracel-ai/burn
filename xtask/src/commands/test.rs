@@ -100,27 +100,29 @@ pub(crate) fn handle_command(
                     "std wgpu",
                 )?;
 
-                let disable_wgpu_spirv = std::env::var("DISABLE_WGPU_SPIRV")
-                    .map(|val| val == "1" || val == "true")
-                    .unwrap_or(false);
-
                 // Vulkan isn't available on MacOS
                 #[cfg(not(target_os = "macos"))]
-                if !disable_wgpu_spirv {
-                    helpers::custom_crates_tests(
-                        vec!["burn-core"],
-                        vec!["--features", "test-wgpu-spirv"],
-                        None,
-                        None,
-                        "std vulkan",
-                    )?;
-                    helpers::custom_crates_tests(
-                        vec!["burn-vision"],
-                        vec!["--features", "test-vulkan"],
-                        None,
-                        None,
-                        "std vulkan",
-                    )?;
+                {
+                    let disable_wgpu_spirv = std::env::var("DISABLE_WGPU_SPIRV")
+                        .map(|val| val == "1" || val == "true")
+                        .unwrap_or(false);
+
+                    if !disable_wgpu_spirv {
+                        helpers::custom_crates_tests(
+                            vec!["burn-core"],
+                            vec!["--features", "test-wgpu-spirv"],
+                            None,
+                            None,
+                            "std vulkan",
+                        )?;
+                        helpers::custom_crates_tests(
+                            vec!["burn-vision"],
+                            vec!["--features", "test-vulkan"],
+                            None,
+                            None,
+                            "std vulkan",
+                        )?;
+                    }
                 }
             }
 
