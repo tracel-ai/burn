@@ -7,7 +7,7 @@ use protobuf::Enum;
 use crate::{
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
     protos::tensor_proto::DataType,
-    util::{flatten_config, shape_config},
+    util::shape_config,
 };
 
 /// Infer the rank of each output tensor and update them.
@@ -637,15 +637,9 @@ fn flatten_update_outputs(node: &mut Node) {
         })
         .unwrap();
 
-    let input_rank = tensor.rank;
-
-    let (start_dim, end_dim) = flatten_config(node);
-
-    let collapsed_dims = end_dim - start_dim;
-    let output_rank = input_rank - collapsed_dims;
-
+    // Flatten to a 2D tensor
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        rank: output_rank,
+        rank: 2,
         ..tensor.clone()
     });
 }

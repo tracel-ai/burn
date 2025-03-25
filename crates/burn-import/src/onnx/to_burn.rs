@@ -670,9 +670,9 @@ impl ParsedOnnxGraph {
     fn flatten_conversion(node: Node) -> UnaryNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        let (start_dim, end_dim) = flatten_config(&node);
+        let axis = flatten_config(&node);
 
-        UnaryNode::flatten(input, output, start_dim, end_dim)
+        UnaryNode::flatten(input, output, axis)
     }
 
     fn gather_conversion(node: Node) -> GatherNode {

@@ -170,12 +170,22 @@ impl UnaryNode {
         Self::new(input, output, UnaryNodeKind::Erf, Rc::new(function))
     }
 
-    pub(crate) fn flatten(input: Type, output: Type, start_dim: usize, end_dim: usize) -> Self {
-        let start_dim = start_dim.to_tokens();
-        let end_dim = end_dim.to_tokens();
-        let function = move |input| quote! { #input.flatten::<2>(#start_dim, #end_dim) };
-
-        Self::new(input, output, UnaryNodeKind::Flatten, Rc::new(function))
+    pub(crate) fn flatten(input: Type, output: Type, axis: usize) -> Self {
+        if axis == 0 {
+            let function = move |input| quote! {#input.reshape::<2>([1, -1])};
+            Self::new(input, output, UnaryNodeKind::Flatten, Rc::new(function))
+        } else {
+            let axis = axis.to_tokens();
+            let function = move |input| {
+                quote! {
+                    {
+                        let leading_dim = #input.shape().dims[..#axis].iter().product::<usize>() as i32;
+                        #input.reshape::<2, _>([leading_dim, -1])
+                    };
+                }
+            };
+            Self::new(input, output, UnaryNodeKind::Flatten, Rc::new(function))
+        }
     }
 
     pub(crate) fn relu(input: Type, output: Type) -> Self {
@@ -504,11 +514,13 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 2)),
                 1,
-                2,
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 2> {
-                    let tensor2 = tensor1.flatten::<2>(1, 2);
+                    let tensor2 = {
+                        let leading_dim = tensor1.shape().dims[..1].iter().product::<usize>() as i32;
+                        tensor1.reshape::<2, _>([leading_dim, -1])
+                    };
 
                     tensor2
                 }
