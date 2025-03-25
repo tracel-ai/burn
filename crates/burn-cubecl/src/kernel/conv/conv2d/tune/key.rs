@@ -10,15 +10,15 @@ pub struct Conv2dAutotuneKey {
     pub padding: [usize; 2],
     pub dilation: [usize; 2],
     pub groups: usize,
-    #[autotune(anchor)]
+    #[autotune(anchor())]
     pub in_channels: usize,
-    #[autotune(anchor)]
+    #[autotune(anchor())]
     pub out_channels: usize,
-    #[autotune(anchor)]
+    #[autotune(anchor())]
     pub height: usize,
-    #[autotune(anchor)]
+    #[autotune(anchor())]
     pub width: usize,
-    #[autotune(anchor)]
+    #[autotune(anchor())]
     pub batch_size: usize,
     pub has_bias: bool,
     pub dtype: DType,
@@ -33,15 +33,15 @@ pub struct ConvTranspose2dAutotuneKey {
     pub padding_out: [usize; 2],
     pub dilation: [usize; 2],
     pub groups: usize,
-    #[autotune(anchor)]
+    #[autotune(anchor())]
     pub in_channels: usize,
-    #[autotune(anchor)]
+    #[autotune(anchor())]
     pub out_channels: usize,
-    #[autotune(anchor)]
+    #[autotune(anchor())]
     pub height: usize,
-    #[autotune(anchor)]
+    #[autotune(anchor())]
     pub width: usize,
-    #[autotune(anchor)]
+    #[autotune(anchor())]
     pub batch_size: usize,
     pub has_bias: bool,
     pub dtype: DType,

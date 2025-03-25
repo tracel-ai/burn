@@ -276,11 +276,11 @@ impl MatmulArgs for FusedMatmulArgs {
         let tmp_input = SharedMemory::new(1);
         let mut tmp_out = SharedMemory::new(1);
 
-        Quantization::<EG>::new(
-            tmp_input.to_slice(),
-            tmp_input.to_slice(),
-            tmp_out.to_slice_mut(),
-        )
+        Quantization::<EG> {
+            lhs: tmp_input.to_slice(),
+            rhs: tmp_input.to_slice(),
+            out: tmp_out.to_slice_mut(),
+        }
     }
 }
 
