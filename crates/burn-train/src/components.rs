@@ -6,7 +6,6 @@ use burn_core::{
     lr_scheduler::LrScheduler,
     module::{AutodiffModule, Module},
     optim::Optimizer,
-    prelude::Backend,
     tensor::backend::AutodiffBackend,
 };
 use std::marker::PhantomData;
@@ -78,9 +77,8 @@ where
     type CheckpointerStrategy = S;
 }
 
-/// The training device.
-pub type TrainDevice<LC> = <<LC as LearnerComponents>::Backend as Backend>::Device;
+/// The training backend.
+pub type TrainBackend<LC> = <LC as LearnerComponents>::Backend;
 
-/// The validation device.
-pub type ValidDevice<LC> =
-    <<<LC as LearnerComponents>::Backend as AutodiffBackend>::InnerBackend as Backend>::Device;
+/// The validation backend.
+pub type ValidBackend<LC> = <<LC as LearnerComponents>::Backend as AutodiffBackend>::InnerBackend;

@@ -1,6 +1,6 @@
 use super::{
-    batcher::DynBatcher, BatchDispatcher, BatchStrategy, FixBatchStrategy, FixedDispatcher,
-    LazyBatchDataLoader, LazyDataLoader,
+    batcher::DynBatcher, BatchDataLoader, BatchStrategy, DataLoader, FixBatchStrategy,
+    MultiThreadDataLoader,
 };
 use burn_dataset::Dataset;
 use burn_tensor::backend::Backend;
@@ -13,7 +13,7 @@ pub struct DataLoaderBuilder<B: Backend, I, O> {
     batcher: Box<dyn DynBatcher<B, I, O>>,
     num_threads: Option<usize>,
     shuffle: Option<u64>,
-    dispatcher: Option<Box<dyn BatchDispatcher<Resource = B::Device>>>,
+    device: Option<B::Device>,
 }
 
 impl<B, I, O> DataLoaderBuilder<B, I, O>
@@ -40,7 +40,7 @@ where
             strategy: None,
             num_threads: None,
             shuffle: None,
-            dispatcher: None,
+            device: None,
         }
     }
 
@@ -89,20 +89,17 @@ where
         self
     }
 
-    /// Sets the data loader device dispatching/selection strategy for a batch.
+    /// Sets the data loader device.
     ///
     /// # Arguments
     ///
-    /// * `dispatcher` - The device dispatching strategy.
+    /// * `device` - The device to use when loading a batch.
     ///
     /// # Returns
     ///
     /// The data loader builder.
-    pub fn dispatcher<D>(mut self, dispatcher: D) -> Self
-    where
-        D: BatchDispatcher<Resource = B::Device>,
-    {
-        self.dispatcher = Some(dispatcher.clone_dyn());
+    pub fn set_device<D>(mut self, device: B::Device) -> Self {
+        self.device = Some(device);
         self
     }
 
@@ -115,30 +112,35 @@ where
     /// # Returns
     ///
     /// The data loader.
-    pub fn build<D>(self, dataset: D) -> Arc<dyn LazyDataLoader<O, Resource = B::Device>>
+    pub fn build<D>(self, dataset: D) -> Arc<dyn DataLoader<B, O>>
     where
         D: Dataset<I> + 'static,
     {
         let dataset = Arc::new(dataset);
 
+        let device = self.device.unwrap_or(Default::default());
         let rng = self.shuffle.map(StdRng::seed_from_u64);
         let strategy = match self.strategy {
             Some(strategy) => strategy,
             None => Box::new(FixBatchStrategy::new(1)),
         };
+        if let Some(num_threads) = self.num_threads {
+            return Arc::new(MultiThreadDataLoader::new(
+                strategy,
+                dataset,
+                self.batcher,
+                num_threads,
+                device,
+                rng,
+            ));
+        }
 
-        let dispatcher = match self.dispatcher {
-            Some(dispatcher) => dispatcher,
-            None => Box::new(FixedDispatcher::new(vec![Default::default()])),
-        };
-
-        Arc::new(LazyBatchDataLoader::new(
+        Arc::new(BatchDataLoader::new(
             strategy,
             dataset,
             self.batcher,
-            Arc::from(dispatcher),
+            device,
             rng,
-            self.num_threads.unwrap_or(0),
         ))
     }
 }
@@ -146,12 +148,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::dataloader::FixedDispatcher;
     use crate::data::dataset::FakeDataset;
     use crate::{data::dataloader::batcher::Batcher, TestBackend};
 
     #[test]
-    fn test_default_device_distributor() {
+    fn test_dataloader_default_device() {
         type TestDevice = <TestBackend as Backend>::Device;
 
         #[derive(new, Clone)]
@@ -164,12 +165,13 @@ mod tests {
             }
         }
 
-        // `LazyBatchDataLoader` with no BatchDispatcher fixed device (default)
         let default_device = TestDevice::default();
         let dataloader = DataLoaderBuilder::new(TestBatcher::new())
             .batch_size(1)
             .num_workers(1)
             .build(FakeDataset::<String>::new(9));
+
+        assert_eq!(dataloader.num_items(), 9);
 
         for device in dataloader.iter() {
             assert_eq!(device, default_device)
@@ -177,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multi_device_distributor() {
+    fn test_dataloader_slice_multi_device() {
         type TestDevice = <TestBackend as Backend>::Device;
 
         #[derive(new, Clone)]
@@ -190,12 +192,10 @@ mod tests {
             }
         }
 
-        // `LazyBatchDataLoader` with no BatchDispatcher fixed device (default)
-        let num_items = 11;
         let dataloader = DataLoaderBuilder::new(TestBatcher::new())
             .batch_size(1)
             .num_workers(1)
-            .build(FakeDataset::<String>::new(num_items));
+            .build(FakeDataset::<String>::new(11));
 
         #[cfg(all(
             test,
@@ -224,17 +224,18 @@ mod tests {
         #[cfg(all(test, feature = "test-cuda"))]
         let (device1, device2) = (burn_cuda::CudaDevice::new(0), burn_cuda::CudaDevice::new(1));
 
-        let fixed_devices = vec![
-            FixedDispatcher::new(vec![device1.clone()]).clone_dyn(),
-            FixedDispatcher::new(vec![device2.clone()]).clone_dyn(),
-        ];
-        let dataloaders = dataloader.split(fixed_devices);
+        assert_eq!(dataloader.num_items(), 11);
+        let mut dataloader_1 = dataloader.slice(0, 5);
+        dataloader_1.set_device(device1.clone());
+        let mut dataloader_2 = dataloader.slice(5, 11);
+        dataloader_2.set_device(device2.clone());
 
-        assert_eq!(dataloaders.len(), 2);
+        assert_eq!(dataloader_1.num_items(), 5);
+        assert_eq!(dataloader_2.num_items(), 6);
 
-        let (mut iterator_1, mut iterator_2) = (dataloaders[0].iter(), dataloaders[1].iter());
+        let (mut iterator_1, mut iterator_2) = (dataloader_1.iter(), dataloader_2.iter());
 
-        for _ in 0..num_items / 2 {
+        for _ in 0..5 {
             assert_eq!(iterator_1.next(), Some(device1.clone()));
             assert_eq!(iterator_2.next(), Some(device2.clone()));
         }

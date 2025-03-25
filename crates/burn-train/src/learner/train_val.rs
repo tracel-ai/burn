@@ -1,7 +1,7 @@
-use crate::components::{LearnerComponents, TrainDevice, ValidDevice};
+use crate::components::{LearnerComponents, TrainBackend, ValidBackend};
 use crate::metric::processor::EventProcessor;
 use crate::{Learner, TrainEpoch, ValidEpoch};
-use burn_core::data::dataloader::{BatchDispatcher, FixedDispatcher, LazyDataLoader};
+use burn_core::data::dataloader::DataLoader;
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::AutodiffBackend;
@@ -110,8 +110,8 @@ impl<LC: LearnerComponents> Learner<LC> {
     /// The fitted model.
     pub fn fit<InputTrain, InputValid, OutputTrain, OutputValid>(
         mut self,
-        dataloader_train: Arc<dyn LazyDataLoader<InputTrain, Resource = TrainDevice<LC>>>,
-        dataloader_valid: Arc<dyn LazyDataLoader<InputValid, Resource = ValidDevice<LC>>>,
+        dataloader_train: Arc<dyn DataLoader<TrainBackend<LC>, InputTrain>>,
+        dataloader_valid: Arc<dyn DataLoader<ValidBackend<LC>, InputValid>>,
     ) -> LC::Model
     where
         InputTrain: Send + 'static,
@@ -144,21 +144,28 @@ impl<LC: LearnerComponents> Learner<LC> {
             None => 1,
         };
 
-        // Split the data loader for each device
+        // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy
+        // for each (worker) data loader. This matches the expected device on the worker, so we
+        // don't have to move the data between devices.
         let dataloaders_train = if self.devices.len() > 1 {
-            let fixed_devices = self
-                .devices
-                .iter()
-                // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy
-                // for each (worker) data loader. This matches the expected device on the worker, so we
-                // don't have to move the data between devices.
-                .map(|device| FixedDispatcher::new(vec![device.clone()]).clone_dyn())
-                .collect();
-            dataloader_train
-                .split(fixed_devices)
-                .into_iter()
-                .map(Arc::from)
-                .collect::<Vec<_>>()
+            let num_splits = self.devices.len();
+            let num_items = dataloader_train.num_items();
+            let mut dataloaders = Vec::with_capacity(num_splits);
+
+            let mut start = 0;
+            let step = num_items / num_splits;
+            for i in 0..num_splits {
+                let end = if i == (num_splits - 1) {
+                    num_items
+                } else {
+                    start + step
+                };
+                let mut dataloader = dataloader_train.slice(start, end);
+                dataloader.set_device(self.devices[i].clone());
+                dataloaders.push(Arc::from(dataloader));
+                start = end;
+            }
+            dataloaders
         } else {
             vec![dataloader_train]
         };

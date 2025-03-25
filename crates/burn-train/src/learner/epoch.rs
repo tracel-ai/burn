@@ -1,5 +1,5 @@
-use burn_core::data::dataloader::LazyDataLoader;
-use burn_core::tensor::backend::{AutodiffBackend, DeviceOps};
+use burn_core::data::dataloader::DataLoader;
+use burn_core::tensor::backend::AutodiffBackend;
 use burn_core::{
     lr_scheduler::LrScheduler, module::AutodiffModule, optim::GradientsAccumulator,
     tensor::backend::Backend,
@@ -12,22 +12,22 @@ use crate::{MultiDevicesTrainStep, TrainStep, ValidStep};
 
 /// A validation epoch.
 #[derive(new)]
-pub struct ValidEpoch<VI, R> {
-    dataloader: Arc<dyn LazyDataLoader<VI, Resource = R>>,
+pub struct ValidEpoch<B: Backend, VI> {
+    dataloader: Arc<dyn DataLoader<B, VI>>,
     epoch: usize,
     epoch_total: usize,
 }
 
 /// A training epoch.
 #[derive(new)]
-pub struct TrainEpoch<TI, R> {
-    dataloader: Vec<Arc<dyn LazyDataLoader<TI, Resource = R>>>,
+pub struct TrainEpoch<B: AutodiffBackend, TI> {
+    dataloader: Vec<Arc<dyn DataLoader<B, TI>>>,
     epoch: usize,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<VI, R> ValidEpoch<VI, R> {
+impl<B: Backend, VI> ValidEpoch<B, VI> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
@@ -42,6 +42,7 @@ impl<VI, R> ValidEpoch<VI, R> {
     ) where
         LC::EventProcessor: EventProcessor<ItemValid = VO>,
         <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<VI, VO>,
+        LC::Backend: AutodiffBackend<InnerBackend = B>,
     {
         log::info!("Executing validation step for epoch {}", self.epoch);
         let model = model.valid();
@@ -74,7 +75,7 @@ impl<VI, R> ValidEpoch<VI, R> {
     }
 }
 
-impl<TI, R> TrainEpoch<TI, R> {
+impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     /// Runs the training epoch.
     ///
     /// # Arguments
@@ -87,7 +88,7 @@ impl<TI, R> TrainEpoch<TI, R> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    pub fn run<LC: LearnerComponents, TO>(
+    pub fn run<LC: LearnerComponents<Backend = B>, TO>(
         &mut self,
         mut model: LC::Model,
         mut optim: LC::Optimizer,
@@ -153,7 +154,7 @@ impl<TI, R> TrainEpoch<TI, R> {
     }
 }
 
-impl<TI, R> TrainEpoch<TI, R> {
+impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     /// Runs the training epoch on multiple devices.
     ///
     /// # Arguments
@@ -167,7 +168,7 @@ impl<TI, R> TrainEpoch<TI, R> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    pub fn run_multi_device<LC: LearnerComponents, TO>(
+    pub fn run_multi_device<LC: LearnerComponents<Backend = B>, TO>(
         &mut self,
         mut model: LC::Model,
         mut optim: LC::Optimizer,
@@ -181,8 +182,6 @@ impl<TI, R> TrainEpoch<TI, R> {
         LC::Model: TrainStep<TI, TO>,
         TO: Send + 'static,
         TI: Send + 'static,
-        R: DeviceOps,
-        LC::Backend: AutodiffBackend<Device = R>,
     {
         log::info!(
             "Executing training step for epoch {} on devices {:?}",

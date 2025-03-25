@@ -1,12 +1,32 @@
-use super::{DataLoader, DataLoaderIterator, DynDataLoader, Progress};
-use std::sync::mpsc;
+use burn_dataset::transform::PartialDataset;
+use burn_dataset::Dataset;
+use burn_tensor::backend::Backend;
+use rand::distr::{Distribution, StandardUniform};
+use rand::rngs::StdRng;
+use rand::SeedableRng;
+
+use super::batcher::DynBatcher;
+use super::{
+    BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, DynDataLoader, Progress,
+};
+use core::cell::OnceCell;
+use std::sync::{mpsc, Arc};
 use std::thread;
 
 const MAX_QUEUED_ITEMS: usize = 100;
 
 /// A multi-threaded data loader that can be used to iterate over a dataset.
-pub struct MultiThreadDataLoader<O> {
-    dataloaders: Vec<Box<dyn DynDataLoader<O>>>,
+pub struct MultiThreadDataLoader<B: Backend, I, O> {
+    // Configuration parameters needed for initialization
+    strategy: Box<dyn BatchStrategy<I>>,
+    dataset: Arc<dyn Dataset<I>>,
+    batcher: Box<dyn DynBatcher<B, I, O>>,
+    device: B::Device,
+    rng: Option<rand::rngs::StdRng>,
+    num_threads: usize,
+
+    // The lazily initialized data loaders
+    dataloaders: OnceCell<Vec<Box<dyn DynDataLoader<B, O>>>>,
 }
 
 /// A message that can be sent between threads.
@@ -26,32 +46,94 @@ struct MultiThreadsDataloaderIterator<O> {
     progresses: Vec<Progress>,
 }
 
-impl<O> MultiThreadDataLoader<O> {
-    /// Creates a new multi-threaded data loader.
+impl<B: Backend, I, O> MultiThreadDataLoader<B, I, O>
+where
+    I: Send + Sync + Clone + 'static,
+    O: Send + 'static,
+{
+    /// Creates a new multi-threaded batch data loader.
     ///
     /// # Arguments
     ///
-    /// * `dataloaders` - The data loaders.
+    /// * `strategy` - The batch strategy.
+    /// * `dataset` - The dataset.
+    /// * `batcher` - The batcher.
+    /// * `num_threads` - The number of threads.
+    /// * `device`  - The device to use when loading a batch.
+    /// * `rng`     - The rng determining if the dataset is shuffled each time a dataloader
+    ///               iterator is created.
     ///
     /// # Returns
     ///
-    /// The multi-threaded data loader.
-    pub fn new(dataloaders: Vec<Box<dyn DynDataLoader<O>>>) -> Self {
-        Self { dataloaders }
+    /// The multi-threaded batch data loader.
+    pub fn new(
+        strategy: Box<dyn BatchStrategy<I>>,
+        dataset: Arc<dyn Dataset<I>>,
+        batcher: Box<dyn DynBatcher<B, I, O>>,
+        num_threads: usize,
+        device: B::Device,
+        rng: Option<rand::rngs::StdRng>,
+    ) -> Self {
+        Self {
+            strategy,
+            dataset,
+            batcher,
+            num_threads,
+            device,
+            rng,
+            dataloaders: OnceCell::new(),
+        }
+    }
+
+    /// Force initialization if needed.
+    fn initialize(&self) -> &[Box<dyn DynDataLoader<B, O>>] {
+        self.dataloaders
+            .get_or_init(|| {
+                let datasets = PartialDataset::split(self.dataset.clone(), self.num_threads);
+
+                // Create more rngs from the first one, one for each new dataloader.
+                let mut rng = self.rng.clone();
+                let rngs = (0..self.num_threads).map(|_| {
+                    rng.as_mut().map(|rng| {
+                        StdRng::seed_from_u64(Distribution::sample(&StandardUniform, rng))
+                    })
+                });
+
+                datasets
+                    .into_iter()
+                    .zip(rngs)
+                    .map(|(dataset, rng)| {
+                        let strategy = self.strategy.clone_dyn();
+                        let dataloader = BatchDataLoader::new(
+                            strategy,
+                            Arc::new(dataset),
+                            self.batcher.clone_dyn(),
+                            self.device.clone(),
+                            rng,
+                        );
+                        let dataloader: Box<dyn DynDataLoader<B, _>> = Box::new(dataloader);
+                        dataloader
+                    })
+                    .collect()
+            })
+            .as_ref()
     }
 }
 
-impl<O> DataLoader<O> for MultiThreadDataLoader<O>
+impl<B: Backend, I, O> DataLoader<B, O> for MultiThreadDataLoader<B, I, O>
 where
+    I: Send + Sync + Clone + 'static,
     O: Send + 'static + std::fmt::Debug,
 {
     fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a> {
+        // This will initialize the loader if it hasn't been initialized yet
+        let dataloaders = self.initialize();
+
         let (sender, receiver) = mpsc::sync_channel::<Message<O>>(MAX_QUEUED_ITEMS);
 
-        let mut progresses = Vec::with_capacity(self.dataloaders.len());
+        let mut progresses = Vec::with_capacity(dataloaders.len());
 
-        let handlers: Vec<_> = self
-            .dataloaders
+        let handlers: Vec<_> = dataloaders
             .iter()
             .enumerate()
             .map(|(index, dataloader)| {
@@ -83,7 +165,25 @@ where
     }
 
     fn num_items(&self) -> usize {
-        self.dataloaders.iter().map(|dl| dl.num_items()).sum()
+        // For num_items, we can directly use the dataset size without
+        // necessarily initializing the full loader
+        self.dataset.len()
+    }
+
+    fn set_device(&mut self, device: B::Device) {
+        self.device = device;
+    }
+
+    fn slice(&self, start: usize, end: usize) -> Box<dyn DataLoader<B, O>> {
+        let dataloader = Self::new(
+            self.strategy.clone_dyn(),
+            Arc::new(PartialDataset::new(self.dataset.clone(), start, end)),
+            self.batcher.clone_dyn(),
+            self.num_threads,
+            self.device.clone(),
+            self.rng.clone(),
+        );
+        Box::new(dataloader)
     }
 }
 
@@ -146,5 +246,53 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
                 return None;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::*;
+    use crate::data::dataloader::batcher::TestBatcher;
+    use crate::data::dataloader::FixBatchStrategy;
+    use crate::data::dataset::FakeDataset;
+
+    #[test]
+    fn test_multi_thread_batch_dataloader() {
+        let batcher = Box::new(TestBatcher::new());
+        let dataset = Arc::new(FakeDataset::<String>::new(27));
+        let dataloader_single_thread = BatchDataLoader::new(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset.clone(),
+            batcher.clone_dyn(),
+            Default::default(),
+            None,
+        );
+        let dataloader_multi_thread = MultiThreadDataLoader::new(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset,
+            batcher,
+            4,
+            Default::default(),
+            None,
+        );
+
+        let mut items_single_thread = HashSet::new();
+        let mut items_multi_thread = HashSet::new();
+
+        for items in dataloader_single_thread.iter() {
+            for item in items {
+                items_single_thread.insert(item);
+            }
+        }
+
+        for items in dataloader_multi_thread.iter() {
+            for item in items {
+                items_multi_thread.insert(item);
+            }
+        }
+
+        assert_eq!(items_single_thread, items_multi_thread);
     }
 }
