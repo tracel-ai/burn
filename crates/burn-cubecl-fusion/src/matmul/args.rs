@@ -1,4 +1,7 @@
-use cubecl::{linalg::matmul::components::global::args::MatmulArgs, prelude::*};
+use cubecl::{
+    linalg::matmul::components::global::{Quantization, args::MatmulArgs},
+    prelude::*,
+};
 
 use crate::shared::{
     DYN_ELEM_ID,
@@ -263,6 +266,21 @@ impl MatmulArgs for FusedMatmulArgs {
 
     fn stride_out<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
         ref_stride(unsafe { &(*state.locals) }, dim)
+    }
+
+    fn quantization<EG: Numeric>(_state: &Self::State<EG>) -> Quantization<EG> {
+        comptime! {
+            panic!("Unsupported yet");
+        };
+
+        let tmp_input = SharedMemory::new(1);
+        let mut tmp_out = SharedMemory::new(1);
+
+        Quantization::<EG>::new(
+            tmp_input.to_slice(),
+            tmp_input.to_slice(),
+            tmp_out.to_slice_mut(),
+        )
     }
 }
 
