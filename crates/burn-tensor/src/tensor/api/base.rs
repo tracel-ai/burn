@@ -215,7 +215,7 @@ where
         Tensor::new(K::reshape(self.primitive, shape))
     }
 
-    /// Transpose the tensor. Permute the 2 last dimensions of the tensor.
+    /// Transpose the tensor.
     ///
     /// For a 2D tensor, this is the standard matrix transpose. For `D > 2`, the transpose is
     /// applied on the last two dimensions. For example, the transpose of a tensor with shape
