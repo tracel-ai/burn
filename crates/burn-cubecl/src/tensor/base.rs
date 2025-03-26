@@ -1,6 +1,6 @@
-use crate::element::CubeElement;
-use crate::kernel::{launch_unary_numeric, NumericUnaryOp, NumericUnaryOpFamily};
 use crate::CubeRuntime;
+use crate::element::CubeElement;
+use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
 use burn_tensor::quantization::QTensorPrimitive;
 use burn_tensor::{DType, Shape, TensorMetadata};
 use cubecl::client::ComputeClient;
@@ -44,7 +44,7 @@ where
             self.device,
             self.strides,
             self.dtype.name(),
-            R::name(),
+            R::name(&self.client),
         ))
     }
 }

@@ -56,6 +56,7 @@ include_models!(
     gemm_non_unit_alpha_beta,
     gemm_no_c,
     global_avr_pool,
+    graph_multiple_output_tracking,
     greater,
     greater_scalar,
     greater_or_equal,
@@ -142,7 +143,7 @@ mod tests {
 
     use super::*;
 
-    use burn::tensor::{cast::ToElement, Bool, Int, Shape, Tensor, TensorData};
+    use burn::tensor::{Bool, Int, Shape, Tensor, TensorData, cast::ToElement};
 
     use float_cmp::ApproxEq;
 
@@ -554,6 +555,15 @@ mod tests {
         let expected = TensorData::from([[1f32, 1.], [4., 3.]]);
 
         assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn graph_multiple_output_tracking() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: graph_multiple_output_tracking::Model<Backend> =
+            graph_multiple_output_tracking::Model::default();
+
+        // We don't actually care about the output here, the compiler will tell us if we passed
     }
 
     #[test]

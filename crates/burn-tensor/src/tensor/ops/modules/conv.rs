@@ -1,6 +1,6 @@
 #![allow(clippy::single_range_in_vec_init)]
 use super::{ConvOptions, ConvTransposeOptions};
-use crate::{backend::Backend, ops::FloatTensor, Shape, TensorMetadata};
+use crate::{Shape, TensorMetadata, backend::Backend, ops::FloatTensor};
 
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
@@ -229,7 +229,13 @@ pub(crate) fn conv3d_x_backward<B: Backend>(
 
     let [_batch_size, _channels_in, depth_in, height_in, width_in] = x.shape().dims();
     let [_, _, depth_out, height_out, width_out] = output_grad.shape().dims();
-    let [_channels_out, _, kernel_size_1, kernel_size_2, kernel_size_3] = weight_shape.dims();
+    let [
+        _channels_out,
+        _,
+        kernel_size_1,
+        kernel_size_2,
+        kernel_size_3,
+    ] = weight_shape.dims();
 
     let padding_1_out = calculate_padding_out(
         kernel_size_1,
@@ -302,7 +308,13 @@ pub(crate) fn conv3d_bias_backward<B: Backend>(
 
     let [batch_size, _channels_in, _depth_in, _height_in, _width_in] = x.shape().dims();
     let [_, _, depth_out, height_out, width_out] = output_grad.shape().dims();
-    let [channels_out, _, _kernel_size_1, _kernel_size_2, _kernel_size_3] = weight_shape.dims();
+    let [
+        channels_out,
+        _,
+        _kernel_size_1,
+        _kernel_size_2,
+        _kernel_size_3,
+    ] = weight_shape.dims();
 
     let grad = B::float_swap_dims(output_grad, 0, 1);
     let grad = B::float_reshape(
@@ -746,8 +758,13 @@ fn conv3d_weight_grad_groups<B: Backend>(
     output_grad: FloatTensor<B>,
     options: ConvOptions<3>,
 ) -> FloatTensor<B> {
-    let [channels_out, increment_ci, kernel_size_1, kernel_size_2, kernel_size_3] =
-        weight_grad.shape().dims();
+    let [
+        channels_out,
+        increment_ci,
+        kernel_size_1,
+        kernel_size_2,
+        kernel_size_3,
+    ] = weight_grad.shape().dims();
     let increment_co = channels_out / options.groups;
 
     let x_swapped = B::float_swap_dims(x, 0, 1);
@@ -768,8 +785,13 @@ fn conv3d_weight_grad_groups<B: Backend>(
             ConvOptions::new(options.dilation, options.padding, options.stride, 1),
         );
         weight_grad_tmp = B::float_swap_dims(weight_grad_tmp, 0, 1);
-        let [_, _, kernel_size_1_tmp, kernel_size_2_tmp, kernel_size_3_tmp] =
-            weight_grad_tmp.shape().dims();
+        let [
+            _,
+            _,
+            kernel_size_1_tmp,
+            kernel_size_2_tmp,
+            kernel_size_3_tmp,
+        ] = weight_grad_tmp.shape().dims();
 
         if kernel_size_1_tmp != kernel_size_1
             || kernel_size_2_tmp != kernel_size_2
@@ -1004,8 +1026,13 @@ fn conv_transpose3d_weight_grad_groups<B: Backend>(
     output_grad: FloatTensor<B>,
     options: ConvTransposeOptions<3>,
 ) -> FloatTensor<B> {
-    let [channels_in, increment_co, kernel_size_1, kernel_size_2, kernel_size_3] =
-        weight_grad.shape().dims();
+    let [
+        channels_in,
+        increment_co,
+        kernel_size_1,
+        kernel_size_2,
+        kernel_size_3,
+    ] = weight_grad.shape().dims();
     let increment_ci = channels_in / options.groups;
 
     let x_swapped = B::float_swap_dims(x, 0, 1);
@@ -1026,8 +1053,13 @@ fn conv_transpose3d_weight_grad_groups<B: Backend>(
             ConvOptions::new(options.dilation, options.padding, options.stride, 1),
         );
         weight_grad_tmp = B::float_swap_dims(weight_grad_tmp, 0, 1);
-        let [_, _, kernel_size_1_tmp, kernel_size_2_tmp, kernel_size_3_tmp] =
-            weight_grad_tmp.shape().dims();
+        let [
+            _,
+            _,
+            kernel_size_1_tmp,
+            kernel_size_2_tmp,
+            kernel_size_3_tmp,
+        ] = weight_grad_tmp.shape().dims();
 
         if kernel_size_1_tmp != kernel_size_1
             || kernel_size_2_tmp != kernel_size_2

@@ -1,15 +1,15 @@
 use crate::{
-    self as burn, grad_clipping::GradientClippingConfig, module::AutodiffModule, record::Record,
-    LearningRate,
+    self as burn, LearningRate, grad_clipping::GradientClippingConfig, module::AutodiffModule,
+    record::Record,
 };
 
 use super::{
-    decay::{WeightDecay, WeightDecayConfig},
     SimpleOptimizer,
+    decay::{WeightDecay, WeightDecayConfig},
 };
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
-use crate::tensor::{backend::AutodiffBackend, Tensor};
+use crate::tensor::{Tensor, backend::AutodiffBackend};
 use burn_tensor::{backend::Backend, ops::Device};
 
 /// AdaGrad configuration.
@@ -156,7 +156,7 @@ mod tests {
     use crate::module::{Module, Param};
     use crate::optim::{GradientsParams, Optimizer};
     use crate::tensor::{Distribution, Tensor, TensorData};
-    use crate::{nn, nn::Linear, TestAutodiffBackend};
+    use crate::{TestAutodiffBackend, nn, nn::Linear};
 
     const LEARNING_RATE: LearningRate = 0.01;
 
@@ -287,8 +287,8 @@ mod tests {
             .load_record(record)
     }
 
-    fn create_adagrad(
-    ) -> OptimizerAdaptor<AdaGrad, Linear<TestAutodiffBackend>, TestAutodiffBackend> {
+    fn create_adagrad()
+    -> OptimizerAdaptor<AdaGrad, Linear<TestAutodiffBackend>, TestAutodiffBackend> {
         let config = AdaGradConfig::new();
         AdaGrad {
             lr_decay: LrDecay {

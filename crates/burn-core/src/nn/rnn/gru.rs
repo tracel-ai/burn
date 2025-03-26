@@ -3,11 +3,11 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
-use crate::nn::rnn::gate_controller;
 use crate::nn::Initializer;
+use crate::nn::rnn::gate_controller;
+use crate::tensor::Tensor;
 use crate::tensor::activation;
 use crate::tensor::backend::Backend;
-use crate::tensor::Tensor;
 
 use super::gate_controller::GateController;
 
@@ -245,7 +245,7 @@ impl<B: Backend> Gru<B> {
 mod tests {
     use super::*;
     use crate::tensor::{Distribution, TensorData};
-    use crate::{module::Param, nn::LinearRecord, TestBackend};
+    use crate::{TestBackend, module::Param, nn::LinearRecord};
 
     fn init_gru<B: Backend>(reset_after: bool, device: &B::Device) -> Gru<B> {
         fn create_gate_controller<B: Backend>(

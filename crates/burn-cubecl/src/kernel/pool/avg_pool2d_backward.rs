@@ -1,14 +1,14 @@
 use crate::{
+    CubeRuntime,
     element::CubeElement,
-    kernel::conv::nchw_to_nhwc,
+    kernel::conv::permute_nchw_to_nhwc,
     ops::{max_vectorization, numeric::empty_device, permute},
     tensor::CubeTensor,
-    CubeRuntime,
 };
 use burn_tensor::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 pub(crate) struct PoolBackwardArgs {
     pub stride_0: i32,
     pub stride_1: i32,
@@ -128,11 +128,7 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
 ) -> CubeTensor<R> {
     let [batches, channels, height, width] = x.shape.dims();
 
-    let grad = if grad.is_contiguous() {
-        nchw_to_nhwc::<R, E>(grad)
-    } else {
-        permute(grad, &[0, 2, 3, 1])
-    };
+    let grad = permute_nchw_to_nhwc::<R, E>(grad);
 
     let line_size = if x.strides[3] == grad.strides[3] {
         max_vectorization(&x)

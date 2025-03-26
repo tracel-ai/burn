@@ -1,5 +1,5 @@
 use crate::dataset::{
-    SequenceBatcher, SequenceDataset, NOISE_LEVEL, NUM_SEQUENCES, RANDOM_SEED, SEQ_LENGTH,
+    NOISE_LEVEL, NUM_SEQUENCES, RANDOM_SEED, SEQ_LENGTH, SequenceBatcher, SequenceDataset,
 };
 use crate::model::{LstmNetwork, LstmNetworkConfig};
 use burn::{

@@ -4,8 +4,8 @@ use burn::{
     optim::AdamConfig,
     tensor::backend::AutodiffBackend,
     train::{
-        renderer::{MetricState, MetricsRenderer, TrainingProgress},
         LearnerBuilder,
+        renderer::{MetricState, MetricsRenderer, TrainingProgress},
     },
 };
 use guide::{data::MnistBatcher, model::ModelConfig};

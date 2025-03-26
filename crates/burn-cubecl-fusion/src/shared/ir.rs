@@ -7,15 +7,15 @@ use serde::{Deserialize, Serialize};
 use super::tensor::{GlobalScalar, GlobalTensor};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
-/// Argument to an [elemwise operation](ElemwiseOp).
+/// Argument to a [fuse operation](FuseOp).
 pub enum Arg {
-    Input(u32, ElemwisePrecision, LayoutInfo),
-    Local(u32, ElemwisePrecision),
-    Output(u32, ElemwisePrecision, LayoutInfo),
-    Scalar(u32, ElemwisePrecision),
+    Input(u32, FusePrecision, LayoutInfo),
+    Local(u32, FusePrecision),
+    Output(u32, FusePrecision, LayoutInfo),
+    Scalar(u32, FusePrecision),
     ScalarShape(u32),
     /// Only constant that can be encoded into an u32 can be used as literal.
-    Literal(u32, ElemwisePrecision),
+    Literal(u32, FusePrecision),
     InputReshaped {
         original: Box<Arg>,
         shape: Sequence<Arg>,
@@ -40,14 +40,14 @@ pub enum LayoutInfo {
 }
 
 impl Arg {
-    pub fn precision(&self) -> ElemwisePrecision {
+    pub fn precision(&self) -> FusePrecision {
         *match self {
             Arg::Input(_, p, _) => p,
             Arg::Local(_, p) => p,
             Arg::Output(_, p, _) => p,
             Arg::Scalar(_, p) => p,
             Arg::Literal(_, p) => p,
-            Arg::ScalarShape(_) => return ElemwisePrecision::U32,
+            Arg::ScalarShape(_) => return FusePrecision::U32,
             Arg::InputReshaped { original, .. } => return original.precision(),
             Arg::InputSwapDims { original, .. } => return original.precision(),
         }
@@ -73,28 +73,29 @@ impl IntoRuntime for Arg {
 impl CubeDebug for Arg {}
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-/// Operations that can be executed and fused.
-pub enum ElemwiseOp {
-    Add(BinaryElemwiseArgs),
-    Sub(BinaryElemwiseArgs),
-    Mul(BinaryElemwiseArgs),
-    Div(BinaryElemwiseArgs),
-    Powf(BinaryElemwiseArgs),
-    Abs(UnaryElemwiseArgs),
-    Exp(UnaryElemwiseArgs),
-    Log(UnaryElemwiseArgs),
-    Log1p(UnaryElemwiseArgs),
-    Cos(UnaryElemwiseArgs),
-    Sin(UnaryElemwiseArgs),
-    Tanh(UnaryElemwiseArgs),
-    Erf(UnaryElemwiseArgs),
-    Recip(UnaryElemwiseArgs),
-    Assign(UnaryElemwiseArgs),
-    Equal(BinaryElemwiseArgs),
-    Lower(BinaryElemwiseArgs),
-    Greater(BinaryElemwiseArgs),
-    LowerEqual(BinaryElemwiseArgs),
-    GreaterEqual(BinaryElemwiseArgs),
+/// Operations that can be executed and fused automatically using a fuse-on-read and/or
+/// fuse-on-write strategy.
+pub enum FuseOp {
+    Add(BinaryFuseArgs),
+    Sub(BinaryFuseArgs),
+    Mul(BinaryFuseArgs),
+    Div(BinaryFuseArgs),
+    Powf(BinaryFuseArgs),
+    Abs(UnaryFuseArgs),
+    Exp(UnaryFuseArgs),
+    Log(UnaryFuseArgs),
+    Log1p(UnaryFuseArgs),
+    Cos(UnaryFuseArgs),
+    Sin(UnaryFuseArgs),
+    Tanh(UnaryFuseArgs),
+    Erf(UnaryFuseArgs),
+    Recip(UnaryFuseArgs),
+    Assign(UnaryFuseArgs),
+    Equal(BinaryFuseArgs),
+    Lower(BinaryFuseArgs),
+    Greater(BinaryFuseArgs),
+    LowerEqual(BinaryFuseArgs),
+    GreaterEqual(BinaryFuseArgs),
     ConditionalAssign {
         cond: Arg,
         lhs: Arg,
@@ -115,54 +116,38 @@ pub enum ElemwiseOp {
     },
 }
 
-impl ElemwiseOp {
-    pub(crate) fn output_offset(&mut self, offset: u32) {
-        if let ElemwiseOp::Assign(op) = self {
-            if let Arg::Output(pos, ..) = &mut op.out {
-                *pos += offset;
-            }
-        }
-    }
-
+impl FuseOp {
     /// Element type used for the computation.
     pub(crate) fn cmp_elem(&self) -> Elem {
         match self {
-            ElemwiseOp::Add(op) => op.lhs.precision().into_elem(),
-            ElemwiseOp::Sub(op) => op.lhs.precision().into_elem(),
-            ElemwiseOp::Mul(op) => op.lhs.precision().into_elem(),
-            ElemwiseOp::Div(op) => op.lhs.precision().into_elem(),
-            ElemwiseOp::Powf(op) => op.lhs.precision().into_elem(),
-            ElemwiseOp::Abs(op) => op.out.precision().into_elem(),
-            ElemwiseOp::Exp(op) => op.out.precision().into_elem(),
-            ElemwiseOp::Log(op) => op.out.precision().into_elem(),
-            ElemwiseOp::Log1p(op) => op.out.precision().into_elem(),
-            ElemwiseOp::Cos(op) => op.out.precision().into_elem(),
-            ElemwiseOp::Sin(op) => op.out.precision().into_elem(),
-            ElemwiseOp::Tanh(op) => op.out.precision().into_elem(),
-            ElemwiseOp::Erf(op) => op.out.precision().into_elem(),
-            ElemwiseOp::Recip(op) => op.out.precision().into_elem(),
-            ElemwiseOp::Assign(op) => op.out.precision().into_elem(),
-            ElemwiseOp::Equal(op) => op.lhs.precision().into_elem(),
-            ElemwiseOp::Lower(op) => op.lhs.precision().into_elem(),
-            ElemwiseOp::Greater(op) => op.lhs.precision().into_elem(),
-            ElemwiseOp::LowerEqual(op) => op.lhs.precision().into_elem(),
-            ElemwiseOp::GreaterEqual(op) => op.lhs.precision().into_elem(),
-            ElemwiseOp::ConditionalAssign { out, .. } => out.precision().into_elem(),
-            ElemwiseOp::Gather { output, .. } => output.precision().into_elem(),
-            ElemwiseOp::Select { output, .. } => output.precision().into_elem(),
+            FuseOp::Add(op) => op.lhs.precision().into_elem(),
+            FuseOp::Sub(op) => op.lhs.precision().into_elem(),
+            FuseOp::Mul(op) => op.lhs.precision().into_elem(),
+            FuseOp::Div(op) => op.lhs.precision().into_elem(),
+            FuseOp::Powf(op) => op.lhs.precision().into_elem(),
+            FuseOp::Abs(op) => op.out.precision().into_elem(),
+            FuseOp::Exp(op) => op.out.precision().into_elem(),
+            FuseOp::Log(op) => op.out.precision().into_elem(),
+            FuseOp::Log1p(op) => op.out.precision().into_elem(),
+            FuseOp::Cos(op) => op.out.precision().into_elem(),
+            FuseOp::Sin(op) => op.out.precision().into_elem(),
+            FuseOp::Tanh(op) => op.out.precision().into_elem(),
+            FuseOp::Erf(op) => op.out.precision().into_elem(),
+            FuseOp::Recip(op) => op.out.precision().into_elem(),
+            FuseOp::Assign(op) => op.out.precision().into_elem(),
+            FuseOp::Equal(op) => op.lhs.precision().into_elem(),
+            FuseOp::Lower(op) => op.lhs.precision().into_elem(),
+            FuseOp::Greater(op) => op.lhs.precision().into_elem(),
+            FuseOp::LowerEqual(op) => op.lhs.precision().into_elem(),
+            FuseOp::GreaterEqual(op) => op.lhs.precision().into_elem(),
+            FuseOp::ConditionalAssign { out, .. } => out.precision().into_elem(),
+            FuseOp::Gather { output, .. } => output.precision().into_elem(),
+            FuseOp::Select { output, .. } => output.precision().into_elem(),
         }
     }
 }
 
-#[derive(CubeLaunch)]
-pub struct ReshapedTensor {
-    #[cube(comptime)]
-    original: Arg,
-    #[cube(comptime)]
-    shape: Sequence<Arg>,
-}
-
-#[derive(CubeLaunch, Default)]
+#[derive(CubeLaunch, CubeType, Default)]
 /// Global arguments that are used for fusing [element wise operations](ElemwiseOp).
 pub struct GlobalArgs {
     pub tensors: Sequence<GlobalTensor>,
@@ -201,6 +186,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
         }
     }
 
+    /// Shape used by the reference tensor.
     pub fn shape_ref(&self, ref_layout: &RefLayout, rank: usize) -> Vec<usize> {
         match ref_layout {
             RefLayout::Concrete(arg) => self.shape(arg),
@@ -333,14 +319,14 @@ impl LocalArgs {
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 /// Unary [element wise operation](ElemwiseOp) arguments.
-pub struct UnaryElemwiseArgs {
+pub struct UnaryFuseArgs {
     pub input: Arg,
     pub out: Arg,
 }
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 /// Binary [element wise operation](ElemwiseOp) arguments.
-pub struct BinaryElemwiseArgs {
+pub struct BinaryFuseArgs {
     pub lhs: Arg,
     pub rhs: Arg,
     pub out: Arg,
@@ -350,7 +336,7 @@ pub struct BinaryElemwiseArgs {
     CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
 )]
 /// Precisions supported by [element wise operations](ElemwiseOp).
-pub enum ElemwisePrecision {
+pub enum FusePrecision {
     F32,
     F16,
     BF16,
@@ -365,7 +351,7 @@ pub enum ElemwisePrecision {
     Bool,
 }
 
-impl From<Elem> for ElemwisePrecision {
+impl From<Elem> for FusePrecision {
     fn from(value: Elem) -> Self {
         match value {
             Elem::Float(kind) => match kind {
@@ -391,26 +377,26 @@ impl From<Elem> for ElemwisePrecision {
         }
     }
 }
-impl ElemwisePrecision {
+impl FusePrecision {
     pub fn into_elem(self) -> Elem {
         match self {
-            ElemwisePrecision::F32 => Elem::Float(cubecl::ir::FloatKind::F32),
-            ElemwisePrecision::F16 => Elem::Float(cubecl::ir::FloatKind::F16),
-            ElemwisePrecision::BF16 => Elem::Float(cubecl::ir::FloatKind::BF16),
-            ElemwisePrecision::I64 => Elem::Int(cubecl::ir::IntKind::I64),
-            ElemwisePrecision::I32 => Elem::Int(cubecl::ir::IntKind::I32),
-            ElemwisePrecision::I16 => Elem::Int(cubecl::ir::IntKind::I16),
-            ElemwisePrecision::I8 => Elem::Int(cubecl::ir::IntKind::I8),
-            ElemwisePrecision::U64 => Elem::UInt(cubecl::ir::UIntKind::U64),
-            ElemwisePrecision::U32 => Elem::UInt(cubecl::ir::UIntKind::U32),
-            ElemwisePrecision::U16 => Elem::UInt(cubecl::ir::UIntKind::U16),
-            ElemwisePrecision::U8 => Elem::UInt(cubecl::ir::UIntKind::U8),
-            ElemwisePrecision::Bool => Elem::Bool,
+            FusePrecision::F32 => Elem::Float(cubecl::ir::FloatKind::F32),
+            FusePrecision::F16 => Elem::Float(cubecl::ir::FloatKind::F16),
+            FusePrecision::BF16 => Elem::Float(cubecl::ir::FloatKind::BF16),
+            FusePrecision::I64 => Elem::Int(cubecl::ir::IntKind::I64),
+            FusePrecision::I32 => Elem::Int(cubecl::ir::IntKind::I32),
+            FusePrecision::I16 => Elem::Int(cubecl::ir::IntKind::I16),
+            FusePrecision::I8 => Elem::Int(cubecl::ir::IntKind::I8),
+            FusePrecision::U64 => Elem::UInt(cubecl::ir::UIntKind::U64),
+            FusePrecision::U32 => Elem::UInt(cubecl::ir::UIntKind::U32),
+            FusePrecision::U16 => Elem::UInt(cubecl::ir::UIntKind::U16),
+            FusePrecision::U8 => Elem::UInt(cubecl::ir::UIntKind::U8),
+            FusePrecision::Bool => Elem::Bool,
         }
     }
 }
 
-impl From<DType> for ElemwisePrecision {
+impl From<DType> for FusePrecision {
     fn from(value: DType) -> Self {
         match value {
             DType::F32 => Self::F32,
@@ -432,10 +418,10 @@ impl From<DType> for ElemwisePrecision {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 /// Configuration that encapsulates all comptime information necessary for element wise fusion.
-pub struct ElemwiseConfig {
+pub struct FuseBlockConfig {
     pub rank: u32,
     pub ref_layout: RefLayout,
-    pub ops: Sequence<ElemwiseOp>,
+    pub ops: Sequence<FuseOp>,
     pub width: u8,
 }
 

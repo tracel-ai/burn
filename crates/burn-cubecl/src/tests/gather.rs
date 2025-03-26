@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(gather)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Distribution, Int, Shape, Tensor};
+    use burn_tensor::{Distribution, Int, Shape, Tensor, backend::Backend};
 
     #[test]
     fn gather_should_work_with_multiple_workgroups_dim0() {

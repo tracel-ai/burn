@@ -3,14 +3,14 @@ use burn_tensor::ElementConversion;
 use burn_tensor::TensorData;
 use burn_tensor::TensorMetadata;
 #[cfg(feature = "simd")]
-use burn_tensor::{quantization::QuantizationType, DType};
+use burn_tensor::{DType, quantization::QuantizationType};
 use core::fmt::Debug;
 use core::{marker::PhantomData, ops::Range};
-use ndarray::s;
 use ndarray::Array2;
 use ndarray::IntoDimension;
 use ndarray::SliceInfo;
 use ndarray::Zip;
+use ndarray::s;
 use num_traits::Signed;
 #[cfg(feature = "simd")]
 use paste::paste;
@@ -30,18 +30,18 @@ use crate::element::NdArrayElement;
 use crate::ops::simd::{
     binary::try_binary_simd,
     binary_elemwise::{
-        try_binary_scalar_simd, VecAdd, VecBitAnd, VecBitOr, VecBitXor, VecClamp, VecDiv, VecMax,
-        VecMin, VecMul, VecSub,
+        VecAdd, VecBitAnd, VecBitOr, VecBitXor, VecClamp, VecDiv, VecMax, VecMin, VecMul, VecSub,
+        try_binary_scalar_simd,
     },
     cmp::{
-        try_cmp_scalar_simd, try_cmp_simd, VecEquals, VecGreater, VecGreaterEq, VecLower,
-        VecLowerEq,
+        VecEquals, VecGreater, VecGreaterEq, VecLower, VecLowerEq, try_cmp_scalar_simd,
+        try_cmp_simd,
     },
-    unary::{try_unary_simd, RecipVec, VecAbs, VecBitNot},
+    unary::{RecipVec, VecAbs, VecBitNot, try_unary_simd},
 };
 use crate::{
-    ops::macros::{keepdim, mean_dim, prod_dim, sum_dim},
     IntNdArrayElement,
+    ops::macros::{keepdim, mean_dim, prod_dim, sum_dim},
 };
 use crate::{reshape, tensor::NdArrayTensor};
 
@@ -213,12 +213,8 @@ macro_rules! dispatch_binary_simd {
 
 #[cfg(not(feature = "simd"))]
 macro_rules! dispatch_binary_simd {
-    (noq, $elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
-        ($lhs, $rhs)
-    }};
-    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
-        ($lhs, $rhs)
-    }};
+    (noq, $elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{ ($lhs, $rhs) }};
+    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{ ($lhs, $rhs) }};
 }
 
 #[cfg(feature = "simd")]
@@ -254,12 +250,8 @@ macro_rules! dispatch_binary_scalar_simd {
 
 #[cfg(not(feature = "simd"))]
 macro_rules! dispatch_binary_scalar_simd {
-    (noq, $elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
-        $lhs
-    }};
-    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
-        $lhs
-    }};
+    (noq, $elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{ $lhs }};
+    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{ $lhs }};
 }
 
 #[cfg(feature = "simd")]
@@ -283,9 +275,7 @@ macro_rules! dispatch_cmp_simd {
 
 #[cfg(not(feature = "simd"))]
 macro_rules! dispatch_cmp_simd {
-    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
-        ($lhs, $rhs)
-    }};
+    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{ ($lhs, $rhs) }};
 }
 
 #[cfg(feature = "simd")]
@@ -309,9 +299,7 @@ macro_rules! dispatch_cmp_scalar_simd {
 
 #[cfg(not(feature = "simd"))]
 macro_rules! dispatch_cmp_scalar_simd {
-    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{
-        $lhs
-    }};
+    ($elem: ty, $op: ty, $lhs: expr, $rhs: expr, $($ty: ty),*) => {{ $lhs }};
 }
 
 #[cfg(feature = "simd")]
@@ -332,9 +320,7 @@ macro_rules! dispatch_unary_simd {
 
 #[cfg(not(feature = "simd"))]
 macro_rules! dispatch_unary_simd {
-    ($elem: ty, $op: ty, $lhs: expr, $($ty: ty),*) => {{
-        $lhs
-    }};
+    ($elem: ty, $op: ty, $lhs: expr, $($ty: ty),*) => {{ $lhs }};
 }
 
 impl<E> NdArrayMathOps<E>
@@ -1227,11 +1213,7 @@ fn arg<E: NdArrayElement, I: NdArrayElement>(
                 CmpType::Max => e > &acc.0,
             };
 
-            if cmp {
-                (*e, idx)
-            } else {
-                acc
-            }
+            if cmp { (*e, idx) } else { acc }
         });
 
         (idx as i64).elem()

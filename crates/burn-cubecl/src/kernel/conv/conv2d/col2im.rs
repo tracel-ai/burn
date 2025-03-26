@@ -1,19 +1,18 @@
 use burn_tensor::{
-    ops::{conv::calculate_conv_transpose_output_size, ConvTransposeOptions},
     Shape,
+    ops::{ConvTransposeOptions, conv::calculate_conv_transpose_output_size},
 };
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, linalg::convolution::ConvLaunchError, prelude::*};
 
 use crate::{
+    CubeElement, CubeRuntime, FloatElement,
     kernel::{
-        conv::ConvLaunchError,
         into_contiguous,
-        matmul::{matmul, MatmulStrategy},
+        matmul::{MatmulStrategy, matmul},
         slice,
     },
     ops::{numeric::empty_device, reshape, swap_dims},
     tensor::CubeTensor,
-    CubeElement, CubeRuntime, FloatElement,
 };
 
 use super::batches_per_run;
@@ -216,7 +215,7 @@ fn col2im<R: CubeRuntime, E: FloatElement>(
     };
 }
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct Col2ImArgs {
     out_h: u32,
     out_w: u32,

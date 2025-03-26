@@ -11,7 +11,7 @@ use burn::{
 };
 use burn::{
     record::serde::{
-        data::{remap, unflatten, NestedValue, Serializable},
+        data::{NestedValue, Serializable, remap, unflatten},
         de::Deserializer,
         error,
         ser::Serializer,
@@ -19,10 +19,10 @@ use burn::{
     tensor::backend::Backend,
 };
 
-use candle_core::{pickle, WithDType};
+use candle_core::{WithDType, pickle};
 use half::{bf16, f16};
 use regex::Regex;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 /// Deserializes a PyTorch file.
 ///

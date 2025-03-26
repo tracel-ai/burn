@@ -1,10 +1,10 @@
 use super::{
-    batcher::DynBatcher, BatchDataLoader, BatchStrategy, DataLoader, FixBatchStrategy,
-    MultiThreadDataLoader,
+    BatchDataLoader, BatchStrategy, DataLoader, FixBatchStrategy, MultiThreadDataLoader,
+    batcher::DynBatcher,
 };
 use burn_dataset::Dataset;
 use burn_tensor::backend::Backend;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use std::sync::Arc;
 
 /// A builder for data loaders.
@@ -149,7 +149,7 @@ where
 mod tests {
     use super::*;
     use crate::data::dataset::FakeDataset;
-    use crate::{data::dataloader::batcher::Batcher, TestBackend};
+    use crate::{TestBackend, data::dataloader::batcher::Batcher};
 
     #[test]
     fn test_dataloader_default_device() {

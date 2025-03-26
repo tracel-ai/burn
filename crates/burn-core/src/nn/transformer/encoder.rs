@@ -5,15 +5,15 @@ use super::{PositionWiseFeedForward, PositionWiseFeedForwardConfig};
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::{
     self as burn,
-    nn::{attention::MhaCache, cache::TensorCache, Initializer},
+    nn::{Initializer, attention::MhaCache, cache::TensorCache},
 };
 use crate::{
     config::Config,
     nn::{
-        attention::{MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
         Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
+        attention::{MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
     },
-    tensor::{backend::Backend, Tensor},
+    tensor::{Tensor, backend::Backend},
 };
 
 /// Configuration to create a [Transformer Encoder](TransformerEncoder) layer using the [init function](TransformerEncoderConfig::init).
@@ -392,7 +392,7 @@ impl<B: Backend> TransformerEncoderAutoregressiveCache<B> {
 mod tests {
     use super::*;
     use crate::tensor::Distribution;
-    use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
+    use crate::{TestBackend, nn::attention::generate_autoregressive_mask};
 
     #[test]
     fn test_autoregressive_norm_last() {

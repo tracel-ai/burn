@@ -2,7 +2,7 @@ use super::classification::{ClassReduction, ClassificationMetricConfig, Decision
 use burn_core::prelude::{Backend, Bool, Int, Tensor};
 use std::fmt::{self, Debug};
 
-/// Input for [ConfusionStats]
+/// Input for confusion statistics error types.
 #[derive(new, Debug, Clone)]
 pub struct ConfusionStatsInput<B: Backend> {
     /// Sample x Class Non thresholded normalized predictions.
@@ -125,9 +125,9 @@ impl<B: Backend> ConfusionStats<B> {
 mod tests {
     use super::{ConfusionStats, ConfusionStatsInput};
     use crate::{
-        metric::classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
-        tests::{dummy_classification_input, ClassificationType, THRESHOLD},
         TestBackend,
+        metric::classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
+        tests::{ClassificationType, THRESHOLD, dummy_classification_input},
     };
     use burn_core::prelude::TensorData;
     use rstest::{fixture, rstest};

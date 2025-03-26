@@ -1,18 +1,18 @@
 use burn_tensor::{Element, ElementConversion};
 use cubecl::{
     linalg::matmul::{
-        kernels::tiling2d::Tiling2dConfig, tune_key::MatmulAutotuneKey, Strategy,
-        SyncLoadingStrategy,
+        Strategy, SyncLoadingStrategy, kernels::tiling2d::Tiling2dConfig,
+        tune_key::MatmulAutotuneKey,
     },
-    tune::{local_tuner, LocalTuner, TunableSet},
+    tune::{LocalTuner, TunableSet, local_tuner},
 };
 
 use crate::{
+    CubeRuntime, CubeTuneId,
     element::FloatElement,
     kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
     ops::numeric::empty_device,
     tensor::CubeTensor,
-    CubeRuntime, CubeTuneId,
 };
 
 fn matmul_input_gen<R: CubeRuntime, E: FloatElement>(
@@ -48,7 +48,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
         .with_tunable(matmul_naive::<R, E>);
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&lhs.device),
+        &CubeTuneId::new::<R>(&lhs.client, &lhs.device),
         &client,
         &tunables,
         (lhs, rhs, output.clone()),

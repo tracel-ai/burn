@@ -1,10 +1,10 @@
-use super::state::FormatOptions;
-use super::state::NumericMetricState;
 use super::MetricEntry;
 use super::MetricMetadata;
+use super::state::FormatOptions;
+use super::state::NumericMetricState;
 use crate::metric::{Metric, Numeric};
-use burn_core::tensor::backend::Backend;
 use burn_core::tensor::Tensor;
+use burn_core::tensor::backend::Backend;
 
 /// The loss metric.
 #[derive(Default)]

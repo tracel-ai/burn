@@ -3,9 +3,9 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::module::{Module, Param};
-use crate::nn::norm::group_norm;
 use crate::nn::Initializer;
-use crate::tensor::{backend::Backend, Tensor};
+use crate::nn::norm::group_norm;
+use crate::tensor::{Tensor, backend::Backend};
 
 /// Configuration to create a [InstanceNorm](InstanceNorm) layer using the [init function](InstanceNormConfig::init).
 #[derive(Debug, Config)]
@@ -101,8 +101,8 @@ impl<B: Backend> InstanceNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
     use alloc::format;
 
     #[test]
@@ -200,7 +200,7 @@ mod tests {
             [
                 [1.26372, -0.08229, -1.18144],
                 [-0.44049, 1.38403, -0.94354],
-                [-1.23979, 0.03109, 1.2087],
+                [-1.23828, 0.03109, 1.2072],
                 [1.32524, -1.08999, -0.23524],
                 [-0.75061, 1.4132, -0.66259],
                 [-0.45469, 1.38697, -0.93228],

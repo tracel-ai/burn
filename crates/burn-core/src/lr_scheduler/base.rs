@@ -2,7 +2,7 @@ pub(super) use alloc::string::String;
 
 use burn_tensor::backend::Backend;
 
-use crate::{record::Record, LearningRate};
+use crate::{LearningRate, record::Record};
 
 /// Learning rate scheduler defines how the learning rate will evolve during training.
 pub trait LrScheduler: Send + Sync {

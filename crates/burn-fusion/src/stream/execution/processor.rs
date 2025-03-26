@@ -1,11 +1,11 @@
 use burn_ir::OperationIr;
 
 use super::{ExecutionMode, Exploration, Explorer};
+use crate::OptimizationBuilder;
 use crate::stream::execution::{Action, Policy};
 use crate::stream::store::{
     ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
 };
-use crate::OptimizationBuilder;
 
 /// Process a [stream segment](StreamSegment) following a [policy](Policy).
 pub(crate) struct Processor<O> {

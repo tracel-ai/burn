@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(slice)]
 mod tests {
     use super::*;
-    use burn_tensor::{as_type, Int, Tensor, TensorData};
+    use burn_tensor::{Int, Tensor, TensorData, as_type};
 
     #[test]
     fn should_support_full_sliceing_1d() {

@@ -5,7 +5,7 @@ use crate::{
 use burn::{
     data::{
         dataloader::DataLoaderBuilder,
-        dataset::{transform::SamplerDataset, Dataset},
+        dataset::{Dataset, transform::SamplerDataset},
     },
     lr_scheduler::noam::NoamLrSchedulerConfig,
     nn::transformer::TransformerEncoderConfig,
@@ -14,8 +14,8 @@ use burn::{
     record::{CompactRecorder, DefaultRecorder, Recorder},
     tensor::backend::AutodiffBackend,
     train::{
-        metric::{AccuracyMetric, CudaMetric, LearningRateMetric, LossMetric},
         LearnerBuilder,
+        metric::{AccuracyMetric, CudaMetric, LearningRateMetric, LossMetric},
     },
 };
 use std::sync::Arc;

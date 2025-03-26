@@ -3,7 +3,7 @@ use burn_tensor::{
     ops::{TransactionOps, TransactionPrimitive},
 };
 
-use crate::{checkpoint::strategy::CheckpointStrategy, Autodiff};
+use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy};
 
 impl<B: Backend, C: CheckpointStrategy> TransactionOps<Self> for Autodiff<B, C> {
     fn tr_execute(

@@ -1,4 +1,4 @@
-use crate::{element::CubeElement, kernel, tensor::CubeTensor, CubeRuntime};
+use crate::{CubeRuntime, element::CubeElement, kernel, tensor::CubeTensor};
 use burn_tensor::{Shape, TensorData};
 use cubecl::tensor_vectorization_factor;
 

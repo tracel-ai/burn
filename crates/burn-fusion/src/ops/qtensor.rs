@@ -5,16 +5,16 @@ use burn_ir::{
     QuantizationParametersIr, QuantizeOpIr,
 };
 use burn_tensor::{
+    DType, Device, Element, Shape, TensorData, TensorMetadata,
     ops::{FloatElem, FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantizationParametersPrimitive, QuantizationScheme},
-    DType, Device, Element, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{
+    Fusion, FusionBackend,
     client::FusionClient,
     get_client,
-    stream::{execution::Operation, StreamId},
-    Fusion, FusionBackend,
+    stream::{StreamId, execution::Operation},
 };
 
 use super::NoOp;

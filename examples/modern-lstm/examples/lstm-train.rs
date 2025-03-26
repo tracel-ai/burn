@@ -21,8 +21,8 @@ pub fn launch<B: AutodiffBackend>(device: B::Device) {
 ))]
 mod ndarray {
     use burn::backend::{
-        ndarray::{NdArray, NdArrayDevice},
         Autodiff,
+        ndarray::{NdArray, NdArrayDevice},
     };
 
     use crate::launch;
@@ -35,8 +35,8 @@ mod ndarray {
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
     use burn::backend::{
-        libtorch::{LibTorch, LibTorchDevice},
         Autodiff,
+        libtorch::{LibTorch, LibTorchDevice},
     };
 
     use crate::launch;
@@ -54,8 +54,8 @@ mod tch_gpu {
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
     use burn::backend::{
-        libtorch::{LibTorch, LibTorchDevice},
         Autodiff,
+        libtorch::{LibTorch, LibTorchDevice},
     };
 
     use crate::launch;
@@ -68,7 +68,7 @@ mod tch_cpu {
 #[cfg(feature = "wgpu")]
 mod wgpu {
     use crate::launch;
-    use burn::backend::{wgpu::Wgpu, Autodiff};
+    use burn::backend::{Autodiff, wgpu::Wgpu};
 
     pub fn run() {
         launch::<Autodiff<Wgpu>>(Default::default());
@@ -78,7 +78,7 @@ mod wgpu {
 #[cfg(feature = "cuda")]
 mod cuda {
     use crate::launch;
-    use burn::backend::{cuda::CudaDevice, Autodiff, Cuda};
+    use burn::backend::{Autodiff, Cuda, cuda::CudaDevice};
 
     pub fn run() {
         launch::<Autodiff<Cuda>>(CudaDevice::default());

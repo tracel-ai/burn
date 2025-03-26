@@ -1,5 +1,5 @@
 use crate::Dataset;
-use rand::{distr::Uniform, rngs::StdRng, seq::IteratorRandom, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, distr::Uniform, rngs::StdRng, seq::IteratorRandom};
 use std::{marker::PhantomData, ops::DerefMut, sync::Mutex};
 
 /// Sample items from a dataset.

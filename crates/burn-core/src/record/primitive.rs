@@ -5,13 +5,13 @@ use super::tensor::{BoolTensorSerde, FloatTensorSerde, IntTensorSerde};
 use super::{PrecisionSettings, Record};
 use crate::module::{Param, ParamId};
 
-use burn_tensor::{backend::Backend, Bool, Int, Tensor};
+use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
 use hashbrown::HashMap;
 use serde::{
+    Deserialize, Serialize,
     de::{Error, SeqAccess, Visitor},
     ser::SerializeTuple,
-    Deserialize, Serialize,
 };
 
 impl<B> Record<B> for ()

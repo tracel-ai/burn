@@ -7,7 +7,7 @@ use hashbrown::HashMap;
 #[cfg(feature = "std")]
 use std::collections::HashMap;
 
-use crate::{backend::Backend, TensorPrimitive};
+use crate::{TensorPrimitive, backend::Backend};
 
 /// Contains tensor of arbitrary dimension.
 #[derive(Debug)]

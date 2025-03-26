@@ -1,4 +1,4 @@
-use crate::{backend::Backend, Tensor};
+use crate::{Tensor, backend::Backend};
 
 /// The observed input calibration range.
 #[derive(Clone, Debug)]

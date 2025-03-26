@@ -69,7 +69,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
                 return Err(de::Error::custom(format!(
                     "Expected some value but got {:?}",
                     self.value
-                )))
+                )));
             }
         };
 
@@ -890,13 +890,11 @@ impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
         V: Visitor<'de>,
     {
         // Return an error if the originator field name is not set
-        Err(Error::Other(
-            format!(
-                "Missing source values for the '{}' field of type '{}'. Please verify the source data and ensure the field name is correct",
-                self.originator_field_name.unwrap_or("UNKNOWN".to_string()),
-                 name,
-            )
-        ))
+        Err(Error::Other(format!(
+            "Missing source values for the '{}' field of type '{}'. Please verify the source data and ensure the field name is correct",
+            self.originator_field_name.unwrap_or("UNKNOWN".to_string()),
+            name,
+        )))
     }
 
     fn deserialize_tuple_struct<V>(

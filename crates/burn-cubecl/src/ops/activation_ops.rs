@@ -1,4 +1,4 @@
-use crate::{element::BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
+use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement};
 use burn_tensor::ops::ActivationOps;
 
 impl<R, F, I, BT> ActivationOps<Self> for CubeBackend<R, F, I, BT>

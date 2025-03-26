@@ -36,7 +36,7 @@ pub fn launch<B: Backend>(device: B::Device) {
 mod ndarray {
     use burn::backend::ndarray::{NdArray, NdArrayDevice};
 
-    use crate::{launch, ElemType};
+    use crate::{ElemType, launch};
 
     pub fn run() {
         launch::<NdArray<ElemType>>(NdArrayDevice::Cpu);
@@ -47,7 +47,7 @@ mod ndarray {
 mod tch_gpu {
     use burn::backend::libtorch::{LibTorch, LibTorchDevice};
 
-    use crate::{launch, ElemType};
+    use crate::{ElemType, launch};
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
@@ -63,7 +63,7 @@ mod tch_gpu {
 mod tch_cpu {
     use burn::backend::tch::{LibTorch, LibTorchDevice};
 
-    use crate::{launch, ElemType};
+    use crate::{ElemType, launch};
 
     pub fn run() {
         launch::<LibTorch<ElemType>>(LibTorchDevice::Cpu);
@@ -74,7 +74,7 @@ mod tch_cpu {
 mod wgpu {
     use burn::backend::wgpu::{Wgpu, WgpuDevice};
 
-    use crate::{launch, ElemType};
+    use crate::{ElemType, launch};
 
     pub fn run() {
         launch::<Wgpu<ElemType, i32>>(WgpuDevice::default());

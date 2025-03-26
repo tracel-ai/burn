@@ -1,5 +1,5 @@
-use super::{mask_where::MaskWhereStrategy, MaskFillStrategy};
-use crate::{element::CubeElement, tensor::CubeTensor, BoolElement, CubeRuntime};
+use super::{MaskFillStrategy, mask_where::MaskWhereStrategy};
+use crate::{BoolElement, CubeRuntime, element::CubeElement, tensor::CubeTensor};
 
 /// Execute the mask fill kernel.
 pub(crate) fn mask_fill_auto<R: CubeRuntime, E: CubeElement, BT: BoolElement>(

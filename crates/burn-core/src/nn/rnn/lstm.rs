@@ -3,11 +3,11 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
-use crate::nn::rnn::gate_controller::GateController;
 use crate::nn::Initializer;
+use crate::nn::rnn::gate_controller::GateController;
+use crate::tensor::Tensor;
 use crate::tensor::activation;
 use crate::tensor::backend::Backend;
-use crate::tensor::Tensor;
 
 /// A LstmState is used to store cell state and hidden state in LSTM.
 pub struct LstmState<B: Backend, const D: usize> {
@@ -356,7 +356,7 @@ impl<B: Backend> BiLstm<B> {
 mod tests {
     use super::*;
     use crate::tensor::{Device, Distribution, TensorData};
-    use crate::{module::Param, nn::LinearRecord, TestBackend};
+    use crate::{TestBackend, module::Param, nn::LinearRecord};
 
     #[cfg(feature = "std")]
     use crate::TestAutodiffBackend;

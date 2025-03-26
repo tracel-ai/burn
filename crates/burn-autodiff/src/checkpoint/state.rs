@@ -27,7 +27,9 @@ impl State {
     pub(crate) fn to_state_content(&self) -> &StateContent {
         match self {
             State::Recompute { n_required: _ } => {
-                unreachable!("Can't get state content of recompute state. A child has likely been accessed before its parents.")
+                unreachable!(
+                    "Can't get state content of recompute state. A child has likely been accessed before its parents."
+                )
             }
             State::Computed {
                 state_content,
@@ -40,7 +42,9 @@ impl State {
     pub(crate) fn into_state_content(self) -> StateContent {
         match self {
             State::Recompute { n_required: _ } => {
-                unreachable!("Can't get state content of recompute state. A child has likely been accessed before its parents.")
+                unreachable!(
+                    "Can't get state content of recompute state. A child has likely been accessed before its parents."
+                )
             }
             State::Computed {
                 state_content,

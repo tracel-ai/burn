@@ -4,11 +4,11 @@ use crate::module::{
     ModuleVisitor,
 };
 use crate::tensor::{
-    backend::{AutodiffBackend, Backend},
     Tensor,
+    backend::{AutodiffBackend, Backend},
 };
 use alloc::{format, string::ToString, vec::Vec};
-use burn_tensor::{ops::Device, Bool, Float, Int, TensorData};
+use burn_tensor::{Bool, Float, Int, TensorData, ops::Device};
 
 impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Float> {
     type Device = B::Device;
@@ -320,9 +320,9 @@ impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D
 mod tests {
     use super::*;
     use crate::{
+        TestAutodiffBackend,
         module::Module,
         record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
-        TestAutodiffBackend,
     };
 
     #[test]

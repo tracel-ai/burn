@@ -1,10 +1,10 @@
-use super::{batcher::DynBatcher, BatchStrategy, DataLoader, DataLoaderIterator, Progress};
+use super::{BatchStrategy, DataLoader, DataLoaderIterator, Progress, batcher::DynBatcher};
 use burn_dataset::{
-    transform::{PartialDataset, ShuffledDataset},
     Dataset,
+    transform::{PartialDataset, ShuffledDataset},
 };
 use burn_tensor::backend::Backend;
-use rand::{distr::StandardUniform, Rng};
+use rand::{Rng, distr::StandardUniform};
 use std::sync::Arc;
 
 /// A data loader that can be used to iterate over a dataset in batches.
@@ -183,8 +183,8 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
-    use crate::data::dataloader::batcher::TestBatcher;
     use crate::data::dataloader::FixBatchStrategy;
+    use crate::data::dataloader::batcher::TestBatcher;
     use crate::data::dataset::FakeDataset;
 
     #[test]

@@ -1,13 +1,12 @@
 use burn_tensor::ops::{ConvOptions, ConvTransposeOptions};
+use cubecl::linalg::convolution::ConvLaunchError;
 
-use crate::{
-    kernel::conv::ConvLaunchError, tensor::CubeTensor, CubeRuntime, FloatElement, IntElement,
-};
+use crate::{CubeRuntime, FloatElement, IntElement, tensor::CubeTensor};
 
 #[cfg(feature = "autotune")]
-use super::{conv2d_autotune, conv_transpose2d_autotune};
+use super::{conv_transpose2d_autotune, conv2d_autotune};
 use super::{
-    conv2d_direct, conv2d_im2col, conv_transpose2d_col2im, conv_transpose2d_direct,
+    conv_transpose2d_col2im, conv_transpose2d_direct, conv2d_direct, conv2d_im2col,
     gemm::launch::conv2d_gemm_cmma_large_m, implicit_gemm::conv2d_implicit_gemm,
 };
 

@@ -1,4 +1,4 @@
-use burn::record::{serde::error, RecorderError};
+use burn::record::{RecorderError, serde::error};
 use zip::result::ZipError;
 
 #[derive(thiserror::Error, Debug)]

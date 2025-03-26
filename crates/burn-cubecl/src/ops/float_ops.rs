@@ -2,17 +2,17 @@ use super::{expand, numeric, permute};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::unary_basic::BasicFloatUnaryKind;
 use crate::kernel::{
-    self, launch_unary_float, reduce, unary_basic, FloatUnaryOp, FloatUnaryOpFamily,
+    self, FloatUnaryOp, FloatUnaryOpFamily, launch_unary_float, reduce, unary_basic,
 };
+use crate::{CubeBackend, execute_with_dtype};
+use crate::{CubeRuntime, FloatElement, IntElement};
 use crate::{
     element::BoolElement,
-    kernel::matmul::{matmul, MatmulStrategy},
+    kernel::matmul::{MatmulStrategy, matmul},
 };
-use crate::{execute_with_dtype, CubeBackend};
-use crate::{CubeRuntime, FloatElement, IntElement};
 use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
-use burn_tensor::{ops::FloatTensorOps, Distribution, Shape, TensorData};
 use burn_tensor::{DType, ElementConversion, FloatDType};
+use burn_tensor::{Distribution, Shape, TensorData, ops::FloatTensorOps};
 use cubecl::prelude::*;
 use half::{bf16, f16};
 use std::ops::Range;

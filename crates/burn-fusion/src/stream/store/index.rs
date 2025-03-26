@@ -2,7 +2,7 @@ use crate::stream::store::ExecutionPlanId;
 use burn_ir::OperationIr;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{hash_map::DefaultHasher, HashMap},
+    collections::{HashMap, hash_map::DefaultHasher},
     hash::{Hash, Hasher},
 };
 

@@ -1,18 +1,18 @@
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, linalg::convolution::ConvLaunchError, prelude::*};
 
 use crate::{
+    CubeRuntime,
     element::CubeElement,
-    kernel::{conv::ConvLaunchError, into_contiguous},
+    kernel::into_contiguous,
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,
     },
     tensor::CubeTensor,
-    CubeRuntime,
 };
-use burn_tensor::{ops::ConvTransposeOptions, Shape};
+use burn_tensor::{Shape, ops::ConvTransposeOptions};
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct ConvArgs {
     conv_stride_0: u32,
     conv_stride_1: u32,

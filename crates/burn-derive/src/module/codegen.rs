@@ -2,7 +2,7 @@ use super::{display, record::ModuleRecordCodegen};
 use crate::shared::generics::GenericsHelper;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{parse_quote, Attribute, Generics};
+use syn::{Attribute, Generics, parse_quote};
 
 /// Basic trait to be implemented for Module generation.
 pub(crate) trait ModuleCodegen {
@@ -54,7 +54,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
 
     let generics_ty_inner_module = generics.inner_module_ty;
 
-    let mut gen = quote! {
+    let mut codegen = quote! {
         impl #generics_module burn::module::Module<B> for #name #generics_ty_module #generics_where_module {
             type Record = #record_name #generics_ty_module;
 
@@ -100,14 +100,14 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
     };
 
     if !has_custom_display(&ast.attrs) {
-        gen.extend(quote! {
+        codegen.extend(quote! {
             impl #generics_module burn::module::ModuleDisplay for #name #generics_ty_module #generics_where_module {
 
             }
         });
     }
 
-    gen
+    codegen
 }
 
 // When there is no backend in the generic parameter, the type is considered as a constant.
@@ -133,7 +133,7 @@ pub(crate) fn generate_module_const(ast: &syn::DeriveInput) -> TokenStream {
     let display_fn = display::display_fn(ast);
     let attributes_fn = display::attributes_fn(ast);
 
-    let mut gen = quote! {
+    let mut codegen = quote! {
         impl #generics_module burn::module::Module<B> for #name #generics_ty #generics_where {
             burn::constant!(module);
         }
@@ -155,14 +155,14 @@ pub(crate) fn generate_module_const(ast: &syn::DeriveInput) -> TokenStream {
     };
 
     if !has_custom_display(&ast.attrs) {
-        gen.extend(quote! {
+        codegen.extend(quote! {
             impl  #generics burn::module::ModuleDisplay for #name #generics_ty #generics_where {
 
             }
         });
     }
 
-    gen
+    codegen
 }
 
 struct GenericsParser {

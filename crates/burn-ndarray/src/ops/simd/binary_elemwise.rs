@@ -2,15 +2,15 @@ use core::marker::PhantomData;
 
 use bytemuck::cast;
 use macerator::{
-    vload, vload_unaligned, vstore, vstore_unaligned, Scalar, Simd, VAdd, VBitAnd, VBitOr, VBitXor,
-    VDiv, VMul, VOrd, VSub, Vector,
+    Scalar, Simd, VAdd, VBitAnd, VBitOr, VBitXor, VDiv, VMul, VOrd, VSub, Vector, vload,
+    vload_unaligned, vstore, vstore_unaligned,
 };
 use ndarray::ArrayD;
 use seq_macro::seq;
 
 use crate::{NdArrayElement, NdArrayTensor};
 
-use super::{should_use_simd, MinMax};
+use super::{MinMax, should_use_simd};
 
 pub trait ScalarSimdBinop<T: Scalar, Out: Scalar> {
     type Rhs: Copy;
@@ -293,7 +293,7 @@ unsafe fn binary_scalar_simd_inplace<
 ) -> NdArrayTensor<Out> {
     let mut buffer = input.array.into_owned();
     let slice = buffer.as_slice_memory_order_mut().unwrap();
-    binary_scalar_slice_inplace::<T, Out, Op>(slice, elem, PhantomData);
+    unsafe { binary_scalar_slice_inplace::<T, Out, Op>(slice, elem, PhantomData) };
     // Buffer has the same elem size and is filled with the operation output, so this is safe
     let out = unsafe { core::mem::transmute::<ArrayD<T>, ArrayD<Out>>(buffer) };
     NdArrayTensor::new(out.into_shared())

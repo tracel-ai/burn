@@ -6,16 +6,17 @@ use burn_ir::{FloatOperationIr, OperationIr};
 use cubecl::Runtime;
 
 use crate::{
-    shared::{builder::FuseBuilder, ir::ElemwisePrecision, settings::FuseSettings},
     CubeOptimization,
+    shared::settings::VectorizationSetting,
+    shared::{builder::FuseOptimizationBuilder, ir::FusePrecision, settings::FuseSettings},
 };
 
 use super::optimization::{FusedMatmul, MatmulOptimization};
 
 /// Fused element wise operations that are normally memory bound.
 pub struct MatmulBuilder<R: Runtime> {
-    builder: FuseBuilder,
-    builder_fallback: FuseBuilder,
+    builder: FuseOptimizationBuilder,
+    builder_fallback: FuseOptimizationBuilder,
     device: R::Device,
     matmul: Option<FusedMatmul>,
     fallback: Arc<dyn MatmulFallbackFn<R>>,
@@ -24,7 +25,7 @@ pub struct MatmulBuilder<R: Runtime> {
 impl<R: Runtime> MatmulBuilder<R> {
     pub fn new(
         device: R::Device,
-        bool_precision: ElemwisePrecision,
+        bool_precision: FusePrecision,
         fallback: Arc<dyn MatmulFallbackFn<R>>,
     ) -> Self {
         let client = R::client(&device);
@@ -34,12 +35,12 @@ impl<R: Runtime> MatmulBuilder<R> {
             broadcast: true,
             output_shape_updates: false,
             inplace: true,
-            vectorization: true,
+            vectorization: VectorizationSetting::Activated,
         };
 
         Self {
-            builder: FuseBuilder::new(max_bindings, bool_precision, settings),
-            builder_fallback: FuseBuilder::new(max_bindings, bool_precision, settings),
+            builder: FuseOptimizationBuilder::new(max_bindings, bool_precision, settings),
+            builder_fallback: FuseOptimizationBuilder::new(max_bindings, bool_precision, settings),
             device,
             matmul: None,
             fallback,

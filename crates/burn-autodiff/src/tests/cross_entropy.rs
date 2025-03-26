@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_cross_entropy_loss)]
 mod tests {
     use super::*;
-    use burn_tensor::{loss, Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData, loss};
 
     #[test]
     fn test_cross_entropy_loss_grad() {

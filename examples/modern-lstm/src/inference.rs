@@ -1,7 +1,7 @@
 use crate::{
     dataset::{
-        SequenceBatcher, SequenceDataset, SequenceDatasetItem, NOISE_LEVEL, NUM_SEQUENCES,
-        SEQ_LENGTH,
+        NOISE_LEVEL, NUM_SEQUENCES, SEQ_LENGTH, SequenceBatcher, SequenceDataset,
+        SequenceDatasetItem,
     },
     model::LstmNetwork,
     training::TrainingConfig,

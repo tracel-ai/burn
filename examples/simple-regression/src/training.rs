@@ -6,7 +6,7 @@ use burn::{
     prelude::*,
     record::{CompactRecorder, NoStdTrainingRecorder},
     tensor::backend::AutodiffBackend,
-    train::{metric::LossMetric, LearnerBuilder},
+    train::{LearnerBuilder, metric::LossMetric},
 };
 
 #[derive(Config)]

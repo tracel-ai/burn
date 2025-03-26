@@ -8,13 +8,13 @@ use crate::checkpoint::{
     KeepLastNCheckpoints, MetricCheckpointingStrategy,
 };
 use crate::components::LearnerComponentsMarker;
-use crate::learner::base::TrainingInterrupter;
 use crate::learner::EarlyStoppingStrategy;
+use crate::learner::base::TrainingInterrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
 use crate::metric::processor::{AsyncProcessor, FullEventProcessor, ItemLazy, Metrics};
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric};
-use crate::renderer::{default_renderer, MetricsRenderer};
+use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::{
     ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerCheckpointer,
     LearnerSummaryConfig,
@@ -288,7 +288,7 @@ where
     /// The [learning rate scheduler](LrScheduler) can also be a simple
     /// [learning rate](burn_core::LearningRate).
     #[allow(clippy::type_complexity)] // The goal for the builder is to handle all types and
-                                      // creates a clean learner.
+    // creates a clean learner.
     pub fn build(
         mut self,
         model: M,

@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::{
-        backend::Backend, module, ops::ModuleOps, Distribution, Tensor, TensorPrimitive,
+        Distribution, Tensor, TensorPrimitive, backend::Backend, module, ops::ModuleOps,
     };
 
     #[test]

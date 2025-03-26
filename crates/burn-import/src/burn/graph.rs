@@ -1,7 +1,7 @@
 use super::{BurnImports, Scope, Type};
 use crate::burn::{
-    node::{Node, NodeCodegen},
     TensorKind, TensorType,
+    node::{Node, NodeCodegen},
 };
 use burn::record::{
     BinFileRecorder, BurnRecord, FileRecorder, NamedMpkFileRecorder, NamedMpkGzFileRecorder,
@@ -10,8 +10,8 @@ use burn::record::{
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::{
-    ser::{SerializeMap, SerializeTuple},
     Serialize,
+    ser::{SerializeMap, SerializeTuple},
 };
 use std::{any::type_name, collections::HashMap, marker::PhantomData, path::PathBuf};
 
@@ -325,6 +325,16 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                         self.scope
                             .tensor_register_future_use(&tensor, node_position)
                     });
+            });
+
+        // Register graph tensor output with the last node position
+        self.graph_output_types
+            .clone()
+            .into_iter()
+            .flat_map(to_tensor)
+            .for_each(|tensor| {
+                self.scope
+                    .tensor_register_future_use(&tensor, self.nodes.len());
             });
     }
 
