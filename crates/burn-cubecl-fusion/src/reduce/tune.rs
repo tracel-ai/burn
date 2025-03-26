@@ -15,11 +15,11 @@ use super::optimization::ReduceOptimization;
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
 pub struct FusedReduceAutotuneKey {
     reduce_key: ReduceAutotuneKey,
-    #[autotune(anchor())]
+    #[autotune(anchor)]
     fuse_num_reads: usize,
-    #[autotune(anchor())]
+    #[autotune(anchor)]
     fuse_num_writes: usize,
-    #[autotune(anchor())]
+    #[autotune(anchor)]
     fuse_num_ops: usize,
 }
 

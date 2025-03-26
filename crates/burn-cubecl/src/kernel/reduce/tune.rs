@@ -213,7 +213,7 @@ pub(crate) fn create_key_sum<Run: CubeRuntime>(input: &CubeTensor<Run>) -> CubeA
 /// Autotune key representative of sum versions
 pub struct SumAutotuneKey {
     dtype: burn_tensor::DType,
-    #[autotune(anchor())]
+    #[autotune(anchor)]
     length: usize,
 }
 

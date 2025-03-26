@@ -1714,6 +1714,7 @@ name = "cubecl-linalg"
 version = "0.5.0"
 dependencies = [
  "bytemuck",
+ "cubecl-common",
  "cubecl-core",
  "cubecl-reduce",
  "cubecl-runtime",
@@ -1780,6 +1781,7 @@ dependencies = [
  "async-lock",
  "cfg_aliases",
  "cubecl-common",
+ "cubecl-ir",
  "derive-new 0.6.0",
  "hashbrown 0.14.5",
  "log",

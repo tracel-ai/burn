@@ -15,9 +15,9 @@ use super::optimization::MatmulOptimization;
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
 pub struct FusedMatmulAutotuneKey {
     matmul_key: MatmulAutotuneKey,
-    #[autotune(anchor())]
+    #[autotune(anchor)]
     num_out_buffers: usize,
-    #[autotune(anchor())]
+    #[autotune(anchor)]
     num_ops: usize,
 }
 
