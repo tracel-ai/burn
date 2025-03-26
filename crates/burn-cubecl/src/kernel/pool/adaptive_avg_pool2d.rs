@@ -1,9 +1,9 @@
 use crate::{
+    CubeRuntime,
     element::CubeElement,
-    kernel::conv::nchw_to_nhwc,
+    kernel::conv::permute_nchw_to_nhwc,
     ops::{max_vectorization, numeric::empty_device, permute},
     tensor::CubeTensor,
-    CubeRuntime,
 };
 use burn_tensor::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
@@ -84,11 +84,7 @@ pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime, E: CubeElement>(
 ) -> CubeTensor<R> {
     let [batch_size, channels, _, _] = input.shape.dims();
 
-    let input = if input.is_contiguous() {
-        nchw_to_nhwc::<R, E>(input)
-    } else {
-        permute(input, &[0, 2, 3, 1])
-    };
+    let input = permute_nchw_to_nhwc::<R, E>(input);
     let line_size = max_vectorization(&input);
 
     let output_shape = Shape::new([batch_size, output_size[0], output_size[1], channels]);

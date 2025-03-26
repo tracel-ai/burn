@@ -67,7 +67,7 @@ pub trait Metric: Send + Sync {
     /// The input type of the metric.
     type Input;
 
-    /// The parametrized name of the metric.
+    /// The parameterized name of the metric.
     ///
     /// This should be unique, so avoid using short generic names, prefer using the long name.
     ///

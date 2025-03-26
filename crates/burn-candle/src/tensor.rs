@@ -1,9 +1,9 @@
 use burn_tensor::{
-    quantization::{QTensorPrimitive, QuantizationScheme},
     DType, Element, Shape, TensorData, TensorMetadata,
+    quantization::{QTensorPrimitive, QuantizationScheme},
 };
 
-use crate::{element::CandleElement, CandleDevice};
+use crate::{CandleDevice, element::CandleElement};
 
 /// A tensor that uses the candle backend.
 #[derive(Debug, Clone)]

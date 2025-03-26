@@ -2,12 +2,12 @@ use burn_tensor::Shape;
 use cubecl::prelude::*;
 
 use burn_cubecl::{
+    CubeRuntime, IntElement,
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,
     },
     tensor::CubeTensor,
-    CubeRuntime, IntElement,
 };
 
 const CUBE_SIZE: u32 = 256;

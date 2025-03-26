@@ -3,21 +3,24 @@ use std::sync::Arc;
 use super::optimization::ReduceInstruction;
 use burn_fusion::{OptimizationBuilder, OptimizationStatus};
 use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
-use cubecl::{reduce::ReduceStrategy, Runtime};
+use cubecl::{Runtime, reduce::ReduceStrategy};
 
 use crate::{
-    shared::{builder::FuseBuilder, ir::ElemwisePrecision, settings::FuseSettings},
     CubeOptimization,
+    shared::{
+        builder::FuseOptimizationBuilder,
+        ir::FusePrecision,
+        settings::{FuseSettings, VectorizationSetting},
+    },
 };
 
 use super::optimization::{FusedReduce, ReduceFallbackFn, ReduceOptimization};
 
 /// Fused element wise operations that are normally memory bound.
 pub struct ReduceBuilder<R: Runtime> {
-    builder_read: FuseBuilder,
-    builder_write: FuseBuilder,
-    builder_read_fallback: FuseBuilder,
-    builder_write_fallback: FuseBuilder,
+    builder: FuseOptimizationBuilder,
+    builder_read_fallback: FuseOptimizationBuilder,
+    builder_write_fallback: FuseOptimizationBuilder,
     device: R::Device,
     reduce: Option<FusedReduce>,
     status: OptimizationStatus,
@@ -27,7 +30,7 @@ pub struct ReduceBuilder<R: Runtime> {
 impl<R: Runtime> ReduceBuilder<R> {
     pub fn new(
         device: R::Device,
-        bool_precision: ElemwisePrecision,
+        bool_precision: FusePrecision,
         fallback: Arc<dyn ReduceFallbackFn<R>>,
     ) -> Self {
         let client = R::client(&device);
@@ -37,20 +40,27 @@ impl<R: Runtime> ReduceBuilder<R> {
             broadcast: true,
             output_shape_updates: true,
             inplace: true,
-            vectorization: true,
+            vectorization: VectorizationSetting::Activated,
         };
         let settings_write = FuseSettings {
-            broadcast: false,
+            broadcast: true,
             output_shape_updates: false,
-            inplace: false,
-            vectorization: false,
+            inplace: true,
+            vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock,
         };
 
         Self {
-            builder_read: FuseBuilder::new(max_bindings, bool_precision, settings_read),
-            builder_write: FuseBuilder::new(max_bindings, bool_precision, settings_write),
-            builder_read_fallback: FuseBuilder::new(max_bindings, bool_precision, settings_read),
-            builder_write_fallback: FuseBuilder::new(max_bindings, bool_precision, settings_write),
+            builder: FuseOptimizationBuilder::new(max_bindings, bool_precision, settings_read),
+            builder_read_fallback: FuseOptimizationBuilder::new(
+                max_bindings,
+                bool_precision,
+                settings_read,
+            ),
+            builder_write_fallback: FuseOptimizationBuilder::new(
+                max_bindings,
+                bool_precision,
+                settings_write,
+            ),
             device,
             reduce: None,
             status: OptimizationStatus::Open,
@@ -59,18 +69,37 @@ impl<R: Runtime> ReduceBuilder<R> {
     }
 
     fn on_reduce(&mut self, op: &ReduceDimOpIr, inst: ReduceInstruction) {
-        if self.builder_read.current_output_shape != op.input.shape {
-            self.builder_read.close();
+        if self.builder.current_output_shape != op.input.shape {
+            self.builder.close();
             self.builder_read_fallback.close();
             self.status = OptimizationStatus::Closed;
             return;
         }
 
-        let input = self.builder_read.input(&op.input);
-        self.builder_read.not_output(&op.input);
+        let Some([input]) = self
+            .builder
+            .next_block([&op.input], self.builder_write_fallback.settings)
+        else {
+            self.builder.close();
+            self.builder_read_fallback.close();
+            self.status = OptimizationStatus::Closed;
+            return;
+        };
 
-        let output = self.builder_write.output_unhandled(&op.out);
+        let output = self.builder.output_unhandled(&op.out);
         let axis = op.axis;
+
+        // We only activate fuse-on-write when the reduction isn't on the last dimension, otherwise
+        // vectorization is impossible. Only [LineMode::Perpendicular] supports vectorization.
+        //
+        // We could still fuse some output operations, but it would probably lead to worse performance.
+        let fuse_on_write_activated = axis != op.input.shape.len() - 1;
+
+        if fuse_on_write_activated {
+            self.status = OptimizationStatus::Open;
+        } else {
+            self.status = OptimizationStatus::Closed;
+        }
 
         self.reduce = Some(FusedReduce::new(
             input,
@@ -83,19 +112,28 @@ impl<R: Runtime> ReduceBuilder<R> {
             },
             inst,
         ));
-        self.builder_read.close();
         self.builder_read_fallback.close();
-        self.status = OptimizationStatus::Closed;
     }
 
-    fn on_elemwise(&mut self, operation: &OperationIr) {
-        self.builder_read.register(operation);
+    fn on_elemwise_read(&mut self, operation: &OperationIr) {
+        self.builder.register(operation);
 
-        if self.builder_read_fallback.len() < self.builder_read.len() {
+        if self.builder_read_fallback.len() < self.builder.len() {
             self.builder_read_fallback.register(operation);
         }
 
-        self.status = self.builder_read.status();
+        self.status = self.builder.status();
+    }
+    fn on_elemwise_write(&mut self, operation: &OperationIr) {
+        self.builder.register(operation);
+
+        let num_ops_write = self.builder.len() - self.builder_read_fallback.len();
+
+        if self.builder_write_fallback.len() < num_ops_write {
+            self.builder_write_fallback.register(operation);
+        }
+
+        self.status = self.builder.status();
     }
 }
 
@@ -124,7 +162,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
                         self.on_reduce(op, ReduceInstruction::ArgMin);
                     }
                     _ => {
-                        self.on_elemwise(operation);
+                        self.on_elemwise_read(operation);
                     }
                 };
             } else if let OperationIr::NumericInt(_, op) = operation {
@@ -145,28 +183,26 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
                         self.on_reduce(op, ReduceInstruction::ArgMin);
                     }
                     _ => {
-                        self.on_elemwise(operation);
+                        self.on_elemwise_read(operation);
                     }
                 };
             } else {
-                self.on_elemwise(operation);
+                self.on_elemwise_read(operation);
             }
         } else {
-            panic!("Should not happen");
+            self.on_elemwise_write(operation);
         }
     }
 
     fn build(&self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
-        let trace_read = self.builder_read.build();
-        let trace_write = self.builder_write.build();
+        let trace = self.builder.build();
         let trace_read_fallback = self.builder_read_fallback.build();
         let trace_write_fallback = self.builder_write_fallback.build();
         let fuse_reduce = self.reduce.as_ref().unwrap();
 
         let reduce = ReduceOptimization::<R>::new(
-            trace_read,
-            trace_write,
+            trace,
             trace_read_fallback,
             trace_write_fallback,
             client,
@@ -180,8 +216,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
     }
 
     fn reset(&mut self) {
-        self.builder_read.reset();
-        self.builder_write.reset();
+        self.builder.reset();
         self.builder_read_fallback.reset();
         self.builder_write_fallback.reset();
         self.reduce = None;
@@ -193,23 +228,19 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
     }
 
     fn properties(&self) -> burn_fusion::OptimizationProperties {
-        let mut properties = self.builder_read.properties();
-        properties.ready = false;
+        let mut properties = self.builder.properties();
 
         if self.reduce.is_some() {
-            let properties_write = self.builder_write.properties();
-            properties.score += properties_write.score + 1;
             properties.ready = true;
-            properties
+            properties.score += 1;
         } else {
             properties.ready = false;
-            properties
-        }
+        };
+
+        properties
     }
 
     fn len(&self) -> usize {
-        self.builder_read.len()
-            + self.builder_write.len()
-            + self.reduce.as_ref().map(|_| 1).unwrap_or(0)
+        self.builder.len() + if self.reduce.is_some() { 1 } else { 0 }
     }
 }

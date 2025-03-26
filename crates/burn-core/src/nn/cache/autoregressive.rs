@@ -1,8 +1,8 @@
 use alloc::vec;
 
 use super::{CacheState, TensorCache};
-use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 
 impl<B: Backend, const D: usize> TensorCache<B, D> {
     pub(crate) fn forward_autoregressive<F>(

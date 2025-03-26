@@ -6,7 +6,7 @@ use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use core::marker::PhantomData;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
@@ -61,7 +61,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for 
         false
     }
 
-    fn name() -> String {
+    fn name(_device: &Self::Device) -> String {
         String::from("ndarray")
     }
 

@@ -1,5 +1,5 @@
 use crate::{
-    backend::AutodiffBackend, BasicOps, Bool, Float, Int, Tensor, TensorKind, TensorPrimitive,
+    BasicOps, Bool, Float, Int, Tensor, TensorKind, TensorPrimitive, backend::AutodiffBackend,
 };
 
 impl<const D: usize, B: AutodiffBackend> Tensor<B, D> {

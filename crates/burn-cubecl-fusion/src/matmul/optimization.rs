@@ -1,31 +1,31 @@
 use std::any::TypeId;
 use std::sync::Arc;
 
+use crate::CubeFusionHandle;
 use crate::elemwise::optimization::ElemwiseRunner;
-use crate::shared::ir::ElemwisePrecision;
+use crate::shared::ir::FusePrecision;
 use crate::shared::ir::RefLayout;
 use crate::shared::trace::TraceError;
 use crate::shared::trace::Vectorization;
-use crate::CubeFusionHandle;
 
 use burn_fusion::stream::Context;
 use burn_ir::{BinaryOpIr, TensorStatus};
 use cubecl::linalg::matmul::components;
-use cubecl::linalg::matmul::components::tile::accelerated::Accelerated;
-use cubecl::linalg::matmul::components::tile::TileMatmulFamily;
 use cubecl::linalg::matmul::components::MatmulProblem;
+use cubecl::linalg::matmul::components::tile::TileMatmulFamily;
+use cubecl::linalg::matmul::components::tile::accelerated::Accelerated;
 use cubecl::linalg::matmul::kernels::matmul::double_buffering::DoubleBufferingAlgorithm;
 use cubecl::linalg::matmul::kernels::matmul::simple::SimpleAlgorithm;
 use cubecl::linalg::matmul::kernels::matmul::specialized::SpecializedAlgorithm;
-use cubecl::linalg::matmul::kernels::matmul::{select_kernel, Algorithm};
+use cubecl::linalg::matmul::kernels::matmul::{Algorithm, select_kernel};
 use cubecl::linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
-use cubecl::linalg::tensor::{matrix_layout, MatrixLayout};
+use cubecl::linalg::tensor::{MatrixLayout, matrix_layout};
 use cubecl::{client::ComputeClient, prelude::*};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
 use crate::shared::{
-    ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
+    ir::{Arg, FuseBlockConfig, GlobalArgsLaunch},
     trace::{FuseTrace, TraceRunner},
 };
 
@@ -144,7 +144,7 @@ impl<R: Runtime> MatmulOptimization<R> {
 
     /// Returns the number of output buffers added by fusion.
     pub fn num_output_buffers(&self) -> usize {
-        self.trace_fallback.outputs.len()
+        self.trace_fallback.resources.outputs.len()
     }
 
     pub fn execute_simple_fused<BT: CubeElement>(
@@ -259,13 +259,13 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmul {
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        config: &'a ElemwiseConfig,
+        configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedMatmulError> {
         match self.out.precision() {
-            ElemwisePrecision::F32 => self.matmul_fused::<R, f32>(client, inputs, outputs, config),
-            ElemwisePrecision::F16 => self.matmul_fused::<R, f16>(client, inputs, outputs, config),
-            ElemwisePrecision::BF16 => {
-                self.matmul_fused::<R, bf16>(client, inputs, outputs, config)
+            FusePrecision::F32 => self.matmul_fused::<R, f32>(client, inputs, outputs, &configs[0]),
+            FusePrecision::F16 => self.matmul_fused::<R, f16>(client, inputs, outputs, &configs[0]),
+            FusePrecision::BF16 => {
+                self.matmul_fused::<R, bf16>(client, inputs, outputs, &configs[0])
             }
             _ => panic!("Unsupported precision"),
         }
@@ -278,7 +278,7 @@ impl FusedMatmul {
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        config: &'a ElemwiseConfig,
+        config: &'a FuseBlockConfig,
     ) -> Result<(), FusedMatmulError> {
         let lhs_shape = inputs.shape(&self.lhs);
         let rhs_shape = inputs.shape(&self.rhs);
@@ -355,7 +355,7 @@ impl FusedMatmul {
                 return Err(MatmulLaunchError::Unavailable(
                     MatmulAvailabilityError::PlaneDimUnknown,
                 )
-                .into())
+                .into());
             }
         };
 

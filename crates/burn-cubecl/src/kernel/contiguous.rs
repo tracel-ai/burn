@@ -1,4 +1,4 @@
-use crate::{execute_with_dtype, tensor::CubeTensor, CubeRuntime};
+use crate::{CubeRuntime, execute_with_dtype, tensor::CubeTensor};
 
 /// Make a jit tensor contiguous.
 pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {

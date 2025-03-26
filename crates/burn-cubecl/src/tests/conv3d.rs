@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(conv3d)]
 mod tests {
     use super::*;
-    use burn_tensor::{module, Distribution, Tensor};
+    use burn_tensor::{Distribution, Tensor, module};
 
     #[test]
     fn conv3d_should_match_reference_backend() {

@@ -4,7 +4,7 @@ use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{parse_macro_input, Attribute, Expr, ItemFn, Lit, Meta, MetaNameValue};
+use syn::{Attribute, Expr, ItemFn, Lit, Meta, MetaNameValue, parse_macro_input};
 
 // Define a structure to parse the attribute arguments
 struct AttributeArgs {

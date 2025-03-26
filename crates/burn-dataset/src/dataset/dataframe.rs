@@ -6,8 +6,9 @@ use polars::frame::row::Row;
 use polars::prelude::*;
 use serde::de::DeserializeSeed;
 use serde::{
+    Deserialize,
     de::{self, DeserializeOwned, Deserializer, SeqAccess, Visitor},
-    forward_to_deserialize_any, Deserialize,
+    forward_to_deserialize_any,
 };
 
 /// Error type for DataframeDataset

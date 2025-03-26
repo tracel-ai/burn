@@ -1,8 +1,9 @@
-use burn_tensor::{ops::ConvOptions, ElementConversion, Shape};
-use cubecl::tune::{local_tuner, LocalTuner, TunableSet};
+use burn_tensor::{ElementConversion, Shape, ops::ConvOptions};
+use cubecl::tune::{LocalTuner, TunableSet, local_tuner};
 
 use super::Conv2dAutotuneKey;
 use crate::{
+    CubeAutotuneKey, CubeRuntime, CubeTuneId, FloatElement,
     kernel::{
         conv::{
             conv2d_direct, conv2d_gemm_cmma_balanced, conv2d_gemm_cmma_large_m, conv2d_im2col,
@@ -11,7 +12,6 @@ use crate::{
         prng::random_uniform,
     },
     tensor::CubeTensor,
-    CubeAutotuneKey, CubeRuntime, CubeTuneId, FloatElement,
 };
 
 /// Executes autotune on conv2d operations
@@ -33,7 +33,7 @@ pub fn conv2d_autotune<R: CubeRuntime, E: FloatElement>(
         .with_tunable(conv2d_gemm_cmma_balanced::<R, E>);
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&input.device),
+        &CubeTuneId::new::<R>(&input.client, &input.device),
         &client,
         &tunables,
         (input, weights, bias, options),

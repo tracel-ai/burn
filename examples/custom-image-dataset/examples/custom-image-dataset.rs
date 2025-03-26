@@ -2,12 +2,12 @@
 mod tch_gpu {
     use burn::{
         backend::{
-            libtorch::{LibTorch, LibTorchDevice},
             Autodiff,
+            libtorch::{LibTorch, LibTorchDevice},
         },
-        optim::{momentum::MomentumConfig, SgdConfig},
+        optim::{SgdConfig, momentum::MomentumConfig},
     };
-    use custom_image_dataset::training::{train, TrainingConfig};
+    use custom_image_dataset::training::{TrainingConfig, train};
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
@@ -30,12 +30,12 @@ mod tch_gpu {
 mod wgpu {
     use burn::{
         backend::{
-            wgpu::{Wgpu, WgpuDevice},
             Autodiff,
+            wgpu::{Wgpu, WgpuDevice},
         },
-        optim::{momentum::MomentumConfig, SgdConfig},
+        optim::{SgdConfig, momentum::MomentumConfig},
     };
-    use custom_image_dataset::training::{train, TrainingConfig};
+    use custom_image_dataset::training::{TrainingConfig, train};
 
     pub fn run() {
         train::<Autodiff<Wgpu>>(

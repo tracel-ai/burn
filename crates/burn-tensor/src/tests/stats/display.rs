@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::backend::Backend;
-    use burn_tensor::{set_print_options, Element, PrintOptions, Shape, Tensor, TensorData};
+    use burn_tensor::{Element, PrintOptions, Shape, Tensor, TensorData, set_print_options};
 
     type FloatElem = <TestBackend as Backend>::FloatElem;
     type IntElem = <TestBackend as Backend>::IntElem;
@@ -27,7 +27,7 @@ mod tests {
   dtype:  "{dtype}",
 }}"#,
             tensor_int.device(),
-            TestBackend::name(),
+            TestBackend::name(&tensor_int.device()),
             dtype = core::any::type_name::<IntElem>(),
         );
         assert_eq!(output, expected);
@@ -53,7 +53,7 @@ mod tests {
   dtype:  "{dtype}",
 }}"#,
             tensor_float.device(),
-            TestBackend::name(),
+            TestBackend::name(&tensor_float.device()),
             dtype = core::any::type_name::<FloatElem>(),
         );
         assert_eq!(output, expected);
@@ -83,7 +83,7 @@ mod tests {
   dtype:  {:?},
 }}"#,
             tensor_bool.device(),
-            TestBackend::name(),
+            TestBackend::name(&tensor_bool.device()),
             <TestBackend as Backend>::BoolElem::dtype().name(),
         );
         assert_eq!(output, expected);
@@ -115,7 +115,7 @@ mod tests {
   dtype:  "{dtype}",
 }}"#,
             tensor.device(),
-            TestBackend::name(),
+            TestBackend::name(&tensor.device()),
             dtype = core::any::type_name::<IntElem>(),
         );
         assert_eq!(output, expected);
@@ -150,7 +150,7 @@ mod tests {
   dtype:  "{dtype}",
 }}"#,
             tensor.device(),
-            TestBackend::name(),
+            TestBackend::name(&tensor.device()),
             dtype = core::any::type_name::<IntElem>(),
         );
         assert_eq!(output, expected);
@@ -180,7 +180,7 @@ mod tests {
   dtype:  "f32",
 }}"#,
             tensor.device(),
-            TestBackend::name(),
+            TestBackend::name(&tensor.device()),
         );
         assert_eq!(output, expected);
     }
@@ -229,7 +229,7 @@ mod tests {
   dtype:  "f32",
 }}"#,
             tensor.device(),
-            TestBackend::name(),
+            TestBackend::name(&tensor.device()),
         );
         assert_eq!(output, expected);
     }
@@ -278,7 +278,7 @@ mod tests {
   dtype:  "f32",
 }}"#,
             tensor.device(),
-            TestBackend::name(),
+            TestBackend::name(&tensor.device()),
         );
         assert_eq!(output, expected);
     }
@@ -298,7 +298,7 @@ mod tests {
   dtype:  "f32",
 }}"#,
             tensor.device(),
-            TestBackend::name(),
+            TestBackend::name(&tensor.device()),
         );
         assert_eq!(output, expected);
 
@@ -327,7 +327,7 @@ mod tests {
   dtype:  "f32",
 }}"#,
             tensor.device(),
-            TestBackend::name(),
+            TestBackend::name(&tensor.device()),
         );
         assert_eq!(output, expected);
     }

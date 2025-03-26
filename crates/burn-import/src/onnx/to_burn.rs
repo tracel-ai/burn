@@ -13,6 +13,7 @@ use log::warn;
 
 use crate::{
     burn::{
+        ScalarKind, ScalarType, ShapeType, TensorKind, TensorType, Type,
         graph::BurnGraph,
         node::{
             argmax::ArgMaxNode,
@@ -24,12 +25,12 @@ use crate::{
             concat::ConcatNode,
             constant::{ConstantNode, ConstantValue},
             constant_of_shape::ConstantOfShapeNode,
-            conv1d::Conv1dNode,
-            conv2d::Conv2dNode,
-            conv3d::Conv3dNode,
             conv_transpose_1d::ConvTranspose1dNode,
             conv_transpose_2d::ConvTranspose2dNode,
             conv_transpose_3d::ConvTranspose3dNode,
+            conv1d::Conv1dNode,
+            conv2d::Conv2dNode,
+            conv3d::Conv3dNode,
             dropout::DropoutNode,
             expand::{ExpandNode, ExpandShape},
             floor::FloorNode,
@@ -63,7 +64,6 @@ use crate::{
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
         },
-        ScalarKind, ScalarType, ShapeType, TensorKind, TensorType, Type,
     },
     format_tokens,
     logger::init_log,
@@ -71,14 +71,14 @@ use crate::{
 
 use super::op_configuration::{
     argmax_config, avg_pool1d_config, avg_pool2d_config, batch_norm_config, clip_config,
-    concat_config, conv1d_config, conv2d_config, conv3d_config, conv_transpose1d_config,
-    conv_transpose2d_config, conv_transpose3d_config, dropout_config, expand_config,
-    flatten_config, gather_config, gemm_config, hard_sigmoid_config, layer_norm_config,
-    leaky_relu_config, linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config,
-    one_hot_config, pad_config, reduce_max_config, reduce_mean_config, reduce_min_config,
-    reduce_prod_config, reduce_sum_config, reshape_config, resize_config, shape_config,
-    slice_config, softmax_config, split_config, squeeze_config, tile_config, top_k_config,
-    transpose_config, trilu_config, unsqueeze_config,
+    concat_config, conv_transpose1d_config, conv_transpose2d_config, conv_transpose3d_config,
+    conv1d_config, conv2d_config, conv3d_config, dropout_config, expand_config, flatten_config,
+    gather_config, gemm_config, hard_sigmoid_config, layer_norm_config, leaky_relu_config,
+    linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, one_hot_config,
+    pad_config, reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
+    reduce_sum_config, reshape_config, resize_config, shape_config, slice_config, softmax_config,
+    split_config, squeeze_config, tile_config, top_k_config, transpose_config, trilu_config,
+    unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -672,9 +672,9 @@ impl ParsedOnnxGraph {
     fn flatten_conversion(node: Node) -> UnaryNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        let (start_dim, end_dim) = flatten_config(&node);
+        let axis = flatten_config(&node);
 
-        UnaryNode::flatten(input, output, start_dim, end_dim)
+        UnaryNode::flatten(input, output, axis)
     }
 
     fn gather_conversion(node: Node) -> GatherNode {

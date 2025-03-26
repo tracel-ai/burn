@@ -13,10 +13,10 @@ use burn_ir::{
 use burn_tensor::DType;
 
 use crate::{
+    OptimizationBuilder, OptimizationProperties, OptimizationStatus,
     stream::store::{
         ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
     },
-    OptimizationBuilder, OptimizationProperties, OptimizationStatus,
 };
 
 use super::*;

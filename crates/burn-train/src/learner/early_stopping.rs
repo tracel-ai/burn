@@ -1,6 +1,6 @@
 use crate::metric::{
-    store::{Aggregate, Direction, EventStoreClient, Split},
     Metric,
+    store::{Aggregate, Direction, EventStoreClient, Split},
 };
 
 /// The condition that [early stopping strategies](EarlyStoppingStrategy) should follow.
@@ -117,16 +117,16 @@ mod tests {
     use std::sync::Arc;
 
     use crate::{
+        TestBackend,
         logger::InMemoryMetricLogger,
         metric::{
+            LossMetric,
             processor::{
-                test_utils::{end_epoch, process_train},
                 Metrics, MinimalEventProcessor,
+                test_utils::{end_epoch, process_train},
             },
             store::LogEventStore,
-            LossMetric,
         },
-        TestBackend,
     };
 
     use super::*;

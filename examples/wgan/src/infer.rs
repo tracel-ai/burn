@@ -1,4 +1,4 @@
-use crate::training::{save_image, TrainingConfig};
+use crate::training::{TrainingConfig, save_image};
 use burn::{
     prelude::*,
     record::{CompactRecorder, Recorder},

@@ -1,7 +1,7 @@
 use alloc::string::String;
 
-use crate::tensor::Element;
 use crate::TensorMetadata;
+use crate::tensor::Element;
 use crate::{ops::*, quantization::QTensorPrimitive};
 
 use super::DeviceOps;
@@ -97,7 +97,7 @@ pub trait Backend:
     }
 
     /// Name of the backend.
-    fn name() -> String;
+    fn name(device: &Self::Device) -> String;
 
     /// Seed the backend.
     fn seed(seed: u64);
@@ -109,11 +109,7 @@ pub trait Backend:
 /// Trait that allows a backend to support autodiff.
 pub trait AutodiffBackend: Backend {
     /// The inner backend type.
-    type InnerBackend: Backend<
-        Device = Self::Device,
-        FloatElem = Self::FloatElem,
-        IntElem = Self::IntElem,
-    >;
+    type InnerBackend: Backend<Device = Self::Device, FloatElem = Self::FloatElem, IntElem = Self::IntElem>;
 
     /// Gradients type.
     type Gradients: Send;

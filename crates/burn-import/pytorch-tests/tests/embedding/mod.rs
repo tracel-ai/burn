@@ -1,7 +1,7 @@
 use burn::{
     module::Module,
     nn::{Embedding, EmbeddingConfig},
-    tensor::{backend::Backend, Int, Tensor},
+    tensor::{Int, Tensor, backend::Backend},
 };
 
 #[derive(Module, Debug)]

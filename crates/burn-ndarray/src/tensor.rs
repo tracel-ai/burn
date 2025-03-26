@@ -1,11 +1,11 @@
 use core::mem;
 
 use burn_tensor::{
+    DType, Element, Shape, TensorData, TensorMetadata,
     quantization::{
         AffineQuantization, QParams, QTensorPrimitive, QuantizationMode, QuantizationScheme,
         QuantizationStrategy, QuantizationType, SymmetricQuantization,
     },
-    DType, Element, Shape, TensorData, TensorMetadata,
 };
 
 use alloc::vec::Vec;
@@ -285,10 +285,14 @@ macro_rules! reshape {
     ) => {{
         let dim = $crate::to_typed_dims!($n, $shape.dims, justdim);
         let array: ndarray::ArcArray<$ty, Dim<[usize; $n]>> = match $array.is_standard_layout() {
-            true => $array
-                .to_shape(dim)
-                .expect("Safe to change shape without relayout")
-                .into_shared(),
+            true => {
+                match $array.to_shape(dim) {
+                    Ok(val) => val.into_shared(),
+                    Err(err) => {
+                        core::panic!("Shape should be compatible shape={dim:?}: {err:?}");
+                    }
+                }
+            },
             false => $array.to_shape(dim).unwrap().as_standard_layout().into_shared(),
         };
         let array = array.into_dyn();
@@ -408,9 +412,9 @@ mod tests {
     use super::*;
     use burn_common::rand::get_seeded_rng;
     use burn_tensor::{
+        Distribution,
         ops::{FloatTensorOps, IntTensorOps, QTensorOps},
         quantization::{AffineQuantization, QuantizationParametersPrimitive, QuantizationType},
-        Distribution,
     };
 
     #[test]

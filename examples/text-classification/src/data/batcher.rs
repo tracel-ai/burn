@@ -1,7 +1,7 @@
 // The module defines two structs TextClassificationTrainingBatch and TextClassificationInferenceBatch
 // to handle batches of data during training and inference respectively. The TextClassificationBatcher
-// struct is implemented for creating these batches. It is parametrized on the type B: Backend to support
-// different computation backends (e.g., CPU, CUDA).
+// struct is implemented for creating these batches. It is parameterized on the type B: Backend to
+// support different computation backends (e.g., CPU, CUDA).
 
 // Two implementations of the Batcher trait are provided for TextClassificationBatcher, one for creating
 // training batches and one for creating inference batches. In each implementation, the batch function is

@@ -1,6 +1,6 @@
 use crate::{
-    element::{IntNdArrayElement, QuantElement},
     FloatNdArrayElement, NdArray,
+    element::{IntNdArrayElement, QuantElement},
 };
 use burn_tensor::ops::TransactionOps;
 

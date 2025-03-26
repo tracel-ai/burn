@@ -1,7 +1,6 @@
 use cubecl::{
-    flex32,
+    CubeElement as CubeElem, flex32,
     prelude::{Float, Int, Numeric},
-    CubeElement as CubeElem,
 };
 
 /// The base element trait for the jit backend.

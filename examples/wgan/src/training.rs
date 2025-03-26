@@ -5,9 +5,9 @@ use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     prelude::*,
     record::CompactRecorder,
-    tensor::{backend::AutodiffBackend, Distribution},
+    tensor::{Distribution, backend::AutodiffBackend},
 };
-use image::{buffer::ConvertBuffer, error::ImageResult, Rgb32FImage, RgbImage};
+use image::{Rgb32FImage, RgbImage, buffer::ConvertBuffer, error::ImageResult};
 use std::path::Path;
 
 #[derive(Config)]

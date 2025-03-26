@@ -6,8 +6,8 @@ use super::{
 };
 
 use serde::{
-    ser::{self, SerializeSeq, SerializeStruct, Serializer as SerializerTrait},
     Serialize,
+    ser::{self, SerializeSeq, SerializeStruct, Serializer as SerializerTrait},
 };
 
 /// Simple struct serializer that converts a struct into NestedValues.

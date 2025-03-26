@@ -45,6 +45,7 @@ include_models!(
     expand_tensor,
     expand_shape,
     flatten,
+    flatten_2d,
     floor,
     gather_1d_idx,
     gather_2d_idx,
@@ -57,6 +58,7 @@ include_models!(
     gemm_non_unit_alpha_beta,
     gemm_no_c,
     global_avr_pool,
+    graph_multiple_output_tracking,
     greater,
     greater_scalar,
     greater_or_equal,
@@ -144,7 +146,7 @@ mod tests {
 
     use super::*;
 
-    use burn::tensor::{cast::ToElement, Bool, Int, Shape, Tensor, TensorData};
+    use burn::tensor::{Bool, Int, Shape, Tensor, TensorData, cast::ToElement};
 
     use float_cmp::ApproxEq;
 
@@ -556,6 +558,15 @@ mod tests {
         let expected = TensorData::from([[1f32, 1.], [4., 3.]]);
 
         assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn graph_multiple_output_tracking() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: graph_multiple_output_tracking::Model<Backend> =
+            graph_multiple_output_tracking::Model::default();
+
+        // We don't actually care about the output here, the compiler will tell us if we passed
     }
 
     #[test]
@@ -1158,6 +1169,21 @@ mod tests {
         let output = model.forward(input);
 
         let expected_shape = Shape::from([1, 75]);
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn flatten_2d() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: flatten_2d::Model<Backend> = flatten_2d::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::ones([2, 3, 4, 5], &device);
+        let output = model.forward(input);
+
+        // Flatten leading and trailing dimensions (axis = 2) and returns a 2D tensor
+        let expected_shape = Shape::from([6, 20]);
         assert_eq!(expected_shape, output.shape());
     }
 

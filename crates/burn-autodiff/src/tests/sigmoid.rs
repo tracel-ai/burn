@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_sigmoid)]
 mod tests {
     use super::*;
-    use burn_tensor::{activation, TensorData};
+    use burn_tensor::{TensorData, activation};
 
     #[test]
     fn should_diff_sigmoid() {

@@ -1,11 +1,11 @@
-use crate::{client::FusionClient, stream::Context, FusionClientLocator, FusionTensor};
+use crate::{FusionClientLocator, FusionTensor, client::FusionClient, stream::Context};
 use burn_ir::{BackendIr, OperationIr, TensorHandle};
 use burn_tensor::{
+    Device, Element,
     backend::{Backend, DeviceOps},
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
-    Device, Element,
 };
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;
 
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
@@ -39,8 +39,8 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     type QuantizedEncoding = B::QuantizedEncoding;
 
-    fn name() -> String {
-        format!("fusion<{}>", B::name())
+    fn name(device: &Self::Device) -> String {
+        format!("fusion<{}>", B::name(device))
     }
 
     fn seed(seed: u64) {

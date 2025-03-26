@@ -6,7 +6,7 @@ use burn_common::{iter_range_par, run_par};
 use burn_tensor::{DType, Element, ElementConversion, TensorMetadata};
 use bytemuck::Zeroable;
 use macerator::{Simd, VAdd, VDiv};
-use ndarray::{s, Array4};
+use ndarray::{Array4, s};
 use nhwc::avg_pool_nhwc;
 
 use super::should_use_simd;
@@ -53,7 +53,7 @@ fn cast<T, E>(tensor: NdArrayTensor<T>) -> NdArrayTensor<E> {
 
 mod nhwc {
     use itertools::Itertools;
-    use macerator::{vload_unaligned, vstore_unaligned, Simd, Vector};
+    use macerator::{Simd, Vector, vload_unaligned, vstore_unaligned};
     use ndarray::{ArrayView3, ArrayViewMut3};
     use seq_macro::seq;
 
@@ -90,7 +90,7 @@ mod nhwc {
         let x = x.array.view();
         let x = x.permuted_axes(vec![0, 2, 3, 1]);
 
-        // Floor divison ensures `blocks * lanes * blocking factor` is always `<= out_channels`.
+        // Floor division ensures `blocks * lanes * blocking factor` is always `<= out_channels`.
         // An exclusive loop will always have `lanes * blocking factor` elements in bounds.
         let blocks = channels / ch_block;
         let blocks_end = blocks * ch_block;
@@ -306,7 +306,7 @@ mod nhwc {
                     for kw in 0..kernel_width {
                         let iw = ow * stride_width + kw - pad_w;
                         // Load a full vector from `x`. In bounds as long as `out_channels >= ch + lanes`
-                        let s0 = vload_unaligned(&x[[ih, iw, ch]]);
+                        let s0 = unsafe { vload_unaligned(&x[[ih, iw, ch]]) };
                         sum += s0;
                     }
                 }
@@ -316,7 +316,7 @@ mod nhwc {
                 let count_v = count.splat();
                 let s0 = sum / count_v;
                 // Store a full vector to `out`. In bounds as long as `out_channels >= ch + lanes`.
-                vstore_unaligned(&mut out[[oh, ow, ch]], s0);
+                unsafe { vstore_unaligned(&mut out[[oh, ow, ch]], s0) };
             }
         }
 
@@ -348,7 +348,7 @@ mod nhwc {
                         count += 1;
 
                         // Load a full vector from `x`. In bounds as long as `out_channels >= ch + lanes`
-                        sum += vload_unaligned(&x[[ih, iw, ch]]);
+                        sum += unsafe { vload_unaligned(&x[[ih, iw, ch]]) };
                     }
                 }
 
@@ -360,7 +360,7 @@ mod nhwc {
                 let count_v = count.splat();
                 let s0 = sum / count_v;
                 // Store a full vector to `out`. In bounds as long as `out_channels >= ch + lanes`.
-                vstore_unaligned(&mut out[[oh, ow, ch]], s0);
+                unsafe { vstore_unaligned(&mut out[[oh, ow, ch]], s0) };
             }
         }
     }

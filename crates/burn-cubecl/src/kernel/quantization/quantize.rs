@@ -1,9 +1,9 @@
 use crate::tensor::CubeTensor;
 use crate::{CubeElement, CubeRuntime, IntElement};
+use burn_tensor::Shape;
 use burn_tensor::quantization::{
     BlockLayout, QuantizationMode, QuantizationScheme, QuantizationType,
 };
-use burn_tensor::Shape;
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 
@@ -364,7 +364,9 @@ where
             BlockLayout::Flat(block_size),
         ) => {
             if line_size != 4 {
-                panic!("Per-block quantization is only supported for a line size of 4, got {line_size} ({num_elems} elements)")
+                panic!(
+                    "Per-block quantization is only supported for a line size of 4, got {line_size} ({num_elems} elements)"
+                )
             }
 
             if block_size % line_size as u32 != 0 {

@@ -1,7 +1,7 @@
 use crate::{QuantElement, TchQTensor};
 
-use super::element::TchElement;
 use super::TchTensor;
+use super::element::TchElement;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::IntTensorOps;
 use burn_tensor::{Int, Tensor};
@@ -121,8 +121,14 @@ impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
         false
     }
 
-    fn name() -> String {
-        "tch".to_string()
+    fn name(device: &Self::Device) -> String {
+        match device {
+            LibTorchDevice::Cpu => "libtorch<cpu>",
+            LibTorchDevice::Cuda(_) => "libtorch<cuda>",
+            LibTorchDevice::Mps => "libtorch<metal>",
+            LibTorchDevice::Vulkan => "libtorch<vulkan>",
+        }
+        .to_string()
     }
 
     fn sync(device: &Self::Device) {

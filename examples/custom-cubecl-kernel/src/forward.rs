@@ -1,10 +1,10 @@
-use crate::{kernel::fused_matmul_add_relu_kernel, FloatTensor};
+use crate::{FloatTensor, kernel::fused_matmul_add_relu_kernel};
 
 use super::Backend;
 use burn::tensor::Shape;
 use burn_cubecl::{
-    element::BoolElement, kernel::into_contiguous, tensor::CubeTensor, CubeBackend, CubeRuntime,
-    FloatElement, IntElement,
+    CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement,
+    kernel::into_contiguous, tensor::CubeTensor,
 };
 use cubecl::{CubeCount, CubeDim};
 

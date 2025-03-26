@@ -1,4 +1,4 @@
-use super::{server::AutodiffServer, AutodiffClient};
+use super::{AutodiffClient, server::AutodiffServer};
 use crate::{
     checkpoint::builder::CheckpointerBuilder,
     grads::Gradients,

@@ -1,15 +1,15 @@
 use super::pool2d::{
-    pool2d_direct, Pool2dDirectArgsLaunch, Pool2dDirectStrategy, Pool2dDirectStrategyFamily,
+    Pool2dDirectArgsLaunch, Pool2dDirectStrategy, Pool2dDirectStrategyFamily, pool2d_direct,
 };
 use crate::{
+    CubeRuntime,
     element::CubeElement,
-    kernel::conv::nchw_to_nhwc,
+    kernel::conv::permute_nchw_to_nhwc,
     ops::{max_vectorization, numeric::empty_device, permute},
     tensor::CubeTensor,
-    CubeRuntime,
 };
-use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
-use cubecl::{calculate_cube_count_elemwise, prelude::*, CubeDim};
+use burn_tensor::{Shape, ops::conv::calculate_pool_output_size};
+use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::*};
 
 struct MaxPoolStrategy;
 struct MaxPoolWithIndicesStrategy;
@@ -121,11 +121,7 @@ pub(crate) fn max_pool2d<R: CubeRuntime, E: CubeElement>(
         x.shape.dims[3],
     );
 
-    let x = if x.is_contiguous() {
-        nchw_to_nhwc::<R, E>(x)
-    } else {
-        permute(x, &[0, 2, 3, 1])
-    };
+    let x = permute_nchw_to_nhwc::<R, E>(x);
 
     let line_size = max_vectorization(&x);
 
@@ -182,11 +178,7 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime, E: CubeElement, I: CubeEle
         x.shape.dims[3],
     );
 
-    let x = if x.is_contiguous() {
-        nchw_to_nhwc::<R, E>(x)
-    } else {
-        permute(x, &[0, 2, 3, 1])
-    };
+    let x = permute_nchw_to_nhwc::<R, E>(x);
     let line_size = max_vectorization(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);

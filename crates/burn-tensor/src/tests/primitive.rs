@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(primitive)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, DType, Element, Shape};
+    use burn_tensor::{DType, Element, Shape, backend::Backend};
 
     #[test]
     fn should_support_float_dtype() {

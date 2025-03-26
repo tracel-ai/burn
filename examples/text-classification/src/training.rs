@@ -18,10 +18,10 @@ use burn::{
     record::{CompactRecorder, Recorder},
     tensor::backend::AutodiffBackend,
     train::{
+        LearnerBuilder,
         metric::{
             AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
         },
-        LearnerBuilder,
     },
 };
 use std::sync::Arc;

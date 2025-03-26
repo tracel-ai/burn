@@ -3,8 +3,8 @@ use crate::FloatTensor;
 use super::Backend;
 use burn::{
     backend::wgpu::{
-        build_info, into_contiguous, kernel_source, BoolElement, CubeBackend, CubeTensor,
-        FloatElement, IntElement, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
+        BoolElement, CubeBackend, CubeTensor, FloatElement, IntElement, KernelSource, SourceKernel,
+        SourceTemplate, WgpuRuntime, build_info, into_contiguous, kernel_source,
     },
     tensor::Shape,
 };

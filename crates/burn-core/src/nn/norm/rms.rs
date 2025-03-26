@@ -7,8 +7,8 @@ use crate::module::Module;
 use crate::module::Param;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::nn::Initializer;
-use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 
 /// Configuration to create a [RMS Norm](RmsNorm) layer using the [init function](RmsNormConfig::init).
 #[derive(Config)]
@@ -96,8 +96,8 @@ impl<B: Backend> ModuleDisplay for RmsNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
     use alloc::format;
 
     #[test]

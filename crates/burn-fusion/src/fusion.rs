@@ -1,7 +1,7 @@
 use burn_ir::BackendIr;
 use burn_tensor::backend::{DeviceId, DeviceOps};
 
-use crate::{client::FusionClient, Client, FusionDevice, FusionRuntime};
+use crate::{Client, FusionDevice, FusionRuntime, client::FusionClient};
 
 use std::{any::Any, collections::HashMap, ops::DerefMut};
 

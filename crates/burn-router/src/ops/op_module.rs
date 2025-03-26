@@ -9,6 +9,7 @@ use burn_ir::{
     MaxPool2dOpIr, MaxPool2dWithIndicesBackwardOpIr, MaxPool2dWithIndicesOpIr, ModuleOperationIr,
     OperationIr,
 };
+use burn_tensor::Element;
 use burn_tensor::ops::conv::{
     calculate_conv_output_size, calculate_conv_transpose_output_size, calculate_pool_output_size,
 };
@@ -20,7 +21,6 @@ use burn_tensor::ops::{
     IntTensor, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
     MaxPool2dWithIndices,
 };
-use burn_tensor::Element;
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient};
 

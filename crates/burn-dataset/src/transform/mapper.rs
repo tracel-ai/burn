@@ -35,7 +35,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{test_data, InMemDataset};
+    use crate::{InMemDataset, test_data};
 
     #[test]
     pub fn given_mapper_dataset_when_iterate_should_iterate_though_all_map_items() {

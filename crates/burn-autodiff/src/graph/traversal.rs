@@ -1,7 +1,7 @@
 use super::{Step, StepBoxed};
 use crate::{
-    collections::{HashMap, HashSet},
     NodeID,
+    collections::{HashMap, HashSet},
 };
 use alloc::vec::Vec;
 

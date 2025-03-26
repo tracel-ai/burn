@@ -3,7 +3,7 @@ use burn_tensor::backend::Backend;
 use crate as burn;
 
 use super::{LrScheduler, String};
-use crate::{config::Config, LearningRate};
+use crate::{LearningRate, config::Config};
 
 /// Configuration to create a [noam](NoamLrScheduler) learning rate scheduler.
 #[derive(Config)]

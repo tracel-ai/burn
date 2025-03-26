@@ -1,11 +1,11 @@
 use std::fmt::Debug;
 
 use burn_tensor::{
+    BasicOps, Bool, DType, Element, Shape, Tensor, TensorData,
     backend::Backend,
     cast::ToElement,
     ops::BoolTensor,
     quantization::{QuantizationScheme, QuantizationType},
-    BasicOps, Bool, DType, Element, Shape, Tensor, TensorData,
 };
 use filter::{MaxOp, MinOp, MorphOperator, VecMorphOperator};
 use filter_engine::{ColFilter, Filter, Filter2D, FilterEngine, RowFilter};

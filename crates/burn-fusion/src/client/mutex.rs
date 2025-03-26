@@ -1,7 +1,7 @@
 use super::FusionClient;
 use crate::{
-    stream::{execution::Operation, StreamId},
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
+    stream::{StreamId, execution::Operation},
 };
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::DType;
@@ -28,7 +28,7 @@ where
 
 impl<R> FusionClient<R> for MutexFusionClient<R>
 where
-    R: FusionRuntime<FusionClient = Self>,
+    R: FusionRuntime<FusionClient = Self> + 'static,
 {
     fn new(device: FusionDevice<R>) -> Self {
         Self {
@@ -84,8 +84,10 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let mut server = self.server.lock();
-        server.read_float::<B>(tensor, stream)
+        // Clone the Arc to extend its lifetime
+        let server = self.server.clone();
+
+        async move { server.lock().read_float::<B>(tensor, stream).await }
     }
 
     fn read_tensor_int<B>(
@@ -96,7 +98,10 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_int::<B>(tensor, id)
+        // Clone the Arc to extend its lifetime
+        let server = self.server.clone();
+
+        async move { server.lock().read_int::<B>(tensor, id).await }
     }
 
     fn read_tensor_bool<B>(
@@ -107,7 +112,10 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_bool::<B>(tensor, stream)
+        // Clone the Arc to extend its lifetime
+        let server = self.server.clone();
+
+        async move { server.lock().read_bool::<B>(tensor, stream).await }
     }
 
     fn read_tensor_quantized<B>(
@@ -118,7 +126,10 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_quantized::<B>(tensor, stream)
+        // Clone the Arc to extend its lifetime
+        let server = self.server.clone();
+
+        async move { server.lock().read_quantized::<B>(tensor, stream).await }
     }
 
     fn change_client_float<B>(

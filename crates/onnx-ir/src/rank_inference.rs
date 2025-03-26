@@ -7,7 +7,7 @@ use protobuf::Enum;
 use crate::{
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
     protos::tensor_proto::DataType,
-    util::{flatten_config, shape_config},
+    util::shape_config,
 };
 
 /// Infer the rank of each output tensor and update them.
@@ -236,6 +236,14 @@ fn random_like_update_output(node: &mut Node) {
                 elem_type,
                 rank: shape.len(),
                 shape: Some(shape),
+            })
+        } else {
+            // Handle the edge case that we don't have a shape (None) for the input tensor
+            // but we do have an explicit rank/dim defined in the Operator.
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type,
+                rank: tensor.rank,
+                shape: tensor.shape.clone(),
             })
         }
     } else {
@@ -631,15 +639,9 @@ fn flatten_update_outputs(node: &mut Node) {
         })
         .unwrap();
 
-    let input_rank = tensor.rank;
-
-    let (start_dim, end_dim) = flatten_config(node);
-
-    let collapsed_dims = end_dim - start_dim;
-    let output_rank = input_rank - collapsed_dims;
-
+    // Flatten to a 2D tensor
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        rank: output_rank,
+        rank: 2,
         ..tensor.clone()
     });
 }
@@ -1011,7 +1013,9 @@ fn set_broadcasting_output_shape(node: &mut Node) {
                                 continue;
                             }
                             if current_out_dim != dimension && *current_out_dim != 1 {
-                                panic!("Invalid shape for broadcasting - the dimension from the {rev_idx}. to last position has conflicting values {current_out_dim} and {dimension} from different inputs");
+                                panic!(
+                                    "Invalid shape for broadcasting - the dimension from the {rev_idx}. to last position has conflicting values {current_out_dim} and {dimension} from different inputs"
+                                );
                             }
                             *current_out_dim = *dimension;
                         } else {
@@ -1030,7 +1034,10 @@ fn set_broadcasting_output_shape(node: &mut Node) {
                 // Shape is treated like a 1-D Tensor
                 let current_out_dim = &mut reverse_out_shape[0];
                 if *current_out_dim != 1 && *current_out_dim != *s {
-                    panic!("Invalid shape for broadcasting - the last position has conflicting values {current_out_dim} and {} from different inputs", s);
+                    panic!(
+                        "Invalid shape for broadcasting - the last position has conflicting values {current_out_dim} and {} from different inputs",
+                        s
+                    );
                 }
                 *current_out_dim = *s;
             }
@@ -1053,7 +1060,9 @@ fn set_broadcasting_output_shape(node: &mut Node) {
         }
         ArgType::Shape(s) => {
             if out_shape.len() > 1 {
-                panic!("Output is a Shape, but broadcasting results in higher-rank tensor shape {out_shape:?}")
+                panic!(
+                    "Output is a Shape, but broadcasting results in higher-rank tensor shape {out_shape:?}"
+                )
             }
             *s = out_shape[0];
         }

@@ -2,10 +2,10 @@
 mod tests {
     use super::*;
     use burn_tensor::{
+        Tensor, TensorData,
         quantization::{
             BlockLayout, Calibration, QuantizationMode, QuantizationScheme, QuantizationType,
         },
-        Tensor, TensorData,
     };
 
     // NOTE: The scheme variant fields are not important for calibration, only the "main" variant (e.g., per-tensor)

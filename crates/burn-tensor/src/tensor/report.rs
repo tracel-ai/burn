@@ -1,4 +1,4 @@
-use super::{backend::Backend, Tensor};
+use super::{Tensor, backend::Backend};
 
 use colored::*;
 

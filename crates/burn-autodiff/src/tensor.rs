@@ -5,7 +5,7 @@ use crate::{
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
 use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
-use burn_tensor::{backend::Backend, TensorMetadata};
+use burn_tensor::{TensorMetadata, backend::Backend};
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend> {

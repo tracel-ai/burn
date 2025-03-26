@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(random)]
 mod tests {
     use super::*;
-    use burn_tensor::{cast::ToElement, tests::Float, Distribution, Tensor};
+    use burn_tensor::{Distribution, Tensor, cast::ToElement, tests::Float};
 
     #[test]
     fn rand_default() {
