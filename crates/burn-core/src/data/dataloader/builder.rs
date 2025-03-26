@@ -118,7 +118,7 @@ where
     {
         let dataset = Arc::new(dataset);
 
-        let device = self.device.unwrap_or(Default::default());
+        let device = self.device.unwrap_or_default();
         let rng = self.shuffle.map(StdRng::seed_from_u64);
         let strategy = match self.strategy {
             Some(strategy) => strategy,

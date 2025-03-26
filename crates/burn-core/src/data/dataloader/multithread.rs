@@ -1,16 +1,16 @@
-use burn_dataset::transform::PartialDataset;
 use burn_dataset::Dataset;
+use burn_dataset::transform::PartialDataset;
 use burn_tensor::backend::Backend;
+use rand::SeedableRng;
 use rand::distr::{Distribution, StandardUniform};
 use rand::rngs::StdRng;
-use rand::SeedableRng;
 
 use super::batcher::DynBatcher;
 use super::{
     BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, DynDataLoader, Progress,
 };
 use core::cell::OnceCell;
-use std::sync::{mpsc, Arc};
+use std::sync::{Arc, mpsc};
 use std::thread;
 
 const MAX_QUEUED_ITEMS: usize = 100;
@@ -254,8 +254,8 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
-    use crate::data::dataloader::batcher::TestBatcher;
     use crate::data::dataloader::FixBatchStrategy;
+    use crate::data::dataloader::batcher::TestBatcher;
     use crate::data::dataset::FakeDataset;
 
     #[test]
