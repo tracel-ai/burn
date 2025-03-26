@@ -273,6 +273,7 @@ impl MatmulArgs for FusedMatmulArgs {
             panic!("Unsupported yet");
         };
 
+        #[allow(unreachable_code)]
         let tmp_input = SharedMemory::new(1);
         let mut tmp_out = SharedMemory::new(1);
 
@@ -281,6 +282,22 @@ impl MatmulArgs for FusedMatmulArgs {
             rhs: tmp_input.to_slice(),
             out: tmp_out.to_slice_mut(),
         }
+    }
+    /// Reinterpret lhs as tensor map
+    fn as_tensor_map_lhs<EG: Numeric>(_state: &Self::State<EG>) -> TensorMap<EG> {
+        comptime! {
+            panic!("Unsupported yet");
+        };
+        #[allow(unreachable_code)]
+        TensorMap::dummy()
+    }
+    /// Reinterpret rhs as tensor map
+    fn as_tensor_map_rhs<EG: Numeric>(_state: &Self::State<EG>) -> TensorMap<EG> {
+        comptime! {
+            panic!("Unsupported yet");
+        };
+        #[allow(unreachable_code)]
+        TensorMap::dummy()
     }
 }
 

@@ -29,7 +29,7 @@ pub struct CubeTensor<R: CubeRuntime> {
 
 impl<R: CubeRuntime, E: CubeElement> From<CubeTensor<R>> for TensorHandle<R, E> {
     fn from(val: CubeTensor<R>) -> Self {
-        TensorHandle::new(val.shape.dims.to_vec(), val.strides.to_vec(), val.handle)
+        TensorHandle::new(val.handle, val.shape.dims.to_vec(), val.strides.to_vec())
     }
 }
 

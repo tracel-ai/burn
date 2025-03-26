@@ -147,14 +147,6 @@ impl FuseOp {
     }
 }
 
-#[derive(CubeLaunch, CubeType)]
-pub struct ReshapedTensor {
-    #[cube(comptime)]
-    original: Arg,
-    #[cube(comptime)]
-    shape: Sequence<Arg>,
-}
-
 #[derive(CubeType, CubeLaunch, Default)]
 /// Global arguments that are used for fusing [element wise operations](ElemwiseOp).
 pub struct GlobalArgs {
