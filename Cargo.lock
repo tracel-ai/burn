@@ -626,13 +626,11 @@ version = "0.17.0"
 dependencies = [
  "cubecl-common",
  "dashmap",
- "getrandom 0.3.2",
  "indicatif",
  "rayon",
  "reqwest",
  "serde",
  "tokio",
- "web-time",
 ]
 
 [[package]]
@@ -3524,6 +3522,7 @@ dependencies = [
  "burn-candle",
  "burn-import",
  "console_error_panic_hook",
+ "getrandom 0.3.2",
  "js-sys",
  "log",
  "serde",
@@ -4114,6 +4113,7 @@ version = "0.17.0"
 dependencies = [
  "burn",
  "console_error_panic_hook",
+ "getrandom 0.3.2",
  "js-sys",
  "serde",
  "wasm-bindgen",
