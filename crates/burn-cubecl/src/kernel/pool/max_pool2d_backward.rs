@@ -1,7 +1,7 @@
 use crate::{
     CubeRuntime, IntElement,
     element::CubeElement,
-    kernel::conv::nchw_to_nhwc,
+    kernel::conv::permute_nchw_to_nhwc,
     ops::{max_vectorization, numeric::empty_device, permute},
     tensor::CubeTensor,
 };
@@ -97,16 +97,9 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime, E: CubeElement, I
 ) -> CubeTensor<R> {
     let [batches, channels, height, width] = x.shape.dims();
 
-    let grad = if grad.is_contiguous() {
-        nchw_to_nhwc::<R, E>(grad)
-    } else {
-        permute(grad, &[0, 2, 3, 1])
-    };
-    let indices = if indices.is_contiguous() {
-        nchw_to_nhwc::<R, E>(indices)
-    } else {
-        permute(indices, &[0, 2, 3, 1])
-    };
+    let grad = permute_nchw_to_nhwc::<R, E>(grad);
+    let indices = permute_nchw_to_nhwc::<R, I>(indices);
+
     let line_size = if grad.strides[3] == indices.strides[3] {
         max_vectorization(&grad)
     } else {

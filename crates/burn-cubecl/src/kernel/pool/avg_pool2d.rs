@@ -4,7 +4,7 @@ use super::pool2d::{
 use crate::{
     CubeRuntime,
     element::CubeElement,
-    kernel::conv::nchw_to_nhwc,
+    kernel::conv::permute_nchw_to_nhwc,
     ops::{max_vectorization, numeric::empty_device, permute},
     tensor::CubeTensor,
 };
@@ -99,11 +99,7 @@ pub(crate) fn avg_pool2d<R: CubeRuntime, E: CubeElement>(
         x.shape.dims[3],
     );
 
-    let x = if x.is_contiguous() {
-        nchw_to_nhwc::<R, E>(x)
-    } else {
-        permute(x, &[0, 2, 3, 1])
-    };
+    let x = permute_nchw_to_nhwc::<R, E>(x);
     let line_size = max_vectorization(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
