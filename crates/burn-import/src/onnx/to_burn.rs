@@ -276,6 +276,7 @@ impl ParsedOnnxGraph {
                 NodeType::Floor => graph.register(Self::floor_conversion(node)),
                 NodeType::Clip => graph.register(Self::clip_conversion(node)),
                 NodeType::Cos => graph.register(Self::cos_conversion(node)),
+                NodeType::Cosh => graph.register(Self::cosh_conversion(node)),
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
                 NodeType::Conv3d => graph.register(Self::conv3d_conversion::<PS>(node)),
@@ -328,6 +329,7 @@ impl ParsedOnnxGraph {
                 NodeType::Shape => graph.register(Self::shape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Sin => graph.register(Self::sin_conversion(node)),
+                NodeType::Sinh => graph.register(Self::sinh_conversion(node)),
                 NodeType::Slice => graph.register(Self::slice_conversion(node)),
                 NodeType::Sum => graph.register(Self::sum_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
@@ -846,6 +848,13 @@ impl ParsedOnnxGraph {
         UnaryNode::sin(input, output)
     }
 
+    fn sinh_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        UnaryNode::sinh(input, output)
+    }
+
     fn slice_conversion(node: Node) -> SliceNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
@@ -1157,6 +1166,13 @@ impl ParsedOnnxGraph {
         let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::cos(input, output)
+    }
+
+    fn cosh_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        UnaryNode::cosh(input, output)
     }
 
     fn exp_conversion(node: Node) -> UnaryNode {

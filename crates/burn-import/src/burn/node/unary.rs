@@ -23,6 +23,7 @@ pub enum UnaryNodeKind {
     // Input and output tensor types (required for codegen imports)
     Cast(Option<TensorKind>, Option<TensorKind>),
     Cos,
+    Cosh,
     Erf,
     Exp,
     Flatten,
@@ -43,6 +44,7 @@ pub enum UnaryNodeKind {
     Shape,
     Sigmoid,
     Sin,
+    Sinh,
     Softmax,
     Sqrt,
     Tan,
@@ -56,6 +58,7 @@ impl UnaryNodeKind {
         match self {
             Self::Cast(..) => "cast",
             Self::Cos => "cos",
+            Self::Cosh => "cosh",
             Self::Erf => "erf",
             Self::Exp => "exp",
             Self::Flatten => "flatten",
@@ -76,6 +79,7 @@ impl UnaryNodeKind {
             Self::Shape => "shape",
             Self::Sigmoid => "sigmoid",
             Self::Sin => "sin",
+            Self::Sinh => "sinh",
             Self::Softmax => "softmax",
             Self::Sqrt => "sqrt",
             Self::Tan => "tan",
@@ -255,9 +259,19 @@ impl UnaryNode {
         Self::new(input, output, UnaryNodeKind::Cos, Rc::new(function))
     }
 
+    pub(crate) fn cosh(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.cosh()};
+        Self::new(input, output, UnaryNodeKind::Cosh, Rc::new(function))
+    }
+
     pub(crate) fn sin(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.sin()};
         Self::new(input, output, UnaryNodeKind::Sin, Rc::new(function))
+    }
+
+    pub(crate) fn sinh(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.sinh()};
+        Self::new(input, output, UnaryNodeKind::Sinh, Rc::new(function))
     }
 
     pub(crate) fn exp(input: Type, output: Type) -> Self {

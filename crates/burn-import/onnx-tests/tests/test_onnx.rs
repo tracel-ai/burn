@@ -34,6 +34,7 @@ include_models!(
     conv_transpose2d,
     conv_transpose3d,
     cos,
+    cosh,
     div,
     dropout_opset16,
     dropout_opset7,
@@ -115,6 +116,7 @@ include_models!(
     sigmoid,
     sign,
     sin,
+    sinh,
     slice,
     softmax,
     sqrt,
@@ -1364,6 +1366,19 @@ mod tests {
     }
 
     #[test]
+    fn sinh() {
+        let device = Default::default();
+        let model: sinh::Model<Backend> = sinh::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[-4.0, 0.5, 1.0, 9.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = TensorData::from([[[[-27.2899, 0.5211, 1.1752, 4051.5419]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
     fn transpose() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
@@ -1648,6 +1663,19 @@ mod tests {
 
         let output = model.forward(input);
         let expected = TensorData::from([[[[0.5403f32, -0.6536, -0.9111, 0.9912]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn cosh() {
+        let device = Default::default();
+        let model: cosh::Model<Backend> = cosh::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[-4.0, 0.5, 1.0, 9.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = TensorData::from([[[[27.3082, 1.1276, 1.5431, 4051.5420]]]]);
 
         output.to_data().assert_approx_eq(&expected, 4);
     }
