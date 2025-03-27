@@ -66,7 +66,7 @@ impl GradientsParams {
     where
         B: Backend,
     {
-        self.container.get(&id).map(Tensor::from_primitive)
+        self.container.get(&id).map(Tensor::from_primitive).ok()
     }
 
     /// Remove the gradients for the given [parameter id](ParamId).
@@ -74,7 +74,7 @@ impl GradientsParams {
     where
         B: Backend,
     {
-        self.container.remove(&id).map(Tensor::from_primitive)
+        self.container.remove(&id).map(Tensor::from_primitive).ok()
     }
 
     /// Register a gradients tensor for the given [parameter id](ParamId).
