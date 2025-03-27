@@ -968,12 +968,9 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` with hyperbolic tangent values.
     fn float_tanh(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        // tanh = sinh / cosh = ( e^x - e^(-x) ) / ( e^x + e^(-x) )
-        let e_x = B::float_exp(tensor.clone());
-        let e_neg_x = B::float_exp(B::float_neg(tensor));
-        let num = B::float_sub(e_x.clone(), e_neg_x.clone()); // e^x - e^(-x)
-        let denum = B::float_add(e_x, e_neg_x); // e^x + e^(-x)
-        B::float_div(num, denum)
+        let sinh = B::float_sinh(tensor.clone());
+        let cosh = B::float_cosh(tensor);
+        B::float_div(sinh, cosh)
     }
 
     /// Returns a new tensor with rounded values.
