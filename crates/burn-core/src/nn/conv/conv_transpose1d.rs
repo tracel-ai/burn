@@ -140,12 +140,6 @@ impl<B: Backend> ConvTranspose1d<B> {
     /// - input: `[batch_size, channels_in, length_in]`
     /// - output: `[batch_size, channels_out, length_out]`
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
-        let channels_in = input.dims()[1];
-        let expected = self.weight.dims()[0];
-        assert_eq!(
-            channels_in, expected,
-            "This conv layer requies a channels_in dimension of {expected}, but got {channels_in}"
-        );
         conv_transpose1d(
             input,
             self.weight.val(),
@@ -204,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "This conv layer requies a channels_in dimension of 5, but got 3"]
+    #[should_panic = "Number of channels in input tensor and input channels of convolution must be equal. got: 3, expected: 5"]
     fn input_channels_mismatch() {
         let config = ConvTranspose1dConfig::new([5, 5], 5);
         let conv = config.init::<TestBackend>(&Default::default());

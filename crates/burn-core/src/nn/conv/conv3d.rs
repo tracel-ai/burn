@@ -146,13 +146,7 @@ impl<B: Backend> Conv3d<B> {
     /// - input: `[batch_size, channels_in, depth_in, height_in, width_in]`
     /// - output: `[batch_size, channels_out, depth_out, height_out, width_out]`
     pub fn forward(&self, input: Tensor<B, 5>) -> Tensor<B, 5> {
-        let [_batch_size, channels_in, depth_in, height_in, width_in] = input.dims();
-        let expected = self.weight.dims()[1] * self.groups;
-        assert_eq!(
-            channels_in, expected,
-            "This conv layer requies a channels_in dimension of {expected}, but got {channels_in}"
-        );
-
+        let [_batch_size, _channels_in, depth_in, height_in, width_in] = input.dims();
         let padding = self.padding.calculate_padding_3d(
             depth_in,
             height_in,
@@ -257,7 +251,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "This conv layer requies a channels_in dimension of 5, but got 3"]
+    #[should_panic = "Number of channels in input tensor and input channels of convolution must be equal. got: 3, expected: 5"]
     fn input_channels_mismatch() {
         let config = Conv3dConfig::new([5, 5], [5, 5, 5]);
         let conv = config.init::<TestBackend>(&Default::default());
