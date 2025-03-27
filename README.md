@@ -186,6 +186,12 @@ for more details.
 
 <br />
 
+### Benchmarks
+
+To evaluate performance across different backends and track improvements over time, we provide a
+dedicated benchmarking suite.  
+Run and compare benchmarks at [burn-bench-repo].
+
 ## Training & Inference
 
 <div align="left">
