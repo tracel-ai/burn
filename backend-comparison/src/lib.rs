@@ -179,7 +179,7 @@ macro_rules! bench_on_backend {
         {
             use burn::backend::cuda::{Cuda, CudaDevice};
 
-            $fn_name::<Cuda<half::f16>>(&CudaDevice::default(), feature_name, url, token);
+            $fn_name::<Cuda>(&CudaDevice::default(), feature_name, url, token);
         }
 
         #[cfg(feature = "hip")]
