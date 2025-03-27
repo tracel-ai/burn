@@ -255,12 +255,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "Number of channels in input tensor and input channels of convolution must be equal. got: 3, expected: 5"]
+    #[should_panic = "Number of channels in input tensor and input channels of convolution must be equal. got: 4, expected: 5"]
     fn input_channels_mismatch() {
-        let config = Conv2dConfig::new([5, 5], [5, 5]);
+        let config = Conv2dConfig::new([5, 3], [3, 3]);
         let conv = config.init::<TestBackend>(&Default::default());
 
-        let input = Tensor::<TestBackend, 4>::zeros([1, 3, 10, 10], &Default::default());
+        let input = Tensor::<TestBackend, 4>::zeros([1, 4, 10, 10], &Default::default());
         let _ = conv.forward(input);
     }
 }
