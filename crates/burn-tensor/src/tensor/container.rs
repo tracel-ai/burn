@@ -9,6 +9,17 @@ use std::collections::HashMap;
 
 use crate::{TensorPrimitive, backend::Backend};
 
+/// Error type for tensor container operations.
+pub enum TensorContainerError {
+    /// The tensor with the given ID was not found.
+    NotFound,
+
+    /// Downcast mismatch when retrieving tensor.
+    /// If you are trying to retrieve the gradients for a given parameter id, make sure to use the inner backend.
+    /// Gradients are not stored on the autodiff backend.
+    DowncastError,
+}
+
 /// Contains tensor of arbitrary dimension.
 #[derive(Debug)]
 pub struct TensorContainer<ID> {
@@ -36,18 +47,17 @@ where
     }
 
     /// Get a tensor with the given ID.
-    pub fn get<B>(&self, id: &ID) -> Option<TensorPrimitive<B>>
+    pub fn get<B>(&self, id: &ID) -> Result<TensorPrimitive<B>, TensorContainerError>
     where
         B: Backend,
     {
-        let grad = self.tensors.get(id)?;
-
-        let tensor = grad
-            .downcast_ref::<TensorPrimitive<B>>()
-            // .map(|primitive| Tensor::<B, D>::from_primitive(primitive.clone()))
-            .unwrap();
-
-        Some(tensor.clone())
+        match self.tensors.get(id) {
+            Some(grad) => match grad.downcast_ref::<TensorPrimitive<B>>() {
+                Some(tensor) => Ok(tensor.clone()),
+                None => Err(TensorContainerError::DowncastError),
+            },
+            None => Err(TensorContainerError::NotFound),
+        }
     }
 
     /// Register a new tensor for the given ID.
@@ -63,14 +73,17 @@ where
     }
 
     /// Remove a tensor for the given ID and returns it.
-    pub fn remove<B>(&mut self, id: &ID) -> Option<TensorPrimitive<B>>
+    pub fn remove<B>(&mut self, id: &ID) -> Result<TensorPrimitive<B>, TensorContainerError>
     where
         B: Backend,
     {
-        self.tensors
-            .remove(id)
-            .map(|item| *item.downcast::<TensorPrimitive<B>>().unwrap())
-        // .map(|primitive| Tensor::from_primitive(*primitive))
+        match self.tensors.remove(id) {
+            Some(tensor) => match tensor.downcast::<TensorPrimitive<B>>() {
+                Ok(tensor) => Ok(*tensor),
+                Err(_uncast) => Err(TensorContainerError::DowncastError),
+            },
+            None => Err(TensorContainerError::NotFound),
+        }
     }
 
     /// The number of tensors registered.
