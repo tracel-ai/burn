@@ -37,9 +37,9 @@ impl<R: Runtime> ReduceBuilder<R> {
         let props = client.properties();
         let max_bindings = props.hardware_properties().max_bindings;
         let settings_read = FuseSettings {
-            broadcast: true,
-            output_shape_updates: true,
-            inplace: true,
+            broadcast: false,
+            output_shape_updates: false,
+            inplace: false,
             vectorization: VectorizationSetting::Activated,
         };
         let settings_write = FuseSettings {
