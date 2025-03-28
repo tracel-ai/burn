@@ -37,16 +37,16 @@ impl<R: Runtime> ReduceBuilder<R> {
         let props = client.properties();
         let max_bindings = props.hardware_properties().max_bindings;
         let settings_read = FuseSettings {
-            broadcast: false,
-            output_shape_updates: false,
-            inplace: false,
+            broadcast: true,
+            output_shape_updates: true,
+            inplace: true,
             vectorization: VectorizationSetting::Activated,
         };
         let settings_write = FuseSettings {
             broadcast: false,
             output_shape_updates: false,
-            inplace: false,
-            vectorization: VectorizationSetting::Deactivated,
+            inplace: true,
+            vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock,
         };
 
         Self {
@@ -124,16 +124,19 @@ impl<R: Runtime> ReduceBuilder<R> {
 
         self.status = self.builder.status();
     }
-    fn on_elemwise_write(&mut self, operation: &OperationIr) {
-        self.builder.register(operation);
-
-        let num_ops_write = self.builder.len() - self.builder_read_fallback.len();
-
-        if self.builder_write_fallback.len() < num_ops_write {
-            self.builder_write_fallback.register(operation);
-        }
-
+    fn on_elemwise_write(&mut self, _operation: &OperationIr) {
+        self.builder.close();
         self.status = self.builder.status();
+        // disable fuse on write.
+        // self.builder.register(operation);
+
+        // let num_ops_write = self.builder.len() - self.builder_read_fallback.len();
+
+        // if self.builder_write_fallback.len() < num_ops_write {
+        //     self.builder_write_fallback.register(operation);
+        // }
+
+        // self.status = self.builder.status();
     }
 }
 
