@@ -1,5 +1,6 @@
 use cubecl::{
     CubeElement as CubeElem, flex32,
+    linalg::matmul::components::MatmulPrecision,
     prelude::{Float, Int, Numeric},
 };
 
@@ -7,7 +8,7 @@ use cubecl::{
 pub trait CubeElement: burn_tensor::Element + CubeElem + PartialEq + Numeric {}
 
 /// The float element type for the jit backend.
-pub trait FloatElement: CubeElement + Float {}
+pub trait FloatElement: CubeElement + Float + MatmulPrecision {}
 
 /// The int element type for the jit backend.
 pub trait IntElement: CubeElement + Int {}

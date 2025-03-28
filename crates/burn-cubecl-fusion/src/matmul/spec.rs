@@ -11,8 +11,6 @@ pub struct FusedMatmulSpec<EG: Numeric, ES: Numeric, EA: Numeric> {
 }
 
 impl<EG: Numeric, ES: Numeric, EA: Numeric> MatmulSpec for FusedMatmulSpec<EG, ES, EA> {
-    type EG = EG;
-    type ES = ES;
-    type EA = EA;
+    type Precision = (EG, ES, EA);
     type Args = FusedMatmulArgs;
 }

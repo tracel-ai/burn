@@ -274,11 +274,11 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
                 BT::as_elem_native_unchecked().into(),
                 Arc::new(FallbackMatmul),
             )),
-            // Box::new(ReduceBuilder::<R>::new(
-            //     device.clone(),
-            //     BT::as_elem_native_unchecked().into(),
-            //     Arc::new(FallbackReduce),
-            // )),
+            Box::new(ReduceBuilder::<R>::new(
+                device.clone(),
+                BT::as_elem_native_unchecked().into(),
+                Arc::new(FallbackReduce),
+            )),
         ]
     }
 }
