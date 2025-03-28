@@ -1202,6 +1202,15 @@ impl TensorCheck {
         groups: usize,
         transpose: bool,
     ) -> Self {
+        // blocked on const generics:
+        // let _ASSERT: [(); (D1 >= 2 && D2 >= 2) as usize] = [()];
+        // Instead we have to:
+        struct Assert<const D: usize>;
+        impl<const D: usize> Assert<D> {
+            const TRUE: usize = D - 2;
+        }
+        let _ = Assert::<D1>::TRUE;
+        let _ = Assert::<D2>::TRUE;
         let mut check = TensorCheck::Ok;
         let channels = x[1];
         let expected = if transpose {
