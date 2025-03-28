@@ -1,3 +1,4 @@
+use crate::kernel::into_contiguous;
 use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
 use cubecl::prelude::*;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
@@ -37,6 +38,7 @@ pub(crate) fn select<R: CubeRuntime, E: CubeElement, I: CubeElement>(
     let mut shape_output = tensor.shape.clone();
     shape_output.dims[dim] = indices.shape.dims[0];
     let total_elem = shape_output.num_elements();
+    let indices = into_contiguous(indices);
 
     let output = empty_device::<R, E>(tensor.client.clone(), tensor.device.clone(), shape_output);
 

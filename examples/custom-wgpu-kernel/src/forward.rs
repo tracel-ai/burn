@@ -107,6 +107,7 @@ impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
         lhs.client.execute(
             Box::new(SourceKernel::new(kernel, cube_dim)),
             cube_count,
+            Vec::new(),
             vec![
                 lhs.handle.binding(),
                 rhs.handle.binding(),

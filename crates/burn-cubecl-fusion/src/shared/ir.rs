@@ -147,7 +147,7 @@ impl FuseOp {
     }
 }
 
-#[derive(CubeLaunch, CubeType, Default)]
+#[derive(CubeType, CubeLaunch, Default)]
 /// Global arguments that are used for fusing [element wise operations](ElemwiseOp).
 pub struct GlobalArgs {
     pub tensors: Sequence<GlobalTensor>,

@@ -78,11 +78,11 @@ fn bench<B: Backend>(
     token: Option<&str>,
 ) {
     let benchmark = BinaryBenchmark::<B, 3> {
-        shape: [512, 512, 1024].into(),
+        shape: [512, 512, 1023].into(),
         device: device.clone(),
     };
     let benchmark_scalar = BinaryScalarBenchmark::<B, 3, B::FloatElem> {
-        shape: [512, 512, 1024].into(),
+        shape: [512, 512, 1023].into(),
         device: device.clone(),
         _ty: PhantomData,
     };

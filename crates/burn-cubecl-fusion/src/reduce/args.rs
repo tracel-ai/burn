@@ -10,7 +10,7 @@ use crate::shared::kernel::{fuse_on_read, fuse_on_write, init_locals};
 #[derive(Clone)]
 pub struct FusedReduceArgs;
 
-#[derive(CubeLaunch, CubeType)]
+#[derive(CubeType, CubeLaunch)]
 pub struct FusedReduceInput {
     global: GlobalArgs,
     #[cube(comptime)]
@@ -19,7 +19,7 @@ pub struct FusedReduceInput {
     arg: Arg,
 }
 
-#[derive(CubeLaunch, CubeType)]
+#[derive(CubeType, CubeLaunch)]
 pub struct FusedReduceOutput {
     global: GlobalArgs,
     #[cube(comptime)]

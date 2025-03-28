@@ -1,4 +1,7 @@
-use cubecl::{linalg::matmul::components::global::args::MatmulArgs, prelude::*};
+use cubecl::{
+    linalg::matmul::components::global::{Quantization, args::MatmulArgs},
+    prelude::*,
+};
 
 use crate::shared::{
     DYN_ELEM_ID,
@@ -263,6 +266,38 @@ impl MatmulArgs for FusedMatmulArgs {
 
     fn stride_out<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
         ref_stride(unsafe { &(*state.locals) }, dim)
+    }
+
+    fn quantization<EG: Numeric>(_state: &Self::State<EG>) -> Quantization<EG> {
+        comptime! {
+            panic!("Unsupported yet");
+        };
+
+        #[allow(unreachable_code)]
+        let tmp_input = SharedMemory::new(1);
+        let mut tmp_out = SharedMemory::new(1);
+
+        Quantization::<EG> {
+            lhs: tmp_input.to_slice(),
+            rhs: tmp_input.to_slice(),
+            out: tmp_out.to_slice_mut(),
+        }
+    }
+    /// Reinterpret lhs as tensor map
+    fn as_tensor_map_lhs<EG: Numeric>(_state: &Self::State<EG>) -> TensorMap<EG> {
+        comptime! {
+            panic!("Unsupported yet");
+        };
+        #[allow(unreachable_code)]
+        TensorMap::dummy()
+    }
+    /// Reinterpret rhs as tensor map
+    fn as_tensor_map_rhs<EG: Numeric>(_state: &Self::State<EG>) -> TensorMap<EG> {
+        comptime! {
+            panic!("Unsupported yet");
+        };
+        #[allow(unreachable_code)]
+        TensorMap::dummy()
     }
 }
 
