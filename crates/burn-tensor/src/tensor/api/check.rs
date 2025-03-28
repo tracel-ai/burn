@@ -1195,30 +1195,35 @@ impl TensorCheck {
         check
     }
 
-    /// Conv layers must have at least two dimensions for `batch` and `channels_in`
-    /// Will fail to compile if dimensions of x or weight is less than 2
+    /// Checks if input is compatible with convolution weights.
     pub fn conv<const D1: usize, const D2: usize>(
         ops: &str,
         x: [usize; D1],
         weight: [usize; D2],
         groups: usize,
-        transpose: bool,
     ) -> Self {
-        // blocked on const generics:
-        // const _ASSERT: [(); (D1 >= 2 && D2 >= 2) as usize] = [()];
-        // Instead we have to:
-        struct Assert<const D: usize>;
-        impl<const D: usize> Assert<D> {
-            const TRUE: usize = D - 2;
-        }
-        let _ = Assert::<D1>::TRUE + Assert::<D2>::TRUE;
         let mut check = TensorCheck::Ok;
         let channels = x[1];
-        let expected = if transpose {
-            weight[0]
-        } else {
-            weight[1] * groups
-        };
+        let expected = weight[1] * groups;
+        if channels != expected {
+            check = check.register(
+                ops,
+                TensorError::new("Number of channels in input tensor and input channels of convolution must be equal.")
+                .details(format!("got: {channels}, expected: {expected}")),
+            );
+        }
+        check
+    }
+
+    /// Checks if input is compatible with transposed convolution weights.
+    pub fn conv_transpose<const D1: usize, const D2: usize>(
+        ops: &str,
+        x: [usize; D1],
+        weight: [usize; D2],
+    ) -> Self {
+        let mut check = TensorCheck::Ok;
+        let channels = x[1];
+        let expected = weight[0];
         if channels != expected {
             check = check.register(
                 ops,

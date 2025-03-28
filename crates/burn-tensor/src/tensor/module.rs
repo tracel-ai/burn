@@ -34,7 +34,6 @@ where
         x.dims(),
         weight.dims(),
         options.groups,
-        false,
     ));
     Tensor::new(TensorPrimitive::Float(B::conv1d(
         x.primitive.tensor(),
@@ -59,7 +58,6 @@ where
         x.dims(),
         weight.dims(),
         options.groups,
-        false,
     ));
     Tensor::new(TensorPrimitive::Float(B::conv2d(
         x.primitive.tensor(),
@@ -84,7 +82,6 @@ where
         x.dims(),
         weight.dims(),
         options.groups,
-        false,
     ));
     Tensor::new(TensorPrimitive::Float(B::conv3d(
         x.primitive.tensor(),
@@ -111,7 +108,6 @@ where
         x.dims(),
         weight.dims(),
         options.weight_groups,
-        false,
     ));
     Tensor::new(TensorPrimitive::Float(B::deform_conv2d(
         x.primitive.tensor(),
@@ -133,12 +129,10 @@ pub fn conv_transpose1d<B>(
 where
     B: Backend,
 {
-    check!(TensorCheck::conv(
+    check!(TensorCheck::conv_transpose(
         "conv_transpose1d",
         x.dims(),
         weight.dims(),
-        options.groups,
-        true,
     ));
     Tensor::new(TensorPrimitive::Float(B::conv_transpose1d(
         x.primitive.tensor(),
@@ -158,12 +152,10 @@ pub fn conv_transpose2d<B>(
 where
     B: Backend,
 {
-    check!(TensorCheck::conv(
+    check!(TensorCheck::conv_transpose(
         "conv_transpose2d",
         x.dims(),
         weight.dims(),
-        options.groups,
-        true,
     ));
     Tensor::new(TensorPrimitive::Float(B::conv_transpose2d(
         x.primitive.tensor(),
@@ -183,12 +175,10 @@ pub fn conv_transpose3d<B>(
 where
     B: Backend,
 {
-    check!(TensorCheck::conv(
+    check!(TensorCheck::conv_transpose(
         "conv_transpose3d",
         x.dims(),
         weight.dims(),
-        options.groups,
-        true,
     ));
     Tensor::new(TensorPrimitive::Float(B::conv_transpose3d(
         x.primitive.tensor(),
