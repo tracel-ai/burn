@@ -33,7 +33,8 @@ where
         "conv1d",
         x.dims(),
         weight.dims(),
-        &options,
+        options.groups,
+        false,
     ));
     Tensor::new(TensorPrimitive::Float(B::conv1d(
         x.primitive.tensor(),
@@ -57,7 +58,8 @@ where
         "conv2d",
         x.dims(),
         weight.dims(),
-        &options,
+        options.groups,
+        false,
     ));
     Tensor::new(TensorPrimitive::Float(B::conv2d(
         x.primitive.tensor(),
@@ -81,7 +83,8 @@ where
         "conv3d",
         x.dims(),
         weight.dims(),
-        &options,
+        options.groups,
+        false,
     ));
     Tensor::new(TensorPrimitive::Float(B::conv3d(
         x.primitive.tensor(),
@@ -103,11 +106,12 @@ pub fn deform_conv2d<B>(
 where
     B: Backend,
 {
-    check!(TensorCheck::deform_conv(
+    check!(TensorCheck::conv(
         "deform_conv2d",
         x.dims(),
         weight.dims(),
-        &options,
+        options.weight_groups,
+        false,
     ));
     Tensor::new(TensorPrimitive::Float(B::deform_conv2d(
         x.primitive.tensor(),
@@ -129,10 +133,12 @@ pub fn conv_transpose1d<B>(
 where
     B: Backend,
 {
-    check!(TensorCheck::transpose_conv(
+    check!(TensorCheck::conv(
         "conv_transpose1d",
         x.dims(),
-        weight.dims()
+        weight.dims(),
+        options.groups,
+        true,
     ));
     Tensor::new(TensorPrimitive::Float(B::conv_transpose1d(
         x.primitive.tensor(),
@@ -152,10 +158,12 @@ pub fn conv_transpose2d<B>(
 where
     B: Backend,
 {
-    check!(TensorCheck::transpose_conv(
+    check!(TensorCheck::conv(
         "conv_transpose2d",
         x.dims(),
-        weight.dims()
+        weight.dims(),
+        options.groups,
+        true,
     ));
     Tensor::new(TensorPrimitive::Float(B::conv_transpose2d(
         x.primitive.tensor(),
@@ -175,10 +183,12 @@ pub fn conv_transpose3d<B>(
 where
     B: Backend,
 {
-    check!(TensorCheck::transpose_conv(
+    check!(TensorCheck::conv(
         "conv_transpose3d",
         x.dims(),
-        weight.dims()
+        weight.dims(),
+        options.groups,
+        true,
     ));
     Tensor::new(TensorPrimitive::Float(B::conv_transpose3d(
         x.primitive.tensor(),

@@ -1,4 +1,3 @@
-use crate::ops::{ConvOptions, DeformConvOptions};
 use crate::{BasicOps, Numeric, Shape, Tensor, backend::Backend, cast::ToElement};
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -1196,52 +1195,20 @@ impl TensorCheck {
         check
     }
 
-    pub fn conv<const D1: usize, const D2: usize, const N: usize>(
+    pub fn conv<const D1: usize, const D2: usize>(
         ops: &str,
         x: [usize; D1],
         weight: [usize; D2],
-        options: &ConvOptions<N>,
+        groups: usize,
+        transpose: bool,
     ) -> Self {
         let mut check = TensorCheck::Ok;
         let channels = x[1];
-        let expected = weight[1] * options.groups;
-        if channels != expected {
-            check = check.register(
-                ops,
-                TensorError::new("Number of channels in input tensor and input channels of convolution must be equal.")
-                .details(format!("got: {channels}, expected: {expected}")),
-            );
-        }
-        check
-    }
-
-    pub fn deform_conv<const D1: usize, const D2: usize, const N: usize>(
-        ops: &str,
-        x: [usize; D1],
-        weight: [usize; D2],
-        options: &DeformConvOptions<N>,
-    ) -> Self {
-        let mut check = TensorCheck::Ok;
-        let channels = x[1];
-        let expected = weight[1] * options.weight_groups;
-        if channels != expected {
-            check = check.register(
-                ops,
-                TensorError::new("Number of channels in input tensor and input channels of convolution must be equal.")
-                .details(format!("got: {channels}, expected: {expected}")),
-            );
-        }
-        check
-    }
-
-    pub fn transpose_conv<const D1: usize, const D2: usize>(
-        ops: &str,
-        x: [usize; D1],
-        weight: [usize; D2],
-    ) -> Self {
-        let mut check = TensorCheck::Ok;
-        let channels = x[1];
-        let expected = weight[0];
+        let expected = if transpose {
+            weight[0]
+        } else {
+            weight[1] * groups
+        };
         if channels != expected {
             check = check.register(
                 ops,
