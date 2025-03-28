@@ -51,21 +51,21 @@ impl Gradients {
     pub fn remove<B: Backend>(&mut self, tensor: &AutodiffTensor<B>) -> Option<FloatTensor<B>> {
         self.container
             .remove::<B>(&tensor.node.id.value)
-            .map(|tensor| tensor.tensor())
+            .map(|tensor| tensor.tensor()).ok()
     }
 
     /// Gets a grad tensor from the container.
     pub fn get<B: Backend>(&self, tensor: &AutodiffTensor<B>) -> Option<FloatTensor<B>> {
         self.container
             .get::<B>(&tensor.node.id.value)
-            .map(|tensor| tensor.tensor())
+            .map(|tensor| tensor.tensor()).ok()
     }
 
     /// Register a grad tensor in the container.
     ///
     /// If the tensor already exists, add both tensors together before saving the result.
     pub fn register<B: Backend>(&mut self, node_id: NodeID, value: FloatTensor<B>) {
-        if let Some(tensor_old) = self.container.remove::<B>(&node_id.value) {
+        if let Ok(tensor_old) = self.container.remove::<B>(&node_id.value) {
             self.container.register::<B>(
                 node_id.value,
                 burn_tensor::TensorPrimitive::Float(B::float_add(value, tensor_old.tensor())),
