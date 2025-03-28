@@ -43,7 +43,7 @@ impl<R: Runtime> ReduceBuilder<R> {
             vectorization: VectorizationSetting::Activated,
         };
         let settings_write = FuseSettings {
-            broadcast: false,
+            broadcast: true,
             output_shape_updates: false,
             inplace: true,
             vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock,
