@@ -198,4 +198,14 @@ mod tests {
             "ConvTranspose2d {channels: [5, 2], stride: [1, 1], kernel_size: [5, 5], dilation: [1, 1], groups: 1, padding: [0, 0], padding_out: [0, 0], params: 252}"
         );
     }
+
+    #[test]
+    #[should_panic = "Number of channels in input tensor and input channels of convolution must be equal. got: 4, expected: 5"]
+    fn input_channels_mismatch() {
+        let config = ConvTranspose2dConfig::new([5, 3], [3, 3]);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        let input = Tensor::<TestBackend, 4>::zeros([1, 4, 10, 10], &Default::default());
+        let _ = conv.forward(input);
+    }
 }

@@ -1,6 +1,8 @@
 use crate::{
     Int, Tensor, TensorPrimitive,
     backend::Backend,
+    check,
+    check::TensorCheck,
     ops::{ConvOptions, ConvTransposeOptions, InterpolateOptions, UnfoldOptions},
 };
 
@@ -27,6 +29,12 @@ pub fn conv1d<B>(
 where
     B: Backend,
 {
+    check!(TensorCheck::conv(
+        "conv1d",
+        x.dims(),
+        weight.dims(),
+        options.groups,
+    ));
     Tensor::new(TensorPrimitive::Float(B::conv1d(
         x.primitive.tensor(),
         weight.primitive.tensor(),
@@ -45,6 +53,12 @@ pub fn conv2d<B>(
 where
     B: Backend,
 {
+    check!(TensorCheck::conv(
+        "conv2d",
+        x.dims(),
+        weight.dims(),
+        options.groups,
+    ));
     Tensor::new(TensorPrimitive::Float(B::conv2d(
         x.primitive.tensor(),
         weight.primitive.tensor(),
@@ -63,6 +77,12 @@ pub fn conv3d<B>(
 where
     B: Backend,
 {
+    check!(TensorCheck::conv(
+        "conv3d",
+        x.dims(),
+        weight.dims(),
+        options.groups,
+    ));
     Tensor::new(TensorPrimitive::Float(B::conv3d(
         x.primitive.tensor(),
         weight.primitive.tensor(),
@@ -83,6 +103,12 @@ pub fn deform_conv2d<B>(
 where
     B: Backend,
 {
+    check!(TensorCheck::conv(
+        "deform_conv2d",
+        x.dims(),
+        weight.dims(),
+        options.weight_groups,
+    ));
     Tensor::new(TensorPrimitive::Float(B::deform_conv2d(
         x.primitive.tensor(),
         offset.primitive.tensor(),
@@ -103,6 +129,11 @@ pub fn conv_transpose1d<B>(
 where
     B: Backend,
 {
+    check!(TensorCheck::conv_transpose(
+        "conv_transpose1d",
+        x.dims(),
+        weight.dims(),
+    ));
     Tensor::new(TensorPrimitive::Float(B::conv_transpose1d(
         x.primitive.tensor(),
         weight.primitive.tensor(),
@@ -121,6 +152,11 @@ pub fn conv_transpose2d<B>(
 where
     B: Backend,
 {
+    check!(TensorCheck::conv_transpose(
+        "conv_transpose2d",
+        x.dims(),
+        weight.dims(),
+    ));
     Tensor::new(TensorPrimitive::Float(B::conv_transpose2d(
         x.primitive.tensor(),
         weight.primitive.tensor(),
@@ -139,6 +175,11 @@ pub fn conv_transpose3d<B>(
 where
     B: Backend,
 {
+    check!(TensorCheck::conv_transpose(
+        "conv_transpose3d",
+        x.dims(),
+        weight.dims(),
+    ));
     Tensor::new(TensorPrimitive::Float(B::conv_transpose3d(
         x.primitive.tensor(),
         weight.primitive.tensor(),
