@@ -267,7 +267,5 @@ jobs:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-macos
       # --------------------------------------------------------------------------------
-      - name: Debug Fusion
-        run: CUBECL_DEBUG_LOG=stdout cargo test --workspace --lib --color always --exclude burn-cuda --exclude burn-hip --exclude burn-tch -- --color=always --test tests::cube_fusion
       - name: Tests
         run: cargo xtask test --ci
