@@ -1,4 +1,4 @@
-use crate::{kernel::into_contiguous, tensor::CubeTensor, BoolElement, CubeElement, CubeRuntime};
+use crate::{BoolElement, CubeElement, CubeRuntime, kernel::into_contiguous, tensor::CubeTensor};
 use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch)]
