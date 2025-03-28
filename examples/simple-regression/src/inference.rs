@@ -25,8 +25,8 @@ pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device) {
     let dataset = HousingDataset::test();
     let items: Vec<HousingDistrictItem> = dataset.iter().take(1000).collect();
 
-    let batcher = HousingBatcher::new(device);
-    let batch = batcher.batch(items.clone());
+    let batcher = HousingBatcher::new(device.clone());
+    let batch = batcher.batch(items.clone(), &device);
     let predicted = model.forward(batch.inputs);
     let targets = batch.targets;
 

@@ -221,16 +221,15 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 
     B::seed(config.seed);
 
-    let batcher_train = MnistBatcher::<B>::new(device.clone());
-    let batcher_valid = MnistBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher = MnistBatcher::default();
 
-    let dataloader_train = DataLoaderBuilder::new(batcher_train)
+    let dataloader_train = DataLoaderBuilder::new(batcher.clone())
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
         .build(MnistDataset::train());
 
-    let dataloader_test = DataLoaderBuilder::new(batcher_valid)
+    let dataloader_test = DataLoaderBuilder::new(batcher)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
@@ -262,11 +261,11 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 It is a good practice to use the `Config` derive to create the experiment configuration. In the
 `train` function, the first thing we are doing is making sure the `artifact_dir` exists, using the
 standard rust library for file manipulation. All checkpoints, logging and metrics will be stored
-under this directory. We then initialize our dataloaders using our previously created batcher. Since
-no automatic differentiation is needed during the validation phase, the backend used for the
-corresponding batcher is `B::InnerBackend` (see [Backend](./backend.md)). The autodiff capabilities
-are available through a type system, making it nearly impossible to forget to deactivate gradient
-calculation.
+under this directory. We initialize the dataloaders using the previously created batcher. Since no
+automatic differentiation is needed during the validation phase, the `learner.fit(...)` method
+defines the necessary backend bounds on the data loader for `B::InnerBackend` (see
+[Backend](./backend.md)). The autodiff capabilities are available through a type system, making it
+nearly impossible to forget to deactivate gradient calculation.
 
 Next, we create our learner with the accuracy and loss metric on both training and validation steps
 along with the device and the epoch. We also configure the checkpointer using the `CompactRecorder`

@@ -1,3 +1,4 @@
+#![recursion_limit = "131"]
 use burn::{
     backend::{Autodiff, WebGpu},
     data::dataset::Dataset,
