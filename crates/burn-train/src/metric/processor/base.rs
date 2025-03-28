@@ -7,6 +7,8 @@ pub enum Event<T> {
     ProcessedItem(LearnerItem<T>),
     /// Signal the end of an epoch.
     EndEpoch(usize),
+    /// Signal the end of the process (e.g., training end).
+    End,
 }
 
 /// Items that are lazy are not ready to be processed by metrics.

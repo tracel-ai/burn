@@ -30,6 +30,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessor for MinimalEventProcessor<T, V> {
                 self.store
                     .add_event_train(crate::metric::store::Event::EndEpoch(epoch));
             }
+            Event::End => {} // no-op for now
         }
     }
 
@@ -49,6 +50,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessor for MinimalEventProcessor<T, V> {
                 self.store
                     .add_event_valid(crate::metric::store::Event::EndEpoch(epoch));
             }
+            Event::End => {} // no-op for now
         }
     }
 }
