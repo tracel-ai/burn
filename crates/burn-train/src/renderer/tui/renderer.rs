@@ -28,8 +28,7 @@ pub(crate) type TerminalBackend = CrosstermBackend<Stdout>;
 /// The current terminal frame.
 pub(crate) type TerminalFrame<'a> = ratatui::Frame<'a>;
 
-#[allow(deprecated)] // `PanicInfo` type is renamed to `PanicHookInfo` in Rust 1.82
-type PanicHook = Box<dyn Fn(&std::panic::PanicInfo<'_>) + 'static + Sync + Send>;
+type PanicHook = Box<dyn Fn(&std::panic::PanicHookInfo<'_>) + 'static + Sync + Send>;
 
 const MAX_REFRESH_RATE_MILLIS: u64 = 100;
 
@@ -84,6 +83,10 @@ impl MetricsRenderer for TuiMetricsRenderer {
         self.metrics_numeric.update_progress_valid(&item);
         self.status.update_valid(item);
         self.render().unwrap();
+    }
+
+    fn on_train_end(&mut self) -> Result<(), Box<dyn Error>> {
+        self.reset()
     }
 }
 
@@ -251,6 +254,31 @@ impl TuiMetricsRenderer {
         }
         Ok(())
     }
+
+    // Reset the terminal back to raw mode.
+    fn reset(&mut self) -> Result<(), Box<dyn Error>> {
+        // If previous panic hook has already been re-instated, then the terminal was already reset.
+        if self.previous_panic_hook.is_some() {
+            if self.persistent {
+                if let Err(err) = self.handle_post_training() {
+                    eprintln!("Error in post-training handling: {}", err);
+                }
+            }
+
+            disable_raw_mode()?;
+            execute!(self.terminal.backend_mut(), LeaveAlternateScreen)?;
+            self.terminal.show_cursor()?;
+
+            // Reinstall the previous panic hook
+            let _ = take_hook();
+            if let Some(previous_panic_hook) =
+                Arc::into_inner(self.previous_panic_hook.take().unwrap())
+            {
+                set_hook(previous_panic_hook);
+            }
+        }
+        Ok(())
+    }
 }
 
 struct QuitPopupAccept(TrainingInterrupter);
@@ -281,23 +309,7 @@ impl Drop for TuiMetricsRenderer {
         // Reset the terminal back to raw mode. This can be skipped during
         // panicking because the panic hook has already reset the terminal
         if !std::thread::panicking() {
-            if self.persistent {
-                if let Err(err) = self.handle_post_training() {
-                    eprintln!("Error in post-training handling: {}", err);
-                }
-            }
-
-            disable_raw_mode().ok();
-            execute!(self.terminal.backend_mut(), LeaveAlternateScreen).unwrap();
-            self.terminal.show_cursor().ok();
-
-            // Reinstall the previous panic hook
-            let _ = take_hook();
-            if let Some(previous_panic_hook) =
-                Arc::into_inner(self.previous_panic_hook.take().unwrap())
-            {
-                set_hook(previous_panic_hook);
-            }
+            self.reset().unwrap();
         }
     }
 }

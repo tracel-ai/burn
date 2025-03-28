@@ -1,5 +1,5 @@
 use crate::components::LearnerComponents;
-use crate::metric::processor::EventProcessor;
+use crate::metric::processor::{Event, EventProcessor};
 use crate::{Learner, TrainEpoch, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::{AutodiffModule, Module};
@@ -199,13 +199,13 @@ impl<LC: LearnerComponents> Learner<LC> {
             }
         }
 
+        // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
+        self.event_processor.process_train(Event::End);
+
         // Display learner summary
         if let Some(summary) = self.summary {
             match summary.init() {
                 Ok(summary) => {
-                    // Drop event processor (includes renderer) so the summary is displayed
-                    // when switching back to "main" screen
-                    core::mem::drop(self.event_processor);
                     println!("{}", summary.with_model(self.model.to_string()))
                 }
                 Err(err) => log::error!("Could not retrieve learner summary:\n{err}"),
