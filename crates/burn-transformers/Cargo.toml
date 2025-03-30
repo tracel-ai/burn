@@ -1,0 +1,23 @@
+[package]
+name = "burn-transformers"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["candle"]
+candle = ["burn/candle"]
+tch-cpu = ["burn/tch"]
+tch-gpu = ["burn/tch"]
+cuda = ["burn/cuda"]
+metal = ["burn/metal"]
+
+[dependencies]
+base64 = "0.22"
+burn = { path = "../burn", features = ["ndarray", "network"] }
+burn-import = { path = "../burn-import" }
+burn-tensor = { path = "../burn-tensor" }
+dirs = { workspace = true }
+rand = { workspace = true}
+rustc-hash = "1.1"
+serde = { workspace = true, features = ["derive"] }
+tiktoken-rs = "0.6"
