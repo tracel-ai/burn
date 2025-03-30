@@ -1,4 +1,5 @@
 pub mod cache;
+pub mod gguf;
 pub mod models;
 pub mod pretrained;
 pub mod sampling;

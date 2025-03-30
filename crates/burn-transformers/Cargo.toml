@@ -16,8 +16,18 @@ base64 = "0.22"
 burn = { path = "../burn", features = ["ndarray", "network"] }
 burn-import = { path = "../burn-import" }
 burn-tensor = { path = "../burn-tensor" }
+clap = { workspace = true, features = ["derive"] }
 dirs = { workspace = true }
 rand = { workspace = true}
 rustc-hash = "1.1"
+itertools = "0.14"
+regex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tiktoken-rs = "0.6"
+
+[dev-dependencies]
+burn-ndarray = { path = "../burn-ndarray" }
+
+[[example]]
+name = "test_gguf"
+path = "examples/test_gguf.rs"
