@@ -1,5 +1,6 @@
 mod activation;
 mod clone_invariance;
+mod container;
 mod module;
 mod ops;
 mod primitive;
@@ -18,7 +19,8 @@ macro_rules! testgen_all {
             pub type FloatType = <TestBackend as $crate::backend::Backend>::FloatElem;
             pub type IntType = <TestBackend as $crate::backend::Backend>::IntElem;
             pub type BoolType = <TestBackend as $crate::backend::Backend>::BoolElem;
-
+            
+            $crate::testgen_container!();
             $crate::testgen_with_float_param!();
             $crate::testgen_no_param!();
         }
