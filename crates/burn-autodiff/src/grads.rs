@@ -1,4 +1,9 @@
-use burn_tensor::{TensorMetadata, backend::Backend, container::TensorContainer, ops::FloatTensor};
+use burn_tensor::{
+    TensorMetadata,
+    backend::Backend,
+    container::{TensorContainer, TensorContainerError},
+    ops::FloatTensor,
+};
 
 use crate::{
     NodeID,
@@ -48,17 +53,23 @@ impl Gradients {
     }
 
     /// Removes a grad tensor from the container.
-    pub fn remove<B: Backend>(&mut self, tensor: &AutodiffTensor<B>) -> Option<FloatTensor<B>> {
+    pub fn remove<B: Backend>(
+        &mut self,
+        tensor: &AutodiffTensor<B>,
+    ) -> Result<FloatTensor<B>, TensorContainerError> {
         self.container
             .remove::<B>(&tensor.node.id.value)
-            .map(|tensor| tensor.tensor()).ok()
+            .map(|tensor| tensor.tensor())
     }
 
     /// Gets a grad tensor from the container.
-    pub fn get<B: Backend>(&self, tensor: &AutodiffTensor<B>) -> Option<FloatTensor<B>> {
+    pub fn get<B: Backend>(
+        &self,
+        tensor: &AutodiffTensor<B>,
+    ) -> Result<FloatTensor<B>, TensorContainerError> {
         self.container
             .get::<B>(&tensor.node.id.value)
-            .map(|tensor| tensor.tensor()).ok()
+            .map(|tensor| tensor.tensor())
     }
 
     /// Register a grad tensor in the container.
