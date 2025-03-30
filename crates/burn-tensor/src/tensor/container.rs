@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use crate::{TensorPrimitive, backend::Backend};
 
 /// Error type for tensor container operations.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TensorContainerError {
     /// The tensor with the given ID was not found.
     NotFound,
