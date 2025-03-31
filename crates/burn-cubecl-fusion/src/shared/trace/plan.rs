@@ -134,11 +134,21 @@ impl<R: Runtime> LaunchPlan<'_, R> {
     }
 }
 
+#[cfg(test)]
+#[derive(Debug)]
+pub struct HandleOutputAliasDebugInfo<R: Runtime> {
+    pub handle: CubeFusionHandle<R>,
+    pub relative_id: TensorId,
+    pub global_shape: Vec<usize>,
+}
+
 #[derive(Debug)]
 pub enum HandleOutput<R: Runtime> {
     Alias {
         input_pos: usize,
         precision: FusePrecision,
+        #[cfg(test)]
+        debug_info: HandleOutputAliasDebugInfo<R>,
     },
     Owned {
         global_id: TensorId,

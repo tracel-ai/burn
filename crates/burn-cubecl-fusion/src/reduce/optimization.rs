@@ -223,10 +223,12 @@ impl<R: Runtime> ReduceOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> TuneOutput<R> {
+        #[allow(unused_mut)] // It is used when #[cfg(test)] is true.
         let mut output_read = self
             .trace_read_fallback
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
+
         let (out_tensor, out_desc) = {
             let input = context
                 .tensors
@@ -248,13 +250,12 @@ impl<R: Runtime> ReduceOptimization<R> {
 
             (out_handle, out)
         };
+        #[cfg(test)]
         if let TuneOutput::Checked { handles } = &mut output_read {
-            if out_desc.status == TensorStatus::ReadOnly {
-                handles.insert(
-                    out_desc.id.clone(),
-                    (out_desc.shape.clone(), out_tensor.clone()),
-                );
-            }
+            handles.insert(
+                self.reduce.op.out.id.clone(),
+                (out_desc.shape.clone(), out_tensor.clone()),
+            );
         }
         context.handles.register_handle(out_desc.id, out_tensor);
         let output_write = self

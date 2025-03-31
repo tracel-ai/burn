@@ -299,6 +299,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         self.handles[output.pos_original] = Some(HandleOutput::Alias {
             input_pos: potential_inplace.input_pos,
             precision: output.precision,
+            #[cfg(test)]
+            debug_info: super::HandleOutputAliasDebugInfo {
+                relative_id: output.tensor_relative.id.clone(),
+                handle: handle_input.handle.clone(),
+                global_shape: tensor_global.shape.clone(),
+            },
         });
         self.globals[output.pos_original] = Some(tensor_global);
     }
@@ -427,6 +433,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             self.handles[output.pos_original] = Some(HandleOutput::Alias {
                 input_pos: pos_input,
                 precision: output.precision,
+                #[cfg(test)]
+                debug_info: super::HandleOutputAliasDebugInfo {
+                    relative_id: output.tensor_relative.id.clone(),
+                    handle: handle.clone(),
+                    global_shape: tensor_global.shape.clone(),
+                },
             });
             self.globals[output.pos_original] = Some(tensor_global);
         } else {
@@ -492,6 +504,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         self.handles[output.pos_original] = Some(HandleOutput::Alias {
             input_pos: pos_input,
             precision: output.precision,
+            #[cfg(test)]
+            debug_info: super::HandleOutputAliasDebugInfo {
+                relative_id: output.tensor_relative.id.clone(),
+                handle: handle.clone(),
+                global_shape: tensor_global.shape.clone(),
+            },
         });
         self.globals[output.pos_original] = Some(tensor_global);
     }

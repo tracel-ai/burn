@@ -1,7 +1,7 @@
+use crate::CubeRuntime;
 use crate::element::CubeElement;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
 use crate::ops::into_data_sync;
-use crate::{BoolElement, CubeRuntime};
 use burn_tensor::quantization::QTensorPrimitive;
 use burn_tensor::{DType, Shape, TensorMetadata};
 use cubecl::client::ComputeClient;
@@ -36,7 +36,6 @@ impl<R: CubeRuntime, E: CubeElement> From<CubeTensor<R>> for TensorHandle<R, E> 
 
 impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
     fn check_equivalence(&self, other: Self) {
-        println!("Checking equivalance...");
         let (expected, actual) = match self.dtype {
             DType::F64 => (
                 into_data_sync::<R, f64>(self.clone()),

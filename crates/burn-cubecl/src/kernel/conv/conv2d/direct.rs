@@ -2,9 +2,7 @@ use burn_tensor::{
     Shape,
     ops::{ConvOptions, conv::calculate_conv_output_size},
 };
-use cubecl::{
-    calculate_cube_count_elemwise, linalg::convolution::ConvLaunchError, prelude::*, tune,
-};
+use cubecl::{calculate_cube_count_elemwise, linalg::convolution::ConvLaunchError, prelude::*};
 
 use crate::{
     CubeRuntime, FloatElement,

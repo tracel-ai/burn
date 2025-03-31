@@ -1,4 +1,4 @@
-use std::{collections::HashMap, marker::PhantomData};
+use std::marker::PhantomData;
 
 use burn_fusion::stream::Context;
 use burn_tensor::DType;
@@ -55,13 +55,17 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             num_writes += b.writes.len();
         }
 
-        let mut debug = TuneOutput::Checked {
-            handles: HashMap::new(),
+        #[cfg(test)]
+        let mut tune_output = TuneOutput::Checked {
+            handles: std::collections::HashMap::new(),
         };
+
+        #[cfg(not(test))]
+        let mut tune_output = TuneOutput::UnChecked(PhantomData);
 
         if num_writes == 0 {
             // Nothing to write, can skip execution.
-            return Ok(debug);
+            return Ok(tune_output);
         }
 
         let mut inputs = GlobalArgsLaunch::default();
@@ -74,7 +78,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             context,
             &mut inputs,
         );
-        register_outputs::<BT, R>(&plan.handle_outputs, &mut outputs, &mut debug);
+        register_outputs::<BT, R>(&plan.handle_outputs, &mut outputs, &mut tune_output);
 
         let mut configs = Vec::with_capacity(plan.blocks.len());
 
@@ -129,7 +133,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             )
         })?;
 
-        Ok(debug)
+        Ok(tune_output)
     }
 }
 
@@ -150,26 +154,37 @@ fn register_inputs<'h, R: Runtime>(
 fn register_outputs<'s, BT: CubeElement, R: Runtime>(
     handle_outputs: &'s [HandleOutput<R>],
     outputs: &mut GlobalArgsLaunch<'s, R>,
-    debug: &mut TuneOutput<R>,
+    #[allow(unused_variables)] tune_output: &mut TuneOutput<R>,
 ) {
     for item in handle_outputs.iter() {
         match item {
             HandleOutput::Alias {
                 input_pos,
                 precision,
+                #[cfg(test)]
+                debug_info,
             } => {
                 outputs.tensors.push(GlobalTensorArg::new(
                     TensorArg::alias(*input_pos),
                     precision.into_elem(),
                     false,
                 ));
+
+                #[cfg(test)]
+                if let TuneOutput::Checked { handles, .. } = tune_output {
+                    handles.insert(
+                        debug_info.relative_id,
+                        (debug_info.global_shape.clone(), debug_info.handle.clone()),
+                    );
+                }
             }
             HandleOutput::Owned {
                 precision,
                 handle,
                 global_shape,
                 vectorization,
-                global_id,
+                #[cfg(test)]
+                relative_id,
                 ..
             } => {
                 let arg = handle.as_tensor_arg(global_shape, *vectorization);
@@ -182,9 +197,12 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                     },
                     _ => precision.into_elem(),
                 };
-                if let TuneOutput::Checked { handles, .. } = debug {
-                    handles.insert(*global_id, (global_shape.clone(), handle.clone()));
+
+                #[cfg(test)]
+                if let TuneOutput::Checked { handles, .. } = tune_output {
+                    handles.insert(*relative_id, (global_shape.clone(), handle.clone()));
                 }
+
                 outputs.tensors.push(GlobalTensorArg::new(arg, elem, false));
             }
         }
