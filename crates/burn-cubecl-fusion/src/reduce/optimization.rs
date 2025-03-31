@@ -15,8 +15,8 @@ use serde::{Deserialize, Serialize};
 use crate::CubeFusionHandle;
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::ir::RefLayout;
-use crate::shared::trace::Vectorization;
 use crate::shared::trace::{TraceError, TraceRunner};
+use crate::shared::trace::{TuneOutput, Vectorization};
 use crate::shared::{
     ir::{Arg, FuseBlockConfig, GlobalArgsLaunch},
     trace::FuseTrace,
@@ -183,7 +183,7 @@ impl<R: Runtime> ReduceOptimization<R> {
     pub fn execute_fused_reduce<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), TraceError<FusedReduceError>> {
+    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
         FuseTrace::run::<R, BT, FusedReduce>(
             &self.trace,
             &self.client,
@@ -196,7 +196,7 @@ impl<R: Runtime> ReduceOptimization<R> {
     pub fn execute_fused_reduce_plane<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), TraceError<FusedReduceError>> {
+    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
         FuseTrace::run::<R, BT, FusedReduce>(
             &self.trace,
             &self.client,
@@ -209,7 +209,7 @@ impl<R: Runtime> ReduceOptimization<R> {
     pub fn execute_fused_reduce_shared_plane<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), TraceError<FusedReduceError>> {
+    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
         FuseTrace::run::<R, BT, FusedReduce>(
             &self.trace,
             &self.client,
@@ -222,8 +222,9 @@ impl<R: Runtime> ReduceOptimization<R> {
     pub fn execute_fallback<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) {
-        self.trace_read_fallback
+    ) -> TuneOutput<R> {
+        let mut output_read = self
+            .trace_read_fallback
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
         let (out_tensor, out_desc) = {
@@ -247,10 +248,19 @@ impl<R: Runtime> ReduceOptimization<R> {
 
             (out_handle, out)
         };
+        if let TuneOutput::Checked { handles } = &mut output_read {
+            handles.insert(
+                out_desc.id.clone(),
+                (out_desc.shape.clone(), out_tensor.clone()),
+            );
+        }
         context.handles.register_handle(out_desc.id, out_tensor);
-        self.trace_write_fallback
+        let output_write = self
+            .trace_write_fallback
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
+
+        output_read.merge(output_write)
     }
     /// Returns the number of output buffers added by fusion.
     pub fn num_ops_fused(&self) -> usize {

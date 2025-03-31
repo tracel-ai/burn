@@ -1,5 +1,6 @@
 use crate::{
     CubeFusionHandle,
+    shared::trace::TuneOutput,
     tune::{TuneContext, TuneInput},
 };
 use burn_fusion::stream::Context;
@@ -82,7 +83,7 @@ fn input_gen<R: Runtime>(
 
 fn tune_reduce<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceOptimization<R>>,
-) -> Result<(), String> {
+) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
@@ -97,7 +98,7 @@ fn tune_reduce<R: Runtime, BT: CubeElement>(
 
 fn tune_reduce_plane<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceOptimization<R>>,
-) -> Result<(), String> {
+) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
@@ -112,7 +113,7 @@ fn tune_reduce_plane<R: Runtime, BT: CubeElement>(
 
 fn tune_reduce_shared_plane<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceOptimization<R>>,
-) -> Result<(), String> {
+) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
@@ -129,16 +130,14 @@ fn tune_reduce_shared_plane<R: Runtime, BT: CubeElement>(
 
 fn tune_fallback<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceOptimization<R>>,
-) -> Result<(), String> {
+) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
-    match context {
+    Ok(match context {
         TuneContext::Original(context) => optimization.execute_fallback::<BT>(context),
         TuneContext::Fork(mut context_owned) => {
             optimization.execute_fallback::<BT>(&mut context_owned.as_context())
         }
-    };
-
-    Ok(())
+    })
 }

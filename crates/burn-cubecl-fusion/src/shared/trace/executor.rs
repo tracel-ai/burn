@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{collections::HashMap, marker::PhantomData};
 
 use burn_fusion::stream::Context;
 use burn_tensor::DType;
@@ -10,7 +10,7 @@ use cubecl::{
 
 use super::{
     FuseResources, HandleInput, HandleOutput, LaunchPlan, ReferenceSelection, TensorView,
-    TraceError, TraceRunner, block::FuseBlock,
+    TraceError, TraceRunner, TuneOutput, block::FuseBlock,
 };
 use crate::{
     CubeFusionHandle, elem_dtype,
@@ -49,15 +49,19 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         runner: &Runner,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
-    ) -> Result<(), ExecutionError<R, Runner>> {
+    ) -> Result<TuneOutput<R>, ExecutionError<R, Runner>> {
         let mut num_writes = 0;
         for b in plan.blocks.iter() {
             num_writes += b.writes.len();
         }
 
+        let mut debug = TuneOutput::Checked {
+            handles: HashMap::new(),
+        };
+
         if num_writes == 0 {
             // Nothing to write, can skip execution.
-            return Ok(());
+            return Ok(debug);
         }
 
         let mut inputs = GlobalArgsLaunch::default();
@@ -70,7 +74,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             context,
             &mut inputs,
         );
-        register_outputs::<BT, R>(&plan.handle_outputs, &mut outputs);
+        register_outputs::<BT, R>(&plan.handle_outputs, &mut outputs, &mut debug);
 
         let mut configs = Vec::with_capacity(plan.blocks.len());
 
@@ -123,7 +127,9 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 plan.handle_inputs,
                 plan.handle_outputs,
             )
-        })
+        })?;
+
+        Ok(debug)
     }
 }
 
@@ -144,6 +150,7 @@ fn register_inputs<'h, R: Runtime>(
 fn register_outputs<'s, BT: CubeElement, R: Runtime>(
     handle_outputs: &'s [HandleOutput<R>],
     outputs: &mut GlobalArgsLaunch<'s, R>,
+    debug: &mut TuneOutput<R>,
 ) {
     for item in handle_outputs.iter() {
         match item {
@@ -162,6 +169,7 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                 handle,
                 global_shape,
                 vectorization,
+                global_id,
                 ..
             } => {
                 let arg = handle.as_tensor_arg(global_shape, *vectorization);
@@ -174,6 +182,9 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                     },
                     _ => precision.into_elem(),
                 };
+                if let TuneOutput::Checked { handles, .. } = debug {
+                    handles.insert(*global_id, (global_shape.clone(), handle.clone()));
+                }
                 outputs.tensors.push(GlobalTensorArg::new(arg, elem, false));
             }
         }
