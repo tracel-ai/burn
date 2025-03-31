@@ -16,6 +16,7 @@ autotune = []
 default = ["autotune", "std", "cubecl/default"]
 doc = ["default"]
 std = ["cubecl/std", "burn-tensor/std"]
+autotune-checks = ["cubecl/autotune-checks"]
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.17.0" }
@@ -29,10 +30,6 @@ cubecl = { workspace = true, features = ["default", "linalg", "reduce", "std"] }
 half = { workspace = true }
 serde = { workspace = true }
 derive-new = { workspace = true }
-
-[dev-dependencies]
-cubecl = { workspace = true, features = ["autotune-checks"] }
-
 
 [package.metadata.docs.rs]
 features = ["doc"]

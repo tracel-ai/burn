@@ -134,7 +134,7 @@ impl<R: Runtime> LaunchPlan<'_, R> {
     }
 }
 
-#[cfg(test)]
+#[cfg(feature = "autotune-checks")]
 #[derive(Debug)]
 pub struct HandleOutputAliasDebugInfo<R: Runtime> {
     pub handle: CubeFusionHandle<R>,
@@ -147,7 +147,7 @@ pub enum HandleOutput<R: Runtime> {
     Alias {
         input_pos: usize,
         precision: FusePrecision,
-        #[cfg(test)]
+        #[cfg(feature = "autotune-checks")]
         debug_info: HandleOutputAliasDebugInfo<R>,
     },
     Owned {

@@ -250,7 +250,7 @@ impl<R: Runtime> ReduceOptimization<R> {
 
             (out_handle, out)
         };
-        #[cfg(test)]
+        #[cfg(feature = "autotune-checks")]
         if let TuneOutput::Checked { handles } = &mut output_read {
             handles.insert(
                 self.reduce.op.out.id,

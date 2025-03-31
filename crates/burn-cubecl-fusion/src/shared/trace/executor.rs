@@ -55,12 +55,12 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             num_writes += b.writes.len();
         }
 
-        #[cfg(test)]
+        #[cfg(feature = "autotune-checks")]
         let mut tune_output = TuneOutput::Checked {
             handles: std::collections::HashMap::new(),
         };
 
-        #[cfg(not(test))]
+        #[cfg(not(feature = "autotune-checks"))]
         let mut tune_output = TuneOutput::UnChecked(PhantomData);
 
         if num_writes == 0 {
@@ -161,7 +161,7 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
             HandleOutput::Alias {
                 input_pos,
                 precision,
-                #[cfg(test)]
+                #[cfg(feature = "autotune-checks")]
                 debug_info,
             } => {
                 outputs.tensors.push(GlobalTensorArg::new(
@@ -170,7 +170,7 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                     false,
                 ));
 
-                #[cfg(test)]
+                #[cfg(feature = "autotune-checks")]
                 if let TuneOutput::Checked { handles, .. } = tune_output {
                     handles.insert(
                         debug_info.relative_id,
@@ -183,7 +183,7 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                 handle,
                 global_shape,
                 vectorization,
-                #[cfg(test)]
+                #[cfg(feature = "autotune-checks")]
                 relative_id,
                 ..
             } => {
@@ -198,7 +198,7 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                     _ => precision.into_elem(),
                 };
 
-                #[cfg(test)]
+                #[cfg(feature = "autotune-checks")]
                 if let TuneOutput::Checked { handles, .. } = tune_output {
                     handles.insert(*relative_id, (global_shape.clone(), handle.clone()));
                 }

@@ -14,9 +14,9 @@ use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, marker::PhantomData};
 
-#[cfg(test)]
+#[cfg(feature = "autotune-checks")]
 use burn_tensor::TensorData;
-#[cfg(test)]
+#[cfg(feature = "autotune-checks")]
 use std::collections::HashMap;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -29,7 +29,7 @@ pub struct FuseTrace {
 
 pub enum TuneOutput<R: Runtime> {
     UnChecked(PhantomData<R>),
-    #[cfg(test)]
+    #[cfg(feature = "autotune-checks")]
     Checked {
         handles: HashMap<TensorId, (Vec<usize>, CubeFusionHandle<R>)>,
     },
@@ -42,7 +42,7 @@ impl<R: Runtime> TuneOutput<R> {
 
         match &mut result {
             TuneOutput::UnChecked(..) => {}
-            #[cfg(test)]
+            #[cfg(feature = "autotune-checks")]
             TuneOutput::Checked { handles } => match other {
                 TuneOutput::UnChecked(..) => {}
                 TuneOutput::Checked { handles: o } => {
@@ -58,7 +58,7 @@ impl<R: Runtime> TuneOutput<R> {
 }
 
 impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
-    #[cfg(test)]
+    #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) {
         if let (
             TuneOutput::Checked {
