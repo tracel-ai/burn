@@ -214,11 +214,28 @@ impl<R: Runtime> MatmulOptimization<R> {
 
             (out_handle, out)
         };
+        #[cfg(feature = "autotune-checks")]
+        let mut output = TuneOutput::Checked {
+            handles: Default::default(),
+        };
+        #[cfg(not(feature = "autotune-checks"))]
+        let mut output = TuneOutput::NoCheck;
+
+        #[cfg(feature = "autotune-checks")]
+        if let TuneOutput::Checked { handles } = &mut output {
+            handles.insert(
+                self.matmul_simple.op.out.id,
+                (out_desc.shape.clone(), out_tensor.clone()),
+            );
+        }
         context.handles.register_handle(out_desc.id, out_tensor);
 
-        self.trace_fallback
+        let output_write = self
+            .trace_fallback
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
-            .unwrap()
+            .unwrap();
+
+        output.merge(output_write)
     }
 }
 
