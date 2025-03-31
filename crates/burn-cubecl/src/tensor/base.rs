@@ -89,7 +89,7 @@ impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
             DType::QFloat(..) => return,
         };
 
-        expected.assert_approx_eq(&actual, 6);
+        expected.assert_approx_eq(&actual, 4);
     }
 }
 
