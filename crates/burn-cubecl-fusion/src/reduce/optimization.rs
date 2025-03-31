@@ -253,7 +253,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         #[cfg(test)]
         if let TuneOutput::Checked { handles } = &mut output_read {
             handles.insert(
-                self.reduce.op.out.id.clone(),
+                self.reduce.op.out.id,
                 (out_desc.shape.clone(), out_tensor.clone()),
             );
         }

@@ -301,7 +301,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             precision: output.precision,
             #[cfg(test)]
             debug_info: super::HandleOutputAliasDebugInfo {
-                relative_id: output.tensor_relative.id.clone(),
+                relative_id: output.tensor_relative.id,
                 handle: handle_input.handle.clone(),
                 global_shape: tensor_global.shape.clone(),
             },
@@ -435,7 +435,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 precision: output.precision,
                 #[cfg(test)]
                 debug_info: super::HandleOutputAliasDebugInfo {
-                    relative_id: output.tensor_relative.id.clone(),
+                    relative_id: output.tensor_relative.id,
                     handle: handle.clone(),
                     global_shape: tensor_global.shape.clone(),
                 },
@@ -506,7 +506,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             precision: output.precision,
             #[cfg(test)]
             debug_info: super::HandleOutputAliasDebugInfo {
-                relative_id: output.tensor_relative.id.clone(),
+                relative_id: output.tensor_relative.id,
                 handle: handle.clone(),
                 global_shape: tensor_global.shape.clone(),
             },
