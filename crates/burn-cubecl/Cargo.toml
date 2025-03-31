@@ -68,7 +68,6 @@ serial_test = { workspace = true, optional = true }
 [dev-dependencies]
 cubecl = { workspace = true, features = ["autotune-checks"] }
 
-
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]

@@ -56,41 +56,43 @@ impl<R: Runtime> TuneOutput<R> {
         result
     }
 }
+
 impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
+    #[cfg(test)]
     fn check_equivalence(&self, other: Self) {
-        match (self, &other) {
-            (TuneOutput::UnChecked(..), TuneOutput::UnChecked(..)) => {}
-            #[cfg(test)]
-            (
-                TuneOutput::Checked {
-                    handles: handles_ref,
-                },
-                TuneOutput::Checked { handles },
-            ) => {
-                let mut num_checked = 0;
-                for (id, (shape, handle)) in handles_ref.iter() {
-                    if let Some((shape_other, other)) = handles.get(id) {
-                        assert_eq!(handle.strides, other.strides);
+        if let (
+            TuneOutput::Checked {
+                handles: handles_ref,
+            },
+            TuneOutput::Checked { handles },
+        ) = (self, &other)
+        {
+            let mut num_checked = 0;
+            for (id, (shape, handle)) in handles_ref.iter() {
+                if let Some((shape_other, other)) = handles.get(id) {
+                    assert_eq!(
+                        handle.strides, other.strides,
+                        "TODO: It should be OK, we simply need to call `into_contiguous` before the assertion."
+                    );
 
-                        let data_ref = handle.client.read_one(handle.handle.clone().binding());
-                        let data_other = other.client.read_one(other.handle.clone().binding());
-                        let data_ref =
-                            TensorData::from_bytes(data_ref, shape.clone(), handle.dtype);
-                        let data_other =
-                            TensorData::from_bytes(data_other, shape_other.clone(), handle.dtype);
+                    let data_ref = handle.client.read_one(handle.handle.clone().binding());
+                    let data_other = other.client.read_one(other.handle.clone().binding());
+                    let data_ref = TensorData::from_bytes(data_ref, shape.clone(), handle.dtype);
+                    let data_other =
+                        TensorData::from_bytes(data_other, shape_other.clone(), handle.dtype);
 
-                        data_ref.assert_approx_eq(&data_other, 4);
-                        num_checked += 1;
-                    } else {
-                        println!("{:?}", handles);
-                        println!("{:?}", handles_ref);
-                        println!("No tensor found for {id:?}=>{shape:?}");
-                    }
+                    data_ref.assert_approx_eq(&data_other, 4);
+                    num_checked += 1;
+                } else {
+                    // Debug info for the tests.
+                    println!("No tensor found for {id:?}=>{shape:?}");
                 }
-                assert!(num_checked >= 1);
             }
-            #[allow(unreachable_patterns)]
-            _ => panic!("Both are not checked."),
+            // At least one check is needed per output.
+            //
+            // Some optimizations might write more outputs than needed, so it might be fined if
+            // the number of handles is different, but at least one is required.
+            assert!(num_checked >= 1);
         }
     }
 }
