@@ -2,16 +2,18 @@
 mod test {
     use super::*;
     use burn_tensor::{
-        container::{TensorContainer, TensorContainerError},
         TensorPrimitive,
+        container::{TensorContainer, TensorContainerError},
     };
     #[test]
     fn test_registered_id_should_return_ok() {
-        let tensor: TensorPrimitive<TestBackend> = TestTensor::<1>::from([3.0,4.0, -5.0]).into_primitive();
+        let tensor: TensorPrimitive<TestBackend> =
+            TestTensor::<1>::from([3.0, 4.0, -5.0]).into_primitive();
         let mut container = TensorContainer::new();
         let registered_id = 1;
-        container.register(registered_id,tensor);
-        let extraction_result:Result<TensorPrimitive<TestBackend>,TensorContainerError>  = container.get(&registered_id);
+        container.register(registered_id, tensor);
+        let extraction_result: Result<TensorPrimitive<TestBackend>, TensorContainerError> =
+            container.get(&registered_id);
         assert!(extraction_result.is_ok())
     }
 
@@ -19,7 +21,8 @@ mod test {
     fn test_empty_container_should_return_not_found() {
         let mut container = TensorContainer::new();
         let unregistered_id = 1;
-        let extraction_result: Result<TensorPrimitive<TestBackend>,TensorContainerError> = container.get(&unregistered_id);
+        let extraction_result: Result<TensorPrimitive<TestBackend>, TensorContainerError> =
+            container.get(&unregistered_id);
         match extraction_result {
             Ok(_) => assert!(
                 false,
@@ -39,14 +42,14 @@ mod test {
         let registered_id = 1;
         let unregistered_id = 2;
         container.register(registered_id, tensor);
-        let extraction_result: Result<TensorPrimitive<TestBackend>,TensorContainerError> = container.get(&unregistered_id);
+        let extraction_result: Result<TensorPrimitive<TestBackend>, TensorContainerError> =
+            container.get(&unregistered_id);
 
         match extraction_result {
             Ok(_) => assert!(
                 false,
                 "Found an entry on {} even though there only should be one on {}",
-                unregistered_id,
-                registered_id,
+                unregistered_id, registered_id,
             ),
             Err(err) => {
                 assert_eq!(err, TensorContainerError::NotFound);
