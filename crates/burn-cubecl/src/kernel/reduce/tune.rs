@@ -4,6 +4,7 @@ use burn_tensor::ElementConversion;
 use cubecl::{
     AutotuneKey,
     client::ComputeClient,
+    reduce::tune_key::ReduceAutotuneKey,
     tune::{LocalTuner, TunableSet, local_tuner},
 };
 use serde::{Deserialize, Serialize};
@@ -27,7 +28,7 @@ pub fn autotune_reduce<
 ) {
     use reduce_ops::*;
 
-    static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
+    static TUNER: LocalTuner<ReduceAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<Run>, reduce_input_gen::<Run, In, Out>)
         .with_tunable(reduce::<Run, In, Out, Rd>)
@@ -43,52 +44,21 @@ pub fn autotune_reduce<
     );
 }
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
-/// Autotune key representative of reduce versions
-pub struct ReduceAutotuneKey {
-    dtype: burn_tensor::DType,
-    #[autotune(anchor)]
-    reduce_axis_shape: usize,
-    #[autotune(anchor)]
-    reduce_axis_stride: usize,
-    #[autotune(anchor)]
-    outer_axes_product: usize, // The product of the shapes of all axes with greater strides.
-}
-
-impl ReduceAutotuneKey {
-    pub(crate) fn generate<Run: CubeRuntime>(input: &CubeTensor<Run>, axis: usize) -> Self {
-        let rank = input.shape.num_dims();
-
-        if axis > rank {
-            panic!("axis {axis} is out-of-bound for a rank of {rank}");
-        }
-
-        let dtype = input.dtype;
-        let reduce_axis_shape = input.shape.dims[axis];
-        let reduce_axis_stride = input.strides[axis];
-
-        let outer_axes_product = input
-            .strides
-            .iter()
-            .zip(input.shape.dims.iter())
-            .filter_map(|(stride, shape)| (*stride > reduce_axis_stride).then_some(shape))
-            .product();
-
-        Self::new(
-            dtype,
-            reduce_axis_shape,
-            reduce_axis_stride,
-            outer_axes_product,
-        )
-    }
-}
-
 pub(crate) fn create_key<Run: CubeRuntime>(
     input: &CubeTensor<Run>,
-    _output: &CubeTensor<Run>,
-    dim: &usize,
-) -> CubeAutotuneKey {
-    CubeAutotuneKey::Reduce(ReduceAutotuneKey::generate(input, *dim))
+    output: &CubeTensor<Run>,
+    axis: &usize,
+) -> ReduceAutotuneKey {
+    let elem_input = input.dtype.into();
+    let elem_output = output.dtype.into();
+
+    ReduceAutotuneKey::generate(
+        elem_input,
+        elem_output,
+        &input.shape.dims,
+        input.strides[*axis] == 1,
+        *axis,
+    )
 }
 
 mod reduce_ops {
@@ -97,7 +67,7 @@ mod reduce_ops {
     use super::*;
 
     pub(crate) fn reduce_input_gen<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
-        _key: &CubeAutotuneKey,
+        _key: &ReduceAutotuneKey,
         input: &CubeTensor<Run>,
         output: &CubeTensor<Run>,
         dim: &usize,

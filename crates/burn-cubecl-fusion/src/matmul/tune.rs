@@ -1,5 +1,6 @@
 use crate::{
     CubeFusionHandle,
+    shared::trace::TuneOutput,
     tune::{TuneContext, TuneInput},
 };
 use burn_fusion::stream::Context;
@@ -85,7 +86,7 @@ fn input_gen<R: Runtime>(
 
 fn tune_simple_fused<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, MatmulOptimization<R>>,
-) -> Result<(), String> {
+) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
@@ -100,7 +101,7 @@ fn tune_simple_fused<R: Runtime, BT: CubeElement>(
 
 fn tune_specialized_fused<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, MatmulOptimization<R>>,
-) -> Result<(), String> {
+) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
@@ -115,7 +116,7 @@ fn tune_specialized_fused<R: Runtime, BT: CubeElement>(
 
 fn tune_double_buffering_fused<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, MatmulOptimization<R>>,
-) -> Result<(), String> {
+) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
@@ -132,16 +133,14 @@ fn tune_double_buffering_fused<R: Runtime, BT: CubeElement>(
 
 fn tune_fallback<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, MatmulOptimization<R>>,
-) -> Result<(), String> {
+) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
-    match context {
+    Ok(match context {
         TuneContext::Original(context) => optimization.execute_fallback::<BT>(context),
         TuneContext::Fork(mut context_owned) => {
             optimization.execute_fallback::<BT>(&mut context_owned.as_context())
         }
-    };
-
-    Ok(())
+    })
 }

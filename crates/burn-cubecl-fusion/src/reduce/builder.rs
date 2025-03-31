@@ -124,6 +124,7 @@ impl<R: Runtime> ReduceBuilder<R> {
 
         self.status = self.builder.status();
     }
+
     fn on_elemwise_write(&mut self, operation: &OperationIr) {
         self.builder.register(operation);
 

@@ -29,7 +29,69 @@ pub struct CubeTensor<R: CubeRuntime> {
 
 impl<R: CubeRuntime, E: CubeElement> From<CubeTensor<R>> for TensorHandle<R, E> {
     fn from(val: CubeTensor<R>) -> Self {
-        TensorHandle::new(val.shape.dims.to_vec(), val.strides.to_vec(), val.handle)
+        TensorHandle::new(val.handle, val.shape.dims.to_vec(), val.strides.to_vec())
+    }
+}
+
+impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
+    #[cfg(feature = "export_tests")]
+    fn check_equivalence(&self, other: Self) {
+        use crate::ops::into_data_sync;
+
+        let (expected, actual) = match self.dtype {
+            DType::F64 => (
+                into_data_sync::<R, f64>(self.clone()),
+                into_data_sync::<R, f64>(other),
+            ),
+            DType::F32 => (
+                into_data_sync::<R, f32>(self.clone()),
+                into_data_sync::<R, f32>(other),
+            ),
+            DType::F16 => (
+                into_data_sync::<R, half::f16>(self.clone()),
+                into_data_sync::<R, half::f16>(other),
+            ),
+            DType::BF16 => (
+                into_data_sync::<R, half::bf16>(self.clone()),
+                into_data_sync::<R, half::bf16>(other),
+            ),
+            DType::I64 => (
+                into_data_sync::<R, i64>(self.clone()),
+                into_data_sync::<R, i64>(other),
+            ),
+            DType::I32 => (
+                into_data_sync::<R, i32>(self.clone()),
+                into_data_sync::<R, i32>(other),
+            ),
+            DType::I16 => (
+                into_data_sync::<R, i16>(self.clone()),
+                into_data_sync::<R, i16>(other),
+            ),
+            DType::I8 => (
+                into_data_sync::<R, i8>(self.clone()),
+                into_data_sync::<R, i8>(other),
+            ),
+            DType::U64 => (
+                into_data_sync::<R, u64>(self.clone()),
+                into_data_sync::<R, u64>(other),
+            ),
+            DType::U32 => (
+                into_data_sync::<R, u32>(self.clone()),
+                into_data_sync::<R, u32>(other),
+            ),
+            DType::U16 => (
+                into_data_sync::<R, u16>(self.clone()),
+                into_data_sync::<R, u16>(other),
+            ),
+            DType::U8 => (
+                into_data_sync::<R, u8>(self.clone()),
+                into_data_sync::<R, u8>(other),
+            ),
+            DType::Bool => return,
+            DType::QFloat(..) => return,
+        };
+
+        expected.assert_approx_eq(&actual, 4);
     }
 }
 
