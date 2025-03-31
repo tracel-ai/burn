@@ -249,10 +249,12 @@ impl<R: Runtime> ReduceOptimization<R> {
             (out_handle, out)
         };
         if let TuneOutput::Checked { handles } = &mut output_read {
-            handles.insert(
-                out_desc.id.clone(),
-                (out_desc.shape.clone(), out_tensor.clone()),
-            );
+            if out_desc.status == TensorStatus::ReadOnly {
+                handles.insert(
+                    out_desc.id.clone(),
+                    (out_desc.shape.clone(), out_tensor.clone()),
+                );
+            }
         }
         context.handles.register_handle(out_desc.id, out_tensor);
         let output_write = self
