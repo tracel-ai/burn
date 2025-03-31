@@ -219,7 +219,7 @@ impl<R: Runtime> MatmulOptimization<R> {
             handles: Default::default(),
         };
         #[cfg(not(feature = "autotune-checks"))]
-        let mut output = TuneOutput::NoCheck;
+        let output = TuneOutput::UnChecked(core::marker::PhantomData::<R>);
 
         #[cfg(feature = "autotune-checks")]
         if let TuneOutput::Checked { handles } = &mut output {
