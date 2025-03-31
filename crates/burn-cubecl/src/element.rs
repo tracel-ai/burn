@@ -8,7 +8,12 @@ use cubecl::{
 pub trait CubeElement: burn_tensor::Element + CubeElem + PartialEq + Numeric {}
 
 /// The float element type for the jit backend.
-pub trait FloatElement: CubeElement + Float + MatmulPrecision {}
+pub trait FloatElement:
+    CubeElement
+    + Float
+    + MatmulPrecision<EI: CubeElement, EO: CubeElement, EA: CubeElement, ES: CubeElement>
+{
+}
 
 /// The int element type for the jit backend.
 pub trait IntElement: CubeElement + Int {}

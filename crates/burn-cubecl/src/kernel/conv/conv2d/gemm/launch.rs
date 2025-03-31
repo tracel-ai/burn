@@ -5,7 +5,7 @@ use burn_tensor::{
     ops::{ConvOptions, conv::calculate_conv_output_size},
 };
 use cubecl::{
-    Feature, flex32,
+    Feature,
     ir::{Elem, FloatKind},
     linalg::{
         convolution::{
@@ -19,7 +19,6 @@ use cubecl::{
     },
     tensor_line_size, tf32,
 };
-use half::{bf16, f16};
 
 use crate::{
     CubeElement, CubeRuntime, FloatElement,
@@ -71,15 +70,10 @@ fn conv2d_gemm_cmma_strategy<
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    if TypeId::of::<F>() == TypeId::of::<flex32>() {
-        conv2d_gemm_with_algo::<R, (F, f16, f32), Alg, S>(input, weight, bias, options)
-    } else if TypeId::of::<F>() == TypeId::of::<bf16>() || TypeId::of::<F>() == TypeId::of::<f16>()
-    {
-        conv2d_gemm_with_algo::<R, (F, F, f32), Alg, S>(input, weight, bias, options)
-    } else if has_tf32(&input) {
-        conv2d_gemm_with_algo::<R, (F, tf32, f32), Alg, S>(input, weight, bias, options)
+    if TypeId::of::<F>() == TypeId::of::<f32>() && has_tf32(&input) {
+        conv2d_gemm_with_algo::<R, (f32, tf32, f32, f32), Alg, S>(input, weight, bias, options)
     } else {
-        conv2d_gemm_with_algo::<R, (F, f16, f32), Alg, S>(input, weight, bias, options)
+        conv2d_gemm_with_algo::<R, F, Alg, S>(input, weight, bias, options)
     }
 }
 
@@ -102,7 +96,8 @@ pub fn conv2d_gemm_with_algo<
     options: ConvOptions<2>,
 ) -> Result<CubeTensor<R>, ConvLaunchError>
 where
-    SP::EG: CubeElement,
+    SP::EI: CubeElement,
+    SP::EO: CubeElement,
 {
     if options.groups != 1 {
         return Err(ConvLaunchError::Groups(options.groups));
@@ -127,7 +122,7 @@ where
     );
 
     let input = match input.is_contiguous() {
-        true => nchw_to_nhwc::<R, SP::EG>(input),
+        true => nchw_to_nhwc::<R, SP::EI>(input),
         false => into_contiguous(permute(input, &[0, 2, 3, 1])),
     };
     let weight = into_contiguous(permute(weight, &[2, 3, 1, 0]));
@@ -140,13 +135,13 @@ where
     let weight = reshape(weight, Shape::new([gemm_k, gemm_n]));
 
     let out_shape = Shape::new([gemm_m, gemm_n]);
-    let out = empty_device::<R, SP::EG>(input.client.clone(), input.device.clone(), out_shape);
+    let out = empty_device::<R, SP::EO>(input.client.clone(), input.device.clone(), out_shape);
 
     // Target 128 bit accesses
     let available_vectorizations = R::supported_line_sizes()
         .iter()
         .copied()
-        .filter(|it| *it as usize * size_of::<SP::EG>() <= 16)
+        .filter(|it| *it as usize * size_of::<SP::EI>() <= 16)
         .collect::<Vec<_>>();
     let lhs_line_size = tensor_line_size(
         &available_vectorizations,
@@ -183,15 +178,15 @@ where
     };
 
     let bias = bias.unwrap_or_else(|| {
-        empty_device::<R, SP::EG>(input.client.clone(), input.device.clone(), Shape::new([1]))
+        empty_device::<R, SP::EI>(input.client.clone(), input.device.clone(), Shape::new([1]))
     });
 
     launch_conv2d_nhwc::<R, SP, Alg, S>(
         &input.client,
-        input.as_tensor_arg::<SP::EG>(lhs_line_size),
-        weight.as_tensor_arg::<SP::EG>(rhs_line_size),
-        bias.as_tensor_arg::<SP::EG>(out_line_size),
-        out.as_tensor_arg::<SP::EG>(out_line_size),
+        input.as_tensor_arg::<SP::EI>(lhs_line_size),
+        weight.as_tensor_arg::<SP::EI>(rhs_line_size),
+        bias.as_tensor_arg::<SP::EI>(out_line_size),
+        out.as_tensor_arg::<SP::EO>(out_line_size),
         problem,
     )?;
 
