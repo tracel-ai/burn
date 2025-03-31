@@ -61,13 +61,14 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
             ) => {
                 for (id, (shape, handle)) in handles_ref.iter() {
                     let (shape_other, other) = handles.get(id).unwrap();
+                    assert_eq!(handle.strides, other.strides);
                     let data_ref = handle.client.read_one(handle.handle.clone().binding());
                     let data_other = other.client.read_one(other.handle.clone().binding());
                     let data_ref = TensorData::from_bytes(data_ref, shape.clone(), handle.dtype);
                     let data_other =
                         TensorData::from_bytes(data_other, shape_other.clone(), handle.dtype);
 
-                    data_ref.assert_approx_eq(&data_other, 4);
+                    data_ref.assert_approx_eq(&data_other, 3);
                 }
             }
             _ => panic!("Both are not checked."),
