@@ -65,7 +65,10 @@ where
         )))
     }
 
-    /// Applies element wise reciprocal operation.
+    /// Applies [reciprocal operation](https://en.wikipedia.org/wiki/Multiplicative_inverse)
+    /// (or multiplicative inverse) element wise.
+    ///
+    /// `y = 1/x`
     pub fn recip(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_recip(
             self.primitive.tensor(),
@@ -96,6 +99,20 @@ where
     /// Applies element wise tangent operation.
     pub fn tan(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_tan(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise hyperbolic cosine operation.
+    pub fn cosh(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_cosh(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise hyperbolic sine operation.
+    pub fn sinh(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_sinh(
             self.primitive.tensor(),
         )))
     }

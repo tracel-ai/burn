@@ -27,7 +27,7 @@ use crate::{
     tensor::CubeTensor,
 };
 
-use super::nchw_to_nhwc;
+use super::permute_nchw_to_nhwc;
 
 /// Perform a 2D convolution using the implicit GEMM algorithm. Requires `cmma` to be available.
 ///
@@ -84,10 +84,7 @@ pub fn conv2d_implicit_gemm<R: CubeRuntime, F: FloatElement>(
     )?;
 
     // If input is contiguous NCHW, use custom transpose kernel
-    let input = match input.is_contiguous() {
-        true => nchw_to_nhwc::<R, F>(input),
-        false => into_contiguous(permute(input, &[0, 2, 3, 1])),
-    };
+    let input = permute_nchw_to_nhwc::<R, F>(input);
     let weight = into_contiguous(permute(weight, &[2, 3, 1, 0]));
 
     let out_shape = Shape::new([padded_batch_size, out_h, out_w, padded_out_channels]);

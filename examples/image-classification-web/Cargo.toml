@@ -15,7 +15,7 @@ half_precision = []
 
 [dependencies]
 burn = { path = "../../crates/burn", version = "0.17.0", default-features = false, features = [
-    "ndarray", "wgpu",
+    "ndarray", "webgpu",
 ] }
 burn-candle = { path = "../../crates/burn-candle", version = "0.17.0", default-features = false }
 

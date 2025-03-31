@@ -7,7 +7,7 @@ use protobuf::Enum;
 use crate::{
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
     protos::tensor_proto::DataType,
-    util::{flatten_config, shape_config},
+    util::shape_config,
 };
 
 /// Infer the rank of each output tensor and update them.
@@ -26,6 +26,7 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::Conv1d => conv1d_update_outputs(node),
         NodeType::Conv2d => conv2d_update_outputs(node),
         NodeType::Cos => same_as_input(node),
+        NodeType::Cosh => same_as_input(node),
         NodeType::Div => same_as_input_broadcast(node),
         NodeType::Dropout => same_as_input(node),
         NodeType::Equal => elementwise_comparison_outputs(node),
@@ -81,6 +82,7 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::Sigmoid => same_as_input(node),
         NodeType::Sign => same_as_input(node),
         NodeType::Sin => same_as_input(node),
+        NodeType::Sinh => same_as_input(node),
         NodeType::Slice => same_as_input(node),
         NodeType::Softmax => same_as_input(node),
         NodeType::Split => split_update_outputs(node),
@@ -637,15 +639,9 @@ fn flatten_update_outputs(node: &mut Node) {
         })
         .unwrap();
 
-    let input_rank = tensor.rank;
-
-    let (start_dim, end_dim) = flatten_config(node);
-
-    let collapsed_dims = end_dim - start_dim;
-    let output_rank = input_rank - collapsed_dims;
-
+    // Flatten to a 2D tensor
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        rank: output_rank,
+        rank: 2,
         ..tensor.clone()
     });
 }

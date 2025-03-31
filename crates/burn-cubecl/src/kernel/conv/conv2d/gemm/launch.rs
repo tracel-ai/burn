@@ -22,7 +22,7 @@ use cubecl::{
 
 use crate::{
     CubeElement, CubeRuntime, FloatElement,
-    kernel::{conv::nchw_to_nhwc, into_contiguous},
+    kernel::{conv::permute_nchw_to_nhwc, into_contiguous},
     ops::{numeric::empty_device, permute, reshape},
     tensor::CubeTensor,
 };
@@ -121,10 +121,7 @@ where
         width,
     );
 
-    let input = match input.is_contiguous() {
-        true => nchw_to_nhwc::<R, SP::EI>(input),
-        false => into_contiguous(permute(input, &[0, 2, 3, 1])),
-    };
+    let input = permute_nchw_to_nhwc::<R, SP::EI>(input);
     let weight = into_contiguous(permute(weight, &[2, 3, 1, 0]));
 
     // Implicit GEMM matrix size

@@ -55,7 +55,7 @@ impl ApplicationLoggerInstaller for FileApplicationLoggerInstaller {
         let file_path = self.path.to_owned();
 
         std::panic::set_hook(Box::new(move |info| {
-            log::error!("PANIC => {}", info.to_string());
+            log::error!("PANIC => {}", info);
             eprintln!(
                 "=== PANIC ===\nA fatal error happened, you can check the experiment logs here => \
                     '{}'\n=============",

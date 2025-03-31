@@ -1,5 +1,4 @@
-use strum::IntoEnumIterator;
-use tracel_xtask::prelude::*;
+use tracel_xtask::prelude::{clap::ValueEnum, *};
 
 use crate::NO_STD_CRATES;
 
@@ -148,8 +147,9 @@ pub(crate) fn handle_command(
             }
             Ok(())
         }
-        ExecutionEnvironment::All => ExecutionEnvironment::iter()
-            .filter(|env| *env != ExecutionEnvironment::All)
+        ExecutionEnvironment::All => ExecutionEnvironment::value_variants()
+            .iter()
+            .filter(|env| **env != ExecutionEnvironment::All)
             .try_for_each(|env| {
                 handle_command(
                     BurnTestCmdArgs {
@@ -163,7 +163,7 @@ pub(crate) fn handle_command(
                         features: args.features.clone(),
                         no_default_features: args.no_default_features,
                     },
-                    env,
+                    env.clone(),
                 )
             }),
     }
