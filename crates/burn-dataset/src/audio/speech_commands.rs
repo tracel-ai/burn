@@ -5,8 +5,7 @@ use crate::{
 
 use hound::WavReader;
 use serde::{Deserialize, Serialize};
-use strum::EnumCount as _;
-use strum_macros::{Display, EnumCount, FromRepr};
+use strum::{Display, EnumCount, FromRepr};
 
 type MappedDataset = MapperDataset<SqliteDataset<SpeechItemRaw>, ConvertSamples, SpeechItemRaw>;
 

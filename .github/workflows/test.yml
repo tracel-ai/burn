@@ -268,4 +268,4 @@ jobs:
           cache-key: ${{ matrix.rust }}-macos
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask test --ci
+        run: CUBECL_DEBUG_LOG=stdout cargo xtask test --ci

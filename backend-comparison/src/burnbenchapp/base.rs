@@ -3,8 +3,7 @@ use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use std::io;
 use std::process::ExitStatus;
 use std::sync::{Arc, Mutex};
-use strum::IntoEnumIterator;
-use strum_macros::{Display, EnumIter};
+use strum::{Display, EnumIter, IntoEnumIterator};
 
 use crate::burnbenchapp::auth::Tokens;
 use crate::persistence::system_info::BenchmarkSystemInfo;

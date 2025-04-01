@@ -1,3 +1,4 @@
+use crate::kernel::into_contiguous;
 use crate::{CubeRuntime, element::CubeElement, tensor::CubeTensor};
 use cubecl::prelude::*;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
@@ -55,6 +56,7 @@ pub(crate) fn select_assign<R: CubeRuntime, E: CubeElement, I: CubeElement>(
         true => tensor,
         false => tensor.copy(),
     };
+    let indices = into_contiguous(indices);
 
     let mut strides = vec![0; ndims];
     let mut current = 1;
