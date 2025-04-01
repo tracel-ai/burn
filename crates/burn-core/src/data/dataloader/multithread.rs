@@ -6,9 +6,7 @@ use rand::distr::{Distribution, StandardUniform};
 use rand::rngs::StdRng;
 
 use super::batcher::DynBatcher;
-use super::{
-    BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, DynDataLoader, Progress,
-};
+use super::{BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, Progress};
 use core::cell::OnceCell;
 use std::sync::{Arc, mpsc};
 use std::thread;
@@ -26,7 +24,7 @@ pub struct MultiThreadDataLoader<B: Backend, I, O> {
     num_threads: usize,
 
     // The lazily initialized data loaders
-    dataloaders: OnceCell<Vec<Box<dyn DynDataLoader<B, O>>>>,
+    dataloaders: OnceCell<Vec<BatchDataLoader<B, I, O>>>,
 }
 
 /// A message that can be sent between threads.
@@ -86,7 +84,7 @@ where
     }
 
     /// Force initialization if needed.
-    fn initialize(&self) -> &[Box<dyn DynDataLoader<B, O>>] {
+    fn initialize(&self) -> &[BatchDataLoader<B, I, O>] {
         self.dataloaders
             .get_or_init(|| {
                 let datasets = PartialDataset::split(self.dataset.clone(), self.num_threads);
@@ -111,7 +109,6 @@ where
                             self.device.clone(),
                             rng,
                         );
-                        let dataloader: Box<dyn DynDataLoader<B, _>> = Box::new(dataloader);
                         dataloader
                     })
                     .collect()
@@ -137,7 +134,7 @@ where
             .iter()
             .enumerate()
             .map(|(index, dataloader)| {
-                let dataloader_cloned = dataloader.clone_dyn();
+                let dataloader_cloned = dataloader.clone();
                 let sender_cloned = sender.clone();
                 progresses.push(Progress::new(0, dataloader_cloned.num_items()));
 

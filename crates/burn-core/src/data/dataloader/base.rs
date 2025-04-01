@@ -46,21 +46,3 @@ pub trait DataLoader<B: Backend, O>: Send {
     /// A boxed [`DataLoader`] instance containing only the specified range.
     fn slice(&self, start: usize, end: usize) -> Box<dyn DataLoader<B, O>>;
 }
-
-/// A super trait for [dataloader](DataLoader) that allows it to be cloned dynamically.
-///
-/// Any dataloader that implements [Clone] should also implement this automatically.
-pub trait DynDataLoader<B: Backend, O>: DataLoader<B, O> {
-    /// Clone the dataloader and returns a new one.
-    fn clone_dyn(&self) -> Box<dyn DynDataLoader<B, O>>;
-}
-
-impl<B, D, O> DynDataLoader<B, O> for D
-where
-    B: Backend,
-    D: DataLoader<B, O> + Clone + 'static,
-{
-    fn clone_dyn(&self) -> Box<dyn DynDataLoader<B, O>> {
-        Box::new(self.clone())
-    }
-}
