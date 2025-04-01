@@ -2,6 +2,7 @@ use crate::components::{LearnerComponents, TrainBackend, ValidBackend};
 use crate::metric::processor::EventProcessor;
 use crate::{Learner, TrainEpoch, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
+use burn_core::data::dataloader::split::split_dataloader;
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::AutodiffBackend;
@@ -147,28 +148,8 @@ impl<LC: LearnerComponents> Learner<LC> {
         // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy
         // for each (worker) data loader. This matches the expected device on the worker, so we
         // don't have to move the data between devices.
-        let dataloaders_train = if self.devices.len() > 1 {
-            let num_splits = self.devices.len();
-            let num_items = dataloader_train.num_items();
-            let mut dataloaders = Vec::with_capacity(num_splits);
+        let dataloaders_train = split_dataloader(dataloader_train, &self.devices);
 
-            let mut start = 0;
-            let step = num_items / num_splits;
-            for i in 0..num_splits {
-                let end = if i == (num_splits - 1) {
-                    num_items
-                } else {
-                    start + step
-                };
-                let mut dataloader = dataloader_train.slice(start, end);
-                dataloader.set_device(self.devices[i].clone());
-                dataloaders.push(Arc::from(dataloader));
-                start = end;
-            }
-            dataloaders
-        } else {
-            vec![dataloader_train]
-        };
         // Changed the train epoch to keep the dataloaders
         let mut epoch_train = TrainEpoch::new(
             dataloaders_train,
