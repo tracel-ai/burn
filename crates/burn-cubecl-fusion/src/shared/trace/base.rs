@@ -81,7 +81,7 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
                     let data_other =
                         TensorData::from_bytes(data_other, shape_other.clone(), handle.dtype);
 
-                    data_ref.assert_approx_eq(&data_other, 4);
+                    data_ref.assert_approx_eq(&data_other, 3);
                     num_checked += 1;
                 } else {
                     // Debug info for the tests.

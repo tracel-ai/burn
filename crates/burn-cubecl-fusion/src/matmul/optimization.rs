@@ -18,7 +18,6 @@ use cubecl::linalg::matmul::components::tile::TileMatmulFamily;
 use cubecl::linalg::matmul::components::tile::accelerated::Accelerated;
 use cubecl::linalg::matmul::kernels::matmul::double_buffering::DoubleBufferingAlgorithm;
 use cubecl::linalg::matmul::kernels::matmul::simple::SimpleAlgorithm;
-use cubecl::linalg::matmul::kernels::matmul::specialized::SpecializedAlgorithm;
 use cubecl::linalg::matmul::kernels::matmul::{Algorithm, select_kernel};
 use cubecl::linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
 use cubecl::linalg::tensor::{MatrixLayout, matrix_layout};
@@ -44,7 +43,6 @@ pub struct MatmulOptimization<R: Runtime> {
     pub(crate) len: usize,
     pub(crate) matmul_simple: FusedMatmul,
     pub(crate) matmul_double_buffering: FusedMatmul,
-    pub(crate) matmul_specialized: FusedMatmul,
     fallback: Arc<dyn MatmulFallbackFn<R>>,
 }
 
@@ -63,7 +61,6 @@ pub struct MatmulOptimizationState {
     trace_fallback: FuseTrace,
     matmul_simple: FusedMatmul,
     matmul_double_buffering: FusedMatmul,
-    matmul_specialized: FusedMatmul,
     len: usize,
 }
 
@@ -78,11 +75,9 @@ impl<R: Runtime> MatmulOptimization<R> {
         fallback: Arc<dyn MatmulFallbackFn<R>>,
     ) -> Self {
         let mut matmul_simple = matmul.clone();
-        let mut matmul_specialized = matmul.clone();
         let mut matmul_double_buffering = matmul;
 
         matmul_simple.selector = FusedMatmulSelector::Simple;
-        matmul_specialized.selector = FusedMatmulSelector::Specialized;
         matmul_double_buffering.selector = FusedMatmulSelector::DoubleBuffering;
 
         Self {
@@ -93,7 +88,6 @@ impl<R: Runtime> MatmulOptimization<R> {
             len,
             matmul_simple,
             matmul_double_buffering,
-            matmul_specialized,
             fallback,
         }
     }
@@ -126,7 +120,6 @@ impl<R: Runtime> MatmulOptimization<R> {
             client: R::client(device),
             device: device.clone(),
             matmul_simple: state.matmul_simple.clone(),
-            matmul_specialized: state.matmul_specialized.clone(),
             matmul_double_buffering: state.matmul_double_buffering.clone(),
             fallback,
         }
@@ -138,7 +131,6 @@ impl<R: Runtime> MatmulOptimization<R> {
             trace: self.trace.clone(),
             trace_fallback: self.trace_fallback.clone(),
             matmul_simple: self.matmul_simple.clone(),
-            matmul_specialized: self.matmul_specialized.clone(),
             matmul_double_buffering: self.matmul_double_buffering.clone(),
             len: self.len,
         }
@@ -158,18 +150,6 @@ impl<R: Runtime> MatmulOptimization<R> {
             &self.device,
             context,
             &self.matmul_simple,
-        )
-    }
-
-    pub fn execute_specialized_fused<BT: CubeElement>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
-        self.trace.run::<R, BT, FusedMatmul>(
-            &self.client,
-            &self.device,
-            context,
-            &self.matmul_specialized,
         )
     }
 
@@ -244,7 +224,6 @@ pub enum FusedMatmulSelector {
     #[default]
     Simple,
     DoubleBuffering,
-    Specialized,
 }
 
 #[derive(new, Clone, Serialize, Deserialize, Debug)]
@@ -393,18 +372,6 @@ impl FusedMatmul {
             }
             FusedMatmulSelector::DoubleBuffering => {
                 match matmul_launch_kernel::<R, EG, DoubleBufferingAlgorithm<Accelerated>>(
-                    client,
-                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
-                    outputs,
-                    problem,
-                    plane_size,
-                ) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                }
-            }
-            FusedMatmulSelector::Specialized => {
-                match matmul_launch_kernel::<R, EG, SpecializedAlgorithm<Accelerated>>(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,
