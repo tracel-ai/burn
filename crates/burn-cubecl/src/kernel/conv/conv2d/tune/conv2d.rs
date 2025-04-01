@@ -28,7 +28,7 @@ pub fn conv2d_autotune<R: CubeRuntime, E: FloatElement>(
     let tunables = TunableSet::new(create_key::<R, E>, create_conv2d_input::<R, E>)
         .with_tunable(conv2d_direct::<R, E>)
         .with_tunable(conv2d_im2col::<R, E>)
-        .with_tunable(conv2d_implicit_gemm::<R, E>)
+        // .with_tunable(conv2d_implicit_gemm::<R, E>) // Some bugs
         .with_tunable(conv2d_gemm_cmma_large_m::<R, E>)
         .with_tunable(conv2d_gemm_cmma_balanced::<R, E>);
 
