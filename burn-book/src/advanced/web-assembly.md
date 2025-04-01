@@ -32,7 +32,7 @@ rustflags = ['--cfg', 'getrandom_backend="wasm_js"']
 Or by using the `RUSTFLAGS` environment variable:
 
 ```
-RUSTFLAGS='--cfg getrandom_backend="linux_getrandom"'
+RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
 ```
 
 This change is now explicitly required with latest versions of Burn, following the `getrandom`
