@@ -12,7 +12,7 @@ When targeting WebAssembly, certain dependencies require additional configuratio
 the `getrandom` crate requires explicit setting when using `WebGpu`.
 
 Following the [recommended usage](https://github.com/rust-random/getrandom/#webassembly-support),
-make sure to explictly add the dependency with the `wasm_js` feature flag for your project.
+make sure to explicitly add the dependency with the `wasm_js` feature flag for your project.
 
 ```toml
 [dependencies]
@@ -35,5 +35,5 @@ Or by using the `RUSTFLAGS` environment variable:
 RUSTFLAGS='--cfg getrandom_backend="linux_getrandom"'
 ```
 
-This change is now explictely required with latest versions of Burn, following the `getrandom`
+This change is now explicitly required with latest versions of Burn, following the `getrandom`
 recommendations. This avoids potential issues for WASM developers who do not target Web targets.
