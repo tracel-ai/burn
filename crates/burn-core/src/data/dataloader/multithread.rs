@@ -102,14 +102,13 @@ where
                     .zip(rngs)
                     .map(|(dataset, rng)| {
                         let strategy = self.strategy.clone_dyn();
-                        let dataloader = BatchDataLoader::new(
+                        BatchDataLoader::new(
                             strategy,
                             Arc::new(dataset),
                             self.batcher.clone_dyn(),
                             self.device.clone(),
                             rng,
-                        );
-                        dataloader
+                        )
                     })
                     .collect()
             })
