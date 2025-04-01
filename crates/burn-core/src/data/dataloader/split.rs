@@ -16,14 +16,14 @@ pub fn split_dataloader<B: Backend, O>(
 
         let mut start = 0;
         let step = num_items / num_splits;
-        for i in 0..num_splits {
+        for (i, device) in devices.iter().enumerate() {
             let end = if i == (num_splits - 1) {
                 num_items
             } else {
                 start + step
             };
             let mut dataloader = dataloader.slice(start, end);
-            dataloader.set_device(devices[i].clone());
+            dataloader.set_device(device.clone());
             dataloaders.push(Arc::from(dataloader));
             start = end;
         }
