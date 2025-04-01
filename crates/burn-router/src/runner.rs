@@ -1271,7 +1271,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
         self.context.lock().unwrap().drop_tensor_handle(*id)
     }
 
-    fn sync(&self) -> impl Future<Output = ()> + Send + 'static {
+    fn sync(&self) -> impl Future<Output = ()> + Send {
         let device = self.device.clone();
 
         async move {
