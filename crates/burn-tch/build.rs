@@ -227,7 +227,7 @@ fn main() {
     }
     let check_file = PathBuf::from(out_dir).join("tch_gpu_check.rs");
     if gpu_found {
-        fs::write(check_file, "()").unwrap();
+        fs::write(check_file, "#[allow(clippy::no_effect)]\n()").unwrap();
     } else {
         let message = if !found_dir {
             r#"Could not find libtorch dir.

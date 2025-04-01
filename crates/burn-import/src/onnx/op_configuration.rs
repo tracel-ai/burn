@@ -533,9 +533,9 @@ pub fn expand_config(node: &Node) -> ExpandShape {
 }
 
 /// Create a FlattenConfig from the attributes of the node
-pub fn flatten_config(curr: &Node) -> (usize, usize) {
+pub fn flatten_config(curr: &Node) -> usize {
     // the begin dimension is the first dimension (Default: 1 per ONNX spec)
-    let mut start_dim: i64 = 1;
+    let mut axis: i64 = 1;
 
     // check if the node has only one input
     if curr.inputs.len() != 1 {
@@ -559,23 +559,20 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
         );
     }
 
-    // the end dimension is the last dimension
-    let end_dim = tensor.rank - 1;
-
     // extract the attributes
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
-            "axis" => start_dim = value.clone().into_i64(),
+            "axis" => axis = value.clone().into_i64(),
             _ => {}
         }
     }
 
     // if beg_dim is negative, it is counted from the end
-    if start_dim < 0 {
-        start_dim += tensor.rank as i64;
+    if axis < 0 {
+        axis += tensor.rank as i64;
     }
 
-    (start_dim as usize, end_dim)
+    axis as usize
 }
 
 /// Create a GatherConfig from the attributes of the node

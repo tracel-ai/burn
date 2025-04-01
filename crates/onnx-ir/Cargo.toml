@@ -21,8 +21,6 @@ protobuf = { workspace = true, features = ["with-bytes"] }
 regex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 strum = { workspace = true }
-strum_macros = { workspace = true }
-
 
 [build-dependencies]
 protobuf-codegen = { workspace = true }

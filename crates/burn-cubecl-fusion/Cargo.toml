@@ -16,6 +16,7 @@ autotune = []
 default = ["autotune", "std", "cubecl/default"]
 doc = ["default"]
 std = ["cubecl/std", "burn-tensor/std"]
+autotune-checks = ["cubecl/autotune-checks"]
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.17.0" }

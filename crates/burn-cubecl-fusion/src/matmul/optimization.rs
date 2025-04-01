@@ -6,11 +6,13 @@ use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::ir::FusePrecision;
 use crate::shared::ir::RefLayout;
 use crate::shared::trace::TraceError;
+use crate::shared::trace::TuneOutput;
 use crate::shared::trace::Vectorization;
 
 use burn_fusion::stream::Context;
 use burn_ir::{BinaryOpIr, TensorStatus};
 use cubecl::linalg::matmul::components;
+use cubecl::linalg::matmul::components::MatmulPrecision;
 use cubecl::linalg::matmul::components::MatmulProblem;
 use cubecl::linalg::matmul::components::tile::TileMatmulFamily;
 use cubecl::linalg::matmul::components::tile::accelerated::Accelerated;
@@ -150,7 +152,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     pub fn execute_simple_fused<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), TraceError<FusedMatmulError>> {
+    ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
         self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
             &self.device,
@@ -162,7 +164,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     pub fn execute_specialized_fused<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), TraceError<FusedMatmulError>> {
+    ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
         self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
             &self.device,
@@ -174,7 +176,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     pub fn execute_double_buffering_fused<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), TraceError<FusedMatmulError>> {
+    ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
         self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
             &self.device,
@@ -186,7 +188,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     pub fn execute_fallback<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) {
+    ) -> TuneOutput<R> {
         let (out_tensor, out_desc) = {
             let lhs = context
                 .tensors
@@ -212,11 +214,28 @@ impl<R: Runtime> MatmulOptimization<R> {
 
             (out_handle, out)
         };
+        #[cfg(feature = "autotune-checks")]
+        let mut output = TuneOutput::Checked {
+            handles: Default::default(),
+        };
+        #[cfg(not(feature = "autotune-checks"))]
+        let output = TuneOutput::UnChecked(core::marker::PhantomData::<R>);
+
+        #[cfg(feature = "autotune-checks")]
+        if let TuneOutput::Checked { handles } = &mut output {
+            handles.insert(
+                self.matmul_simple.op.out.id,
+                (out_desc.shape.clone(), out_tensor.clone()),
+            );
+        }
         context.handles.register_handle(out_desc.id, out_tensor);
 
-        self.trace_fallback
+        let output_write = self
+            .trace_fallback
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
+
+        output.merge(output_write)
     }
 }
 
@@ -273,7 +292,7 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmul {
 }
 
 impl FusedMatmul {
-    fn matmul_fused<'a, R: Runtime, EG: Numeric>(
+    fn matmul_fused<'a, R: Runtime, EG: MatmulPrecision>(
         &'a self,
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
@@ -400,29 +419,21 @@ impl FusedMatmul {
     }
 }
 
-fn matmul_launch_kernel<'a, R: Runtime, EG: Numeric, A: Algorithm>(
+fn matmul_launch_kernel<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
     client: &ComputeClient<R::Server, R::Channel>,
     input: FusedMatmulInputLaunch<'a, R>,
     output: GlobalArgsLaunch<'a, R>,
     problem: MatmulProblem,
     plane_size: u32,
 ) -> Result<(), MatmulLaunchError> {
-    if TypeId::of::<EG>() == TypeId::of::<half::f16>()
-        || TypeId::of::<EG>() == TypeId::of::<flex32>()
+    if <A::TileMatmul as TileMatmulFamily>::requires_tensor_cores()
+        && TypeId::of::<EG>() == TypeId::of::<f32>()
     {
-        select_kernel::<FusedMatmulSpec<EG, half::f16, f32>, R, A>(
-            client, input, output, problem, plane_size, false,
-        )
-    } else if TypeId::of::<EG>() == TypeId::of::<half::bf16>() {
-        select_kernel::<FusedMatmulSpec<EG, half::bf16, f32>, R, A>(
-            client, input, output, problem, plane_size, false,
-        )
-    } else if <A::TileMatmul as TileMatmulFamily>::requires_tensor_cores() {
-        select_kernel::<FusedMatmulSpec<EG, tf32, f32>, R, A>(
+        select_kernel::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
             client, input, output, problem, plane_size, false,
         )
     } else {
-        select_kernel::<FusedMatmulSpec<EG, EG, f32>, R, A>(
+        select_kernel::<FusedMatmulSpec<EG>, R, A>(
             client, input, output, problem, plane_size, false,
         )
     }

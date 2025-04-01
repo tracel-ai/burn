@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use strum::IntoEnumIterator;
-use tracel_xtask::prelude::*;
+use tracel_xtask::prelude::{clap::ValueEnum, *};
 
 use crate::{ARM_NO_ATOMIC_PTR_TARGET, ARM_TARGET, NO_STD_CRATES, WASM32_TARGET};
 
@@ -82,8 +81,9 @@ pub(crate) fn handle_command(
             )?;
             Ok(())
         }
-        ExecutionEnvironment::All => ExecutionEnvironment::iter()
-            .filter(|env| *env != ExecutionEnvironment::All)
+        ExecutionEnvironment::All => ExecutionEnvironment::value_variants()
+            .iter()
+            .filter(|env| **env != ExecutionEnvironment::All)
             .try_for_each(|env| {
                 handle_command(
                     BurnBuildCmdArgs {
@@ -92,7 +92,7 @@ pub(crate) fn handle_command(
                         only: args.only.clone(),
                         ci: args.ci,
                     },
-                    env,
+                    env.clone(),
                 )
             }),
     }

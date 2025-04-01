@@ -108,7 +108,7 @@ This is pretty self-explanatory in this case. But, the same declaration could be
 shortcut to simultaneously binding of multiple paths with a common prefix:
 
 ```rust, ignore
-use burn::{tensor::Tensor, backend::backend::Wgpu};
+use burn::{tensor::Tensor, backend::Wgpu};
 ```
 
 In this example, the common prefix is pretty short and there are only two items to bind locally.

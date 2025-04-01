@@ -8,7 +8,10 @@ use cubecl::{
     ir::{Elem, FloatKind},
     linalg::{
         convolution::ConvLaunchError,
-        matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError},
+        matmul::{
+            components::MatmulSize,
+            kernels::{MatmulAvailabilityError, MatmulLaunchError},
+        },
     },
     prelude::*,
 };
@@ -673,9 +676,11 @@ pub(crate) fn check_availability<R: CubeRuntime, E: FloatElement>(
                     MatmulAvailabilityError::CmmaInstructionUnavailable {
                         input: E::as_elem_native_unchecked(),
                         output: E::as_elem_native_unchecked(),
-                        m: 16,
-                        n: 16,
-                        k: cmma_k as u32,
+                        shape: Some(MatmulSize {
+                            m: 16,
+                            n: 16,
+                            k: cmma_k as u32,
+                        }),
                     },
                 ))
             },

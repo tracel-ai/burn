@@ -263,6 +263,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.cast(dtype)`                         | `tensor.to(dtype)`                 |
 | `tensor.ceil()`                              | `tensor.ceil()`                    |
 | `tensor.cos()`                               | `tensor.cos()`                     |
+| `tensor.cosh()`                              | `tensor.cosh()`                    |
 | `tensor.erf()`                               | `tensor.erf()`                     |
 | `tensor.exp()`                               | `tensor.exp()`                     |
 | `tensor.floor()`                             | `tensor.floor()`                   |
@@ -277,6 +278,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.recip()`                             | `tensor.reciprocal()`              |
 | `tensor.round()`                             | `tensor.round()`                   |
 | `tensor.sin()`                               | `tensor.sin()`                     |
+| `tensor.sinh()`                              | `tensor.sinh()`                    |
 | `tensor.sqrt()`                              | `tensor.sqrt()`                    |
 | `tensor.tan()`                               | `tensor.tan()`                     |
 | `tensor.tanh()`                              | `tensor.tanh()`                    |
