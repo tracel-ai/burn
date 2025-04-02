@@ -50,7 +50,6 @@ impl<R: Runtime> MatmulBuilder<R> {
 
 impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
     fn register(&mut self, operation: &OperationIr) {
-        // self.builder.close();
         if let OptimizationStatus::Closed = self.builder.status() {
             return;
         }
@@ -78,7 +77,6 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
             // We might not be able to accept an operation because of unhandled tensors in the
             // fused matmul builder. To keep both builders in sync we have to check their length.
             if self.builder_fallback.len() < self.builder.len() {
-                println!("{operation:?}");
                 self.builder_fallback.register(operation);
             }
         }
