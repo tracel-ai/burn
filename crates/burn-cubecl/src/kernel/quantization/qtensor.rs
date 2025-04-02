@@ -44,10 +44,9 @@ impl QParams {
                 }
             }
             // Symmetric quantization only contains the scaling factor as the last element
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, _) => (
-                f32::reinterpret(tensor[len - 1][tensor.line_size() - 1]),
-                0,
-            ),
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, _) => {
+                (f32::reinterpret(tensor[len - 1][tensor.line_size() - 1]), 0)
+            }
             // For affine quantization, there are 2 parameters per block
             // The (scale, offset) parameters are stored contiguously by parameter type
             // [offset, offset, offset, ..., scale, scale, scale, ...]
