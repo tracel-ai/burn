@@ -83,7 +83,7 @@ impl ReduceArgs for FusedReduceArgs {
     }
 
     fn read_output<P: ReduceDType>(_state: &Self::State<P>, _index: u32) -> Line<P::Out> {
-        Line::empty(1)
+        Line::empty(1_u32)
     }
 
     fn write_output<P: ReduceDType>(state: &mut Self::State<P>, index: u32, value: Line<P::Out>) {

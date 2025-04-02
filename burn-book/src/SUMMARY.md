@@ -31,5 +31,5 @@
     - [Custom `cubecl` Kernel](./advanced/backend-extension/custom-cubecl-kernel.md)
     - [Custom WGPU Kernel](./advanced/backend-extension/custom-wgpu-kernel.md)
   - [Custom Optimizer]()
-  - [WebAssembly]()
+  - [WebAssembly](./advanced/web-assembly.md)
   - [No-Std](./advanced/no-std.md)
