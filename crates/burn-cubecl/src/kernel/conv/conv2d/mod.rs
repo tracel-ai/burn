@@ -14,7 +14,7 @@ pub use col2im::*;
 pub use direct::*;
 pub use gemm::*;
 pub use im2col::*;
-pub use implicit_gemm::*;
+// pub use implicit_gemm::*; TODO: Activate when bug is fixed
 pub use layout_swap::*;
 pub use transpose_direct::*;
 pub use tune::*;

@@ -6,8 +6,11 @@ use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId, FloatElement,
     kernel::{
         conv::{
-            conv2d_direct, conv2d_gemm_cmma_balanced, conv2d_gemm_cmma_large_m, conv2d_im2col,
-            conv2d_implicit_gemm,
+            conv2d_direct,
+            conv2d_gemm_cmma_balanced,
+            conv2d_gemm_cmma_large_m,
+            conv2d_im2col,
+            // conv2d_implicit_gemm, TODO: Activate when bug is fixed
         },
         prng::random_uniform,
     },
