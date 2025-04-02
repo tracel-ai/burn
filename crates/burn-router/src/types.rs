@@ -174,8 +174,8 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn sync(&self) -> impl core::future::Future<Output = ()> + Send + 'static {
-                    let fut: core::pin::Pin<Box<dyn core::future::Future<Output = ()> + Send + 'static>> = match self {
+                fn sync(&self) -> impl core::future::Future<Output = ()> + Send {
+                    let fut: core::pin::Pin<Box<dyn core::future::Future<Output = ()> + Send>> = match self {
                         Self::$DefaultBackend(runner) => Box::pin(runner.sync()),
                         $(
                             Self::$OtherBackend(runner) => Box::pin(runner.sync()),
