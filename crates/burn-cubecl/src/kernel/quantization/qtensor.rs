@@ -30,14 +30,14 @@ impl QParams {
                 match comptime!(tensor.line_size()) {
                     // For line size of 1, scale is the last value in the buffer
                     1 => (
-                        f32::bitcast_from(tensor[len - 1][0]),
+                        f32::reinterpret(tensor[len - 1][0]),
                         i32::cast_from(tensor[len - 2][0]),
                     ),
                     // For any other line size > 1, scale and zero-point offset are the last two elements
                     _ => {
                         let values = tensor[len - 1];
                         (
-                            f32::bitcast_from(values[tensor.line_size() - 1]),
+                            f32::reinterpret(values[tensor.line_size() - 1]),
                             i32::cast_from(values[tensor.line_size() - 2]),
                         )
                     }
@@ -45,7 +45,7 @@ impl QParams {
             }
             // Symmetric quantization only contains the scaling factor as the last element
             QuantizationScheme::PerTensor(QuantizationMode::Symmetric, _) => (
-                f32::bitcast_from(tensor[len - 1][tensor.line_size() - 1]),
+                f32::reinterpret(tensor[len - 1][tensor.line_size() - 1]),
                 0,
             ),
             // For affine quantization, there are 2 parameters per block
@@ -67,7 +67,7 @@ impl QParams {
                 let offset = tensor[len - (2 * self.num_blocks - block_idx / line_size)]
                     [block_idx % line_size];
 
-                (f32::bitcast_from(scale), i32::cast_from(offset))
+                (f32::reinterpret(scale), i32::cast_from(offset))
             }
             QuantizationScheme::PerBlock(
                 QuantizationMode::Symmetric,
@@ -81,7 +81,7 @@ impl QParams {
 
                 let scale =
                     tensor[len - (self.num_blocks - block_idx) / line_size][block_idx % line_size];
-                (f32::bitcast_from(scale), 0)
+                (f32::reinterpret(scale), 0)
             }
             _ => comptime!(unimplemented!()),
         }
