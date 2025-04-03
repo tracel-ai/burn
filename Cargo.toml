@@ -28,7 +28,7 @@ version = "0.16.1"
 [workspace.dependencies]
 atomic_float = "1"
 bytemuck = "1.21.0"
-candle-core = { version = "0.8" }
+candle-core = { version = "0.8.3" }
 clap = { version = "4.5.26", features = ["derive"] }
 colored = "2.1.0"
 console_error_panic_hook = "0.1.7"
@@ -90,7 +90,7 @@ tracing-appender = "0.2.3"
 tracing-core = "0.1.33"
 tracing-subscriber = "0.3.19"
 web-time = "1.1.0"
-zip = "2.5.0"
+zip = "1.1.4"
 
 # Async handling
 async-channel = "2.3"
