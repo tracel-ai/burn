@@ -54,7 +54,7 @@ log = { default-features = false, version = "0.4.22" }
 md5 = "0.7.0"
 paste = "1"
 percent-encoding = "2.3.1"
-polars = { version = "0.44.2", features = ["lazy"] }
+polars = { version = "0.46.0", features = ["lazy"] }
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.93"
 protobuf = "3.7.1"
@@ -90,7 +90,7 @@ tracing-appender = "0.2.3"
 tracing-core = "0.1.33"
 tracing-subscriber = "0.3.19"
 web-time = "1.1.0"
-zip = "2.2.1"
+zip = "2.5.0"
 
 # Async handling
 async-channel = "2.3"

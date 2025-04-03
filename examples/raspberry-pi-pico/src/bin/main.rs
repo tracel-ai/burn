@@ -2,6 +2,7 @@
 #![no_main]
 
 use burn::{backend::NdArray, tensor::Tensor};
+use burn::backend::ndarray::{NdArrayTensor, NdArrayTensorFloat};
 use defmt::*;
 use embassy_executor::Spawner;
 use raspberry_pi_pico::sine::Model;
@@ -40,10 +41,12 @@ async fn main(_spawner: Spawner) {
         let output = run_model(&model, &device, input);
 
         // Output the values
-        match output.into_primitive().tensor().array.as_slice() {
-            Some(slice) => info!("input: {} - output: {}", input, slice),
-            None => defmt::panic!("Failed to get value")
-        };
+        if let NdArrayTensorFloat::F32(array) = output.into_primitive().tensor() {
+            match array.array.as_slice() {
+                Some(slice) => info!("input: {} - output: {}", input, slice),
+                None => defmt::panic!("Failed to get value")
+            };
+        }
     }
 }
 
