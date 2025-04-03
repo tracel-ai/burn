@@ -103,6 +103,16 @@ mod vulkan {
     }
 }
 
+#[cfg(feature = "metal")]
+mod metal {
+    use crate::{ElemType, launch};
+    use burn::backend::{Autodiff, Metal};
+
+    pub fn run() {
+        launch::<Autodiff<Metal<ElemType, i32>>>(vec![Default::default()]);
+    }
+}
+
 #[cfg(feature = "remote")]
 mod remote {
     use crate::{ElemType, launch};
@@ -155,4 +165,6 @@ fn main() {
     remote::run();
     #[cfg(feature = "vulkan")]
     vulkan::run();
+    #[cfg(feature = "metal")]
+    metal::run();
 }
