@@ -344,7 +344,7 @@ where
     /// # Arguments
     ///
     /// * `src` - The dimension(s) to move. The values must be unique and in the range of the number of dimensions.
-    ///              The values can be negative, in which case they are used as an offset from the end.
+    ///   The values can be negative, in which case they are used as an offset from the end.
     ///
     /// * `dst` - Destination positions for each of the original dims. These must also be unique.
     ///
@@ -417,7 +417,7 @@ where
     /// # Arguments
     ///
     /// * `axes` - The dimensions to reverse. The values must be unique and in the range of the number of dimensions.
-    ///            The values can be negative, in which case they are used as an offset from the end.
+    ///   The values can be negative, in which case they are used as an offset from the end.
     ///
     /// # Returns
     ///
