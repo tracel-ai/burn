@@ -37,7 +37,7 @@ impl<I, O> BatchDataLoader<I, O> {
     /// * `dataset` - The dataset.
     /// * `batcher` - The batcher.
     /// * `rng`     - The rng determining if the dataset is shuffled each time a dataloader
-    ///               iterator is created.
+    ///   iterator is created.
     ///
     /// # Returns
     ///

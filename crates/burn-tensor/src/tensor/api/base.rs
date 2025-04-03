@@ -293,9 +293,9 @@ where
     /// # Arguments
     ///
     /// * `axes` - The new order of the dimensions. The length of the axes
-    ///  must be equal to the number of dimensions of the tensor.
-    ///  The values must be unique and in the range of the number of dimensions.
-    ///  The values can be negative, in which case they are used as an offset from the end.
+    ///   must be equal to the number of dimensions of the tensor.
+    ///   The values must be unique and in the range of the number of dimensions.
+    ///   The values can be negative, in which case they are used as an offset from the end.
     ///
     /// # Returns
     ///
@@ -344,7 +344,7 @@ where
     /// # Arguments
     ///
     /// * `src` - The dimension(s) to move. The values must be unique and in the range of the number of dimensions.
-    ///  The values can be negative, in which case they are used as an offset from the end.
+    ///              The values can be negative, in which case they are used as an offset from the end.
     ///
     /// * `dst` - Destination positions for each of the original dims. These must also be unique.
     ///
@@ -417,7 +417,7 @@ where
     /// # Arguments
     ///
     /// * `axes` - The dimensions to reverse. The values must be unique and in the range of the number of dimensions.
-    ///  The values can be negative, in which case they are used as an offset from the end.
+    ///            The values can be negative, in which case they are used as an offset from the end.
     ///
     /// # Returns
     ///
@@ -1592,9 +1592,9 @@ where
     /// # Arguments
     ///
     /// * `shape` - The shape to broadcast the tensor to.
-    ///             Can contain -1 for dimensions that should be inferred.
-    ///             The number of elements in the shape must be greater or equal as
-    ///             the number of dimensions of the tensor.
+    ///   Can contain -1 for dimensions that should be inferred.
+    ///   The number of elements in the shape must be greater or equal as
+    ///   the number of dimensions of the tensor.
     ///
     /// # Panics
     ///

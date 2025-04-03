@@ -220,8 +220,9 @@ impl NestedValue {
 ///
 /// * `tensors` - A map of tensors.
 /// * `key_remap` - A vector of tuples containing a regular expression and a replacement string.
-///                See [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace)
-///                for more information.
+///   See [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace)
+///   for more information.
+///
 /// # Returns
 ///
 /// A map of tensors with the remapped keys and
@@ -303,13 +304,13 @@ pub trait Serializable {
     ///
     /// # Returns
     /// - `Result<NestedValue, Error>`: The result of serialization.
-    ///    Returns a `NestedValue` on success,
-    ///    or an `Error` on failure.
+    ///   Returns a `NestedValue` on success,
+    ///   or an `Error` on failure.
     ///
     /// # Type Parameters
     /// - `PS`: The precision settings to use during serialization.
-    ///    This is a generic parameter and can be any type
-    ///    that implements the `PrecisionSettings` trait.
+    ///   This is a generic parameter and can be any type
+    ///   that implements the `PrecisionSettings` trait.
     fn serialize<PS>(&self, serializer: Serializer) -> Result<NestedValue, Error>
     where
         PS: PrecisionSettings;
