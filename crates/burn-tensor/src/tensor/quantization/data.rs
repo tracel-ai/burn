@@ -25,7 +25,7 @@ pub fn pack_i8s_to_u32s(values: Vec<i8>) -> Vec<u32> {
         let remainder = values.len() % 4;
         if remainder != 0 {
             // Pad with zeros
-            values.extend(core::iter::repeat(0).take(4 - remainder));
+            values.extend(std::iter::repeat_n(0, 4 - remainder));
         }
 
         let len = values.len() / 4;
