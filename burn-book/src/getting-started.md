@@ -70,18 +70,18 @@ which allows to execute low-level operations on any platform using the GPU.
 
 <div class="warning">
 
-Since the release of Burn `0.16`, `bincode` version `2.0.0` was officially released with some
+Since the release of Burn `0.16.0`, `bincode` version `2.0.0` was officially released with some
 breaking changes. Burn used `2.0.0-rc.3`, but the dependency resolver treats pre-release versions as
 lower priority than stable releases.
 
-If you are getting this error:
+If you are getting this error with Burn `0.16.0`:
 
 ```
 error[E0425]: cannot find `decode_borrowed_from_slice` in module `bincode::serde`
 ```
 
-Please add an explicit dependency to the pre-release version in your `Cargo.toml` as suggested
-[here](https://github.com/tracel-ai/burn/issues/2876).
+Please update to Burn `0.16.1`, or add an explicit dependency to the pre-release version in your
+`Cargo.toml` as suggested [here](https://github.com/tracel-ai/burn/issues/2876).
 
 ```toml
 [dependencies]
