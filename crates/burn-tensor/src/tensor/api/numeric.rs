@@ -1392,7 +1392,7 @@ where
     /// # Arguments
     ///
     /// * `diagonal` - The offset from the diagonal, where 0 means the diagonal, and positive values shift
-    ///    towards the upper triangle.
+    ///   towards the upper triangle.
     ///
     /// # Example
     /// ```rust
@@ -1436,7 +1436,7 @@ where
     /// # Arguments
     ///
     /// * `diagonal` - The offset from the diagonal, where 0 means the diagonal, and positive values shift
-    ///    towards the upper triangle.
+    ///   towards the upper triangle.
     ///
     /// # Example
     /// ```rust
@@ -2959,7 +2959,7 @@ where
     /// # Arguments
     ///
     /// * `tensor` - The tensor where will be overwritten with the value
-    ///              when the corresponding element of the mask is true.
+    ///   when the corresponding element of the mask is true.
     /// * `mask` - The boolean mask to use for filling elements.
     /// * `value` - The value to fill elements with when the corresponding element of the mask is true.
     ///

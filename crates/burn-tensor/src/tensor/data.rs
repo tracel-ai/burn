@@ -526,7 +526,7 @@ impl TensorData {
     ///
     /// * `other` - The other data.
     /// * `strict` - If true, the data types must the be same.
-    ///              Otherwise, the comparison is done in the current data type.
+    ///   Otherwise, the comparison is done in the current data type.
     ///
     /// # Panics
     ///

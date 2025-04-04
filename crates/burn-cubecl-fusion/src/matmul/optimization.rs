@@ -20,7 +20,7 @@ use cubecl::linalg::matmul::kernels::matmul::double_buffering::DoubleBufferingAl
 use cubecl::linalg::matmul::kernels::matmul::simple::SimpleAlgorithm;
 use cubecl::linalg::matmul::kernels::matmul::{Algorithm, select_kernel};
 use cubecl::linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
-use cubecl::linalg::tensor::{MatrixLayout, matrix_layout};
+use cubecl::linalg::tensor::{MatrixBatchLayout, matrix_layout};
 use cubecl::{client::ComputeClient, prelude::*};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
@@ -285,12 +285,12 @@ impl FusedMatmul {
         let rhs_strides = inputs.strides(&self.rhs);
 
         let check_layout = |strides| match matrix_layout(strides) {
-            MatrixLayout::Contiguous => (false, false),
-            MatrixLayout::MildlyPermuted {
+            MatrixBatchLayout::Contiguous => (false, false),
+            MatrixBatchLayout::MildlyPermuted {
                 transposed,
                 batch_swap: _,
             } => (false, transposed),
-            MatrixLayout::HighlyPermuted => (true, false),
+            MatrixBatchLayout::HighlyPermuted => (true, false),
         };
 
         let (lhs_make_contiguous, lhs_transposed) = check_layout(&lhs_strides);

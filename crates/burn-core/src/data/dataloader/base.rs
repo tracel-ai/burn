@@ -1,3 +1,5 @@
+use burn_tensor::backend::Backend;
+
 pub use crate::data::dataset::{Dataset, DatasetIterator};
 use core::iter::Iterator;
 
@@ -18,27 +20,29 @@ pub trait DataLoaderIterator<O>: Iterator<Item = O> {
 }
 
 /// A data loader that can be used to iterate over a dataset.
-pub trait DataLoader<O>: Send {
+pub trait DataLoader<B: Backend, O>: Send {
     /// Returns a boxed [iterator](DataLoaderIterator) to iterate over the data loader.
     fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a>;
+
     /// The number of items (not the number of batches nor the number of iterations),
     /// corresponding to the items_total of the progress returned by the iterator.
     fn num_items(&self) -> usize;
-}
 
-/// A super trait for [dataloader](DataLoader) that allows it to be cloned dynamically.
-///
-/// Any dataloader that implements [Clone] should also implement this automatically.
-pub trait DynDataLoader<O>: DataLoader<O> {
-    /// Clone the dataloader and returns a new one.
-    fn clone_dyn(&self) -> Box<dyn DynDataLoader<O>>;
-}
+    /// Sets the device for the data loader, ensuring the batches are assigned to the correct device.
+    fn set_device(&mut self, device: B::Device);
 
-impl<D, O> DynDataLoader<O> for D
-where
-    D: DataLoader<O> + Clone + 'static,
-{
-    fn clone_dyn(&self) -> Box<dyn DynDataLoader<O>> {
-        Box::new(self.clone())
-    }
+    /// Returns a new data loader containing a subset of the data.
+    ///
+    /// The subset includes items from `start` (inclusive) to `end` (exclusive),
+    /// preserving the batch size and ordering of the original data loader.
+    ///
+    /// # Arguments
+    ///
+    /// * `start` - The starting index of the subset (inclusive).
+    /// * `end` - The ending index of the subset (exclusive).
+    ///
+    /// # Returns
+    ///
+    /// A boxed [`DataLoader`] instance containing only the specified range.
+    fn slice(&self, start: usize, end: usize) -> Box<dyn DataLoader<B, O>>;
 }

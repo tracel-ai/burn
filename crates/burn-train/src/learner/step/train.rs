@@ -1,4 +1,5 @@
 use crate::{TrainOutput, TrainStep};
+use burn_core::data::dataloader::Progress;
 use burn_core::{
     data::dataloader::DataLoaderIterator, module::AutodiffModule, tensor::backend::AutodiffBackend,
 };
@@ -49,8 +50,8 @@ where
             loop {
                 match receiver_input.recv() {
                     Ok(item) => {
-                        let step = item.model.fork(&device);
-                        let output = step.step(item.item);
+                        let model = item.model.fork(&device);
+                        let output = model.step(item.item);
 
                         sender_output.send(output).unwrap();
                     }
@@ -109,23 +110,30 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dataloader` - Dataloader.
     /// * `model` - Model.
+    /// * `dataloaders` - The data loader for each worker.
     ///
     /// # Returns
     ///
     /// Outputs.
     pub fn step<'a>(
         &self,
-        dataloader: &mut Box<dyn DataLoaderIterator<TI> + 'a>,
+        dataloaders: &mut [Box<dyn DataLoaderIterator<TI> + 'a>],
         model: &M,
-    ) -> Vec<TrainOutput<TO>> {
+    ) -> (Vec<TrainOutput<TO>>, Progress) {
         let mut num_send = 0;
 
-        for worker in self.workers.iter() {
+        let mut items_total = 0;
+        let mut items_processed = 0;
+
+        for (i, worker) in self.workers.iter().enumerate() {
+            let dataloader = &mut dataloaders[i];
             if let Some(item) = dataloader.next() {
                 worker.register(item, model);
                 num_send += 1;
+                let progress = dataloader.progress();
+                items_total += progress.items_total;
+                items_processed += progress.items_processed;
             }
         }
 
@@ -136,6 +144,6 @@ where
             outputs.push(output);
         }
 
-        outputs
+        (outputs, Progress::new(items_processed, items_total))
     }
 }

@@ -60,8 +60,8 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for PyTorchFileRecorder<PS> 
 ///
 /// * `file` - The path to the file to load.
 /// * `key_remap` - A vector of tuples containing a regular expression and a replacement string.
-///                See [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace)
-///                for more information.
+///   See [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace)
+///   for more information.
 ///
 /// # Notes
 ///

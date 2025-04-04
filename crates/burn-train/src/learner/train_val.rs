@@ -1,7 +1,8 @@
-use crate::components::LearnerComponents;
+use crate::components::{LearnerComponents, TrainBackend, ValidBackend};
 use crate::metric::processor::{Event, EventProcessor};
 use crate::{Learner, TrainEpoch, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
+use burn_core::data::dataloader::split::split_dataloader;
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::AutodiffBackend;
@@ -110,8 +111,8 @@ impl<LC: LearnerComponents> Learner<LC> {
     /// The fitted model.
     pub fn fit<InputTrain, InputValid, OutputTrain, OutputValid>(
         mut self,
-        dataloader_train: Arc<dyn DataLoader<InputTrain>>,
-        dataloader_valid: Arc<dyn DataLoader<InputValid>>,
+        dataloader_train: Arc<dyn DataLoader<TrainBackend<LC>, InputTrain>>,
+        dataloader_valid: Arc<dyn DataLoader<ValidBackend<LC>, InputValid>>,
     ) -> LC::Model
     where
         InputTrain: Send + 'static,
@@ -144,14 +145,20 @@ impl<LC: LearnerComponents> Learner<LC> {
             None => 1,
         };
 
-        for epoch in starting_epoch..self.num_epochs + 1 {
-            let epoch_train = TrainEpoch::new(
-                dataloader_train.clone(),
-                epoch,
-                self.num_epochs,
-                self.grad_accumulation,
-            );
+        // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy
+        // for each (worker) data loader. This matches the expected device on the worker, so we
+        // don't have to move the data between devices.
+        let dataloaders_train = split_dataloader(dataloader_train, &self.devices);
 
+        // Changed the train epoch to keep the dataloaders
+        let mut epoch_train = TrainEpoch::new(
+            dataloaders_train,
+            starting_epoch,
+            self.num_epochs,
+            self.grad_accumulation,
+        );
+
+        for epoch in starting_epoch..self.num_epochs + 1 {
             if self.devices.len() > 1 {
                 (self.model, self.optim) = epoch_train.run_multi_device::<LC, OutputTrain>(
                     self.model,
@@ -175,6 +182,7 @@ impl<LC: LearnerComponents> Learner<LC> {
                 break;
             }
 
+            // TODO: multi-device validation?
             let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
             epoch_valid.run::<LC, OutputValid>(
                 &self.model,

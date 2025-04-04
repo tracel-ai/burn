@@ -70,3 +70,9 @@ where
     type EventProcessor = EP;
     type CheckpointerStrategy = S;
 }
+
+/// The training backend.
+pub type TrainBackend<LC> = <LC as LearnerComponents>::Backend;
+
+/// The validation backend.
+pub type ValidBackend<LC> = <<LC as LearnerComponents>::Backend as AutodiffBackend>::InnerBackend;
