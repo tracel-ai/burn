@@ -1,5 +1,8 @@
 use cubecl::{
-    linalg::matmul::components::global::{Quantization, args::MatmulArgs},
+    linalg::matmul::components::{
+        MatmulPrecision,
+        global::{Quantization, args::MatmulArgs},
+    },
     prelude::*,
 };
 
@@ -278,21 +281,14 @@ impl MatmulArgs for FusedMatmulArgs {
         ref_stride(unsafe { &(*state.locals) }, dim)
     }
 
-    fn quantization<EI: Numeric, EO: Numeric>(
-        _state: &Self::State<EI, EO>,
-    ) -> Quantization<EI, EO> {
+    fn quantization<MP: MatmulPrecision>(_state: &Self::State<MP::EI, MP::EO>) -> Quantization<MP> {
         comptime! {
             panic!("Unsupported yet");
         };
 
         #[allow(unreachable_code)]
-        let tmp_input = SharedMemory::new(1);
-        let mut tmp_out = SharedMemory::new(1);
-
-        Quantization::<EI, EO> {
-            lhs: tmp_input.to_slice(),
-            rhs: tmp_input.to_slice(),
-            out: tmp_out.to_slice_mut(),
+        Quantization::<MP> {
+            scaling: MP::ES::from_int(0),
         }
     }
     /// Reinterpret lhs as tensor map

@@ -20,7 +20,7 @@ use cubecl::linalg::matmul::kernels::matmul::double_buffering::DoubleBufferingAl
 use cubecl::linalg::matmul::kernels::matmul::simple::SimpleAlgorithm;
 use cubecl::linalg::matmul::kernels::matmul::{Algorithm, select_kernel};
 use cubecl::linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
-use cubecl::linalg::tensor::{MatrixBatchLayout, matrix_layout};
+use cubecl::linalg::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
@@ -284,7 +284,7 @@ impl FusedMatmul {
         let lhs_strides = inputs.strides(&self.lhs);
         let rhs_strides = inputs.strides(&self.rhs);
 
-        let check_layout = |strides| match matrix_layout(strides) {
+        let check_layout = |strides| match matrix_batch_layout(strides) {
             MatrixBatchLayout::Contiguous => (false, false),
             MatrixBatchLayout::MildlyPermuted {
                 transposed,
@@ -397,11 +397,9 @@ fn matmul_launch_kernel<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
         && TypeId::of::<EG>() == TypeId::of::<f32>()
     {
         select_kernel::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
-            client, input, output, problem, plane_size, false,
+            client, input, output, problem, plane_size,
         )
     } else {
-        select_kernel::<FusedMatmulSpec<EG>, R, A>(
-            client, input, output, problem, plane_size, false,
-        )
+        select_kernel::<FusedMatmulSpec<EG>, R, A>(client, input, output, problem, plane_size)
     }
 }
