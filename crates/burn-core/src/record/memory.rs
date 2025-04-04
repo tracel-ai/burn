@@ -1,4 +1,4 @@
-use super::{PrecisionSettings, Recorder, RecorderError, RecorderErrorWithParameter, bin_config};
+use super::{PrecisionSettings, Recorder, RecorderError, bin_config};
 use alloc::vec::Vec;
 use burn_tensor::backend::Backend;
 use serde::{Serialize, de::DeserializeOwned};
@@ -20,7 +20,7 @@ pub trait BytesRecorder<
 #[derive(new, Debug, Default, Clone)]
 pub struct BinBytesRecorder<
     S: PrecisionSettings,
-    L: AsRef<[u8]> + Send + Sync + core::fmt::Debug + Clone + core::default::Default,
+    L: AsRef<[u8]> + Send + Sync + core::fmt::Debug + core::default::Default = Vec<u8>,
 > {
     _settings: core::marker::PhantomData<S>,
     _loadargs: core::marker::PhantomData<L>,
@@ -53,7 +53,10 @@ impl<
         Ok(bincode::serde::encode_to_vec(item, bin_config()).unwrap())
     }
 
-    fn load_item<I: DeserializeOwned>(&self, args: Self::LoadArgs) -> Result<I, RecorderError> {
+    fn load_item<I: DeserializeOwned>(
+        &self,
+        args: &mut Self::LoadArgs,
+    ) -> Result<I, RecorderError> {
         let state = bincode::borrow_decode_from_slice::<'_, bincode::serde::BorrowCompat<I>, _>(
             args.as_ref(),
             bin_config(),
@@ -90,10 +93,9 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkBytesRecorder<S> 
     }
     fn load_item<I: DeserializeOwned>(
         &self,
-        args: Self::LoadArgs,
-    ) -> Result<I, RecorderErrorWithParameter<Self::LoadArgs>> {
-        rmp_serde::decode::from_slice(&args)
-            .map_err(|e| RecorderErrorWithParameter::from_error(args, e))
+        args: &mut Self::LoadArgs,
+    ) -> Result<I, RecorderError> {
+        rmp_serde::decode::from_slice(&args).map_err(|e| RecorderError::Unknown(e.to_string()))
     }
 }
 

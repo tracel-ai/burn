@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 use std::path::PathBuf;
 
 use burn::{
-    record::{PrecisionSettings, Record, Recorder, RecorderError, RecorderErrorWithParameter},
+    record::{PrecisionSettings, Record, Recorder, RecorderError},
     tensor::backend::Backend,
 };
 
@@ -37,8 +37,8 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for PyTorchFileRecorder<PS> 
 
     fn load_item<I: DeserializeOwned>(
         &self,
-        _file: Self::LoadArgs,
-    ) -> Result<I, RecorderErrorWithParameter<Self::LoadArgs>> {
+        _file: &mut Self::LoadArgs,
+    ) -> Result<I, RecorderError> {
         unimplemented!("load_item not implemented for PyTorchFileRecorder")
     }
 
