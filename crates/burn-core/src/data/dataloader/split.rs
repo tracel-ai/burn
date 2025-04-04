@@ -53,7 +53,7 @@ mod tests {
         #[cfg(test)]
         impl<I> Batcher<TestBackend, I, (Vec<I>, TestDevice)> for TestBatcher {
             fn batch(&self, items: Vec<I>, device: &TestDevice) -> (Vec<I>, TestDevice) {
-                (items, device.clone())
+                (items, *device)
             }
         }
 
@@ -94,7 +94,7 @@ mod tests {
         #[cfg(all(test, feature = "test-cuda"))]
         let (device1, device2) = (burn_cuda::CudaDevice::new(0), burn_cuda::CudaDevice::new(1));
 
-        let dataloaders = split_dataloader(dataloader.clone(), &[device1.clone(), device2.clone()]);
+        let dataloaders = split_dataloader(dataloader.clone(), &[device1, device2]);
 
         assert_eq!(dataloaders.len(), 2);
 
