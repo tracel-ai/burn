@@ -76,7 +76,7 @@ pub fn save_image<B: Backend, Q: AsRef<Path>>(
             // Supports both 1 and 3 channels image
             let image = image
                 .into_iter()
-                .flat_map(|n| std::iter::repeat(n).take(channels))
+                .flat_map(|n| std::iter::repeat_n(n, channels))
                 .collect();
 
             let image = Rgb32FImage::from_vec(width, height, image).unwrap();

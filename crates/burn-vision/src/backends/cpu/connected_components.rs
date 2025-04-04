@@ -214,7 +214,7 @@ fn finalize_stats<B: Backend>(
 
 pub fn max_labels(h: usize, w: usize, conn: Connectivity) -> usize {
     match conn {
-        Connectivity::Four => ((h * w + 1) / 2) + 1,
-        Connectivity::Eight => ((h + 1) / 2) * ((w + 1) / 2) + 1,
+        Connectivity::Four => (h * w).div_ceil(2) + 1,
+        Connectivity::Eight => h.div_ceil(2) * w.div_ceil(2) + 1,
     }
 }
