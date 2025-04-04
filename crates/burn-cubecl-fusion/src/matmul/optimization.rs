@@ -20,8 +20,7 @@ use cubecl::linalg::matmul::kernels::matmul::double_buffering::DoubleBufferingAl
 use cubecl::linalg::matmul::kernels::matmul::simple::SimpleAlgorithm;
 use cubecl::linalg::matmul::kernels::matmul::{Algorithm, select_kernel};
 use cubecl::linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
-use cubecl::linalg::tensor::MatrixBatchLayout;
-use cubecl::linalg::tensor::matrix_layout;
+use cubecl::linalg::tensor::{MatrixBatchLayout, matrix_layout};
 use cubecl::{client::ComputeClient, prelude::*};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};

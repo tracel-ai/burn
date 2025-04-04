@@ -35,7 +35,7 @@ mod tch_gpu {
     }
 }
 
-#[cfg(feature = "wgpu")]
+#[cfg(any(feature = "wgpu", feature = "metal",))]
 mod wgpu {
     use burn::backend::{
         Autodiff,
@@ -75,6 +75,6 @@ fn main() {
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]
     tch_cpu::run();
-    #[cfg(feature = "wgpu")]
+    #[cfg(any(feature = "wgpu", feature = "metal"))]
     wgpu::run();
 }

@@ -171,7 +171,7 @@ impl ModelGen {
     /// # Arguments
     ///
     /// * `embed_states` - If true, states are embedded in the generated code. Otherwise, states are
-    ///    saved as a separate file.
+    ///   saved as a separate file.
     pub fn embed_states(&mut self, embed_states: bool) -> &mut Self {
         self.embed_states = embed_states;
         self

@@ -50,17 +50,8 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     // Initialize tokenizer
     let tokenizer = Arc::new(BertCasedTokenizer::default());
 
-    // Initialize batchers for training and testing data
-    let batcher_train = TextClassificationBatcher::<B>::new(
-        tokenizer.clone(),
-        devices[0].clone(),
-        config.max_seq_length,
-    );
-    let batcher_test = TextClassificationBatcher::<B::InnerBackend>::new(
-        tokenizer.clone(),
-        devices[0].clone(),
-        config.max_seq_length,
-    );
+    // Initialize batcher
+    let batcher = TextClassificationBatcher::new(tokenizer.clone(), config.max_seq_length);
 
     // Initialize model
     let model = TextClassificationModelConfig::new(
@@ -69,14 +60,14 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         tokenizer.vocab_size(),
         config.max_seq_length,
     )
-    .init(&devices[0]);
+    .init::<B>(&devices[0]);
 
     // Initialize data loaders for training and testing data
-    let dataloader_train = DataLoaderBuilder::new(batcher_train)
+    let dataloader_train = DataLoaderBuilder::new(batcher.clone())
         .batch_size(config.batch_size)
         .num_workers(1)
         .build(SamplerDataset::new(dataset_train, 50_000));
-    let dataloader_test = DataLoaderBuilder::new(batcher_test)
+    let dataloader_test = DataLoaderBuilder::new(batcher)
         .batch_size(config.batch_size)
         .num_workers(1)
         .build(SamplerDataset::new(dataset_test, 5_000));
