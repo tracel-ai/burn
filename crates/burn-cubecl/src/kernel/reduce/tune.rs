@@ -4,7 +4,7 @@ use burn_tensor::ElementConversion;
 use cubecl::{
     AutotuneKey,
     client::ComputeClient,
-    reduce::tune_key::ReduceAutotuneKey,
+    reduce::{ReduceFamily, tune_key::ReduceAutotuneKey},
     tune::{LocalTuner, TunableSet, local_tuner},
 };
 use serde::{Deserialize, Serialize};
@@ -19,18 +19,19 @@ pub fn autotune_reduce<
     Run: CubeRuntime,
     In: CubeElement,
     Out: CubeElement,
-    Rd: cubecl::reduce::Reduce,
+    Rd: cubecl::reduce::ReduceFamily,
 >(
     client: &ComputeClient<Run::Server, Run::Channel>,
     input: CubeTensor<Run>,
     output: CubeTensor<Run>,
     dim: usize,
+    config: Rd::Config,
 ) {
     use reduce_ops::*;
 
     static TUNER: LocalTuner<ReduceAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TunableSet::new(create_key::<Run>, reduce_input_gen::<Run, In, Out>)
+    let tunables = TunableSet::new(create_key::<Run, Rd>, reduce_input_gen::<Run, In, Out, Rd>)
         .with_tunable(reduce::<Run, In, Out, Rd>)
         .with_tunable(reduce_shared::<Run, In, Out, Rd>)
         .with_tunable(reduce_plane::<Run, In, Out, Rd>)
@@ -40,14 +41,15 @@ pub fn autotune_reduce<
         &CubeTuneId::new::<Run>(&input.client, &input.device),
         client,
         &tunables,
-        (input, output, dim),
+        (input, output, dim, config),
     );
 }
 
-pub(crate) fn create_key<Run: CubeRuntime>(
+pub(crate) fn create_key<Run: CubeRuntime, Rd: ReduceFamily>(
     input: &CubeTensor<Run>,
     output: &CubeTensor<Run>,
     axis: &usize,
+    _config: &Rd::Config,
 ) -> ReduceAutotuneKey {
     let elem_input = input.dtype.into();
     let elem_output = output.dtype.into();
@@ -64,14 +66,22 @@ pub(crate) fn create_key<Run: CubeRuntime>(
 mod reduce_ops {
     #![allow(missing_docs)]
 
+    use cubecl::reduce::ReduceFamily;
+
     use super::*;
 
-    pub(crate) fn reduce_input_gen<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
+    pub(crate) fn reduce_input_gen<
+        Run: CubeRuntime,
+        In: CubeElement,
+        Out: CubeElement,
+        Rd: ReduceFamily,
+    >(
         _key: &ReduceAutotuneKey,
         input: &CubeTensor<Run>,
         output: &CubeTensor<Run>,
         dim: &usize,
-    ) -> (CubeTensor<Run>, CubeTensor<Run>, usize) {
+        config: &Rd::Config,
+    ) -> (CubeTensor<Run>, CubeTensor<Run>, usize, Rd::Config) {
         let random_bounds: (In, In) = ((-10.0_f32).elem::<In>(), (10.0_f32).elem::<In>());
         let input = random_like_uniform(input, random_bounds.0, random_bounds.1);
 
@@ -81,18 +91,19 @@ mod reduce_ops {
             output.shape.clone(),
         );
 
-        (input, output, *dim)
+        (input, output, *dim, config.clone())
     }
 
     pub(crate) fn reduce<
         Run: CubeRuntime,
         In: CubeElement,
         Out: CubeElement,
-        Rd: cubecl::reduce::Reduce,
+        Rd: cubecl::reduce::ReduceFamily,
     >(
         input: CubeTensor<Run>,
         output: CubeTensor<Run>,
         axis: usize,
+        config: Rd::Config,
     ) -> Result<(), String> {
         cubecl::reduce::reduce::<Run, In, Out, Rd>(
             &input.client,
@@ -103,6 +114,7 @@ mod reduce_ops {
                 shared: false,
                 use_planes: false,
             }),
+            config,
         )
         .map_err(|e| format!("{e}"))
     }
@@ -111,11 +123,12 @@ mod reduce_ops {
         Run: CubeRuntime,
         In: CubeElement,
         Out: CubeElement,
-        Rd: cubecl::reduce::Reduce,
+        Rd: cubecl::reduce::ReduceFamily,
     >(
         input: CubeTensor<Run>,
         output: CubeTensor<Run>,
         axis: usize,
+        config: Rd::Config,
     ) -> Result<(), String> {
         cubecl::reduce::reduce::<Run, In, Out, Rd>(
             &input.client,
@@ -126,6 +139,7 @@ mod reduce_ops {
                 shared: true,
                 use_planes: false,
             }),
+            config,
         )
         .map_err(|e| format!("{e}"))
     }
@@ -134,11 +148,12 @@ mod reduce_ops {
         Run: CubeRuntime,
         In: CubeElement,
         Out: CubeElement,
-        Rd: cubecl::reduce::Reduce,
+        Rd: cubecl::reduce::ReduceFamily,
     >(
         input: CubeTensor<Run>,
         output: CubeTensor<Run>,
         axis: usize,
+        config: Rd::Config,
     ) -> Result<(), String> {
         cubecl::reduce::reduce::<Run, In, Out, Rd>(
             &input.client,
@@ -149,6 +164,7 @@ mod reduce_ops {
                 shared: false,
                 use_planes: true,
             }),
+            config,
         )
         .map_err(|e| format!("{e}"))
     }
@@ -157,11 +173,12 @@ mod reduce_ops {
         Run: CubeRuntime,
         In: CubeElement,
         Out: CubeElement,
-        Rd: cubecl::reduce::Reduce,
+        Rd: cubecl::reduce::ReduceFamily,
     >(
         input: CubeTensor<Run>,
         output: CubeTensor<Run>,
         axis: usize,
+        config: Rd::Config,
     ) -> Result<(), String> {
         cubecl::reduce::reduce::<Run, In, Out, Rd>(
             &input.client,
@@ -172,6 +189,7 @@ mod reduce_ops {
                 shared: true,
                 use_planes: true,
             }),
+            config,
         )
         .map_err(|e| format!("{e}"))
     }
@@ -226,9 +244,6 @@ impl SumAutotuneKey {
 }
 mod sum_ops {
     #![allow(missing_docs)]
-
-    use cubecl::reduce::instructions::Sum;
-
     use super::*;
 
     pub(crate) fn sum_input_gen<Run: CubeRuntime, E: CubeElement>(
@@ -261,9 +276,10 @@ mod sum_ops {
     pub(crate) fn sum_chained<Run: CubeRuntime, E: CubeElement>(
         input: CubeTensor<Run>,
     ) -> Result<CubeTensor<Run>, String> {
-        crate::kernel::reduce::reduce::<Run, E, E, Sum>(
+        crate::kernel::reduce::reduce::<Run, E, E>(
             input,
             crate::kernel::reduce::ReduceStrategy::Autotune,
+            cubecl::reduce::instructions::ReduceFnConfig::Sum,
         )
         .map_err(|e| e.to_string())
     }

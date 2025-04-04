@@ -43,7 +43,7 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
     println!("Loading weights ...");
     let record = CompactRecorder::new()
         .load(format!("{artifact_dir}/model").into(), &device)
-        .expect("Trained model weights");
+        .expect("Trained model weights tb");
 
     // Create model using loaded weights
     println!("Creating model ...");
