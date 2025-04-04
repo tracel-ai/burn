@@ -91,7 +91,7 @@ mod reduce_ops {
             output.shape.clone(),
         );
 
-        (input, output, *dim, config.clone())
+        (input, output, *dim, *config)
     }
 
     pub(crate) fn reduce<

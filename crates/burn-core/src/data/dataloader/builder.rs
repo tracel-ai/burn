@@ -161,7 +161,7 @@ mod tests {
         #[cfg(test)]
         impl<I> Batcher<TestBackend, I, TestDevice> for TestBatcher {
             fn batch(&self, _items: Vec<I>, device: &TestDevice) -> TestDevice {
-                device.clone()
+                *device
             }
         }
 
@@ -188,7 +188,7 @@ mod tests {
         #[cfg(test)]
         impl<I> Batcher<TestBackend, I, TestDevice> for TestBatcher {
             fn batch(&self, _items: Vec<I>, device: &TestDevice) -> TestDevice {
-                device.clone()
+                *device
             }
         }
 
@@ -226,9 +226,9 @@ mod tests {
 
         assert_eq!(dataloader.num_items(), 11);
         let mut dataloader_1 = dataloader.slice(0, 5);
-        dataloader_1.set_device(device1.clone());
+        dataloader_1.set_device(device1);
         let mut dataloader_2 = dataloader.slice(5, 11);
-        dataloader_2.set_device(device2.clone());
+        dataloader_2.set_device(device2);
 
         assert_eq!(dataloader_1.num_items(), 5);
         assert_eq!(dataloader_2.num_items(), 6);
@@ -236,8 +236,8 @@ mod tests {
         let (mut iterator_1, mut iterator_2) = (dataloader_1.iter(), dataloader_2.iter());
 
         for _ in 0..5 {
-            assert_eq!(iterator_1.next(), Some(device1.clone()));
-            assert_eq!(iterator_2.next(), Some(device2.clone()));
+            assert_eq!(iterator_1.next(), Some(device1));
+            assert_eq!(iterator_2.next(), Some(device2));
         }
 
         assert_eq!(iterator_1.next(), None);
