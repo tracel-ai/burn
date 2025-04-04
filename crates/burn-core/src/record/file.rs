@@ -1,4 +1,4 @@
-use super::{PrecisionSettings, Recorder, RecorderError, RecorderErrorWithParameter, bin_config};
+use super::{PrecisionSettings, Recorder, RecorderError, bin_config};
 use burn_tensor::backend::Backend;
 use core::marker::PhantomData;
 use flate2::{Compression, read::GzDecoder, write::GzEncoder};
@@ -93,17 +93,12 @@ macro_rules! str2reader {
         $file.set_extension(<Self as FileRecorder<B>>::file_extension());
         let path = $file.as_path();
 
-        let result = File::open(path)
+        File::open(path)
             .map_err(|err| match err.kind() {
                 std::io::ErrorKind::NotFound => RecorderError::FileNotFound(err.to_string()),
                 _ => RecorderError::Unknown(err.to_string()),
             })
-            .map(|file| BufReader::new(file));
-
-        match result {
-            Err(err) => return Err(RecorderErrorWithParameter::new($file, err)),
-            Ok(val) => val,
-        }
+            .map(|file| BufReader::new(file))
     }};
 }
 
@@ -156,14 +151,12 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for BinGzFileRecorder<S> {
 
     fn load_item<I: DeserializeOwned>(
         &self,
-        mut file: Self::LoadArgs,
-    ) -> Result<I, RecorderErrorWithParameter<Self::LoadArgs>> {
-        let reader = str2reader!(file);
+        file: &mut Self::LoadArgs,
+    ) -> Result<I, RecorderError> {
+        let reader = str2reader!(file)?;
         let mut reader = GzDecoder::new(reader);
-        let state =
-            bincode::serde::decode_from_std_read(&mut reader, bin_config()).map_err(|err| {
-                RecorderErrorWithParameter::new(file, RecorderError::Unknown(err.to_string()))
-            })?;
+        let state = bincode::serde::decode_from_std_read(&mut reader, bin_config())
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
 
         Ok(state)
     }
@@ -189,11 +182,11 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for BinFileRecorder<S> {
 
     fn load_item<I: DeserializeOwned>(
         &self,
-        mut file: Self::LoadArgs,
-    ) -> Result<I, RecorderErrorWithParameter<Self::LoadArgs>> {
-        let mut reader = str2reader!(file);
+        file: &mut Self::LoadArgs,
+    ) -> Result<I, RecorderError> {
+        let mut reader = str2reader!(file)?;
         let state = bincode::serde::decode_from_std_read(&mut reader, bin_config())
-            .map_err(|err| RecorderErrorWithParameter::from_error(file, err))?;
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
         Ok(state)
     }
 }
@@ -219,12 +212,12 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for JsonGzFileRecorder<S> {
 
     fn load_item<I: DeserializeOwned>(
         &self,
-        mut file: Self::LoadArgs,
-    ) -> Result<I, RecorderErrorWithParameter<Self::LoadArgs>> {
-        let reader = str2reader!(file);
+        file: &mut Self::LoadArgs,
+    ) -> Result<I, RecorderError> {
+        let reader = str2reader!(file)?;
         let reader = GzDecoder::new(reader);
         let state = serde_json::from_reader(reader)
-            .map_err(|err| RecorderErrorWithParameter::from_error(file, err))?;
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
 
         Ok(state)
     }
@@ -249,11 +242,11 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for PrettyJsonFileRecorder<S>
 
     fn load_item<I: DeserializeOwned>(
         &self,
-        mut file: Self::LoadArgs,
-    ) -> Result<I, RecorderErrorWithParameter<Self::LoadArgs>> {
-        let reader = str2reader!(file);
+        file: &mut Self::LoadArgs,
+    ) -> Result<I, RecorderError> {
+        let reader = str2reader!(file)?;
         let state = serde_json::from_reader(reader)
-            .map_err(|err| RecorderErrorWithParameter::from_error(file, err))?;
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
 
         Ok(state)
     }
@@ -280,12 +273,12 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkGzFileRecorder<S>
 
     fn load_item<I: DeserializeOwned>(
         &self,
-        mut file: Self::LoadArgs,
-    ) -> Result<I, RecorderErrorWithParameter<Self::LoadArgs>> {
-        let reader = str2reader!(file);
+        file: &mut Self::LoadArgs,
+    ) -> Result<I, RecorderError> {
+        let reader = str2reader!(file)?;
         let reader = GzDecoder::new(reader);
         let state = rmp_serde::decode::from_read(reader)
-            .map_err(|err| RecorderErrorWithParameter::from_error(file, err))?;
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
 
         Ok(state)
     }
@@ -312,11 +305,12 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkFileRecorder<S> {
 
     fn load_item<I: DeserializeOwned>(
         &self,
-        mut file: Self::LoadArgs,
-    ) -> Result<I, RecorderErrorWithParameter<Self::LoadArgs>> {
-        let reader = str2reader!(file);
+        file: &mut Self::LoadArgs,
+    ) -> Result<I, RecorderError> {
+        let reader = str2reader!(file)?;
         let state = rmp_serde::decode::from_read(reader)
-            .map_err(|err| RecorderErrorWithParameter::from_error(file, err))?;
+            .map_err(|err| RecorderError::Unknown(err.to_string()))?;
+
         Ok(state)
     }
 }
@@ -389,7 +383,7 @@ mod tests {
         let model_after =
             create_model(&device).load_record(recorder.load(file_path(), &device).unwrap());
 
-        let byte_recorder = BinBytesRecorder::<FullPrecisionSettings, Vec<u8>>::default();
+        let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let model_bytes_before = byte_recorder
             .record(model_before.into_record(), ())
             .unwrap();

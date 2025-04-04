@@ -252,7 +252,7 @@ where
 
     /// Register a checkpointer that will save the [optimizer](Optimizer), the
     /// [model](AutodiffModule) and the [scheduler](LrScheduler) to different files.
-    pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
+    pub fn with_file_checkpointer<FR: Clone>(mut self, recorder: FR) -> Self
     where
         FR: FileRecorder<B> + 'static,
         FR: FileRecorder<B::InnerBackend> + 'static,
