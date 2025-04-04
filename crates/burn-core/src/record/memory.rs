@@ -20,7 +20,7 @@ pub trait BytesRecorder<
 #[derive(new, Debug, Default, Clone)]
 pub struct BinBytesRecorder<
     S: PrecisionSettings,
-    L: AsRef<[u8]> + Send + Sync + core::fmt::Debug + core::default::Default = Vec<u8>,
+    L: AsRef<[u8]> + Send + Sync + core::fmt::Debug + Clone + core::default::Default = Vec<u8>,
 > {
     _settings: core::marker::PhantomData<S>,
     _loadargs: core::marker::PhantomData<L>,
@@ -95,7 +95,7 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkBytesRecorder<S> 
         &self,
         args: &mut Self::LoadArgs,
     ) -> Result<I, RecorderError> {
-        rmp_serde::decode::from_slice(&args).map_err(|e| RecorderError::Unknown(e.to_string()))
+        rmp_serde::decode::from_slice(args).map_err(|e| RecorderError::Unknown(e.to_string()))
     }
 }
 
