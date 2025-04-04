@@ -19,7 +19,7 @@ jobs:
       # For additional info -> https://github.com/actions/create-github-app-token
       - name: generate GitHub app token
         id: generate-app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.UPDATE_CARGO_LOCK_APP_ID }}
           private-key: ${{ secrets.UPDATE_CARGO_LOCK_APP_PRIVATE_KEY }}

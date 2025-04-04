@@ -59,7 +59,7 @@ where
     /// * `num_threads` - The number of threads.
     /// * `device`  - The device to use when loading a batch.
     /// * `rng`     - The rng determining if the dataset is shuffled each time a dataloader
-    ///               iterator is created.
+    ///   iterator is created.
     ///
     /// # Returns
     ///
