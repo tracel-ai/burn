@@ -302,7 +302,7 @@ impl TensorData {
         let mut data = Vec::with_capacity(num_elements);
 
         for _ in 0..num_elements {
-            data.push(E::random(distribution, rng));
+            data.push(E::random(distribution.clone(), rng));
         }
 
         TensorData::new(data, shape)

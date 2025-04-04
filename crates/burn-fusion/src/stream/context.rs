@@ -576,7 +576,7 @@ impl RelativeOpsScalar<f32> for FloatOperationIr {
             }),
             FloatOperationIr::Random(desc) => FloatOperationIr::Random(RandomOpIr {
                 out: desc.out.to_relative(converter),
-                distribution: desc.distribution,
+                distribution: desc.distribution.clone(),
             }),
             FloatOperationIr::Recip(desc) => FloatOperationIr::Recip(UnaryOpIr {
                 input: desc.input.to_relative(converter),
@@ -981,7 +981,7 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
             }),
             NumericOperationIr::IntRandom(desc) => NumericOperationIr::IntRandom(RandomOpIr {
                 out: desc.out.to_relative(converter),
-                distribution: desc.distribution,
+                distribution: desc.distribution.clone(),
             }),
             NumericOperationIr::Powf(desc) => NumericOperationIr::Powf(BinaryOpIr {
                 lhs: desc.lhs.to_relative(converter),
