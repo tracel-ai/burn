@@ -397,11 +397,9 @@ fn matmul_launch_kernel<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
         && TypeId::of::<EG>() == TypeId::of::<f32>()
     {
         select_kernel::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
-            client, input, output, problem, plane_size, false,
+            client, input, output, problem, plane_size,
         )
     } else {
-        select_kernel::<FusedMatmulSpec<EG>, R, A>(
-            client, input, output, problem, plane_size, false,
-        )
+        select_kernel::<FusedMatmulSpec<EG>, R, A>(client, input, output, problem, plane_size)
     }
 }
