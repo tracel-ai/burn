@@ -234,7 +234,7 @@ mod tests {
         let mut idx = 0;
         for items in dataloader.iter() {
             for item in items {
-                if idx >= 5 && idx < 15 {
+                if (5..15).contains(&idx) {
                     items_dataloader.insert(item);
                 }
                 idx += 1;
