@@ -67,13 +67,13 @@ impl AutodiffServer {
             self.memory_management.consume_node(id);
 
             let depth = step.depth();
+            tree.insert(id, step.parents());
 
             if depth == 0 {
                 return;
             }
 
             if let Some(steps) = tape.get_mut(depth - 1) {
-                tree.insert(id, step.parents());
                 steps.push(step);
             }
 
@@ -82,7 +82,9 @@ impl AutodiffServer {
             }
         });
 
-        (tape, builder.build(NodeTree::new(tree)))
+        let checkpointer = builder.build(NodeTree::new(tree));
+
+        (tape, checkpointer)
     }
 
     fn execute_steps(

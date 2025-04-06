@@ -65,7 +65,13 @@ impl CheckpointStrategy for BalancedCheckpointing {
         A: IntoIterator<Item = &'a AutodiffTensor<B2>>,
     {
         for tensor in parents.into_iter() {
-            builder.checkpoint(tensor, ActionType::Backup);
+            if let crate::graph::Requirement::None = tensor.node.requirement {
+                // When the input tensor isn't registered in the compute graph, we need to
+                // explicitly checkpoint it.
+                builder.checkpoint(tensor, ActionType::Explicit);
+            } else {
+                builder.checkpoint(tensor, ActionType::Backup);
+            }
         }
     }
 }

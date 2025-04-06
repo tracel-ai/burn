@@ -81,8 +81,46 @@ macro_rules! testgen_all {
 
             $crate::testgen_with_float_param!();
         }
+        mod autodiff_checkpointing {
+            pub use super::*;
+            type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend, burn_autodiff::checkpoint::strategy::BalancedCheckpointing>;
+            type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
+
+            pub type FloatType = <TestBackend as burn_tensor::backend::Backend>::FloatElem;
+            pub type IntType = <TestBackend as burn_tensor::backend::Backend>::IntElem;
+            pub type BoolType = <TestBackend as burn_tensor::backend::Backend>::BoolTensorPrimitive;
+
+            $crate::testgen_with_float_param!();
+        }
     };
     ([$($float:ident),*]) => {
+        mod autodiff_checkpointing {
+            pub use super::*;
+            type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend, burn_autodiff::checkpoint::strategy::BalancedCheckpointing>;
+            type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
+
+            pub type FloatType = <TestBackend as burn_tensor::backend::Backend>::FloatElem;
+            pub type IntType = <TestBackend as burn_tensor::backend::Backend>::IntElem;
+            pub type BoolType = <TestBackend as burn_tensor::backend::Backend>::BoolElem;
+
+            ::paste::paste! {
+                $(mod [<$float _ty>] {
+                    pub use super::*;
+
+                    pub type TestBackend = TestBackend2<$float, IntType, BoolType>;
+                    pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
+                    pub type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
+                    pub type TestTensor<const D: usize> = TestTensor2<$float, IntType, BoolType, D>;
+                    pub type TestTensorInt<const D: usize> = TestTensorInt2<$float, IntType, BoolType, D>;
+                    pub type TestTensorBool<const D: usize> = TestTensorBool2<$float, IntType, BoolType, D>;
+
+                    type FloatType = $float;
+
+                    $crate::testgen_with_float_param!();
+                })*
+            }
+        }
+
         mod autodiff {
             pub use super::*;
             type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
