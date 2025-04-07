@@ -103,7 +103,7 @@ text_placeholder = "0.5.1"
 wgpu = "24.0.1"
 
 # Benchmarks and Burnbench
-arboard = "3.4.1"
+arboard = "3.5.0"
 chrono = "0.4.39"
 os_info = "3.10.0"
 wsl = "0.1.0"
