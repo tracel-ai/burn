@@ -56,6 +56,19 @@ mod tests {
     }
 
     #[test]
+    fn expand_sum_3d() {
+        let tensor = TestTensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &Default::default());
+        let output = tensor.expand([3, 2, 2]).sum_dim(0);
+        // dim 1
+        // let expected = TensorData::from([[[4.0, 6.0]], [[4.0, 6.0]], [[4.0, 6.0]]]);
+        // Dim 0
+        println!("{output}");
+        let expected = TensorData::from([[[3.0, 6.0], [9.0, 12.0]]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
     fn broadcast_single() {
         let tensor = TestTensor::<1>::from_floats([1.0], &Default::default());
         let output = tensor.expand([2, 3]);

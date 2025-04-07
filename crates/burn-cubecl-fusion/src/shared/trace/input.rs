@@ -35,6 +35,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
 
             self.analyze(plan, pos, tensor_relative, &handle);
 
+            // println!("Input {tensor_global:?} => {:?}", handle.strides);
             if tensor_global.shape.len() < plan.rank {
                 let num_elem: usize = tensor_global.shape.iter().product();
                 for _ in 0..(plan.rank - tensor_global.shape.len()) {
