@@ -108,7 +108,7 @@ macro_rules! testgen_all {
                     pub use super::*;
 
                     pub type TestBackend = TestBackend2<$float, IntType, BoolType>;
-                    pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
+                    pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend, burn_autodiff::checkpoint::strategy::BalancedCheckpointing>;
                     pub type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
                     pub type TestTensor<const D: usize> = TestTensor2<$float, IntType, BoolType, D>;
                     pub type TestTensorInt<const D: usize> = TestTensorInt2<$float, IntType, BoolType, D>;
