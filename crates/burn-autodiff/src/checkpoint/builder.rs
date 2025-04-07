@@ -1,6 +1,6 @@
 use crate::{
     collections::HashMap,
-    graph::{ComputingProperty, NodeID, Requirement},
+    graph::{ComputingProperty, NodeID},
     tensor::AutodiffTensor,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
@@ -83,29 +83,19 @@ impl CheckpointerBuilder {
             ActionType::Explicit => &mut self.explicit_actions,
             ActionType::Backup => &mut self.backup_actions,
         };
-
-        let recompute = tensor.node.requirement != Requirement::None
-            && matches!(
-                tensor.node.properties,
-                ComputingProperty::MemoryBound { .. }
-            );
-
-        if !recompute {
-            action_list.push(CheckpointingAction::Computed {
-                node_id: tensor.node.id,
-                state_content: Box::new(tensor.primitive.clone()),
-            });
-            return;
-        }
-
         match &tensor.node.properties {
+            ComputingProperty::ComputeBound | ComputingProperty::Ambiguous => {
+                action_list.push(CheckpointingAction::Computed {
+                    node_id: tensor.node.id,
+                    state_content: Box::new(tensor.primitive.clone()),
+                })
+            }
             ComputingProperty::MemoryBound { retro_forward } => {
                 action_list.push(CheckpointingAction::Recompute {
                     node_id: tensor.node.id,
                     retro_forward: retro_forward.clone(),
                 })
             }
-            _ => unreachable!(),
         }
     }
 
