@@ -65,10 +65,7 @@ pub type TestBackend = burn_cuda::Cuda;
 
 /// Backend for autodiff test cases
 #[cfg(test)]
-pub type TestAutodiffBackend = burn_autodiff::Autodiff<
-    TestBackend,
-    burn_autodiff::checkpoint::strategy::BalancedCheckpointing,
->;
+pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
 /// Type alias for the learning rate.
 ///
