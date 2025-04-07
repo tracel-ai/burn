@@ -46,7 +46,7 @@ fn update_panic_hook() {
     let hook = std::panic::take_hook();
 
     std::panic::set_hook(Box::new(move |info| {
-        log::error!("PANIC => {}", info.to_string());
+        log::error!("PANIC => {}", info);
         hook(info);
     }));
 }
@@ -73,6 +73,8 @@ macro_rules! bench_on_backend {
         let feature_name = "candle-metal";
         #[cfg(feature = "ndarray")]
         let feature_name = "ndarray";
+        #[cfg(feature = "ndarray-simd")]
+        let feature_name = "ndarray-simd";
         #[cfg(feature = "ndarray-blas-accelerate")]
         let feature_name = "ndarray-blas-accelerate";
         #[cfg(feature = "ndarray-blas-netlib")]
@@ -114,7 +116,7 @@ macro_rules! bench_on_backend {
 
         #[cfg(feature = "tch-gpu")]
         {
-            use burn::backend::{libtorch::LibTorchDevice, LibTorch};
+            use burn::backend::{LibTorch, libtorch::LibTorchDevice};
 
             #[cfg(not(target_os = "macos"))]
             let device = LibTorchDevice::Cuda(0);
@@ -125,7 +127,7 @@ macro_rules! bench_on_backend {
 
         #[cfg(feature = "tch-cpu")]
         {
-            use burn::backend::{libtorch::LibTorchDevice, LibTorch};
+            use burn::backend::{LibTorch, libtorch::LibTorchDevice};
 
             let device = LibTorchDevice::Cpu;
             $fn_name::<LibTorch>(&device, feature_name, url, token);
@@ -133,13 +135,14 @@ macro_rules! bench_on_backend {
 
         #[cfg(any(
             feature = "ndarray",
+            feature = "ndarray-simd",
             feature = "ndarray-blas-netlib",
             feature = "ndarray-blas-openblas",
             feature = "ndarray-blas-accelerate",
         ))]
         {
-            use burn::backend::ndarray::NdArrayDevice;
             use burn::backend::NdArray;
+            use burn::backend::ndarray::NdArrayDevice;
 
             let device = NdArrayDevice::Cpu;
             $fn_name::<NdArray>(&device, feature_name, url, token);
@@ -147,8 +150,8 @@ macro_rules! bench_on_backend {
 
         #[cfg(feature = "candle-cpu")]
         {
-            use burn::backend::candle::CandleDevice;
             use burn::backend::Candle;
+            use burn::backend::candle::CandleDevice;
 
             let device = CandleDevice::Cpu;
             $fn_name::<Candle>(&device, feature_name, url, token);
@@ -156,8 +159,8 @@ macro_rules! bench_on_backend {
 
         #[cfg(feature = "candle-cuda")]
         {
-            use burn::backend::candle::CandleDevice;
             use burn::backend::Candle;
+            use burn::backend::candle::CandleDevice;
 
             let device = CandleDevice::cuda(0);
             $fn_name::<Candle>(&device, feature_name, url, token);
@@ -165,8 +168,8 @@ macro_rules! bench_on_backend {
 
         #[cfg(feature = "candle-metal")]
         {
-            use burn::backend::candle::CandleDevice;
             use burn::backend::Candle;
+            use burn::backend::candle::CandleDevice;
 
             let device = CandleDevice::metal(0);
             $fn_name::<Candle>(&device, feature_name, url, token);
@@ -176,7 +179,7 @@ macro_rules! bench_on_backend {
         {
             use burn::backend::cuda::{Cuda, CudaDevice};
 
-            $fn_name::<Cuda<half::f16>>(&CudaDevice::default(), feature_name, url, token);
+            $fn_name::<Cuda>(&CudaDevice::default(), feature_name, url, token);
         }
 
         #[cfg(feature = "hip")]

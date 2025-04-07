@@ -5,7 +5,7 @@ use crate::nn::Initializer;
 use crate::{
     config::Config,
     module::{Module, Param, RunningState},
-    tensor::{backend::Backend, Tensor},
+    tensor::{Tensor, backend::Backend},
 };
 
 /// Configuration to create a [BatchNorm](BatchNorm) layer using the [init function](BatchNormConfig::init).
@@ -210,7 +210,7 @@ impl<const D: usize, B: Backend> ModuleDisplay for BatchNorm<B, D> {
 mod tests_1d {
     use super::*;
     use crate::tensor::TensorData;
-    use crate::{module::AutodiffModule, TestAutodiffBackend};
+    use crate::{TestAutodiffBackend, module::AutodiffModule};
 
     #[test]
     fn batch_norm_forward_train() {
@@ -266,7 +266,7 @@ mod tests_1d {
 mod tests_2d {
     use super::*;
     use crate::tensor::TensorData;
-    use crate::{module::AutodiffModule, TestAutodiffBackend};
+    use crate::{TestAutodiffBackend, module::AutodiffModule};
 
     #[test]
     fn batch_norm_forward_train() {

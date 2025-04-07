@@ -263,6 +263,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.cast(dtype)`                         | `tensor.to(dtype)`                 |
 | `tensor.ceil()`                              | `tensor.ceil()`                    |
 | `tensor.cos()`                               | `tensor.cos()`                     |
+| `tensor.cosh()`                              | `tensor.cosh()`                    |
 | `tensor.erf()`                               | `tensor.erf()`                     |
 | `tensor.exp()`                               | `tensor.exp()`                     |
 | `tensor.floor()`                             | `tensor.floor()`                   |
@@ -277,7 +278,9 @@ Those operations are only available for `Float` tensors.
 | `tensor.recip()`                             | `tensor.reciprocal()`              |
 | `tensor.round()`                             | `tensor.round()`                   |
 | `tensor.sin()`                               | `tensor.sin()`                     |
+| `tensor.sinh()`                              | `tensor.sinh()`                    |
 | `tensor.sqrt()`                              | `tensor.sqrt()`                    |
+| `tensor.tan()`                               | `tensor.tan()`                     |
 | `tensor.tanh()`                              | `tensor.tanh()`                    |
 | `tensor.to_full_precision()`                 | `tensor.to(torch.float)`           |
 | `tensor.var(dim)`                            | `tensor.var(dim)`                  |
@@ -319,10 +322,12 @@ Those operations are only available for `Bool` tensors.
 | `Tensor::tril_mask(shape, diagonal)` | N/A                             |
 | `Tensor::triu_mask(shape, diagonal)` | N/A                             |
 | `tensor.argwhere()`                  | `tensor.argwhere()`             |
+| `tensor.bool_and()`                  | `tensor.logical_and()`          |
+| `tensor.bool_not()`                  | `tensor.logical_not()`          |
+| `tensor.bool_or()`                   | `tensor.logical_or()`           |
 | `tensor.float()`                     | `tensor.to(torch.float)`        |
 | `tensor.int()`                       | `tensor.to(torch.long)`         |
 | `tensor.nonzero()`                   | `tensor.nonzero(as_tuple=True)` |
-| `tensor.not()`                       | `tensor.logical_not()`          |
 
 ### Quantization Operations
 

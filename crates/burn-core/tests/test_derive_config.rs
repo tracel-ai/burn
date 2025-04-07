@@ -1,4 +1,4 @@
-use burn::config::{config_to_json, Config};
+use burn::config::{Config, config_to_json};
 use burn_core as burn;
 
 #[derive(Config, Debug, PartialEq, Eq)]

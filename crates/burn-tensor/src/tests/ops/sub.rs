@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(sub)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Int, Tensor, TensorData};
+    use burn_tensor::{Int, Tensor, TensorData, backend::Backend};
 
     #[test]
     fn should_support_sub_ops() {

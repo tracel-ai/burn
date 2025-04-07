@@ -78,15 +78,15 @@ mod tests {
             [[false, true], [false, true], [true, true]],
         ]);
 
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with negative axis
         let permuted = tensor.clone().permute([-1, 1, 0]);
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with the same axis
         let permuted = tensor.clone().permute([0, 1, 2]);
-        permuted.into_data().assert_eq(&tensor.into_data(), true);
+        permuted.into_data().assert_eq(&tensor.into_data(), false);
     }
 
     #[test]

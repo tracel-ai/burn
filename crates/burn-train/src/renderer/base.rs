@@ -31,6 +31,16 @@ pub trait MetricsRenderer: Send + Sync {
     ///
     /// * `item` - The validation progress.
     fn render_valid(&mut self, item: TrainingProgress);
+
+    /// Callback method invoked when training ends, whether it
+    /// completed successfully or was interrupted.
+    ///
+    /// # Returns
+    ///
+    /// A result indicating whether the end-of-training actions were successful.
+    fn on_train_end(&mut self) -> Result<(), Box<dyn core::error::Error>> {
+        Ok(())
+    }
 }
 
 /// The state of a metric.

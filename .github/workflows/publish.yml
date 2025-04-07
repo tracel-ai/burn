@@ -6,11 +6,33 @@ on:
       - "v*"
 
 jobs:
+  publish-burn-vision:
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
+    with:
+      crate: burn-vision
+    needs:
+      - publish-burn-autodiff
+      - publish-burn-candle
+      - publish-burn-fusion
+      - publish-burn-cubecl-fusion
+      - publish-burn-cubecl
+      - publish-burn-ndarray
+      - publish-burn-tch
+      - publish-burn-tensor
+      - publish-burn-ir
+      - publish-burn-tensor-testgen
+      # dev dependencies
+      - publish-burn-wgpu
+      - publish-burn-cuda
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
   publish-burn-router:
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
     with:
       crate: burn-router
     needs:
+      - publish-burn-ir
       - publish-burn-common
       - publish-burn-tensor
       # dev dependencies
@@ -25,6 +47,7 @@ jobs:
     with:
       crate: burn-remote
     needs:
+      - publish-burn-ir
       - publish-burn-common
       - publish-burn-tensor
       - publish-burn-router
@@ -71,9 +94,19 @@ jobs:
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
+  publish-burn-ir:
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
+    needs:
+      - publish-burn-tensor
+    with:
+      crate: burn-ir
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
   publish-burn-fusion:
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
     needs:
+      - publish-burn-ir
       - publish-burn-tensor
       - publish-burn-common
     with:
@@ -81,15 +114,29 @@ jobs:
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
-  publish-burn-jit:
+  publish-burn-cubecl-fusion:
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
     needs:
+      - publish-burn-ir
       - publish-burn-common
       - publish-burn-fusion
       - publish-burn-tensor
+    with:
+      crate: burn-cubecl-fusion
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
+  publish-burn-cubecl:
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
+    needs:
+      - publish-burn-ir
+      - publish-burn-common
+      - publish-burn-fusion
+      - publish-burn-cubecl-fusion
+      - publish-burn-tensor
       - publish-burn-ndarray
     with:
-      crate: burn-jit
+      crate: burn-cubecl
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
@@ -117,6 +164,7 @@ jobs:
   publish-burn-ndarray:
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
     needs:
+      - publish-burn-ir
       - publish-burn-tensor
       - publish-burn-autodiff
       - publish-burn-common
@@ -132,7 +180,7 @@ jobs:
       - publish-burn-autodiff
       - publish-burn-ndarray
       - publish-burn-common
-      - publish-burn-jit
+      - publish-burn-cubecl
     with:
       crate: burn-wgpu
     secrets:
@@ -145,7 +193,7 @@ jobs:
       - publish-burn-autodiff
       - publish-burn-ndarray
       - publish-burn-common
-      - publish-burn-jit
+      - publish-burn-cubecl
     with:
       crate: burn-cuda
     secrets:
@@ -158,7 +206,7 @@ jobs:
       - publish-burn-autodiff
       - publish-burn-ndarray
       - publish-burn-common
-      - publish-burn-jit
+      - publish-burn-cubecl
     with:
       crate: burn-hip
     secrets:

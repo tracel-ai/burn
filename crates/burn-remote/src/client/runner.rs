@@ -1,7 +1,7 @@
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient};
 use burn_tensor::{
-    backend::{DeviceId, DeviceOps},
     DType, TensorData,
+    backend::{DeviceId, DeviceOps},
 };
 use std::{future::Future, sync::Arc};
 
@@ -17,14 +17,14 @@ use super::WsClient;
 impl RunnerClient for WsClient {
     type Device = WsDevice;
 
-    fn register(&self, op: burn_tensor::repr::OperationDescription) {
+    fn register(&self, op: burn_ir::OperationIr) {
         self.sender
             .send(ComputeTask::RegisterOperation(Box::new(op)));
     }
 
     fn read_tensor(
         &self,
-        tensor: burn_tensor::repr::TensorDescription,
+        tensor: burn_ir::TensorIr,
     ) -> impl std::future::Future<Output = TensorData> + Send {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::ReadTensor(tensor));
@@ -69,11 +69,11 @@ impl RunnerClient for WsClient {
         self.device.clone()
     }
 
-    fn register_orphan(&self, id: &burn_tensor::repr::TensorId) {
+    fn register_orphan(&self, id: &burn_ir::TensorId) {
         self.sender.send(ComputeTask::RegisterOrphan(*id));
     }
 
-    fn sync(&self) -> impl Future<Output = ()> + Send + 'static {
+    fn sync(&self) -> impl Future<Output = ()> + Send {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::SyncBackend);
         let runtime = self.runtime.clone();

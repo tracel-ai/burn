@@ -1,12 +1,10 @@
 use super::FusionClient;
 use crate::{
-    stream::{execution::Operation, StreamId},
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
+    stream::{StreamId, execution::Operation},
 };
-use burn_tensor::{
-    repr::{OperationDescription, TensorDescription, TensorId},
-    DType,
-};
+use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_tensor::DType;
 use spin::Mutex;
 use std::{future::Future, sync::Arc};
 
@@ -30,7 +28,7 @@ where
 
 impl<R> FusionClient<R> for MutexFusionClient<R>
 where
-    R: FusionRuntime<FusionClient = Self>,
+    R: FusionRuntime<FusionClient = Self> + 'static,
 {
     fn new(device: FusionDevice<R>) -> Self {
         Self {
@@ -39,13 +37,13 @@ where
         }
     }
 
-    fn register<O>(&self, streams: Vec<StreamId>, description: OperationDescription, operation: O)
+    fn register<O>(&self, streams: Vec<StreamId>, repr: OperationIr, operation: O)
     where
         O: Operation<R> + 'static,
     {
         self.server
             .lock()
-            .register(streams, description, Box::new(operation))
+            .register(streams, repr, Box::new(operation))
     }
 
     fn drain(&self) {
@@ -80,52 +78,63 @@ where
 
     fn read_tensor_float<B>(
         self,
-        tensor: TensorDescription,
+        tensor: TensorIr,
         stream: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let mut server = self.server.lock();
-        server.read_float::<B>(tensor, stream)
+        // Clone the Arc to extend its lifetime
+        let server = self.server.clone();
+
+        async move { server.lock().read_float::<B>(tensor, stream).await }
     }
 
     fn read_tensor_int<B>(
         self,
-        tensor: TensorDescription,
+        tensor: TensorIr,
         id: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_int::<B>(tensor, id)
+        // Clone the Arc to extend its lifetime
+        let server = self.server.clone();
+
+        async move { server.lock().read_int::<B>(tensor, id).await }
     }
 
     fn read_tensor_bool<B>(
         self,
-        tensor: TensorDescription,
+        tensor: TensorIr,
         stream: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_bool::<B>(tensor, stream)
+        // Clone the Arc to extend its lifetime
+        let server = self.server.clone();
+
+        async move { server.lock().read_bool::<B>(tensor, stream).await }
     }
 
     fn read_tensor_quantized<B>(
         self,
-        tensor: TensorDescription,
+        tensor: TensorIr,
         stream: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_quantized::<B>(tensor, stream)
+        // Clone the Arc to extend its lifetime
+        let server = self.server.clone();
+
+        async move { server.lock().read_quantized::<B>(tensor, stream).await }
     }
 
     fn change_client_float<B>(
         &self,
-        tensor: TensorDescription,
+        tensor: TensorIr,
         client: Self,
         stream: StreamId,
     ) -> FusionTensor<R>
@@ -147,7 +156,7 @@ where
 
     fn change_client_int<B>(
         &self,
-        tensor: TensorDescription,
+        tensor: TensorIr,
         client: Self,
         stream: StreamId,
     ) -> FusionTensor<R>
@@ -168,7 +177,7 @@ where
 
     fn change_client_bool<B>(
         &self,
-        tensor: TensorDescription,
+        tensor: TensorIr,
         client: Self,
         stream: StreamId,
     ) -> FusionTensor<R>
@@ -189,7 +198,7 @@ where
 
     fn change_client_quantized<B>(
         &self,
-        tensor: TensorDescription,
+        tensor: TensorIr,
         client: Self,
         stream: StreamId,
     ) -> FusionTensor<R>
@@ -219,7 +228,7 @@ where
     {
         let mut server = self.server.lock();
         server.drain_stream(tensor.stream);
-        server.resolve_server_float::<B>(&tensor.into_description())
+        server.resolve_server_float::<B>(&tensor.into_ir())
     }
 
     fn resolve_tensor_int<B>(&self, tensor: FusionTensor<R>) -> B::IntTensorPrimitive
@@ -228,7 +237,7 @@ where
     {
         let mut server = self.server.lock();
         server.drain_stream(tensor.stream);
-        server.resolve_server_int::<B>(&tensor.into_description())
+        server.resolve_server_int::<B>(&tensor.into_ir())
     }
 
     fn resolve_tensor_bool<B>(&self, tensor: FusionTensor<R>) -> B::BoolTensorPrimitive
@@ -237,6 +246,6 @@ where
     {
         let mut server = self.server.lock();
         server.drain_stream(tensor.stream);
-        server.resolve_server_bool::<B>(&tensor.into_description())
+        server.resolve_server_bool::<B>(&tensor.into_ir())
     }
 }

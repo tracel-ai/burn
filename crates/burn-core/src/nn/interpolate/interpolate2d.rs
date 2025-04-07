@@ -6,9 +6,9 @@ use crate as burn;
 
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay};
+use crate::tensor::Tensor;
 use crate::tensor::backend::Backend;
 use crate::tensor::ops::InterpolateOptions;
-use crate::tensor::Tensor;
 
 use super::InterpolateMode;
 

@@ -1,7 +1,8 @@
 use alloc::{string::String, vec::Vec};
-use burn_tensor::{backend::DeviceOps, repr::TensorDescription, DType, Element};
+use burn_ir::TensorIr;
+use burn_tensor::{DType, Element, backend::DeviceOps};
 
-use crate::{get_client, MultiBackendBridge, RouterTensor, RunnerClient};
+use crate::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 
 /// Type alias for `<Br as MultiBackendBridge>::TensorHandle`.
 pub type TensorHandle<Br> = <Br as MultiBackendBridge>::TensorHandle;
@@ -22,18 +23,13 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     type BoolElem: Element;
 
     /// Name of the channel.
-    fn name() -> String;
+    fn name(device: &Self::Device) -> String;
 
     /// Initialize a new client for the given device.
     fn init_client(device: &Self::Device) -> Self::Client;
 
-    /// Get the tensor handle corresponding to the [tensor description](TensorDescription).
-    fn get_tensor_handle(
-        tensor: &TensorDescription,
-        client: &Self::Client,
-    ) -> TensorHandle<Self::Bridge>;
-
-    // TODO: get quantized tensor handle from QuantizedTensorDescription
+    /// Get the tensor handle corresponding to the [tensor representation](TensorIr).
+    fn get_tensor_handle(tensor: &TensorIr, client: &Self::Client) -> TensorHandle<Self::Bridge>;
 
     /// Create a tensor with the given handle and shape.
     fn register_tensor(
@@ -50,7 +46,7 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     ) -> RouterTensor<Self::Client> {
         // Get tensor handle from current client
         let original_client = tensor.client.clone();
-        let desc = tensor.into_description();
+        let desc = tensor.into_ir();
         let mut handle = Self::get_tensor_handle(&desc, &original_client);
 
         if desc.dtype.is_float() {

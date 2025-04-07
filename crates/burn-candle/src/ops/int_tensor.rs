@@ -1,11 +1,11 @@
 use burn_tensor::{
-    ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
     Bool, Device, Distribution, ElementConversion, Shape, TensorData,
+    ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
 };
 
 use crate::{
-    element::{CandleElement, FloatCandleElement, IntCandleElement},
     Candle, CandleTensor,
+    element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
 use super::base::{expand, permute, sign};
@@ -20,7 +20,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
-        super::base::from_data::<I>(data, device)
+        match data.dtype {
+            burn_tensor::DType::I64 => super::base::from_data::<i64>(data, device),
+            burn_tensor::DType::U32 => super::base::from_data::<u32>(data, device),
+            burn_tensor::DType::U8 => super::base::from_data::<u8>(data, device),
+            _ => unimplemented!("Unsupported dtype for `int_from_data`"),
+        }
     }
 
     fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {
@@ -258,11 +263,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        todo!("prod is not implemented for Candle IntTensor (see https://github.com/tracel-ai/burn/issues/1454)")
+        todo!(
+            "prod is not implemented for Candle IntTensor (see https://github.com/tracel-ai/burn/issues/1454)"
+        )
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        todo!("prod_int is not implemented for Candle IntTensor (see https://github.com/tracel-ai/burn/issues/1454)")
+        todo!(
+            "prod_int is not implemented for Candle IntTensor (see https://github.com/tracel-ai/burn/issues/1454)"
+        )
     }
 
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {

@@ -1,5 +1,5 @@
 use crate::{
-    element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
+    element::{FloatNdArrayElement, IntNdArrayElement},
     ops::padding::apply_padding_4d,
     sharing::UnsafeSharedRef,
     tensor::NdArrayTensor,
@@ -9,7 +9,7 @@ use burn_common::{iter_range_par, run_par};
 use burn_tensor::{ElementConversion, TensorMetadata};
 use ndarray::Array4;
 
-pub(crate) fn max_pool2d<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>(
+pub(crate) fn max_pool2d<E: FloatNdArrayElement>(
     x: NdArrayTensor<E>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
@@ -30,7 +30,7 @@ pub(crate) fn max_pool2d<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantE
         / stride_width)
         + 1;
 
-    let x = apply_padding_4d::<E, I, Q>(x, padding, inf).array;
+    let x = apply_padding_4d::<E>(x, padding, inf).array;
 
     let mut output = Array4::from_elem((batch_size, channels, out_height, out_width), inf);
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
@@ -69,11 +69,7 @@ pub(crate) fn max_pool2d<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantE
     NdArrayTensor::new(output.into_dyn().into_shared())
 }
 
-pub(crate) fn max_pool2d_with_indices<
-    E: FloatNdArrayElement,
-    I: IntNdArrayElement,
-    Q: QuantElement,
->(
+pub(crate) fn max_pool2d_with_indices<E: FloatNdArrayElement, I: IntNdArrayElement>(
     x: NdArrayTensor<E>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
@@ -94,7 +90,7 @@ pub(crate) fn max_pool2d_with_indices<
         / stride_width)
         + 1;
 
-    let x = apply_padding_4d::<E, I, Q>(x, padding, inf).array;
+    let x = apply_padding_4d::<E>(x, padding, inf).array;
 
     let mut output = Array4::from_elem((batch_size, channels, out_height, out_width), inf);
     let mut indices = Array4::<I>::zeros((batch_size, channels, out_height, out_width));

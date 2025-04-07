@@ -1,4 +1,4 @@
-use crate::{backend::Backend, BasicOps, TensorKind};
+use crate::{BasicOps, TensorKind, backend::Backend};
 use alloc::vec::Vec;
 
 use super::TensorMetadata;

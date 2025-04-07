@@ -1,5 +1,5 @@
-use burn_core::data::dataloader::Progress;
 use burn_core::LearningRate;
+use burn_core::data::dataloader::Progress;
 
 /// Event happening during the training/validation process.
 pub enum Event<T> {
@@ -7,6 +7,8 @@ pub enum Event<T> {
     ProcessedItem(LearnerItem<T>),
     /// Signal the end of an epoch.
     EndEpoch(usize),
+    /// Signal the end of the process (e.g., training end).
+    End,
 }
 
 /// Items that are lazy are not ready to be processed by metrics.

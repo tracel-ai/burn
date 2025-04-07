@@ -1,13 +1,13 @@
-use std::ops::Range;
+use core::ops::Range;
 
 use burn_tensor::{
+    Device, Shape, TensorData,
     backend::Backend,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantizationParametersPrimitive, QuantizationScheme},
-    Device, Shape, TensorData,
 };
 
-use crate::{checkpoint::strategy::CheckpointStrategy, Autodiff};
+use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy};
 
 impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
     fn q_from_data(_data: TensorData, _device: &Device<Self>) -> QuantizedTensor<Self> {

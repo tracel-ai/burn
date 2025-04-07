@@ -1,13 +1,12 @@
 use core::fmt;
 use half::f16;
 use std::{collections::HashMap, fmt::Formatter};
-use strum_macros::{Display, EnumString};
+use strum::{Display, EnumString};
 
 use crate::protos::TensorProto;
 
-// TODO: Rename Dim to Rank
-pub type Dim = usize;
-pub type Shape = Vec<Dim>;
+pub type Rank = usize;
+pub type Shape = Vec<usize>;
 
 /// A node input or output.
 #[derive(Debug, Clone)]
@@ -38,8 +37,8 @@ impl Argument {
         let tensor = Tensor::try_from(initializer.clone())
             .unwrap_or_else(|_| panic!("invalid tensor {}", &initializer.name));
 
-        if tensor.dim == 0 {
-            // Convert zero dim tensor to scalar
+        if tensor.rank == 0 {
+            // Convert zero rank tensor to scalar
             let value = if tensor.data.is_some() {
                 Some(tensor.data.clone().unwrap().into_scalar())
             } else {
@@ -58,7 +57,7 @@ impl Argument {
                 name,
                 ty: ArgType::Tensor(TensorType {
                     elem_type: tensor.elem_type,
-                    dim: tensor.dim,
+                    rank: tensor.rank,
                     shape: tensor.shape,
                 }),
                 value: tensor.data.clone(),
@@ -72,7 +71,7 @@ impl Argument {
 #[derive(Debug, Clone)]
 pub enum ArgType {
     Scalar(ElementType),
-    Shape(Dim),
+    Shape(Rank),
     Tensor(TensorType),
 }
 
@@ -108,9 +107,8 @@ pub struct TensorType {
     /// The type of the tensor.
     pub elem_type: ElementType,
 
-    /// The dimension of the tensor.
-    /// TODO Rename to rank
-    pub dim: Dim,
+    /// The rank of the tensor.
+    pub rank: Rank,
 
     /// The shape of the tensor.
     pub shape: Option<Shape>,
@@ -141,7 +139,7 @@ impl ArgType {
         match self {
             ArgType::Scalar(_) => 0,
             ArgType::Shape(_) => 1,
-            ArgType::Tensor(t) => t.dim,
+            ArgType::Tensor(t) => t.rank,
         }
     }
 
@@ -171,8 +169,8 @@ pub struct Tensor {
     /// The type of the tensor.
     pub elem_type: ElementType,
 
-    /// The dimension of the tensor.
-    pub dim: Dim,
+    /// The rank of the tensor.
+    pub rank: Rank,
 
     /// The data of the tensor.
     pub data: Option<Data>,
@@ -774,7 +772,7 @@ impl From<AttributeValue> for Argument {
             },
             AttributeValue::Float32s(values) => Argument {
                 ty: ArgType::Tensor(TensorType {
-                    dim: 1,
+                    rank: 1,
                     elem_type: ElementType::Float32,
                     shape: Some(vec![values.len()]),
                 }),
@@ -790,7 +788,7 @@ impl From<AttributeValue> for Argument {
             },
             AttributeValue::Int64s(values) => Argument {
                 ty: ArgType::Tensor(TensorType {
-                    dim: 1,
+                    rank: 1,
                     elem_type: ElementType::Int64,
                     shape: Some(vec![values.len()]),
                 }),
@@ -806,7 +804,7 @@ impl From<AttributeValue> for Argument {
             },
             AttributeValue::Strings(values) => Argument {
                 ty: ArgType::Tensor(TensorType {
-                    dim: 1,
+                    rank: 1,
                     elem_type: ElementType::String,
                     shape: Some(vec![values.len()]),
                 }),
@@ -815,8 +813,8 @@ impl From<AttributeValue> for Argument {
                 passed: false,
             },
             AttributeValue::Tensor(tensor) => {
-                if tensor.dim == 0 {
-                    // Convert zero dim tensor to scalar
+                if tensor.rank == 0 {
+                    // Convert zero rank tensor to scalar
                     if let Some(data) = tensor.data {
                         Argument {
                             ty: ArgType::Scalar(tensor.elem_type),
@@ -836,7 +834,7 @@ impl From<AttributeValue> for Argument {
                     // Convert tensor to argument
                     Argument {
                         ty: ArgType::Tensor(TensorType {
-                            dim: tensor.dim,
+                            rank: tensor.rank,
                             elem_type: tensor.elem_type,
                             shape: tensor.shape,
                         }),
@@ -856,7 +854,7 @@ impl Argument {
         if let ArgType::Tensor(tensor_type) = self.ty {
             Some(Tensor {
                 elem_type: tensor_type.elem_type,
-                dim: tensor_type.dim,
+                rank: tensor_type.rank,
                 data: self.value,
                 shape: tensor_type.shape,
             })

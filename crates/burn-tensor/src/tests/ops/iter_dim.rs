@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(iter_dim)]
 mod test {
     use super::*;
-    use burn_tensor::{backend::Backend, Int, Tensor, TensorData};
+    use burn_tensor::{Int, Tensor, TensorData, backend::Backend};
 
     #[test]
     fn test_1d_iter_last_item() {
@@ -111,7 +111,7 @@ mod test {
         iter.next()
             .unwrap()
             .into_data()
-            .assert_eq(&input.clone().into_data(), true);
+            .assert_eq(&input.clone().into_data(), false);
         assert!(iter.next_back().is_none());
         assert!(iter.next().is_none());
 
@@ -119,7 +119,7 @@ mod test {
         iter.next_back()
             .unwrap()
             .into_data()
-            .assert_eq(&input.clone().into_data(), true);
+            .assert_eq(&input.clone().into_data(), false);
         assert!(iter.next().is_none());
         assert!(iter.next_back().is_none());
     }

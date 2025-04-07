@@ -1,16 +1,16 @@
-use crate::{kernel::fused_matmul_add_relu_kernel, FloatTensor};
+use crate::{FloatTensor, kernel::fused_matmul_add_relu_kernel};
 
 use super::Backend;
 use burn::tensor::Shape;
-use burn_jit::{
-    element::BoolElement, kernel::into_contiguous, tensor::JitTensor, FloatElement, IntElement,
-    JitBackend, JitRuntime,
+use burn_cubecl::{
+    CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement,
+    kernel::into_contiguous, tensor::CubeTensor,
 };
 use cubecl::{CubeCount, CubeDim};
 
-/// Implement our custom backend trait for the generic `JitBackend`.
-impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
-    for JitBackend<R, F, I, BT>
+/// Implement our custom backend trait for the generic `CubeBackend`.
+impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
+    for CubeBackend<R, F, I, BT>
 {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
@@ -50,7 +50,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output = JitTensor::new_contiguous(
+        let output = CubeTensor::new_contiguous(
             lhs.client.clone(),
             lhs.device.clone(),
             shape_out,

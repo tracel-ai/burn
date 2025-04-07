@@ -1,11 +1,14 @@
 use super::TchOps;
-use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor};
-use burn_tensor::{backend::Backend, ops::BoolTensorOps, Shape, TensorData, TensorMetadata};
+use crate::{LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor, element::TchElement};
+use burn_tensor::{Shape, TensorData, TensorMetadata, backend::Backend, ops::BoolTensorOps};
 use std::ops::Range;
 
 impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
     fn bool_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
-        TchTensor::from_data::<bool>(data, (*device).into())
+        match data.dtype {
+            burn_tensor::DType::Bool => TchTensor::from_data::<bool>(data, (*device).into()),
+            _ => unimplemented!("Unsupported dtype for `bool_from_data`"),
+        }
     }
 
     fn bool_repeat_dim(tensor: TchTensor, dim: usize, times: usize) -> TchTensor {
@@ -64,6 +67,26 @@ impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
         tensor.unary_ops(
             |mut tensor| tensor.eq_(0).to_kind(tch::Kind::Bool),
             |tensor| tensor.eq(0),
+        )
+    }
+
+    fn bool_and(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.logical_and_(rhs),
+            |lhs, rhs| rhs.logical_and_(lhs),
+            |lhs, rhs| lhs.logical_and(rhs),
+        )
+    }
+
+    fn bool_or(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.logical_or_(rhs),
+            |lhs, rhs| rhs.logical_or_(lhs),
+            |lhs, rhs| lhs.logical_or(rhs),
         )
     }
 

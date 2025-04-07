@@ -1,5 +1,5 @@
 use crate::{
-    backend::Backend, cartesian_grid, Float, Int, Shape, Tensor, TensorData, TensorPrimitive,
+    Float, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend, cartesian_grid,
 };
 
 use core::ops::Range;
@@ -145,12 +145,12 @@ where
         Self::new(B::bitwise_right_shift(self.primitive, other.primitive))
     }
 
-    /// Applies the bitwise left shift operation with the integers in the tensor.
+    /// Applies the bitwise left shift operation with the scalar.
     pub fn bitwise_left_shift_scalar(self, other: B::IntElem) -> Self {
         Self::new(B::bitwise_left_shift_scalar(self.primitive, other))
     }
 
-    /// Applies the bitwise right shift operation with the integers in the tensor.
+    /// Applies the bitwise right shift operation with the scalar.
     pub fn bitwise_right_shift_scalar(self, other: B::IntElem) -> Self {
         Self::new(B::bitwise_right_shift_scalar(self.primitive, other))
     }

@@ -3,7 +3,7 @@ use std::path::Path;
 
 use burn::{
     backend::ndarray::NdArray,
-    data::dataset::{vision::MnistDataset, Dataset},
+    data::dataset::{Dataset, vision::MnistDataset},
     module::Module,
     record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder},
     tensor::Tensor,

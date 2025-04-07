@@ -13,6 +13,7 @@ use log::warn;
 
 use crate::{
     burn::{
+        ScalarKind, ScalarType, ShapeType, TensorKind, TensorType, Type,
         graph::BurnGraph,
         node::{
             argmax::ArgMaxNode,
@@ -24,16 +25,18 @@ use crate::{
             concat::ConcatNode,
             constant::{ConstantNode, ConstantValue},
             constant_of_shape::ConstantOfShapeNode,
-            conv1d::Conv1dNode,
-            conv2d::Conv2dNode,
-            conv3d::Conv3dNode,
             conv_transpose_1d::ConvTranspose1dNode,
             conv_transpose_2d::ConvTranspose2dNode,
             conv_transpose_3d::ConvTranspose3dNode,
+            conv1d::Conv1dNode,
+            conv2d::Conv2dNode,
+            conv3d::Conv3dNode,
             dropout::DropoutNode,
             expand::{ExpandNode, ExpandShape},
+            floor::FloorNode,
             gather::GatherNode,
             gather_elements::GatherElementsNode,
+            gemm::GemmNode,
             global_avg_pool::GlobalAvgPoolNode,
             layer_norm::LayerNormNode,
             linear::LinearNode,
@@ -41,6 +44,7 @@ use crate::{
             matmul::MatmulNode,
             max_pool1d::MaxPool1dNode,
             max_pool2d::MaxPool2dNode,
+            one_hot::OneHotNode,
             pad::PadNode,
             prelu::PReluNode,
             random_normal::RandomNormalNode,
@@ -51,14 +55,15 @@ use crate::{
             reshape::ReshapeNode,
             resize::ResizeNode,
             slice::SliceNode,
+            split::SplitNode,
             squeeze::SqueezeNode,
             sum::SumNode,
             tile::TileNode,
+            top_k::TopKNode,
             trilu::TriluNode,
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
         },
-        ScalarKind, ScalarType, ShapeType, TensorKind, TensorType, Type,
     },
     format_tokens,
     logger::init_log,
@@ -66,13 +71,14 @@ use crate::{
 
 use super::op_configuration::{
     argmax_config, avg_pool1d_config, avg_pool2d_config, batch_norm_config, clip_config,
-    concat_config, conv1d_config, conv2d_config, conv3d_config, conv_transpose1d_config,
-    conv_transpose2d_config, conv_transpose3d_config, dropout_config, expand_config,
-    flatten_config, gather_config, hard_sigmoid_config, layer_norm_config, leaky_relu_config,
-    linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, pad_config,
-    reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
+    concat_config, conv_transpose1d_config, conv_transpose2d_config, conv_transpose3d_config,
+    conv1d_config, conv2d_config, conv3d_config, dropout_config, expand_config, flatten_config,
+    gather_config, gemm_config, hard_sigmoid_config, layer_norm_config, leaky_relu_config,
+    linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, one_hot_config,
+    pad_config, reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
     reduce_sum_config, reshape_config, resize_config, shape_config, slice_config, softmax_config,
-    squeeze_config, tile_config, transpose_config, trilu_config, unsqueeze_config,
+    split_config, squeeze_config, tile_config, top_k_config, transpose_config, trilu_config,
+    unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -165,7 +171,7 @@ impl ModelGen {
     /// # Arguments
     ///
     /// * `embed_states` - If true, states are embedded in the generated code. Otherwise, states are
-    ///    saved as a separate file.
+    ///   saved as a separate file.
     pub fn embed_states(&mut self, embed_states: bool) -> &mut Self {
         self.embed_states = embed_states;
         self
@@ -267,8 +273,10 @@ impl ParsedOnnxGraph {
                 NodeType::Erf => graph.register(Self::erf_conversion(node)),
                 NodeType::Exp => graph.register(Self::exp_conversion(node)),
                 NodeType::Expand => graph.register(Self::expand_conversion(node)),
+                NodeType::Floor => graph.register(Self::floor_conversion(node)),
                 NodeType::Clip => graph.register(Self::clip_conversion(node)),
                 NodeType::Cos => graph.register(Self::cos_conversion(node)),
+                NodeType::Cosh => graph.register(Self::cosh_conversion(node)),
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
                 NodeType::Conv3d => graph.register(Self::conv3d_conversion::<PS>(node)),
@@ -282,6 +290,7 @@ impl ParsedOnnxGraph {
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
                 NodeType::Not => graph.register(Self::not_conversion(node)),
+                NodeType::OneHot => graph.register(Self::one_hot_conversion(node)),
                 NodeType::Greater => graph.register(Self::greater_conversion(node)),
                 NodeType::GreaterOrEqual => graph.register(Self::greater_or_equal_conversion(node)),
                 NodeType::Less => graph.register(Self::less_conversion(node)),
@@ -304,6 +313,7 @@ impl ParsedOnnxGraph {
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
                 NodeType::Softmax => graph.register(Self::softmax_conversion(node)),
                 NodeType::Sqrt => graph.register(Self::sqrt_conversion(node)),
+                NodeType::Tan => graph.register(Self::tan_conversion(node)),
                 NodeType::Tanh => graph.register(Self::tanh_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
                 NodeType::Min => graph.register(Self::min_conversion(node)),
@@ -319,6 +329,7 @@ impl ParsedOnnxGraph {
                 NodeType::Shape => graph.register(Self::shape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Sin => graph.register(Self::sin_conversion(node)),
+                NodeType::Sinh => graph.register(Self::sinh_conversion(node)),
                 NodeType::Slice => graph.register(Self::slice_conversion(node)),
                 NodeType::Sum => graph.register(Self::sum_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
@@ -348,6 +359,7 @@ impl ParsedOnnxGraph {
                     graph.register(Self::random_uniform_like_conversion(node))
                 }
                 NodeType::Tile => graph.register(Self::tile_conversion(node)),
+                NodeType::TopK => graph.register(Self::top_k_conversion(node)),
                 NodeType::Trilu => graph.register(Self::trilu_conversion(node)),
                 NodeType::RandomNormal => graph.register(Self::random_normal_conversion(node)),
                 NodeType::RandomNormalLike => {
@@ -356,6 +368,8 @@ impl ParsedOnnxGraph {
                 NodeType::ConstantOfShape => {
                     graph.register(Self::constant_of_shape_conversion(node))
                 }
+                NodeType::Split => graph.register(Self::split_conversion(node)),
+                NodeType::Gemm => graph.register(Self::gemm_conversion(node)),
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -371,6 +385,7 @@ impl ParsedOnnxGraph {
             .iter()
             .map(|input| input.name.clone())
             .collect::<Vec<_>>();
+
         let output_names = self
             .0
             .outputs
@@ -394,12 +409,12 @@ impl ParsedOnnxGraph {
 
         let const_value = match attr.ty {
             ArgType::Tensor(tensor) => {
-                // Treat tensor with dim 0 as scalar
-                if tensor.dim == 0 {
-                    panic!("Constant tensor with dim 0 should have been converted to scalar.")
+                // Treat tensor with rank 0 as scalar
+                if tensor.rank == 0 {
+                    panic!("Constant tensor with rank 0 should have been converted to scalar.")
                 } else {
                     let kind: TensorKind = tensor.elem_type.clone().into();
-                    let dim = tensor.dim;
+                    let rank = tensor.rank;
                     let name = node.name.clone();
                     let shape = tensor.shape.clone();
 
@@ -419,7 +434,7 @@ impl ParsedOnnxGraph {
                         _ => panic!("Unsupported constant tensor type: {:?} ", tensor.elem_type),
                     };
 
-                    ConstantValue::Tensor(TensorType::new(name, dim, kind, shape), tensor_data)
+                    ConstantValue::Tensor(TensorType::new(name, rank, kind, shape), tensor_data)
                 }
             }
             ArgType::Scalar(elem_type) => match elem_type {
@@ -657,15 +672,15 @@ impl ParsedOnnxGraph {
     fn flatten_conversion(node: Node) -> UnaryNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        let (start_dim, end_dim) = flatten_config(&node);
+        let axis = flatten_config(&node);
 
-        UnaryNode::flatten(input, output, start_dim, end_dim)
+        UnaryNode::flatten(input, output, axis)
     }
 
     fn gather_conversion(node: Node) -> GatherNode {
         let input = Type::from(node.inputs.first().unwrap());
         let index = Type::from(node.inputs.get(1).unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let dim = gather_config(&node);
 
         GatherNode::new(input, index, output, dim)
@@ -730,7 +745,7 @@ impl ParsedOnnxGraph {
                     ScalarType::new(arg.name.clone(), ScalarKind::from(scalar))
                 }
                 ArgType::Tensor(tensor) => {
-                    if tensor.dim != 0 {
+                    if tensor.rank != 0 {
                         panic!("Range node requires scalar inputs");
                     }
                     ScalarType::new(arg.name.clone(), ScalarKind::from(&tensor.elem_type))
@@ -833,6 +848,13 @@ impl ParsedOnnxGraph {
         UnaryNode::sin(input, output)
     }
 
+    fn sinh_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        UnaryNode::sinh(input, output)
+    }
+
     fn slice_conversion(node: Node) -> SliceNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
@@ -876,6 +898,13 @@ impl ParsedOnnxGraph {
         let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::sqrt(input, output)
+    }
+
+    fn tan_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        UnaryNode::tan(input, output)
     }
 
     fn tanh_conversion(node: Node) -> UnaryNode {
@@ -928,7 +957,7 @@ impl ParsedOnnxGraph {
         let config = batch_norm_config(&node);
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let dim = input.dim - 2;
+        let dim = input.rank - 2;
 
         let gamma = extract_data_serialize::<PS::FloatElem>(1, &node).expect("Gamma is required");
         let beta = extract_data_serialize::<PS::FloatElem>(2, &node).expect("Beta is required");
@@ -1139,6 +1168,13 @@ impl ParsedOnnxGraph {
         UnaryNode::cos(input, output)
     }
 
+    fn cosh_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        UnaryNode::cosh(input, output)
+    }
+
     fn exp_conversion(node: Node) -> UnaryNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
@@ -1150,7 +1186,7 @@ impl ParsedOnnxGraph {
         let input = TensorType::from(node.inputs.first().unwrap());
         let shape = expand_config(&node);
 
-        // dim_inference left the dim at zero, so it needs to be filled before converting to TensorType:
+        // rank_inference left the rank at zero, so it needs to be filled before converting to TensorType:
         assert_eq!(
             node.outputs.len(),
             1,
@@ -1158,9 +1194,9 @@ impl ParsedOnnxGraph {
         );
         let mut output_arg = node.outputs.pop().unwrap();
         if let ArgType::Tensor(output_arg_tensor) = &mut output_arg.ty {
-            output_arg_tensor.dim = match &shape {
+            output_arg_tensor.rank = match &shape {
                 ExpandShape::Static(s) => s.len(),
-                ExpandShape::Runtime(Type::Shape(s)) => s.dim,
+                ExpandShape::Runtime(Type::Shape(s)) => s.rank,
                 ExpandShape::Runtime(Type::Tensor(t)) => t.shape.as_ref().unwrap()[0],
                 _ => panic!("Invalid ExpandShape {shape:?}!"),
             };
@@ -1258,11 +1294,55 @@ impl ParsedOnnxGraph {
         TileNode::new(input, output, config)
     }
 
+    fn top_k_conversion(node: Node) -> TopKNode {
+        // Inputs
+        let input = TensorType::from(node.inputs.first().unwrap());
+
+        // Outputs
+        let outputs = node.outputs.iter().map(TensorType::from).collect();
+        let config = top_k_config(&node);
+
+        TopKNode::new(input, outputs, config)
+    }
+
     fn trilu_conversion(node: Node) -> TriluNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
         let config = trilu_config(&node);
         TriluNode::new(input, output, config)
+    }
+
+    fn split_conversion(node: Node) -> SplitNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let outputs = node.outputs.iter().map(TensorType::from).collect();
+        let config = split_config(&node);
+
+        SplitNode::new(input, outputs, config)
+    }
+
+    fn one_hot_conversion(node: Node) -> OneHotNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let values_type = TensorType::from(node.inputs.get(2).unwrap());
+
+        let (num_classes, values, axis) = one_hot_config(&node);
+        OneHotNode::new(input, output, num_classes, values, values_type, axis)
+    }
+
+    fn floor_conversion(node: Node) -> FloorNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        FloorNode::new(input, output)
+    }
+
+    fn gemm_conversion(node: Node) -> GemmNode {
+        let a = TensorType::from(node.inputs.first().unwrap());
+        let b = TensorType::from(node.inputs.get(1).unwrap());
+        let c = node.inputs.get(2).map(Type::from);
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let (alpha, beta, trans_a, trans_b) = gemm_config(&node);
+        GemmNode::new(a, b, c, output, alpha, beta, trans_a, trans_b)
     }
 }
 
@@ -1315,22 +1395,22 @@ impl From<&OnnxArgument> for TensorType {
         match &arg.ty {
             ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Float16 | ElementType::Float32 | ElementType::Float64,
-                dim,
+                rank,
                 shape,
                 ..
-            }) => TensorType::new_float_with_shape(arg.name.clone(), *dim, shape.clone()),
+            }) => TensorType::new_float_with_shape(arg.name.clone(), *rank, shape.clone()),
             ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Int32 | ElementType::Int64,
-                dim,
+                rank,
                 shape,
                 ..
-            }) => TensorType::new_int_with_shape(arg.name.clone(), *dim, shape.clone()),
+            }) => TensorType::new_int_with_shape(arg.name.clone(), *rank, shape.clone()),
             ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Bool,
-                dim,
+                rank,
                 shape,
                 ..
-            }) => TensorType::new_bool_with_shape(arg.name.clone(), *dim, shape.clone()),
+            }) => TensorType::new_bool_with_shape(arg.name.clone(), *rank, shape.clone()),
             _ => panic!("Can't transform {:?} to tensor.", arg.ty),
         }
     }
@@ -1339,25 +1419,25 @@ impl From<&OnnxArgument> for Type {
     fn from(arg: &OnnxArgument) -> Self {
         match &arg.ty {
             ArgType::Tensor(tensor) => {
-                // Treat tensor with dim 0 as scalar
-                if tensor.dim == 0 {
+                // Treat tensor with rank 0 as scalar
+                if tensor.rank == 0 {
                     Type::Scalar(ScalarType::new(
                         arg.name.clone(),
                         ScalarKind::from(&tensor.elem_type),
                     ))
                 } else {
                     let kind: TensorKind = tensor.elem_type.clone().into();
-                    let dim = tensor.dim;
+                    let rank = tensor.rank;
                     let name = arg.name.clone();
                     let shape = tensor.shape.clone();
-                    Type::Tensor(TensorType::new(name, dim, kind, shape))
+                    Type::Tensor(TensorType::new(name, rank, kind, shape))
                 }
             }
 
             ArgType::Scalar(elem_type) => {
                 Type::Scalar(ScalarType::new(arg.name.clone(), elem_type.into()))
             }
-            ArgType::Shape(dim) => Type::Shape(ShapeType::new(arg.name.clone(), *dim)),
+            ArgType::Shape(rank) => Type::Shape(ShapeType::new(arg.name.clone(), *rank)),
         }
     }
 }

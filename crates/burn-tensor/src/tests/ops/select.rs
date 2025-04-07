@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(select)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData, backend::Backend};
 
     #[test]
     fn should_select_1d() {
@@ -52,6 +52,19 @@ mod tests {
             [3.0, 4.0, 5.0],
             [3.0, 4.0, 5.0],
         ]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_select_2d_dim0_vec() {
+        let device = Default::default();
+        let tensor =
+            TestTensor::<2>::from_data([[0.0, 1.0], [2.0, 3.0], [4.0, 5.0], [6.0, 7.0]], &device);
+        let indices = TestTensorInt::from_data([1, 0, 3, 2], &device);
+
+        let output = tensor.select(0, indices);
+        let expected = TensorData::from([[2.0, 3.0], [0.0, 1.0], [6.0, 7.0], [4.0, 5.0]]);
 
         output.into_data().assert_eq(&expected, false);
     }
@@ -116,6 +129,27 @@ mod tests {
 
         let output = tensor.select_assign(1, indices, values);
         let expected = TensorData::from([[2.0, 2.0, 5.0], [8.0, 8.0, 11.0]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_select_3d_dim1_vec() {
+        let device = Default::default();
+        let tensor = TestTensor::<3>::from_data(
+            [
+                [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]],
+                [[-1.0, -2.0], [-3.0, -4.0], [-5.0, -6.0], [-7.0, -8.0]],
+            ],
+            &device,
+        );
+        let indices = TestTensorInt::from_data([1, 0, 3, 2], &device);
+
+        let output = tensor.select(1, indices);
+        let expected = TensorData::from([
+            [[3.0, 4.0], [1.0, 2.0], [7.0, 8.0], [5.0, 6.0]],
+            [[-3.0, -4.0], [-1.0, -2.0], [-7.0, -8.0], [-5.0, -6.0]],
+        ]);
 
         output.into_data().assert_eq(&expected, false);
     }

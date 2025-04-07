@@ -13,7 +13,7 @@ burn = { path = "../../crates/burn", default-features = false, features = [
     "autotune",
     "template",
 ] }
-burn-jit = { path = "../../crates/burn-jit" }
+burn-cubecl = { path = "../../crates/burn-cubecl" }
 cubecl = { workspace = true, features = ["wgpu"] }
 
 # Serialization

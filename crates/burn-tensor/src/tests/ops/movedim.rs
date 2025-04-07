@@ -71,15 +71,15 @@ mod tests {
             [[false, true], [false, true], [false, true], [true, true]],
         ]);
 
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with negative axis
         let permuted = tensor.clone().movedim(0, -1);
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with the same axis
         let permuted = tensor.clone().movedim(0, 0);
-        permuted.into_data().assert_eq(&tensor.into_data(), true);
+        permuted.into_data().assert_eq(&tensor.into_data(), false);
     }
 
     #[test]
@@ -150,15 +150,15 @@ mod tests {
             [[false, false, false, true], [true, true, true, true]],
         ]);
 
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with negative axes
         let permuted = tensor.clone().movedim(vec![-3, -2], vec![-2, -3]);
-        permuted.into_data().assert_eq(&expected, true);
+        permuted.into_data().assert_eq(&expected, false);
 
         // Test with the same axes
         let permuted = tensor.clone().movedim(vec![0, 1], vec![0, 1]);
-        permuted.into_data().assert_eq(&tensor.into_data(), true);
+        permuted.into_data().assert_eq(&tensor.into_data(), false);
     }
 
     #[test]

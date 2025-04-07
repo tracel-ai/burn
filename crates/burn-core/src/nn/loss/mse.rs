@@ -3,7 +3,7 @@ use crate as burn;
 use crate::nn::loss::reduction::Reduction;
 
 use crate::module::Module;
-use crate::tensor::{backend::Backend, Tensor};
+use crate::tensor::{Tensor, backend::Backend};
 
 /// Calculate the mean squared error loss from the input logits and the targets.
 #[derive(Module, Clone, Debug)]
@@ -53,8 +53,8 @@ impl MseLoss {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
 
     #[test]
     fn test_mse_loss() {

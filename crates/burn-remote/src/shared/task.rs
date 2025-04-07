@@ -1,10 +1,8 @@
 use std::fmt::Display;
 
 use burn_common::id::{IdGenerator, StreamId};
-use burn_tensor::{
-    repr::{OperationDescription, TensorDescription, TensorId},
-    TensorData,
-};
+use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_tensor::TensorData;
 use serde::{Deserialize, Serialize};
 
 #[allow(missing_docs)]
@@ -46,10 +44,10 @@ pub enum Task {
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ComputeTask {
-    RegisterOperation(Box<OperationDescription>),
+    RegisterOperation(Box<OperationIr>),
     RegisterTensor(TensorId, TensorData),
     RegisterOrphan(TensorId),
-    ReadTensor(TensorDescription),
+    ReadTensor(TensorIr),
     SyncBackend,
 }
 

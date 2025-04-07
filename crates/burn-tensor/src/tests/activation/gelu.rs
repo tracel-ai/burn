@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(gelu)]
 mod tests {
     use super::*;
-    use burn_tensor::{activation, Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData, activation};
 
     #[test]
     fn test_gelu() {
@@ -14,6 +14,6 @@ mod tests {
         ]]);
 
         output.into_data().assert_approx_eq(&expected, 2); // Low precision to allow approximation
-                                                           // implementation using tanh
+        // implementation using tanh
     }
 }

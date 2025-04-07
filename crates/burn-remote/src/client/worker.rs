@@ -1,4 +1,4 @@
-use super::{runner::WsDevice, WsClient};
+use super::{WsClient, runner::WsDevice};
 use crate::shared::{ConnectionId, SessionId, Task, TaskResponse, TaskResponseContent};
 use futures_util::{SinkExt, StreamExt};
 use std::{collections::HashMap, sync::Arc};
@@ -62,7 +62,7 @@ impl ClientWorker {
                         .max_message_size(None)
                         .max_frame_size(Some(MB * 512))
                         .accept_unmasked_frames(true)
-                        .read_buffer_size(64 * 1024) // 64 KiB (previous default)
+                        .read_buffer_size(64 * 1024), // 64 KiB (previous default)
                 ),
                 true,
             )
@@ -76,8 +76,7 @@ impl ClientWorker {
                         .max_message_size(None)
                         .max_frame_size(Some(MB * 512))
                         .accept_unmasked_frames(true)
-                        .read_buffer_size(64 * 1024) // 64 KiB (previous default)
-
+                        .read_buffer_size(64 * 1024), // 64 KiB (previous default)
                 ),
                 true,
             )
@@ -88,9 +87,17 @@ impl ClientWorker {
 
             // Init the connection.
             let session_id = SessionId::new();
-            let bytes: tungstenite::Bytes = rmp_serde::to_vec(&Task::Init(session_id)).expect("Can serialize tasks to bytes.").into();
-            stream_request.send(Message::Binary(bytes.clone())).await.expect("Can send the message on the websocket.");
-            stream_response.send(Message::Binary(bytes)).await.expect("Can send the message on the websocket.");
+            let bytes: tungstenite::Bytes = rmp_serde::to_vec(&Task::Init(session_id))
+                .expect("Can serialize tasks to bytes.")
+                .into();
+            stream_request
+                .send(Message::Binary(bytes.clone()))
+                .await
+                .expect("Can send the message on the websocket.");
+            stream_response
+                .send(Message::Binary(bytes))
+                .await
+                .expect("Can send the message on the websocket.");
 
             // Websocket async worker loading callback from the server.
             let state_ws = state.clone();
@@ -98,19 +105,22 @@ impl ClientWorker {
                 while let Some(msg) = stream_response.next().await {
                     let msg = match msg {
                         Ok(msg) => msg,
-                        Err(err) => panic!("An error happened while receiving messages from the websocket: {err:?}"),
+                        Err(err) => panic!(
+                            "An error happened while receiving messages from the websocket: {err:?}"
+                        ),
                     };
 
                     match msg {
                         Message::Binary(bytes) => {
-                            let response: TaskResponse = rmp_serde::from_slice(&bytes).expect("Can deserialize messages from the websocket.");
+                            let response: TaskResponse = rmp_serde::from_slice(&bytes)
+                                .expect("Can deserialize messages from the websocket.");
                             let mut state = state_ws.lock().await;
                             state.on_response(response).await;
                         }
                         Message::Close(_) => {
                             log::warn!("Closed connection");
                             return;
-                        },
+                        }
                         _ => panic!("Unsupported websocket message: {msg:?}"),
                     };
                 }
@@ -128,10 +138,14 @@ impl ClientWorker {
                             task
                         }
                         ClientRequest::WithoutCallback(task) => task,
-
                     };
-                    let bytes = rmp_serde::to_vec(&task).expect("Can serialize tasks to bytes.").into();
-                    stream_request.send(Message::Binary(bytes)).await.expect("Can send the message on the websocket.");
+                    let bytes = rmp_serde::to_vec(&task)
+                        .expect("Can serialize tasks to bytes.")
+                        .into();
+                    stream_request
+                        .send(Message::Binary(bytes))
+                        .await
+                        .expect("Can send the message on the websocket.");
                 }
             });
         });

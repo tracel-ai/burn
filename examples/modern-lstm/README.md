@@ -21,13 +21,13 @@ the project's specific needs.
 
 ```sh
 # Cuda backend
-cargo run --example lstm-train --release --features cuda-jit
+cargo run --example lstm-train --release --features cuda
 
 # Wgpu backend
 cargo run --example lstm-train --release --features wgpu
 
 # Tch GPU backend
-export TORCH_CUDA_VERSION=cu121 # Set the cuda version
+export TORCH_CUDA_VERSION=cu124 # Set the cuda version
 cargo run --example lstm-train --release --features tch-gpu
 
 # Tch CPU backend
@@ -42,5 +42,5 @@ cargo run --example lstm-train --release --features ndarray-blas-netlib
 ### Inference
 
 ```sh
-cargo run --example lstm-infer --release --features cuda-jit
+cargo run --example lstm-infer --release --features cuda
 ```

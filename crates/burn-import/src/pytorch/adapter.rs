@@ -1,7 +1,7 @@
 use burn::{
     module::Param,
     record::{PrecisionSettings, Record},
-    tensor::{backend::Backend, Tensor},
+    tensor::{Tensor, backend::Backend},
 };
 
 use burn::record::serde::{

@@ -19,7 +19,6 @@ pub mod config;
 pub mod data;
 
 /// Optimizer module.
-#[cfg(feature = "std")]
 pub mod optim;
 
 /// Learning rate scheduler module.
@@ -40,12 +39,6 @@ pub mod record;
 
 /// Module for the tensor.
 pub mod tensor;
-
-/// Backend module.
-pub mod backend;
-
-#[cfg(feature = "server")]
-pub use burn_remote::server;
 
 extern crate alloc;
 
@@ -71,7 +64,6 @@ pub type TestBackend = burn_wgpu::Wgpu;
 pub type TestBackend = burn_cuda::Cuda;
 
 /// Backend for autodiff test cases
-#[cfg(feature = "std")]
 #[cfg(test)]
 pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
@@ -90,8 +82,8 @@ pub mod prelude {
         module::Module,
         nn,
         tensor::{
-            backend::Backend, Bool, Device, ElementConversion, Float, Int, Shape, Tensor,
-            TensorData,
+            Bool, Device, ElementConversion, Float, Int, Shape, Tensor, TensorData,
+            backend::Backend,
         },
     };
 }

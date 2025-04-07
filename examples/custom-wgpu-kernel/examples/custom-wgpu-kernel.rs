@@ -3,7 +3,7 @@ use burn::{
     tensor::{Distribution, Tensor},
 };
 use custom_wgpu_kernel::{
-    matmul_add_relu_custom, matmul_add_relu_reference, AutodiffBackend, Backend,
+    AutodiffBackend, Backend, matmul_add_relu_custom, matmul_add_relu_reference,
 };
 
 fn inference<B: Backend>(device: &B::Device) {
@@ -71,7 +71,7 @@ fn autodiff<B: AutodiffBackend>(device: &B::Device) {
 }
 
 fn main() {
-    type MyBackend = burn::backend::wgpu::JitBackend<WgpuRuntime, f32, i32, u32>;
+    type MyBackend = burn::backend::wgpu::CubeBackend<WgpuRuntime, f32, i32, u32>;
     type MyAutodiffBackend = burn::backend::Autodiff<MyBackend>;
     let device = Default::default();
     inference::<MyBackend>(&device);

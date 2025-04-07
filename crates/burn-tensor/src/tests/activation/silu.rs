@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(silu)]
 mod tests {
     use super::*;
-    use burn_tensor::{activation, Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData, activation};
 
     #[test]
     fn test_silu() {

@@ -14,7 +14,7 @@ git clone https://github.com/tracel-ai/burn.git
 cd burn
 
 # Use the --release flag to really speed up training.
-export TORCH_CUDA_VERSION=cu121
+export TORCH_CUDA_VERSION=cu124
 cargo run --example text-generation --release
 ```
 

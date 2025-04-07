@@ -1,18 +1,21 @@
 use std::ops::Range;
 
 use burn_tensor::{
+    Distribution, Shape, TensorData, TensorMetadata,
     backend::Backend,
     ops::{IntTensor, IntTensorOps},
-    Distribution, Shape, TensorData, TensorMetadata,
 };
 
-use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor};
+use crate::{LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor, element::TchElement};
 
 use super::TchOps;
 
 impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
     fn int_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
-        TchTensor::from_data::<i64>(data, (*device).into())
+        match data.dtype {
+            burn_tensor::DType::I64 => TchTensor::from_data::<i64>(data, (*device).into()),
+            _ => unimplemented!("Unsupported dtype for `int_from_data`"),
+        }
     }
 
     fn int_repeat_dim(tensor: TchTensor, dim: usize, times: usize) -> TchTensor {

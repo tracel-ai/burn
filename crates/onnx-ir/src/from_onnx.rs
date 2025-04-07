@@ -13,18 +13,19 @@ use super::{
     protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto},
 };
 
-use super::dim_inference::dim_inference;
 use super::ir::{ArgType, Argument, Node, NodeType};
+use super::rank_inference::rank_inference;
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 12] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 13] = [
     NodeType::BatchNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
     NodeType::Conv2d,
     NodeType::Dropout,
     NodeType::Expand,
+    NodeType::OneHot,
     NodeType::Reshape,
     NodeType::Resize,
     NodeType::Unsqueeze,
@@ -151,7 +152,7 @@ impl GraphData {
         for output in node.outputs.iter_mut() {
             self.input_name_map.insert(
                 output.name.clone(),
-                IOEntry::Node(self.processed_nodes.len(), 0),
+                IOEntry::Node(self.processed_nodes.len(), out_count - 1),
             );
             output.name = format!("{}_out{}", node.name, out_count);
             out_count += 1;
@@ -223,7 +224,7 @@ impl OnnxGraphBuilder {
             // args : node, peek_iter, graph_data
             self.handle_unsqueeze(&mut node, &graph_data);
 
-            dim_inference(&mut node);
+            rank_inference(&mut node);
             graph_data.add_node(node);
         }
 
@@ -239,7 +240,6 @@ impl OnnxGraphBuilder {
         // TODO Update graph inputs and outputs to match the processed nodes inputs and outputs
         // This is necessary for the graph to be valid
         // ConstantOfShape updates input to be Shape argument and output Tensor dim is updated
-
         OnnxGraph {
             nodes: processed_nodes,
             inputs,
@@ -395,7 +395,7 @@ pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
             name: format!("{}_generated_const", &node.name),
             ty: ArgType::Tensor(TensorType {
                 elem_type: super::ir::ElementType::Int64,
-                dim: 1,
+                rank: 1,
                 shape: Some(vec![shape_len]),
             }),
             value: new_rhs_value,
@@ -426,6 +426,11 @@ impl TopologicalSortable for Vec<NodeProto> {
         for node in self {
             // Iterate over each output of the node
             for output in &node.output {
+                // If the output is empty, we don't want to check the rest of the graph, inputs and outputs that are optional
+                // can end up as empty strings, so we can't use that as a reason to count the graph as not sorted
+                if output.is_empty() {
+                    continue;
+                }
                 // Iterate over each other node in the vector
                 for other_node in self {
                     // If the other node has an input that matches the current output

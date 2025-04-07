@@ -1,5 +1,5 @@
 use crate::dataset::{
-    SequenceBatcher, SequenceDataset, NOISE_LEVEL, NUM_SEQUENCES, RANDOM_SEED, SEQ_LENGTH,
+    NOISE_LEVEL, NUM_SEQUENCES, RANDOM_SEED, SEQ_LENGTH, SequenceBatcher, SequenceDataset,
 };
 use crate::model::{LstmNetwork, LstmNetworkConfig};
 use burn::{
@@ -48,17 +48,16 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     let mut optim = config.optimizer.init::<B, LstmNetwork<B>>();
 
     // Create the batcher
-    let batcher_train = SequenceBatcher::<B>::new(device.clone());
-    let batcher_valid = SequenceBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher = SequenceBatcher::default();
 
     // Create the dataloaders
-    let dataloader_train = DataLoaderBuilder::new(batcher_train)
+    let dataloader_train = DataLoaderBuilder::new(batcher.clone())
         .batch_size(config.batch_size)
         .shuffle(RANDOM_SEED)
         .num_workers(config.num_workers)
         .build(SequenceDataset::new(NUM_SEQUENCES, SEQ_LENGTH, NOISE_LEVEL));
 
-    let dataloader_valid = DataLoaderBuilder::new(batcher_valid)
+    let dataloader_valid = DataLoaderBuilder::new(batcher)
         .batch_size(config.batch_size)
         .shuffle(RANDOM_SEED)
         .num_workers(config.num_workers)
@@ -112,7 +111,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         let avg_valid_loss = valid_loss / valid_num_items as f32;
         valid_losses.push(avg_valid_loss);
 
-        // Display the averaged training and validataion metrics every 10 epochs
+        // Display the averaged training and validation metrics every 10 epochs
         if (epoch + 1) % 5 == 0 {
             println!(
                 "Epoch {}/{}, Avg Loss {:.4}, Avg Val Loss: {:.4}",

@@ -7,7 +7,6 @@ use alloc::string::String;
 use alloc::vec;
 
 use burn_common::stub::RwLock;
-use core::any::TypeId;
 use core::future::Future;
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
@@ -15,12 +14,12 @@ use serde::{Deserialize, Deserializer};
 
 use serde::{Serialize, Serializer};
 
-use crate::check::TensorCheck;
 use crate::tensor::api::narrow::narrow;
 use crate::{
-    backend::Backend, check, ops::Device, Bool, Float, Int, Shape, TensorData, TensorKind,
+    Bool, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check, ops::Device,
 };
 use crate::{DType, Element, TensorPrimitive};
+use crate::{cast::ToElement, check::TensorCheck};
 
 use super::{TensorMetadata, Transaction};
 
@@ -176,6 +175,8 @@ where
 
     /// Reshape the tensor to have the given shape.
     ///
+    /// The tensor has the same data and number of elements as the input.
+    ///
     /// A `-1` in the shape is used to infer the remaining dimensions, e.g.: `[2, -1]`
     /// will reshape the tensor with [2, 3, 4] dimensions to [2, 12].
     ///
@@ -215,6 +216,12 @@ where
     }
 
     /// Transpose the tensor.
+    ///
+    /// For a 2D tensor, this is the standard matrix transpose. For `D > 2`, the transpose is
+    /// applied on the last two dimensions. For example, the transpose of a tensor with shape
+    /// `[1, 2, 3, 4]` will have shape `[1, 2, 4, 3]`.
+    ///
+    /// See also [`permute`](Tensor::permute).
     ///
     /// # Arguments
     ///
@@ -286,9 +293,9 @@ where
     /// # Arguments
     ///
     /// * `axes` - The new order of the dimensions. The length of the axes
-    ///            must be equal to the number of dimensions of the tensor.
-    ///            The values must be unique and in the range of the number of dimensions.
-    ///            The values can be negative, in which case they are used as an offset from the end.
+    ///   must be equal to the number of dimensions of the tensor.
+    ///   The values must be unique and in the range of the number of dimensions.
+    ///   The values can be negative, in which case they are used as an offset from the end.
     ///
     /// # Returns
     ///
@@ -337,7 +344,7 @@ where
     /// # Arguments
     ///
     /// * `src` - The dimension(s) to move. The values must be unique and in the range of the number of dimensions.
-    ///              The values can be negative, in which case they are used as an offset from the end.
+    ///   The values can be negative, in which case they are used as an offset from the end.
     ///
     /// * `dst` - Destination positions for each of the original dims. These must also be unique.
     ///
@@ -369,8 +376,11 @@ where
     ///     println!("{moved}");
     /// }
     /// ```
-    // This is a syntactic sugar for `permute`. It is used widely enough, so we define a separate Op
-    // for it
+    ///
+    /// # Note
+    ///
+    /// This is a syntactic sugar for `permute`. It is used widely enough, so we define a separate Op
+    /// for it
     pub fn movedim<S1: MovedimArgs, S2: MovedimArgs>(self, src: S1, dst: S2) -> Tensor<B, D, K> {
         let source_dims = src.into_dim_vec::<D>();
         let destination_dims = dst.into_dim_vec::<D>();
@@ -407,7 +417,7 @@ where
     /// # Arguments
     ///
     /// * `axes` - The dimensions to reverse. The values must be unique and in the range of the number of dimensions.
-    ///            The values can be negative, in which case they are used as an offset from the end.
+    ///   The values can be negative, in which case they are used as an offset from the end.
     ///
     /// # Returns
     ///
@@ -522,7 +532,11 @@ where
     ///
     /// # Type Parameters
     ///
-    ///  - 'D2': The resulting number of dimensions in the squeezed tensor.
+    ///  - `D2`: The resulting number of dimensions in the squeezed tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the size in the squeezed dimension is not 1.
     ///
     /// # Returns
     ///
@@ -574,7 +588,7 @@ where
     ///
     /// # Type Parameters
     ///
-    ///  - 'D2': The resulting number of dimensions in the squeezed tensor.
+    ///  - `D2`: The resulting number of dimensions in the squeezed tensor.
     ///
     /// # Returns
     ///
@@ -650,9 +664,19 @@ where
         Tensor::new(K::reshape(self.primitive, new_dims.into()))
     }
 
-    /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
+    /// Unsqueeze the current tensor. Create new leading dimensions to fit the given size.
     ///
-    /// If the output size is higher than the current tensor.
+    /// # Type Parameters
+    ///
+    ///  - `D2`: The resulting number of dimensions in the unsqueezed tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the output size `D2` is smaller than the current number of dimensions.
+    ///
+    /// # Returns
+    ///
+    /// A new `Tensor<B, D2, K>` instance with the specified dimensions added.
     ///
     /// # Example
     ///
@@ -906,7 +930,7 @@ where
         K::device(&self.primitive)
     }
 
-    /// Returns a new tensor on the given device.
+    /// Move the tensor to the given device.
     pub fn to_device(self, device: &B::Device) -> Self {
         Self::new(K::to_device(self.primitive, device))
     }
@@ -975,6 +999,7 @@ where
 
     /// Repeat the tensor along the given dimension.
     ///
+    /// The output tensor has the same shape, except along the given dimension.
     ///
     /// # Arguments
     /// - `dim`: The dimension to repeat.
@@ -1014,6 +1039,10 @@ where
     ///
     /// A new tensor with the given dimensions repeated `times` times.
     ///
+    /// # Panics
+    ///
+    /// If `sizes` contains more elements than the number of dimensions.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -1042,7 +1071,10 @@ where
         tensor
     }
 
-    /// Applies element-wise equal comparison and returns a boolean tensor.
+    /// Applies element-wise equal comparison.
+    ///
+    /// # Returns
+    /// A boolean tensor that is `true` where input is equal to `other` and `false` elsewhere.
     ///
     /// # Panics
     ///
@@ -1069,7 +1101,10 @@ where
         Tensor::new(K::equal(self.primitive, other.primitive))
     }
 
-    /// Applies element-wise non-equality comparison and returns a boolean tensor.
+    /// Applies element-wise non-equality comparison.
+    ///
+    /// # Returns
+    /// A boolean tensor that is `true` where input is not equal to `other` and `false` elsewhere.
     ///
     /// # Panics
     ///
@@ -1100,7 +1135,9 @@ where
     ///
     /// # Panics
     ///
-    /// If all tensors don't have the same shape.
+    /// - If `dim` is higher than the rank.
+    /// - If `tensors` is an empty vector.
+    /// - If all tensors don't have the same shape (the dimension `dim` is ignored).
     ///
     /// # Example
     ///
@@ -1110,12 +1147,12 @@ where
     ///
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
-    ///     let t1 = Tensor::<B, 2>::from_data([[3.0, 4.9, 2.0], [2.0, 1.9, 3.0]], &device);
+    ///     let t1 = Tensor::<B, 2>::from_data([[3.0, 4.9, 2.0, 1.0], [2.0, 1.9, 3.0, 1.0]], &device);
     ///     let t2 = Tensor::<B, 2>::from_data([[4.0, 5.9, 8.0], [1.4, 5.8, 6.0]], &device);
     ///
-    ///     // Concatenate the two tensors with shape [2, 3] along the dimension 1.
-    ///     // [[3.0, 4.9, 2.0, 4.0, 5.9, 8.0], [2.0, 1.9, 3.0, 1.4, 5.8, 6.0]]
-    ///     // The resulting tensor will have shape [2, 6].
+    ///     // Concatenate the two tensors with shapes [2, 4] and [2, 3] along the dimension 1.
+    ///     // [[3.0, 4.9, 2.0, 1.0, 4.0, 5.9, 8.0], [2.0, 1.9, 3.0, 1.0, 1.4, 5.8, 6.0]]
+    ///     // The resulting tensor will have shape [2, 7].
     ///     let concat = Tensor::cat(vec![t1, t2], 1);
     ///     println!("{concat}");
     /// }
@@ -1133,8 +1170,8 @@ where
     ///
     /// # Panics
     ///
-    /// If all tensors don't have the same shape.
-    /// Given dimension is not with range of 0..D2
+    /// - If all tensors don't have the same shape.
+    /// - If given dimension is not with range of 0..D2
     ///
     /// # Example
     ///
@@ -1167,7 +1204,7 @@ where
     ///
     /// # Panics
     ///
-    /// Given dimension is less than tensor rank.
+    /// If given dimension is greater than or equal to tensor rank.
     ///
     /// # Returns
     ///
@@ -1181,7 +1218,7 @@ where
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B,2>::from_data([[3.0, 4.9, 2.0], [2.0, 1.9, 3.0]], &device);
-    ///   // Given a 2D tensor with dimensions (2, 3), iterate over slices of tensors along the dimension 0.
+    ///   // Given a 2D tensor with dimensions [2, 3], iterate over slices of tensors along the dimension 0.
     ///   let iter = tensor.iter_dim(0);
     ///   for (i,tensor) in iter.enumerate() {
     ///     println!("Tensor {}: {}", i, tensor);
@@ -1245,7 +1282,7 @@ where
     ///
     /// # Panics
     ///
-    ///  If the dimension is greater than the number of dimensions of the tensor.
+    /// If the dimension is greater than the number of dimensions of the tensor.
     ///
     /// # Returns
     /// A vector of tensors.
@@ -1392,12 +1429,12 @@ where
     ///   let tensor = Tensor::<B,2, Bool>::from_data([[true,false,true],[false,true,false]], &device);
     ///   let tensor_two = Tensor::<B,2, Bool>::from_data([[false,false,false],[false,false,false]], &device);
     ///
-    ///   // Given a 2D tensor with dimensions (2, 3), test if any element in the tensor evaluates to True.
+    ///   // Given a 2D tensor with dimensions [2, 3], test if any element in the tensor evaluates to True.
     ///   let any_tensor = tensor.any();
     ///   println!("{}", any_tensor);
     ///   // Tensor { data: [true], ... }
     ///
-    ///   // Given a 2D tensor with dimensions (2, 3), test if any element in the tensor evaluates to True.
+    ///   // Given a 2D tensor with dimensions [2, 3], test if any element in the tensor evaluates to True.
     ///   let any_tensor_two = tensor_two.any();
     ///   println!("{}", any_tensor_two);
     ///   // Tensor { data: [false], ... }
@@ -1416,7 +1453,7 @@ where
     ///
     /// # Returns
     ///
-    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// A boolean tensor `Tensor<B, D, Bool>` with the same shape as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the input
     /// evaluates to True, False otherwise.
     ///
@@ -1480,7 +1517,7 @@ where
     ///
     /// # Returns
     ///
-    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// A boolean tensor `Tensor<B, D, Bool>` with the same shape as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
     ///
@@ -1508,8 +1545,8 @@ where
     ///
     /// # Panics
     ///
-    /// If the tensor doesn't have one element.
-    /// If the backend fails to read the tensor data synchronously.
+    /// - If the tensor doesn't have one element.
+    /// - If the backend fails to read the tensor data synchronously.
     ///
     /// # Returns
     ///
@@ -1549,12 +1586,15 @@ where
 
     /// Broadcast the tensor to the given shape.
     ///
+    /// Only singleton dimensions can be expanded to a larger size. Other dimensions must have the same size
+    /// (which can be inferred with `-1`).
+    ///
     /// # Arguments
     ///
     /// * `shape` - The shape to broadcast the tensor to.
-    ///             Can contain -1 for dimensions that should be inferred.
-    ///             The number of elements in the shape must be greater or equal as
-    ///             the number of dimensions of the tensor.
+    ///   Can contain -1 for dimensions that should be inferred.
+    ///   The number of elements in the shape must be greater or equal as
+    ///   the number of dimensions of the tensor.
     ///
     /// # Panics
     ///
@@ -1694,6 +1734,7 @@ where
                 let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
                 match (precision, K::name()) {
                     (Some(p), "Float") => acc.push_str(&format!("{:.1$}", elem, p)),
+                    (_, "Bool") => acc.push_str(&format!("{}", elem.to_bool())),
                     _ => acc.push_str(&format!("{:?}", elem)),
                 }
             } else {
@@ -1895,15 +1936,10 @@ where
 
         writeln!(f, "  shape:  {:?},", self.dims())?;
         writeln!(f, "  device:  {:?},", self.device())?;
-        writeln!(f, "  backend:  {:?},", B::name())?;
+        writeln!(f, "  backend:  {:?},", B::name(&self.device()))?;
         writeln!(f, "  kind:  {:?},", K::name())?;
 
-        // Bool tensors might be encoded in a different type, which we abstract for the display
-        let dtype = if TypeId::of::<K::Elem>() == TypeId::of::<bool>() {
-            DType::Bool
-        } else {
-            self.primitive.dtype()
-        };
+        let dtype = self.primitive.dtype();
 
         writeln!(f, "  dtype:  {:?},", dtype.name())?;
         write!(f, "}}")
@@ -2534,7 +2570,10 @@ impl<B: Backend> BasicOps<B> for Float {
             DType::QFloat(_strategy) => {
                 TensorPrimitive::QFloat(B::q_from_data(data.convert_dtype(dtype), device))
             }
-            _ => TensorPrimitive::Float(B::float_from_data(data.convert_dtype(dtype), device)),
+            _ if dtype.is_float() => {
+                TensorPrimitive::Float(B::float_from_data(data.convert_dtype(dtype), device))
+            }
+            _ => panic!("Expected float dtype, got {dtype:?}"),
         }
     }
 
@@ -2711,6 +2750,10 @@ impl<B: Backend> BasicOps<B> for Int {
     }
 
     fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
+        if !dtype.is_int() {
+            panic!("Expected int dtype, got {dtype:?}")
+        }
+
         B::int_from_data(data.convert_dtype(dtype), device)
     }
 
@@ -2776,7 +2819,7 @@ impl<B: Backend> BasicOps<B> for Int {
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
-    type Elem = bool;
+    type Elem = B::BoolElem;
 
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::bool_empty(shape, device)
@@ -2823,10 +2866,14 @@ impl<B: Backend> BasicOps<B> for Bool {
     }
 
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
-        B::bool_from_data(data.convert::<bool>(), device)
+        B::bool_from_data(data.convert::<B::BoolElem>(), device)
     }
 
     fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
+        // Backends only use one bool representation dtype
+        if dtype != B::BoolElem::dtype() {
+            panic!("Expected bool dtype, got {dtype:?}")
+        }
         B::bool_from_data(data.convert_dtype(dtype), device)
     }
 

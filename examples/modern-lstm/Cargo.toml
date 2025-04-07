@@ -1,7 +1,7 @@
 [package]
 name = "modern-lstm"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 
 [features]
 ndarray = ["burn/ndarray"]
@@ -17,7 +17,7 @@ cuda = ["burn/cuda"]
 burn = { path = "../../crates/burn", features=["train"] }
 
 # Random number generator
-rand = { workspace = true }
+rand = { workspace = true, features = ["thread_rng"] }
 rand_distr = { workspace = true }
 
 # Serialization

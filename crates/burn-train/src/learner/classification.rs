@@ -1,5 +1,6 @@
+use crate::metric::TopKAccuracyInput;
 use crate::metric::{
-    processor::ItemLazy, AccuracyInput, Adaptor, ConfusionStatsInput, HammingScoreInput, LossInput,
+    AccuracyInput, Adaptor, ConfusionStatsInput, HammingScoreInput, LossInput, processor::ItemLazy,
 };
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor, Transaction};
@@ -49,6 +50,12 @@ impl<B: Backend> Adaptor<AccuracyInput<B>> for ClassificationOutput<B> {
 impl<B: Backend> Adaptor<LossInput<B>> for ClassificationOutput<B> {
     fn adapt(&self) -> LossInput<B> {
         LossInput::new(self.loss.clone())
+    }
+}
+
+impl<B: Backend> Adaptor<TopKAccuracyInput<B>> for ClassificationOutput<B> {
+    fn adapt(&self) -> TopKAccuracyInput<B> {
+        TopKAccuracyInput::new(self.output.clone(), self.targets.clone())
     }
 }
 

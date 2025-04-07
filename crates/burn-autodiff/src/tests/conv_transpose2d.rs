@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_conv_transpose2d)]
 mod tests {
     use super::*;
-    use burn_tensor::{module::conv_transpose2d, ops::ConvTransposeOptions, Shape};
+    use burn_tensor::{Shape, module::conv_transpose2d, ops::ConvTransposeOptions};
 
     #[test]
     fn test_conv_transpose2d_basic() {

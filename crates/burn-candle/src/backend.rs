@@ -1,15 +1,15 @@
 use std::marker::PhantomData;
 
 use burn_tensor::{
-    backend::{Backend, DeviceId, DeviceOps},
-    quantization::{QTensorPrimitive, QuantizationStrategy},
     Device,
+    backend::{Backend, DeviceId, DeviceOps},
+    quantization::QTensorPrimitive,
 };
-use candle_core::{backend::BackendDevice, DeviceLocation};
+use candle_core::{DeviceLocation, backend::BackendDevice};
 
 use crate::{
-    element::{CandleElement, FloatCandleElement, IntCandleElement},
     CandleQTensor, CandleTensor,
+    element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
 /// Tensor backend that uses the [candle](candle_core) crate for executing tensor operations.
@@ -168,7 +168,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type IntElem = I;
 
     type BoolTensorPrimitive = CandleTensor;
-    type BoolElem = u32;
+    type BoolElem = u8;
 
     type QuantizedTensorPrimitive = CandleQTensor;
     type QuantizedEncoding = u8;
@@ -177,8 +177,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
         false
     }
 
-    fn name() -> String {
-        "candle".to_string()
+    fn name(device: &Self::Device) -> String {
+        match device {
+            CandleDevice::Cpu => "candle<cpu>",
+            CandleDevice::Cuda(..) => "candle<cuda>",
+            CandleDevice::Metal(..) => "candle<metal>",
+        }
+        .to_string()
     }
 
     fn seed(seed: u64) {

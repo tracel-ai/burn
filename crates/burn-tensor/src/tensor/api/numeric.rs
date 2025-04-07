@@ -1,16 +1,22 @@
 use alloc::vec::Vec;
 
-use crate::alloc::borrow::ToOwned;
+use crate::{alloc::borrow::ToOwned, cast::ToElement};
 
 use crate::TensorPrimitive;
 use crate::{
+    BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
+    TensorKind,
     backend::Backend,
     check,
     check::TensorCheck,
     ops::{Device, IntTensor},
-    BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
-    TensorKind,
 };
+
+/// Default RTOL value for `is_close` and `all_close`.
+pub const DEFAULT_RTOL: f64 = 1e-5;
+
+/// Default ATOL value for `is_close` and `all_close`.
+pub const DEFAULT_ATOL: f64 = 1e-8;
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -195,7 +201,7 @@ where
 
     /// Applies element wise the remainder operation with a scalar.
     ///
-    /// `y = x2 % x1`
+    /// `y = x % s`
     ///
     /// # Arguments
     ///
@@ -533,8 +539,8 @@ where
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.clone().sum_dim(0);
     ///    println!("{tensor}");
-    ///    let tensor = tensor.clone().sum_dim(1);
     ///    // [[6.0, 7.0, 9.0]]
+    ///    let tensor = tensor.clone().sum_dim(1);
     ///    println!("{tensor}");
     ///    // [[2.0], [20.0]]
     /// }
@@ -544,8 +550,7 @@ where
         Self::new(K::sum_dim(self.primitive, dim))
     }
 
-    /// Aggregate all elements along the given *dimension* or *axis*
-    /// in the tensor with the product operation.
+    /// Aggregate all elements in the tensor with the product operation.
     ///
     /// # Example
     ///
@@ -657,7 +662,7 @@ where
     /// fn example<B: Backend>() {
     ///   let device = B::Device::default();
     ///   let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///   let tensor2 = Tensor::<B, 2>::from_data([[1.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///   let tensor = tensor1.greater(tensor2);
     ///   println!("{tensor}");
     ///   // [[false, false, false], [true, true, true]]
@@ -683,10 +688,10 @@ where
     /// fn example<B: Backend>() {
     ///    let device = B::Device::default();
     ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///    let tensor2 = Tensor::<B, 2>::from_data([[1.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.greater_equal(tensor2);
     ///    println!("{tensor}");
-    ///    // [[false, false, false], [true, true, true]]
+    ///    // [[true, false, false], [true, true, true]]
     /// }
     /// ```
     pub fn greater_equal(self, other: Self) -> Tensor<B, D, Bool> {
@@ -709,10 +714,10 @@ where
     /// fn example<B: Backend>() {
     ///    let device = B::Device::default();
     ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///    let tensor2 = Tensor::<B, 2>::from_data([[1.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.lower(tensor2);
     ///    println!("{tensor}");
-    ///    // [[true, true, true], [false, false, false]]
+    ///    // [[false, true, true], [false, false, false]]
     /// }
     /// ```
     pub fn lower(self, other: Self) -> Tensor<B, D, Bool> {
@@ -735,7 +740,7 @@ where
     /// fn example<B: Backend>() {
     ///    let device = B::Device::default();
     ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///    let tensor2 = Tensor::<B, 2>::from_data([[1.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.lower_equal(tensor2);
     ///    println!("{tensor}");
     ///    // [[true, true, true], [false, false, false]]
@@ -746,7 +751,7 @@ where
         Tensor::new(K::lower_equal(self.primitive, other.primitive))
     }
 
-    /// Applies element wise greater comparison and returns a boolean tensor.
+    /// Applies greater than `other` comparison and returns a boolean tensor.
     ///
     /// # Arguments
     ///
@@ -770,7 +775,7 @@ where
         Tensor::new(K::greater_elem(self.primitive, other.elem()))
     }
 
-    /// Applies element wise greater-equal comparison and returns a boolean tensor.
+    /// Applies greater-equal than `other` comparison and returns a boolean tensor.
     ///
     /// # Arguments
     ///
@@ -794,7 +799,7 @@ where
         Tensor::new(K::greater_equal_elem(self.primitive, other.elem()))
     }
 
-    /// Applies element wise lower comparison and returns a boolean tensor.
+    /// Applies lower than `other` comparison and returns a boolean tensor.
     ///
     /// # Arguments
     ///
@@ -818,7 +823,7 @@ where
         Tensor::new(K::lower_elem(self.primitive, other.elem()))
     }
 
-    /// Applies element wise lower-equal comparison and returns a boolean tensor.
+    /// Applies lower-equal than `other` comparison and returns a boolean tensor.
     ///
     /// # Arguments
     ///
@@ -1109,7 +1114,7 @@ where
         (tensor, index)
     }
 
-    /// Finds the maximum pair wise values with another Tensor
+    /// Finds the maximum pair wise values with another tensor.
     ///
     /// # Arguments
     ///
@@ -1216,7 +1221,7 @@ where
     ///    let tensor = Tensor::<B, 2>::from_data([[7.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let (tensor, index) = tensor.min_dim_with_indices(0);
     ///    println!("{tensor}");
-    ///    // [[1.0, -2.0, 3.0]]
+    ///    // [[5.0, -2.0, 3.0]]
     ///    println!("{}", index);
     ///    // [[1, 0, 0]]
     /// }
@@ -1232,7 +1237,7 @@ where
         (tensor, index)
     }
 
-    /// Finds the minimum pair wise values with another Tensor
+    /// Finds the minimum pair wise values with another tensor.
     ///
     /// # Arguments
     ///
@@ -1262,7 +1267,7 @@ where
         self.mask_where(mask, other)
     }
 
-    /// Clamp the tensor between the given min and max values.
+    /// Clamp element wise between the given min and max values.
     ///
     /// # Arguments
     ///
@@ -1297,7 +1302,7 @@ where
         Self::new(K::clamp(self.primitive, min.elem(), max.elem()))
     }
 
-    /// Clamps a tensor under a minimum value.
+    /// Clamp element wise under a minimum value.
     ///
     /// # Arguments
     ///
@@ -1328,7 +1333,7 @@ where
         Self::new(K::clamp_min(self.primitive, min.elem()))
     }
 
-    /// Clamps a tensor over a maximum value.
+    /// Clamp element wise over a maximum value.
     ///
     /// # Arguments
     ///
@@ -1359,7 +1364,7 @@ where
         Self::new(K::clamp_max(self.primitive, max.elem()))
     }
 
-    /// Apply element wise absolute value operation
+    /// Apply element wise absolute value operation.
     ///
     /// # Example
     ///
@@ -1381,6 +1386,13 @@ where
 
     /// Returns the upper triangular part of a matrix (2-D tensor) or batch of matrices input,
     /// the other elements of the result tensor out are set to 0.
+    ///
+    /// See also [`triu_mask`](Tensor::triu_mask).
+    ///
+    /// # Arguments
+    ///
+    /// * `diagonal` - The offset from the diagonal, where 0 means the diagonal, and positive values shift
+    ///   towards the upper triangle.
     ///
     /// # Example
     /// ```rust
@@ -1418,6 +1430,13 @@ where
 
     /// Returns the lower triangular part of a matrix (2-D tensor) or batch of matrices input,
     /// the other elements of the result tensor out are set to 0.
+    ///
+    /// See also [`tril_mask`](Tensor::tril_mask).
+    ///
+    /// # Arguments
+    ///
+    /// * `diagonal` - The offset from the diagonal, where 0 means the diagonal, and positive values shift
+    ///   towards the upper triangle.
     ///
     /// # Example
     /// ```rust
@@ -1545,7 +1564,12 @@ where
     ///    let tensor = Tensor::<B, 2, Int>::from_ints([[1, -2, 3], [5, 9, 6]], &device);
     ///    let tensor = tensor.powi_scalar(2);
     ///    println!("{tensor}");
+    ///
     ///    // [[1, 4, 9], [25, 81, 36]]
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.5, -2., 3.], [5., 9., 6.]], &device);
+    ///    let tensor = tensor.powi_scalar(2);
+    ///    println!("{tensor}");
+    ///    // [[2.25, 4., 9.], [25., 81., 36.]]
     /// }
     /// ```
     pub fn powi_scalar<E: ElementConversion>(self, other: E) -> Self {
@@ -1566,8 +1590,8 @@ where
     /// # Arguments
     ///
     /// * `other` - The tensor to compare with.
-    /// * `rtol` - Optional relative tolerance. Default is 1e-5.
-    /// * `atol` - Optional absolute tolerance. Default is 1e-8.
+    /// * `rtol` - Optional relative tolerance. Default is 1e-5; see `DEFAULT_RTOL`.
+    /// * `atol` - Optional absolute tolerance. Default is 1e-8; see `DEFAULT_ATOL`.
     ///
     /// # Returns
     ///
@@ -1589,8 +1613,8 @@ where
     /// }
     /// ```
     pub fn is_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> Tensor<B, D, Bool> {
-        let rtol = rtol.unwrap_or(1e-5);
-        let atol = atol.unwrap_or(1e-8);
+        let rtol = rtol.unwrap_or(DEFAULT_RTOL);
+        let atol = atol.unwrap_or(DEFAULT_ATOL);
 
         Tensor::new(K::lower_equal(
             K::abs(K::sub(self.primitive, other.primitive.clone())),
@@ -1614,8 +1638,8 @@ where
     /// # Arguments
     ///
     /// * `other` - The tensor to compare with.
-    /// * `rtol` - Optional relative tolerance. Default is 1e-5.
-    /// * `atol` - Optional absolute tolerance. Default is 1e-8.
+    /// * `rtol` - Optional relative tolerance. Default is 1e-5; see `DEFAULT_RTOL`.
+    /// * `atol` - Optional absolute tolerance. Default is 1e-8; see `DEFAULT_ATOL`.
     ///
     /// # Returns
     ///
@@ -1639,7 +1663,10 @@ where
     /// }
     /// ```
     pub fn all_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> bool {
-        self.is_close(other, rtol, atol).all().into_scalar()
+        self.is_close(other, rtol, atol)
+            .all()
+            .into_scalar()
+            .to_bool()
     }
 
     /// Converts the tensor to a boolean tensor by checking if the elements are non-zero.
@@ -1670,6 +1697,8 @@ where
 
     /// Create a random tensor of the given shape on the given device where each element is
     /// sampled from the given distribution.
+    ///
+    /// See also [`random_like`](Tensor::random_like).
     ///
     /// # Arguments
     ///
@@ -2118,7 +2147,7 @@ where
             .clone()
             .mask_fill(self.clone().lower_elem(0), num_classes as i64) // Handle negative indices
             .add(indices.clone().mask_fill(self.clone().greater_elem(0), 0)); // Handle positive indices
-                                                                              // Unsqueeze the indices tensor along the specified axis
+        // Unsqueeze the indices tensor along the specified axis
         let indices_unsqueezed: Tensor<B, D2, Int> = adjusted_indices.unsqueeze_dim(axis as usize);
 
         // Initialize the output tensor with the off_value
@@ -2930,7 +2959,7 @@ where
     /// # Arguments
     ///
     /// * `tensor` - The tensor where will be overwritten with the value
-    ///              when the corresponding element of the mask is true.
+    ///   when the corresponding element of the mask is true.
     /// * `mask` - The boolean mask to use for filling elements.
     /// * `value` - The value to fill elements with when the corresponding element of the mask is true.
     ///

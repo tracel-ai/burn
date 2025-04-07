@@ -18,9 +18,7 @@ macro_rules! run_par {
 macro_rules! run_par {
     (
         $func:expr
-    ) => {{
-        $func()
-    }};
+    ) => {{ $func() }};
 }
 
 /// Macro for iterating in parallel.
@@ -29,9 +27,7 @@ macro_rules! run_par {
 macro_rules! iter_par {
     (
         $iter:expr
-    ) => {{
-        $iter
-    }};
+    ) => {{ $iter }};
 }
 
 /// Macro for iterating in parallel.
@@ -40,9 +36,7 @@ macro_rules! iter_par {
 macro_rules! iter_par {
     (
         $iter:expr
-    ) => {{
-        $iter.into_par_iter()
-    }};
+    ) => {{ $iter.into_par_iter() }};
 }
 
 /// Macro for iterating in parallel.
@@ -51,9 +45,7 @@ macro_rules! iter_par {
 macro_rules! iter_slice_par {
     (
         $slice:expr
-    ) => {{
-        $slice.into_par_iter()
-    }};
+    ) => {{ $slice.into_par_iter() }};
 }
 
 /// Macro for iterating in parallel.
@@ -62,9 +54,7 @@ macro_rules! iter_slice_par {
 macro_rules! iter_slice_par {
     (
         $slice:expr
-    ) => {{
-        $slice.iter()
-    }};
+    ) => {{ $slice.iter() }};
 }
 
 /// Macro for iterating over a range in parallel.
@@ -73,9 +63,7 @@ macro_rules! iter_slice_par {
 macro_rules! iter_range_par {
     (
         $start:expr, $end:expr
-    ) => {{
-        ($start..$end).into_par_iter()
-    }};
+    ) => {{ ($start..$end).into_par_iter() }};
 }
 
 /// Macro for iterating over a range in parallel.
@@ -84,7 +72,5 @@ macro_rules! iter_range_par {
 macro_rules! iter_range_par {
     (
         $start:expr, $end:expr
-    ) => {{
-        ($start..$end)
-    }};
+    ) => {{ ($start..$end) }};
 }

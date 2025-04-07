@@ -1,17 +1,17 @@
 use burn_common::{iter_par, iter_range_par, run_par};
 use burn_tensor::{
-    ops::{
-        conv::{calculate_conv_output_size, calculate_conv_transpose_output_size},
-        ConvOptions, ConvTransposeOptions,
-    },
     ElementConversion, TensorMetadata,
+    ops::{
+        ConvOptions, ConvTransposeOptions,
+        conv::{calculate_conv_output_size, calculate_conv_transpose_output_size},
+    },
 };
 use ndarray::{
-    s, Array3, Array4, Array5, ArrayView2, ArrayView3, ArrayViewMut2, ArrayViewMut3, Axis, Dim,
+    Array3, Array4, Array5, ArrayView2, ArrayView3, ArrayViewMut2, ArrayViewMut3, Axis, Dim, s,
 };
 
 use crate::{
-    element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
+    element::FloatNdArrayElement,
     ops::padding::{apply_padding_4d, apply_padding_5d},
     sharing::UnsafeSharedRef,
     tensor::NdArrayTensor,
@@ -98,7 +98,7 @@ fn conv3d_mad_inner<E: FloatNdArrayElement>(
     }
 }
 
-pub(crate) fn conv2d<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>(
+pub(crate) fn conv2d<E: FloatNdArrayElement>(
     x: NdArrayTensor<E>,
     weight: NdArrayTensor<E>,
     bias: Option<NdArrayTensor<E>>,
@@ -126,7 +126,7 @@ pub(crate) fn conv2d<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantEleme
         in_width,
     );
 
-    let x = apply_padding_4d::<E, I, Q>(x, options.padding, 0i32.elem()).array;
+    let x = apply_padding_4d::<E>(x, options.padding, 0i32.elem()).array;
 
     // Convert inputs from dynamic indexes to static to improve perf.
     let x = x.into_dimensionality::<ndarray::Ix4>().unwrap();
@@ -310,7 +310,7 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
     NdArrayTensor::new(output.into_dyn().into_shared())
 }
 
-pub(crate) fn conv3d<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>(
+pub(crate) fn conv3d<E: FloatNdArrayElement>(
     x: NdArrayTensor<E>,
     weight: NdArrayTensor<E>,
     bias: Option<NdArrayTensor<E>>,
@@ -320,8 +320,13 @@ pub(crate) fn conv3d<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantEleme
     let [padding_depth, padding_height, padding_width] = options.padding;
     let [stride_depth, stride_height, stride_width] = options.stride;
     let [batch_size, _in_channels, in_depth, in_height, in_width] = x.shape().dims();
-    let [out_channels, in_channels, kernel_depth, kernel_height, kernel_width] =
-        weight.shape().dims();
+    let [
+        out_channels,
+        in_channels,
+        kernel_depth,
+        kernel_height,
+        kernel_width,
+    ] = weight.shape().dims();
 
     let out_depth = calculate_conv_output_size(
         kernel_depth,
@@ -345,7 +350,7 @@ pub(crate) fn conv3d<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantEleme
         in_width,
     );
 
-    let x = apply_padding_5d::<E, I, Q>(x, options.padding, 0i32.elem()).array;
+    let x = apply_padding_5d::<E>(x, options.padding, 0i32.elem()).array;
 
     // Convert inputs from dynamic indexes to static to improve perf.
     let x = x.into_dimensionality::<ndarray::Ix5>().unwrap();
@@ -457,8 +462,13 @@ pub(crate) fn conv_transpose3d<E: FloatNdArrayElement>(
     let [stride_depth, stride_height, stride_width] = options.stride;
     let [out_padding_depth, out_padding_height, out_padding_width] = options.padding_out;
     let [batch_size, _in_channels, in_depth, in_height, in_width] = x.shape().dims();
-    let [in_channels, out_channels, kernel_depth, kernel_height, kernel_width] =
-        weight.shape().dims();
+    let [
+        in_channels,
+        out_channels,
+        kernel_depth,
+        kernel_height,
+        kernel_width,
+    ] = weight.shape().dims();
 
     let out_depth = calculate_conv_transpose_output_size(
         kernel_depth,

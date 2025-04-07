@@ -1,9 +1,11 @@
 use core::f32::consts::PI;
 
+use burn_tensor::cast::ToElement;
+
 use crate as burn;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
-use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 use crate::{config::Config, module::Module};
 
 use super::Reduction;
@@ -197,12 +199,22 @@ impl PoissonNllLoss {
             predictions_dims
         );
         assert!(
-            targets.clone().greater_equal_elem(0.).all().into_scalar(),
+            targets
+                .clone()
+                .greater_equal_elem(0.)
+                .all()
+                .into_scalar()
+                .to_bool(),
             "All the values of `targets` must be non-negative."
         );
         if !self.log_input {
             assert!(
-                predictions.clone().greater_equal_elem(0.).all().into_scalar(),
+                predictions
+                    .clone()
+                    .greater_equal_elem(0.)
+                    .all()
+                    .into_scalar()
+                    .to_bool(),
                 "When `log_input` is `false`, all the values of `predictions` must be non-negative."
             );
         }
@@ -211,9 +223,11 @@ impl PoissonNllLoss {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::approx_constant)]
+
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
     type TestTensor<const D: usize> = Tensor<TestBackend, D>;
 
     #[test]

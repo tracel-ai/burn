@@ -164,8 +164,8 @@ mod tests {
     use rstest::rstest;
 
     use crate::{
-        transform::{Windows, WindowsDataset},
         Dataset, InMemDataset,
+        transform::{Windows, WindowsDataset},
     };
 
     #[rstest]

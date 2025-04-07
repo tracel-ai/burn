@@ -1,15 +1,16 @@
-use std::str::{from_utf8, FromStr};
+use std::str::{FromStr, from_utf8};
 
 use crate::ir::TensorType;
 
 use super::from_onnx::GraphData;
-use super::ir::Dim;
+use super::ir::Rank;
 use super::ir::{
     ArgType, Argument, AttributeValue, Attributes, Data, ElementType, Node, NodeType, Tensor,
 };
 use super::protos::{
+    AttributeProto, NodeProto, TensorProto, TensorShapeProto, ValueInfoProto,
     attribute_proto::AttributeType, tensor_proto::DataType, tensor_shape_proto::dimension::Value,
-    type_proto, AttributeProto, NodeProto, TensorProto, TensorShapeProto, ValueInfoProto,
+    type_proto,
 };
 
 use bytemuck::cast_slice;
@@ -79,7 +80,7 @@ impl TryFrom<TensorProto> for Tensor {
 
         Ok(Tensor {
             elem_type,
-            dim: shape.len(),
+            rank: shape.len(),
             shape: Some(shape),
             data: Some(data),
         })
@@ -123,7 +124,7 @@ impl TryFrom<&type_proto::Tensor> for Tensor {
 
         Ok(Tensor {
             elem_type,
-            dim: shape.len(),
+            rank: shape.len(),
             shape: Some(shape),
             data: None,
         })
@@ -248,14 +249,14 @@ impl TryFrom<ValueInfoProto> for Argument {
         } else {
             // tensor_proto describes a tensor
             let tensor_type = TensorType {
-                dim: tensor_proto.shape.dim.len(),
+                rank: tensor_proto.shape.dim.len(),
                 elem_type,
                 shape: Some(
                     tensor_proto
                         .shape
                         .dim
                         .iter()
-                        .map(|x| x.dim_value() as Dim)
+                        .map(|x| x.dim_value() as Rank)
                         .collect(),
                 ),
             };

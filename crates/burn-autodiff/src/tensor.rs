@@ -1,12 +1,11 @@
-use std::sync::Arc;
-
 use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::Gradients,
     graph::{ComputingProperty, Node, NodeID, NodeRef, Requirement, Step},
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
-use burn_tensor::{backend::Backend, TensorMetadata};
+use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
+use burn_tensor::{TensorMetadata, backend::Backend};
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend> {

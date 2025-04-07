@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(repeat)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Bool, Int, Tensor, TensorData};
+    use burn_tensor::{Bool, Int, Tensor, TensorData, backend::Backend};
 
     #[test]
     fn should_support_repeat_ops_one_dimension() {
@@ -31,7 +31,7 @@ mod tests {
             [true, false, false],
             [true, false, false],
         ]);
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -257,6 +257,6 @@ mod tests {
             ],
         ]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 }

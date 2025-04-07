@@ -23,6 +23,28 @@ mod tests {
     }
 
     #[test]
+    fn should_support_transpose_maybe_fused_with_one() {
+        let tensor = TestTensor::<3>::from_floats(
+            [
+                [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
+                [[6.0, 7.0, 8.0], [9.0, 10.0, 11.0]],
+            ],
+            &Default::default(),
+        );
+        let ones = TestTensor::<3>::ones([1, 1, 1], &Default::default());
+
+        let output = tensor.transpose();
+        let expected = TensorData::from([
+            [[0.0, 3.0], [1.0, 4.0], [2.0, 5.0]],
+            [[6.0, 9.0], [7.0, 10.0], [8.0, 11.0]],
+        ]);
+        let expected_ones = TensorData::from([[[1.0]]]);
+
+        output.into_data().assert_approx_eq(&expected, 3);
+        ones.into_data().assert_approx_eq(&expected_ones, 3);
+    }
+
+    #[test]
     fn should_support_swap_dims() {
         let tensor = TestTensor::<3>::from_floats(
             [
@@ -84,7 +106,7 @@ mod tests {
             [[false, false], [false, false], [true, true]],
         ]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -104,6 +126,6 @@ mod tests {
             [[false, true], [false, true]],
         ]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 }

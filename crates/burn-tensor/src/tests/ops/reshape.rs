@@ -110,6 +110,53 @@ mod tests {
     }
 
     #[test]
+    fn should_support_reshape_maybe_fused_5() {
+        let tensor = TestTensorInt::<3>::from_data([[[0], [1], [2], [3]]], &Default::default());
+        let tensor1 = tensor.clone().reshape([2, 1, 2]);
+        let tensor2 = TestTensorInt::<3>::full([2, 4, 2], 0, &Default::default());
+        let output = tensor2.clone() + tensor1 + tensor.clone();
+
+        let expected_tensor1 = TensorData::from([
+            [[0, 1], [1, 2], [2, 3], [3, 4]],
+            [[2, 3], [3, 4], [4, 5], [5, 6]],
+        ]);
+        output.into_data().assert_eq(&expected_tensor1, false);
+    }
+
+    #[test]
+    fn should_support_reshape_maybe_fused_6() {
+        let device = Default::default();
+
+        let tensor1 = TestTensorInt::arange(0..32, &device);
+        let tensor1 = tensor1.reshape([2, 4, 4]);
+
+        let tensor2 = TestTensorInt::arange(0..16, &device);
+        let tensor2 = tensor2.reshape([1, 4, 4]);
+
+        let tensor3 = TestTensorInt::arange(0..8, &device);
+        let tensor3 = tensor3.reshape([4, 1, 2]);
+        let tensor3 = tensor3.swap_dims(0, 2);
+
+        let out = tensor1 + tensor2 + tensor3;
+
+        let expected = TensorData::from([
+            [
+                [0, 4, 8, 12],
+                [8, 12, 16, 20],
+                [16, 20, 24, 28],
+                [24, 28, 32, 36],
+            ],
+            [
+                [17, 21, 25, 29],
+                [25, 29, 33, 37],
+                [33, 37, 41, 45],
+                [41, 45, 49, 53],
+            ],
+        ]);
+        out.to_data().assert_eq(&expected, false);
+    }
+
+    #[test]
     fn should_support_reshape_int() {
         let data = TensorData::from([0, 1, 2]);
         let tensor = TestTensorInt::<1>::from_data(data, &Default::default());
@@ -128,7 +175,7 @@ mod tests {
         let output = tensor.clone().reshape([1, 3]);
         let expected = TensorData::from([[false, true, false]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]

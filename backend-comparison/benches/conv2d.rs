@@ -2,9 +2,9 @@ use std::hint::black_box;
 
 use backend_comparison::persistence::save;
 use burn::tensor::{
-    backend::Backend, module::conv2d, ops::ConvOptions, Distribution, Shape, Tensor,
+    Distribution, Shape, Tensor, backend::Backend, module::conv2d, ops::ConvOptions,
 };
-use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_common::benchmark::{Benchmark, run_benchmark};
 
 pub struct Conv2dBenchmark<B: Backend> {
     suffix: &'static str,
@@ -220,6 +220,7 @@ fn bench<B: Backend>(
     let mut results = Vec::new();
 
     for bench in benches {
+        println!("Running {}", bench.name());
         let result = black_box(run_benchmark(bench));
         results.push(result);
     }

@@ -107,3 +107,9 @@ pub use burn_core::*;
 pub mod train {
     pub use burn_train::*;
 }
+
+/// Backend module.
+pub mod backend;
+
+#[cfg(feature = "server")]
+pub use burn_remote::server;

@@ -1,8 +1,8 @@
 use burn::{
     nn::{
+        Dropout, DropoutConfig, Linear, LinearConfig, PaddingConfig2d, Relu,
         conv::{Conv2d, Conv2dConfig},
         pool::{MaxPool2d, MaxPool2dConfig},
-        Dropout, DropoutConfig, Linear, LinearConfig, PaddingConfig2d, Relu,
     },
     prelude::*,
 };

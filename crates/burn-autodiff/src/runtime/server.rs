@@ -1,12 +1,13 @@
 use super::memory_management::GraphMemoryManagement;
 use crate::{
-    checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
-    grads::Gradients,
-    graph::{traversal::BreadthFirstSearch, StepBoxed},
-    tensor::NodeRefCount,
     NodeID,
+    checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
+    collections::HashMap,
+    grads::Gradients,
+    graph::{StepBoxed, traversal::BreadthFirstSearch},
+    tensor::NodeRefCount,
 };
-use std::collections::HashMap;
+use alloc::vec::Vec;
 
 #[derive(Default)]
 pub struct AutodiffServer {

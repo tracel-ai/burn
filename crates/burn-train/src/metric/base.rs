@@ -1,4 +1,4 @@
-use burn_core::{data::dataloader::Progress, LearningRate};
+use burn_core::{LearningRate, data::dataloader::Progress};
 
 /// Metric metadata that can be used when computing metrics.
 pub struct MetricMetadata {
@@ -43,13 +43,16 @@ impl MetricMetadata {
 /// This is important since some conflict may happen when the model output is adapted for each
 /// metric's input type.
 pub trait Metric: Send + Sync {
-    /// The name of the metric.
-    ///
-    /// This should be unique, so avoid using short generic names, prefer using the long name.
-    const NAME: &'static str;
-
     /// The input type of the metric.
     type Input;
+
+    /// The parameterized name of the metric.
+    ///
+    /// This should be unique, so avoid using short generic names, prefer using the long name.
+    ///
+    /// For a metric that can exist at different parameters (e.g., top-k accuracy for different
+    /// values of k), the name should be unique for each instance.
+    fn name(&self) -> String;
 
     /// Update the metric state and returns the current metric entry.
     fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry;
@@ -60,7 +63,7 @@ pub trait Metric: Send + Sync {
 /// Adaptor are used to transform types so that they can be used by metrics.
 ///
 /// This should be implemented by a model's output type for all [metric inputs](Metric::Input) that are
-/// registered with the [leaner buidler](crate::learner::LearnerBuilder) .
+/// registered with the [learner builder](crate::learner::LearnerBuilder) .
 pub trait Adaptor<T> {
     /// Adapt the type to be passed to a [metric](Metric).
     fn adapt(&self) -> T;

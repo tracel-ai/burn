@@ -1,6 +1,6 @@
-use super::{unary, Backward, Ops};
+use super::{Backward, Ops, unary};
 use crate::{checkpoint::base::Checkpointer, grads::Gradients};
-use burn_tensor::{backend::Backend, Shape};
+use burn_tensor::{Shape, backend::Backend};
 
 #[derive(Debug)]
 pub(crate) struct SortDim;

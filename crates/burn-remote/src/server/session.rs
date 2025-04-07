@@ -1,7 +1,8 @@
 use burn_common::id::StreamId;
 use burn_common::stub::Mutex;
+use burn_ir::BackendIr;
 use burn_router::Runner;
-use burn_tensor::{repr::ReprBackend, Device};
+use burn_tensor::Device;
 use std::{
     collections::HashMap,
     sync::mpsc::{Receiver, SyncSender},
@@ -15,19 +16,19 @@ use super::stream::Stream;
 ///
 /// Each session manages its own stream, spawning one thread per stream to mimic the same behavior
 /// a native backend would have.
-pub struct SessionManager<B: ReprBackend> {
+pub struct SessionManager<B: BackendIr> {
     runner: Runner<B>,
     sessions: Mutex<HashMap<SessionId, Session<B>>>,
 }
 
-struct Session<B: ReprBackend> {
+struct Session<B: BackendIr> {
     runner: Runner<B>,
     streams: HashMap<StreamId, Stream<B>>,
     sender: SyncSender<Receiver<TaskResponse>>,
     receiver: Option<Receiver<Receiver<TaskResponse>>>,
 }
 
-impl<B: ReprBackend> SessionManager<B> {
+impl<B: BackendIr> SessionManager<B> {
     pub fn new(device: Device<B>) -> Self {
         Self {
             runner: Runner::new(device),
@@ -99,7 +100,7 @@ impl<B: ReprBackend> SessionManager<B> {
     }
 }
 
-impl<B: ReprBackend> Session<B> {
+impl<B: BackendIr> Session<B> {
     fn new(runner: Runner<B>) -> Self {
         let (sender, receiver) = std::sync::mpsc::sync_channel(1);
         Self {

@@ -1,4 +1,4 @@
-use crate::{backend::Backend, BasicOps, Numeric, Shape, Tensor};
+use crate::{BasicOps, Numeric, Shape, Tensor, backend::Backend, cast::ToElement};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -359,6 +359,16 @@ impl TensorCheck {
             );
         }
 
+        if dim >= tensor_dims.len() {
+            check = check.register(
+                "Squeeze",
+                TensorError::new(format!(
+                    "Dimension index {} is out of bounds for tensor dimensions {:?}.",
+                    dim, tensor_dims
+                )),
+            );
+        }
+
         check
     }
 
@@ -457,6 +467,7 @@ impl TensorCheck {
             .greater_equal_elem(num_classes as i32)
             .any()
             .into_scalar()
+            .to_bool()
         {
             check = check.register(
                 "One Hot",
@@ -675,7 +686,7 @@ impl TensorCheck {
 
         let mut shape_reference = tensors.first().unwrap().shape();
         shape_reference.dims[dim] = 1; // We want to check every dims except the one where the
-                                       // concatenation happens.
+        // concatenation happens.
 
         for tensor in tensors {
             let mut shape = tensor.shape();
@@ -1181,6 +1192,45 @@ impl TensorCheck {
             }
         }
 
+        check
+    }
+
+    /// Checks if input is compatible with convolution weights.
+    pub fn conv<const D1: usize, const D2: usize>(
+        ops: &str,
+        x: [usize; D1],
+        weight: [usize; D2],
+        groups: usize,
+    ) -> Self {
+        let mut check = TensorCheck::Ok;
+        let channels = x[1];
+        let expected = weight[1] * groups;
+        if channels != expected {
+            check = check.register(
+                ops,
+                TensorError::new("Number of channels in input tensor and input channels of convolution must be equal.")
+                .details(format!("got: {channels}, expected: {expected}")),
+            );
+        }
+        check
+    }
+
+    /// Checks if input is compatible with transposed convolution weights.
+    pub fn conv_transpose<const D1: usize, const D2: usize>(
+        ops: &str,
+        x: [usize; D1],
+        weight: [usize; D2],
+    ) -> Self {
+        let mut check = TensorCheck::Ok;
+        let channels = x[1];
+        let expected = weight[0];
+        if channels != expected {
+            check = check.register(
+                ops,
+                TensorError::new("Number of channels in input tensor and input channels of convolution must be equal.")
+                .details(format!("got: {channels}, expected: {expected}")),
+            );
+        }
         check
     }
 }

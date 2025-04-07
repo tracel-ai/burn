@@ -1,8 +1,8 @@
 use backend_comparison::persistence::save;
 use burn::tensor::{
-    backend::Backend, module::conv3d, ops::ConvOptions, Distribution, Shape, Tensor,
+    Distribution, Shape, Tensor, backend::Backend, module::conv3d, ops::ConvOptions,
 };
-use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_common::benchmark::{Benchmark, run_benchmark};
 
 pub struct Conv3dBenchmark<B: Backend> {
     input_shape: Shape,

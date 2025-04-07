@@ -1,15 +1,15 @@
+use crate::LearnerSummaryConfig;
 use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy};
 use crate::components::LearnerComponents;
 use crate::learner::EarlyStoppingStrategy;
 use crate::metric::store::EventStoreClient;
-use crate::LearnerSummaryConfig;
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
 use burn_core::optim::Optimizer;
-use burn_core::tensor::backend::Backend;
 use burn_core::tensor::Device;
-use std::sync::atomic::{AtomicBool, Ordering};
+use burn_core::tensor::backend::Backend;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 ///

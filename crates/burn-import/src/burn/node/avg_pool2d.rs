@@ -93,11 +93,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AvgPool2dNode {
 mod tests {
     use super::*;
     use crate::burn::{
+        TensorType,
         graph::BurnGraph,
         node::{avg_pool2d::AvgPool2dNode, test::assert_tokens},
-        TensorType,
     };
-    use burn::{nn::pool::AvgPool2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings};
+    use burn::{nn::PaddingConfig2d, nn::pool::AvgPool2dConfig, record::FullPrecisionSettings};
 
     #[test]
     fn test_codegen() {

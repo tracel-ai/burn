@@ -1,4 +1,4 @@
-use crate::{backend::Backend, Tensor};
+use crate::{Tensor, backend::Backend};
 
 pub fn var<B: Backend, const D: usize>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
     let mean = tensor.clone().mean_dim(dim);

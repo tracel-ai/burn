@@ -1,10 +1,10 @@
 use super::{
-    cat::cat_with_slice_assign, repeat_dim::repeat_with_slice_assign, BoolTensor, Device,
-    FloatTensor, IntTensor,
+    BoolTensor, Device, FloatTensor, IntTensor, cat::cat_with_slice_assign,
+    repeat_dim::repeat_with_slice_assign,
 };
 use crate::{
-    argwhere_data, backend::Backend, chunk, narrow, split, split_with_sizes, tensor::Shape, Bool,
-    ElementConversion, TensorData, TensorMetadata,
+    Bool, ElementConversion, TensorData, TensorMetadata, argwhere_data, backend::Backend, chunk,
+    narrow, split, split_with_sizes, tensor::Shape,
 };
 use alloc::{vec, vec::Vec};
 use core::{future::Future, ops::Range};
@@ -190,6 +190,30 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The tensor with the result of the negation.
     fn bool_not(tensor: BoolTensor<B>) -> BoolTensor<B>;
+
+    /// Executes the logical and (`&&`) operation on two boolean tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the result of the logical and.
+    fn bool_and(tensor: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B>;
+
+    /// Executes the logical or (`||`) operation on two boolean tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the result of the logical or.
+    fn bool_or(tensor: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B>;
 
     /// Transposes a bool tensor.
     ///

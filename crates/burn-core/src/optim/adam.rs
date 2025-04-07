@@ -1,16 +1,19 @@
 use crate::{
-    self as burn, grad_clipping::GradientClippingConfig, module::AutodiffModule, record::Record,
-    LearningRate,
+    self as burn, LearningRate, grad_clipping::GradientClippingConfig, module::AutodiffModule,
+    record::Record,
 };
 
 use super::{
-    decay::{WeightDecay, WeightDecayConfig},
     SimpleOptimizer,
+    decay::{WeightDecay, WeightDecayConfig},
 };
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
-use crate::tensor::{backend::AutodiffBackend, Tensor};
-use burn_tensor::{backend::Backend, ops::Device, ElementConversion};
+use crate::tensor::{Tensor, backend::AutodiffBackend};
+use burn_tensor::{ElementConversion, backend::Backend, ops::Device};
+
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
 /// Adam configuration.
 #[derive(Config)]
@@ -190,9 +193,8 @@ mod tests {
     use super::*;
     use crate::module::{Module, Param};
     use crate::optim::{GradientsParams, Optimizer};
-    use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
     use crate::tensor::{Distribution, Tensor, TensorData};
-    use crate::{nn, TestAutodiffBackend};
+    use crate::{TestAutodiffBackend, nn};
 
     const LEARNING_RATE: LearningRate = 0.01;
 
@@ -205,12 +207,27 @@ mod tests {
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
         let _linear = optimizer.step(LEARNING_RATE, linear, grads);
-        BinFileRecorder::<FullPrecisionSettings>::default()
-            .record(
-                optimizer.to_record(),
-                std::env::temp_dir().as_path().join("test_optim_adam"),
-            )
-            .unwrap();
+
+        #[cfg(feature = "std")]
+        {
+            use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
+
+            BinFileRecorder::<FullPrecisionSettings>::default()
+                .record(
+                    optimizer.to_record(),
+                    std::env::temp_dir().as_path().join("test_optim_adam"),
+                )
+                .unwrap();
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            use crate::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
+
+            let result = BinBytesRecorder::<FullPrecisionSettings>::default()
+                .record(optimizer.to_record(), ())
+                .unwrap();
+            assert!(!result.is_empty());
+        }
 
         let state_optim_before = optimizer.to_record();
         let state_optim_before_copy = optimizer.to_record();

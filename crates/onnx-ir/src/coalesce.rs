@@ -14,6 +14,7 @@ pub fn coalesce(
     nodes_iter: &mut Peekable<Iter<NodeProto>>,
     graph_data: &GraphData,
 ) {
+    #[allow(clippy::single_match)]
     match node.node_type {
         NodeType::Gemm => convert_gemm_to_linear(node),
         NodeType::MatMul => {
@@ -51,8 +52,6 @@ pub(crate) fn convert_gemm_to_linear(node: &mut Node) {
 
         // Transpose the weights
         transpose_linear_node_weights(node);
-    } else {
-        panic!("Full Gemm node not supported yet.");
     }
 }
 
@@ -70,7 +69,7 @@ fn transpose_linear_node_weights(node: &mut Node) {
         .into_tensor()
         .expect("Tensor input is expected");
 
-    assert_eq!(weight.dim, 2, "Weight must be a 2D tensor");
+    assert_eq!(weight.rank, 2, "Weight must be a 2D tensor");
 
     let shape = weight.shape.unwrap();
 
@@ -93,7 +92,7 @@ fn transpose_linear_node_weights(node: &mut Node) {
     node.inputs[1].ty = ArgType::Tensor(TensorType {
         shape,
         elem_type: weight.elem_type,
-        dim: 2,
+        rank: 2,
     });
 }
 
@@ -133,7 +132,7 @@ pub(crate) fn convert_matmul_to_linear(
 
     // Check if the second input is a 2D tensor
     if let ArgType::Tensor(ref tensor_type) = node.inputs[1].ty {
-        assert_eq!(tensor_type.dim, 2, "Weight must be a 2D tensor");
+        assert_eq!(tensor_type.rank, 2, "Weight must be a 2D tensor");
     } else {
         panic!("Tensor input is expected");
     }

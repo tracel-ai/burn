@@ -1,24 +1,28 @@
-use alloc::{vec, vec::Vec};
-use std::marker::PhantomData;
+use alloc::{boxed::Box, vec, vec::Vec};
+use core::marker::PhantomData;
+
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports, reason = "required on aarch64, unused on x86_64")]
+use num_traits::float::Float;
 
 use crate::{
+    Autodiff,
     checkpoint::{
         base::Checkpointer, builder::CheckpointerBuilder, retro_forward::RetroForward,
         state::BackwardStates, strategy::CheckpointStrategy,
     },
     grads::Gradients,
     graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
-    ops::{binary, broadcast_shape, unary, Backward, Ops, OpsKind},
+    ops::{Backward, Ops, OpsKind, binary, broadcast_shape, unary},
     retro_binary, retro_unary, retro_unary_scalar,
     tensor::AutodiffTensor,
     utils::duplicate,
-    Autodiff,
 };
 
 use burn_tensor::{
+    Device, ElementConversion, Shape, TensorData, TensorMetadata,
     backend::Backend,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
-    Device, ElementConversion, Shape, TensorData, TensorMetadata,
 };
 
 use super::maxmin::MaxMinDim;
@@ -1127,7 +1131,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
     fn float_slice(
         tensor: FloatTensor<Self>,
-        ranges: &[std::ops::Range<usize>],
+        ranges: &[core::ops::Range<usize>],
     ) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct Index;
@@ -1135,7 +1139,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         #[derive(new, Debug)]
         struct RetroSlice<B: Backend> {
             tensor_id: NodeID,
-            ranges: Vec<std::ops::Range<usize>>,
+            ranges: Vec<core::ops::Range<usize>>,
             _backend: PhantomData<B>,
         }
 
@@ -1148,7 +1152,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         impl<B: Backend> Backward<B, 1> for Index {
-            type State = (Vec<std::ops::Range<usize>>, Shape, B::Device);
+            type State = (Vec<core::ops::Range<usize>>, Shape, B::Device);
 
             fn backward(
                 self,
@@ -1186,7 +1190,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        ranges: &[std::ops::Range<usize>],
+        ranges: &[core::ops::Range<usize>],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         #[derive(Debug)]
@@ -1195,7 +1199,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         #[derive(new, Debug)]
         struct RetroSliceAssign<B: Backend> {
             tensor_id: NodeID,
-            ranges: Vec<std::ops::Range<usize>>,
+            ranges: Vec<core::ops::Range<usize>>,
             value_id: NodeID,
             _backend: PhantomData<B>,
         }
@@ -1210,7 +1214,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         impl<B: Backend> Backward<B, 2> for SliceAssign {
-            type State = (Vec<std::ops::Range<usize>>, Shape, B::Device);
+            type State = (Vec<core::ops::Range<usize>>, Shape, B::Device);
 
             fn backward(
                 self,
@@ -2066,7 +2070,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     let ops = checkpointer.retrieve_node_output(ops.state);
                     let exponent = B::float_neg(B::float_powf_scalar(ops, 2.0));
                     let numerator = B::float_mul_scalar(B::float_exp(exponent), 2.0.elem());
-                    let denominator = std::f64::consts::PI.sqrt().elem();
+                    let denominator = core::f64::consts::PI.sqrt().elem();
                     let value = B::float_div_scalar(numerator, denominator);
 
                     B::float_mul(grad, value)

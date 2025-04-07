@@ -1,4 +1,4 @@
-use crate::metric::{format_float, MetricEntry, Numeric, NumericEntry};
+use crate::metric::{MetricEntry, Numeric, NumericEntry, format_float};
 
 /// Useful utility to implement numeric metrics.
 ///
@@ -21,9 +21,9 @@ pub struct FormatOptions {
 
 impl FormatOptions {
     /// Create the [formatting options](FormatOptions) with a name.
-    pub fn new(name: &str) -> Self {
+    pub fn new<S: Into<String>>(name: S) -> Self {
         Self {
-            name: name.to_string(),
+            name: name.into(),
             unit: None,
             precision: None,
         }

@@ -25,14 +25,14 @@ pub struct SequenceDatasetItem {
 impl SequenceDatasetItem {
     pub fn new(seq_length: usize, noise_level: f32) -> Self {
         // Start with two random numbers between 0 and 1
-        let mut seq = vec![rand::thread_rng().gen(), rand::thread_rng().gen()];
+        let mut seq = vec![rand::rng().random(), rand::rng().random()];
 
         // Generate sequence
         for _i in 0..seq_length {
             // Next number is sum of previous two plus noise
             let normal = Normal::new(0.0, noise_level).unwrap();
             let next_val =
-                seq[seq.len() - 2] + seq[seq.len() - 1] + normal.sample(&mut rand::thread_rng());
+                seq[seq.len() - 2] + seq[seq.len() - 1] + normal.sample(&mut rand::rng());
             seq.push(next_val);
         }
 
@@ -71,10 +71,8 @@ impl Dataset<SequenceDatasetItem> for SequenceDataset {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct SequenceBatcher<B: Backend> {
-    device: B::Device,
-}
+#[derive(Clone, Debug, Default)]
+pub struct SequenceBatcher {}
 
 #[derive(Clone, Debug)]
 pub struct SequenceBatch<B: Backend> {
@@ -82,18 +80,12 @@ pub struct SequenceBatch<B: Backend> {
     pub targets: Tensor<B, 2>,   // [batch_size, 1]
 }
 
-impl<B: Backend> SequenceBatcher<B> {
-    pub fn new(device: B::Device) -> Self {
-        Self { device }
-    }
-}
-
-impl<B: Backend> Batcher<SequenceDatasetItem, SequenceBatch<B>> for SequenceBatcher<B> {
-    fn batch(&self, items: Vec<SequenceDatasetItem>) -> SequenceBatch<B> {
+impl<B: Backend> Batcher<B, SequenceDatasetItem, SequenceBatch<B>> for SequenceBatcher {
+    fn batch(&self, items: Vec<SequenceDatasetItem>, device: &B::Device) -> SequenceBatch<B> {
         let mut sequences: Vec<Tensor<B, 2>> = Vec::new();
 
         for item in items.iter() {
-            let seq_tensor = Tensor::<B, 1>::from_floats(item.sequence.as_slice(), &self.device);
+            let seq_tensor = Tensor::<B, 1>::from_floats(item.sequence.as_slice(), device);
             // Add feature dimension, the input_size is 1 implicitly. We can change the input_size here with some operations
             sequences.push(seq_tensor.unsqueeze_dims(&[-1]));
         }
@@ -101,7 +93,7 @@ impl<B: Backend> Batcher<SequenceDatasetItem, SequenceBatch<B>> for SequenceBatc
 
         let targets = items
             .iter()
-            .map(|item| Tensor::<B, 1>::from_floats([item.target], &self.device))
+            .map(|item| Tensor::<B, 1>::from_floats([item.target], device))
             .collect();
         let targets = Tensor::stack(targets, 0);
 

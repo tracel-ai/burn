@@ -1,9 +1,9 @@
-use burn_tensor::{backend::Backend, container::TensorContainer, ops::FloatTensor, TensorMetadata};
+use burn_tensor::{TensorMetadata, backend::Backend, container::TensorContainer, ops::FloatTensor};
 
 use crate::{
+    NodeID,
     graph::{NodeRef, Requirement},
     tensor::AutodiffTensor,
-    NodeID,
 };
 
 /// Gradient identifier.
