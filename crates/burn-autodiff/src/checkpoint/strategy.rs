@@ -4,6 +4,7 @@ use burn_tensor::backend::Backend;
 
 use crate::{graph::ComputingProperty, tensor::AutodiffTensor};
 use alloc::sync::Arc;
+use alloc::vec::Vec;
 
 use super::{
     builder::{ActionType, CheckpointerBuilder},
@@ -83,18 +84,22 @@ impl CheckpointStrategy for BalancedCheckpointing {
         A: IntoIterator<Item = &'a AutodiffTensor<B2>>,
     {
         let mut can_checkpoint = true;
+        let mut actions = Vec::new();
 
         for tensor in parents.into_iter() {
             if let crate::graph::Requirement::None = tensor.node.requirement {
                 can_checkpoint = false;
             } else {
-                builder.checkpoint(tensor, ActionType::Backup);
+                actions.push((tensor, ActionType::Backup));
             }
         }
 
         if !can_checkpoint {
-            *builder = Default::default();
             return Err(CheckpointingError::UntrackedParent);
+        }
+
+        for (tensor, action) in actions.into_iter() {
+            builder.checkpoint(tensor, action);
         }
 
         Ok(())
