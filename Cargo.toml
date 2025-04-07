@@ -89,7 +89,7 @@ tokio = { version = "1.44.2", features = ["rt", "macros"] }
 tracing-appender = "0.2.3"
 tracing-core = "0.1.33"
 tracing-subscriber = "0.3.19"
-zip = "2.5.0"
+zip = "2.6.1"
 
 # Async handling
 async-channel = "2.3"
