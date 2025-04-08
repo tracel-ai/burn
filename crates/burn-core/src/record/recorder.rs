@@ -28,7 +28,7 @@ pub trait Recorder<B: Backend>:
     type RecordOutput;
 
     /// Arguments used to load recorded objects.
-    type LoadArgs: Clone;
+    type LoadArgs;
 
     /// Records an item.
     ///
@@ -55,13 +55,13 @@ pub trait Recorder<B: Backend>:
     }
 
     /// Load an item from the given arguments.
-    fn load<R>(&self, args: Self::LoadArgs, device: &B::Device) -> Result<R, RecorderError>
+    fn load<R>(&self, mut args: Self::LoadArgs, device: &B::Device) -> Result<R, RecorderError>
     where
         R: Record<B>,
     {
         let item: BurnRecord<R::Item<Self::Settings>, B> =
-            self.load_item(args.clone()).map_err(|err| {
-                if let Ok(record) = self.load_item::<BurnRecordNoItem>(args.clone()) {
+            self.load_item(&mut args).map_err(|err| {
+                if let Ok(record) = self.load_item::<BurnRecordNoItem>(&mut args) {
                     let mut message = "Unable to load record.".to_string();
                     let metadata = recorder_metadata::<Self, B>();
                     if metadata.float != record.metadata.float {
@@ -133,7 +133,7 @@ pub trait Recorder<B: Backend>:
     /// # Returns
     ///
     /// The loaded item.
-    fn load_item<I>(&self, args: Self::LoadArgs) -> Result<I, RecorderError>
+    fn load_item<I>(&self, args: &mut Self::LoadArgs) -> Result<I, RecorderError>
     where
         I: DeserializeOwned;
 }
@@ -264,7 +264,7 @@ pub type SensitiveCompactRecorder = BinGzFileRecorder<HalfPrecisionSettings>;
 pub type NoStdTrainingRecorder = BinFileRecorder<FullPrecisionSettings>;
 
 /// Inference recorder compatible with no-std.
-pub type NoStdInferenceRecorder = BinBytesRecorder<FullPrecisionSettings>;
+pub type NoStdInferenceRecorder = BinBytesRecorder<FullPrecisionSettings, &'static [u8]>;
 
 /// Debug recorder.
 ///
