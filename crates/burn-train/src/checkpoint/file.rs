@@ -7,13 +7,13 @@ use burn_core::{
 };
 
 /// The file checkpointer.
-pub struct FileCheckpointer<FR: Clone> {
+pub struct FileCheckpointer<FR> {
     directory: PathBuf,
     name: String,
     recorder: FR,
 }
 
-impl<FR: Clone> FileCheckpointer<FR> {
+impl<FR> FileCheckpointer<FR> {
     /// Creates a new file checkpointer.
     ///
     /// # Arguments
@@ -37,7 +37,7 @@ impl<FR: Clone> FileCheckpointer<FR> {
     }
 }
 
-impl<FR: Clone, R, B> Checkpointer<R, B> for FileCheckpointer<FR>
+impl<FR, R, B> Checkpointer<R, B> for FileCheckpointer<FR>
 where
     R: Record<B>,
     FR: FileRecorder<B>,

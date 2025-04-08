@@ -254,8 +254,8 @@ where
     /// [model](AutodiffModule) and the [scheduler](LrScheduler) to different files.
     pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
     where
-        FR: FileRecorder<B> + 'static + Clone,
-        FR: FileRecorder<B::InnerBackend> + 'static + Clone,
+        FR: FileRecorder<B> + 'static,
+        FR: FileRecorder<B::InnerBackend> + 'static,
         O::Record: 'static,
         M::Record: 'static,
         S::Record<B>: 'static,

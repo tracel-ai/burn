@@ -222,8 +222,6 @@ mod tests {
         #[cfg(not(feature = "std"))]
         {
             use crate::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
-            extern crate alloc;
-            use alloc::vec::Vec;
 
             let result = BinBytesRecorder::<FullPrecisionSettings>::default()
                 .record(optimizer.to_record(), ())
