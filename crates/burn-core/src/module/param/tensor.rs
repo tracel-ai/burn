@@ -330,7 +330,7 @@ mod tests {
         let device = Default::default();
         let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3], &device).require_grad();
 
-        let byte_recorder = BinBytesRecorder::<FullPrecisionSettings, Vec<u8>>::default();
+        let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let bytes = byte_recorder
             .record(
                 Param::initialized(ParamId::new(), tensor.clone()).into_record(),

@@ -15,7 +15,9 @@ use super::{
 };
 
 /// Record any item implementing [Serialize](Serialize) and [DeserializeOwned](DeserializeOwned).
-pub trait Recorder<B: Backend>: Send + Sync + core::default::Default + core::fmt::Debug {
+pub trait Recorder<B: Backend>:
+    Send + Sync + core::default::Default + core::fmt::Debug + Clone
+{
     /// Type of the settings used by the recorder.
     type Settings: PrecisionSettings;
 

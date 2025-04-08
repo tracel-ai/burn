@@ -108,7 +108,7 @@ mod tests {
 
     #[test]
     fn test_can_save_and_load_bin_format() {
-        test_can_save_and_load(BinBytesRecorder::<FullPrecisionSettings, Vec<u8>>::default())
+        test_can_save_and_load(BinBytesRecorder::<FullPrecisionSettings>::default())
     }
 
     #[cfg(feature = "std")]

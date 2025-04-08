@@ -353,7 +353,7 @@ mod tests {
             extern crate alloc;
             use alloc::vec::Vec;
 
-            let result = BinBytesRecorder::<FullPrecisionSettings, Vec<u8>>::default()
+            let result = BinBytesRecorder::<FullPrecisionSettings>::default()
                 .record(optimizer.to_record(), ())
                 .unwrap();
             assert!(!result.is_empty());
