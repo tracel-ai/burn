@@ -153,6 +153,9 @@ impl<B: Backend> Conv1d<B> {
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::Tolerance;
+    use burn_tensor::ops::FloatElem;
+
     use super::*;
     use crate::TestBackend;
     use crate::tensor::TensorData;
@@ -179,7 +182,10 @@ mod tests {
         assert_eq!(config.initializer, Initializer::Zeros);
         conv.weight
             .to_data()
-            .assert_approx_eq(&TensorData::zeros::<f32, _>(conv.weight.shape()), 3);
+            .assert_approx_eq::<FloatElem<TestBackend>>(
+                &TensorData::zeros::<FloatElem<TestBackend>, _>(conv.weight.shape()),
+                Tolerance::none(),
+            );
     }
 
     #[test]

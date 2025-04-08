@@ -357,6 +357,8 @@ mod tests {
     use crate::tensor::{Distribution, Shape};
     use crate::{TestBackend, nn::attention::generate_autoregressive_mask};
     use alloc::vec::Vec;
+    use burn_tensor::Tolerance;
+    use burn_tensor::ops::FloatElem;
 
     #[test]
     fn test_self_attention_shapes() {
@@ -471,7 +473,7 @@ mod tests {
                     .context
                     .slice([0..batch_size, 0..seq_length - num_padded, 0..d_model])
                     .into_data(),
-                3,
+                Tolerance::<f32>::significant_digits(3),
             );
     }
 
@@ -509,7 +511,10 @@ mod tests {
         output_1
             .context
             .into_data()
-            .assert_approx_eq(&output_2.into_data(), 3);
+            .assert_approx_eq::<FloatElem<TestBackend>>(
+                &output_2.into_data(),
+                Tolerance::significant_digits(3),
+            );
     }
 
     #[test]

@@ -1,7 +1,8 @@
 #[burn_tensor_testgen::testgen(ad_conv3d)]
 mod tests {
     use super::*;
-    use burn_tensor::{Shape, module::conv3d, ops::ConvOptions};
+    use burn_tensor::{Shape, module::conv3d, ops::ConvOptions, Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_conv3d_basic() {
@@ -512,15 +513,15 @@ mod tests {
             expected_grads
                 .bias
                 .to_data()
-                .assert_approx_eq(&bias_grad_actual.to_data(), 5);
+                .assert_approx_eq::<FT>(&bias_grad_actual.to_data(), Tolerance::default());
             expected_grads
                 .x
                 .to_data()
-                .assert_approx_eq(&x_grad_actual.to_data(), 5);
+                .assert_approx_eq::<FT>(&x_grad_actual.to_data(), Tolerance::default());
             expected_grads
                 .weight
                 .to_data()
-                .assert_approx_eq(&weight_grad_actual.to_data(), 5);
+                .assert_approx_eq::<FT>(&weight_grad_actual.to_data(), Tolerance::default());
         }
     }
 }

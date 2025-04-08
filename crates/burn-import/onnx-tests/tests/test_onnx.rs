@@ -150,11 +150,14 @@ mod tests {
 
     use super::*;
 
-    use burn::tensor::{Bool, Int, Shape, Tensor, TensorData, cast::ToElement};
+    use burn::tensor::{
+        Bool, Int, Shape, Tensor, TensorData, Tolerance, cast::ToElement, ops::FloatElem,
+    };
 
     use float_cmp::ApproxEq;
 
     type Backend = burn_ndarray::NdArray<f32>;
+    type FT = FloatElem<Backend>;
 
     #[test]
     fn add_scalar_to_tensor_and_tensor_to_tensor() {
@@ -476,7 +479,9 @@ mod tests {
         let expected =
             Tensor::<Backend, 4>::from_data([[[[0.8427f32, 0.9953, 1.0000, 1.0000]]]], &device);
 
-        output.to_data().assert_approx_eq(&expected.to_data(), 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -824,9 +829,15 @@ mod tests {
         assert_eq!(output2.shape(), expected_shape2);
         assert_eq!(output3.shape(), expected_shape3);
 
-        output1.to_data().assert_approx_eq(&expected1, 3);
-        output2.to_data().assert_approx_eq(&expected2, 3);
-        output3.to_data().assert_approx_eq(&expected3, 3);
+        output1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected1, Tolerance::default());
+        output2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected2, Tolerance::default());
+        output3
+            .to_data()
+            .assert_approx_eq::<FT>(&expected3, Tolerance::default());
     }
 
     #[test]
@@ -867,9 +878,15 @@ mod tests {
         assert_eq!(output2.shape(), expected_shape2);
         assert_eq!(output3.shape(), expected_shape3);
 
-        output1.to_data().assert_approx_eq(&expected1, 3);
-        output2.to_data().assert_approx_eq(&expected2, 3);
-        output3.to_data().assert_approx_eq(&expected3, 3);
+        output1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected1, Tolerance::default());
+        output2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected2, Tolerance::default());
+        output3
+            .to_data()
+            .assert_approx_eq::<FT>(&expected3, Tolerance::default());
     }
 
     #[test]
@@ -934,11 +951,13 @@ mod tests {
         // Tolerance of 0.001 since floating-point multiplication won't be perfect
         output_scalar
             .to_data()
-            .assert_approx_eq(&expected_scalar, 3);
+            .assert_approx_eq::<FT>(&expected_scalar, Tolerance::default());
         output_tensor
             .to_data()
-            .assert_approx_eq(&input.to_data(), 3);
-        output_value.to_data().assert_approx_eq(&expected, 3);
+            .assert_approx_eq::<FT>(&input.to_data(), Tolerance::default());
+        output_value
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1031,7 +1050,7 @@ mod tests {
             1.5410, 0.3945, -0.7648, -1.9431, -0.8052, 0.3618, -0.6713, -1.2023, -1.3986,
         ]]])
         .to_data()
-        .assert_approx_eq(&output.into_data(), 3);
+        .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -1238,7 +1257,9 @@ mod tests {
             ],
         ]);
 
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1330,7 +1351,9 @@ mod tests {
             [0.557_33, 0.24548186, 0.45355222],
         ]);
 
-        output.to_data().assert_approx_eq(&expected, 7);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1353,7 +1376,9 @@ mod tests {
             [0.53838885, 0.31285727, 0.46894526],
         ]);
 
-        output.to_data().assert_approx_eq(&expected, 7);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1366,7 +1391,9 @@ mod tests {
         let output = model.forward(input);
         let expected = TensorData::from([[[[0.8415f32, -0.7568, 0.4121, -0.1324]]]]);
 
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1379,7 +1406,9 @@ mod tests {
         let output = model.forward(input);
         let expected = TensorData::from([[[[-27.2899, 0.5211, 1.1752, 4051.5419]]]]);
 
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1546,7 +1575,9 @@ mod tests {
         let output = model.forward(input);
         // data from pyTorch
         let expected = TensorData::from([[[[1.5574f32, -2.1850, -0.1425, 1.1578]]]]);
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1560,7 +1591,9 @@ mod tests {
         let output = model.forward(input);
         // data from pyTorch
         let expected = TensorData::from([[[[0.7616f32, 0.9640, 0.9951, 0.9993]]]]);
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1589,7 +1622,9 @@ mod tests {
         let output = model.forward(input);
         // data from pyTorch
         let expected = TensorData::from([[[[1.0000f32, 0.5000, 0.3333, 0.2500]]]]);
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1668,7 +1703,9 @@ mod tests {
         let output = model.forward(input);
         let expected = TensorData::from([[[[0.5403f32, -0.6536, -0.9111, 0.9912]]]]);
 
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1681,7 +1718,9 @@ mod tests {
         let output = model.forward(input);
         let expected = TensorData::from([[[[27.3082, 1.1276, 1.5431, 4051.5420]]]]);
 
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1695,7 +1734,9 @@ mod tests {
         let output = model.forward(input);
         let expected = TensorData::from([[[[1f32, 2.]]]]);
 
-        output.to_data().assert_approx_eq(&expected, 2);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1749,7 +1790,9 @@ mod tests {
         let output = model.forward(input);
         let expected = TensorData::from([[[[0.8413f32, 3.9999, 9.0000, 25.0000]]]]);
 
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1762,7 +1805,9 @@ mod tests {
         let output = model.forward(input);
         let expected = TensorData::from([[[[0.0000f32, 1.3863, 2.1972, 3.2189]]]]);
 
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1777,7 +1822,9 @@ mod tests {
         let expected1 = TensorData::from([[[[-1.0f32, -4.0, -9.0, -25.0]]]]);
         let expected2 = -99f64;
 
-        output1.to_data().assert_approx_eq(&expected1, 4);
+        output1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected1, Tolerance::default());
 
         assert_eq!(output2, expected2);
     }
@@ -1943,7 +1990,9 @@ mod tests {
         let expected1 = TensorData::from([[[[-1.0f32, -4.0, -9.0, -25.0]]]]);
         let expected2 = -99f64;
 
-        output1.to_data().assert_approx_eq(&expected1, 4);
+        output1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected1, Tolerance::default());
 
         assert_eq!(output2, expected2);
     }
@@ -2100,15 +2149,21 @@ mod tests {
 
         output1.to_data().assert_eq(&expected_bool, true);
         output2.to_data().assert_eq(&expected_int, true);
-        output3.to_data().assert_approx_eq(&expected_float, 4);
+        output3
+            .to_data()
+            .assert_approx_eq::<FT>(&expected_float, Tolerance::default());
 
         output4.to_data().assert_eq(&expected_bool, true);
         output5.to_data().assert_eq(&expected_int, true);
-        output6.to_data().assert_approx_eq(&expected_float, 4);
+        output6
+            .to_data()
+            .assert_approx_eq::<FT>(&expected_float, Tolerance::default());
 
         output7.to_data().assert_eq(&expected_bool, true);
         output8.to_data().assert_eq(&expected_int, true);
-        output9.to_data().assert_approx_eq(&expected_float, 4);
+        output9
+            .to_data()
+            .assert_approx_eq::<FT>(&expected_float, Tolerance::default());
 
         assert_eq!(output_scalar, expected_scalar);
     }
@@ -2199,7 +2254,9 @@ mod tests {
         let output = model.forward(input);
         let expected = TensorData::from([[[[-1.0f32, 1.0, 0.0, -1.0]]]]);
 
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -2335,7 +2392,9 @@ mod tests {
 
         let output = model.forward(input_shape);
 
-        output.to_data().assert_approx_eq(&expected, 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -2407,7 +2466,9 @@ mod tests {
         let expected: Tensor<Backend, 2, burn::prelude::Float> =
             Tensor::from_data(TensorData::from([[0, 1, 0], [1, 0, 0], [0, 0, 1]]), &device);
         let output: Tensor<Backend, 2, Int> = model.forward(input);
-        output.to_data().assert_approx_eq(&expected.to_data(), 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -2422,7 +2483,9 @@ mod tests {
 
         let output = model.forward(input);
 
-        output.to_data().assert_approx_eq(&expected.to_data(), 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
     }
 
     #[test]

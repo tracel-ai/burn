@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_diff_flip() {
@@ -21,10 +23,10 @@ mod tests {
 
         grad_1
             .into_data()
-            .assert_approx_eq(&TensorData::from([[[7.2, 12.0], [7.2, 12.0]]]), 3); // 1x2x2
-        grad_2.into_data().assert_approx_eq(
+            .assert_approx_eq::<FT>(&TensorData::from([[[7.2, 12.0], [7.2, 12.0]]]), Tolerance::default()); // 1x2x2
+        grad_2.into_data().assert_approx_eq::<FT>(
             &TensorData::from([[[10.0, 10.0, 10.0], [3.0, 3.0, 3.0]]]),
-            3,
+            Tolerance::default()
         ); // 1x2x3
     }
 }

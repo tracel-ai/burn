@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_diff_recip() {
@@ -16,7 +18,9 @@ mod tests {
         tensor_out
             .into_data()
             .assert_eq(&TensorData::from([0.5, 0.2, 2.5]), false);
-        grad.to_data()
-            .assert_approx_eq(&TensorData::from([-0.25, -0.04, -6.25]), 3);
+        grad.to_data().assert_approx_eq::<FT>(
+            &TensorData::from([-0.25, -0.04, -6.25]),
+            Tolerance::default(),
+        );
     }
 }

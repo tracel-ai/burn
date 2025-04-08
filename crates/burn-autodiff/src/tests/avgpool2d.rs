@@ -2,7 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::module::avg_pool2d;
-    use burn_tensor::{Shape, Tensor};
+    use burn_tensor::{Shape, Tensor, Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_avg_pool2d_simple() {
@@ -124,7 +125,7 @@ mod tests {
 
             x_grad
                 .to_data()
-                .assert_approx_eq(&x_grad_actual.into_data(), 4);
+                .assert_approx_eq::<FT>(&x_grad_actual.into_data(), Tolerance::default());
         }
     }
 }

@@ -1,7 +1,8 @@
 #[burn_tensor_testgen::testgen(ad_abs)]
 mod tests {
     use super::*;
-    use burn_tensor::{TensorData, cast::ToElement};
+    use burn_tensor::ops::FloatElem;
+    use burn_tensor::{TensorData, Tolerance, cast::ToElement};
 
     #[test]
     fn should_diff_abs() {
@@ -20,10 +21,14 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([[71.0, 107.0], [71.0, 107.0]]);
-        grad_1.to_data().assert_approx_eq(&expected, 5);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[84.0, 42.0], [90.0, 54.0]]);
-        grad_2.to_data().assert_approx_eq(&expected, 5);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -42,10 +47,14 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([[1.0, 7.0], [1.0, 7.0]]);
-        grad_1.to_data().assert_approx_eq(&expected, 5);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[0.0, -15.0], [-3.0, -3.0]]);
-        grad_2.to_data().assert_approx_eq(&expected, 5);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
 
         let contains_nan = grad_2.contains_nan();
         assert_eq!(contains_nan.into_scalar().to_bool(), false);

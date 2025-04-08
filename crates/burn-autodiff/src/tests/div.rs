@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_div)]
 mod tests {
     use super::*;
-    use burn_tensor::TensorData;
+    use burn_tensor::{TensorData, Tolerance, ops::FloatElem};
 
     #[test]
     fn should_diff_div() {
@@ -19,10 +19,14 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([0.25, 0.1429]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
 
         let expected = TensorData::from([-0.0625, -0.1429]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -59,10 +63,14 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([[0.1250, 0.0714], [0.25, 0.1667]]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[-0.0312, -0.0714], [-1.6250, 0.1667]]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -82,9 +90,13 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([[2.00, 2.9286], [1.3667, 2.0]]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[0.0833, 0.0959], [-0.0556, -0.0671]]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
     }
 }

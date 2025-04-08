@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Bool, Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_diff_mask_fill() {
@@ -53,12 +55,12 @@ mod tests {
         let grad_3 = tensor_3.grad(&grads).unwrap();
 
         let expected = TensorData::from([[121.8, 55.0], [110.8, 50.0]]);
-        grad_1.into_data().assert_approx_eq(&expected, 3);
+        grad_1.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[27.4, 33.4], [95.0, 115.0]]);
-        grad_2.into_data().assert_approx_eq(&expected, 3);
+        grad_2.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[15., 18.], [23., 29.]]);
-        grad_3.into_data().assert_approx_eq(&expected, 3);
+        grad_3.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

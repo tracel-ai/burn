@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_cross_entropy_loss)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, TensorData, loss};
+    use burn_tensor::{Tensor, TensorData, Tolerance, loss, ops::FloatElem};
 
     #[test]
     fn test_cross_entropy_loss_grad() {
@@ -23,9 +23,13 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([[0.2655, 0.2655], [0.4496, 0.4496]]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[-1.3486, 1.3486], [-2.0637, 2.0637]]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
     }
 }

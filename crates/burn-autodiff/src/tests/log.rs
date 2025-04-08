@@ -1,7 +1,8 @@
 #[burn_tensor_testgen::testgen(ad_log)]
 mod tests {
     use super::*;
-    use burn_tensor::TensorData;
+    use burn_tensor::{TensorData, Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_diff_log() {
@@ -20,9 +21,9 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([[60.2652, 72.3130], [60.2652, 72.3130]]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        grad_1.to_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[22.8614, 24.5043], [24.5729, 26.8507]]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        grad_2.to_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

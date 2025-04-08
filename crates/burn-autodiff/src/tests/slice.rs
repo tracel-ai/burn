@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_diff_matmul_with_slice() {
@@ -111,7 +113,7 @@ mod tests {
 
         slice_assign_output
             .to_data()
-            .assert_approx_eq(&cat_output.to_data(), 3);
+            .assert_approx_eq::<FT>(&cat_output.to_data(), Tolerance::default());
 
         let slice_assign_grads = slice_assign_output.backward();
         let cat_grads = cat_output.backward();
@@ -123,9 +125,9 @@ mod tests {
 
         slice_assign_grad_1
             .to_data()
-            .assert_approx_eq(&cat_grad_1.to_data(), 3);
+            .assert_approx_eq::<FT>(&cat_grad_1.to_data(), Tolerance::default());
         slice_assign_grad_2
             .to_data()
-            .assert_approx_eq(&cat_grad_2.to_data(), 3);
+            .assert_approx_eq::<FT>(&cat_grad_2.to_data(), Tolerance::default());
     }
 }
