@@ -5,7 +5,7 @@ use burn::{backend::NdArray, tensor::Tensor};
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_rp as _;
-use embedded_alloc::Heap;
+use embedded_alloc::LlffHeap as Heap;
 use raspberry_pi_pico::sine::Model;
 use {defmt_rtt as _, panic_probe as _};
 
@@ -21,7 +21,7 @@ async fn main(_spawner: Spawner) {
         use core::mem::MaybeUninit;
         const HEAP_SIZE: usize = 100 * 1024;
         static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
-        unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
+        unsafe { HEAP.init(&raw mut HEAP_MEM as usize, HEAP_SIZE) }
     }
 
     // Get a default device for the backend
