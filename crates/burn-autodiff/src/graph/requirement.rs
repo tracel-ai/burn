@@ -1,7 +1,7 @@
 use super::NodeRef;
 
 /// Requirement for each tensor in the graph.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Requirement {
     /// Operations that require gradients.
     Grad,
