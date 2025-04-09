@@ -6,6 +6,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::CheckedCastError};
 use half::{bf16, f16};
+use num_traits::ToPrimitive;
 
 use crate::{
     DType, Distribution, Element, ElementConversion,
@@ -607,7 +608,11 @@ impl TensorData {
     ///
     /// Panics if the data is not approximately equal.
     #[track_caller]
-    pub fn assert_approx_eq<F: num_traits::Float>(&self, other: &Self, tolerance: Tolerance<F>) {
+    pub fn assert_approx_eq<F: num_traits::Float + Element>(
+        &self,
+        other: &Self,
+        tolerance: Tolerance<F>,
+    ) {
         let mut message = String::new();
         if self.shape != other.shape {
             message += format!(
@@ -617,7 +622,7 @@ impl TensorData {
             .as_str();
         }
 
-        let iter = self.iter::<f64>().zip(other.iter::<f64>());
+        let iter = self.iter::<F>().zip(other.iter::<F>());
 
         let mut num_diff = 0;
         let max_num_diff = 5;
@@ -626,7 +631,8 @@ impl TensorData {
             //if they are both nan, then they are equally nan
             let both_nan = a.is_nan() && b.is_nan();
             //this works for both infinities
-            let both_inf = a.is_infinite() && b.is_infinite() && ((a > 0.) == (b > 0.));
+            let both_inf =
+                a.is_infinite() && b.is_infinite() && ((a > F::zero()) == (b > F::zero()));
 
             if both_nan || both_inf {
                 continue;
@@ -636,8 +642,8 @@ impl TensorData {
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     let diff = (a - b).abs();
-                    let rel = tolerance.relative.to_f64().unwrap();
-                    let abs = tolerance.absolute.to_f64().unwrap();
+                    let rel = ToPrimitive::to_f64(&tolerance.relative).unwrap();
+                    let abs = ToPrimitive::to_f64(&tolerance.absolute).unwrap();
                     message += format!(
                         "\n  => Position {i}: {a} != {b} | difference {diff} , tolerance (relative = {rel}, absolute = {abs})"
                     )
@@ -832,6 +838,10 @@ impl core::fmt::Display for TensorData {
     }
 }
 
+/// The tolerance used to compare to floating point numbers.
+///
+///
+///
 #[derive(Debug, Clone)]
 pub struct Tolerance<F> {
     relative: F,
@@ -841,33 +851,54 @@ pub struct Tolerance<F> {
 impl<F: num_traits::Float> Default for Tolerance<F> {
     fn default() -> Self {
         Self {
-            relative: F::from(128.0).unwrap() * F::epsilon(),
-            absolute: F::min_positive_value(),
+            relative: F::epsilon(),
+            absolute: F::from(16).unwrap() * F::min_positive_value(),
         }
     }
 }
 
 impl<F: num_traits::Float> Tolerance<F> {
+    /// When comparing two numbers, this uses both the relative and absolute differences.
+    ///
+    /// That is, `x` and `y` are approximatively equals if
+    ///
+    ///     `|x - y| < max(R * (|x| + |y|), A)`
+    ///
+    /// where `R` is the `relative` tolerance and `A` is the `absolute` tolerance.
     pub fn rel_abs(relative: F, absolute: F) -> Self {
         assert!(relative > F::epsilon());
-        assert!(relative <= F::from(1.0).unwrap());
-        assert!(absolute >= F::from(0.0).unwrap());
+        assert!(relative <= F::one());
+        assert!(absolute >= F::zero());
 
         Self { relative, absolute }
     }
 
-    pub fn relative(tol: F) -> Self {
-        assert!(tol > F::epsilon());
-        assert!(tol <= F::from(1.0).unwrap());
+    /// When comparing two numbers, this uses only the relative difference.
+    ///
+    /// That is, `x` and `y` are approximatively equals if
+    ///
+    ///     `|x - y| < R * (|x| + |y|)`
+    ///
+    /// where `R` is the relative `tolerance`.
+    pub fn relative(tolerance: F) -> Self {
+        assert!(tolerance > F::epsilon());
+        assert!(tolerance <= F::one());
 
         Self {
-            relative: tol,
+            relative: tolerance,
             absolute: F::from(0.0).unwrap(),
         }
     }
 
+    /// When comparing two numbers, this uses only the absolute difference.
+    ///
+    /// That is, `x` and `y` are approximatively equals if
+    ///
+    ///     `|x - y| < A
+    ///
+    /// where `A` is the absolute `tolerance`.
     pub fn absolute(tol: F) -> Self {
-        assert!(tol >= F::from(0.0).unwrap());
+        assert!(tol >= F::zero());
 
         Self {
             relative: F::from(0.0).unwrap(),
@@ -875,35 +906,35 @@ impl<F: num_traits::Float> Tolerance<F> {
         }
     }
 
-    pub fn significant_digits(num: u32) -> Self {
-        assert!(num > 0);
-
-        Self {
-            relative: F::from(0.1_f32.powi(num as i32)).unwrap(),
-            absolute: F::from(0.0).unwrap(),
-        }
-    }
-
-    pub fn none() -> Self {
+    /// When comparing two numbers, this uses only the absolute difference,
+    /// by specifying the base 10 `exponent` of the absolute tolerance.
+    ///
+    /// That is, `x` and `y` are approximatively equals if
+    ///
+    ///     `|x - y| < 10^E
+    ///
+    /// where `E` is the absolute tolerance `exponent`.
+    pub fn absolute_base_ten(exponent: i32) -> Self {
         Self {
             relative: F::from(0.0).unwrap(),
-            absolute: F::from(0.0).unwrap(),
+            absolute: F::from(0.1_f32.powi(exponent)).unwrap(),
         }
     }
 
-    pub fn approx_eq(&self, a: F, b: F) -> bool {
+    /// Checks if `x` and `y` are approximately equals given a tolerance.
+    pub fn approx_eq(&self, x: F, y: F) -> bool {
         // See the accepted answer here
         // https://stackoverflow.com/questions/4915462/how-should-i-do-floating-point-comparison
 
         // This also handles the case where both a and b are infinity so that we don't need
         // to manage it in the rest of the function.
-        if a == b {
+        if x == y {
             return true;
         }
 
-        let diff = (a - b).abs();
+        let diff = (x - y).abs();
 
-        let norm = (a + b).abs();
+        let norm = x.abs() + y.abs();
         let norm = norm.min(F::max_value()); // In case |a| + |b| -> inf.
 
         diff < self.absolute.max(self.relative * norm)
@@ -977,7 +1008,8 @@ mod tests {
         let data1 = TensorData::from([[3.0, 5.0, 6.0]]);
         let data2 = TensorData::from([[3.03, 5.0, 6.0]]);
 
-        data1.assert_approx_eq(&data2, 2);
+        data1.assert_approx_eq::<f32>(&data2, Tolerance::absolute_base_ten(-2));
+        data1.assert_approx_eq::<half::f16>(&data2, Tolerance::absolute_base_ten(-2));
     }
 
     #[test]
@@ -986,16 +1018,16 @@ mod tests {
         let data1 = TensorData::from([[3.0, 5.0, 6.0]]);
         let data2 = TensorData::from([[3.031, 5.0, 6.0]]);
 
-        data1.assert_approx_eq(&data2, 2);
+        data1.assert_approx_eq::<f32>(&data2, Tolerance::absolute_base_ten(-2));
     }
 
     #[test]
     #[should_panic]
-    fn should_assert_appox_eq_check_shape() {
+    fn should_assert_approx_eq_check_shape() {
         let data1 = TensorData::from([[3.0, 5.0, 6.0, 7.0]]);
         let data2 = TensorData::from([[3.0, 5.0, 6.0]]);
 
-        data1.assert_approx_eq(&data2, 2);
+        data1.assert_approx_eq::<f32>(&data2, Tolerance::absolute_base_ten(-2));
     }
 
     #[test]
@@ -1049,6 +1081,14 @@ mod tests {
 
         let output = data.dequantize().unwrap();
 
-        output.assert_approx_eq(&TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]), 4);
+        output.assert_approx_eq::<f32>(
+            &TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]),
+            Tolerance::default(),
+        );
+
+        output.assert_approx_eq::<f16>(
+            &TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]),
+            Tolerance::default(),
+        );
     }
 }

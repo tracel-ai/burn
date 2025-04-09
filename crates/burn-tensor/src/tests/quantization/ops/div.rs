@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_div_ops() {
@@ -15,7 +17,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&expected, 1);
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -29,7 +31,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&TensorData::from([[0.0, 1.0, 1.0], [0.0, 0.25, 0.4]]), 1);
+            .assert_approx_eq::<FT>(&TensorData::from([[0.0, 1.0, 1.0], [0.0, 0.25, 0.4]]), Tolerance::default());
     }
 
     #[test]
@@ -43,6 +45,6 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&TensorData::from([[0.0, 0.5, 1.0], [1.5, 2.0, 2.5]]), 1);
+            .assert_approx_eq::<FT>(&TensorData::from([[0.0, 0.5, 1.0], [1.5, 2.0, 2.5]]), Tolerance::default());
     }
 }

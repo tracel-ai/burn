@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Tensor, TensorData, activation, tests::Numeric};
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_sigmoid() {
@@ -10,7 +12,7 @@ mod tests {
         let output = activation::sigmoid(tensor);
         let expected = TensorData::from([[0.7311, 0.9991], [1.0, 0.0474]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -20,6 +22,6 @@ mod tests {
         let output = activation::sigmoid(tensor);
         let expected = TensorData::from([1.0, 0.0]);
 
-        output.into_data().assert_approx_eq(&expected, 4);
+        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

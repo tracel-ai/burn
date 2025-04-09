@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn expand_2d() {
@@ -9,9 +11,9 @@ mod tests {
         let output = tensor.expand([3, 3]);
 
         // Precision 1 to approximate de/quantization errors
-        output.dequantize().into_data().assert_approx_eq(
+        output.dequantize().into_data().assert_approx_eq::<FT>(
             &TensorData::from([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]),
-            1,
+            Tolerance::default(),
         );
 
         // Quantized [4.0, 7.0, 2.0, 3.0]
@@ -19,9 +21,9 @@ mod tests {
         let output = tensor.expand([2, 4]);
 
         // Precision 1 to approximate de/quantization errors
-        output.dequantize().into_data().assert_approx_eq(
+        output.dequantize().into_data().assert_approx_eq::<FT>(
             &TensorData::from([[4.0, 7.0, 2.0, 3.0], [4.0, 7.0, 2.0, 3.0]]),
-            1,
+            Tolerance::default(),
         );
     }
 
@@ -40,7 +42,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&expected, 1);
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -65,7 +67,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&expected, 1);
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -94,10 +96,10 @@ mod tests {
         let output = tensor.expand([2, -1]);
 
         // Precision 1 to approximate de/quantization errors
-        output
-            .dequantize()
-            .into_data()
-            .assert_approx_eq(&TensorData::from([[1., 2., 3.], [1., 2., 3.]]), 1);
+        output.dequantize().into_data().assert_approx_eq::<FT>(
+            &TensorData::from([[1., 2., 3.], [1., 2., 3.]]),
+            Tolerance::default(),
+        );
     }
 
     #[test]

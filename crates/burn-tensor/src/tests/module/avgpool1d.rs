@@ -3,6 +3,8 @@ mod tests {
     use super::*;
     use burn_tensor::module::avg_pool1d;
     use burn_tensor::{Shape, Tensor};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_avg_pool1d_simple() {
@@ -81,7 +83,8 @@ mod tests {
                 self.count_include_pad,
             );
 
-            y.to_data().assert_approx_eq(&output.into_data(), 3);
+            y.to_data()
+                .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
         }
     }
 }

@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::backend::Backend;
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData, Tolerance};
 
     type FloatElem = <TestBackend as Backend>::FloatElem;
     type IntElem = <TestBackend as Backend>::IntElem;
@@ -16,7 +16,7 @@ mod tests {
         let expected =
             TensorData::from([[2.4892, -1.7333], [-1.7333, 15.3333]]).convert::<FloatElem>();
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output.into_data().assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -28,7 +28,7 @@ mod tests {
         let expected =
             TensorData::from([[1.8668, -1.2999], [-1.2999, 11.5]]).convert::<FloatElem>();
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output.into_data().assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -45,7 +45,7 @@ mod tests {
         ])
         .convert::<FloatElem>();
 
-        output.into_data().assert_approx_eq(&expected, 2);
+        output.into_data().assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -60,6 +60,6 @@ mod tests {
         let tensor = TestTensor::<3>::from_data(data, &device);
         let data_actual = tensor.cov(0, 1).into_data();
         let data_expected = TestTensor::<3>::zeros([4, 4, 4], &device).to_data();
-        data_expected.assert_approx_eq(&data_actual, 3);
+        data_expected.assert_approx_eq::<FloatElem>(&data_actual, Tolerance::default());
     }
 }

@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_erf_ops() {
@@ -14,7 +16,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&expected, 1);
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -31,6 +33,6 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&expected, 1);
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

@@ -4,6 +4,8 @@ mod tests {
     use burn_tensor::module::unfold4d;
     use burn_tensor::ops::UnfoldOptions;
     use burn_tensor::{Shape, Tensor};
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_unfold4d_shape() {
@@ -125,7 +127,7 @@ mod tests {
 
             output
                 .into_data()
-                .assert_approx_eq(&expected.into_data(), 3);
+                .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::default());
         }
     }
 }

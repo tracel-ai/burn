@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_add_d2() {
@@ -14,7 +16,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&TensorData::from([[6.0, 8.0, 10.0], [12.0, 14.0, 16.0]]), 1);
+            .assert_approx_eq::<FT>(&TensorData::from([[6.0, 8.0, 10.0], [12.0, 14.0, 16.0]]), Tolerance::default());
     }
 
     #[test]
@@ -28,7 +30,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&TensorData::from([[3.0, 5.0, 7.0], [6.0, 8.0, 10.0]]), 1);
+            .assert_approx_eq::<FT>(&TensorData::from([[3.0, 5.0, 7.0], [6.0, 8.0, 10.0]]), Tolerance::default());
     }
 
     #[test]
@@ -44,7 +46,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&TensorData::from([[4.0, 7.0], [7.0, 10.0]]), 1);
+            .assert_approx_eq::<FT>(&TensorData::from([[4.0, 7.0], [7.0, 10.0]]), Tolerance::default());
     }
 
     #[test]
@@ -60,7 +62,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&TensorData::from([[4.0, 7.0], [7.0, 10.0]]), 1);
+            .assert_approx_eq::<FT>(&TensorData::from([[4.0, 7.0], [7.0, 10.0]]), Tolerance::default());
     }
 
     #[test]
@@ -76,7 +78,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&TensorData::from([[4.0, 7.0], [5.0, 8.0]]), 1);
+            .assert_approx_eq::<FT>(&TensorData::from([[4.0, 7.0], [5.0, 8.0]]), Tolerance::default());
     }
 
     #[test]
@@ -90,6 +92,6 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&TensorData::from([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]), 1);
+            .assert_approx_eq::<FT>(&TensorData::from([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]), Tolerance::default());
     }
 }

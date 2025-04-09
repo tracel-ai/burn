@@ -195,7 +195,7 @@ mod tests {
 
         assert_eq!(config.initializer, Initializer::Zeros);
         conv.weight.to_data().assert_approx_eq::<FT>(
-            &TensorData::zeros::<FT>(conv.weight.shape()),
+            &TensorData::zeros::<FT, _>(conv.weight.shape()),
             Tolerance::default(),
         );
     }

@@ -189,6 +189,8 @@ mod tests {
 
     use super::*;
     use crate::TestBackend;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_module() {
@@ -225,7 +227,9 @@ mod tests {
             &device,
         );
 
-        output.to_data().assert_approx_eq(&expected.to_data(), 5);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -251,7 +255,9 @@ mod tests {
             ],
             &device,
         );
-        sinusoids.to_data().assert_approx_eq(&expected.to_data(), 5);
+        sinusoids
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
     }
 
     #[test]

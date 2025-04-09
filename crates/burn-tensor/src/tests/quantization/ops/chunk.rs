@@ -3,6 +3,8 @@ mod tests {
     use super::*;
     use alloc::vec::Vec;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     fn test_chunk_evenly_divisible() {
         let tensor = QTensor::<TestBackend, 1>::int8([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
@@ -21,7 +23,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq(&expected[index], 1);
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::default());
         }
     }
 
@@ -44,7 +46,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq(&expected[index], 1);
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::default());
         }
     }
 
@@ -69,7 +71,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq(&expected[index], 1);
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::default());
         }
     }
 
@@ -90,7 +92,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq(&expected[index], 1);
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::default());
         }
     }
 

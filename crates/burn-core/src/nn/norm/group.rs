@@ -192,6 +192,8 @@ mod tests {
     use crate::TestBackend;
     use crate::tensor::TensorData;
     use alloc::format;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn group_norm_forward_affine_false() {
@@ -245,7 +247,9 @@ mod tests {
                 [-0.3428, 0.7970, 1.1845],
             ],
         ]);
-        output.to_data().assert_approx_eq(&expected, 2);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -261,7 +265,7 @@ mod tests {
             .expect("gamma should not be None")
             .val()
             .to_data()
-            .assert_approx_eq(&TensorData::ones::<f32, _>([6]), 2);
+            .assert_approx_eq::<FT>(&TensorData::ones::<f32, _>([6]), Tolerance::default());
 
         module
             .beta
@@ -269,7 +273,7 @@ mod tests {
             .expect("beta should not be None")
             .val()
             .to_data()
-            .assert_approx_eq(&TensorData::zeros::<f32, _>([6]), 2);
+            .assert_approx_eq::<FT>(&TensorData::zeros::<f32, _>([6]), Tolerance::default());
 
         let input = Tensor::<TestBackend, 3>::from_data(
             TensorData::from([
@@ -313,7 +317,9 @@ mod tests {
                 [-1.0903, -0.0419, -1.3623],
             ],
         ]);
-        output.to_data().assert_approx_eq(&expected, 2);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]

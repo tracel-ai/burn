@@ -153,7 +153,6 @@ impl<B: Backend> Conv1d<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::Tolerance;
     use burn_tensor::ops::FloatElem;
 
     use super::*;
@@ -180,12 +179,10 @@ mod tests {
         let conv = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(config.initializer, Initializer::Zeros);
-        conv.weight
-            .to_data()
-            .assert_approx_eq::<FloatElem<TestBackend>>(
-                &TensorData::zeros::<FloatElem<TestBackend>, _>(conv.weight.shape()),
-                Tolerance::none(),
-            );
+        conv.weight.to_data().assert_eq(
+            &TensorData::zeros::<FloatElem<TestBackend>, _>(conv.weight.shape()),
+            false,
+        );
     }
 
     #[test]

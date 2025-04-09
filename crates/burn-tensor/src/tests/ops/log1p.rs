@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Tensor, TensorData};
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_exp_log1p() {
@@ -14,6 +16,6 @@ mod tests {
             [1.3862, 1.6094, 1.7917],
         ]);
 
-        output.into_data().assert_approx_eq(&expected, 2);
+        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

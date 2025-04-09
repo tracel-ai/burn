@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Distribution, Tensor, TensorData};
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_zeros_like() {
@@ -17,7 +19,7 @@ mod tests {
         let expected =
             TensorData::from([[[0., 0., 0.], [0., 0., 0.]], [[0., 0., 0.], [0., 0., 0.]]]);
 
-        tensor.into_data().assert_approx_eq(&expected, 3);
+        tensor.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -34,7 +36,7 @@ mod tests {
         let expected =
             TensorData::from([[[1., 1., 1.], [1., 1., 1.]], [[1., 1., 1.], [1., 1., 1.]]]);
 
-        tensor.into_data().assert_approx_eq(&expected, 3);
+        tensor.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -51,6 +53,6 @@ mod tests {
         let expected =
             TensorData::from([[[1., 1., 1.], [1., 1., 1.]], [[1., 1., 1.], [1., 1., 1.]]]);
 
-        tensor.into_data().assert_approx_eq(&expected, 3);
+        tensor.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

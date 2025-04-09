@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Distribution, Tensor};
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     fn repeat_dim_0_few_times() {
@@ -17,7 +19,7 @@ mod tests {
 
         expected
             .into_data()
-            .assert_approx_eq(&actual.into_data(), 3);
+            .assert_approx_eq::<FT>(&actual.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -34,7 +36,7 @@ mod tests {
 
         expected
             .into_data()
-            .assert_approx_eq(&actual.into_data(), 3);
+            .assert_approx_eq::<FT>(&actual.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -51,7 +53,7 @@ mod tests {
 
         expected
             .into_data()
-            .assert_approx_eq(&actual.into_data(), 3);
+            .assert_approx_eq::<FT>(&actual.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -71,6 +73,7 @@ mod tests {
 
         expected
             .into_data()
-            .assert_approx_eq(&actual.into_data(), 3);
+            .assert_approx_eq::<FT>(&actual.into_data(), Tolerance::default());
     }
 }
+

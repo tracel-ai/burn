@@ -96,6 +96,8 @@ mod tests {
     use super::*;
     use crate::tensor::TensorData;
     use alloc::format;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[cfg(feature = "std")]
     use crate::{TestAutodiffBackend, TestBackend};
@@ -119,7 +121,9 @@ mod tests {
         let expected = TensorData::from([[
             -0.4990, -1.9680, 1.6178, -0.7486, -0.6470, 0.8576, 0.0461, 1.1111, -0.2614, 0.4915,
         ]]);
-        output.to_data().assert_approx_eq(&expected, 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -140,7 +144,9 @@ mod tests {
         let expected = TensorData::from([[
             -0.4863, -1.9180, 1.5766, -0.7295, -0.6305, 0.8358, 0.0449, 1.0828, -0.2548, 0.4790,
         ]]);
-        output.to_data().assert_approx_eq(&expected, 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[cfg(feature = "std")]
@@ -170,16 +176,24 @@ mod tests {
         let beta_grad = module.beta.grad(&grads).unwrap();
 
         let expected = TensorData::from([-2.0, 2.0]);
-        gamma_grad.to_data().assert_approx_eq(&expected, 3);
+        gamma_grad
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::from([2.0, 2.0]);
-        beta_grad.to_data().assert_approx_eq(&expected, 3);
+        beta_grad
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::zeros::<f32, _>(tensor_1_grad.shape());
-        tensor_1_grad.to_data().assert_approx_eq(&expected, 3);
+        tensor_1_grad
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::zeros::<f32, _>(tensor_2_grad.shape());
-        tensor_2_grad.to_data().assert_approx_eq(&expected, 3);
+        tensor_2_grad
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]

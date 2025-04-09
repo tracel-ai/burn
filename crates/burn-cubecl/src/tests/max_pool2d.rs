@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Distribution, Tensor, module};
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     pub fn max_pool2d_should_match_reference_backends() {
@@ -22,7 +24,7 @@ mod tests {
 
         pooled
             .into_data()
-            .assert_approx_eq(&pooled_ref.into_data(), 3);
+            .assert_approx_eq::<FT>(&pooled_ref.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -46,7 +48,7 @@ mod tests {
 
         pooled
             .into_data()
-            .assert_approx_eq(&pooled_ref.into_data(), 3);
+            .assert_approx_eq::<FT>(&pooled_ref.into_data(), Tolerance::default());
         indices
             .into_data()
             .assert_eq(&indices_ref.into_data(), false);

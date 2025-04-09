@@ -3,6 +3,8 @@ mod tests {
     use super::*;
     use burn_cubecl::kernel::{MaskFillStrategy, mask_fill};
     use burn_tensor::{Bool, Distribution, Tensor, TensorPrimitive, backend::Backend};
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     fn mask_fill_should_match_reference_backend() {
@@ -22,7 +24,7 @@ mod tests {
 
         expected
             .into_data()
-            .assert_approx_eq(&actual.into_data(), 3);
+            .assert_approx_eq::<FT>(&actual.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -43,7 +45,7 @@ mod tests {
 
         expected
             .into_data()
-            .assert_approx_eq(&actual.into_data(), 3);
+            .assert_approx_eq::<FT>(&actual.into_data(), Tolerance::default());
     }
 
     #[allow(clippy::type_complexity)]

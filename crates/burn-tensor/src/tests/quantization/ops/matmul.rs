@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     // NOTE: we set higher tolerance (0.3) due to larger de/quantization errors accumulation
     #[test]
@@ -16,7 +18,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq_diff(&expected, 0.3);
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -30,7 +32,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq_diff(&expected, 0.3);
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -46,7 +48,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq_diff(&expected, 0.3);
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -68,7 +70,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq_diff(&expected, 0.3);
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -83,7 +85,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq_diff(&expected, 0.3);
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -107,7 +109,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq_diff(&expected, 0.3);
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -122,14 +124,14 @@ mod tests {
 
         let tensor_3 = tensor_1.clone().matmul(tensor_1);
 
-        tensor_3.dequantize().into_data().assert_approx_eq(
+        tensor_3.dequantize().into_data().assert_approx_eq::<FT>(
             &TensorData::from([
                 [56., 62., 68., 74.],
                 [152., 174., 196., 218.],
                 [248., 286., 324., 362.],
                 [344., 398., 452., 506.],
             ]),
-            3,
+            Tolerance::default(),
         );
     }
 
@@ -145,14 +147,14 @@ mod tests {
 
         let tensor_3 = tensor_1.clone().matmul(tensor_1.transpose());
 
-        tensor_3.dequantize().into_data().assert_approx_eq(
+        tensor_3.dequantize().into_data().assert_approx_eq::<FT>(
             &TensorData::from([
                 [14., 38., 62., 86.],
                 [38., 126., 214., 302.],
                 [62., 214., 366., 518.],
                 [86., 302., 518., 734.],
             ]),
-            1,
+            Tolerance::default(),
         );
     }
 
@@ -167,7 +169,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq_diff(&expected, 0.3);
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -192,7 +194,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq_diff(&expected, 0.3);
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]

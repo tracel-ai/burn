@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_cos_ops() {
@@ -11,6 +13,8 @@ mod tests {
         let output = tensor.cos();
         let expected = TensorData::from([[1.0, 0.5403, -0.4161], [-0.9899, -0.6536, 0.2836]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

@@ -175,6 +175,8 @@ mod tests {
     use crate::optim::{GradientsParams, Optimizer};
     use crate::tensor::{Distribution, Tensor, TensorData};
     use crate::{TestAutodiffBackend, nn};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestAutodiffBackend>;
 
     const LEARNING_RATE: LearningRate = 0.01;
 
@@ -292,8 +294,14 @@ mod tests {
             state_updated.bias.unwrap().to_data(),
         );
 
-        bias_updated.assert_approx_eq(&bias_expected, ASSERT_PRECISION);
-        weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
+        bias_updated.assert_approx_eq::<FT>(
+            &bias_expected,
+            Tolerance::absolute_base_ten(-(ASSERT_PRECISION as i32)),
+        );
+        weight_updated.assert_approx_eq::<FT>(
+            &weights_expected,
+            Tolerance::absolute_base_ten(-(ASSERT_PRECISION as i32)),
+        );
     }
 
     #[test]

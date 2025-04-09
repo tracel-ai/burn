@@ -9,6 +9,8 @@ mod tests {
         SymmetricQuantization,
     };
     use burn_tensor::{DType, Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     // NOTE: we mark the per-block tests as `might_panic` since backends are not strictly
     // required to support this quantization scheme.
@@ -66,7 +68,8 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
+        x.into_data()
+            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -106,7 +109,8 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
+        x.into_data()
+            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -209,7 +213,8 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
+        x.into_data()
+            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default());
     }
 
     #[allow(clippy::excessive_precision)]
@@ -276,7 +281,8 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
+        x.into_data()
+            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default());
     }
 
     #[cfg(feature = "std")]
@@ -363,6 +369,7 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
+        x.into_data()
+            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default());
     }
 }

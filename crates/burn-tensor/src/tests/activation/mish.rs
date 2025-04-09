@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Tensor, TensorData, activation};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_mish() {
@@ -11,6 +13,8 @@ mod tests {
         let output = activation::mish(tensor);
         let expected = TensorData::from([[-0.1971, -0.3006, -0.1172], [-0.2413, 0.5823, -0.0888]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

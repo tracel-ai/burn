@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Shape, Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_topk_1d() {
@@ -19,7 +21,9 @@ mod tests {
         let values = tensor.topk(3, /*dim*/ 0);
         let expected = TensorData::from([5., 4., 3.]);
 
-        values.into_data().assert_approx_eq(&expected, 5);
+        values
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -39,7 +43,9 @@ mod tests {
         let values = tensor.topk(2, /*dim*/ 2);
         let expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 8.]]]);
 
-        values.into_data().assert_approx_eq(&expected, 5);
+        values
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -64,7 +70,9 @@ mod tests {
 
         let values_expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 7.]]]);
 
-        values.into_data().assert_approx_eq(&values_expected, 5);
+        values
+            .into_data()
+            .assert_approx_eq::<FT>(&values_expected, Tolerance::default());
 
         let indices_expected = TensorData::from([[[2, 1], [2, 1]], [[2, 0], [0, 2]]]);
 

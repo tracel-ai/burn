@@ -5,6 +5,8 @@ mod tests {
     use burn_tensor::module::deform_conv2d;
     use burn_tensor::ops::{DeformConv2dBackward, DeformConvOptions, ModuleOps};
     use burn_tensor::{Shape, Tensor};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_deform_conv2d_simple() {
@@ -433,7 +435,8 @@ mod tests {
                 ),
             );
 
-            y.to_data().assert_approx_eq_diff(&output.into_data(), 0.04);
+            y.to_data()
+                .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
         }
     }
 }

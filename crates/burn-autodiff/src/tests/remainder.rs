@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_diff_remainder() {
@@ -30,11 +32,15 @@ mod tests {
 
         let expected =
             TensorData::from([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::from([
             -2.0, -12.0, -0.0, -1.0, -0.0, -2.0, -1.0, -0.0, -7.0, -1.0, -1.0, -0.0,
         ]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

@@ -5,6 +5,8 @@ mod tests {
         Tensor,
         quantization::{BlockLayout, QuantizationMode, QuantizationScheme, QuantizationType},
     };
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_quantize_dequantize_symmetric_single() {
@@ -22,7 +24,9 @@ mod tests {
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_approx_eq(&output_ref.to_data(), 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -41,7 +45,9 @@ mod tests {
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_approx_eq(&output_ref.to_data(), 2);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -61,7 +67,9 @@ mod tests {
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_approx_eq(&output_ref.to_data(), 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -81,7 +89,9 @@ mod tests {
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_approx_eq(&output_ref.to_data(), 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -110,7 +120,9 @@ mod tests {
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_approx_eq(&output_ref.to_data(), 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -138,6 +150,8 @@ mod tests {
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_approx_eq(&output_ref.to_data(), 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
     }
 }

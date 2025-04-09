@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Tensor, TensorData};
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_sin_ops() {
@@ -11,6 +13,6 @@ mod tests {
         let output = tensor.sin();
         let expected = TensorData::from([[0.0, 0.8414, 0.9092], [0.1411, -0.7568, -0.9589]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

@@ -1,5 +1,7 @@
 use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
 
+use burn::tensor::Tolerance;
+use burn::tensor::ops::FloatElem;
 use burn::{
     module::Module,
     nn::{
@@ -150,9 +152,10 @@ fn model_test(record: NetRecord<TestBackend>, precision: usize) {
         &device,
     );
 
-    output
-        .to_data()
-        .assert_approx_eq(&expected.to_data(), precision);
+    output.to_data().assert_approx_eq::<FloatElem<TestBackend>>(
+        &expected.to_data(),
+        Tolerance::absolute_base_ten(-(precision as i32)),
+    );
 }
 
 #[test]

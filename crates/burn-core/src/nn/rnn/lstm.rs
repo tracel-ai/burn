@@ -357,6 +357,8 @@ mod tests {
     use super::*;
     use crate::tensor::{Device, Distribution, TensorData};
     use crate::{TestBackend, module::Param, nn::LinearRecord};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[cfg(feature = "std")]
     use crate::TestAutodiffBackend;
@@ -463,16 +465,16 @@ mod tests {
         let (output, state) = lstm.forward(input, None);
 
         let expected = TensorData::from([[0.046]]);
-        state.cell.to_data().assert_approx_eq(&expected, 3);
+        state.cell.to_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[0.024]]);
-        state.hidden.to_data().assert_approx_eq(&expected, 3);
+        state.hidden.to_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         output
             .select(0, Tensor::arange(0..1, &device))
             .squeeze::<2>(0)
             .to_data()
-            .assert_approx_eq(&state.hidden.to_data(), 3);
+            .assert_approx_eq::<FT>(&state.hidden.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -720,26 +722,26 @@ mod tests {
 
         output_with_init_state
             .to_data()
-            .assert_approx_eq(&expected_output_with_init_state, 3);
+            .assert_approx_eq::<FT>(&expected_output_with_init_state, Tolerance::default());
         output_without_init_state
             .to_data()
-            .assert_approx_eq(&expected_output_without_init_state, 3);
+            .assert_approx_eq::<FT>(&expected_output_without_init_state, Tolerance::default());
         state_with_init_state
             .hidden
             .to_data()
-            .assert_approx_eq(&expected_hn_with_init_state, 3);
+            .assert_approx_eq::<FT>(&expected_hn_with_init_state, Tolerance::default());
         state_with_init_state
             .cell
             .to_data()
-            .assert_approx_eq(&expected_cn_with_init_state, 3);
+            .assert_approx_eq::<FT>(&expected_cn_with_init_state, Tolerance::default());
         state_without_init_state
             .hidden
             .to_data()
-            .assert_approx_eq(&expected_hn_without_init_state, 3);
+            .assert_approx_eq::<FT>(&expected_hn_without_init_state, Tolerance::default());
         state_without_init_state
             .cell
             .to_data()
-            .assert_approx_eq(&expected_cn_without_init_state, 3);
+            .assert_approx_eq::<FT>(&expected_cn_without_init_state, Tolerance::default());
     }
 
     #[test]

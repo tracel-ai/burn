@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_round_ops() {
@@ -13,7 +15,7 @@ mod tests {
         let output = tensor.round();
         let expected = TensorData::from([[24., 88., 76.], [60., 44., 95.]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -26,6 +28,6 @@ mod tests {
         let output = tensor.round();
         let expected = TensorData::from([6.]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

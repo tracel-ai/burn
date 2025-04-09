@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Tensor, TensorData};
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_tan_ops() {
@@ -11,6 +13,6 @@ mod tests {
         let output = tensor.tan();
         let expected = TensorData::from([[0.0, 1.5574, -2.1850], [-0.1425, 1.1578, -3.3805]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

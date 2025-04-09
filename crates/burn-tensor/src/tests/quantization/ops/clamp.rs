@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     fn clamp_min() {
@@ -13,7 +15,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&TensorData::from([[2.0, 2.0, 2.0], [3.0, 4.0, 5.0]]), 1);
+            .assert_approx_eq::<FT>(&TensorData::from([[2.0, 2.0, 2.0], [3.0, 4.0, 5.0]]), Tolerance::default());
     }
 
     #[test]
@@ -26,7 +28,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&TensorData::from([[0.0, 1.0, 2.0], [2.0, 2.0, 2.0]]), 1);
+            .assert_approx_eq::<FT>(&TensorData::from([[0.0, 1.0, 2.0], [2.0, 2.0, 2.0]]), Tolerance::default());
     }
 
     #[test]
@@ -39,6 +41,6 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&TensorData::from([[1.0, 1.0, 2.0], [3.0, 4.0, 4.0]]), 1);
+            .assert_approx_eq::<FT>(&TensorData::from([[1.0, 1.0, 2.0], [3.0, 4.0, 4.0]]), Tolerance::default());
     }
 }

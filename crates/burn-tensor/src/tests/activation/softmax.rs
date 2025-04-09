@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Tensor, TensorData, activation};
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_softmax_d2() {
@@ -10,6 +12,7 @@ mod tests {
         let output = activation::softmax(tensor, 1);
         let expected = TensorData::from([[2.47e-03, 9.975e-01], [1.0, 1.1254e-07]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+
     }
 }

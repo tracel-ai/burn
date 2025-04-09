@@ -7,6 +7,8 @@ mod tests {
     type FloatElem = <TestBackend as Backend>::FloatElem;
     type IntElem = <TestBackend as Backend>::IntElem;
 
+    use burn_tensor::Tolerance;
+
     #[test]
     fn test_var() {
         let tensor = TestTensor::<2>::from_data(
@@ -17,7 +19,9 @@ mod tests {
         let output = tensor.var(1);
         let expected = TensorData::from([[2.4892], [15.3333]]).convert::<FloatElem>();
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -32,8 +36,10 @@ mod tests {
         let var_expected = TensorData::from([[2.4892], [15.3333]]).convert::<FloatElem>();
         let mean_expected = TensorData::from([[0.125], [1.]]).convert::<FloatElem>();
 
-        var.into_data().assert_approx_eq(&var_expected, 3);
-        mean.into_data().assert_approx_eq(&mean_expected, 3);
+        var.into_data()
+            .assert_approx_eq::<FloatElem>(&var_expected, Tolerance::default());
+        mean.into_data()
+            .assert_approx_eq::<FloatElem>(&mean_expected, Tolerance::default());
     }
 
     #[test]
@@ -46,7 +52,9 @@ mod tests {
         let output = tensor.var_bias(1);
         let expected = TensorData::from([[1.86688], [11.5]]).convert::<FloatElem>();
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -61,7 +69,9 @@ mod tests {
         let var_expected = TensorData::from([[1.86688], [11.5]]).convert::<FloatElem>();
         let mean_expected = TensorData::from([[0.125], [1.]]).convert::<FloatElem>();
 
-        var.into_data().assert_approx_eq(&var_expected, 3);
-        mean.into_data().assert_approx_eq(&mean_expected, 3);
+        var.into_data()
+            .assert_approx_eq::<FloatElem>(&var_expected, Tolerance::default());
+        mean.into_data()
+            .assert_approx_eq::<FloatElem>(&mean_expected, Tolerance::default());
     }
 }

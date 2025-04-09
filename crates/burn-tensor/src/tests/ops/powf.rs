@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_powf_ops() {
@@ -13,7 +15,9 @@ mod tests {
         let output = tensor.powf(tensor_pow);
         let expected = TensorData::from([[1.0, 1.0, 4.0], [27.0, 256.0, 25.0]]);
 
-        output.into_data().assert_approx_eq_diff(&expected, 0.1);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -26,7 +30,9 @@ mod tests {
         let output = tensor.powf(tensor_pow);
         let expected = TensorData::from([[1., 1., 0.73204285], [0.76822936, 0.5, 0.38073079]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -39,7 +45,9 @@ mod tests {
         let output = tensor.powf(tensor_pow);
         let expected = TensorData::from([[1.0, 1.0, 16.0], [81.0, 256.0, 25.0]]);
 
-        output.into_data().assert_approx_eq(&expected, 1);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -52,7 +60,9 @@ mod tests {
         let output = tensor.powf(tensor_pow);
         let expected = TensorData::from([[1.0, -1.0, -8.0], [-27.0, -64.0, -125.0]]);
 
-        output.into_data().assert_approx_eq_diff(&expected, 0.5);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -65,12 +75,12 @@ mod tests {
         let output = tensor_1.clone().powf(tensor_2.clone());
         output
             .into_data()
-            .assert_approx_eq_diff(&tensor_1.to_data(), 0.004);
+            .assert_approx_eq::<FT>(&tensor_1.to_data(), Tolerance::default());
 
         // Broadcast lhs
         let output = tensor_2.powf(tensor_1);
         output
             .into_data()
-            .assert_approx_eq_diff(&TensorData::from([1.0, 1.0, 1.0]), 0.004);
+            .assert_approx_eq::<FT>(&TensorData::from([1.0, 1.0, 1.0]), Tolerance::default());
     }
 }

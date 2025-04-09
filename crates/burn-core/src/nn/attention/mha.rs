@@ -473,7 +473,7 @@ mod tests {
                     .context
                     .slice([0..batch_size, 0..seq_length - num_padded, 0..d_model])
                     .into_data(),
-                Tolerance::<f32>::significant_digits(3),
+                Tolerance::<f32>::default(),
             );
     }
 
@@ -513,7 +513,7 @@ mod tests {
             .into_data()
             .assert_approx_eq::<FloatElem<TestBackend>>(
                 &output_2.into_data(),
-                Tolerance::significant_digits(3),
+                Tolerance::default(),
             );
     }
 

@@ -393,6 +393,8 @@ mod tests {
     use super::*;
     use crate::tensor::Distribution;
     use crate::{TestBackend, nn::attention::generate_autoregressive_mask};
+	use burn_tensor::{Tolerance, ops::FloatElem};
+	type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_autoregressive_norm_last() {
@@ -441,7 +443,7 @@ mod tests {
 
         output_1
             .into_data()
-            .assert_approx_eq(&output_2.into_data(), 2);
+            .assert_approx_eq::<FT>(&output_2.into_data(), Tolerance::default());
     }
 
     #[test]
