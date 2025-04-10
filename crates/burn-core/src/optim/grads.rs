@@ -150,4 +150,44 @@ mod tests {
     fn random_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 2> {
         Tensor::<B, 2>::random([2, 20], Distribution::Default, device)
     }
+
+    #[test]
+    fn test_get_on_autodiff_backand_should_lead_to_downcast_error() {
+        let device = Default::default();
+        let layer_1 = layer::<TestAutodiffBackend>(&device);
+        let loss_1 = layer_1.forward(random_tensor(&device));
+        let grads_1 = GradientsParams::from_grads(loss_1.backward(), &layer_1);
+        let result: Result<Tensor<TestAutodiffBackend, 4>, TensorContainerError> =
+            grads_1.get(layer_1.weight.id);
+        assert!(result.is_err());
+        assert_eq!(result.err().unwrap(), TensorContainerError::DowncastError)
+    }
+
+    #[test]
+    fn test_get_unknown_id_should_lead_to_not_found() {
+        let device = Default::default();
+        let layer_1 = layer::<TestAutodiffBackend>(&device);
+        let layer_2 = layer::<TestAutodiffBackend>(&device);
+        let loss_1 = layer_1.forward(random_tensor(&device));
+        let grads_1 = GradientsParams::from_grads(loss_1.backward(), &layer_1);
+        let result: Result<
+            Tensor<<TestAutodiffBackend as AutodiffBackend>::InnerBackend, 4>,
+            TensorContainerError,
+        > = grads_1.get(layer_2.weight.id);
+        assert!(result.is_err());
+        assert_eq!(result.err().unwrap(), TensorContainerError::NotFound)
+    }
+
+    #[test]
+    fn test_get_on_autodiff_inner_backand_should_be_ok() {
+        let device = Default::default();
+        let layer_1 = layer::<TestAutodiffBackend>(&device);
+        let loss_1 = layer_1.forward(random_tensor(&device));
+        let grads_1 = GradientsParams::from_grads(loss_1.backward(), &layer_1);
+        let result: Result<
+            Tensor<<TestAutodiffBackend as AutodiffBackend>::InnerBackend, 4>,
+            TensorContainerError,
+        > = grads_1.get(layer_1.weight.id);
+        assert!(result.is_ok());
+    }
 }
