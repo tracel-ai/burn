@@ -56,10 +56,16 @@ struct ModuleGradsAccumulator<'a, M> {
 
 impl<B: AutodiffBackend, M: AutodiffModule<B>> ModuleVisitor<B> for ModuleGradsAccumulator<'_, M> {
     fn visit_float<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D>) {
-        fn fmt_message(id: ParamId, grad: &str, error: TensorContainerError) -> String {
-            format!(
+        fn fmt_message(
+            id: ParamId,
+            grad: &str,
+            error: TensorContainerError,
+        ) -> alloc::string::String {
+            alloc::format!(
                 "Failed to remove ID {} from {} due to an unexpected / unhandled error variant: {:?}",
-                id, grad, error
+                id,
+                grad,
+                error
             )
         }
 
