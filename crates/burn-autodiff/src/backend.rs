@@ -105,7 +105,7 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     ) {
         if let Err(TensorContainerError::DowncastError) = grads.remove::<B>(tensor) {
             panic!(
-                "Downcast mismatch when retriefing tensor. If you are trying to replace the gradients for a given parameter id, make sure to use the inner backend. Gradients are not stored on the autodiff backend."
+                "Downcast mismatch when retrieving tensor. If you are trying to replace the gradients for a given parameter id, make sure to use the inner backend. Gradients are not stored on the autodiff backend."
             )
         };
         grads.register::<B>(tensor.node.id, grad);
