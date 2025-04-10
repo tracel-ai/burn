@@ -52,12 +52,12 @@ mod ndarray {
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
+    use crate::{ElemType, launch};
+    use burn::backend::autodiff::checkpoint::strategy::BalancedCheckpointing;
     use burn::backend::{
         Autodiff,
         libtorch::{LibTorch, LibTorchDevice},
     };
-
-    use crate::{ElemType, launch};
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
@@ -96,10 +96,11 @@ mod wgpu {
 #[cfg(feature = "vulkan")]
 mod vulkan {
     use crate::{ElemType, launch};
-    use burn::backend::{Autodiff, Vulkan};
+    use burn::backend::{Autodiff, Vulkan, autodiff::checkpoint::strategy::BalancedCheckpointing};
 
     pub fn run() {
-        launch::<Autodiff<Vulkan<ElemType, i32>>>(vec![Default::default()]);
+        type B = Autodiff<Vulkan<ElemType, i32>, BalancedCheckpointing>;
+        launch::<B>(vec![Default::default()]);
     }
 }
 
@@ -126,10 +127,10 @@ mod remote {
 #[cfg(feature = "cuda")]
 mod cuda {
     use crate::{ElemType, launch};
-    use burn::backend::{Autodiff, Cuda};
+    use burn::backend::{Autodiff, Cuda, autodiff::checkpoint::strategy::BalancedCheckpointing};
 
     pub fn run() {
-        launch::<Autodiff<Cuda<ElemType, i32>>>(vec![Default::default()]);
+        launch::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>(vec![Default::default()]);
     }
 }
 

@@ -1,7 +1,10 @@
 use super::memory_management::GraphMemoryManagement;
 use crate::{
     NodeID,
-    checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
+    checkpoint::{
+        base::{Checkpointer, NodeTree},
+        builder::CheckpointerBuilder,
+    },
     collections::HashMap,
     grads::Gradients,
     graph::{StepBoxed, traversal::BreadthFirstSearch},
@@ -34,8 +37,7 @@ impl AutodiffServer {
         );
         let builder = self.actions_builder.remove(&node_id).unwrap();
 
-        let (tape, builder) = self.build_tape(node_id, step, builder);
-        let checkpointer = builder.build(&self.steps);
+        let (tape, checkpointer) = self.build_tape(node_id, step, builder);
 
         let gradients = Self::execute_steps(tape, grads, checkpointer);
 
@@ -54,20 +56,25 @@ impl AutodiffServer {
         node: NodeID,
         node_step: StepBoxed,
         mut builder: CheckpointerBuilder,
-    ) -> (Vec<Vec<StepBoxed>>, CheckpointerBuilder) {
+    ) -> (Vec<Vec<StepBoxed>>, Checkpointer) {
         let mut tape = (0..node_step.depth())
             .map(|_| Vec::with_capacity(1))
             .collect::<Vec<_>>();
+
+        let mut tree = HashMap::default();
 
         BreadthFirstSearch.traverse(node, node_step, &mut self.steps, |id, step| {
             self.memory_management.consume_node(id);
 
             let depth = step.depth();
+
             if depth == 0 {
                 return;
             }
 
             if let Some(steps) = tape.get_mut(depth - 1) {
+                let parents = step.parents().into_iter().filter(|s| *s != id);
+                tree.insert(id, parents.collect());
                 steps.push(step);
             }
 
@@ -76,7 +83,9 @@ impl AutodiffServer {
             }
         });
 
-        (tape, builder)
+        let checkpointer = builder.build(NodeTree::new(tree));
+
+        (tape, checkpointer)
     }
 
     fn execute_steps(
@@ -93,6 +102,7 @@ impl AutodiffServer {
         #[cfg(feature = "export_tests")]
         // For checkpointing tests
         assert!(checkpointer.is_empty());
+
         grads
     }
 }
