@@ -900,25 +900,6 @@ fn compare_floats(value: f64, other: f64, ty: DType, tolerance: f64) -> Option<(
     }
 }
 
-enum Tolerance<F> {
-    Relative(F),
-    Absolute(F),
-    RelAbs(F, F),
-    SignificantDigits(u32),
-    None,
-}
-
-fn approx_eq<F: num_traits::Float>(a: F, b: F, tolerance: Tolerance<F>) -> bool {
-    let diff = (a - b).abs();
-    match tolerance {
-        Tolerance::Relative(tolerance) => diff < a.abs().max(b.abs()) * tolerance,
-        Tolerance::Absolute(tolerance) => diff < tolerance,
-        Tolerance::RelAbs(rel, abs) => diff < abs.max(rel * abs(a).max(abs(b))),
-        Tolerance::SignificantDigits(num) => diff < a.abs().max(b.abs()) * 0.1.powi(num),
-        Tolerance::None => a == b,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{Shape, quantization::AffineQuantization};
