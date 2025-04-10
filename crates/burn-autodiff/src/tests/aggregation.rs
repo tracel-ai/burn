@@ -135,7 +135,7 @@ mod tests {
             .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[18.0, 18.0], [71.0, 71.0]]);
-        grad_1
+        grad_2
             .to_data()
             .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
     }

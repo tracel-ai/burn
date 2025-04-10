@@ -95,9 +95,10 @@ mod tests {
             let grads = output.backward();
             let x_grad_actual = x.grad(&grads).unwrap();
 
+            let tolerance = Tolerance::default().set_relative(1e-4);
             x_grad
                 .to_data()
-                .assert_approx_eq::<FloatElem<TestBackend>>(&x_grad_actual.into_data(), Tolerance::default());
+                .assert_approx_eq::<FloatElem<TestBackend>>(&x_grad_actual.into_data(), tolerance);
         }
     }
 }

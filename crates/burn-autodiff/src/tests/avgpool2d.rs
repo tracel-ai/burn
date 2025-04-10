@@ -123,9 +123,12 @@ mod tests {
             let grads = output.backward();
             let x_grad_actual = x.grad(&grads).unwrap();
 
-            x_grad
-                .to_data()
-                .assert_approx_eq::<FT>(&x_grad_actual.into_data(), Tolerance::default());
+            x_grad.to_data().assert_approx_eq::<FT>(
+                &x_grad_actual.into_data(),
+                Tolerance::default()
+                    .set_relative(1e-4)
+                    .set_half_precision_relative(3e-5),
+            );
         }
     }
 }

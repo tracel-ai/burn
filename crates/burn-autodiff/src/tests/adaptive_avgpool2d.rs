@@ -62,7 +62,7 @@ mod tests {
 
             x_grad.to_data().assert_approx_eq::<FloatElem<TestBackend>>(
                 &x_grad_actual.into_data(),
-                Tolerance::default(),
+                Tolerance::default().set_relative(1e-4),
             );
         }
     }

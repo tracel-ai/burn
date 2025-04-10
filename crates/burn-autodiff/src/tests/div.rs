@@ -89,7 +89,7 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[2.00, 2.9286], [1.3667, 2.0]]);
+        let expected = TensorData::from([[2.00, 2.9286], [1.3666667, 2.0]]);
         grad_1
             .to_data()
             .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
