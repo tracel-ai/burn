@@ -53,9 +53,9 @@ where
             }
             Err(err) => match err {
                 TensorContainerError::NotFound => (),
-                container_error => panic!(
+                TensorContainerError::DowncastError => panic!(
                     "Unable to change the device of ID {} from self.grad due to unhandled / unexpected error variant: {:?}",
-                    id, container_error
+                    id, TensorContainerError::DowncastError
                 ),
             },
         }

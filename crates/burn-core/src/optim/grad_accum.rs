@@ -75,7 +75,7 @@ impl<B: AutodiffBackend, M: AutodiffModule<B>> ModuleVisitor<B> for ModuleGradsA
                 Ok(grad) => grad.add(new),
                 Err(error) => match error {
                     TensorContainerError::NotFound => new,
-                    container_error => panic!("{}", fmt_message(id, "self.grads", container_error)),
+                    TensorContainerError::DowncastError => panic!("{}", fmt_message(id, "self.grads", TensorContainerError::DowncastError)),
                 },
             },
             Err(new_grads_error) => match new_grads_error {
@@ -84,12 +84,12 @@ impl<B: AutodiffBackend, M: AutodiffModule<B>> ModuleVisitor<B> for ModuleGradsA
                     Ok(grad) => grad,
                     Err(error) => match error {
                         TensorContainerError::NotFound => return,
-                        container_error => {
-                            panic!("{}", fmt_message(id, "self.grads", container_error))
+                        TensorContainerError::DowncastError => {
+                            panic!("{}", fmt_message(id, "self.grads", TensorContainerError::DowncastError))
                         }
                     },
                 },
-                grads_new_error => panic!("{}", fmt_message(id, "self.grads_new", grads_new_error)),
+                TensorContainerError::DowncastError => panic!("{}", fmt_message(id, "self.grads_new", TensorContainerError::DowncastError)),
             },
         };
         self.grads.register::<B::InnerBackend, D>(id, grad_updated);
