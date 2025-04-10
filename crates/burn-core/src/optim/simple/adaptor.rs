@@ -5,7 +5,7 @@ use crate::{
     module::{AutodiffModule, ModuleMapper, ParamId},
     optim::{GradientsParams, Optimizer},
 };
-use burn_tensor::{Tensor, backend::AutodiffBackend};
+use burn_tensor::{Tensor, backend::AutodiffBackend, container::TensorContainerError};
 use core::marker::PhantomData;
 use hashbrown::HashMap;
 
@@ -117,38 +117,44 @@ where
     O: SimpleOptimizer<B::InnerBackend>,
 {
     fn map_float<const D: usize>(&mut self, id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
-        let grad = self.grads.remove(id);
+        let grads = self.grads.remove(id);
+        match grads {
+            Ok(grad) => {
+                let device = grad.device();
+                let is_require_grad = tensor.is_require_grad();
+                let (key, record) = self.records.remove_entry(&id).unzip();
 
-        if let Some(grad) = grad {
-            let device = grad.device();
-            let is_require_grad = tensor.is_require_grad();
-            let (key, record) = self.records.remove_entry(&id).unzip();
+                let clipped_grad = if let Some(g_clipping) = self.grad_clipping {
+                    g_clipping.clip_gradient(grad)
+                } else {
+                    grad
+                };
 
-            let clipped_grad = if let Some(g_clipping) = self.grad_clipping {
-                g_clipping.clip_gradient(grad)
-            } else {
-                grad
-            };
+                let (tensor, state) = self.optimizer.step(
+                    self.lr,
+                    tensor.inner(),
+                    clipped_grad,
+                    record.map(|record| O::to_device(record.into_state(), &device)),
+                );
 
-            let (tensor, state) = self.optimizer.step(
-                self.lr,
-                tensor.inner(),
-                clipped_grad,
-                record.map(|record| O::to_device(record.into_state(), &device)),
-            );
+                if let Some(state) = state {
+                    self.records
+                        .insert(key.unwrap_or(id), AdaptorRecord::from_state(state));
+                }
 
-            if let Some(state) = state {
-                self.records
-                    .insert(key.unwrap_or(id), AdaptorRecord::from_state(state));
+                let mut tensor = Tensor::from_inner(tensor);
+                if is_require_grad {
+                    tensor = tensor.require_grad();
+                }
+                tensor
             }
-
-            let mut tensor = Tensor::from_inner(tensor);
-            if is_require_grad {
-                tensor = tensor.require_grad();
-            }
-            return tensor;
+            Err(err) => match err {
+                TensorContainerError::NotFound => tensor,
+                container_error => panic!(
+                    "Unable to retrieve gradient at id {} due to unexpected / unhandled error variant: {:?}",
+                    id, container_error
+                ),
+            },
         }
-
-        tensor
     }
 }

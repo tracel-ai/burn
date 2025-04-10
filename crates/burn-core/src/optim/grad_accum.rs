@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use crate::module::{AutodiffModule, ModuleVisitor, ParamId};
 
-use burn_tensor::{Tensor, backend::AutodiffBackend};
+use burn_tensor::{Tensor, backend::AutodiffBackend, container::TensorContainerError};
 
 use super::GradientsParams;
 
@@ -56,17 +56,36 @@ struct ModuleGradsAccumulator<'a, M> {
 
 impl<B: AutodiffBackend, M: AutodiffModule<B>> ModuleVisitor<B> for ModuleGradsAccumulator<'_, M> {
     fn visit_float<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D>) {
+        fn fmt_message(id: ParamId, grad: &str, error: TensorContainerError) -> String {
+            format!(
+                "Failed to remove ID {} from {} due to an unexpected / unhandled error variant: {:?}",
+                id, grad, error
+            )
+        }
+
+        // Since we are explicitly removing the grad from the inner backend TensorContainerError::NotFound is the only error variant that should be encontered.
         let grad_updated = match self.grads_new.remove::<B::InnerBackend, D>(id) {
-            Some(new) => match self.grads.remove::<B::InnerBackend, D>(id) {
-                Some(grad) => grad.add(new),
-                None => new,
+            Ok(new) => match self.grads.remove::<B::InnerBackend, D>(id) {
+                Ok(grad) => grad.add(new),
+                Err(error) => match error {
+                    TensorContainerError::NotFound => new,
+                    container_error => panic!("{}", fmt_message(id, "self.grads", container_error)),
+                },
             },
-            None => match self.grads.remove::<B::InnerBackend, D>(id) {
-                Some(grad) => grad,
-                None => return,
+            Err(new_grads_error) => match new_grads_error {
+                TensorContainerError::NotFound => match self.grads.remove::<B::InnerBackend, D>(id)
+                {
+                    Ok(grad) => grad,
+                    Err(error) => match error {
+                        TensorContainerError::NotFound => return,
+                        container_error => {
+                            panic!("{}", fmt_message(id, "self.grads", container_error))
+                        }
+                    },
+                },
+                grads_new_error => panic!("{}", fmt_message(id, "self.grads_new", grads_new_error)),
             },
         };
-
         self.grads.register::<B::InnerBackend, D>(id, grad_updated);
     }
 }

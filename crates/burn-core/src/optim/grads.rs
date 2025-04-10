@@ -1,7 +1,7 @@
 use burn_tensor::{
     Tensor,
     backend::{AutodiffBackend, Backend},
-    container::TensorContainer,
+    container::{TensorContainer, TensorContainerError},
 };
 
 use crate::module::{AutodiffModule, ParamId};
@@ -62,19 +62,22 @@ impl GradientsParams {
     ///
     /// You should use [remove](GradientsParams::remove) if you want to get the gradients
     /// only one time.
-    pub fn get<B, const D: usize>(&self, id: ParamId) -> Option<Tensor<B, D>>
+    pub fn get<B, const D: usize>(&self, id: ParamId) -> Result<Tensor<B, D>, TensorContainerError>
     where
         B: Backend,
     {
-        self.container.get(&id).map(Tensor::from_primitive).ok()
+        self.container.get(&id).map(Tensor::from_primitive)
     }
 
     /// Remove the gradients for the given [parameter id](ParamId).
-    pub fn remove<B, const D: usize>(&mut self, id: ParamId) -> Option<Tensor<B, D>>
+    pub fn remove<B, const D: usize>(
+        &mut self,
+        id: ParamId,
+    ) -> Result<Tensor<B, D>, TensorContainerError>
     where
         B: Backend,
     {
-        self.container.remove(&id).map(Tensor::from_primitive).ok()
+        self.container.remove(&id).map(Tensor::from_primitive)
     }
 
     /// Register a gradients tensor for the given [parameter id](ParamId).

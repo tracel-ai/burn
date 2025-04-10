@@ -1,6 +1,6 @@
 use super::GradientsParams;
 use crate::module::{AutodiffModule, ModuleVisitor, ParamId};
-use burn_tensor::{Tensor, backend::AutodiffBackend};
+use burn_tensor::{Tensor, backend::AutodiffBackend, container::TensorContainerError};
 use core::marker::PhantomData;
 
 #[cfg(not(feature = "std"))]
@@ -46,11 +46,18 @@ where
     M: AutodiffModule<B>,
 {
     fn visit_float<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D>) {
-        let Some(grad) = self.grads.remove::<B::InnerBackend, D>(id) else {
-            return;
-        };
-
-        self.grads
-            .register::<B::InnerBackend, D>(id, grad.to_device(self.device));
+        match self.grads.remove::<B::InnerBackend, D>(id) {
+            Ok(grad) => {
+                self.grads
+                    .register::<B::InnerBackend, D>(id, grad.to_device(self.device));
+            }
+            Err(err) => match err {
+                TensorContainerError::NotFound => (),
+                container_error => panic!(
+                    "Unable to change the device of ID {} from self.grad due to unhandled / unexpected error variant: {:?}",
+                    id, container_error
+                ),
+            },
+        }
     }
 }
