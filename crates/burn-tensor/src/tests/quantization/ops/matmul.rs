@@ -76,7 +76,6 @@ mod tests {
         // NOTE: we use affine quantization to lower de/quantization errors
         let tensor_1 = QTensor::<TestBackend, 2>::int8_affine([[5.0, 14.0], [14.0, 25.0]]);
         let tensor_2 = QTensor::<TestBackend, 2>::int8_affine([[3.0, 4.0, 5.0], [0.0, 1.0, 2.0]]);
-
         let tensor_3 = tensor_1.matmul(tensor_2);
         let expected = TensorData::from([[15.0, 34.0, 53.0], [42.0, 81.0, 120.0]]);
 
@@ -157,17 +156,32 @@ mod tests {
     }
 
     #[test]
+    fn test_pour_nath() {
+        // let a = TensorData::from([half::f16::from_f32(1.2)]);
+        // let b = TensorData::from([half::f16::from_f32(1.8)]);
+        let a = TensorData::from([1.2]);
+        let b = TensorData::from([1.8]);
+
+        a.assert_approx_eq(&b, 3);
+    }
+
+    #[test]
     fn test_matmul_simple_2() {
         let tensor_1 = QTensor::<TestBackend, 2>::int8([[1.0, 2.0, 3.0, 4.0]]);
         let tensor_2 = QTensor::<TestBackend, 2>::int8([[3.0], [4.0], [5.0], [6.0]]);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
-        let expected = TensorData::from([[50.0]]);
-
+        let expected = TensorData::from([[half::f16::from_f32(50.0)]]);
+        // println!("dtype", expected.dtype);
+        // panic!(
+        //     "tensor3 {:#?}\nexpected {:#?}",
+        //     tensor_3.into_data(),
+        //     expected
+        // );
         tensor_3
-            .dequantize()
+            // .dequantize()
             .into_data()
-            .assert_approx_eq_diff(&expected, 0.3);
+            .assert_approx_eq_diff(&expected, 0.00005);
     }
 
     #[test]

@@ -1,17 +1,22 @@
 use std::ops::Range;
 
 use burn_tensor::{
-    DType, Device, Shape, TensorData,
-    ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
+    DType, Device, Shape, TensorData, dequant_op_quant,
+    ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        BlockLayout, QuantizationParametersPrimitive, QuantizationScheme, QuantizationType,
+        BlockLayout, QTensorPrimitive, QuantizationMode, QuantizationParametersPrimitive,
+        QuantizationScheme, QuantizationType,
     },
 };
 
 use crate::{
-    CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement, kernel,
+    CubeBackend, CubeRuntime, FloatElement, IntElement,
+    element::BoolElement,
+    kernel::{self, matmul::MatmulStrategy},
     tensor::CubeTensor,
 };
+
+use super::{permute, swap_dims};
 
 /// Create a quantized tensor with packed values (u32).
 fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
@@ -100,15 +105,15 @@ where
     }
 
     fn q_swap_dims(
-        _tensor: QuantizedTensor<Self>,
-        _dim1: usize,
-        _dim2: usize,
+        tensor: QuantizedTensor<Self>,
+        dim1: usize,
+        dim2: usize,
     ) -> QuantizedTensor<Self> {
-        unimplemented!()
+        swap_dims(tensor, dim1, dim2)
     }
 
-    fn q_permute(_tensor: QuantizedTensor<Self>, _axes: &[usize]) -> QuantizedTensor<Self> {
-        unimplemented!()
+    fn q_permute(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
+        permute(tensor, axes)
     }
 
     fn q_flip(_tensor: QuantizedTensor<Self>, _axes: &[usize]) -> QuantizedTensor<Self> {
@@ -138,4 +143,31 @@ where
     fn q_expand(_tensor: QuantizedTensor<Self>, _shape: Shape) -> QuantizedTensor<Self> {
         unimplemented!()
     }
+
+    fn q_matmul(lhs: QuantizedTensor<Self>, rhs: QuantizedTensor<Self>) -> QuantizedTensor<Self> {
+        if both_matches_symmetric_qint8(lhs.scheme(), rhs.scheme()) {
+            let out =
+                kernel::matmul::q_matmul(lhs.clone(), rhs.clone(), None, MatmulStrategy::default());
+            if let Ok(out) = out {
+                // return <Self>::quantize_dynamic(out, lhs.scheme()); // Using lhs.scheme() is similar to the dequant_op_quant macro.
+                return out;
+            }
+        }
+        // If the above quantized matmul fail, we fallback to the dequantize-matmul-quantize pattern.
+        dequant_op_quant!(
+            ty Self,
+            float_op Self::float_matmul,
+            lhs,
+            rhs
+        )
+    }
+}
+
+fn both_matches_symmetric_qint8(lhs: &QuantizationScheme, rhs: &QuantizationScheme) -> bool {
+    [lhs, rhs].iter().all(|scheme| {
+        matches!(
+            scheme,
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8),
+        )
+    })
 }

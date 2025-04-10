@@ -204,10 +204,15 @@ where
     /// If the two tensors don't have a compatible shape.
     pub fn matmul(self, other: Self) -> Self {
         check!(TensorCheck::matmul(&self, &other));
-        Self::new(TensorPrimitive::Float(B::float_matmul(
-            self.primitive.tensor(),
-            other.primitive.tensor(),
-        )))
+        match (self.primitive, other.primitive) {
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
+                Self::new(TensorPrimitive::QFloat(B::q_matmul(lhs, rhs)))
+            }
+            (lhs, rhs) => Self::new(TensorPrimitive::Float(B::float_matmul(
+                lhs.tensor(),
+                rhs.tensor(),
+            ))),
+        }
     }
 
     /// Calculate the variance along the given dimension.

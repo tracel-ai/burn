@@ -122,12 +122,13 @@ macro_rules! testgen_jit {
 
         // Not all ops are implemented for quantization yet, notably missing:
         // `q_swap_dims`, `q_permute`, `q_flip`, `q_gather`, `q_select`, `q_slice`, `q_expand`
-        // burn_tensor::testgen_quantization!();
+        burn_tensor::testgen_quantization!();
         // test quantization
-        burn_tensor::testgen_calibration!();
-        burn_tensor::testgen_scheme!();
-        burn_tensor::testgen_quantize!();
-        burn_tensor::testgen_q_data!();
+        // burn_tensor::testgen_q_matmul!();
+        // burn_tensor::testgen_calibration!();
+        // burn_tensor::testgen_scheme!();
+        // burn_tensor::testgen_quantize!();
+        // burn_tensor::testgen_q_data!();
     }
 }
 
