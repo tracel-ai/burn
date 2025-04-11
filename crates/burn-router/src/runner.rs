@@ -11,8 +11,8 @@ use super::{RouterTensor, RunnerClient};
 use crate::{
     binary_bool_ops, binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
     reduce_float_dim_ops, reduce_float2int_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
-    scalar_float_dim_ops, scalar_float_ops, scalar_int_cmp_ops, scalar_int_dim_ops, scalar_int_ops,
-    unary_float_ops, unary_int_ops,
+    scalar_float_dim_ops, scalar_float_ops, scalar_int_cmp_ops, scalar_int_ops, unary_float_ops,
+    unary_int_ops,
 };
 
 /// A runner's context contains a [handle container](HandleContainer) to manage
@@ -554,7 +554,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     unary_float_ops!(handles, desc, B::float_min)
                 }
                 NumericOperationIr::MaxDim(desc) => {
-                    scalar_float_dim_ops!(handles, desc, B::float_max_dim)
+                    reduce_float_dim_ops!(handles, desc, B::float_max_dim)
                 }
                 NumericOperationIr::MinDim(desc) => {
                     scalar_float_dim_ops!(handles, desc, B::float_min_dim)
@@ -736,10 +736,10 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     unary_int_ops!(handles, desc, B::int_min)
                 }
                 NumericOperationIr::MaxDim(desc) => {
-                    scalar_int_dim_ops!(handles, desc, B::int_max_dim)
+                    reduce_int_dim_ops!(handles, desc, B::int_max_dim)
                 }
                 NumericOperationIr::MinDim(desc) => {
-                    scalar_int_dim_ops!(handles, desc, B::int_min_dim)
+                    reduce_int_dim_ops!(handles, desc, B::int_min_dim)
                 }
                 NumericOperationIr::Clamp(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
