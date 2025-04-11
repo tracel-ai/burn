@@ -2,8 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Tensor, TensorData, activation, cast::ToElement, tests::Numeric};
-	use burn_tensor::{Tolerance, ops::FloatElem};
-	type FT = FloatElem<TestBackend>;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_log_sigmoid() {
@@ -12,7 +12,9 @@ mod tests {
         let output = activation::log_sigmoid(tensor);
         let expected = TensorData::from([[-3.132617e-1, -9.114665e-4], [-2.260327e-6, -3.0485873]]);
 
-        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-5, 1e-7));
     }
 
     #[test]
@@ -23,7 +25,9 @@ mod tests {
 
         // For large negative values, the previous implementation −log(1 + exp(−x)) would give -inf
         let expected = TensorData::from([0.0, -300.0]);
-        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let tensor = TestTensor::<1>::from([
             <FloatType as Numeric>::max_value(),
@@ -32,6 +36,8 @@ mod tests {
         let output = activation::log_sigmoid(tensor);
         let expected = TensorData::from([0.0, <FloatType as Numeric>::min_value().to_f32()]);
 
-        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

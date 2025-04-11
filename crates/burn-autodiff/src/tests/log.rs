@@ -20,10 +20,17 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
+        let tolerance = Tolerance::default()
+            .set_relative(1e-4)
+            .set_half_precision_relative(5e-4);
         let expected = TensorData::from([[60.2652, 72.3130], [60.2652, 72.3130]]);
-        grad_1.to_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
 
         let expected = TensorData::from([[22.8614, 24.5043], [24.5729, 26.8507]]);
-        grad_2.to_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 }

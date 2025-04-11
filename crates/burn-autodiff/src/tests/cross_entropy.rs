@@ -22,14 +22,17 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[0.2655, 0.2655], [0.4496, 0.4496]]);
+        let expected = TensorData::from([[0.26553, 0.26553], [0.44954, 0.44954]]);
         grad_1
             .to_data()
             .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
 
-        let expected = TensorData::from([[-1.3486, 1.3486], [-2.0637, 2.0637]]);
-        grad_2
-            .to_data()
-            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
+        let expected = TensorData::from([[-1.34863, 1.34863], [-2.06371, 2.06371]]);
+        grad_2.to_data().assert_approx_eq::<FloatElem<TestBackend>>(
+            &expected,
+            Tolerance::default()
+                .set_relative(1e-5)
+                .set_half_precision_relative(5e-4),
+        );
     }
 }

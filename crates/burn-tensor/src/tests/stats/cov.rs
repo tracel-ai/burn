@@ -14,9 +14,11 @@ mod tests {
 
         let output = tensor.cov(1, 1);
         let expected =
-            TensorData::from([[2.4892, -1.7333], [-1.7333, 15.3333]]).convert::<FloatElem>();
+            TensorData::from([[2.48917, -1.73333], [-1.73333, 15.33333]]).convert::<FloatElem>();
 
-        output.into_data().assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&expected, Tolerance::default().set_relative(1e-5));
     }
 
     #[test]
@@ -26,9 +28,11 @@ mod tests {
 
         let output = tensor.cov(1, 0);
         let expected =
-            TensorData::from([[1.8668, -1.2999], [-1.2999, 11.5]]).convert::<FloatElem>();
+            TensorData::from([[1.86687, -1.30000], [-1.30000, 11.5]]).convert::<FloatElem>();
 
-        output.into_data().assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&expected, Tolerance::default().set_relative(1e-5));
     }
 
     #[test]
@@ -45,7 +49,9 @@ mod tests {
         ])
         .convert::<FloatElem>();
 
-        output.into_data().assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
     }
 
     #[test]

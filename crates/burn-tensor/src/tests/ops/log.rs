@@ -2,8 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Tensor, TensorData};
-	use burn_tensor::{Tolerance, ops::FloatElem};
-	type FT = FloatElem<TestBackend>;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_log_ops() {
@@ -13,9 +13,11 @@ mod tests {
         let output = tensor.log();
         let expected = TensorData::from([
             [-f32::INFINITY, 0.0, core::f32::consts::LN_2],
-            [1.0986, 1.3862, 1.6094],
+            [1.09861, 1.38629, 1.60944],
         ]);
 
-        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default().set_relative(1e-4));
     }
 }

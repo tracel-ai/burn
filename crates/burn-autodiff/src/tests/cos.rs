@@ -26,7 +26,9 @@ mod tests {
 
         grad_2.to_data().assert_approx_eq::<FloatElem<TestBackend>>(
             &TensorData::from([[9.222064, -39.123375], [-28.721354, 49.748356]]),
-            Tolerance::default(),
+            Tolerance::default()
+                .set_relative(1e-4)
+                .set_half_precision_relative(5e-4),
         );
     }
 }

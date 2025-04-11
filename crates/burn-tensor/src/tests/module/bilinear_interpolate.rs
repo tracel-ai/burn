@@ -158,8 +158,10 @@ mod tests {
                 InterpolateOptions::new(InterpolateMode::Bilinear),
             );
 
-            y.to_data()
-                .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
+            y.to_data().assert_approx_eq::<FT>(
+                &output.into_data(),
+                Tolerance::default().set_relative(1e-4),
+            );
         }
     }
 }

@@ -11,7 +11,7 @@ mod tests {
         let tensor = TestTensor::<2>::from_data(data, &Default::default());
 
         let output = tensor.powf_scalar(0.71);
-        let expected = TensorData::from([[0.0, 1.0, 1.6358], [2.182, 2.6759, 3.1352]]);
+        let expected = TensorData::from([[0.0, 1.0, 1.6358], [2.1815, 2.67586, 3.13522]]);
 
         output
             .into_data()

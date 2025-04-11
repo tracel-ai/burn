@@ -21,12 +21,13 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        grad_1
-            .into_data()
-            .assert_approx_eq::<FT>(&TensorData::from([[[7.2, 12.0], [7.2, 12.0]]]), Tolerance::default()); // 1x2x2
+        grad_1.into_data().assert_approx_eq::<FT>(
+            &TensorData::from([[[7.2, 12.0], [7.2, 12.0]]]),
+            Tolerance::default().set_relative(1e-4),
+        ); // 1x2x2
         grad_2.into_data().assert_approx_eq::<FT>(
             &TensorData::from([[[10.0, 10.0, 10.0], [3.0, 3.0, 3.0]]]),
-            Tolerance::default()
+            Tolerance::default(),
         ); // 1x2x3
     }
 }

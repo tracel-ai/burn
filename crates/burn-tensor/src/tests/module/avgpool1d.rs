@@ -34,8 +34,8 @@ mod tests {
         };
 
         test.assert_output(TestTensor::from([[
-            [0.3333, 2.0000, 4.0000],
-            [4.3333, 8.0000, 10.0000],
+            [0.33333, 2.0000, 4.0000],
+            [4.33333, 8.0000, 10.0000],
         ]]));
     }
 
@@ -85,7 +85,7 @@ mod tests {
 
             y.to_data().assert_approx_eq::<FT>(
                 &output.into_data(),
-                Tolerance::default().set_relative(1e-4),
+                Tolerance::default().set_relative(5e-5),
             );
         }
     }

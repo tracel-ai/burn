@@ -705,7 +705,7 @@ mod tests {
             let weight_grad_actual = weight.grad(&grads).unwrap();
             let bias_grad_actual = bias.grad(&grads).unwrap();
 
-            let tolerance = Tolerance::default().set_relative(1e-4);
+            let tolerance = Tolerance::default(); //.set_relative(1e-4);
 
             expected_grads
                 .bias

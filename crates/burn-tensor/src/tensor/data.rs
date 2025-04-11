@@ -33,7 +33,7 @@ pub enum DataError {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TensorData {
     /// The values of the tensor (as bytes).
-    bytes: Bytes,
+    pub bytes: Bytes,
 
     /// The shape of the tensor.
     pub shape: Vec<usize>,
@@ -833,7 +833,7 @@ impl core::fmt::Display for TensorData {
             DType::QFloat(scheme) => match scheme {
                 QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8)
                 | QuantizationScheme::PerBlock(_mode, QuantizationType::QInt8, ..) => {
-                    format!("{:?} {scheme:?}", self.try_as_slice::<i8>().unwrap())
+                    format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())
                 }
             },
         };
@@ -949,6 +949,7 @@ impl<F: num_traits::Float> Tolerance<F> {
         self
     }
 
+    // TODO: use Element and check dtype
     /// Change the relative tolerance to the given one only if `F` is half precision.
     pub fn set_half_precision_relative<FF: ToPrimitive>(mut self, tolerance: FF) -> Self {
         if core::mem::size_of::<F>() == 2 {

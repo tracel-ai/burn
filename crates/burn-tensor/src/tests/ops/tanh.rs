@@ -11,7 +11,8 @@ mod tests {
         let tensor = TestTensor::<2>::from_data(data, &Default::default());
 
         let output = tensor.tanh();
-        let expected = TensorData::from([[0.0, 0.7615, 0.9640], [0.9950, 0.9993, 0.9999]]);
+        let expected =
+            TensorData::from([[0.0, 0.761594, 0.964028], [0.995055, 0.999329, 0.999909]]);
 
         output
             .into_data()

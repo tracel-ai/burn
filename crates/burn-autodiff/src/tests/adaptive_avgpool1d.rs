@@ -15,8 +15,8 @@ mod tests {
 
         test.assert_output(TestTensor::from_floats(
             [[
-                [0.5000, 0.8333, 0.3333, 0.8333, 0.5000],
-                [0.5000, 0.8333, 0.3333, 0.8333, 0.5000],
+                [0.5000, 0.83333, 0.33333, 0.83333, 0.5000],
+                [0.5000, 0.83333, 0.33333, 0.83333, 0.5000],
             ]],
             &Default::default(),
         ));
@@ -46,7 +46,7 @@ mod tests {
 
             x_grad.to_data().assert_approx_eq::<FloatElem<TestBackend>>(
                 &x_grad_actual.into_data(),
-                Tolerance::default().set_relative(1e-3),
+                Tolerance::default().set_relative(1e-5),
             );
         }
     }

@@ -21,6 +21,7 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
+        // TODO CHECK
         let expected = TensorData::from([[8.8500, -4.9790], [8.8500, -4.9790]]);
         grad_1
             .to_data()

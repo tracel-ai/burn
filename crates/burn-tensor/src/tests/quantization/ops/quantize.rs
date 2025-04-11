@@ -69,7 +69,7 @@ mod tests {
 
         // Precision 2 for dequantization errors
         x.into_data()
-            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default().set_relative(1e-2));
     }
 
     #[test]
@@ -110,7 +110,7 @@ mod tests {
 
         // Precision 2 for dequantization errors
         x.into_data()
-            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default().set_relative(1e-2));
     }
 
     #[test]
@@ -214,7 +214,7 @@ mod tests {
 
         // Precision 2 for dequantization errors
         x.into_data()
-            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default().set_relative(1e-2));
     }
 
     #[allow(clippy::excessive_precision)]
@@ -282,7 +282,7 @@ mod tests {
 
         // Precision 2 for dequantization errors
         x.into_data()
-            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default().set_relative(1e-2));
     }
 
     #[cfg(feature = "std")]
@@ -370,6 +370,6 @@ mod tests {
 
         // Precision 2 for dequantization errors
         x.into_data()
-            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default().set_relative(1e-2));
     }
 }

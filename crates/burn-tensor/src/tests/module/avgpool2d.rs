@@ -110,9 +110,7 @@ mod tests {
 
             y.to_data().assert_approx_eq::<FT>(
                 &output.into_data(),
-                Tolerance::default()
-                    .set_relative(1e-4)
-                    .set_half_precision_relative(5e-3),
+                Tolerance::default().set_relative(1e-4), // .set_half_precision_relative(5e-3),
             );
         }
     }

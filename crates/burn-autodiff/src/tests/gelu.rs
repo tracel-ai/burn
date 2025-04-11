@@ -19,14 +19,18 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[1.4629, 1.4629], [48.2286, 153.4629]]);
+        // TODO: gelu in full precision for f16?
+        let tolerance = Tolerance::default()
+            .set_relative(5e-4)
+            .set_half_precision_relative(2e-3);
+        let expected = TensorData::from([[1.46281, 1.46281], [48.22866, 153.46280]]);
         grad_1
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, tolerance);
 
-        let expected = TensorData::from([[-15.0000, -1.9895], [17.0000, 17.0000]]);
+        let expected = TensorData::from([[-15.0000, -1.98757], [17.0000, 17.0000]]);
         grad_2
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 }
