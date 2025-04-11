@@ -46,6 +46,8 @@ pub enum ReduceInstruction {
     Mean,
     Prod,
     Sum,
+    Max,
+    Min,
 }
 
 pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
@@ -381,6 +383,8 @@ fn launch_reduce_input_output_inst<Run: Runtime>(
         ReduceInstruction::Prod => ReduceFnConfig::Prod,
         ReduceInstruction::Mean => ReduceFnConfig::Mean,
         ReduceInstruction::Sum => ReduceFnConfig::Sum,
+        ReduceInstruction::Max => ReduceFnConfig::Max,
+        ReduceInstruction::Min => ReduceFnConfig::Min,
     };
     launch_reduce_input_output::<Run, ReduceFn>(kwargs, dtype_input, dtype_output, config)
 }
