@@ -162,6 +162,12 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
                     NumericOperationIr::ArgMin(op) => {
                         self.on_reduce(op, ReduceInstruction::ArgMin);
                     }
+                    NumericOperationIr::MinDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::Min);
+                    }
+                    NumericOperationIr::MaxDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::Max);
+                    }
                     _ => {
                         self.on_elemwise_read(operation);
                     }
@@ -183,6 +189,13 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
                     NumericOperationIr::ArgMin(op) => {
                         self.on_reduce(op, ReduceInstruction::ArgMin);
                     }
+                    NumericOperationIr::MinDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::Min);
+                    }
+                    NumericOperationIr::MaxDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::Max);
+                    }
+
                     _ => {
                         self.on_elemwise_read(operation);
                     }
