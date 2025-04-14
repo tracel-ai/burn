@@ -25,11 +25,11 @@ pub fn conv2d_autotune<R: CubeRuntime, E: FloatElement>(
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<R, E>, create_conv2d_input::<R, E>)
-        .with_tunable(conv2d_gemm_cyclic::<R, E>)
-        .with_tunable(conv2d_gemm_tma::<R, E>)
+        .with_tunable(conv2d_direct::<R, E>)
         .with_tunable(conv2d_im2col_1x1::<R, E>)
         .with_tunable(conv2d_im2col::<R, E>)
-        .with_tunable(conv2d_direct::<R, E>);
+        .with_tunable(conv2d_gemm_cyclic::<R, E>)
+        .with_tunable(conv2d_gemm_tma::<R, E>);
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&input.client, &input.device),
