@@ -6,11 +6,7 @@ use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId, FloatElement,
     kernel::{
         conv::{
-            conv2d_direct,
-            conv2d_gemm_cmma_balanced,
-            conv2d_gemm_cmma_large_m,
-            conv2d_im2col,
-            // conv2d_implicit_gemm, TODO: Activate when bug is fixed
+            conv2d_direct, conv2d_gemm_cyclic, conv2d_gemm_tma, conv2d_im2col, conv2d_im2col_1x1,
         },
         prng::random_uniform,
     },
@@ -30,10 +26,10 @@ pub fn conv2d_autotune<R: CubeRuntime, E: FloatElement>(
 
     let tunables = TunableSet::new(create_key::<R, E>, create_conv2d_input::<R, E>)
         .with_tunable(conv2d_direct::<R, E>)
+        .with_tunable(conv2d_im2col_1x1::<R, E>)
         .with_tunable(conv2d_im2col::<R, E>)
-        // .with_tunable(conv2d_implicit_gemm::<R, E>) // Some bugs
-        .with_tunable(conv2d_gemm_cmma_large_m::<R, E>)
-        .with_tunable(conv2d_gemm_cmma_balanced::<R, E>);
+        .with_tunable(conv2d_gemm_cyclic::<R, E>)
+        .with_tunable(conv2d_gemm_tma::<R, E>);
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&input.client, &input.device),
