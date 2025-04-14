@@ -152,7 +152,8 @@ where
                 TensorContainerError::NotFound => tensor,
                 TensorContainerError::DowncastError => panic!(
                     "Unable to retrieve gradient at id {} due to unexpected / unhandled error variant: {:?}",
-                    id, TensorContainerError::DowncastError
+                    id,
+                    TensorContainerError::DowncastError
                 ),
             },
         }
