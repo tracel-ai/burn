@@ -1,6 +1,10 @@
 use super::init_matmul_output;
 use crate::{CubeRuntime, FloatElement, tensor::CubeTensor};
-use cubecl::linalg::matmul::kernels::MatmulLaunchError;
+use burn_tensor::DType;
+use cubecl::{
+    linalg::matmul::{components::Quantized, kernels::MatmulLaunchError},
+    tf32,
+};
 use cubecl_std::SymQ8;
 
 #[cfg(feature = "autotune")]
@@ -56,17 +60,19 @@ pub fn matmul<R: CubeRuntime, E: FloatElement>(
 
 /// Launch a quantized matmul kernel using the given strategy.
 pub fn q_matmul<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
+    mut lhs: CubeTensor<R>,
+    mut rhs: CubeTensor<R>,
     out: Option<CubeTensor<R>>,
     strategy: MatmulStrategy,
 ) -> Result<CubeTensor<R>, MatmulLaunchError> {
-    // panic!("launch q_matmul");
     let out = out.unwrap_or_else(|| init_matmul_output::<R, half::f16>(&lhs, &rhs));
 
     let client = &lhs.client;
 
-    cubecl::linalg::matmul::launch_ref::<R, SymQ8>(
+    lhs.dtype = DType::I8;
+    rhs.dtype = DType::I8;
+
+    cubecl::linalg::matmul::launch_ref::<R, (i8, half::f16, half::f16, half::f16, Quantized)>(
         &Default::default(),
         client,
         &lhs.as_handle_ref(),
@@ -74,6 +80,5 @@ pub fn q_matmul<R: CubeRuntime>(
         &out.as_handle_ref(),
     )?;
 
-    // panic!("OK");
     Ok(out)
 }

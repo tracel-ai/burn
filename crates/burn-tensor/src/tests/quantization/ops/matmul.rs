@@ -6,15 +6,18 @@ mod tests {
     // NOTE: we set higher tolerance (0.3) due to larger de/quantization errors accumulation
     #[test]
     fn test_matmul_d2() {
-        let tensor_1 = QTensor::<TestBackend, 2>::int8([[1.0, 7.0], [2.0, 3.0], [1.0, 5.0]]);
-        let tensor_2 = QTensor::<TestBackend, 2>::int8([[4.0, 7.0, 5.0], [2.0, 3.0, 5.0]]);
-
+        let tensor_1 = QTensor::<TestBackend, 2>::int8([[1.0, 6.35], [2.0, 3.0], [1.0, 3.0]]);
+        let tensor_2 = QTensor::<TestBackend, 2>::int8([[4.0, 8.0, 12.7], [2.0, 3.0, 6.0]]);
         let tensor_3 = tensor_1.matmul(tensor_2);
-        let expected =
-            TensorData::from([[18.0, 28.0, 40.0], [14.0, 23.0, 25.0], [14.0, 22.0, 30.0]]);
 
+        let expected =
+            TensorData::from(
+                [[ 16.7 , 27.05, 50.8 ],
+                [ 14.  , 25.  , 43.4 ],
+                [ 10.  , 17.  , 30.7 ]]
+        );
         tensor_3
-            .dequantize()
+            // .dequantize()
             .into_data()
             .assert_approx_eq_diff(&expected, 0.3);
     }

@@ -50,9 +50,9 @@ impl core::fmt::Debug for Bytes {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let data = &**self;
         let fmt_data = move |f: &mut core::fmt::Formatter<'_>| {
-            if data.len() > 3 {
+            if data.len() > 20 {
                 // There is a nightly API `debug_more_non_exhaustive` which has `finish_non_exhaustive`
-                f.debug_list().entries(&data[0..3]).entry(&"...").finish()
+                f.debug_list().entries(&data[0..20]).entry(&"...").finish()
             } else {
                 f.debug_list().entries(data).finish()
             }
