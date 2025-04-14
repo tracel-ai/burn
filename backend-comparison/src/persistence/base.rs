@@ -4,19 +4,40 @@ use burn::{
     tensor::backend::Backend,
 };
 use burn_common::benchmark::BenchmarkResult;
+use cubecl::benchmark::{BenchmarkComputations, BenchmarkDurations, TimingMethod};
 use dirs;
 use reqwest::header::{ACCEPT, AUTHORIZATION, HeaderMap, USER_AGENT};
 use serde_json;
 use std::time::Duration;
 use std::{fs, io::Write};
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct BenchmarkRecord {
     pub backend: String,
     pub device: String,
     pub feature: String,
     pub system_info: BenchmarkSystemInfo,
     pub results: BenchmarkResult,
+}
+
+impl Default for BenchmarkRecord {
+    fn default() -> Self {
+        Self {
+            backend: Default::default(),
+            device: Default::default(),
+            feature: Default::default(),
+            system_info: Default::default(),
+            results: BenchmarkResult {
+                raw: BenchmarkDurations::new(TimingMethod::Full, Vec::new()),
+                computed: BenchmarkComputations::default(),
+                git_hash: String::new(),
+                name: String::new(),
+                options: None,
+                shapes: Vec::new(),
+                timestamp: 0,
+            },
+        }
+    }
 }
 
 /// Save the benchmarks results on disk.
