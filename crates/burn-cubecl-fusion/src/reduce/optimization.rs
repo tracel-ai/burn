@@ -4,7 +4,8 @@ use burn_fusion::stream::Context;
 use burn_ir::{ReduceDimOpIr, TensorStatus};
 use burn_tensor::DType;
 use cubecl::prelude::*;
-use cubecl::reduce::{BoundChecksInner, Reduce, ReduceParams, ReduceStrategy, reduce_kernel};
+use cubecl::reduce::instructions::{ReduceFn, ReduceFnConfig};
+use cubecl::reduce::{BoundChecksInner, ReduceFamily, ReduceParams, ReduceStrategy, reduce_kernel};
 use cubecl::{
     CubeCount, CubeDim, Runtime,
     client::ComputeClient,
@@ -15,8 +16,8 @@ use serde::{Deserialize, Serialize};
 use crate::CubeFusionHandle;
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::ir::RefLayout;
-use crate::shared::trace::Vectorization;
 use crate::shared::trace::{TraceError, TraceRunner};
+use crate::shared::trace::{TuneOutput, Vectorization};
 use crate::shared::{
     ir::{Arg, FuseBlockConfig, GlobalArgsLaunch},
     trace::FuseTrace,
@@ -45,6 +46,8 @@ pub enum ReduceInstruction {
     Mean,
     Prod,
     Sum,
+    Max,
+    Min,
 }
 
 pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
@@ -183,7 +186,7 @@ impl<R: Runtime> ReduceOptimization<R> {
     pub fn execute_fused_reduce<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), TraceError<FusedReduceError>> {
+    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
         FuseTrace::run::<R, BT, FusedReduce>(
             &self.trace,
             &self.client,
@@ -196,7 +199,7 @@ impl<R: Runtime> ReduceOptimization<R> {
     pub fn execute_fused_reduce_plane<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), TraceError<FusedReduceError>> {
+    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
         FuseTrace::run::<R, BT, FusedReduce>(
             &self.trace,
             &self.client,
@@ -209,7 +212,7 @@ impl<R: Runtime> ReduceOptimization<R> {
     pub fn execute_fused_reduce_shared_plane<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), TraceError<FusedReduceError>> {
+    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
         FuseTrace::run::<R, BT, FusedReduce>(
             &self.trace,
             &self.client,
@@ -222,10 +225,13 @@ impl<R: Runtime> ReduceOptimization<R> {
     pub fn execute_fallback<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) {
-        self.trace_read_fallback
+    ) -> TuneOutput<R> {
+        #[allow(unused_mut)] // It is used when #[cfg(test)] is true.
+        let mut output_read = self
+            .trace_read_fallback
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
+
         let (out_tensor, out_desc) = {
             let input = context
                 .tensors
@@ -247,10 +253,20 @@ impl<R: Runtime> ReduceOptimization<R> {
 
             (out_handle, out)
         };
+        #[cfg(feature = "autotune-checks")]
+        if let TuneOutput::Checked { handles } = &mut output_read {
+            handles.insert(
+                self.reduce.op.out.id,
+                (out_desc.shape.clone(), out_tensor.clone()),
+            );
+        }
         context.handles.register_handle(out_desc.id, out_tensor);
-        self.trace_write_fallback
+        let output_write = self
+            .trace_write_fallback
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
+
+        output_read.merge(output_write)
     }
     /// Returns the number of output buffers added by fusion.
     pub fn num_ops_fused(&self) -> usize {
@@ -361,75 +377,66 @@ fn launch_reduce_input_output_inst<Run: Runtime>(
     dtype_input: DType,
     dtype_output: DType,
 ) {
-    match instruction {
-        ReduceInstruction::ArgMax => launch_reduce_input_output::<
-            Run,
-            cubecl::reduce::instructions::ArgMax,
-        >(kwargs, dtype_input, dtype_output),
-        ReduceInstruction::ArgMin => launch_reduce_input_output::<
-            Run,
-            cubecl::reduce::instructions::ArgMin,
-        >(kwargs, dtype_input, dtype_output),
-        ReduceInstruction::Mean => launch_reduce_input_output::<
-            Run,
-            cubecl::reduce::instructions::Mean,
-        >(kwargs, dtype_input, dtype_output),
-        ReduceInstruction::Prod => launch_reduce_input_output::<
-            Run,
-            cubecl::reduce::instructions::Prod,
-        >(kwargs, dtype_input, dtype_output),
-        ReduceInstruction::Sum => launch_reduce_input_output::<
-            Run,
-            cubecl::reduce::instructions::Sum,
-        >(kwargs, dtype_input, dtype_output),
-    }
+    let config = match instruction {
+        ReduceInstruction::ArgMax => ReduceFnConfig::ArgMax,
+        ReduceInstruction::ArgMin => ReduceFnConfig::ArgMin,
+        ReduceInstruction::Prod => ReduceFnConfig::Prod,
+        ReduceInstruction::Mean => ReduceFnConfig::Mean,
+        ReduceInstruction::Sum => ReduceFnConfig::Sum,
+        ReduceInstruction::Max => ReduceFnConfig::Max,
+        ReduceInstruction::Min => ReduceFnConfig::Min,
+    };
+    launch_reduce_input_output::<Run, ReduceFn>(kwargs, dtype_input, dtype_output, config)
 }
 
-fn launch_reduce_input_output<Run: Runtime, Rd: Reduce>(
+fn launch_reduce_input_output<Run: Runtime, Rd: ReduceFamily>(
     kwargs: ReduceKwArgs<'_, '_, Run>,
     dtype_input: DType,
     dtype_output: DType,
+    config: Rd::Config,
 ) {
     match dtype_input {
-        DType::F64 => launch_reduce_output::<Run, f64, Rd>(kwargs, dtype_output),
-        DType::F32 => launch_reduce_output::<Run, f32, Rd>(kwargs, dtype_output),
-        DType::F16 => launch_reduce_output::<Run, half::f16, Rd>(kwargs, dtype_output),
-        DType::BF16 => launch_reduce_output::<Run, half::bf16, Rd>(kwargs, dtype_output),
-        DType::I64 => launch_reduce_output::<Run, i64, Rd>(kwargs, dtype_output),
-        DType::I32 => launch_reduce_output::<Run, i32, Rd>(kwargs, dtype_output),
-        DType::I16 => launch_reduce_output::<Run, i16, Rd>(kwargs, dtype_output),
-        DType::I8 => launch_reduce_output::<Run, i8, Rd>(kwargs, dtype_output),
-        DType::U64 => launch_reduce_output::<Run, u64, Rd>(kwargs, dtype_output),
-        DType::U32 => launch_reduce_output::<Run, u32, Rd>(kwargs, dtype_output),
-        DType::U16 => launch_reduce_output::<Run, u16, Rd>(kwargs, dtype_output),
-        DType::U8 => launch_reduce_output::<Run, u8, Rd>(kwargs, dtype_output),
+        DType::F64 => launch_reduce_output::<Run, f64, Rd>(kwargs, dtype_output, config),
+        DType::F32 => launch_reduce_output::<Run, f32, Rd>(kwargs, dtype_output, config),
+        DType::F16 => launch_reduce_output::<Run, half::f16, Rd>(kwargs, dtype_output, config),
+        DType::BF16 => launch_reduce_output::<Run, half::bf16, Rd>(kwargs, dtype_output, config),
+        DType::I64 => launch_reduce_output::<Run, i64, Rd>(kwargs, dtype_output, config),
+        DType::I32 => launch_reduce_output::<Run, i32, Rd>(kwargs, dtype_output, config),
+        DType::I16 => launch_reduce_output::<Run, i16, Rd>(kwargs, dtype_output, config),
+        DType::I8 => launch_reduce_output::<Run, i8, Rd>(kwargs, dtype_output, config),
+        DType::U64 => launch_reduce_output::<Run, u64, Rd>(kwargs, dtype_output, config),
+        DType::U32 => launch_reduce_output::<Run, u32, Rd>(kwargs, dtype_output, config),
+        DType::U16 => launch_reduce_output::<Run, u16, Rd>(kwargs, dtype_output, config),
+        DType::U8 => launch_reduce_output::<Run, u8, Rd>(kwargs, dtype_output, config),
         _ => panic!("Unsupported"),
     }
 }
 
-fn launch_reduce_output<Run: Runtime, In: Numeric, Rd: Reduce>(
+fn launch_reduce_output<Run: Runtime, In: Numeric, Rd: ReduceFamily>(
     kwargs: ReduceKwArgs<'_, '_, Run>,
     dtype: DType,
+    config: Rd::Config,
 ) {
     match dtype {
-        DType::F64 => launch_reduce::<Run, In, f64, Rd>(kwargs),
-        DType::F32 => launch_reduce::<Run, In, f32, Rd>(kwargs),
-        DType::F16 => launch_reduce::<Run, In, half::f16, Rd>(kwargs),
-        DType::BF16 => launch_reduce::<Run, In, half::bf16, Rd>(kwargs),
-        DType::I64 => launch_reduce::<Run, In, i64, Rd>(kwargs),
-        DType::I32 => launch_reduce::<Run, In, i32, Rd>(kwargs),
-        DType::I16 => launch_reduce::<Run, In, i16, Rd>(kwargs),
-        DType::I8 => launch_reduce::<Run, In, i8, Rd>(kwargs),
-        DType::U64 => launch_reduce::<Run, In, u64, Rd>(kwargs),
-        DType::U32 => launch_reduce::<Run, In, u32, Rd>(kwargs),
-        DType::U16 => launch_reduce::<Run, In, u16, Rd>(kwargs),
-        DType::U8 => launch_reduce::<Run, In, u8, Rd>(kwargs),
+        DType::F64 => launch_reduce::<Run, In, f64, Rd>(kwargs, config),
+        DType::F32 => launch_reduce::<Run, In, f32, Rd>(kwargs, config),
+        DType::F16 => launch_reduce::<Run, In, half::f16, Rd>(kwargs, config),
+        DType::BF16 => launch_reduce::<Run, In, half::bf16, Rd>(kwargs, config),
+        DType::I64 => launch_reduce::<Run, In, i64, Rd>(kwargs, config),
+        DType::I32 => launch_reduce::<Run, In, i32, Rd>(kwargs, config),
+        DType::I16 => launch_reduce::<Run, In, i16, Rd>(kwargs, config),
+        DType::I8 => launch_reduce::<Run, In, i8, Rd>(kwargs, config),
+        DType::U64 => launch_reduce::<Run, In, u64, Rd>(kwargs, config),
+        DType::U32 => launch_reduce::<Run, In, u32, Rd>(kwargs, config),
+        DType::U16 => launch_reduce::<Run, In, u16, Rd>(kwargs, config),
+        DType::U8 => launch_reduce::<Run, In, u8, Rd>(kwargs, config),
         _ => panic!("Unsupported"),
     }
 }
 
-fn launch_reduce<Run: Runtime, In: Numeric, Out: Numeric, Rd: Reduce>(
+fn launch_reduce<Run: Runtime, In: Numeric, Out: Numeric, Rd: ReduceFamily>(
     kwargs: ReduceKwArgs<'_, '_, Run>,
+    config: Rd::Config,
 ) {
     let settings = ReduceParams {
         shared: kwargs.strategy.shared.then(|| {
@@ -456,6 +463,7 @@ fn launch_reduce<Run: Runtime, In: Numeric, Out: Numeric, Rd: Reduce>(
             FusedReduceOutputLaunch::new(kwargs.outputs, kwargs.config_fuse_write, kwargs.output),
             ScalarArg::new(kwargs.axis),
             settings,
+            config,
         );
     }
 }

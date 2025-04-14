@@ -1,11 +1,11 @@
 use crate::{
     CubeFusionHandle,
+    shared::trace::TuneOutput,
     tune::{TuneContext, TuneInput},
 };
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
-    ir::UIntKind,
     reduce::tune_key::ReduceAutotuneKey,
     tune::{LocalTuner, TunableSet, local_tuner},
 };
@@ -22,8 +22,6 @@ pub struct FusedReduceAutotuneKey {
     fuse_num_writes: usize,
     #[autotune(anchor)]
     fuse_num_ops: usize,
-    fuse_on_read_max_width: u8,
-    fuse_on_write_max_width: u8,
 }
 
 /// Executes autotune on reduce operations
@@ -58,39 +56,21 @@ pub(crate) fn create_key<R: Runtime>(
 
     let input = context.tensors.get(&opt.reduce.op.input.id).unwrap();
     let out = context.tensors.get(&opt.reduce.op.out.id).unwrap();
-    let key = ReduceAutotuneKey::generate_without_strides(
+    let key = ReduceAutotuneKey::generate(
         input.dtype.into(),
         out.dtype.into(),
         &input.shape,
+        opt.reduce.axis == input.shape.len() - 1,
         opt.reduce.axis,
     );
     let read = &opt.trace.blocks[0];
     let write = &opt.trace.blocks[1];
-
-    // During fusion we perform the vectorization on the last dim.
-    let shape_input = *input.shape.last().unwrap() as u8;
-    let shape_output = *out.shape.last().unwrap() as u8;
-
-    let mut fuse_on_read_max_width = 1;
-    let mut fuse_on_write_max_width = 1;
-
-    // We use u8 as the best case scenario for vectorization.
-    for line_size in R::line_size_elem(&cubecl::ir::Elem::UInt(UIntKind::U8)) {
-        if fuse_on_read_max_width == 1 && shape_output % line_size == 0 {
-            fuse_on_read_max_width = line_size;
-        }
-        if fuse_on_write_max_width == 1 && shape_input % line_size == 0 {
-            fuse_on_write_max_width = line_size;
-        }
-    }
 
     FusedReduceAutotuneKey::new(
         key,
         read.reads.len() + write.reads.len(),
         read.writes.len() + write.writes.len(),
         read.ops.len() + write.ops.len(),
-        fuse_on_read_max_width,
-        fuse_on_write_max_width,
     )
 }
 
@@ -103,7 +83,7 @@ fn input_gen<R: Runtime>(
 
 fn tune_reduce<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceOptimization<R>>,
-) -> Result<(), String> {
+) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
@@ -118,7 +98,7 @@ fn tune_reduce<R: Runtime, BT: CubeElement>(
 
 fn tune_reduce_plane<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceOptimization<R>>,
-) -> Result<(), String> {
+) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
@@ -133,7 +113,7 @@ fn tune_reduce_plane<R: Runtime, BT: CubeElement>(
 
 fn tune_reduce_shared_plane<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceOptimization<R>>,
-) -> Result<(), String> {
+) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
@@ -150,16 +130,14 @@ fn tune_reduce_shared_plane<R: Runtime, BT: CubeElement>(
 
 fn tune_fallback<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceOptimization<R>>,
-) -> Result<(), String> {
+) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
-    match context {
+    Ok(match context {
         TuneContext::Original(context) => optimization.execute_fallback::<BT>(context),
         TuneContext::Fork(mut context_owned) => {
             optimization.execute_fallback::<BT>(&mut context_owned.as_context())
         }
-    };
-
-    Ok(())
+    })
 }

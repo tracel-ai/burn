@@ -21,8 +21,8 @@ impl RunnerChannel for WsChannel {
 
     type BoolElem = u32;
 
-    fn name() -> String {
-        "remote".into()
+    fn name(device: &Self::Device) -> String {
+        format!("remote-{device:?}")
     }
 
     fn init_client(device: &Self::Device) -> Self::Client {

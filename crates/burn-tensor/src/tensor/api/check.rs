@@ -1194,6 +1194,45 @@ impl TensorCheck {
 
         check
     }
+
+    /// Checks if input is compatible with convolution weights.
+    pub fn conv<const D1: usize, const D2: usize>(
+        ops: &str,
+        x: [usize; D1],
+        weight: [usize; D2],
+        groups: usize,
+    ) -> Self {
+        let mut check = TensorCheck::Ok;
+        let channels = x[1];
+        let expected = weight[1] * groups;
+        if channels != expected {
+            check = check.register(
+                ops,
+                TensorError::new("Number of channels in input tensor and input channels of convolution must be equal.")
+                .details(format!("got: {channels}, expected: {expected}")),
+            );
+        }
+        check
+    }
+
+    /// Checks if input is compatible with transposed convolution weights.
+    pub fn conv_transpose<const D1: usize, const D2: usize>(
+        ops: &str,
+        x: [usize; D1],
+        weight: [usize; D2],
+    ) -> Self {
+        let mut check = TensorCheck::Ok;
+        let channels = x[1];
+        let expected = weight[0];
+        if channels != expected {
+            check = check.register(
+                ops,
+                TensorError::new("Number of channels in input tensor and input channels of convolution must be equal.")
+                .details(format!("got: {channels}, expected: {expected}")),
+            );
+        }
+        check
+    }
 }
 
 pub(crate) struct FailedTensorCheck {

@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use strum::IntoEnumIterator;
-use tracel_xtask::prelude::*;
+use tracel_xtask::prelude::{clap::ValueEnum, *};
 
 use crate::{ARM_NO_ATOMIC_PTR_TARGET, ARM_TARGET, NO_STD_CRATES, WASM32_TARGET};
 
@@ -47,11 +46,6 @@ pub(crate) fn handle_command(
                         "--cfg portable_atomic_unsafe_assume_single_core",
                     );
                 }
-                // RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
-                // https://docs.rs/getrandom/latest/getrandom/#webassembly-support
-                if *build_target == WASM32_TARGET {
-                    env_vars.insert("RUSTFLAGS", "--cfg getrandom_backend=\"wasm_js\"");
-                }
                 helpers::custom_crates_build(
                     crates,
                     build_args,
@@ -87,8 +81,9 @@ pub(crate) fn handle_command(
             )?;
             Ok(())
         }
-        ExecutionEnvironment::All => ExecutionEnvironment::iter()
-            .filter(|env| *env != ExecutionEnvironment::All)
+        ExecutionEnvironment::All => ExecutionEnvironment::value_variants()
+            .iter()
+            .filter(|env| **env != ExecutionEnvironment::All)
             .try_for_each(|env| {
                 handle_command(
                     BurnBuildCmdArgs {
@@ -97,7 +92,7 @@ pub(crate) fn handle_command(
                         only: args.only.clone(),
                         ci: args.ci,
                     },
-                    env,
+                    env.clone(),
                 )
             }),
     }

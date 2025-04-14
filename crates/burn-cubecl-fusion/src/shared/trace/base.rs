@@ -12,7 +12,12 @@ use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, marker::PhantomData};
+
+#[cfg(feature = "autotune-checks")]
+use burn_tensor::TensorData;
+#[cfg(feature = "autotune-checks")]
+use std::collections::HashMap;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 /// A trace contains all [blocks](FuseBlock) and the [resources](KernelResources) used by the
@@ -20,6 +25,76 @@ use std::collections::BTreeMap;
 pub struct FuseTrace {
     pub blocks: Vec<FuseBlock>,
     pub resources: FuseResources,
+}
+
+pub enum TuneOutput<R: Runtime> {
+    UnChecked(PhantomData<R>),
+    #[cfg(feature = "autotune-checks")]
+    Checked {
+        handles: HashMap<TensorId, (Vec<usize>, CubeFusionHandle<R>)>,
+    },
+}
+
+impl<R: Runtime> TuneOutput<R> {
+    #[allow(unused_variables)]
+    pub fn merge(self, other: Self) -> Self {
+        let mut result = self;
+
+        match &mut result {
+            TuneOutput::UnChecked(..) => {}
+            #[cfg(feature = "autotune-checks")]
+            TuneOutput::Checked { handles } => match other {
+                TuneOutput::UnChecked(..) => {}
+                TuneOutput::Checked { handles: o } => {
+                    for (k, v) in o.into_iter() {
+                        handles.insert(k, v);
+                    }
+                }
+            },
+        }
+
+        result
+    }
+}
+
+impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
+    #[cfg(feature = "autotune-checks")]
+    fn check_equivalence(&self, other: Self) {
+        if let (
+            TuneOutput::Checked {
+                handles: handles_ref,
+            },
+            TuneOutput::Checked { handles },
+        ) = (self, &other)
+        {
+            let mut num_checked = 0;
+            for (id, (shape, handle)) in handles_ref.iter() {
+                if let Some((shape_other, other)) = handles.get(id) {
+                    assert_eq!(
+                        handle.strides, other.strides,
+                        "TODO: It should be OK, we simply need to call `into_contiguous` before the assertion."
+                    );
+
+                    let data_ref = handle.client.read_one(handle.handle.clone().binding());
+                    let data_other = other.client.read_one(other.handle.clone().binding());
+                    let data_ref = TensorData::from_bytes(data_ref, shape.clone(), handle.dtype);
+                    let data_other =
+                        TensorData::from_bytes(data_other, shape_other.clone(), handle.dtype);
+
+                    data_ref.assert_approx_eq(&data_other, 2);
+                    num_checked += 1;
+                } else {
+                    // Debug info for the tests.
+                    println!("No tensor found for {id:?}=>{shape:?}");
+                }
+            }
+            // At least one check is needed per output.
+            //
+            // Some optimizations might write more outputs than needed, so it might be fined if
+            // the number of handles is different, but at least one is required.
+            assert!(num_checked >= 1);
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
@@ -69,7 +144,7 @@ impl FuseTrace {
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         runner: &Runner,
-    ) -> Result<(), TraceError<Runner::Error>> {
+    ) -> Result<TuneOutput<R>, TraceError<Runner::Error>> {
         let mut plan = LaunchPlan::<R>::new(&self.blocks);
 
         InputPlanner::<R>::new(&self.resources, &self.blocks).run(context, &mut plan);

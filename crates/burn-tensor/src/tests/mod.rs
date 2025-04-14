@@ -137,6 +137,7 @@ macro_rules! testgen_quantization {
         burn_tensor::testgen_q_chunk!();
         burn_tensor::testgen_q_clamp!();
         burn_tensor::testgen_q_cos!();
+        burn_tensor::testgen_q_cosh!();
         burn_tensor::testgen_q_div!();
         burn_tensor::testgen_q_erf!();
         burn_tensor::testgen_q_exp!();
@@ -162,6 +163,7 @@ macro_rules! testgen_quantization {
         burn_tensor::testgen_q_round!();
         burn_tensor::testgen_q_select!();
         burn_tensor::testgen_q_sin!();
+        burn_tensor::testgen_q_sinh!();
         burn_tensor::testgen_q_slice!();
         burn_tensor::testgen_q_sort_argsort!();
         burn_tensor::testgen_q_split!();
@@ -226,6 +228,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_clamp!();
         burn_tensor::testgen_close!();
         burn_tensor::testgen_cos!();
+        burn_tensor::testgen_cosh!();
         burn_tensor::testgen_create_like!();
         burn_tensor::testgen_div!();
         burn_tensor::testgen_erf!();
@@ -250,6 +253,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_repeat!();
         burn_tensor::testgen_reshape!();
         burn_tensor::testgen_sin!();
+        burn_tensor::testgen_sinh!();
         burn_tensor::testgen_slice!();
         burn_tensor::testgen_stack!();
         burn_tensor::testgen_sqrt!();

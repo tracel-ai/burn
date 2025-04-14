@@ -20,6 +20,7 @@ vulkan = ["burn/vulkan", "burn/default"]
 remote = ["burn/remote"]
 cuda = ["burn/cuda"]
 hip = ["burn/hip"]
+metal = ["burn/metal"]
 
 [dependencies]
 # Burn

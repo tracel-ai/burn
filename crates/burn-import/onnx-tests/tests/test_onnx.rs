@@ -25,6 +25,10 @@ include_models!(
     clip_opset16,
     clip_opset7,
     concat,
+    constant_f32,
+    constant_f64,
+    constant_i32,
+    constant_i64,
     constant_of_shape,
     constant_of_shape_full_like,
     conv1d,
@@ -34,6 +38,7 @@ include_models!(
     conv_transpose2d,
     conv_transpose3d,
     cos,
+    cosh,
     div,
     dropout_opset16,
     dropout_opset7,
@@ -44,6 +49,7 @@ include_models!(
     expand_tensor,
     expand_shape,
     flatten,
+    flatten_2d,
     floor,
     gather_1d_idx,
     gather_2d_idx,
@@ -114,6 +120,7 @@ include_models!(
     sigmoid,
     sign,
     sin,
+    sinh,
     slice,
     softmax,
     sqrt,
@@ -1170,6 +1177,21 @@ mod tests {
     }
 
     #[test]
+    fn flatten_2d() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: flatten_2d::Model<Backend> = flatten_2d::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::ones([2, 3, 4, 5], &device);
+        let output = model.forward(input);
+
+        // Flatten leading and trailing dimensions (axis = 2) and returns a 2D tensor
+        let expected_shape = Shape::from([6, 20]);
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
     fn batch_norm() {
         let model: batch_norm::Model<Backend> = batch_norm::Model::default();
 
@@ -1343,6 +1365,19 @@ mod tests {
 
         let output = model.forward(input);
         let expected = TensorData::from([[[[0.8415f32, -0.7568, 0.4121, -0.1324]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn sinh() {
+        let device = Default::default();
+        let model: sinh::Model<Backend> = sinh::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[-4.0, 0.5, 1.0, 9.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = TensorData::from([[[[-27.2899, 0.5211, 1.1752, 4051.5419]]]]);
 
         output.to_data().assert_approx_eq(&expected, 4);
     }
@@ -1632,6 +1667,19 @@ mod tests {
 
         let output = model.forward(input);
         let expected = TensorData::from([[[[0.5403f32, -0.6536, -0.9111, 0.9912]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn cosh() {
+        let device = Default::default();
+        let model: cosh::Model<Backend> = cosh::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[-4.0, 0.5, 1.0, 9.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = TensorData::from([[[[27.3082, 1.1276, 1.5431, 4051.5420]]]]);
 
         output.to_data().assert_approx_eq(&expected, 4);
     }
@@ -2227,6 +2275,54 @@ mod tests {
         let output = model.forward(input.into());
 
         assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn add_constant_f32() {
+        let device = Default::default();
+        let model = constant_f32::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn add_constant_f64() {
+        let device = Default::default();
+        let model = constant_f64::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn add_constant_i32() {
+        let device = Default::default();
+        let model = constant_i32::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn add_constant_i64() {
+        let device = Default::default();
+        let model = constant_i64::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
     }
 
     #[test]

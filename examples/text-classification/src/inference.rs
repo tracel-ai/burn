@@ -33,9 +33,8 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
     let n_classes = D::num_classes();
 
     // Initialize batcher for batching samples
-    let batcher = Arc::new(TextClassificationBatcher::<B>::new(
+    let batcher = Arc::new(TextClassificationBatcher::new(
         tokenizer.clone(),
-        device.clone(),
         config.max_seq_length,
     ));
 
@@ -43,7 +42,7 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
     println!("Loading weights ...");
     let record = CompactRecorder::new()
         .load(format!("{artifact_dir}/model").into(), &device)
-        .expect("Trained model weights");
+        .expect("Trained model weights tb");
 
     // Create model using loaded weights
     println!("Creating model ...");
@@ -53,12 +52,12 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
         tokenizer.vocab_size(),
         config.max_seq_length,
     )
-    .init(&device)
+    .init::<B>(&device)
     .load_record(record); // Initialize model with loaded weights
 
     // Run inference on the given text samples
     println!("Running inference ...");
-    let item = batcher.batch(samples.clone()); // Batch samples using the batcher
+    let item = batcher.batch(samples.clone(), &device); // Batch samples using the batcher
     let predictions = model.infer(item); // Get model predictions
 
     // Print out predictions for each sample

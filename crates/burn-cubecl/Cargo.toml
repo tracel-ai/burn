@@ -20,6 +20,8 @@ export_tests = [
     "serial_test",
     "burn-autodiff/export_tests",
     "burn-tensor/export_tests",
+    "cubecl/autotune-checks",
+    "burn-cubecl-fusion/autotune-checks",
     "burn-ndarray",
     "fusion",
     "paste",

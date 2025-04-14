@@ -1,6 +1,6 @@
 use crate::{
     collections::HashMap,
-    graph::{ComputingProperty, NodeID, NodeSteps},
+    graph::{ComputingProperty, NodeID},
     tensor::AutodiffTensor,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
@@ -108,8 +108,7 @@ impl CheckpointerBuilder {
         }
     }
 
-    pub(crate) fn build(self, graph: &NodeSteps) -> Checkpointer {
-        let node_tree = self.make_tree(graph);
+    pub(crate) fn build(self, node_tree: NodeTree) -> Checkpointer {
         let mut backward_states_map = HashMap::new();
         let mut retro_forwards_map = HashMap::new();
 
@@ -245,14 +244,6 @@ impl CheckpointerBuilder {
                 ),
             };
         }
-    }
-
-    fn make_tree(&self, graph: &NodeSteps) -> NodeTree {
-        let mut tree = HashMap::default();
-        for (id, step) in graph {
-            tree.insert(*id, step.parents());
-        }
-        NodeTree::new(tree)
     }
 
     fn update_n_required_of_parents(

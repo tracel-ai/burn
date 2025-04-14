@@ -1,5 +1,6 @@
 use crate::{
     CubeFusionHandle,
+    shared::trace::TuneOutput,
     tune::{TuneContext, TuneInput},
 };
 use burn_fusion::stream::Context;
@@ -31,7 +32,6 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
     let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
         .with_tunable(tune_fallback::<R, BT>) // First one should always work.
         .with_tunable(tune_simple_fused::<R, BT>)
-        .with_tunable(tune_specialized_fused::<R, BT>)
         .with_tunable(tune_double_buffering_fused::<R, BT>);
 
     TUNER.execute(
@@ -85,7 +85,7 @@ fn input_gen<R: Runtime>(
 
 fn tune_simple_fused<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, MatmulOptimization<R>>,
-) -> Result<(), String> {
+) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
@@ -98,24 +98,9 @@ fn tune_simple_fused<R: Runtime, BT: CubeElement>(
     .map_err(|e| format!("{e:?}"))
 }
 
-fn tune_specialized_fused<R: Runtime, BT: CubeElement>(
-    input: TuneInput<R, MatmulOptimization<R>>,
-) -> Result<(), String> {
-    let optimization = input.optimization();
-    let context = input.context();
-
-    match context {
-        TuneContext::Original(context) => optimization.execute_specialized_fused::<BT>(context),
-        TuneContext::Fork(mut context_owned) => {
-            optimization.execute_specialized_fused::<BT>(&mut context_owned.as_context())
-        }
-    }
-    .map_err(|e| format!("{e:?}"))
-}
-
 fn tune_double_buffering_fused<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, MatmulOptimization<R>>,
-) -> Result<(), String> {
+) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
@@ -132,16 +117,14 @@ fn tune_double_buffering_fused<R: Runtime, BT: CubeElement>(
 
 fn tune_fallback<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, MatmulOptimization<R>>,
-) -> Result<(), String> {
+) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
-    match context {
+    Ok(match context {
         TuneContext::Original(context) => optimization.execute_fallback::<BT>(context),
         TuneContext::Fork(mut context_owned) => {
             optimization.execute_fallback::<BT>(&mut context_owned.as_context())
         }
-    };
-
-    Ok(())
+    })
 }

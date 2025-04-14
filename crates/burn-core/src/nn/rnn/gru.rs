@@ -124,7 +124,7 @@ impl<B: Backend> Gru<B> {
     /// # Parameters
     /// - batched_input: `[batch_size, sequence_length, input_size]`.
     /// - state: An optional tensor representing an initial cell state with dimensions
-    ///          `[batch_size, hidden_size]`. If none is provided, an empty state will be used.
+    ///   `[batch_size, hidden_size]`. If none is provided, an empty state will be used.
     ///
     /// # Returns
     /// - output: `[batch_size, sequence_length, hidden_size]`

@@ -22,11 +22,11 @@ Follow the [embassy guide](https://embassy.dev/book/#_getting_started) for your 
 Some other dependencies have to be added
 ```toml
 [dependencies]
-embedded-alloc = "0.5.1" # Only if there is no default allocator for your chip
+embedded-alloc = "0.6.0" # Only if there is no default allocator for your chip
 burn = { version = "0.17", default-features = false, features = ["ndarray"] } # Backend must be ndarray
 
 [build-dependencies]
-burn-import = { version = "0.14" } # Used to auto generate the rust code to import the model
+burn-import = { version = "0.17" } # Used to auto generate the rust code to import the model
 ```
 
 ### Import the Model
@@ -46,7 +46,7 @@ ModelGen::new()
 First define a global allocator (if you are on a no_std system without alloc).
 
 ```rs
-use embedded_alloc::Heap;
+use embedded_alloc::LlffHeap as Heap;
 
 #[global_allocator]
 static HEAP: Heap = Heap::empty();
@@ -57,7 +57,7 @@ async fn main(_spawner: Spawner) {
         use core::mem::MaybeUninit;
         const HEAP_SIZE: usize = 100 * 1024; // This is dependent on the model size in memory.
         static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
-        unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
+        unsafe { HEAP.init(&raw mut HEAP_MEM as usize, HEAP_SIZE) }
     }
 }
 ```
@@ -71,7 +71,7 @@ type Backend = NdArray<f32>;
 type BackendDevice = <Backend as burn::tensor::backend::Backend>::Device;
 ```
 
-Then inside the `main` function add 
+Then inside the `main` function add
 ```rs
 use your_model::Model;
 
@@ -93,4 +93,4 @@ let output = model.forward(input);
 ```
 
 ## Conclusion
-Running a model in a no_std environment is pretty much identical to a normal environment. All that is needed is a global allocator. 
+Running a model in a no_std environment is pretty much identical to a normal environment. All that is needed is a global allocator.

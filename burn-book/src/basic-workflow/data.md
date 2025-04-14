@@ -20,24 +20,16 @@ use burn::{
     prelude::*,
 };
 
-#[derive(Clone)]
-pub struct MnistBatcher<B: Backend> {
-    device: B::Device,
-}
 
-impl<B: Backend> MnistBatcher<B> {
-    pub fn new(device: B::Device) -> Self {
-        Self { device }
-    }
-}
-
+#[derive(Clone, Default)]
+pub struct MnistBatcher {}
 ```
 
-This codeblock defines a batcher struct with the device in which the tensor should be sent before
-being passed to the model. Note that the device is an associative type of the `Backend` trait since
-not all backends expose the same devices. As an example, the Libtorch-based backend exposes
-`Cuda(gpu_index)`, `Cpu`, `Vulkan` and `Metal` devices, while the ndarray backend only exposes the
-`Cpu` device.
+This batcher is pretty straightforward, as it only defines a struct that will implement the
+`Batcher` trait. The trait is generic over the `Backend` trait, which includes an associated type
+for the device, as not all backends expose the same devices. As an example, the Libtorch-based
+backend exposes `Cuda(gpu_index)`, `Cpu`, `Vulkan` and `Metal` devices, while the ndarray backend
+only exposes the `Cpu` device.
 
 Next, we need to actually implement the batching logic.
 
@@ -47,16 +39,8 @@ Next, we need to actually implement the batching logic.
 #     prelude::*,
 # };
 #
-# #[derive(Clone)]
-# pub struct MnistBatcher<B: Backend> {
-#     device: B::Device,
-# }
-#
-# impl<B: Backend> MnistBatcher<B> {
-#     pub fn new(device: B::Device) -> Self {
-#         Self { device }
-#     }
-# }
+# #[derive(Clone, Default)]
+# pub struct MnistBatcher {}
 #
 #[derive(Clone, Debug)]
 pub struct MnistBatch<B: Backend> {
@@ -64,14 +48,14 @@ pub struct MnistBatch<B: Backend> {
     pub targets: Tensor<B, 1, Int>,
 }
 
-impl<B: Backend> Batcher<MnistItem, MnistBatch<B>> for MnistBatcher<B> {
-    fn batch(&self, items: Vec<MnistItem>) -> MnistBatch<B> {
+impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher {
+    fn batch(&self, items: Vec<MnistItem>, device: &B::Device) -> MnistBatch<B> {
         let images = items
             .iter()
             .map(|item| TensorData::from(item.image).convert::<B::FloatElem>())
-            .map(|data| Tensor::<B, 2>::from_data(data, &self.device))
+            .map(|data| Tensor::<B, 2>::from_data(data, device))
             .map(|tensor| tensor.reshape([1, 28, 28]))
-            // Normalize: make between [0,1] and make the mean=0 and std=1
+            // Normalize: scale between [0,1] and make the mean=0 and std=1
             // values mean=0.1307,std=0.3081 are from the PyTorch MNIST example
             // https://github.com/pytorch/examples/blob/54f4572509891883a947411fd7239237dd2a39c3/mnist/main.py#L122
             .map(|tensor| ((tensor / 255) - 0.1307) / 0.3081)
@@ -80,15 +64,12 @@ impl<B: Backend> Batcher<MnistItem, MnistBatch<B>> for MnistBatcher<B> {
         let targets = items
             .iter()
             .map(|item| {
-                Tensor::<B, 1, Int>::from_data(
-                    [(item.label as i64).elem::<B::IntElem>()],
-                    &self.device,
-                )
+                Tensor::<B, 1, Int>::from_data([(item.label as i64).elem::<B::IntElem>()], device)
             })
             .collect();
 
-        let images = Tensor::cat(images, 0).to_device(&self.device);
-        let targets = Tensor::cat(targets, 0).to_device(&self.device);
+        let images = Tensor::cat(images, 0);
+        let targets = Tensor::cat(targets, 0);
 
         MnistBatch { images, targets }
     }
@@ -122,7 +103,7 @@ images.
 let images = items                                                       // take items Vec<MnistItem>
     .iter()                                                              // create an iterator over it
     .map(|item| TensorData::from(item.image).convert::<B::FloatElem>())  // for each item, convert the image to float data struct
-    .map(|data| Tensor::<B, 2>::from_data(data, &self.device))           // for each data struct, create a tensor on the device
+    .map(|data| Tensor::<B, 2>::from_data(data, device))                 // for each data struct, create a tensor on the device
     .map(|tensor| tensor.reshape([1, 28, 28]))                           // for each tensor, reshape to the image dimensions [C, H, W]
     .map(|tensor| ((tensor / 255) - 0.1307) / 0.3081)                    // for each image tensor, apply normalization
     .collect();                                                          // consume the resulting iterator & collect the values into a new vector
