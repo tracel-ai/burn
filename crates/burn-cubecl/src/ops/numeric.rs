@@ -101,6 +101,17 @@ pub fn empty_device<R: CubeRuntime, E: CubeElement>(
     CubeTensor::new_contiguous(client, device, shape, buffer, E::dtype())
 }
 
+/// Create a tensor with uninitialized memory
+pub fn empty_device_strided<R: CubeRuntime, E: CubeElement>(
+    client: ComputeClient<R::Server, R::Channel>,
+    device: R::Device,
+    shape: Shape,
+) -> CubeTensor<R> {
+    let (handle, strides) = client.empty_tensor(&shape.dims, size_of::<E>());
+
+    CubeTensor::new(client, handle, shape, device, strides, E::dtype())
+}
+
 /// Add two tensors
 pub fn add<R: CubeRuntime, E: CubeElement>(
     lhs: CubeTensor<R>,
