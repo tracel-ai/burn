@@ -202,6 +202,12 @@ pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
+    if let Ok(out) =
+        conv2d_im2col_1x1::<R, E>(input.clone(), weight.clone(), bias.clone(), options.clone())
+    {
+        return Ok(out);
+    }
+
     let [batch_size, in_channels, in_height, in_width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let groups = options.groups;
@@ -224,7 +230,7 @@ pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
 
     if kernel_h == 1 && kernel_w == 1 && in_height == out_h && in_width == out_w {
         // Special case for 1x1 kernels (sometimes used to scale the image by a set of weights)
-        return execute_1x1_kernel::<R, E>(input, weight, bias, options);
+        return conv2d_im2col_1x1::<R, E>(input, weight, bias, options);
     }
 
     let batches_per_run = batches_per_run(batch_size, out_h, out_w)?;
@@ -268,20 +274,39 @@ pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
     Ok(out)
 }
 
-fn execute_1x1_kernel<R: CubeRuntime, E: FloatElement>(
+pub fn conv2d_im2col_1x1<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
     let [batch_size, _, height, width] = input.shape.dims();
-    let [out_channels, in_c_per_grp, _, _] = weight.shape.dims();
+    let [out_channels, in_c_per_grp, kernel_h, kernel_w] = weight.shape.dims();
     let groups = options.groups;
-    let out_c_per_grp = out_channels / groups;
+    let out_c_per_group = out_channels / groups;
+
+    let out_h = calculate_conv_output_size(
+        kernel_h,
+        options.stride[0],
+        options.padding[0],
+        options.dilation[0],
+        height,
+    );
+    let out_w = calculate_conv_output_size(
+        kernel_w,
+        options.stride[1],
+        options.padding[1],
+        options.dilation[1],
+        width,
+    );
+
+    if kernel_h != 1 || kernel_w != 1 || height != out_h || width != out_w {
+        return Err(ConvLaunchError::Unknown);
+    }
 
     let input = swap_dims(input, 0, 1); // [CNHW]
 
-    let weight = reshape(weight, Shape::new([groups, out_c_per_grp, in_c_per_grp]));
+    let weight = reshape(weight, Shape::new([groups, out_c_per_group, in_c_per_grp]));
     let in_shape = Shape::new([groups, in_c_per_grp, batch_size * height * width]);
     let input = reshape(input, in_shape);
     let out = matmul::<R, E>(weight, input, None, MatmulStrategy::default())?;
