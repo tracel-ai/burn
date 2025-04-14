@@ -387,8 +387,8 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             _blank_!();
             impl<B: Backend> Model<B> {
                 pub fn from_embedded(device: &B::Device) -> Self {
-                    let record = BinBytesRecorder::<#precision_ty>::default()
-                    .load(EMBEDDED_STATES.to_vec(), device)
+                    let record = BinBytesRecorder::<#precision_ty, &'static [u8]>::default()
+                    .load(EMBEDDED_STATES, device)
                     .expect("Should decode state successfully");
 
                     Self::new(device).load_record(record)

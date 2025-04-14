@@ -57,6 +57,7 @@ pub enum ImporterError {
 ///  let train_ds:SqliteDataset<MnistItemRaw> = HuggingfaceDatasetLoader::new("mnist")
 ///       .dataset("train")
 ///       .unwrap();
+/// ```
 pub struct HuggingfaceDatasetLoader {
     name: String,
     subset: Option<String>,

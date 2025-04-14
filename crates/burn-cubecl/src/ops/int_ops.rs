@@ -15,6 +15,7 @@ use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{Distribution, ElementConversion, Shape, TensorData, ops::IntTensorOps};
 use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
+use cubecl::reduce::instructions::ReduceFnConfig;
 use std::ops::Range;
 
 impl<R, F, I, BT> IntTensorOps<Self> for CubeBackend<R, F, I, BT>
@@ -208,27 +209,47 @@ where
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R, I, I, reduce::Sum>(tensor, dim, Default::default()).unwrap()
+        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Sum).unwrap()
     }
 
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce::<R, I, I, reduce::Prod>(tensor, Default::default()).unwrap()
+        reduce::reduce::<R, I, I>(tensor, Default::default(), ReduceFnConfig::Prod).unwrap()
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R, I, I, reduce::Prod>(tensor, dim, Default::default()).unwrap()
+        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Prod)
+            .unwrap()
+    }
+
+    fn int_max(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        reduce::reduce::<R, I, I>(tensor, Default::default(), ReduceFnConfig::Max).unwrap()
+    }
+
+    fn int_max_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Max).unwrap()
+    }
+
+    fn int_min(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        reduce::reduce::<R, I, I>(tensor, Default::default(), ReduceFnConfig::Min).unwrap()
+    }
+
+    fn int_min_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Min).unwrap()
     }
 
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R, I, I, reduce::Mean>(tensor, dim, Default::default()).unwrap()
+        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Mean)
+            .unwrap()
     }
 
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R, I, I, reduce::ArgMax>(tensor, dim, Default::default()).unwrap()
+        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::ArgMax)
+            .unwrap()
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R, I, I, reduce::ArgMin>(tensor, dim, Default::default()).unwrap()
+        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::ArgMin)
+            .unwrap()
     }
 
     fn int_clamp(

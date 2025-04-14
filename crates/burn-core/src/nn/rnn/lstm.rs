@@ -109,13 +109,13 @@ impl<B: Backend> Lstm<B> {
     /// ## Parameters:
     /// - batched_input: The input tensor of shape `[batch_size, sequence_length, input_size]`.
     /// - state: An optional `LstmState` representing the initial cell state and hidden state.
-    ///          Each state tensor has shape `[batch_size, hidden_size]`.
-    ///          If no initial state is provided, these tensors are initialized to zeros.
+    ///   Each state tensor has shape `[batch_size, hidden_size]`.
+    ///   If no initial state is provided, these tensors are initialized to zeros.
     ///
     /// ## Returns:
     /// - output: A tensor represents the output features of LSTM. Shape: `[batch_size, sequence_length, hidden_size]`
     /// - state: A `LstmState` represents the final states. Both `state.cell` and `state.hidden` have the shape
-    ///          `[batch_size, hidden_size]`.
+    ///   `[batch_size, hidden_size]`.
     pub fn forward(
         &self,
         batched_input: Tensor<B, 3>,
@@ -274,13 +274,13 @@ impl<B: Backend> BiLstm<B> {
     /// ## Parameters:
     /// - batched_input: The input tensor of shape `[batch_size, sequence_length, input_size]`.
     /// - state: An optional `LstmState` representing the initial cell state and hidden state.
-    ///          Each state tensor has shape `[2, batch_size, hidden_size]`.
-    ///          If no initial state is provided, these tensors are initialized to zeros.
+    ///   Each state tensor has shape `[2, batch_size, hidden_size]`.
+    ///   If no initial state is provided, these tensors are initialized to zeros.
     ///
     /// ## Returns:
     /// - output: A tensor represents the output features of LSTM. Shape: `[batch_size, sequence_length, hidden_size * 2]`
     /// - state: A `LstmState` represents the final forward and reverse states. Both `state.cell` and
-    ///          `state.hidden` have the shape `[2, batch_size, hidden_size]`.
+    ///   `state.hidden` have the shape `[2, batch_size, hidden_size]`.
     pub fn forward(
         &self,
         batched_input: Tensor<B, 3>,

@@ -105,10 +105,16 @@ pub type Vulkan<F = f32, I = i32, B = u8> = Wgpu<F, I, B>;
 /// Tensor backend that uses the wgpu crate to execute GPU compute shaders written in WGSL.
 pub type WebGpu<F = f32, I = i32, B = u32> = Wgpu<F, I, B>;
 
+#[cfg(feature = "metal")]
+/// Tensor backend that leverages the Metal graphics API to execute GPU compute shaders compiled to MSL.
+pub type Metal<F = f32, I = i32, B = u8> = Wgpu<F, I, B>;
+
 #[cfg(test)]
 mod tests {
     use burn_cubecl::CubeBackend;
     #[cfg(feature = "vulkan")]
+    pub use half::f16;
+    #[cfg(feature = "metal")]
     pub use half::f16;
 
     pub type TestRuntime = cubecl::wgpu::WgpuRuntime;
@@ -117,6 +123,8 @@ mod tests {
     // breaks a lot of tests from precision issues
     #[cfg(feature = "vulkan")]
     burn_cubecl::testgen_all!([f16, f32], [i8, i16, i32, i64], [u8, u32]);
-    #[cfg(not(feature = "vulkan"))]
+    #[cfg(feature = "metal")]
+    burn_cubecl::testgen_all!([f16, f32], [i16, i32], [u32]);
+    #[cfg(all(not(feature = "vulkan"), not(feature = "metal")))]
     burn_cubecl::testgen_all!([f32], [i32], [u32]);
 }

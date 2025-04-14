@@ -1,5 +1,5 @@
 use super::NodeID;
-use crate::{checkpoint::base::Checkpointer, collections::HashMap, grads::Gradients};
+use crate::{checkpoint::base::Checkpointer, grads::Gradients};
 use alloc::{boxed::Box, vec::Vec};
 
 /// Backward step for reverse mode autodiff.
@@ -15,4 +15,3 @@ pub trait Step: Send + core::fmt::Debug {
 }
 
 pub type StepBoxed = Box<dyn Step>;
-pub type NodeSteps = HashMap<NodeID, StepBoxed>;

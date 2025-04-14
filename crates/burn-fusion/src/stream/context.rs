@@ -963,14 +963,14 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
-            NumericOperationIr::MaxDim(desc) => NumericOperationIr::MaxDim(ScalarOpIr {
-                lhs: desc.lhs.to_relative(converter),
-                rhs: desc.rhs,
+            NumericOperationIr::MaxDim(desc) => NumericOperationIr::MaxDim(ReduceDimOpIr {
+                input: desc.input.to_relative(converter),
+                axis: desc.axis,
                 out: desc.out.to_relative(converter),
             }),
-            NumericOperationIr::MinDim(desc) => NumericOperationIr::MinDim(ScalarOpIr {
-                lhs: desc.lhs.to_relative(converter),
-                rhs: desc.rhs,
+            NumericOperationIr::MinDim(desc) => NumericOperationIr::MinDim(ReduceDimOpIr {
+                input: desc.input.to_relative(converter),
+                axis: desc.axis,
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Clamp(desc) => NumericOperationIr::Clamp(ClampOpIr {

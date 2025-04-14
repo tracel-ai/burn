@@ -492,12 +492,12 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [max dim](burn_tensor::ops::FloatTensorOps::float_max_dim).
     /// Int => [max dim](burn_tensor::ops::IntTensorOps::int_max_dim).
-    MaxDim(ScalarOpIr<usize>),
+    MaxDim(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [min dim](burn_tensor::ops::FloatTensorOps::float_min_dim).
     /// Int => [min dim](burn_tensor::ops::IntTensorOps::int_min_dim).
-    MinDim(ScalarOpIr<usize>),
+    MinDim(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [clamp](burn_tensor::ops::FloatTensorOps::float_clamp).
@@ -1543,10 +1543,10 @@ impl<E: Element> NumericOperationIr<E> {
                 vec![&repr.input, &repr.out]
             }
             NumericOperationIr::MaxDim(repr) => {
-                vec![&repr.lhs, &repr.out]
+                vec![&repr.input, &repr.out]
             }
             NumericOperationIr::MinDim(repr) => {
-                vec![&repr.lhs, &repr.out]
+                vec![&repr.input, &repr.out]
             }
             NumericOperationIr::IntRandom(repr) => {
                 vec![&repr.out]
