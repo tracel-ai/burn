@@ -18,7 +18,7 @@ tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 vulkan = ["burn/vulkan", "burn/default"]
 remote = ["burn/remote"]
-cuda = ["burn/cuda"]
+cuda = ["burn/cuda", "burn/compilation-cache"]
 hip = ["burn/hip"]
 metal = ["burn/metal"]
 
