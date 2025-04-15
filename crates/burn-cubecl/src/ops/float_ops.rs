@@ -365,6 +365,40 @@ where
         )
     }
 
+    fn float_max(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_dtype!(
+            float(tensor.dtype),
+            E,
+            reduce::reduce::<R, E, E>(tensor, Default::default(), ReduceFnConfig::Max).unwrap()
+        )
+    }
+
+    fn float_max_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_dtype!(
+            float(tensor.dtype),
+            E,
+            reduce::reduce_dim::<R, E, E>(tensor, dim, Default::default(), ReduceFnConfig::Max)
+                .unwrap()
+        )
+    }
+
+    fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_dtype!(
+            float(tensor.dtype),
+            E,
+            reduce::reduce::<R, E, E>(tensor, Default::default(), ReduceFnConfig::Min).unwrap()
+        )
+    }
+
+    fn float_min_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_dtype!(
+            float(tensor.dtype),
+            E,
+            reduce::reduce_dim::<R, E, E>(tensor, dim, Default::default(), ReduceFnConfig::Min)
+                .unwrap()
+        )
+    }
+
     fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         execute_with_dtype!(
             float(tensor.dtype),

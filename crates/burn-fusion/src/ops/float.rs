@@ -1763,7 +1763,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_max_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        scalar_float_ops!(MaxDimOps, B::float_max_dim, usize, noconvert);
+        reduce_float_ops!(MaxDimOps, B::float_max_dim);
 
         let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
@@ -1771,9 +1771,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -1849,7 +1849,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_min_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        scalar_float_ops!(MinDimOps, B::float_min_dim, usize, noconvert);
+        reduce_float_ops!(MinDimOps, B::float_min_dim);
 
         let stream = tensor.stream;
         let dtype = tensor.dtype;
@@ -1857,9 +1857,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
         out.client.register(

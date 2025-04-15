@@ -16,9 +16,10 @@ use cubecl::linalg::matmul::components::MatmulPrecision;
 use cubecl::linalg::matmul::components::MatmulProblem;
 use cubecl::linalg::matmul::components::tile::TileMatmulFamily;
 use cubecl::linalg::matmul::components::tile::accelerated::Accelerated;
+use cubecl::linalg::matmul::kernels::matmul::Algorithm;
 use cubecl::linalg::matmul::kernels::matmul::double_buffering::DoubleBufferingAlgorithm;
+use cubecl::linalg::matmul::kernels::matmul::select_kernel_virtual;
 use cubecl::linalg::matmul::kernels::matmul::simple::SimpleAlgorithm;
-use cubecl::linalg::matmul::kernels::matmul::{Algorithm, select_kernel};
 use cubecl::linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
 use cubecl::linalg::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
@@ -396,10 +397,12 @@ fn matmul_launch_kernel<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
     if <A::TileMatmul as TileMatmulFamily>::requires_tensor_cores()
         && TypeId::of::<EG>() == TypeId::of::<f32>()
     {
-        select_kernel::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
+        select_kernel_virtual::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
             client, input, output, problem, plane_size,
         )
     } else {
-        select_kernel::<FusedMatmulSpec<EG>, R, A>(client, input, output, problem, plane_size)
+        select_kernel_virtual::<FusedMatmulSpec<EG>, R, A>(
+            client, input, output, problem, plane_size,
+        )
     }
 }
