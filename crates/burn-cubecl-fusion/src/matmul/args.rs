@@ -1,7 +1,7 @@
 use cubecl::{
     linalg::matmul::components::{
         MatmulPrecision,
-        global::{GlobalConfig, Quantization, args::MatmulArgs},
+        global::{Quantization, args::MatmulArgs},
     },
     prelude::*,
 };

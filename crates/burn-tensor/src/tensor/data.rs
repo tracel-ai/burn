@@ -34,7 +34,7 @@ pub enum DataError {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TensorData {
     /// The values of the tensor (as bytes).
-    pub bytes: Bytes,
+    bytes: Bytes,
 
     /// The shape of the tensor.
     pub shape: Vec<usize>,
@@ -642,7 +642,6 @@ impl TensorData {
         let max_num_diff = 5;
 
         for (i, (a, b)) in iter.enumerate() {
-            println!("(i, (a, b)) = ({i}, ({a}, {b}))");
             //if they are both nan, then they are equally nan
             let both_nan = a.is_nan() && b.is_nan();
             //this works for both infinities
@@ -654,12 +653,8 @@ impl TensorData {
 
             let err = (a - b).abs();
 
-            println!("err = {err}");
-
             if self.dtype.is_float() {
-                println!("IS FLOAT");
                 if let Some((err, tolerance)) = compare_floats(a, b, self.dtype, tolerance) {
-                    println!("PREMIER IF");
                     // Only print the first 5 different values.
                     if num_diff < max_num_diff {
                         message += format!(
@@ -671,7 +666,6 @@ impl TensorData {
                     num_diff += 1;
                 }
             } else if err > tolerance || err.is_nan() {
-                println!("NOT FLOAT");
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     message += format!(
@@ -885,13 +879,6 @@ fn compare_floats(value: f64, other: f64, ty: DType, tolerance: f64) -> Option<(
     let tolerance_adjusted = tolerance_norm * value_abs;
 
     let err = (value - other).abs();
-    println!("ERR in compare floats {err}");
-    println!("TOLERANCE {tolerance}");
-    println!("EPSILON DEVIATIONS {epsilon_deviations}");
-    println!("EPSILON {epsilon}");
-    println!("TOLERANCE NORM {tolerance_norm}");
-    println!("VALUE ABS {value_abs}");
-    println!("TOLERANCE ADJUSTED {tolerance_adjusted}");
 
     if err > tolerance_adjusted || err.is_nan() {
         Some((err, tolerance_adjusted))

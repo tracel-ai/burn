@@ -265,8 +265,7 @@ fn create_quantized_output<R: CubeRuntime>(
             }
         }
     };
-    println!("OUTPUT ELEMS SIZE {output_elems_size}");
-    println!("QPARAMS SIZE {qparams_size}");
+
     let handle = client.empty(output_elems_size + qparams_size);
     CubeTensor::new_contiguous(
         client,
@@ -339,11 +338,6 @@ where
                     };
                 }
                 QuantizationMode::Symmetric => {
-                    println!("CUBE COUNT {cube_count:?}");
-                    println!("CUBE DIM {cube_dim:?}");
-                    println!("SCALE: {scale:#?}");
-                    println!("TENSOR: {tensor:#?}");
-                    println!("OUTPUT: {output:#?}");
                     unsafe {
                         quantize_per_tensor_symmetric_int8_kernel::launch_unchecked::<R>(
                             &client,
@@ -360,11 +354,8 @@ where
                             ScalarArg::new(-i8::MAX as f32),
                             ScalarArg::new(i8::MAX as f32),
                             output.as_array_arg::<u32>(1),
-                            // output,
                         )
                     };
-                    let bytes = client.read_one(output.clone().handle.binding());
-                    println!("BYTES {bytes:?}");
                 }
             }
         }

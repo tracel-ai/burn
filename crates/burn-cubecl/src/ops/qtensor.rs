@@ -99,8 +99,6 @@ where
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
         let tensor = kernel::into_contiguous(tensor);
         let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
-        println!("Q INTO DATA BYTES {bytes:?}");
-        println!("SHAPE {:?}, DTYPE {:?}", tensor.shape.dims, tensor.dtype);
 
         // We use the same internal representation
         TensorData::from_bytes(bytes, tensor.shape, tensor.dtype)
@@ -151,19 +149,13 @@ where
             let out =
                 kernel::matmul::q_matmul(lhs.clone(), rhs.clone(), None, MatmulStrategy::default());
             if let Ok(out) = out {
-                // let data = cubecl::future::block_on(Self::float_into_data(out));
-                // panic!("DATA OUT {data}");
-                // return <Self>::quantize_dynamic(out, lhs.scheme()); // Using lhs.scheme() is similar to the dequant_op_quant macro.
                 return out;
             }
         }
-        // If the above quantized matmul fail, we fallback to the dequantize-matmul-quantize pattern.
-        dequant_op_quant!(
-            ty Self,
-            float_op Self::float_matmul,
-            lhs,
-            rhs
-        )
+        // If the above quantized matmul fail, we fallback to the dequantize-then-matmul pattern.
+        let t1_f = <Self>::dequantize(lhs);
+        let t2_f = <Self>::dequantize(rhs);
+        Self::float_matmul(t1_f, t2_f)
     }
 }
 
