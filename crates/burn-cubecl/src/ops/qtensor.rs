@@ -8,6 +8,11 @@ use burn_tensor::{
         QuantizationScheme, QuantizationType,
     },
 };
+use cubecl::{
+    Feature, Runtime,
+    client::ComputeClient,
+    ir::{Elem, IntKind},
+};
 
 use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
@@ -145,13 +150,16 @@ where
     }
 
     fn q_matmul(lhs: QuantizedTensor<Self>, rhs: QuantizedTensor<Self>) -> QuantizedTensor<Self> {
-        if both_matches_symmetric_qint8(lhs.scheme(), rhs.scheme()) {
+        if features_enabled::<R>(&lhs.client)
+            && both_matches_symmetric_qint8(lhs.scheme(), rhs.scheme())
+        {
             let out =
                 kernel::matmul::q_matmul(lhs.clone(), rhs.clone(), None, MatmulStrategy::default());
             if let Ok(out) = out {
                 return out;
             }
         }
+
         // If the above quantized matmul fail, we fallback to the dequantize-then-matmul pattern.
         let t1_f = <Self>::dequantize(lhs);
         let t2_f = <Self>::dequantize(rhs);
@@ -166,4 +174,13 @@ fn both_matches_symmetric_qint8(lhs: &QuantizationScheme, rhs: &QuantizationSche
             QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8),
         )
     })
+}
+
+fn features_enabled<R: Runtime>(client: &ComputeClient<R::Server, R::Channel>) -> bool {
+    client
+        .properties()
+        .feature_enabled(Feature::Type(Elem::Int(IntKind::I8)))
+        && client
+            .properties()
+            .feature_enabled(Feature::DynamicLineSize)
 }
