@@ -28,7 +28,7 @@ metal = ["cubecl-msl"]
 # Compilers
 cubecl-spirv = ["cubecl/wgpu-spirv"]
 cubecl-wgsl = []
-cubecl-msl = ["cubecl/wgpu-cpp-msl"]
+cubecl-msl = ["cubecl/wgpu-msl"]
 
 [dependencies]
 cubecl = { workspace = true, features = ["wgpu"] }
