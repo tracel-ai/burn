@@ -282,14 +282,7 @@ impl MatmulArgs for FusedMatmulArgs {
     }
 
     fn quantization<MP: MatmulPrecision>(_state: &Self::State<MP::EI, MP::EO>) -> Quantization<MP> {
-        comptime! {
-            panic!("Unsupported yet");
-        };
-
-        #[allow(unreachable_code)]
-        Quantization::<MP> {
-            scaling: MP::ES::from_int(0),
-        }
+        todo!()
     }
     /// Reinterpret lhs as tensor map
     fn as_tensor_map_lhs<EI: Numeric, EO: Numeric>(_state: &Self::State<EI, EO>) -> TensorMap<EI> {
