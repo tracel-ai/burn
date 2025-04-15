@@ -78,7 +78,7 @@ macro_rules! testgen_all {
 #[macro_export]
 macro_rules! testgen_quantization {
     () => {
-        pub use qtensor::*;
+        pub use burn_tensor::tests::qtensor::*;
 
         // test quantization
         burn_tensor::testgen_calibration!();
