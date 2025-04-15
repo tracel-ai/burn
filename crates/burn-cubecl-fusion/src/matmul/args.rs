@@ -281,10 +281,7 @@ impl MatmulArgs for FusedMatmulArgs {
         ref_stride(unsafe { &(*state.locals) }, dim)
     }
 
-    fn quantization<MP: MatmulPrecision, G: GlobalConfig>(
-        _state: &Self::State<MP::EI, MP::EO>,
-        #[comptime] _config: G,
-    ) -> Quantization<MP> {
+    fn quantization<MP: MatmulPrecision>(_state: &Self::State<MP::EI, MP::EO>) -> Quantization<MP> {
         todo!()
     }
 
