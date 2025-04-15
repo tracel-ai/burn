@@ -51,6 +51,12 @@ pub(crate) fn handle_command(
                 ]);
             };
 
+            #[allow(unused_mut)]
+            let mut features = args.features.unwrap_or_default();
+            #[cfg(target_os = "macos")]
+            features.push("metal".to_string());
+            args.features = Some(features);
+
             // test workspace
             base_commands::test::handle_command(args.try_into().unwrap())?;
 
