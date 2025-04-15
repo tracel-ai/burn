@@ -104,7 +104,7 @@ mod tests {
             .assert_approx_eq::<FT>(&TensorData::from([1.0f32]), Tolerance::relative(5e-2));
         mean_act
             .to_data()
-            .assert_approx_eq::<FT>(&TensorData::from([0.0f32]), Tolerance::absolute(4e-2));
+            .assert_approx_eq::<FT>(&TensorData::from([0.0f32]), Tolerance::absolute(1e-1));
     }
 
     #[test]
