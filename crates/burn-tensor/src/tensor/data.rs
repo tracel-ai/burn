@@ -833,12 +833,14 @@ impl core::fmt::Display for TensorData {
 ///
 /// Generally, two numbers `x` and `y` are approximately equal if
 ///
-///     `|x - y| < max(R * (|x + y|), A)`
+/// ```text
+/// |x - y| < max(R * (|x + y|), A)
+/// ```
 ///
 /// where `R` is the relative tolerance and `A` is the absolute tolerance.
 ///
 ///
-/// The most common way to initilize this struct is to use `Tolerance::<F>::default()`.
+/// The most common way to initialize this struct is to use `Tolerance::<F>::default()`.
 /// In that case, the relative and absolute tolerances are computed using an heuristic based
 /// on the EPSILON and MIN_POSITIVE values of the given floating point type `F`.
 ///
@@ -865,7 +867,9 @@ impl<F: Float> Tolerance<F> {
     ///
     /// That is, `x` and `y` are approximately equal if
     ///
-    ///     `|x - y| < max(R * (|x + y|), A)`
+    /// ```text
+    /// |x - y| < max(R * (|x + y|), A)
+    /// ```
     ///
     /// where `R` is the `relative` tolerance and `A` is the `absolute` tolerance.
     pub fn rel_abs<FF: ToPrimitive>(relative: FF, absolute: FF) -> Self {
@@ -879,7 +883,9 @@ impl<F: Float> Tolerance<F> {
     ///
     /// That is, `x` and `y` are approximately equal if
     ///
-    ///     `|x - y| < R * (|x + y|)`
+    /// ```text
+    /// |x - y| < R * (|x + y|)
+    /// ```
     ///
     /// where `R` is the relative `tolerance`.
     pub fn relative<FF: ToPrimitive>(tolerance: FF) -> Self {
@@ -895,7 +901,9 @@ impl<F: Float> Tolerance<F> {
     ///
     /// That is, `x` and `y` are approximately equal if
     ///
-    ///     `|x - y| < A
+    /// ```text
+    /// |x - y| < A
+    /// ```
     ///
     /// where `A` is the absolute `tolerance`.
     pub fn absolute<FF: ToPrimitive>(tolerance: FF) -> Self {
