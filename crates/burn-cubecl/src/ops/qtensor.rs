@@ -2,16 +2,26 @@ use std::ops::Range;
 
 use burn_tensor::{
     DType, Device, Shape, TensorData,
-    ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
+    ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        BlockLayout, QuantizationParametersPrimitive, QuantizationScheme, QuantizationType,
+        BlockLayout, QTensorPrimitive, QuantizationMode, QuantizationParametersPrimitive,
+        QuantizationScheme, QuantizationType,
     },
+};
+use cubecl::{
+    Feature, Runtime,
+    client::ComputeClient,
+    ir::{Elem, IntKind},
 };
 
 use crate::{
-    CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement, kernel,
+    CubeBackend, CubeRuntime, FloatElement, IntElement,
+    element::BoolElement,
+    kernel::{self, matmul::MatmulStrategy},
     tensor::CubeTensor,
 };
+
+use super::{permute, swap_dims};
 
 /// Create a quantized tensor with packed values (u32).
 fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
@@ -100,15 +110,15 @@ where
     }
 
     fn q_swap_dims(
-        _tensor: QuantizedTensor<Self>,
-        _dim1: usize,
-        _dim2: usize,
+        tensor: QuantizedTensor<Self>,
+        dim1: usize,
+        dim2: usize,
     ) -> QuantizedTensor<Self> {
-        unimplemented!()
+        swap_dims(tensor, dim1, dim2)
     }
 
-    fn q_permute(_tensor: QuantizedTensor<Self>, _axes: &[usize]) -> QuantizedTensor<Self> {
-        unimplemented!()
+    fn q_permute(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
+        permute(tensor, axes)
     }
 
     fn q_flip(_tensor: QuantizedTensor<Self>, _axes: &[usize]) -> QuantizedTensor<Self> {
@@ -138,4 +148,39 @@ where
     fn q_expand(_tensor: QuantizedTensor<Self>, _shape: Shape) -> QuantizedTensor<Self> {
         unimplemented!()
     }
+
+    fn q_matmul(lhs: QuantizedTensor<Self>, rhs: QuantizedTensor<Self>) -> QuantizedTensor<Self> {
+        if features_enabled::<R>(&lhs.client)
+            && both_matches_symmetric_qint8(lhs.scheme(), rhs.scheme())
+        {
+            let out =
+                kernel::matmul::q_matmul(lhs.clone(), rhs.clone(), None, MatmulStrategy::default());
+            if let Ok(out) = out {
+                return out;
+            }
+        }
+
+        // If the above quantized matmul fail, we fallback to the dequantize-then-matmul pattern.
+        let t1_f = <Self>::dequantize(lhs);
+        let t2_f = <Self>::dequantize(rhs);
+        Self::float_matmul(t1_f, t2_f)
+    }
+}
+
+fn both_matches_symmetric_qint8(lhs: &QuantizationScheme, rhs: &QuantizationScheme) -> bool {
+    [lhs, rhs].iter().all(|scheme| {
+        matches!(
+            scheme,
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8),
+        )
+    })
+}
+
+fn features_enabled<R: Runtime>(client: &ComputeClient<R::Server, R::Channel>) -> bool {
+    client
+        .properties()
+        .feature_enabled(Feature::Type(Elem::Int(IntKind::I8)))
+        && client
+            .properties()
+            .feature_enabled(Feature::DynamicLineSize)
 }

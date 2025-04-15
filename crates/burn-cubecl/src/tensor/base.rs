@@ -430,6 +430,11 @@ where
     }
 
     /// Check if the current tensor is contiguous.
+    ///
+    /// A tensor is contiguous if the elements are stored
+    /// if the strides in strict decreasing order and the
+    /// strides at position k is equal to the product of the shapes
+    /// at all positions greater than k. However, all axes with a shape of 1 are ignored.
     pub fn is_contiguous(&self) -> bool {
         is_contiguous(&self.shape.dims, &self.strides)
     }
@@ -446,14 +451,14 @@ pub(crate) fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
         return true;
     }
 
-    if shape.len() == 1 {
-        return strides[0] == 1;
-    }
-
     let mut prev_stride = 1;
     let mut current_num_elems_shape = 1;
 
     for (i, (stride, shape)) in strides.iter().zip(shape).rev().enumerate() {
+        if *shape == 1 {
+            continue;
+        }
+
         if i > 0 {
             if current_num_elems_shape != *stride {
                 return false;

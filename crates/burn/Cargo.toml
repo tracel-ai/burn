@@ -109,6 +109,11 @@ webgpu = ["wgpu", "burn-wgpu/webgpu"]
 metal = ["wgpu", "burn-wgpu/metal"]
 wgpu = ["burn-wgpu"]
 
+compilation-cache = [
+    "burn-cuda?/compilation-cache",
+    "burn-hip?/compilation-cache",
+]
+
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
