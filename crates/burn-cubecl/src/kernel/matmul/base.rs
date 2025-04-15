@@ -31,7 +31,7 @@ pub fn matmul<R: CubeRuntime, E: FloatElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: Option<CubeTensor<R>>,
-    _strategy: MatmulStrategy,
+    strategy: MatmulStrategy,
 ) -> Result<CubeTensor<R>, MatmulLaunchError> {
     match strategy {
         MatmulStrategy::Cube => {
@@ -59,7 +59,7 @@ pub fn q_matmul<R: CubeRuntime>(
     mut lhs: CubeTensor<R>,
     mut rhs: CubeTensor<R>,
     out: Option<CubeTensor<R>>,
-    strategy: MatmulStrategy,
+    _strategy: MatmulStrategy,
 ) -> Result<CubeTensor<R>, MatmulLaunchError> {
     let out = out.unwrap_or_else(|| init_matmul_output::<R, half::f16>(&lhs, &rhs));
 

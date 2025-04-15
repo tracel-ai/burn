@@ -120,7 +120,13 @@ macro_rules! testgen_jit {
         burn_tensor::testgen_all!([$($float),*], [$($int),*], [$($bool),*]);
         burn_autodiff::testgen_all!([$($float),*]);
 
-        burn_tensor::testgen_quantization!();
+        use burn_tensor::tests::qtensor::*;
+
+        burn_tensor::testgen_q_matmul!();
+        burn_tensor::testgen_calibration!();
+        burn_tensor::testgen_scheme!();
+        burn_tensor::testgen_quantize!();
+        burn_tensor::testgen_q_data!();
     }
 }
 
