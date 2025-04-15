@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use burn_tensor::{
-    DType, Device, Shape, TensorData, dequant_op_quant,
+    DType, Device, Shape, TensorData,
     ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
         BlockLayout, QTensorPrimitive, QuantizationMode, QuantizationParametersPrimitive,

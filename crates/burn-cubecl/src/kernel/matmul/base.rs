@@ -1,11 +1,7 @@
 use super::init_matmul_output;
 use crate::{CubeRuntime, FloatElement, tensor::CubeTensor};
 use burn_tensor::DType;
-use cubecl::{
-    linalg::matmul::{components::Quantized, kernels::MatmulLaunchError},
-    tf32,
-};
-use cubecl_std::SymQ8;
+use cubecl::linalg::matmul::{components::Quantized, kernels::MatmulLaunchError};
 
 #[cfg(feature = "autotune")]
 use super::matmul_autotune;
@@ -35,7 +31,7 @@ pub fn matmul<R: CubeRuntime, E: FloatElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: Option<CubeTensor<R>>,
-    strategy: MatmulStrategy,
+    _strategy: MatmulStrategy,
 ) -> Result<CubeTensor<R>, MatmulLaunchError> {
     match strategy {
         MatmulStrategy::Cube => {

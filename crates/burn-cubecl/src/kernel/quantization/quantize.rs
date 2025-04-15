@@ -6,7 +6,6 @@ use burn_tensor::quantization::{
 };
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
-use cubecl::tune::IntoInputGenerator;
 
 #[cube]
 fn pack_i8s_to_u32s(value: Line<u32>) -> u32 {
