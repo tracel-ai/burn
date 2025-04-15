@@ -481,7 +481,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -572,7 +572,7 @@ mod tests {
     #[test]
     fn graph_multiple_output_tracking() {
         // Initialize the model with weights (loaded from the exported file)
-        let model: graph_multiple_output_tracking::Model<Backend> =
+        let _model: graph_multiple_output_tracking::Model<Backend> =
             graph_multiple_output_tracking::Model::default();
 
         // We don't actually care about the output here, the compiler will tell us if we passed
@@ -829,15 +829,16 @@ mod tests {
         assert_eq!(output2.shape(), expected_shape2);
         assert_eq!(output3.shape(), expected_shape3);
 
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-4);
         output1
             .to_data()
-            .assert_approx_eq::<FT>(&expected1, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected1, tolerance);
         output2
             .to_data()
-            .assert_approx_eq::<FT>(&expected2, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected2, tolerance);
         output3
             .to_data()
-            .assert_approx_eq::<FT>(&expected3, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected3, tolerance);
     }
 
     #[test]
@@ -878,15 +879,16 @@ mod tests {
         assert_eq!(output2.shape(), expected_shape2);
         assert_eq!(output3.shape(), expected_shape3);
 
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-4);
         output1
             .to_data()
-            .assert_approx_eq::<FT>(&expected1, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected1, tolerance);
         output2
             .to_data()
-            .assert_approx_eq::<FT>(&expected2, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected2, tolerance);
         output3
             .to_data()
-            .assert_approx_eq::<FT>(&expected3, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected3, tolerance);
     }
 
     #[test]
@@ -1050,7 +1052,7 @@ mod tests {
             1.5410, 0.3945, -0.7648, -1.9431, -0.8052, 0.3618, -0.6713, -1.2023, -1.3986,
         ]]])
         .to_data()
-        .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
+        .assert_approx_eq::<FT>(&output.into_data(), Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1259,7 +1261,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1393,7 +1395,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1408,7 +1410,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1577,7 +1579,7 @@ mod tests {
         let expected = TensorData::from([[[[1.5574f32, -2.1850, -0.1425, 1.1578]]]]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1593,7 +1595,7 @@ mod tests {
         let expected = TensorData::from([[[[0.7616f32, 0.9640, 0.9951, 0.9993]]]]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1624,7 +1626,7 @@ mod tests {
         let expected = TensorData::from([[[[1.0000f32, 0.5000, 0.3333, 0.2500]]]]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1705,7 +1707,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1720,7 +1722,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1736,7 +1738,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1792,7 +1794,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1807,7 +1809,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
