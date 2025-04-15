@@ -7,7 +7,6 @@ mod tests {
     type FT = FloatElem<TestBackend>;
 
     #[test]
-    // #[ignore] // BROKEN FOR F16 WITH AUTOTUNE
     fn test_conv_transpose2d_basic() {
         let test = ConvTranspose2dTestCase {
             batch_size: 2,
@@ -82,7 +81,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH AUTOTUNE
     fn test_conv_transpose2d_padding() {
         let test = ConvTranspose2dTestCase {
             batch_size: 1,
@@ -116,7 +114,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH AUTOTUNE
     fn test_conv_transpose2d_stride() {
         let test = ConvTranspose2dTestCase {
             batch_size: 1,
@@ -150,7 +147,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH AUTOTUNE
     fn test_conv_transpose2d_stride_padding_out() {
         let test = ConvTranspose2dTestCase {
             batch_size: 1,
@@ -184,7 +180,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH AUTOTUNE
     fn test_conv_transpose2d_dilation() {
         let test = ConvTranspose2dTestCase {
             batch_size: 1,
@@ -218,7 +213,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH AUTOTUNE
     fn test_conv_transpose2d_channels() {
         let test = ConvTranspose2dTestCase {
             batch_size: 1,
@@ -271,7 +265,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH AUTOTUNE
     fn test_conv_transpose2d_kernel_size() {
         let test = ConvTranspose2dTestCase {
             batch_size: 1,
@@ -311,7 +304,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH AUTOTUNE
     fn test_conv_transpose2d_groups() {
         let test = ConvTranspose2dTestCase {
             batch_size: 1,
@@ -356,7 +348,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH AUTOTUNE
     fn test_conv_transpose2d_complex_no_groups() {
         let test = ConvTranspose2dTestCase {
             batch_size: 2,
@@ -457,7 +448,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH AUTOTUNE
     fn test_conv_transpose2d_complex_no_groups_2() {
         let test = ConvTranspose2dTestCase {
             batch_size: 1,
@@ -552,7 +542,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN IN ONE OF AUTOTUNE PATH.
     fn test_conv_transpose2d_complex_groups() {
         let test = ConvTranspose2dTestCase {
             batch_size: 1,
@@ -705,8 +694,7 @@ mod tests {
             let weight_grad_actual = weight.grad(&grads).unwrap();
             let bias_grad_actual = bias.grad(&grads).unwrap();
 
-            let tolerance = Tolerance::default();
-
+            let tolerance = Tolerance::rel_abs(1e-5, 1e-5);
             expected_grads
                 .bias
                 .to_data()

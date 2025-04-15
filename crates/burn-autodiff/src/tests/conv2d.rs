@@ -5,7 +5,6 @@ mod tests {
     type FT = FloatElem<TestBackend>;
 
     #[test]
-    // #[ignore] // BROKEN WITH F16 AND AUTOTUNE
     fn test_conv2d_basic() {
         let test = Conv2dTestCase {
             batch_size: 2,
@@ -77,7 +76,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH F16, F32 AND AUTOTUNE
     fn test_conv2d_different_channels() {
         let test = Conv2dTestCase {
             batch_size: 2,
@@ -153,7 +151,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH F16 AND AUTOTUNE
     fn test_conv2d_different_kernel_size() {
         let test = Conv2dTestCase {
             batch_size: 1,
@@ -225,7 +222,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH F16, F32 AND AUTOTUNE
     fn test_conv2d_different_padding() {
         let test = Conv2dTestCase {
             batch_size: 1,
@@ -336,7 +332,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH F16, F32 AND AUTOTUNE
     fn test_conv2d_stride_2() {
         let test = Conv2dTestCase {
             batch_size: 1,
@@ -526,7 +521,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH F16 AND AUTOTUNE
     fn test_conv2d_different_dilation() {
         let test = Conv2dTestCase {
             batch_size: 1,
@@ -887,18 +881,19 @@ mod tests {
             let weight_grad_actual = weight.grad(&grads).unwrap();
             let bias_grad_actual = bias.grad(&grads).unwrap();
 
+            let tolerance = Tolerance::rel_abs(1e-5, 1e-5);
             expected_grads
                 .bias
                 .to_data()
-                .assert_approx_eq::<FT>(&bias_grad_actual.to_data(), Tolerance::default());
+                .assert_approx_eq::<FT>(&bias_grad_actual.to_data(), tolerance);
             expected_grads
                 .x
                 .to_data()
-                .assert_approx_eq::<FT>(&x_grad_actual.to_data(), Tolerance::default());
+                .assert_approx_eq::<FT>(&x_grad_actual.to_data(), tolerance);
             expected_grads
                 .weight
                 .to_data()
-                .assert_approx_eq::<FT>(&weight_grad_actual.to_data(), Tolerance::default());
+                .assert_approx_eq::<FT>(&weight_grad_actual.to_data(), tolerance);
         }
     }
 }

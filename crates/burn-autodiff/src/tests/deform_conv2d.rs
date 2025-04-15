@@ -126,7 +126,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN FOR F16
     fn test_deform_conv2d_batched() {
         let test = Conv2dTestCase {
             batch_size: 2,
@@ -300,7 +299,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN FOR f16
     fn test_deform_conv2d_different_kernel_size() {
         let test = Conv2dTestCase {
             batch_size: 1,
@@ -599,7 +597,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN FOR f16
     fn test_deform_conv2d_different_padding() {
         let test = Conv2dTestCase {
             batch_size: 1,

@@ -6,7 +6,6 @@ mod tests {
     type FT = FloatElem<TestBackend>;
 
     #[test]
-    // #[ignore] // BROKEN WITH F16 AND F32
     fn test_softmax_grad() {
         let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
         let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);
@@ -38,7 +37,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH F16 AND F32
     fn test_log_softmax_grad() {
         let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
         let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);
@@ -66,7 +64,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore] // BROKEN WITH F16 AND F32
     fn test_quiet_softmax_grad() {
         let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
         let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);
