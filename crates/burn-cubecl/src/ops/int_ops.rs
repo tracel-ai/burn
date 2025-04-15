@@ -221,6 +221,22 @@ where
             .unwrap()
     }
 
+    fn int_max(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        reduce::reduce::<R, I, I>(tensor, Default::default(), ReduceFnConfig::Max).unwrap()
+    }
+
+    fn int_max_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Max).unwrap()
+    }
+
+    fn int_min(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        reduce::reduce::<R, I, I>(tensor, Default::default(), ReduceFnConfig::Min).unwrap()
+    }
+
+    fn int_min_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Min).unwrap()
+    }
+
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Mean)
             .unwrap()

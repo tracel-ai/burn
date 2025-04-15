@@ -258,13 +258,13 @@ fn col2im_kernel<F: Float>(
     let x_col_start = if im_x >= kernel_extent_w {
         (im_x - kernel_extent_w) / args.stride_w + 1
     } else {
-        0u32
+        0u32.runtime()
     };
     let x_col_end = Min::min(im_x / args.stride_w + 1, args.out_w);
     let y_col_start = if im_y >= kernel_extent_h {
         (im_y - kernel_extent_h) / args.stride_h + 1
     } else {
-        0u32
+        0u32.runtime()
     };
     let y_col_end = Min::min(im_y / args.stride_h + 1, args.out_h);
 

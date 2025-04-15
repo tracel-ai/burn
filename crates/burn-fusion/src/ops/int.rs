@@ -1494,7 +1494,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_max_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        scalar_int_ops!(MaxDimOps, B::int_max_dim, usize, noconvert);
+        reduce_int_ops!(MaxDimOps, B::int_max_dim);
 
         let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
@@ -1503,9 +1503,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .client
             .tensor_uninitialized(shape, B::IntElem::dtype());
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -1589,7 +1589,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_min_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        scalar_int_ops!(MinDimOps, B::int_min_dim, usize, noconvert);
+        reduce_int_ops!(MinDimOps, B::int_min_dim);
 
         let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
@@ -1598,11 +1598,12 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .client
             .tensor_uninitialized(shape, B::IntElem::dtype());
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
+
         out.client.register(
             vec![stream],
             OperationIr::NumericInt(

@@ -1,7 +1,6 @@
 use crate::{
     CubeRuntime,
     element::CubeElement,
-    kernel::conv::permute_nchw_to_nhwc,
     ops::{max_vectorization, numeric::empty_device, permute},
     tensor::CubeTensor,
 };
@@ -128,7 +127,7 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
 ) -> CubeTensor<R> {
     let [batches, channels, height, width] = x.shape.dims();
 
-    let grad = permute_nchw_to_nhwc::<R, E>(grad);
+    let grad = permute(grad, &[0, 2, 3, 1]);
 
     let line_size = if x.strides[3] == grad.strides[3] {
         max_vectorization(&x)
