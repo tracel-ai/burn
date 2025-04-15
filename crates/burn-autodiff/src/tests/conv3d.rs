@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_conv3d)]
 mod tests {
     use super::*;
-    use burn_tensor::{Shape, module::conv3d, ops::ConvOptions, Tolerance, ops::FloatElem};
+    use burn_tensor::{Shape, Tolerance, module::conv3d, ops::ConvOptions, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]

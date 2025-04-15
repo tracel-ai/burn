@@ -31,7 +31,10 @@ impl<B: Backend> Net<B> {
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
 
-    use burn::{record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder}, tensor::Tolerance};
+    use burn::{
+        record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder},
+        tensor::Tolerance,
+    };
     use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;

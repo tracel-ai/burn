@@ -67,7 +67,8 @@ mod tests {
             );
             let output = adaptive_avg_pool1d(x, self.length_out);
 
-            y.into_data().assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
+            y.into_data()
+                .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
         }
     }
 }

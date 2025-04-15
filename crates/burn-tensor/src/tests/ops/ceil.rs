@@ -2,8 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Tensor, TensorData};
-	use burn_tensor::{Tolerance, ops::FloatElem};
-	type FT = FloatElem<TestBackend>;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_ceil_ops() {
@@ -13,6 +13,8 @@ mod tests {
         let output = tensor.ceil();
         let expected = TensorData::from([[25., 88., 77.], [60., 44., 95.]]);
 
-        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

@@ -273,8 +273,8 @@ mod tests_2d {
     use super::*;
     use crate::tensor::TensorData;
     use crate::{TestAutodiffBackend, module::AutodiffModule};
-	use burn_tensor::{Tolerance, ops::FloatElem};
-	type FT = FloatElem<TestAutodiffBackend>;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestAutodiffBackend>;
 
     #[test]
     fn batch_norm_forward_train() {

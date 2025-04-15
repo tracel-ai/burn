@@ -3,8 +3,8 @@ mod tests {
     use super::*;
     use burn_tensor::backend::Backend;
     use burn_tensor::{Shape, Tensor, TensorData};
-	use burn_tensor::{Tolerance, ops::FloatElem};
-	type FT = FloatElem<TestBackend>;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_should_mean() {
@@ -13,7 +13,9 @@ mod tests {
         let output = tensor.mean();
         let expected = TensorData::from([15.0 / 6.0]);
 
-        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -66,7 +68,9 @@ mod tests {
         let output = tensor.mean_dim(1);
         let expected = TensorData::from([[3.0 / 3.0], [12.0 / 3.0]]);
 
-        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -162,7 +166,9 @@ mod tests {
 
         // 2 * 1 * 2 * 3 * 4 * 5 = 240 but we need to check the precision because of the float
         let expected = TensorData::from([240.0]);
-        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let tensor_with_zero = TestTensor::<2>::from([[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]);
         let output = tensor_with_zero.prod();
@@ -194,13 +200,17 @@ mod tests {
         let output = tensor.prod_dim(1);
         let expected = TensorData::from([[4.0], [60.0]]);
 
-        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let tensor_with_zero = TestTensor::<2>::from([[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]);
         let output = tensor_with_zero.prod_dim(1);
         let expected = TensorData::from([[0.0], [60.0]]);
 
-        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -297,11 +307,15 @@ mod tests {
         let output = tensor.clone().mean_dim(1);
         let expected = TensorData::from([[1.], [4.]]);
 
-        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let output = tensor.mean_dim(0);
         let expected = TensorData::from([[1.5, 2.5, 3.5]]);
 
-        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

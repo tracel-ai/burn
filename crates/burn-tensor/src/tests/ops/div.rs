@@ -2,8 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Int, Tensor, TensorData};
-	use burn_tensor::{Tolerance, ops::FloatElem};
-	type FT = FloatElem<TestBackend>;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_div_ops() {
@@ -16,7 +16,9 @@ mod tests {
         let output = tensor_1 / tensor_2;
         let expected = TensorData::from([[0.0, 1.0, 1.0], [1.0, 1.0, 1.0]]);
 
-        output.into_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]

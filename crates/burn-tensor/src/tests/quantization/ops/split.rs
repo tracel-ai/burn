@@ -3,8 +3,8 @@ mod tests {
     use super::*;
     use alloc::vec;
     use burn_tensor::{Tensor, TensorData};
-	use burn_tensor::{Tolerance, ops::FloatElem};
-	type FT = FloatElem<TestBackend>;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_split_evenly_divisible() {

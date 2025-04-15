@@ -2,8 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
-	use burn_tensor::{Tolerance, ops::FloatElem};
-	type FT = FloatElem<TestBackend>;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_add_d2() {
@@ -13,10 +13,10 @@ mod tests {
         let output = tensor_1 + tensor_2;
 
         // Precision 1 to approximate de/quantization errors
-        output
-            .dequantize()
-            .into_data()
-            .assert_approx_eq::<FT>(&TensorData::from([[6.0, 8.0, 10.0], [12.0, 14.0, 16.0]]), Tolerance::default());
+        output.dequantize().into_data().assert_approx_eq::<FT>(
+            &TensorData::from([[6.0, 8.0, 10.0], [12.0, 14.0, 16.0]]),
+            Tolerance::default(),
+        );
     }
 
     #[test]
@@ -27,10 +27,10 @@ mod tests {
         let output = tensor_1 + tensor_2;
 
         // Precision 1 to approximate de/quantization errors
-        output
-            .dequantize()
-            .into_data()
-            .assert_approx_eq::<FT>(&TensorData::from([[3.0, 5.0, 7.0], [6.0, 8.0, 10.0]]), Tolerance::default());
+        output.dequantize().into_data().assert_approx_eq::<FT>(
+            &TensorData::from([[3.0, 5.0, 7.0], [6.0, 8.0, 10.0]]),
+            Tolerance::default(),
+        );
     }
 
     #[test]
@@ -43,10 +43,10 @@ mod tests {
         let output = tensor_1 + tensor_2.transpose();
 
         // Precision 1 to approximate de/quantization errors
-        output
-            .dequantize()
-            .into_data()
-            .assert_approx_eq::<FT>(&TensorData::from([[4.0, 7.0], [7.0, 10.0]]), Tolerance::default());
+        output.dequantize().into_data().assert_approx_eq::<FT>(
+            &TensorData::from([[4.0, 7.0], [7.0, 10.0]]),
+            Tolerance::default(),
+        );
     }
 
     #[test]
@@ -59,10 +59,10 @@ mod tests {
         let output = tensor_1.transpose() + tensor_2;
 
         // Precision 1 to approximate de/quantization errors
-        output
-            .dequantize()
-            .into_data()
-            .assert_approx_eq::<FT>(&TensorData::from([[4.0, 7.0], [7.0, 10.0]]), Tolerance::default());
+        output.dequantize().into_data().assert_approx_eq::<FT>(
+            &TensorData::from([[4.0, 7.0], [7.0, 10.0]]),
+            Tolerance::default(),
+        );
     }
 
     #[test]
@@ -75,10 +75,10 @@ mod tests {
         let output = tensor_1.transpose() + tensor_2;
 
         // Precision 1 to approximate de/quantization errors
-        output
-            .dequantize()
-            .into_data()
-            .assert_approx_eq::<FT>(&TensorData::from([[4.0, 7.0], [5.0, 8.0]]), Tolerance::default());
+        output.dequantize().into_data().assert_approx_eq::<FT>(
+            &TensorData::from([[4.0, 7.0], [5.0, 8.0]]),
+            Tolerance::default(),
+        );
     }
 
     #[test]
@@ -89,9 +89,9 @@ mod tests {
         let output = tensor + scalar;
 
         // Precision 1 to approximate de/quantization errors
-        output
-            .dequantize()
-            .into_data()
-            .assert_approx_eq::<FT>(&TensorData::from([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]), Tolerance::default());
+        output.dequantize().into_data().assert_approx_eq::<FT>(
+            &TensorData::from([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]),
+            Tolerance::default(),
+        );
     }
 }

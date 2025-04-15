@@ -21,9 +21,13 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([[32.0, 32.0], [32.0, 32.0]]);
-        grad_1.to_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[8.0, 8.0], [8.0, 8.0]]);
-        grad_2.to_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

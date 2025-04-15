@@ -2,8 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
-	use burn_tensor::{Tolerance, ops::FloatElem};
-	type FT = FloatElem<TestBackend>;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     // NOTE: we use affine quantization to reduce quantization errors for range of input values
     #[test]

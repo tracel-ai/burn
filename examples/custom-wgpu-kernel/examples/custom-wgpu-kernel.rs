@@ -51,21 +51,30 @@ fn autodiff<B: AutodiffBackend>(device: &B::Device) {
     lhs_grad_ref
         .into_data()
         .convert::<B::FloatElem>()
-        .assert_approx_eq::<f32>(&lhs_grad_custom.into_data().convert::<B::FloatElem>(), Tolerance::default());
+        .assert_approx_eq::<f32>(
+            &lhs_grad_custom.into_data().convert::<B::FloatElem>(),
+            Tolerance::default(),
+        );
 
     println!("Both reference and the custom fused kernel have the same lhs gradient");
 
     rhs_grad_ref
         .into_data()
         .convert::<f32>()
-        .assert_approx_eq::<f32>(&rhs_grad_custom.into_data().convert::<B::FloatElem>(), Tolerance::default());
+        .assert_approx_eq::<f32>(
+            &rhs_grad_custom.into_data().convert::<B::FloatElem>(),
+            Tolerance::default(),
+        );
 
     println!("Both reference and the custom fused kernel have the same rhs gradient");
 
     bias_grad_ref
         .into_data()
         .convert::<f32>()
-        .assert_approx_eq::<f32>(&bias_grad_custom.into_data().convert::<B::FloatElem>(), Tolerance::default());
+        .assert_approx_eq::<f32>(
+            &bias_grad_custom.into_data().convert::<B::FloatElem>(),
+            Tolerance::default(),
+        );
 
     println!("Both reference and the custom fused kernel have the same bias gradient");
 }

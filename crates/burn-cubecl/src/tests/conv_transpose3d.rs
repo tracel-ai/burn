@@ -2,8 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Distribution, Tensor, backend::Backend, module};
-	use burn_tensor::{Tolerance, ops::FloatElem};
-	type FT = FloatElem<TestBackend>;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn conv_transpose3d_should_match_reference_backend() {

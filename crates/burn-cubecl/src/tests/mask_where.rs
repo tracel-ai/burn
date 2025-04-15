@@ -3,8 +3,8 @@ mod tests {
     use super::*;
     use burn_cubecl::kernel::{MaskWhereStrategy, mask_where};
     use burn_tensor::{Bool, Distribution, Tensor, TensorPrimitive, backend::Backend};
-	use burn_tensor::{Tolerance, ops::FloatElem};
-	type FT = FloatElem<TestBackend>;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn mask_where_should_match_reference_backend() {
@@ -87,4 +87,3 @@ mod tests {
         (tensor, value, mask, tensor_ref, value_ref, mask_ref)
     }
 }
-

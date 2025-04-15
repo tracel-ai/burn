@@ -2,8 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Distribution, Int, Tensor};
-	use burn_tensor::{Tolerance, ops::FloatElem};
-	type FT = FloatElem<TestBackend>;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn select_should_work_with_multiple_workgroups() {

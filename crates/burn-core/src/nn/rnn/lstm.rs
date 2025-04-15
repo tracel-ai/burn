@@ -465,10 +465,16 @@ mod tests {
         let (output, state) = lstm.forward(input, None);
 
         let expected = TensorData::from([[0.046]]);
-        state.cell.to_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        state
+            .cell
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[0.024]]);
-        state.hidden.to_data().assert_approx_eq::<FT>(&expected, Tolerance::default());
+        state
+            .hidden
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         output
             .select(0, Tensor::arange(0..1, &device))

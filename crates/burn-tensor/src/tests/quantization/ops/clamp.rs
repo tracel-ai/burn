@@ -2,8 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
-	use burn_tensor::{Tolerance, ops::FloatElem};
-	type FT = FloatElem<TestBackend>;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn clamp_min() {
@@ -12,10 +12,10 @@ mod tests {
         let output = tensor.clamp_min(2.0);
 
         // Precision 1 to approximate de/quantization errors
-        output
-            .dequantize()
-            .into_data()
-            .assert_approx_eq::<FT>(&TensorData::from([[2.0, 2.0, 2.0], [3.0, 4.0, 5.0]]), Tolerance::default());
+        output.dequantize().into_data().assert_approx_eq::<FT>(
+            &TensorData::from([[2.0, 2.0, 2.0], [3.0, 4.0, 5.0]]),
+            Tolerance::default(),
+        );
     }
 
     #[test]
@@ -25,10 +25,10 @@ mod tests {
         let output = tensor.clamp_max(2.0);
 
         // Precision 1 to approximate de/quantization errors
-        output
-            .dequantize()
-            .into_data()
-            .assert_approx_eq::<FT>(&TensorData::from([[0.0, 1.0, 2.0], [2.0, 2.0, 2.0]]), Tolerance::default());
+        output.dequantize().into_data().assert_approx_eq::<FT>(
+            &TensorData::from([[0.0, 1.0, 2.0], [2.0, 2.0, 2.0]]),
+            Tolerance::default(),
+        );
     }
 
     #[test]
@@ -38,9 +38,9 @@ mod tests {
         let output = tensor.clamp(1.0, 4.0);
 
         // Precision 1 to approximate de/quantization errors
-        output
-            .dequantize()
-            .into_data()
-            .assert_approx_eq::<FT>(&TensorData::from([[1.0, 1.0, 2.0], [3.0, 4.0, 4.0]]), Tolerance::default());
+        output.dequantize().into_data().assert_approx_eq::<FT>(
+            &TensorData::from([[1.0, 1.0, 2.0], [3.0, 4.0, 4.0]]),
+            Tolerance::default(),
+        );
     }
 }
