@@ -150,8 +150,10 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
         let mut metric = RecallMetric::binary(threshold);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value()])
-            .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default())
+        TensorData::from([metric.value()]).assert_approx_eq::<f64>(
+            &TensorData::from([expected * 100.0]),
+            Tolerance::rel_abs(1e-5, 1e-5),
+        )
     }
 
     #[rstest]
@@ -167,8 +169,10 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multiclass).into();
         let mut metric = RecallMetric::multiclass(top_k, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value()])
-            .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default())
+        TensorData::from([metric.value()]).assert_approx_eq::<f64>(
+            &TensorData::from([expected * 100.0]),
+            Tolerance::rel_abs(1e-5, 1e-5),
+        )
     }
 
     #[rstest]
@@ -182,8 +186,10 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multilabel).into();
         let mut metric = RecallMetric::multilabel(threshold, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value()])
-            .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default())
+        TensorData::from([metric.value()]).assert_approx_eq::<f64>(
+            &TensorData::from([expected * 100.0]),
+            Tolerance::rel_abs(1e-5, 1e-5),
+        )
     }
 
     #[test]

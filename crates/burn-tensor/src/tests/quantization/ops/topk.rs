@@ -16,7 +16,7 @@ mod tests {
         values
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::absolute(1e-1));
     }
 
     #[test]
@@ -33,7 +33,7 @@ mod tests {
         values
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::absolute(1e-1));
     }
 
     #[test]
@@ -69,7 +69,7 @@ mod tests {
         values
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&values_expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&values_expected, Tolerance::absolute(1e-1));
 
         let indices_expected = TensorData::from([[[2, 1], [2, 1]], [[2, 0], [0, 2]]]);
 

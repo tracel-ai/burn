@@ -18,7 +18,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 
     #[test]
@@ -32,7 +32,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 
     #[test]
@@ -48,7 +48,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 
     #[test]
@@ -70,7 +70,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 
     #[test]
@@ -85,7 +85,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 
     #[test]
@@ -109,7 +109,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 
     #[test]
@@ -131,7 +131,7 @@ mod tests {
                 [248., 286., 324., 362.],
                 [344., 398., 452., 506.],
             ]),
-            Tolerance::default(),
+            Tolerance::rel_abs(1e-2, 1e-1),
         );
     }
 
@@ -154,7 +154,7 @@ mod tests {
                 [62., 214., 366., 518.],
                 [86., 302., 518., 734.],
             ]),
-            Tolerance::default(),
+            Tolerance::rel_abs(1e-2, 1e-1),
         );
     }
 
@@ -169,7 +169,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 
     #[test]
@@ -194,7 +194,7 @@ mod tests {
         tensor_3
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 
     #[test]

@@ -1,8 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_gelu)]
 mod tests {
     use super::*;
-    use burn_tensor::{TensorData, Tolerance, activation, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn_tensor::{TensorData, Tolerance, activation};
 
     #[test]
     fn should_diff_gelu() {
@@ -19,18 +18,15 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        // TODO: gelu in full precision for f16?
-        let tolerance = Tolerance::default()
-            .set_relative(5e-4)
-            .set_half_precision_relative(2e-3);
+        let tolerance = Tolerance::rel_abs(5e-4, 1e-5).set_half_precision_relative(2e-3);
         let expected = TensorData::from([[1.46281, 1.46281], [48.22866, 153.46280]]);
         grad_1
             .to_data()
-            .assert_approx_eq::<FT>(&expected, tolerance);
+            .assert_approx_eq::<FloatType>(&expected, tolerance);
 
         let expected = TensorData::from([[-15.0000, -1.98757], [17.0000, 17.0000]]);
         grad_2
             .to_data()
-            .assert_approx_eq::<FT>(&expected, tolerance);
+            .assert_approx_eq::<FloatType>(&expected, tolerance);
     }
 }

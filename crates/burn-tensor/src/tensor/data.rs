@@ -6,17 +6,13 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::CheckedCastError};
 use half::{bf16, f16};
-use num_traits::ToPrimitive;
+use num_traits::{Float, ToPrimitive};
 
 use crate::{
     DType, Distribution, Element, ElementConversion,
     quantization::{QuantizationScheme, QuantizationStrategy, QuantizationType, QuantizedBytes},
     tensor::bytes::Bytes,
 };
-
-#[cfg(not(feature = "std"))]
-#[allow(unused_imports)]
-use num_traits::Float;
 
 use rand::RngCore;
 
@@ -604,11 +600,7 @@ impl TensorData {
     ///
     /// Panics if the data is not approximately equal.
     #[track_caller]
-    pub fn assert_approx_eq<F: num_traits::Float + Element>(
-        &self,
-        other: &Self,
-        tolerance: Tolerance<F>,
-    ) {
+    pub fn assert_approx_eq<F: Float + Element>(&self, other: &Self, tolerance: Tolerance<F>) {
         let mut message = String::new();
         if self.shape != other.shape {
             message += format!(
@@ -839,7 +831,7 @@ impl core::fmt::Display for TensorData {
 
 /// The tolerance used to compare to floating point numbers.
 ///
-/// Generally, two numbers `x` and `y` are approximatively equal if
+/// Generally, two numbers `x` and `y` are approximately equal if
 ///
 ///     `|x - y| < max(R * (|x + y|), A)`
 ///
@@ -850,7 +842,7 @@ impl core::fmt::Display for TensorData {
 /// In that case, the relative and absolute tolerances are computed using an heuristic based
 /// on the EPSILON and MIN_POSITIVE values of the given floating point type `F`.
 ///
-/// An other common initialization is `Tolerance::<F>::default().set_relative(1e-4).set_half_precision_relative(1e-2)`.
+/// Another common initialization is `Tolerance::<F>::rel_abs(1e-4, 1e-5).set_half_precision_relative(1e-2)`.
 /// This will use a sane default to manage values too close to 0.0 and
 /// use different relative tolerances depending on the floating point precision.
 #[derive(Debug, Clone, Copy)]
@@ -859,7 +851,7 @@ pub struct Tolerance<F> {
     absolute: F,
 }
 
-impl<F: num_traits::Float> Default for Tolerance<F> {
+impl<F: Float> Default for Tolerance<F> {
     fn default() -> Self {
         Self {
             relative: F::from(64).unwrap() * F::epsilon(),
@@ -868,84 +860,63 @@ impl<F: num_traits::Float> Default for Tolerance<F> {
     }
 }
 
-impl<F: num_traits::Float> Tolerance<F> {
+impl<F: Float> Tolerance<F> {
     /// When comparing two numbers, this uses both the relative and absolute differences.
     ///
-    /// That is, `x` and `y` are approximatively equal if
+    /// That is, `x` and `y` are approximately equal if
     ///
     ///     `|x - y| < max(R * (|x + y|), A)`
     ///
     /// where `R` is the `relative` tolerance and `A` is the `absolute` tolerance.
     pub fn rel_abs<FF: ToPrimitive>(relative: FF, absolute: FF) -> Self {
-        let relative = F::from(relative).unwrap();
-        let absolute = F::from(absolute).unwrap();
+        let relative = Self::check_relative(relative);
+        let absolute = Self::check_absolute(absolute);
 
         Self { relative, absolute }
     }
 
     /// When comparing two numbers, this uses only the relative difference.
     ///
-    /// That is, `x` and `y` are approximatively equal if
+    /// That is, `x` and `y` are approximately equal if
     ///
     ///     `|x - y| < R * (|x + y|)`
     ///
     /// where `R` is the relative `tolerance`.
     pub fn relative<FF: ToPrimitive>(tolerance: FF) -> Self {
-        let tolerance = F::from(tolerance).unwrap();
-
-        assert!(tolerance > F::epsilon());
-        assert!(tolerance <= F::one());
+        let relative = Self::check_relative(tolerance);
 
         Self {
-            relative: tolerance,
+            relative,
             absolute: F::from(0.0).unwrap(),
         }
     }
 
     /// When comparing two numbers, this uses only the absolute difference.
     ///
-    /// That is, `x` and `y` are approximatively equal if
+    /// That is, `x` and `y` are approximately equal if
     ///
     ///     `|x - y| < A
     ///
     /// where `A` is the absolute `tolerance`.
     pub fn absolute<FF: ToPrimitive>(tolerance: FF) -> Self {
-        let tolerance = F::from(tolerance).unwrap();
-
-        assert!(tolerance >= F::zero());
+        let absolute = Self::check_absolute(tolerance);
 
         Self {
             relative: F::from(0.0).unwrap(),
-            absolute: tolerance,
-        }
-    }
-
-    /// When comparing two numbers, this uses only the absolute difference,
-    /// by specifying the base 10 `exponent` of the absolute tolerance.
-    ///
-    /// That is, `x` and `y` are approximatively equal if
-    ///
-    ///     `|x - y| < 10^E
-    ///
-    /// where `E` is the absolute tolerance `exponent`.
-    pub fn absolute_base_ten(exponent: i32) -> Self {
-        Self {
-            relative: F::from(0.0).unwrap(),
-            absolute: F::from(0.1_f32.powi(exponent)).unwrap(),
+            absolute,
         }
     }
 
     /// Change the relative tolerance to the given one.
     pub fn set_relative<FF: ToPrimitive>(mut self, tolerance: FF) -> Self {
-        self.relative = F::from(tolerance).unwrap();
+        self.relative = Self::check_relative(tolerance);
         self
     }
 
-    // TODO: use Element and check dtype
     /// Change the relative tolerance to the given one only if `F` is half precision.
     pub fn set_half_precision_relative<FF: ToPrimitive>(mut self, tolerance: FF) -> Self {
         if core::mem::size_of::<F>() == 2 {
-            self.relative = F::from(tolerance).unwrap();
+            self.relative = Self::check_relative(tolerance);
         }
         self
     }
@@ -953,7 +924,7 @@ impl<F: num_traits::Float> Tolerance<F> {
     /// Change the relative tolerance to the given one only if `F` is single precision.
     pub fn set_single_precision_relative<FF: ToPrimitive>(mut self, tolerance: FF) -> Self {
         if core::mem::size_of::<F>() == 4 {
-            self.relative = F::from(tolerance).unwrap();
+            self.relative = Self::check_relative(tolerance);
         }
         self
     }
@@ -961,21 +932,21 @@ impl<F: num_traits::Float> Tolerance<F> {
     /// Change the relative tolerance to the given one only if `F` is double precision.
     pub fn set_double_precision_relative<FF: ToPrimitive>(mut self, tolerance: FF) -> Self {
         if core::mem::size_of::<F>() == 8 {
-            self.relative = F::from(tolerance).unwrap();
+            self.relative = Self::check_relative(tolerance);
         }
         self
     }
 
     /// Change the absolute tolerance to the given one.
     pub fn set_absolute<FF: ToPrimitive>(mut self, tolerance: FF) -> Self {
-        self.absolute = F::from(tolerance).unwrap();
+        self.absolute = Self::check_absolute(tolerance);
         self
     }
 
     /// Change the absolute tolerance to the given one only if `F` is half precision.
     pub fn set_half_precision_absolute<FF: ToPrimitive>(mut self, tolerance: FF) -> Self {
         if core::mem::size_of::<F>() == 2 {
-            self.absolute = F::from(tolerance).unwrap();
+            self.absolute = Self::check_absolute(tolerance);
         }
         self
     }
@@ -983,7 +954,7 @@ impl<F: num_traits::Float> Tolerance<F> {
     /// Change the absolute tolerance to the given one only if `F` is single precision.
     pub fn set_single_precision_absolute<FF: ToPrimitive>(mut self, tolerance: FF) -> Self {
         if core::mem::size_of::<F>() == 4 {
-            self.absolute = F::from(tolerance).unwrap();
+            self.absolute = Self::check_absolute(tolerance);
         }
         self
     }
@@ -991,17 +962,13 @@ impl<F: num_traits::Float> Tolerance<F> {
     /// Change the absolute tolerance to the given one only if `F` is double precision.
     pub fn set_double_precision_absolute<FF: ToPrimitive>(mut self, tolerance: FF) -> Self {
         if core::mem::size_of::<F>() == 8 {
-            self.absolute = F::from(tolerance).unwrap();
+            self.absolute = Self::check_absolute(tolerance);
         }
         self
     }
 
     /// Checks if `x` and `y` are approximately equal given the tolerance.
     pub fn approx_eq(&self, x: F, y: F) -> bool {
-        assert!(self.relative > F::epsilon());
-        assert!(self.relative <= F::one());
-        assert!(self.absolute >= F::zero());
-
         // See the accepted answer here
         // https://stackoverflow.com/questions/4915462/how-should-i-do-floating-point-comparison
 
@@ -1017,6 +984,18 @@ impl<F: num_traits::Float> Tolerance<F> {
         let norm = norm.min(F::max_value()); // In case |a + b| -> inf.
 
         diff < self.absolute.max(self.relative * norm)
+    }
+
+    fn check_relative<FF: ToPrimitive>(tolerance: FF) -> F {
+        let tolerance = F::from(tolerance).unwrap();
+        assert!(tolerance <= F::one());
+        tolerance
+    }
+
+    fn check_absolute<FF: ToPrimitive>(tolerance: FF) -> F {
+        let tolerance = F::from(tolerance).unwrap();
+        assert!(tolerance >= F::zero());
+        tolerance
     }
 }
 
@@ -1087,8 +1066,8 @@ mod tests {
         let data1 = TensorData::from([[3.0, 5.0, 6.0]]);
         let data2 = TensorData::from([[3.03, 5.0, 6.0]]);
 
-        data1.assert_approx_eq::<f32>(&data2, Tolerance::absolute_base_ten(-2));
-        data1.assert_approx_eq::<half::f16>(&data2, Tolerance::absolute_base_ten(-2));
+        data1.assert_approx_eq::<f32>(&data2, Tolerance::absolute(3e-2));
+        data1.assert_approx_eq::<half::f16>(&data2, Tolerance::absolute(3e-2));
     }
 
     #[test]
@@ -1097,7 +1076,7 @@ mod tests {
         let data1 = TensorData::from([[3.0, 5.0, 6.0]]);
         let data2 = TensorData::from([[3.031, 5.0, 6.0]]);
 
-        data1.assert_approx_eq::<f32>(&data2, Tolerance::absolute_base_ten(-2));
+        data1.assert_approx_eq::<f32>(&data2, Tolerance::absolute(1e-2));
     }
 
     #[test]
@@ -1106,7 +1085,7 @@ mod tests {
         let data1 = TensorData::from([[3.0, 5.0, 6.0, 7.0]]);
         let data2 = TensorData::from([[3.0, 5.0, 6.0]]);
 
-        data1.assert_approx_eq::<f32>(&data2, Tolerance::absolute_base_ten(-2));
+        data1.assert_approx_eq::<f32>(&data2, Tolerance::absolute(1e-2));
     }
 
     #[test]

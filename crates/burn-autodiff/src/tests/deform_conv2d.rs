@@ -1,9 +1,8 @@
 #[burn_tensor_testgen::testgen(ad_deform_conv2d)]
 mod tests {
     use super::*;
-    use burn_tensor::{ElementConversion, Tolerance, ops::FloatElem};
+    use burn_tensor::{ElementConversion, Tolerance};
     use burn_tensor::{Shape, module::deform_conv2d, ops::DeformConvOptions};
-    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_deform_conv2d_basic() {
@@ -1814,27 +1813,27 @@ mod tests {
             expected_grads
                 .bias
                 .to_data()
-                .assert_approx_eq::<FT>(&bias_grad_actual.to_data(), tolerance);
+                .assert_approx_eq::<FloatType>(&bias_grad_actual.to_data(), tolerance);
             println!("Testing input");
             expected_grads
                 .x
                 .to_data()
-                .assert_approx_eq::<FT>(&x_grad_actual.to_data(), tolerance);
+                .assert_approx_eq::<FloatType>(&x_grad_actual.to_data(), tolerance);
             println!("Testing offset");
             expected_grads
                 .offset
                 .to_data()
-                .assert_approx_eq::<FT>(&offset_grad_actual.to_data(), tolerance);
+                .assert_approx_eq::<FloatType>(&offset_grad_actual.to_data(), tolerance);
             println!("Testing mask");
             expected_grads
                 .mask
                 .to_data()
-                .assert_approx_eq::<FT>(&mask_grad_actual.to_data(), tolerance);
+                .assert_approx_eq::<FloatType>(&mask_grad_actual.to_data(), tolerance);
             println!("Testing weight");
             expected_grads
                 .weight
                 .to_data()
-                .assert_approx_eq::<FT>(&weight_grad_actual.to_data(), tolerance);
+                .assert_approx_eq::<FloatType>(&weight_grad_actual.to_data(), tolerance);
         }
     }
 }

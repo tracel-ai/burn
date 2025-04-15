@@ -120,7 +120,7 @@ mod tests {
         ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]

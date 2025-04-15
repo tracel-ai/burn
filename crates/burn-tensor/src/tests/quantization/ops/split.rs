@@ -24,7 +24,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq::<FT>(&expected[index], Tolerance::default());
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::absolute(1e-1));
         }
     }
 
@@ -47,7 +47,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq::<FT>(&expected[index], Tolerance::default());
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::absolute(1e-1));
         }
     }
 
@@ -68,7 +68,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq::<FT>(&expected[index], Tolerance::default());
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::absolute(1e-1));
         }
     }
 
@@ -86,7 +86,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq::<FT>(&expected[index], Tolerance::default());
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::absolute(1e-1));
         }
     }
 
@@ -126,7 +126,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq::<FT>(&expected[index], Tolerance::default());
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::absolute(1e-1));
         }
     }
 
@@ -154,7 +154,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq::<FT>(&expected[index], Tolerance::default());
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::absolute(1e-1));
         }
     }
 }

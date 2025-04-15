@@ -168,8 +168,10 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
         let mut metric = FBetaScoreMetric::binary(beta, threshold);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value()])
-            .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
+        TensorData::from([metric.value()]).assert_approx_eq::<f32>(
+            &TensorData::from([expected * 100.0]),
+            Tolerance::rel_abs(1e-5, 1e-5),
+        )
     }
 
     #[rstest]
@@ -190,8 +192,10 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multiclass).into();
         let mut metric = FBetaScoreMetric::multiclass(beta, top_k, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value()])
-            .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
+        TensorData::from([metric.value()]).assert_approx_eq::<f32>(
+            &TensorData::from([expected * 100.0]),
+            Tolerance::rel_abs(1e-5, 1e-5),
+        )
     }
 
     #[rstest]
@@ -208,8 +212,10 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multilabel).into();
         let mut metric = FBetaScoreMetric::multilabel(beta, threshold, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value()])
-            .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
+        TensorData::from([metric.value()]).assert_approx_eq::<f32>(
+            &TensorData::from([expected * 100.0]),
+            Tolerance::rel_abs(1e-5, 1e-5),
+        )
     }
 
     #[test]

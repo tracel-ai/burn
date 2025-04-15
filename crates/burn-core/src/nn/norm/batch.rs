@@ -235,7 +235,7 @@ mod tests_1d {
         ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -253,7 +253,7 @@ mod tests_1d {
         ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 3e-3));
     }
 
     fn input_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 3> {
@@ -297,7 +297,7 @@ mod tests_2d {
         ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-3));
     }
 
     #[test]
@@ -323,7 +323,7 @@ mod tests_2d {
         ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 3e-3));
     }
 
     #[test]
@@ -339,7 +339,7 @@ mod tests_2d {
         running_mean
             .reshape([3])
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -355,7 +355,7 @@ mod tests_2d {
         running_var
             .reshape([3])
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 2e-3));
     }
 
     #[test]
@@ -371,7 +371,7 @@ mod tests_2d {
 
         running_mean_after
             .into_data()
-            .assert_approx_eq::<FT>(&running_mean.into_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&running_mean.into_data(), Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -384,6 +384,7 @@ mod tests_2d {
 
         let grads = output.backward();
 
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-4);
         let expected = TensorData::from([0.0000e+00, -5.9035e-07, -6.0011e-07]);
         module
             .gamma
@@ -391,7 +392,7 @@ mod tests_2d {
             .unwrap()
             .reshape([3])
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, tolerance);
 
         let expected = TensorData::from([8., 8., 8.]);
         module
@@ -400,7 +401,7 @@ mod tests_2d {
             .unwrap()
             .reshape([3])
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, tolerance);
 
         let expected = TensorData::from([
             [
@@ -418,7 +419,7 @@ mod tests_2d {
             .grad(&grads)
             .unwrap()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 
     fn input_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 4> {

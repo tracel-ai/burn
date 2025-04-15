@@ -202,7 +202,6 @@ mod tests {
 
         assert_eq!(state_optim_before.len(), state_optim_after.len());
     }
-    const ASSERT_PRECISION: usize = 6;
 
     #[test]
     fn test_adagrad_optimizer_with_numbers() {
@@ -275,14 +274,9 @@ mod tests {
         );
 
         type FT = FloatElem<TestAutodiffBackend>;
-        bias_updated.assert_approx_eq::<FT>(
-            &bias_expected,
-            Tolerance::absolute_base_ten(-(ASSERT_PRECISION as i32)),
-        );
-        weight_updated.assert_approx_eq::<FT>(
-            &weights_expected,
-            Tolerance::absolute_base_ten(-(ASSERT_PRECISION as i32)),
-        );
+        let tolerance = Tolerance::absolute(1e-6);
+        bias_updated.assert_approx_eq::<FT>(&bias_expected, tolerance);
+        weight_updated.assert_approx_eq::<FT>(&weights_expected, tolerance);
     }
 
     fn given_linear_layer(weight: TensorData, bias: TensorData) -> nn::Linear<TestAutodiffBackend> {

@@ -220,8 +220,6 @@ mod tests {
         assert_eq!(state_optim_before.len(), state_optim_after.len());
     }
 
-    const ASSERT_PRECISION: usize = 2;
-
     #[test]
     fn test_adamw_optimizer_with_numbers() {
         let linear = given_linear_layer(
@@ -294,14 +292,9 @@ mod tests {
             state_updated.bias.unwrap().to_data(),
         );
 
-        bias_updated.assert_approx_eq::<FT>(
-            &bias_expected,
-            Tolerance::absolute_base_ten(-(ASSERT_PRECISION as i32)),
-        );
-        weight_updated.assert_approx_eq::<FT>(
-            &weights_expected,
-            Tolerance::absolute_base_ten(-(ASSERT_PRECISION as i32)),
-        );
+        let tolerance = Tolerance::absolute(1e-2);
+        bias_updated.assert_approx_eq::<FT>(&bias_expected, tolerance);
+        weight_updated.assert_approx_eq::<FT>(&weights_expected, tolerance);
     }
 
     #[test]

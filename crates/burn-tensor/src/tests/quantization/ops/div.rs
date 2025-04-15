@@ -17,7 +17,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::absolute(1e-1));
     }
 
     #[test]
@@ -30,7 +30,7 @@ mod tests {
         // Precision 1 to approximate de/quantization errors
         output.dequantize().into_data().assert_approx_eq::<FT>(
             &TensorData::from([[0.0, 1.0, 1.0], [0.0, 0.25, 0.4]]),
-            Tolerance::default(),
+            Tolerance::absolute(1e-1),
         );
     }
 
@@ -44,7 +44,7 @@ mod tests {
         // Precision 1 to approximate de/quantization errors
         output.dequantize().into_data().assert_approx_eq::<FT>(
             &TensorData::from([[0.0, 0.5, 1.0], [1.5, 2.0, 2.5]]),
-            Tolerance::default(),
+            Tolerance::absolute(1e-1),
         );
     }
 }

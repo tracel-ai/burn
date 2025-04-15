@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::module::avg_pool1d;
-    use burn_tensor::{Shape, Tensor, Tolerance, ops::FloatElem};
+    use burn_tensor::{Shape, Tensor, Tolerance};
 
     #[test]
     fn test_avg_pool1d_simple() {
@@ -98,7 +98,7 @@ mod tests {
             let tolerance = Tolerance::rel_abs(1e-4, 1e-5).set_half_precision_relative(1e-3);
             x_grad
                 .to_data()
-                .assert_approx_eq::<FloatElem<TestBackend>>(&x_grad_actual.into_data(), tolerance);
+                .assert_approx_eq::<FloatType>(&x_grad_actual.into_data(), tolerance);
         }
     }
 }

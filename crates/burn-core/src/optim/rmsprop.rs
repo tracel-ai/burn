@@ -327,7 +327,6 @@ mod tests {
     type FT = FloatElem<TestAutodiffBackend>;
 
     const LEARNING_RATE: LearningRate = 0.01;
-    const ASSERT_PRECISION: usize = 6;
 
     #[test]
     fn test_rmsprop_optimizer_save_load_state() {
@@ -441,14 +440,9 @@ mod tests {
         let bias_expected =
             TensorData::from([0.239199, 0.239199, 0.239199, 0.239199, 0.239199, 0.239199]);
 
-        bias_updated.assert_approx_eq::<FT>(
-            &bias_expected,
-            Tolerance::absolute_base_ten(-1 * (ASSERT_PRECISION as i32)),
-        );
-        weight_updated.assert_approx_eq::<FT>(
-            &weights_expected,
-            Tolerance::absolute_base_ten(-1 * (ASSERT_PRECISION as i32)),
-        );
+        let tolerance = Tolerance::absolute(1e-6);
+        bias_updated.assert_approx_eq::<FT>(&bias_expected, tolerance);
+        weight_updated.assert_approx_eq::<FT>(&weights_expected, tolerance);
     }
 
     #[test]
@@ -531,14 +525,9 @@ mod tests {
         // println!("\nweight_updated\n{:?}", weight_updated);
         // println!("\nbias_updated\n{:?}", bias_updated);
 
-        bias_updated.assert_approx_eq::<FT>(
-            &bias_expected,
-            Tolerance::absolute_base_ten(-(ASSERT_PRECISION as i32)),
-        );
-        weight_updated.assert_approx_eq::<FT>(
-            &weights_expected,
-            Tolerance::absolute_base_ten(-(ASSERT_PRECISION as i32)),
-        );
+        let tolerance = Tolerance::absolute(1e-6);
+        bias_updated.assert_approx_eq::<FT>(&bias_expected, tolerance);
+        weight_updated.assert_approx_eq::<FT>(&weights_expected, tolerance);
     }
 
     fn given_linear_layer(weight: TensorData, bias: TensorData) -> nn::Linear<TestAutodiffBackend> {

@@ -16,7 +16,7 @@ mod tests {
         flipped
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::absolute(1e-1));
 
         // Test with no flip
         let flipped = tensor.clone().flip([]);

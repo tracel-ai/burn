@@ -227,7 +227,7 @@ mod tests {
             .into_data();
 
         let loss_expected = TensorData::from([0.7491]);
-        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::default());
+        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::relative(1e-4));
     }
 
     #[test]
@@ -245,7 +245,7 @@ mod tests {
             .into_data();
 
         let loss_expected = TensorData::from([0.7491]);
-        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::default());
+        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::relative(1e-4));
     }
 
     #[test]
@@ -273,7 +273,7 @@ mod tests {
             .into_data();
 
         let loss_expected = TensorData::from([3.1531]);
-        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::default());
+        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::relative(1e-4));
     }
 
     #[test]
@@ -300,7 +300,7 @@ mod tests {
             .into_data();
 
         let loss_expected = TensorData::from([0.7490]);
-        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::default());
+        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::relative(1e-4));
     }
 
     #[test]
@@ -330,7 +330,7 @@ mod tests {
             .into_data();
 
         let loss_expected = TensorData::from([0.7112]);
-        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::default());
+        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::relative(1e-4));
     }
 
     #[test]

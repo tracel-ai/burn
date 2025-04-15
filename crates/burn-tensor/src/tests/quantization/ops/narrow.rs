@@ -18,7 +18,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::absolute(1e-1));
 
         let output = tensor.narrow(1, 1, 2);
         let expected = TensorData::from([[2., 3.], [8., 9.], [14., 15.]]);
@@ -26,7 +26,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::absolute(1e-1));
     }
 
     #[test]

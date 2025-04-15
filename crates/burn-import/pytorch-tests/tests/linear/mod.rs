@@ -60,7 +60,7 @@ mod tests {
 
     use super::*;
 
-    fn linear_test(record: NetRecord<Backend>, precision: usize) {
+    fn linear_test(record: NetRecord<Backend>, precision: f32) {
         let device = Default::default();
         let model = Net::<Backend>::init(&device).load_record(record);
 
@@ -86,10 +86,9 @@ mod tests {
             ]],
             &device,
         );
-        output.to_data().assert_approx_eq::<FT>(
-            &expected.to_data(),
-            Tolerance::absolute_base_ten(-(precision as i32)),
-        );
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::absolute(precision));
     }
 
     #[test]
@@ -99,7 +98,7 @@ mod tests {
             .load("tests/linear/linear.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        linear_test(record, 7);
+        linear_test(record, 1e-7);
     }
 
     #[test]
@@ -109,7 +108,7 @@ mod tests {
             .load("tests/linear/linear.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        linear_test(record, 4);
+        linear_test(record, 1e-4);
     }
 
     #[test]

@@ -249,7 +249,7 @@ mod tests {
         ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -259,13 +259,14 @@ mod tests {
             .with_affine(true)
             .init::<TestBackend>(&device);
 
+        let tolerance = Tolerance::rel_abs(1e-4, 3e-4);
         module
             .gamma
             .as_ref()
             .expect("gamma should not be None")
             .val()
             .to_data()
-            .assert_approx_eq::<FT>(&TensorData::ones::<f32, _>([6]), Tolerance::default());
+            .assert_approx_eq::<FT>(&TensorData::ones::<f32, _>([6]), tolerance);
 
         module
             .beta
@@ -273,7 +274,7 @@ mod tests {
             .expect("beta should not be None")
             .val()
             .to_data()
-            .assert_approx_eq::<FT>(&TensorData::zeros::<f32, _>([6]), Tolerance::default());
+            .assert_approx_eq::<FT>(&TensorData::zeros::<f32, _>([6]), tolerance);
 
         let input = Tensor::<TestBackend, 3>::from_data(
             TensorData::from([
@@ -319,7 +320,7 @@ mod tests {
         ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 
     #[test]

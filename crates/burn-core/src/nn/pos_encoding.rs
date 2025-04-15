@@ -229,7 +229,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -257,7 +257,7 @@ mod tests {
         );
         sinusoids
             .to_data()
-            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]

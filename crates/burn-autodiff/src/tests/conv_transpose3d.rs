@@ -1,9 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_conv_transpose3d)]
 mod tests {
     use super::*;
-    use burn_tensor::{Shape, module::conv_transpose3d, ops::ConvTransposeOptions};
-    use burn_tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn_tensor::{Shape, Tolerance, module::conv_transpose3d, ops::ConvTransposeOptions};
 
     #[test]
     fn test_conv_transpose3d_basic() {
@@ -702,15 +700,15 @@ mod tests {
             expected_grads
                 .bias
                 .to_data()
-                .assert_approx_eq::<FT>(&bias_grad_actual.to_data(), tolerance);
+                .assert_approx_eq::<FloatType>(&bias_grad_actual.to_data(), tolerance);
             expected_grads
                 .x
                 .to_data()
-                .assert_approx_eq::<FT>(&x_grad_actual.to_data(), tolerance);
+                .assert_approx_eq::<FloatType>(&x_grad_actual.to_data(), tolerance);
             expected_grads
                 .weight
                 .to_data()
-                .assert_approx_eq::<FT>(&weight_grad_actual.to_data(), tolerance);
+                .assert_approx_eq::<FloatType>(&weight_grad_actual.to_data(), tolerance);
         }
     }
 }

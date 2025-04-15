@@ -15,8 +15,8 @@ mod tests {
         let output = tensor.cov(1, 1);
         let expected =
             TensorData::from([[2.48917, -1.73333], [-1.73333, 15.33333]]).convert::<FloatElem>();
-        let tolerance = Tolerance::rel_abs(1e-4, 1e-5).set_half_precision_relative(1e-3);
 
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-5).set_half_precision_relative(1e-3);
         output
             .into_data()
             .assert_approx_eq::<FloatElem>(&expected, tolerance);
@@ -30,8 +30,8 @@ mod tests {
         let output = tensor.cov(1, 0);
         let expected =
             TensorData::from([[1.86687, -1.30000], [-1.30000, 11.5]]).convert::<FloatElem>();
-        let tolerance = Tolerance::rel_abs(1e-4, 1e-5).set_half_precision_relative(1e-3);
 
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-5).set_half_precision_relative(1e-3);
         output
             .into_data()
             .assert_approx_eq::<FloatElem>(&expected, tolerance);
@@ -50,8 +50,8 @@ mod tests {
             [-3.25, 5.5, 17.5, 12.5],
         ])
         .convert::<FloatElem>();
-        let tolerance = Tolerance::rel_abs(4e-4, 1e-3).set_half_precision_relative(1e-3);
 
+        let tolerance = Tolerance::rel_abs(4e-4, 1e-3).set_half_precision_relative(1e-3);
         output
             .into_data()
             .assert_approx_eq::<FloatElem>(&expected, tolerance);

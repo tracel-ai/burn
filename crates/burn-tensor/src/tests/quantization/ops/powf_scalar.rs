@@ -16,7 +16,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 
     #[test]
@@ -31,7 +31,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 
     #[test]
@@ -45,7 +45,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 
     #[test]
@@ -59,6 +59,6 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 }

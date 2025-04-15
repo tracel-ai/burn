@@ -104,6 +104,6 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::absolute_base_ten(-7));
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::absolute(1e-7));
     }
 }

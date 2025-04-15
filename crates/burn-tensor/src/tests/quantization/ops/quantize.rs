@@ -68,8 +68,10 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data()
-            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default().set_relative(1e-2));
+        x.into_data().assert_approx_eq::<FT>(
+            &tensor.into_data(),
+            Tolerance::absolute(1e-1).set_relative(1e-2),
+        );
     }
 
     #[test]
@@ -109,8 +111,10 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data()
-            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default().set_relative(1e-2));
+        x.into_data().assert_approx_eq::<FT>(
+            &tensor.into_data(),
+            Tolerance::absolute(1e-1).set_relative(1e-2),
+        );
     }
 
     #[test]
@@ -213,8 +217,10 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data()
-            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default().set_relative(1e-2));
+        x.into_data().assert_approx_eq::<FT>(
+            &tensor.into_data(),
+            Tolerance::absolute(1e-1).set_relative(1e-2),
+        );
     }
 
     #[allow(clippy::excessive_precision)]
@@ -281,8 +287,10 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data()
-            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default().set_relative(1e-2));
+        x.into_data().assert_approx_eq::<FT>(
+            &tensor.into_data(),
+            Tolerance::absolute(1e-1).set_relative(1e-2),
+        );
     }
 
     #[cfg(feature = "std")]
@@ -369,7 +377,9 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data()
-            .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default().set_relative(1e-2));
+        x.into_data().assert_approx_eq::<FT>(
+            &tensor.into_data(),
+            Tolerance::absolute(1e-1).set_relative(1e-2),
+        );
     }
 }

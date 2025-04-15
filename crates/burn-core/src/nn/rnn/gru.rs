@@ -333,9 +333,10 @@ mod tests {
             .select(0, Tensor::arange(0..1, &device))
             .squeeze::<2>(0);
 
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-4);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, tolerance);
 
         // Reset gate applied to hidden state after the matrix multiplication
         gru.reset_after = true; // override forward behavior
@@ -347,7 +348,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 
     #[test]
@@ -365,9 +366,10 @@ mod tests {
             .select(0, Tensor::arange(0..1, &device))
             .squeeze::<2>(0);
 
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-4);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, tolerance);
 
         // Reset gate applied to hidden state before the matrix multiplication
         gru.reset_after = false; // override forward behavior
@@ -379,7 +381,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 
     #[test]

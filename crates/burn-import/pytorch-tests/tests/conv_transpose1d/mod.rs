@@ -39,7 +39,7 @@ mod tests {
 
     use super::*;
 
-    fn conv_transpose1d(record: NetRecord<Backend>, precision: usize) {
+    fn conv_transpose1d(record: NetRecord<Backend>, precision: f32) {
         let device = Default::default();
 
         let model = Net::<Backend>::init(&device).load_record(record);
@@ -59,10 +59,9 @@ mod tests {
             &device,
         );
 
-        output.to_data().assert_approx_eq::<f32>(
-            &expected.to_data(),
-            Tolerance::absolute_base_ten(-(precision as i32)),
-        );
+        output
+            .to_data()
+            .assert_approx_eq::<f32>(&expected.to_data(), Tolerance::absolute(precision));
     }
 
     #[test]
@@ -72,7 +71,7 @@ mod tests {
             .load("tests/conv_transpose1d/conv_transpose1d.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        conv_transpose1d(record, 8);
+        conv_transpose1d(record, 1e-8);
     }
     #[test]
     fn conv_transpose1d_half() {
@@ -81,6 +80,6 @@ mod tests {
             .load("tests/conv_transpose1d/conv_transpose1d.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        conv_transpose1d(record, 4);
+        conv_transpose1d(record, 1e-4);
     }
 }

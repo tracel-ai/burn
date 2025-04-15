@@ -190,8 +190,9 @@ for more details.
 ### Benchmarks
 
 To evaluate performance across different backends and track improvements over time, we provide a
-dedicated benchmarking suite.  
-Run and compare benchmarks at [https://github.com/tracel-ai/burn-bench].
+dedicated benchmarking suite.
+
+Run and compare benchmarks using [burn-bench](https://github.com/tracel-ai/burn-bench).
 
 ## Training & Inference
 
