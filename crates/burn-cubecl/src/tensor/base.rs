@@ -244,10 +244,10 @@ macro_rules! execute_with_dtype {
             //     type $element = u32/u8;
             //     $op
             // }
-            burn_tensor::DType::QFloat(_) => {
-                type $element = i8;
-                $op
-            }
+            // burn_tensor::DType::QFloat(_) => {
+            //     type $element = u32;
+            //     $op
+            // }
             _ => unimplemented!("Unsupported dtype"),
         }
     }};
