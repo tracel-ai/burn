@@ -513,7 +513,7 @@ mod tests {
             .into_data()
             .assert_approx_eq::<FloatElem<TestBackend>>(
                 &output_2.into_data(),
-                Tolerance::default(),
+                Tolerance::rel_abs(1e-5, 1e-5),
             );
     }
 
