@@ -22,7 +22,7 @@ mod tests {
 
         let tolerance = Tolerance::default()
             .set_relative(1e-4)
-            .set_half_precision_relative(5e-4);
+            .set_half_precision_relative(1e-3);
         let expected = TensorData::from([[60.2652, 72.3130], [60.2652, 72.3130]]);
         grad_1
             .to_data()

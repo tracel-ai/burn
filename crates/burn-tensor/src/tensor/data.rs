@@ -97,10 +97,6 @@ impl TensorData {
         );
     }
 
-    fn try_as_slice<E: Element>(&self) -> Result<&[E], DataError> {
-        bytemuck::checked::try_cast_slice(&self.bytes).map_err(DataError::CastError)
-    }
-
     /// Returns the immutable slice view of the tensor data.
     pub fn as_slice<E: Element>(&self) -> Result<&[E], DataError> {
         if E::dtype() == self.dtype {
@@ -884,10 +880,6 @@ impl<F: num_traits::Float> Tolerance<F> {
         let relative = F::from(relative).unwrap();
         let absolute = F::from(absolute).unwrap();
 
-        assert!(relative > F::epsilon());
-        assert!(relative <= F::one());
-        assert!(absolute >= F::zero());
-
         Self { relative, absolute }
     }
 
@@ -1006,6 +998,10 @@ impl<F: num_traits::Float> Tolerance<F> {
 
     /// Checks if `x` and `y` are approximately equal given the tolerance.
     pub fn approx_eq(&self, x: F, y: F) -> bool {
+        assert!(self.relative > F::epsilon());
+        assert!(self.relative <= F::one());
+        assert!(self.absolute >= F::zero());
+
         // See the accepted answer here
         // https://stackoverflow.com/questions/4915462/how-should-i-do-floating-point-comparison
 

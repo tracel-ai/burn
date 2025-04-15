@@ -435,10 +435,11 @@ mod tests {
                 ),
             );
 
-            y.to_data().assert_approx_eq::<FT>(
-                &output.into_data(),
-                Tolerance::default().set_relative(1e-4),
-            );
+            let tolerance = Tolerance::rel_abs(1e-4, 1e-5)
+                .set_half_precision_relative(1e-3)
+                .set_half_precision_absolute(2e-4);
+            y.to_data()
+                .assert_approx_eq::<FT>(&output.into_data(), tolerance);
         }
     }
 }

@@ -19,7 +19,7 @@ mod tests {
         let empirical_mean = tensor.mean().into_data();
         empirical_mean.assert_approx_eq::<FT>(
             &TensorData::from([mean as f32]),
-            Tolerance::absolute_base_ten(1),
+            Tolerance::rel_abs(1e-4, 3e-2),
         );
     }
 

@@ -6,7 +6,7 @@ mod tests {
     type FT = FloatElem<TestBackend>;
 
     #[test]
-    #[ignore] // BROKEN WITH F16 AND F32
+    // #[ignore] // BROKEN WITH F16 AND F32
     fn test_softmax_grad() {
         let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
         let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);
@@ -21,21 +21,24 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[1.1797, 1.1797], [0.0055, 0.0055]]);
+        let expected = TensorData::from([[1.179665, 1.179661], [0.005462, 0.005463]]);
 
-        let tolerance = Tolerance::default(); //.set_relative(1e-3);
+        let tolerance = Tolerance::rel_abs(1e-5, 1e-4)
+            // Softmax in f16 is not as accurate. For more accurate results, users probably want to upcast the input to f32.
+            .set_half_precision_relative(5e-2)
+            .set_half_precision_absolute(5.5e-2);
         grad_1
             .to_data()
             .assert_approx_eq::<FT>(&expected, tolerance);
 
-        let expected = TensorData::from([[0.2534, 0.2862], [0.5286, 2.9317]]);
+        let expected = TensorData::from([[0.253469, 0.286237], [0.528630, 2.931664]]);
         grad_2
             .to_data()
             .assert_approx_eq::<FT>(&expected, tolerance);
     }
 
     #[test]
-    #[ignore] // BROKEN WITH F16 AND F32
+    // #[ignore] // BROKEN WITH F16 AND F32
     fn test_log_softmax_grad() {
         let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
         let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);
@@ -51,7 +54,7 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([[-4.3939, -4.3939], [-12.9709, -12.9709]]);
-        let tolerance = Tolerance::default(); //.set_relative(1e-3);
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-5).set_half_precision_relative(5e-3);
         grad_1
             .to_data()
             .assert_approx_eq::<FT>(&expected, tolerance);
@@ -63,7 +66,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // BROKEN WITH F16 AND F32
+    // #[ignore] // BROKEN WITH F16 AND F32
     fn test_quiet_softmax_grad() {
         let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
         let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);
@@ -79,14 +82,17 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[1.1797, 1.1797], [0.0055, 0.0055]]);
+        let expected = TensorData::from([[1.179665, 1.179661], [0.005462, 0.005463]]);
 
-        let tolerance = Tolerance::default(); //.set_relative(1e-3);
+        let tolerance = Tolerance::rel_abs(1e-5, 1e-4)
+            // Softmax in f16 is not as accurate. For more accurate results, users probably want to upcast the input to f32.
+            .set_half_precision_relative(5e-2)
+            .set_half_precision_absolute(5.5e-2);
         grad_1
             .to_data()
             .assert_approx_eq::<FT>(&expected, tolerance);
 
-        let expected = TensorData::from([[0.2534, 0.2862], [0.5286, 2.9317]]);
+        let expected = TensorData::from([[0.253469, 0.286237], [0.528630, 2.931664]]);
         grad_2
             .to_data()
             .assert_approx_eq::<FT>(&expected, tolerance);

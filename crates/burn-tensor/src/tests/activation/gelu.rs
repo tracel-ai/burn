@@ -15,9 +15,10 @@ mod tests {
             0.3851, 0.8207, 0.2714, 0.0777, 0.6351, 0.2704, 0.1419, 0.3687, 0.4993, 0.5051,
         ]]);
 
-        output
-            .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::absolute_base_ten(-2)); // Low precision to allow approximation
-                                                                                  // implementation using tanh
+        // Low precision to allow approximation implementation using tanh
+        output.into_data().assert_approx_eq::<FT>(
+            &expected,
+            Tolerance::rel_abs(1e-5, 1e-3).set_half_precision_relative(1e-3),
+        );
     }
 }

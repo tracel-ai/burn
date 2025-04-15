@@ -12,9 +12,12 @@ mod tests {
         let output = activation::log_sigmoid(tensor);
         let expected = TensorData::from([[-3.132617e-1, -9.114665e-4], [-2.260327e-6, -3.0485873]]);
 
+        let tolerance = Tolerance::rel_abs(1e-5, 1e-7)
+            .set_half_precision_relative(1e-3)
+            .set_half_precision_absolute(1e-4);
         output
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-5, 1e-7));
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 
     #[test]

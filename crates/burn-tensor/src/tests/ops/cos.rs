@@ -13,8 +13,9 @@ mod tests {
         let output = tensor.cos();
         let expected = TensorData::from([[1.0, 0.54030, -0.41615], [-0.98999, -0.65364, 0.28366]]);
 
-        output
-            .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default().set_relative(1e-5));
+        output.into_data().assert_approx_eq::<FT>(
+            &expected,
+            Tolerance::rel_abs(1e-5, 1e-5).set_half_precision_relative(1e-3),
+        );
     }
 }

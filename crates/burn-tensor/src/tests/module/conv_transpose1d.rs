@@ -8,7 +8,7 @@ mod tests {
     type FT = FloatElem<TestBackend>;
 
     #[test]
-    #[ignore] // BROKEN WITH AUTOTUNE
+    // #[ignore] // BROKEN WITH AUTOTUNE
     fn test_conv_transpose1d_diff_channels() {
         let test = ConvTranspose1dTestCase {
             batch_size: 1,
@@ -30,7 +30,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // BROKEN WITH AUTOTUNE
+    // #[ignore] // BROKEN WITH AUTOTUNE
     fn test_conv_transpose1d_stride() {
         let test = ConvTranspose1dTestCase {
             batch_size: 1,
@@ -52,7 +52,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // BROKEN WITH AUTOTUNE
+    // #[ignore] // BROKEN WITH AUTOTUNE
     fn test_conv_transpose1d_dilation() {
         let test = ConvTranspose1dTestCase {
             batch_size: 1,
@@ -74,7 +74,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // BROKEN WITH AUTOTUNE
+    // #[ignore] // BROKEN WITH AUTOTUNE
     fn test_conv_transpose1d_groups() {
         let test = ConvTranspose1dTestCase {
             batch_size: 1,

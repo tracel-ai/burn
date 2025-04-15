@@ -52,9 +52,10 @@ mod tests {
         let output = module::conv2d(input, weight, Some(bias), options.clone());
         let output_ref = module::conv2d(input_ref, weight_ref, Some(bias_ref), options);
 
+        let tolerance = Tolerance::rel_abs(1.5e-4, 1e-5);
         output
             .into_data()
-            .assert_approx_eq::<FT>(&output_ref.into_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&output_ref.into_data(), tolerance);
     }
 
     /// Regression test for bias loader in new implicit GEMM

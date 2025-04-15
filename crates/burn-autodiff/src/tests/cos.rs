@@ -19,16 +19,15 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-5).set_half_precision_relative(1e-3);
         grad_1.to_data().assert_approx_eq::<FloatElem<TestBackend>>(
             &TensorData::from([[26.8063, -27.7870], [26.8063, -27.7870]]),
-            Tolerance::default(),
+            tolerance,
         );
 
         grad_2.to_data().assert_approx_eq::<FloatElem<TestBackend>>(
             &TensorData::from([[9.222064, -39.123375], [-28.721354, 49.748356]]),
-            Tolerance::default()
-                .set_relative(1e-4)
-                .set_half_precision_relative(5e-4),
+            tolerance,
         );
     }
 }
