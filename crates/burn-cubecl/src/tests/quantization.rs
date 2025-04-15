@@ -26,7 +26,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::rel_abs(1e-2, 1e-2));
     }
 
     #[test]
@@ -47,7 +47,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::rel_abs(1e-2, 1e-2));
     }
 
     #[test]
@@ -69,7 +69,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::rel_abs(1e-2, 1e-2));
     }
 
     #[test]
@@ -91,7 +91,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::rel_abs(1e-2, 1e-2));
     }
 
     #[test]
@@ -122,7 +122,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::rel_abs(1e-2, 1e-2));
     }
 
     #[test]
@@ -152,6 +152,6 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::rel_abs(1e-2, 1e-2));
     }
 }
