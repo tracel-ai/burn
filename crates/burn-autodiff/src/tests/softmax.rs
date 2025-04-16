@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Tensor, TensorData, activation};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_softmax_grad() {
@@ -18,11 +20,20 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[1.1797, 1.1797], [0.0055, 0.0055]]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        let expected = TensorData::from([[1.179665, 1.179661], [0.005462, 0.005463]]);
 
-        let expected = TensorData::from([[0.2534, 0.2862], [0.5286, 2.9317]]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        let tolerance = Tolerance::rel_abs(2e-4, 1e-4)
+            // Softmax in f16 is not as accurate. For more accurate results, users probably want to upcast the input to f32.
+            .set_half_precision_relative(5e-2)
+            .set_half_precision_absolute(5.5e-2);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
+
+        let expected = TensorData::from([[0.253469, 0.286237], [0.528630, 2.931664]]);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 
     #[test]
@@ -41,10 +52,15 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([[-4.3939, -4.3939], [-12.9709, -12.9709]]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-5).set_half_precision_relative(5e-3);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
 
         let expected = TensorData::from([[30.5984, -47.2267], [55.9631, -56.5914]]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 
     #[test]
@@ -63,10 +79,19 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[1.1797, 1.1797], [0.0055, 0.0055]]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        let expected = TensorData::from([[1.179665, 1.179661], [0.005462, 0.005463]]);
 
-        let expected = TensorData::from([[0.2534, 0.2862], [0.5286, 2.9317]]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        let tolerance = Tolerance::rel_abs(2e-4, 1e-4)
+            // Softmax in f16 is not as accurate. For more accurate results, users probably want to upcast the input to f32.
+            .set_half_precision_relative(5e-2)
+            .set_half_precision_absolute(5.5e-2);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
+
+        let expected = TensorData::from([[0.253469, 0.286237], [0.528630, 2.931664]]);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 }

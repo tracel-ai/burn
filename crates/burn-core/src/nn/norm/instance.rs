@@ -104,6 +104,8 @@ mod tests {
     use crate::TestBackend;
     use crate::tensor::TensorData;
     use alloc::format;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn instance_norm_forward_affine_false() {
@@ -154,7 +156,9 @@ mod tests {
                 [-1.3714, 0.3868, 0.9846],
             ],
         ]);
-        output.to_data().assert_approx_eq(&expected, 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -206,7 +210,9 @@ mod tests {
                 [-0.45469, 1.38697, -0.93228],
             ],
         ]);
-        output.to_data().assert_approx_eq(&expected, 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-3));
     }
 
     #[test]

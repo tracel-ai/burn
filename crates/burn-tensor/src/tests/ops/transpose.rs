@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Bool, Int, Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_transpose_ops() {
@@ -19,7 +21,9 @@ mod tests {
             [[6.0, 9.0], [7.0, 10.0], [8.0, 11.0]],
         ]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -40,8 +44,11 @@ mod tests {
         ]);
         let expected_ones = TensorData::from([[[1.0]]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
-        ones.into_data().assert_approx_eq(&expected_ones, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+        ones.into_data()
+            .assert_approx_eq::<FT>(&expected_ones, Tolerance::default());
     }
 
     #[test]
@@ -61,7 +68,9 @@ mod tests {
             [[2.0, 8.0], [5.0, 11.0]],
         ]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]

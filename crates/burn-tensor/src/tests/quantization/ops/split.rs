@@ -3,6 +3,8 @@ mod tests {
     use super::*;
     use alloc::vec;
     use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_split_evenly_divisible() {
@@ -22,7 +24,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq(&expected[index], 1);
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::absolute(1e-1));
         }
     }
 
@@ -45,7 +47,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq(&expected[index], 1);
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::absolute(1e-1));
         }
     }
 
@@ -66,7 +68,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq(&expected[index], 1);
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::absolute(1e-1));
         }
     }
 
@@ -84,7 +86,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq(&expected[index], 1);
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::absolute(1e-1));
         }
     }
 
@@ -124,7 +126,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq(&expected[index], 1);
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::absolute(1e-1));
         }
     }
 
@@ -152,7 +154,7 @@ mod tests {
             tensor
                 .dequantize()
                 .to_data()
-                .assert_approx_eq(&expected[index], 1);
+                .assert_approx_eq::<FT>(&expected[index], Tolerance::absolute(1e-1));
         }
     }
 }

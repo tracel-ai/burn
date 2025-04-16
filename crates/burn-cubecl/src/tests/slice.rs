@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Distribution, Tensor};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn slice_should_work_with_multiple_workgroups() {
@@ -16,6 +18,6 @@ mod tests {
 
         expected
             .into_data()
-            .assert_approx_eq(&actual.into_data(), 3);
+            .assert_approx_eq::<FT>(&actual.into_data(), Tolerance::default());
     }
 }

@@ -108,6 +108,8 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use crate::tensor::{Shape, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn initializer_default() {
@@ -137,10 +139,10 @@ mod tests {
         let linear = config.init::<TestBackend>(&device);
 
         assert_eq!(config.initializer, Initializer::Zeros);
-        linear
-            .weight
-            .to_data()
-            .assert_approx_eq(&TensorData::zeros::<f32, _>(linear.weight.shape()), 3);
+        linear.weight.to_data().assert_approx_eq::<FT>(
+            &TensorData::zeros::<f32, _>(linear.weight.shape()),
+            Tolerance::default(),
+        );
     }
 
     #[test]

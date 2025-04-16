@@ -161,6 +161,8 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use crate::tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn initializer_default() {
@@ -183,9 +185,10 @@ mod tests {
         let conv = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(config.initializer, Initializer::Zeros);
-        conv.weight
-            .to_data()
-            .assert_approx_eq(&TensorData::zeros::<f32, _>(conv.weight.shape()), 3);
+        conv.weight.to_data().assert_approx_eq::<FT>(
+            &TensorData::zeros::<f32, _>(conv.weight.shape()),
+            Tolerance::default(),
+        );
     }
 
     #[test]

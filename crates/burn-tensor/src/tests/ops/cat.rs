@@ -3,6 +3,9 @@ mod tests {
     use super::*;
     use alloc::vec::Vec;
     use burn_tensor::{Bool, Int, Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
+
     #[test]
     fn should_support_cat_ops_2d_dim0() {
         let device = Default::default();
@@ -12,7 +15,9 @@ mod tests {
         let output = TestTensor::cat(vec![tensor_1, tensor_2], 0);
         let expected = TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -51,7 +56,9 @@ mod tests {
         let output = TestTensor::cat(vec![tensor_1, tensor_2], 1);
         let expected = TensorData::from([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -63,7 +70,9 @@ mod tests {
         let output = TestTensor::cat(vec![tensor_1, tensor_2], 0);
         let expected = TensorData::from([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]], [[4.0, 5.0, 6.0]]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]

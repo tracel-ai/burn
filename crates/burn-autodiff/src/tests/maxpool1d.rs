@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::module::max_pool1d;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_max_pool1d_simple() {
@@ -26,7 +28,7 @@ mod tests {
         let x_grad_actual = x.grad(&grads).unwrap();
         x_grad_expected
             .to_data()
-            .assert_approx_eq(&x_grad_actual.to_data(), 3);
+            .assert_approx_eq::<FT>(&x_grad_actual.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -61,7 +63,7 @@ mod tests {
         let x_grad_actual = x.grad(&grads).unwrap();
         x_grad_expected
             .to_data()
-            .assert_approx_eq(&x_grad_actual.to_data(), 3);
+            .assert_approx_eq::<FT>(&x_grad_actual.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -96,7 +98,7 @@ mod tests {
         let x_grad_actual = x.grad(&grads).unwrap();
         x_grad_expected
             .to_data()
-            .assert_approx_eq(&x_grad_actual.to_data(), 3);
+            .assert_approx_eq::<FT>(&x_grad_actual.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -131,6 +133,6 @@ mod tests {
         let x_grad_actual = x.grad(&grads).unwrap();
         x_grad_expected
             .to_data()
-            .assert_approx_eq(&x_grad_actual.to_data(), 3);
+            .assert_approx_eq::<FT>(&x_grad_actual.to_data(), Tolerance::default());
     }
 }

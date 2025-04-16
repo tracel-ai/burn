@@ -9,6 +9,8 @@ mod tests {
         SymmetricQuantization,
     };
     use burn_tensor::{DType, Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     fn get_q_params(data: TensorData) -> QParams<Vec<f32>, Vec<i8>> {
         let num_elements = data.num_elements();
@@ -60,7 +62,10 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
+        x.into_data().assert_approx_eq::<FT>(
+            &tensor.into_data(),
+            Tolerance::absolute(1e-1).set_relative(1e-2),
+        );
     }
 
     #[test]
@@ -100,7 +105,10 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
+        x.into_data().assert_approx_eq::<FT>(
+            &tensor.into_data(),
+            Tolerance::absolute(1e-1).set_relative(1e-2),
+        );
     }
 
     #[test]
@@ -203,7 +211,10 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
+        x.into_data().assert_approx_eq::<FT>(
+            &tensor.into_data(),
+            Tolerance::absolute(1e-1).set_relative(1e-2),
+        );
     }
 
     #[allow(clippy::excessive_precision)]
@@ -270,7 +281,10 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
+        x.into_data().assert_approx_eq::<FT>(
+            &tensor.into_data(),
+            Tolerance::absolute(1e-1).set_relative(1e-2),
+        );
     }
 
     #[cfg(feature = "std")]
@@ -357,6 +371,9 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
+        x.into_data().assert_approx_eq::<FT>(
+            &tensor.into_data(),
+            Tolerance::absolute(1e-1).set_relative(1e-2),
+        );
     }
 }

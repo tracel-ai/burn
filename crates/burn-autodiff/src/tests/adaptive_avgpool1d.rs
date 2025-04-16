@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::module::adaptive_avg_pool1d;
-    use burn_tensor::{Shape, Tensor};
+    use burn_tensor::{Shape, Tensor, Tolerance};
 
     #[test]
     fn test_avg_pool1d_simple() {
@@ -15,8 +15,8 @@ mod tests {
 
         test.assert_output(TestTensor::from_floats(
             [[
-                [0.5000, 0.8333, 0.3333, 0.8333, 0.5000],
-                [0.5000, 0.8333, 0.3333, 0.8333, 0.5000],
+                [0.5000, 0.83333, 0.33333, 0.83333, 0.5000],
+                [0.5000, 0.83333, 0.33333, 0.83333, 0.5000],
             ]],
             &Default::default(),
         ));
@@ -44,9 +44,10 @@ mod tests {
             let grads = output.backward();
             let x_grad_actual = x.grad(&grads).unwrap();
 
-            x_grad
-                .to_data()
-                .assert_approx_eq(&x_grad_actual.into_data(), 4);
+            x_grad.to_data().assert_approx_eq::<FloatType>(
+                &x_grad_actual.into_data(),
+                Tolerance::rel_abs(1e-5, 1e-5).set_half_precision_relative(1e-3),
+            );
         }
     }
 }

@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_diff_transpose() {
@@ -19,12 +21,14 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        grad_1
-            .to_data()
-            .assert_approx_eq(&TensorData::from([[6.0, 10.0], [6.0, 10.0]]), 3);
-        grad_2
-            .to_data()
-            .assert_approx_eq(&TensorData::from([[3.0, 10.0], [3.0, 10.0]]), 3);
+        grad_1.to_data().assert_approx_eq::<FT>(
+            &TensorData::from([[6.0, 10.0], [6.0, 10.0]]),
+            Tolerance::default(),
+        );
+        grad_2.to_data().assert_approx_eq::<FT>(
+            &TensorData::from([[3.0, 10.0], [3.0, 10.0]]),
+            Tolerance::default(),
+        );
     }
 
     #[test]
@@ -48,13 +52,13 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        grad_1.to_data().assert_approx_eq(
+        grad_1.to_data().assert_approx_eq::<FT>(
             &TensorData::from([[[66., 78.], [66., 78.]], [[270., 306.], [270., 306.]]]),
-            3,
+            Tolerance::default(),
         );
-        grad_2.to_data().assert_approx_eq(
+        grad_2.to_data().assert_approx_eq::<FT>(
             &TensorData::from([[[22., 286.], [28., 316.]], [[172., 652.], [190., 694.]]]),
-            3,
+            Tolerance::default(),
         );
     }
 }

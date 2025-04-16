@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Shape, Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_sort_1d_int() {
@@ -157,7 +159,7 @@ mod tests {
         ]);
         values
             .into_data()
-            .assert_approx_eq_diff(&values_expected, 0.04);
+            .assert_approx_eq::<FT>(&values_expected, Tolerance::default());
     }
 
     #[test]
@@ -188,7 +190,7 @@ mod tests {
         ]);
         values
             .into_data()
-            .assert_approx_eq_diff(&values_expected, 0.04);
+            .assert_approx_eq::<FT>(&values_expected, Tolerance::default());
 
         let indices_expected = TensorData::from([8, 9, 11, 7, 4, 1, 10, 5, 0, 3, 2, 6, 12]);
         indices.into_data().assert_eq(&indices_expected, false);
@@ -208,7 +210,7 @@ mod tests {
         ]);
         values
             .into_data()
-            .assert_approx_eq_diff(&values_expected, 0.04);
+            .assert_approx_eq::<FT>(&values_expected, Tolerance::default());
 
         let indices_expected = TensorData::from([[[1, 1, 1], [0, 0, 0]], [[1, 1, 0], [0, 0, 1]]]);
         indices.into_data().assert_eq(&indices_expected, false);
@@ -230,7 +232,7 @@ mod tests {
         ]);
         values
             .into_data()
-            .assert_approx_eq_diff(&values_expected, 0.002);
+            .assert_approx_eq::<FT>(&values_expected, Tolerance::default());
 
         // Sort along dim=1
         let values = tensor.clone().sort(1);
@@ -241,7 +243,7 @@ mod tests {
         ]);
         values
             .into_data()
-            .assert_approx_eq_diff(&values_expected, 0.002);
+            .assert_approx_eq::<FT>(&values_expected, Tolerance::default());
 
         // Sort along dim=2
         let values = tensor.sort(2);
@@ -252,7 +254,7 @@ mod tests {
         ]);
         values
             .into_data()
-            .assert_approx_eq_diff(&values_expected, 0.002);
+            .assert_approx_eq::<FT>(&values_expected, Tolerance::default());
     }
 
     #[test]
@@ -270,7 +272,7 @@ mod tests {
         ]);
         values
             .into_data()
-            .assert_approx_eq_diff(&values_expected, 0.002);
+            .assert_approx_eq::<FT>(&values_expected, Tolerance::default());
 
         let indices_expected = TensorData::from([[[0, 0, 0], [0, 0, 1]], [[1, 1, 1], [1, 1, 0]]]);
         indices.into_data().assert_eq(&indices_expected, false);
@@ -284,7 +286,7 @@ mod tests {
         ]);
         values
             .into_data()
-            .assert_approx_eq_diff(&values_expected, 0.002);
+            .assert_approx_eq::<FT>(&values_expected, Tolerance::default());
 
         let indices_expected = TensorData::from([[[0, 0, 0], [1, 1, 1]], [[0, 0, 1], [1, 1, 0]]]);
         indices.into_data().assert_eq(&indices_expected, false);
@@ -298,7 +300,7 @@ mod tests {
         ]);
         values
             .into_data()
-            .assert_approx_eq_diff(&values_expected, 0.002);
+            .assert_approx_eq::<FT>(&values_expected, Tolerance::default());
 
         let indices_expected = TensorData::from([[[0, 2, 1], [0, 2, 1]], [[0, 1, 2], [2, 0, 1]]]);
         indices.into_data().assert_eq(&indices_expected, false);
@@ -338,7 +340,9 @@ mod tests {
         let values = tensor.sort(0);
 
         let values_expected = TensorData::from([[-0.5, 0.94], [-0.3, f32::NAN], [0., f32::NAN]]);
-        values.into_data().assert_approx_eq(&values_expected, 4);
+        values
+            .into_data()
+            .assert_approx_eq::<FT>(&values_expected, Tolerance::default());
     }
 
     #[test]
@@ -357,6 +361,8 @@ mod tests {
         let values = tensor.sort_descending(0);
 
         let values_expected = TensorData::from([5., 4., 3., 2., 1.]);
-        values.into_data().assert_approx_eq(&values_expected, 5);
+        values
+            .into_data()
+            .assert_approx_eq::<FT>(&values_expected, Tolerance::default());
     }
 }

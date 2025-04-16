@@ -7,6 +7,8 @@ mod tests {
             BlockLayout, CalibrationRange, QuantizationMode, QuantizationScheme, QuantizationType,
         },
     };
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn per_tensor_affine_int8() {
@@ -23,7 +25,7 @@ mod tests {
         qparams
             .scale
             .into_data()
-            .assert_approx_eq(&TensorData::from([0.009_019_608]), 8);
+            .assert_approx_eq::<FT>(&TensorData::from([0.009_019_608]), Tolerance::default());
         qparams
             .offset
             .unwrap()
@@ -46,7 +48,7 @@ mod tests {
         qparams
             .scale
             .into_data()
-            .assert_approx_eq(&TensorData::from([0.014_173_228]), 8);
+            .assert_approx_eq::<FT>(&TensorData::from([0.014_173_228]), Tolerance::default());
         assert!(qparams.offset.is_none());
     }
 
@@ -65,9 +67,9 @@ mod tests {
 
         let qparams = scheme.compute_q_params(range);
 
-        qparams.scale.into_data().assert_approx_eq(
+        qparams.scale.into_data().assert_approx_eq::<FT>(
             &TensorData::from([0.009_019_608, 0.013_725_490, 0.007_0588_234]),
-            8,
+            Tolerance::default(),
         );
         qparams
             .offset
@@ -91,9 +93,9 @@ mod tests {
 
         let qparams = scheme.compute_q_params(range);
 
-        qparams.scale.into_data().assert_approx_eq(
+        qparams.scale.into_data().assert_approx_eq::<FT>(
             &TensorData::from([0.014_173_228, 0.015_748_031, 0.014_173_228]),
-            8,
+            Tolerance::default(),
         );
         assert!(qparams.offset.is_none());
     }
