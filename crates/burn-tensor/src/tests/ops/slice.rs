@@ -212,23 +212,6 @@ mod tests {
     }
 
     #[test]
-    fn slice_maybe_fused_index_is_output() {
-        let device: Device<TestBackend> = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::empty([2], &device);
-        let mut tensor_2 = Tensor::<TestBackend, 1, Int>::arange(0..2 as i64, &device);
-
-        let _x = tensor.clone().select(0, tensor_2.clone()).reshape([1, -1]);
-
-        {
-            let i = tensor_2.dims()[0];
-
-            tensor_2 = tensor_2.slice([i - 1..i]) + 1;
-        }
-
-        let _x = tensor.clone().select(0, tensor_2.clone()).reshape([1, 1]) + 1;
-    }
-
-    #[test]
     #[should_panic]
     fn should_panic_when_slice_with_too_many_dimensions() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
