@@ -96,9 +96,12 @@ impl<H: Clone> HandleContainer<H> {
                     handle
                 }
                 TensorStatus::ReadWrite => handle,
-                TensorStatus::NotInit => panic!("Cannot get uninitialized tensor."),
+                TensorStatus::NotInit => panic!(
+                    "Cannot get uninitialized tensor {:?}. Tensor exist but with wrong status",
+                    id
+                ),
             },
-            Handle::NotInit => panic!("Cannot get uninitialized handle."),
+            Handle::NotInit => panic!("Cannot get uninitialized handle {:?}.", id),
         }
     }
 

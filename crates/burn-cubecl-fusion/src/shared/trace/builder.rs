@@ -126,6 +126,10 @@ impl FuseTraceBuilder {
             return None;
         }
 
+        if self.resources.outputs.get(tensor.id).is_some() {
+            return None;
+        }
+
         let input = self.input_unhandled(tensor);
         self.resources.indexed.insert(tensor.id, input.clone());
 
