@@ -22,8 +22,7 @@ mod tests {
 
     #[test]
     fn should_support_remainder_basic_scalar() {
-        // NOTE: we use affine quantization to reduce quantization errors for range of input values
-        let tensor = QTensor::<TestBackend, 1>::int8_affine([-3.0, -2.0, -1.0, 1.0, 2.0, 3.0]);
+        let tensor = QTensor::<TestBackend, 1>::int8([-3.0, -2.0, -1.0, 1.0, 2.0, 3.0]);
 
         let output = tensor.remainder_scalar(2.0);
         let expected = TensorData::from([1.0, 0.0, 1.0, 1.0, 0.0, 1.0]);
@@ -203,8 +202,7 @@ mod tests {
 
     #[test]
     fn should_support_remainder_scalar_op() {
-        // NOTE: we use affine quantization to reduce quantization errors for range of input values
-        let tensor = QTensor::<TestBackend, 1>::int8_affine([-3.0, -2.0, -1.0, 1.0, 2.0, 3.0]);
+        let tensor = QTensor::<TestBackend, 1>::int8([-3.0, -2.0, -1.0, 1.0, 2.0, 3.0]);
 
         let output = tensor % 2.0;
         let expected = TensorData::from([1.0, 0.0, 1.0, 1.0, 0.0, 1.0]);

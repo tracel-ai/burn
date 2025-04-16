@@ -250,8 +250,7 @@ impl TensorData {
                 // bool is a byte value equal to either 0 or 1
                 DType::Bool => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
                 DType::QFloat(scheme) => match scheme {
-                    QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8)
-                    | QuantizationScheme::PerBlock(_mode, QuantizationType::QInt8, ..) => {
+                    QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8) => {
                         // Quantized int8 values
                         let q_bytes = QuantizedBytes {
                             bytes: self.bytes.clone(),
@@ -470,7 +469,7 @@ impl TensorData {
             DType::F32,
             "Only f32 data type can be quantized"
         );
-        let values = quantization.quantize(self.as_slice().unwrap(), &self.shape);
+        let values = quantization.quantize(self.as_slice().unwrap());
         TensorData::quantized(values, self.shape, quantization)
     }
 
@@ -484,7 +483,7 @@ impl TensorData {
                 num_elements,
             };
 
-            let values = q_bytes.dequantize(&self.shape).0;
+            let values = q_bytes.dequantize().0;
             Ok(Self::new(values, self.shape))
         } else {
             Err(DataError::TypeMismatch(format!(
@@ -541,16 +540,6 @@ impl TensorData {
                         QuantizationScheme::PerTensor(mode, QuantizationType::QInt8),
                         QuantizationScheme::PerTensor(mode_other, QuantizationType::QInt8),
                     ) if mode == mode_other => self.assert_eq_elem::<i8>(other),
-                    (
-                        QuantizationScheme::PerBlock(mode, QuantizationType::QInt8, layout),
-                        QuantizationScheme::PerBlock(
-                            mode_other,
-                            QuantizationType::QInt8,
-                            layout_other,
-                        ),
-                    ) if mode == mode_other && layout == layout_other => {
-                        self.assert_eq_elem::<i8>(other)
-                    }
                     _ => panic!("Quantization schemes differ ({:?} != {:?})", q, q_other),
                 }
             }
@@ -819,8 +808,7 @@ impl core::fmt::Display for TensorData {
             DType::U8 => format!("{:?}", self.as_slice::<u8>().unwrap()),
             DType::Bool => format!("{:?}", self.as_slice::<bool>().unwrap()),
             DType::QFloat(scheme) => match scheme {
-                QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8)
-                | QuantizationScheme::PerBlock(_mode, QuantizationType::QInt8, ..) => {
+                QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8) => {
                     format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())
                 }
             },
@@ -1009,7 +997,7 @@ impl<F: Float> Tolerance<F> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Shape, quantization::AffineQuantization};
+    use crate::{Shape, quantization::SymmetricQuantization};
 
     use super::*;
     use alloc::vec;
@@ -1142,7 +1130,7 @@ mod tests {
         let data = TensorData::quantized(
             vec![-128i8, -77, -26, 25, 76, 127],
             [2, 3],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.019607844, -128)),
+            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.019607844)),
         );
 
         let output = data.dequantize().unwrap();

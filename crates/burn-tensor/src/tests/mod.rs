@@ -377,6 +377,7 @@ pub mod qtensor {
         pub fn int8<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
             Self::int8_symmetric(floats)
         }
+
         /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.
         pub fn int8_symmetric<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
             Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
@@ -384,12 +385,6 @@ pub mod qtensor {
                     QuantizationMode::Symmetric,
                     QuantizationType::QInt8,
                 ),
-            )
-        }
-        /// Creates a quantized int8 tensor from the floating point data using per-tensor affine quantization.
-        pub fn int8_affine<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
-            Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
-                &QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8),
             )
         }
     }

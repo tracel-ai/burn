@@ -2,12 +2,11 @@ use alloc::vec;
 use core::ops::Range;
 
 use burn_tensor::{
-    DType, ElementConversion, Shape, TensorData, TensorMetadata,
+    DType, Shape, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        AffineQuantization, QParams, QuantizationMode, QuantizationParametersPrimitive,
-        QuantizationScheme, QuantizationStrategy, QuantizationType, QuantizedBytes,
-        SymmetricQuantization,
+        QParams, QuantizationMode, QuantizationParametersPrimitive, QuantizationScheme,
+        QuantizationStrategy, QuantizationType, QuantizedBytes, SymmetricQuantization,
     },
 };
 
@@ -47,25 +46,12 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                 };
 
                 match scheme {
-                    QuantizationScheme::PerTensor(mode, QuantizationType::QInt8)
-                    | QuantizationScheme::PerBlock(mode, QuantizationType::QInt8, _) => {
+                    QuantizationScheme::PerTensor(mode, QuantizationType::QInt8) => {
                         // We should probably check that `Q` matches i8.. but it's the only valid type now
                         let (values, qparams) = q_bytes.into_vec_i8();
                         let data = TensorData::new(values, shape);
 
                         let qparams = match mode {
-                            QuantizationMode::Affine => qparams
-                                .scale
-                                .into_iter()
-                                .zip(
-                                    qparams
-                                        .offset
-                                        .unwrap()
-                                        .into_iter()
-                                        .map(|x| Some(x.elem::<Q>())),
-                                )
-                                .map(|(scale, offset)| QParams { scale, offset })
-                                .collect(),
                             QuantizationMode::Symmetric => qparams
                                 .scale
                                 .into_iter()
@@ -98,23 +84,6 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
     ) -> QuantizedTensor<Self> {
         // Implement with ndarray instead of QuantizationStrategy?
         let (strategy, qparams) = match scheme {
-            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8) => {
-                let scale = into_data_f(qparams.scale).iter().next().unwrap();
-                let offset = into_data(qparams.offset.unwrap())
-                    .iter::<Q>()
-                    .next()
-                    .unwrap();
-                (
-                    QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
-                        scale,
-                        offset.elem(),
-                    )),
-                    vec![QParams {
-                        scale,
-                        offset: Some(offset),
-                    }],
-                )
-            }
             QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
                 let scale = into_data_f(qparams.scale).iter().next().unwrap();
                 (
@@ -125,56 +94,6 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                         scale,
                         offset: None,
                     }],
-                )
-            }
-            QuantizationScheme::PerBlock(
-                QuantizationMode::Affine,
-                QuantizationType::QInt8,
-                layout,
-            ) => {
-                let scale = into_data_f(qparams.scale);
-                let offset = into_data(qparams.offset.unwrap());
-                let (strategy, qparams) = scale
-                    .iter()
-                    .zip(offset.iter::<Q>())
-                    .map(|(s, o)| {
-                        (
-                            AffineQuantization::init(s, o.elem()),
-                            QParams {
-                                scale: s,
-                                offset: Some(o),
-                            },
-                        )
-                    })
-                    .unzip();
-
-                (
-                    QuantizationStrategy::PerBlockAffineInt8(strategy, *layout),
-                    qparams,
-                )
-            }
-            QuantizationScheme::PerBlock(
-                QuantizationMode::Symmetric,
-                QuantizationType::QInt8,
-                layout,
-            ) => {
-                let scale = into_data_f(qparams.scale);
-                let (strategy, qparams) = scale
-                    .iter()
-                    .map(|s| {
-                        (
-                            SymmetricQuantization::init(s),
-                            QParams {
-                                scale: s,
-                                offset: None,
-                            },
-                        )
-                    })
-                    .unzip();
-
-                (
-                    QuantizationStrategy::PerBlockSymmetricInt8(strategy, *layout),
-                    qparams,
                 )
             }
         };
