@@ -125,7 +125,7 @@ mod tests {
 
     #[cfg(feature = "std")]
     #[test]
-    #[ignore]
+    #[ignore] // WIP
     fn should_support_quantize_per_block_symmetric_int8() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_floats(
@@ -209,7 +209,7 @@ mod tests {
     #[allow(clippy::excessive_precision)]
     #[cfg(feature = "std")]
     #[test]
-    #[ignore]
+    #[ignore] // WIP
     fn should_support_quantize_per_block_affine_int8() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_floats(
@@ -275,7 +275,7 @@ mod tests {
 
     #[cfg(feature = "std")]
     #[test]
-    #[ignore]
+    #[ignore] // WIP
     fn should_support_quantize_per_block_grid_symmetric_int8() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_floats(
