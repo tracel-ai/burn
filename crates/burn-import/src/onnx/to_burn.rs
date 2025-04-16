@@ -473,7 +473,7 @@ impl ParsedOnnxGraph {
                     .map(|elem| elem as usize)
                     .collect()
             })
-            .unwrap_or(vec![]);
+            .unwrap_or_default();
 
         if node.attrs.contains_key("seed") {
             warn!("seed attribute is not supported!");
@@ -528,7 +528,7 @@ impl ParsedOnnxGraph {
                     .map(|elem| elem as usize)
                     .collect()
             })
-            .unwrap_or(vec![]);
+            .unwrap_or_default();
 
         if node.attrs.contains_key("seed") {
             warn!("seed attribute is not supported!");
@@ -575,7 +575,7 @@ impl ParsedOnnxGraph {
         let value = node
             .attrs
             .get("value")
-            .and_then(|val| Some(val.clone().into_tensor().data))
+            .map(|val| val.clone().into_tensor().data)
             .map(|val_data| match val_data {
                 // TODO: Handle Float16
                 Data::Float32s(vals) => ConstantValue::from_vec(vals),
