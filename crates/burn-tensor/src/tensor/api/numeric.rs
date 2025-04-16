@@ -4355,11 +4355,14 @@ impl<B: Backend> Numeric<B> for Float {
 
     fn max_abs_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_max_abs_dim(tensor, dim)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_max_abs_dim(tensor, dim)),
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_max_abs_dim(tensor, dim))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_max_abs_dim(tensor, dim))
+            }
         }
     }
-
 }
 
 impl<B, const D: usize, K> core::ops::Add<Self> for Tensor<B, D, K>

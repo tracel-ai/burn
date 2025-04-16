@@ -137,7 +137,6 @@ mod tests {
         output.into_data().assert_eq(&expected, false);
     }
 
-
     #[test]
     fn test_max_abs_dim_2d_dim_0() {
         let tensor =

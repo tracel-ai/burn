@@ -234,7 +234,8 @@ where
     }
 
     fn int_max_abs_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
+        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::MaxAbs)
+            .unwrap()
     }
 
     fn int_min(tensor: IntTensor<Self>) -> IntTensor<Self> {
