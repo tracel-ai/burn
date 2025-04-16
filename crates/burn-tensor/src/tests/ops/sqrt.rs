@@ -14,9 +14,8 @@ mod tests {
         let output = tensor.sqrt();
         let expected = TensorData::from([[0.0, 1.0, SQRT_2], [1.73205, 2.0, 2.2360]]);
 
-        // TODO CHECK
         output
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::relative(FT::from_elem(0.02)));
+            .assert_approx_eq::<FT>(&expected, Tolerance::relative(1e-4));
     }
 }

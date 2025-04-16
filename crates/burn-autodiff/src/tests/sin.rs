@@ -21,15 +21,15 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        // TODO CHECK
+        let tolerance = Tolerance::relative(5e-4);
         let expected = TensorData::from([[8.8500, -4.9790], [8.8500, -4.9790]]);
         grad_1
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::relative(FT::from_elem(2.6e-3)));
+            .assert_approx_eq::<FT>(&expected, tolerance);
 
         let expected = TensorData::from([[38.668987, 44.194775], [-59.97261, -80.46094]]);
         grad_2
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::relative(FT::from_elem(2.6e-3)));
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 }
