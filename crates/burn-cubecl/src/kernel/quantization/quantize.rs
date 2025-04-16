@@ -192,6 +192,15 @@ fn quantize_per_block_flat_symmetric_int8_kernel(
     if comptime!(line_size == 4) {
         output[ABSOLUTE_POS] =
             quantize_symmetric_int8_packed(input[ABSOLUTE_POS], scale, range_min, range_max);
+    } else {
+        // line size 1
+        let num_packed = comptime!(4);
+        let mut values = Line::<f32>::empty(num_packed);
+        #[unroll]
+        for i in 0..num_packed {
+            values[i] = input[ABSOLUTE_POS * num_packed + i][0];
+        }
+        output[ABSOLUTE_POS] = quantize_symmetric_int8_packed(values, scale, range_min, range_max);
     }
 }
 
@@ -231,6 +240,15 @@ fn quantize_per_block_flat_affine_int8_kernel(
     if comptime!(line_size == 4) {
         output[ABSOLUTE_POS] =
             quantize_affine_int8_packed(input[ABSOLUTE_POS], scale, offset, range_min, range_max);
+    } else {
+        // line size 1
+        let num_packed = comptime!(4);
+        let mut values = Line::<f32>::empty(num_packed);
+        #[unroll]
+        for i in 0..num_packed {
+            values[i] = input[ABSOLUTE_POS * num_packed + i][0];
+        }
+        output[ABSOLUTE_POS] = quantize_symmetric_int8_packed(values, scale, range_min, range_max);
     }
 }
 
@@ -364,11 +382,11 @@ where
             QuantizationType::QInt8,
             BlockLayout::Flat(block_size),
         ) => {
-            if line_size != 4 {
-                panic!(
-                    "Per-block quantization is only supported for a line size of 4, got {line_size} ({num_elems} elements)"
-                )
-            }
+            // if line_size != 4 {
+            //     panic!(
+            //         "Per-block quantization is only supported for a line size of 4, got {line_size} ({num_elems} elements)"
+            //     )
+            // }
 
             if block_size % line_size as u32 != 0 {
                 panic!("Block size must be a factor of {line_size}, got {block_size}")
