@@ -229,6 +229,14 @@ where
         reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Max).unwrap()
     }
 
+    fn int_max_abs(tensor: IntTensor<B>) -> IntTensor<B> {
+        reduce::reduce::<R, I, I>(tensor, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
+    }
+
+    fn int_max_abs_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
+        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
+    }
+
     fn int_min(tensor: IntTensor<Self>) -> IntTensor<Self> {
         reduce::reduce::<R, I, I>(tensor, Default::default(), ReduceFnConfig::Min).unwrap()
     }

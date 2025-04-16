@@ -805,6 +805,39 @@ pub trait IntTensorOps<B: Backend> {
         (values, index)
     }
 
+    /// Gets the maximum absolute element in the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum element of.
+    ///
+    /// # Returns
+    ///
+    /// The maximum element in the tensor.
+    fn int_max_abs(tensor: IntTensor<B>) -> IntTensor<B> {
+        let shape = tensor.shape();
+        let tensor = B::int_reshape(tensor, Shape::new([shape.num_elements()]));
+
+        B::int_max_abs_dim(tensor, 0)
+    }
+
+    /// Gets the maximum absolute element in the tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum element of.
+    /// * `dim` - The dimension to get the maximum element along.
+    ///
+    /// # Returns
+    ///
+    /// The maximum element in the tensor along the dimension.
+    fn int_max_abs_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
+        let index = B::int_argmax(B::int_abs(tensor.clone()), dim);
+        let ndim = tensor.shape().num_dims();
+
+        B::int_gather(ndim - 1, tensor, index)
+    }
+
     /// Gets the minimum element in the tensor.
     ///
     /// # Arguments

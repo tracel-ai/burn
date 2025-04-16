@@ -1166,6 +1166,38 @@ pub trait FloatTensorOps<B: Backend> {
         (values, index)
     }
 
+    /// Gets the maximum absolute element of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the maximum element of `tensor`.
+    fn float_max_abs(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        let shape = tensor.shape();
+        let tensor = B::float_reshape(tensor, Shape::new([shape.num_elements()]));
+
+        B::float_max_abs_dim(tensor, 0)
+    }
+
+    /// Gets the maximum absolute elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the maximum elements of `tensor` along `dim`.
+    fn float_max_abs_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
+        let index = B::float_argmax(B::float_abs(tensor.clone()), dim);
+
+        B::float_gather(dim, tensor, index)
+    }
+
     /// Returns a new tensor with the given dimension narrowed to the given range.
     ///
     /// # Arguments
