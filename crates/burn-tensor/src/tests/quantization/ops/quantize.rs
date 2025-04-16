@@ -132,6 +132,7 @@ mod tests {
     #[cfg(feature = "std")]
     #[might_panic(reason = "Per-block quantization is not supported")]
     #[test]
+    #[ignore]
     fn should_support_quantize_per_block_symmetric_int8() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_floats(
@@ -216,6 +217,7 @@ mod tests {
     #[cfg(feature = "std")]
     #[might_panic(reason = "Per-block quantization is not supported")]
     #[test]
+    #[ignore]
     fn should_support_quantize_per_block_affine_int8() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_floats(

@@ -122,7 +122,7 @@ fn quantize_per_tensor_affine_int8_kernel(
         let mut values = Line::<f32>::empty(num_packed);
         #[unroll]
         for i in 0..num_packed {
-            values[i] = input[ABSOLUTE_POS + i][0];
+            values[i] = input[ABSOLUTE_POS * num_packed + i][0];
         }
         output[ABSOLUTE_POS] =
             quantize_affine_int8_packed(values, scale, offset, range_min, range_max);
@@ -159,7 +159,7 @@ fn quantize_per_tensor_symmetric_int8_kernel(
         let mut values = Line::<f32>::empty(num_packed);
         #[unroll]
         for i in 0..num_packed {
-            values[i] = input[ABSOLUTE_POS + i][0];
+            values[i] = input[ABSOLUTE_POS * num_packed + i][0];
         }
         output[ABSOLUTE_POS] = quantize_symmetric_int8_packed(values, scale, range_min, range_max);
     }
@@ -192,6 +192,15 @@ fn quantize_per_block_flat_symmetric_int8_kernel(
     if comptime!(line_size == 4) {
         output[ABSOLUTE_POS] =
             quantize_symmetric_int8_packed(input[ABSOLUTE_POS], scale, range_min, range_max);
+    } else {
+        // line size 1
+        let num_packed = comptime!(4);
+        let mut values = Line::<f32>::empty(num_packed);
+        #[unroll]
+        for i in 0..num_packed {
+            values[i] = input[ABSOLUTE_POS * num_packed + i][0];
+        }
+        output[ABSOLUTE_POS] = quantize_symmetric_int8_packed(values, scale, range_min, range_max);
     }
 }
 
@@ -231,6 +240,15 @@ fn quantize_per_block_flat_affine_int8_kernel(
     if comptime!(line_size == 4) {
         output[ABSOLUTE_POS] =
             quantize_affine_int8_packed(input[ABSOLUTE_POS], scale, offset, range_min, range_max);
+    } else {
+        // line size 1
+        let num_packed = comptime!(4);
+        let mut values = Line::<f32>::empty(num_packed);
+        #[unroll]
+        for i in 0..num_packed {
+            values[i] = input[ABSOLUTE_POS * num_packed + i][0];
+        }
+        output[ABSOLUTE_POS] = quantize_symmetric_int8_packed(values, scale, range_min, range_max);
     }
 }
 
@@ -292,9 +310,10 @@ where
     let num_elems = tensor.shape.num_elements();
 
     // Force vectorization to process 4 quantized values packed for 1 output value
-    let line_size: u8 = if num_elems < 4 { 1 } else { 4 };
+    let line_size: u8 = 1;
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+    let cube_count =
+        calculate_cube_count_elemwise(num_elems.div_ceil(line_size as usize), cube_dim);
 
     let output = create_quantized_output(
         client.clone(),
@@ -363,11 +382,11 @@ where
             QuantizationType::QInt8,
             BlockLayout::Flat(block_size),
         ) => {
-            if line_size != 4 {
-                panic!(
-                    "Per-block quantization is only supported for a line size of 4, got {line_size} ({num_elems} elements)"
-                )
-            }
+            // if line_size != 4 {
+            //     panic!(
+            //         "Per-block quantization is only supported for a line size of 4, got {line_size} ({num_elems} elements)"
+            //     )
+            // }
 
             if block_size % line_size as u32 != 0 {
                 panic!("Block size must be a factor of {line_size}, got {block_size}")
