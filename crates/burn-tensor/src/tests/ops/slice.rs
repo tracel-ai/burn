@@ -225,8 +225,6 @@ mod tests {
             tensor_2 = tensor_2.slice([i - 1..i]) + 1;
         }
 
-        // let x = tensor.clone().select(0, tensor_2.clone());
-        // panic!(" {:?}", x.dims());
         let _x = tensor.clone().select(0, tensor_2.clone()).reshape([1, 1]) + 1;
     }
 
