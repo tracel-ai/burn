@@ -1193,9 +1193,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the maximum elements of `tensor` along `dim`.
     fn float_max_abs_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
-        let index = B::float_argmax(B::float_abs(tensor.clone()), dim);
-
-        B::float_gather(dim, tensor, index)
+        B::float_max_dim(B::float_abs(tensor.clone()), dim)
     }
 
     /// Returns a new tensor with the given dimension narrowed to the given range.

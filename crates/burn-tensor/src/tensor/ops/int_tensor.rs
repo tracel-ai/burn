@@ -832,10 +832,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The maximum element in the tensor along the dimension.
     fn int_max_abs_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
-        let index = B::int_argmax(B::int_abs(tensor.clone()), dim);
-        let ndim = tensor.shape().num_dims();
-
-        B::int_gather(ndim - 1, tensor, index)
+        B::int_max_dim(B::int_abs(tensor.clone()), dim)
     }
 
     /// Gets the minimum element in the tensor.
