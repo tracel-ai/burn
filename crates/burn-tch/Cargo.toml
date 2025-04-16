@@ -36,7 +36,7 @@ burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = 
 rand = { workspace = true, features = ["thread_rng"] }
 
 [build-dependencies]
-cc = "1.2.16"
+cc = "1.2.19"
 
 [package.metadata.docs.rs]
 features = ["doc"]

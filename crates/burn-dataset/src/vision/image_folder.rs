@@ -285,7 +285,7 @@ fn parse_coco_bbox_annotations(
             annotations
                 .entry(image_id)
                 .and_modify(|entry| {
-                    if let AnnotationRaw::BoundingBoxes(ref mut bboxes) = entry {
+                    if let AnnotationRaw::BoundingBoxes(bboxes) = entry {
                         bboxes.push(bbox.clone());
                     }
                 })

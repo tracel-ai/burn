@@ -1,19 +1,31 @@
-use cubecl::{linalg::matmul::components::global::args::MatmulArgs, prelude::*};
+use cubecl::{
+    linalg::matmul::components::{
+        MatmulPrecision,
+        global::{Quantization, args::MatmulArgs},
+    },
+    prelude::*,
+};
 
-use crate::on_write::{
-    io::{global_rank, global_shape, global_stride, read_input},
-    ir::{Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo},
-    kernel::fuse_on_write,
+use crate::shared::{
+    DYN_ELEM_ID,
+    io::{
+        global_buffer_len, global_len, global_rank, global_shape, global_stride, num_elements,
+        read_input, read_input_window, ref_buffer_len, ref_len, ref_shape, ref_stride,
+    },
+    ir::{
+        Arg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo, LocalArgs, LocalArgsExpand,
+    },
+    kernel::{fuse_on_write, init_locals},
 };
 
 #[derive(Clone)]
 pub struct FusedMatmulArgs;
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 pub struct FusedMatmulInput {
     global: GlobalArgs,
     #[cube(comptime)]
-    config: ElemwiseConfig,
+    config: FuseBlockConfig,
     #[cube(comptime)]
     lhs: Arg,
     #[cube(comptime)]
@@ -24,18 +36,22 @@ pub struct FusedMatmulInput {
 
 #[cube]
 impl MatmulArgs for FusedMatmulArgs {
-    type Output<EG: Numeric> = GlobalArgs;
-    type Input<EG: Numeric> = FusedMatmulInput;
-    type State<EG: Numeric> = FusedMatmulState;
+    type Output<EI: Numeric> = GlobalArgs;
+    type Input<EO: Numeric> = FusedMatmulInput;
+    type State<EI: Numeric, EO: Numeric> = FusedMatmulState;
 
-    fn init_state<EG: Numeric>(
-        inputs: &Self::Input<EG>,
-        outputs: &mut Self::Output<EG>,
-    ) -> Self::State<EG> {
-        FusedMatmulState::new(inputs, outputs, &inputs.config)
+    fn init_state<EI: Numeric, EO: Numeric>(
+        inputs: &Self::Input<EI>,
+        outputs: &mut Self::Output<EO>,
+    ) -> Self::State<EI, EO> {
+        let mut locals = init_locals(&inputs.global, outputs, &inputs.config);
+        FusedMatmulState::new(inputs, outputs, &mut locals, &inputs.config)
     }
 
-    fn read_lhs<EG: Numeric>(state: &Self::State<EG>, coordinate: u32) -> Line<EG> {
+    fn read_lhs<EI: Numeric, EO: Numeric>(
+        state: &Self::State<EI, EO>,
+        coordinate: u32,
+    ) -> Line<EI> {
         let pos = comptime! {
             match state.lhs {
                 Arg::Input(pos, ..) => pos,
@@ -45,7 +61,7 @@ impl MatmulArgs for FusedMatmulArgs {
 
         read_input(
             unsafe { &(*state.inputs) },
-            unsafe { &(*state.outputs) },
+            unsafe { &(*state.locals) },
             pos,
             coordinate,
             LayoutInfo::IsRef,
@@ -54,7 +70,10 @@ impl MatmulArgs for FusedMatmulArgs {
         )
     }
 
-    fn read_rhs<EG: Numeric>(state: &Self::State<EG>, coordinate: u32) -> Line<EG> {
+    fn read_rhs<EI: Numeric, EO: Numeric>(
+        state: &Self::State<EI, EO>,
+        coordinate: u32,
+    ) -> Line<EI> {
         let pos = comptime! {
             match state.rhs {
                 Arg::Input(pos, ..) => pos,
@@ -64,7 +83,7 @@ impl MatmulArgs for FusedMatmulArgs {
 
         read_input(
             unsafe { &(*state.inputs) },
-            unsafe { &(*state.outputs) },
+            unsafe { &(*state.locals) },
             pos,
             coordinate,
             LayoutInfo::IsRef,
@@ -73,35 +92,45 @@ impl MatmulArgs for FusedMatmulArgs {
         )
     }
 
-    fn read_window_lhs<EG: Numeric>(
-        _state: &Self::State<EG>,
-        _start: u32,
-        _end: u32,
-    ) -> Slice<Line<EG>> {
-        comptime!(todo!());
-        // TODO This is a dummy return value to satisfy the type checker
-        //      before working on an implementation.
-        //      Remove the allow annotation after implementing this function.
-        #[allow(unreachable_code)]
-        SharedMemory::new_lined(0, 0_u32).to_slice()
+    fn read_window_lhs<EI: Numeric, EO: Numeric>(
+        state: &Self::State<EI, EO>,
+        start: u32,
+        end: u32,
+    ) -> Slice<Line<EI>> {
+        let (pos, elem) = comptime! {
+            match state.lhs {
+                Arg::Input(pos, precision,..) => (pos, precision.into_elem()),
+                _ => panic!("Lhs isn't an input"),
+            }
+        };
+
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(elem);
+        read_input_window(unsafe { &(*state.inputs) }, pos, start, end)
     }
 
     #[allow(unreachable_code)]
-    fn read_window_rhs<EG: Numeric>(
-        _state: &Self::State<EG>,
-        _start: u32,
-        _end: u32,
-    ) -> Slice<Line<EG>> {
-        comptime!(todo!());
-        // TODO This is a dummy return value to satisfy the type checker
-        //      before working on an implementation.
-        //      Remove the allow annotation after implementing this function.
-        #[allow(unreachable_code)]
-        SharedMemory::new_lined(0, 0_u32).to_slice()
+    fn read_window_rhs<EI: Numeric, EO: Numeric>(
+        state: &Self::State<EI, EO>,
+        start: u32,
+        end: u32,
+    ) -> Slice<Line<EI>> {
+        let (pos, elem) = comptime! {
+            match state.rhs {
+                Arg::Input(pos, precision,..) => (pos, precision.into_elem()),
+                _ => panic!("Rhs isn't an input"),
+            }
+        };
+
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(elem);
+        read_input_window(unsafe { &(*state.inputs) }, pos, start, end)
     }
 
-    fn write_out<EG: Numeric>(state: &mut Self::State<EG>, coordinate: u32, value: Line<EG>) {
-        let mut values = Registry::<Arg, Line<EG>>::new();
+    fn write_out<EI: Numeric, EO: Numeric>(
+        state: &mut Self::State<EI, EO>,
+        coordinate: u32,
+        value: Line<EO>,
+    ) {
+        let mut values = Registry::<Arg, Line<EO>>::new();
         let mut args = comptime![Sequence::<Arg>::new()];
 
         values.insert(comptime![state.out.clone()], value);
@@ -110,6 +139,7 @@ impl MatmulArgs for FusedMatmulArgs {
         fuse_on_write(
             unsafe { &(*state.inputs) },
             unsafe { &mut (*state.outputs) },
+            unsafe { &mut (*state.locals) },
             coordinate,
             values,
             args,
@@ -117,7 +147,63 @@ impl MatmulArgs for FusedMatmulArgs {
         );
     }
 
-    fn rank_lhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {
+    fn len_lhs<EO: Numeric, EI: Numeric>(state: &Self::State<EI, EO>) -> u32 {
+        let pos = comptime! {
+            match state.lhs {
+                Arg::Input(pos, ..) => pos,
+                _ => panic!("Lhs isn't an input"),
+            }
+        };
+
+        global_len(unsafe { &(*state.inputs) }, pos)
+    }
+
+    fn len_rhs<EO: Numeric, EI: Numeric>(state: &Self::State<EI, EO>) -> u32 {
+        let pos = comptime! {
+            match state.rhs {
+                Arg::Input(pos, ..) => pos,
+                _ => panic!("Rhs isn't an input"),
+            }
+        };
+
+        global_len(unsafe { &(*state.inputs) }, pos)
+    }
+
+    fn len_out<EO: Numeric, EI: Numeric>(state: &Self::State<EI, EO>) -> u32 {
+        ref_len(
+            unsafe { &(*state.inputs) },
+            unsafe { &(*state.outputs) },
+            unsafe { &(*state.locals) },
+            &state.config,
+        )
+    }
+
+    fn buffer_len_lhs<EO: Numeric, EI: Numeric>(state: &Self::State<EI, EO>) -> u32 {
+        match comptime![state.lhs.clone()] {
+            Arg::Input(pos, ..) => global_buffer_len(unsafe { &(*state.inputs) }, pos),
+            Arg::InputReshaped { .. } => num_elements(unsafe { &(*state.locals) }, &state.config),
+            _ => panic!("Lhs isn't an input"),
+        }
+    }
+
+    fn buffer_len_rhs<EO: Numeric, EI: Numeric>(state: &Self::State<EI, EO>) -> u32 {
+        match comptime![state.rhs.clone()] {
+            Arg::Input(pos, ..) => global_len(unsafe { &(*state.inputs) }, pos),
+            Arg::InputReshaped { .. } => num_elements(unsafe { &(*state.locals) }, &state.config),
+            _ => panic!("Lhs isn't an input"),
+        }
+    }
+
+    fn buffer_len_out<EO: Numeric, EI: Numeric>(state: &Self::State<EI, EO>) -> u32 {
+        ref_buffer_len(
+            unsafe { &(*state.inputs) },
+            unsafe { &(*state.outputs) },
+            unsafe { &(*state.locals) },
+            &state.config,
+        )
+    }
+
+    fn rank_lhs<EO: Numeric, EI: Numeric>(state: &Self::State<EI, EO>) -> u32 {
         let pos = comptime! {
             match state.lhs {
                 Arg::Input(pos, ..) => pos,
@@ -128,7 +214,7 @@ impl MatmulArgs for FusedMatmulArgs {
         global_rank(unsafe { &(*state.inputs) }, pos)
     }
 
-    fn rank_rhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {
+    fn rank_rhs<EO: Numeric, EI: Numeric>(state: &Self::State<EI, EO>) -> u32 {
         let pos = comptime! {
             match state.rhs {
                 Arg::Input(pos, ..) => pos,
@@ -139,23 +225,11 @@ impl MatmulArgs for FusedMatmulArgs {
         global_rank(unsafe { &(*state.inputs) }, pos)
     }
 
-    fn rank_out<EG: Numeric>(state: &Self::State<EG>) -> u32 {
-        let (pos, is_input) = comptime! {
-            match state.config.ref_layout {
-                Arg::Input(pos, ..) => (pos, true),
-                Arg::Output(pos, ..) => (pos, false),
-                _ => panic!("Out isn't an input or output"),
-            }
-        };
-
-        if is_input {
-            global_rank(unsafe { &(*state.inputs) }, pos)
-        } else {
-            global_rank(unsafe { &(*state.outputs) }, pos)
-        }
+    fn rank_out<EO: Numeric, EI: Numeric>(state: &Self::State<EI, EO>) -> u32 {
+        state.config.rank.runtime()
     }
 
-    fn shape_lhs<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
+    fn shape_lhs<EO: Numeric, EI: Numeric>(state: &Self::State<EI, EO>, dim: u32) -> u32 {
         let pos = comptime! {
             match state.lhs {
                 Arg::Input(pos, ..) => pos,
@@ -166,7 +240,7 @@ impl MatmulArgs for FusedMatmulArgs {
         global_shape(unsafe { &(*state.inputs) }, dim, pos)
     }
 
-    fn shape_rhs<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
+    fn shape_rhs<EO: Numeric, EI: Numeric>(state: &Self::State<EI, EO>, dim: u32) -> u32 {
         let pos = comptime! {
             match state.rhs {
                 Arg::Input(pos, ..) => pos,
@@ -177,23 +251,11 @@ impl MatmulArgs for FusedMatmulArgs {
         global_shape(unsafe { &(*state.inputs) }, dim, pos)
     }
 
-    fn shape_out<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
-        let (pos, is_input) = comptime! {
-            match state.config.ref_layout {
-                Arg::Input(pos, ..) => (pos, true),
-                Arg::Output(pos, ..) => (pos, false),
-                _ => panic!("Out isn't an input or output"),
-            }
-        };
-
-        if is_input {
-            global_shape(unsafe { &(*state.inputs) }, dim, pos)
-        } else {
-            global_shape(unsafe { &(*state.outputs) }, dim, pos)
-        }
+    fn shape_out<EO: Numeric, EI: Numeric>(state: &Self::State<EI, EO>, dim: u32) -> u32 {
+        ref_shape(unsafe { &(*state.locals) }, dim)
     }
 
-    fn stride_lhs<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
+    fn stride_lhs<EO: Numeric, EI: Numeric>(state: &Self::State<EI, EO>, dim: u32) -> u32 {
         let pos = comptime! {
             match state.lhs {
                 Arg::Input(pos, ..) => pos,
@@ -204,7 +266,7 @@ impl MatmulArgs for FusedMatmulArgs {
         global_stride(unsafe { &(*state.inputs) }, dim, pos)
     }
 
-    fn stride_rhs<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
+    fn stride_rhs<EO: Numeric, EI: Numeric>(state: &Self::State<EI, EO>, dim: u32) -> u32 {
         let pos = comptime! {
             match state.rhs {
                 Arg::Input(pos, ..) => pos,
@@ -215,27 +277,37 @@ impl MatmulArgs for FusedMatmulArgs {
         global_stride(unsafe { &(*state.inputs) }, dim, pos)
     }
 
-    fn stride_out<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
-        let (pos, is_input) = comptime! {
-            match state.config.ref_layout {
-                Arg::Input(pos, ..) => (pos, true),
-                Arg::Output(pos, ..) => (pos, false),
-                _ => panic!("Out isn't an input or output"),
-            }
-        };
+    fn stride_out<EO: Numeric, EI: Numeric>(state: &Self::State<EI, EO>, dim: u32) -> u32 {
+        ref_stride(unsafe { &(*state.locals) }, dim)
+    }
 
-        if is_input {
-            global_stride(unsafe { &(*state.inputs) }, dim, pos)
-        } else {
-            global_stride(unsafe { &(*state.outputs) }, dim, pos)
-        }
+    fn quantization<MP: MatmulPrecision>(_state: &Self::State<MP::EI, MP::EO>) -> Quantization<MP> {
+        todo!()
+    }
+
+    /// Reinterpret lhs as tensor map
+    fn as_tensor_map_lhs<EI: Numeric, EO: Numeric>(_state: &Self::State<EI, EO>) -> TensorMap<EI> {
+        comptime! {
+            panic!("Unsupported yet");
+        };
+        #[allow(unreachable_code)]
+        TensorMap::dummy()
+    }
+    /// Reinterpret rhs as tensor map
+    fn as_tensor_map_rhs<EI: Numeric, EO: Numeric>(_state: &Self::State<EI, EO>) -> TensorMap<EI> {
+        comptime! {
+            panic!("Unsupported yet");
+        };
+        #[allow(unreachable_code)]
+        TensorMap::dummy()
     }
 }
 
 pub struct FusedMatmulState {
     inputs: *const GlobalArgs,
     outputs: *mut GlobalArgs,
-    config: ElemwiseConfig,
+    locals: *mut LocalArgs,
+    config: FuseBlockConfig,
     lhs: Arg,
     rhs: Arg,
     out: Arg,
@@ -246,12 +318,14 @@ impl FusedMatmulState {
     pub fn new(
         inputs: &FusedMatmulInput,
         outputs: &mut GlobalArgs,
-        #[comptime] config: &ElemwiseConfig,
+        locals: &mut LocalArgs,
+        #[comptime] config: &FuseBlockConfig,
     ) -> FusedMatmulState {
         FusedMatmulState {
             inputs: &inputs.global,
             outputs,
             config: comptime![config.clone()],
+            locals,
             lhs: comptime![inputs.lhs.clone()],
             rhs: comptime![inputs.rhs.clone()],
             out: comptime![inputs.out.clone()],
@@ -263,7 +337,8 @@ impl FusedMatmulState {
 pub struct FusedMatmulStateExpand {
     inputs: GlobalArgsExpand,
     outputs: GlobalArgsExpand,
-    config: ElemwiseConfig,
+    config: FuseBlockConfig,
+    locals: LocalArgsExpand,
     lhs: Arg,
     rhs: Arg,
     out: Arg,

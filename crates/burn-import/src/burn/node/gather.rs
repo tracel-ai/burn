@@ -152,9 +152,9 @@ mod tests {
 
     use super::*;
     use crate::burn::{
+        ScalarKind, ScalarType, ShapeType, TensorType,
         graph::BurnGraph,
         node::{gather::GatherNode, test::assert_tokens},
-        ScalarKind, ScalarType, ShapeType, TensorType,
     };
 
     #[test]

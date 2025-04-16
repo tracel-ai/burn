@@ -109,9 +109,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GlobalAvgPoolNode {
 mod tests {
     use super::*;
     use crate::burn::{
+        TensorType,
         graph::BurnGraph,
         node::{global_avg_pool::GlobalAvgPoolNode, test::assert_tokens},
-        TensorType,
     };
     use burn::record::FullPrecisionSettings;
 

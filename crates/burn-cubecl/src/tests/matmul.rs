@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(matmul)]
 mod tests {
     use super::*;
-    use burn_cubecl::kernel::matmul::{matmul, MatmulStrategy};
+    use burn_cubecl::kernel::matmul::{MatmulStrategy, matmul};
     use burn_tensor::{Shape, Tensor, TensorPrimitive};
 
     mod simple {

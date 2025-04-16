@@ -1,4 +1,4 @@
-use crate::{backend::Backend, ops::IntTensor, Device, ElementConversion, Shape, TensorData};
+use crate::{Device, ElementConversion, Shape, TensorData, backend::Backend, ops::IntTensor};
 use alloc::vec::Vec;
 
 /// Compute the indices of the elements that are non-zero, grouped by element.

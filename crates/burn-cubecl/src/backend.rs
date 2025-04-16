@@ -1,7 +1,7 @@
-use crate::{element::BoolElement, tensor::CubeTensor, CubeRuntime, FloatElement, IntElement};
+use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor::CubeTensor};
 use burn_tensor::backend::{Backend, DeviceOps};
 use cubecl::server::ComputeServer;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use std::{marker::PhantomData, sync::Mutex};
 
 #[cfg(not(feature = "fusion"))]
@@ -41,8 +41,9 @@ where
     type QuantizedTensorPrimitive = CubeTensor<R>;
     type QuantizedEncoding = u32;
 
-    fn name() -> String {
-        format!("cubecl<{}>", R::name())
+    fn name(device: &Self::Device) -> String {
+        let client = R::client(device);
+        format!("cubecl<{}>", R::name(&client))
     }
 
     fn seed(seed: u64) {
@@ -65,7 +66,7 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> core::fmt:
     for CubeBackend<R, F, I, BT>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("CubeBackend {{ runtime: {}}}", R::name()))
+        f.write_str("CubeCLBackend")
     }
 }
 

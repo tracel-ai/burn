@@ -1,7 +1,7 @@
 use super::{BurnImports, Scope, Type};
 use crate::burn::{
-    node::{Node, NodeCodegen},
     TensorKind, TensorType,
+    node::{Node, NodeCodegen},
 };
 use burn::record::{
     BinFileRecorder, BurnRecord, FileRecorder, NamedMpkFileRecorder, NamedMpkGzFileRecorder,
@@ -10,8 +10,8 @@ use burn::record::{
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::{
-    ser::{SerializeMap, SerializeTuple},
     Serialize,
+    ser::{SerializeMap, SerializeTuple},
 };
 use std::{any::type_name, collections::HashMap, marker::PhantomData, path::PathBuf};
 
@@ -326,6 +326,16 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                             .tensor_register_future_use(&tensor, node_position)
                     });
             });
+
+        // Register graph tensor output with the last node position
+        self.graph_output_types
+            .clone()
+            .into_iter()
+            .flat_map(to_tensor)
+            .for_each(|tensor| {
+                self.scope
+                    .tensor_register_future_use(&tensor, self.nodes.len());
+            });
     }
 
     fn register_record_file(&mut self, file: PathBuf, recorder_str: &str) {
@@ -377,8 +387,8 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             _blank_!();
             impl<B: Backend> Model<B> {
                 pub fn from_embedded(device: &B::Device) -> Self {
-                    let record = BinBytesRecorder::<#precision_ty>::default()
-                    .load(EMBEDDED_STATES.to_vec(), device)
+                    let record = BinBytesRecorder::<#precision_ty, &'static [u8]>::default()
+                    .load(EMBEDDED_STATES, device)
                     .expect("Should decode state successfully");
 
                     Self::new(device).load_record(record)

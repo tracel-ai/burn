@@ -4,17 +4,16 @@
 //! DASIP, 2018
 
 use crate::{
-    backends::cube::connected_components::stats_from_opts, ConnectedStatsOptions,
-    ConnectedStatsPrimitive, Connectivity,
+    ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity,
+    backends::cube::connected_components::stats_from_opts,
 };
 use burn_cubecl::{
-    kernel,
+    BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement, kernel,
     ops::{into_data_sync, numeric::zeros_device},
     tensor::CubeTensor,
-    BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
-use burn_tensor::{cast::ToElement, ops::IntTensorOps, Shape};
-use cubecl::{prelude::*, Feature};
+use burn_tensor::{Shape, cast::ToElement, ops::IntTensorOps};
+use cubecl::{Feature, prelude::*};
 
 use super::prefix_sum::prefix_sum;
 
@@ -128,7 +127,7 @@ fn strip_labeling<I: Int, BT: CubePrimitive>(
             let pixels_y_1 = if UNIT_POS_Y > 0 {
                 shared_pixels[UNIT_POS_Y - 1]
             } else {
-                0u32
+                0u32.runtime()
             };
 
             let p_y_1 = (pixels_y_1 >> UNIT_POS_X) & 1 != 0;
@@ -252,12 +251,12 @@ fn strip_merge<I: Int, BT: CubePrimitive>(
                     let last_dist = if UNIT_POS_Z > 0 {
                         last_dist_vec[UNIT_POS_Z - 1]
                     } else {
-                        0u32
+                        0u32.runtime()
                     };
                     let last_dist_up = if UNIT_POS_Z > 0 {
                         last_dist_up_vec[UNIT_POS_Z - 1]
                     } else {
-                        0u32
+                        0u32.runtime()
                     };
 
                     let p_prev =

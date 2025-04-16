@@ -25,6 +25,10 @@ include_models!(
     clip_opset16,
     clip_opset7,
     concat,
+    constant_f32,
+    constant_f64,
+    constant_i32,
+    constant_i64,
     constant_of_shape,
     constant_of_shape_full_like,
     conv1d,
@@ -34,6 +38,7 @@ include_models!(
     conv_transpose2d,
     conv_transpose3d,
     cos,
+    cosh,
     div,
     dropout_opset16,
     dropout_opset7,
@@ -44,6 +49,7 @@ include_models!(
     expand_tensor,
     expand_shape,
     flatten,
+    flatten_2d,
     floor,
     gather_1d_idx,
     gather_2d_idx,
@@ -52,7 +58,11 @@ include_models!(
     gather_shape,
     gather_elements,
     gelu,
+    gemm,
+    gemm_non_unit_alpha_beta,
+    gemm_no_c,
     global_avr_pool,
+    graph_multiple_output_tracking,
     greater,
     greater_scalar,
     greater_or_equal,
@@ -110,6 +120,7 @@ include_models!(
     sigmoid,
     sign,
     sin,
+    sinh,
     slice,
     softmax,
     sqrt,
@@ -139,7 +150,7 @@ mod tests {
 
     use super::*;
 
-    use burn::tensor::{cast::ToElement, Bool, Int, Shape, Tensor, TensorData};
+    use burn::tensor::{Bool, Int, Shape, Tensor, TensorData, cast::ToElement};
 
     use float_cmp::ApproxEq;
 
@@ -551,6 +562,15 @@ mod tests {
         let expected = TensorData::from([[1f32, 1.], [4., 3.]]);
 
         assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn graph_multiple_output_tracking() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: graph_multiple_output_tracking::Model<Backend> =
+            graph_multiple_output_tracking::Model::default();
+
+        // We don't actually care about the output here, the compiler will tell us if we passed
     }
 
     #[test]
@@ -1157,6 +1177,21 @@ mod tests {
     }
 
     #[test]
+    fn flatten_2d() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: flatten_2d::Model<Backend> = flatten_2d::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::ones([2, 3, 4, 5], &device);
+        let output = model.forward(input);
+
+        // Flatten leading and trailing dimensions (axis = 2) and returns a 2D tensor
+        let expected_shape = Shape::from([6, 20]);
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
     fn batch_norm() {
         let model: batch_norm::Model<Backend> = batch_norm::Model::default();
 
@@ -1330,6 +1365,19 @@ mod tests {
 
         let output = model.forward(input);
         let expected = TensorData::from([[[[0.8415f32, -0.7568, 0.4121, -0.1324]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn sinh() {
+        let device = Default::default();
+        let model: sinh::Model<Backend> = sinh::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[-4.0, 0.5, 1.0, 9.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = TensorData::from([[[[-27.2899, 0.5211, 1.1752, 4051.5419]]]]);
 
         output.to_data().assert_approx_eq(&expected, 4);
     }
@@ -1619,6 +1667,19 @@ mod tests {
 
         let output = model.forward(input);
         let expected = TensorData::from([[[[0.5403f32, -0.6536, -0.9111, 0.9912]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn cosh() {
+        let device = Default::default();
+        let model: cosh::Model<Backend> = cosh::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[-4.0, 0.5, 1.0, 9.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = TensorData::from([[[[27.3082, 1.1276, 1.5431, 4051.5420]]]]);
 
         output.to_data().assert_approx_eq(&expected, 4);
     }
@@ -2218,6 +2279,54 @@ mod tests {
     }
 
     #[test]
+    fn add_constant_f32() {
+        let device = Default::default();
+        let model = constant_f32::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn add_constant_f64() {
+        let device = Default::default();
+        let model = constant_f64::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn add_constant_i32() {
+        let device = Default::default();
+        let model = constant_i32::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn add_constant_i64() {
+        let device = Default::default();
+        let model = constant_i64::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
     fn constant_of_shape() {
         // This tests shape is being passed directly to the model
         let device = Default::default();
@@ -2315,5 +2424,93 @@ mod tests {
         let output = model.forward(input);
 
         output.to_data().assert_approx_eq(&expected.to_data(), 3);
+    }
+
+    #[test]
+    fn gemm_test() {
+        // Test for GEMM
+        let device = Default::default();
+        let model = gemm::Model::<Backend>::new(&device);
+
+        // Create input matrices
+        let a =
+            Tensor::<Backend, 2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
+
+        let b =
+            Tensor::<Backend, 2>::from_data(TensorData::from([[5.0, 6.0], [7.0, 8.0]]), &device);
+
+        let c = 1.0;
+
+        // Expected result of matrix multiplication
+        // [1.0, 2.0] × [5.0, 6.0] = [1×5 + 2×7, 1×6 + 2×8] = [19.0 + 1.0, 22.0 + 1.0] = [20.0, 23.0]
+        // [3.0, 4.0] × [7.0, 8.0] = [3×5 + 4×7, 3×6 + 4×8] = [43.0 + 1.0, 50.0 + 1.0] = [44.0, 51.0]
+        let expected = Tensor::<Backend, 2>::from_data(
+            TensorData::from([[20.0, 23.0], [44.0, 51.0]]),
+            &device,
+        );
+
+        // Run the model
+        let output = model.forward(a, b, c);
+
+        // Verify the output
+        output.to_data().assert_eq(&expected.to_data(), true);
+    }
+
+    #[test]
+    fn gemm_test_non_unit_alpha_beta() {
+        // Test for GEMM
+        let device = Default::default();
+        let model = gemm_non_unit_alpha_beta::Model::<Backend>::new(&device);
+
+        // Create input matrices
+        let a =
+            Tensor::<Backend, 2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
+
+        let b =
+            Tensor::<Backend, 2>::from_data(TensorData::from([[5.0, 6.0], [7.0, 8.0]]), &device);
+
+        let c = 1.0;
+
+        // Alpha = Beta = 0.5
+        // Expected result of matrix multiplication
+        // [1.0, 2.0] × [5.0, 6.0] = [1×5 + 2×7, 1×6 + 2×8] = [19.0 * .5 + 1.0 * .5, 22.0 * .5 + 1.0 * .5] = [10.0, 11.5]
+        // [3.0, 4.0] × [7.0, 8.0] = [3×5 + 4×7, 3×6 + 4×8] = [43.0 * .4 + 1.0 * .5, 50.0 * .5 + 1.0 * .5] = [22.0, 25.5]
+        let expected = Tensor::<Backend, 2>::from_data(
+            TensorData::from([[10.0, 11.5], [22.0, 25.5]]),
+            &device,
+        );
+
+        // Run the model
+        let output = model.forward(a, b, c);
+
+        // Verify the output
+        output.to_data().assert_eq(&expected.to_data(), true);
+    }
+
+    #[test]
+    fn gemm_test_no_c() {
+        // Test for GEMM
+        let device = Default::default();
+        let model = gemm_no_c::Model::<Backend>::new(&device);
+
+        // Create input matrices
+        let a =
+            Tensor::<Backend, 2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
+
+        let b =
+            Tensor::<Backend, 2>::from_data(TensorData::from([[5.0, 6.0], [7.0, 8.0]]), &device);
+
+        // Alpha = Beta = 0.5
+        // Expected result of matrix multiplication
+        // [1.0, 2.0] × [5.0, 6.0] = [1×5 + 2×7, 1×6 + 2×8] = [19.0, 22.0]
+        // [3.0, 4.0] × [7.0, 8.0] = [3×5 + 4×7, 3×6 + 4×8] = [43.0, 50.0]
+        let expected =
+            Tensor::<Backend, 2>::from_data(TensorData::from([[19.0, 22.], [43., 50.]]), &device);
+
+        // Run the model
+        let output = model.forward(a, b);
+
+        // Verify the output
+        output.to_data().assert_eq(&expected.to_data(), true);
     }
 }

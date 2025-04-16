@@ -1,10 +1,11 @@
 use burn_tensor::Shape;
-use cubecl::{prelude::*, CubeCount, CubeDim};
+use cubecl::{CubeCount, CubeDim, prelude::*};
 
 use crate::{
-    ops::{max_vectorization, numeric::empty_device},
-    tensor::CubeTensor,
     CubeElement, CubeRuntime,
+    kernel::into_contiguous,
+    ops::{max_vectorization, numeric::empty_device_strided},
+    tensor::CubeTensor,
 };
 
 /// Efficiently transpose an NCHW tensor to NHWC for use in kernels that prefer NHWC for performance.
@@ -27,7 +28,7 @@ pub fn nchw_to_nhwc<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> Cub
     let hw = h * w;
 
     let out_shape = Shape::new([batch_size, h, w, in_c]);
-    let out = empty_device::<R, E>(input.client.clone(), input.device.clone(), out_shape);
+    let out = empty_device_strided::<R, E>(input.client.clone(), input.device.clone(), out_shape);
 
     let tiles_channel = in_c.div_ceil(tile_dim) as u32;
     let tiles_hw = hw.div_ceil(tile_dim) as u32;
@@ -199,4 +200,27 @@ pub fn swizzle(offset: u32, #[comptime] bank_count: i32) -> u32 {
     let mask_shift = num_bits;
 
     offset ^ ((offset & yyy_mask) >> mask_shift)
+}
+
+/// Transpose an NCHW tensor to NHWC.
+pub fn permute_nchw_to_nhwc<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> CubeTensor<R> {
+    // Disabled for now, need to fix hard to track down bug
+
+    // let use_plane = if cfg!(target_family = "wasm") {
+    //     // Any plane op enables subgroups on wasm so we need to make sure it is entirely supported.
+    //     // Otherwise, `nchw_to_nhwc` will cause compilation issues on wasm.
+    //     input
+    //         .client
+    //         .properties()
+    //         .feature_enabled(cubecl::Feature::Plane)
+    // } else {
+    //     true // plane broadcast was/is always used on other platforms
+    // };
+
+    // if input.is_contiguous() && use_plane {
+    //     nchw_to_nhwc::<R, E>(input)
+    // } else {
+    //     crate::ops::permute(input, &[0, 2, 3, 1])
+    // }
+    into_contiguous(crate::ops::permute(input, &[0, 2, 3, 1]))
 }

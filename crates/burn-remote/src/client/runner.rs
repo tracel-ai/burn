@@ -1,7 +1,7 @@
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient};
 use burn_tensor::{
-    backend::{DeviceId, DeviceOps},
     DType, TensorData,
+    backend::{DeviceId, DeviceOps},
 };
 use std::{future::Future, sync::Arc};
 
@@ -73,7 +73,7 @@ impl RunnerClient for WsClient {
         self.sender.send(ComputeTask::RegisterOrphan(*id));
     }
 
-    fn sync(&self) -> impl Future<Output = ()> + Send + 'static {
+    fn sync(&self) -> impl Future<Output = ()> + Send {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::SyncBackend);
         let runtime = self.runtime.clone();

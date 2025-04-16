@@ -1,19 +1,20 @@
 use std::marker::PhantomData;
 
 use burn_tensor::{
-    ops::{DeformConv2dBackward, DeformConvOptions, FloatTensorOps as _},
     Shape,
+    ops::{DeformConv2dBackward, DeformConvOptions, FloatTensorOps as _},
 };
 use cubecl::{
-    calculate_cube_count_elemwise, cube, ir::Elem, prelude::*, AtomicFeature, CubeDim, CubeLaunch,
-    Feature,
+    AtomicFeature, CubeDim, CubeLaunch, Feature, calculate_cube_count_elemwise, cube, ir::Elem,
+    linalg::convolution::ConvLaunchError, prelude::*,
 };
 
 use crate::{
+    CubeBackend, CubeRuntime, FloatElement, IntElement,
     element::BoolElement,
     kernel::{
         cast, into_contiguous,
-        matmul::{matmul, MatmulStrategy},
+        matmul::{MatmulStrategy, matmul},
         slice_assign,
     },
     ops::{
@@ -21,10 +22,9 @@ use crate::{
         reshape, swap_dims,
     },
     tensor::CubeTensor,
-    CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
 
-use super::{bilinear_interpolate, deform_im2col, index, ConvLaunchError};
+use super::{bilinear_interpolate, deform_im2col, index};
 
 /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
 #[allow(clippy::single_range_in_vec_init)]
@@ -246,7 +246,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime, E: FloatElement>(
     Ok((grad_offset, mask_gradient))
 }
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct DeformConv2dCol2ImgCoordArgs<F: Float> {
     stride_h: u32,
     stride_w: u32,
@@ -523,7 +523,7 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
     }
 }
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct DeformConv2dCol2ImgArgs<F: Float> {
     stride_h: u32,
     stride_w: u32,
@@ -636,6 +636,7 @@ trait FloatAtomicAdd: Send + Sync + 'static {
 
 #[derive(CubeType)]
 struct IntrinsicFloatAtomicAdd<F: Float> {
+    #[cube(comptime)]
     _ty: PhantomData<F>,
 }
 
@@ -662,8 +663,8 @@ impl FloatAtomicAdd for CASFloatAtomicAdd {
             let mut v = Atomic::load(ptr);
             loop {
                 let prev = v;
-                let v_float = f32::bitcast_from(v);
-                let new = u32::bitcast_from(v_float + value);
+                let v_float = f32::reinterpret(v);
+                let new = u32::reinterpret(v_float + value);
                 v = Atomic::compare_and_swap(ptr, v, new);
                 if prev == v {
                     break;

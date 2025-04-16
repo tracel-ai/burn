@@ -1,5 +1,5 @@
 use burn_tensor::Element;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 /// Settings allowing to control the precision when (de)serializing items.
 pub trait PrecisionSettings:

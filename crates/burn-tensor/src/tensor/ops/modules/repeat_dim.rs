@@ -1,4 +1,4 @@
-use crate::{backend::Backend, BasicOps, TensorKind, TensorMetadata};
+use crate::{BasicOps, TensorKind, TensorMetadata, backend::Backend};
 use alloc::vec::Vec;
 
 pub(crate) fn repeat_with_slice_assign<B: Backend, K: TensorKind<B> + BasicOps<B>>(

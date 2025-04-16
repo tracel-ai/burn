@@ -2,11 +2,11 @@ use alloc::vec::Vec;
 use core::{future::Future, ops::Range};
 
 use crate::{
+    Device, Shape, TensorData, TensorMetadata,
     backend::Backend,
     quantization::{
         Calibration, QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme,
     },
-    Device, Shape, TensorData, TensorMetadata,
 };
 
 use super::{BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, QuantizedTensor};
@@ -120,7 +120,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// The data structure with the tensor's data.
     fn q_into_data(tensor: QuantizedTensor<B>)
-        -> impl Future<Output = TensorData> + 'static + Send;
+    -> impl Future<Output = TensorData> + 'static + Send;
 
     /// Detaches a tensor from the computation graph.
     fn q_detach(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
@@ -974,6 +974,40 @@ pub trait QTensorOps<B: Backend> {
         dequant_op_quant!(
             ty Self,
             float_op |tensor| B::float_tan(tensor),
+            tensor
+        )
+    }
+
+    /// Returns a new tensor with hyperbolic cosine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the hyperbolic cosine of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic cosine values.
+    fn q_cosh(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_cosh(tensor),
+            tensor
+        )
+    }
+
+    /// Returns a new tensor with hyperbolic sine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the hyperbolic sine of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic sine values.
+    fn q_sinh(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_sinh(tensor),
             tensor
         )
     }

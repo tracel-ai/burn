@@ -1,20 +1,20 @@
 use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
+    ops::{ConvOptions, conv::calculate_conv_output_size},
 };
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, linalg::convolution::ConvLaunchError, prelude::*};
 
 use crate::{
-    kernel::{conv::ConvLaunchError, into_contiguous},
+    CubeRuntime, FloatElement,
+    kernel::into_contiguous,
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,
     },
     tensor::CubeTensor,
-    CubeRuntime, FloatElement,
 };
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct Conv2dArgs {
     conv_stride_0: u32,
     conv_stride_1: u32,

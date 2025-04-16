@@ -73,9 +73,9 @@ mod tests {
 
     use super::*;
     use crate::burn::{
+        ShapeType, TensorType,
         graph::BurnGraph,
         node::{expand::ExpandNode, test::assert_tokens},
-        ShapeType, TensorType,
     };
 
     #[test]

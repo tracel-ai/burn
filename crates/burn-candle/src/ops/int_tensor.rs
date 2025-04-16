@@ -1,11 +1,11 @@
 use burn_tensor::{
-    ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
     Bool, Device, Distribution, ElementConversion, Shape, TensorData,
+    ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
 };
 
 use crate::{
-    element::{CandleElement, FloatCandleElement, IntCandleElement},
     Candle, CandleTensor,
+    element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
 use super::base::{expand, permute, sign};
@@ -263,11 +263,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        todo!("prod is not implemented for Candle IntTensor (see https://github.com/tracel-ai/burn/issues/1454)")
+        todo!(
+            "prod is not implemented for Candle IntTensor (see https://github.com/tracel-ai/burn/issues/1454)"
+        )
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        todo!("prod_int is not implemented for Candle IntTensor (see https://github.com/tracel-ai/burn/issues/1454)")
+        todo!(
+            "prod_int is not implemented for Candle IntTensor (see https://github.com/tracel-ai/burn/issues/1454)"
+        )
     }
 
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {

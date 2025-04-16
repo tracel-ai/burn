@@ -1,6 +1,6 @@
 use burn_tensor::ops::{TransactionOps, TransactionPrimitive};
 
-use crate::{client::FusionClient, Fusion, FusionBackend};
+use crate::{Fusion, FusionBackend, client::FusionClient};
 
 impl<B: FusionBackend> TransactionOps<Fusion<B>> for Fusion<B> {
     fn tr_execute(

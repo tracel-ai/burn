@@ -1,12 +1,12 @@
 use std::ops::Range;
 
 use burn_tensor::{
+    DType, Shape, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
         QParams, QuantizationMode, QuantizationParametersPrimitive, QuantizationScheme,
         QuantizationType, QuantizedBytes,
     },
-    DType, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{LibTorch, LibTorchDevice, QuantElement, TchElement, TchQTensor, TchShape, TchTensor};
@@ -133,7 +133,9 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                     .quantize_per_tensor_dynamic(tch::Kind::QInt8, /*reduce_range*/ false)
             }
             QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
-                log::warn!("LibTorch backend does not support symmetric per-tensor scheme for dynamic quantization, reverting to the default per-tensor affine quantization");
+                log::warn!(
+                    "LibTorch backend does not support symmetric per-tensor scheme for dynamic quantization, reverting to the default per-tensor affine quantization"
+                );
                 tensor
                     .tensor
                     .quantize_per_tensor_dynamic(tch::Kind::QInt8, /*reduce_range*/ false)

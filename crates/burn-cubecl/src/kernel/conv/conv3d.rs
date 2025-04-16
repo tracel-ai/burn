@@ -1,21 +1,21 @@
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
+    ops::{ConvOptions, conv::calculate_conv_output_size},
 };
 
 use crate::{
+    CubeRuntime, FloatElement,
     kernel::into_contiguous,
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,
     },
     tensor::CubeTensor,
-    CubeRuntime, FloatElement,
 };
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct Conv3dArgs {
     conv_stride_0: u32,
     conv_stride_1: u32,

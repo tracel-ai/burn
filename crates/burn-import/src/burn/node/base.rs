@@ -3,18 +3,19 @@ use std::marker::PhantomData;
 use super::{
     argmax::ArgMaxNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
     batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode, concat::ConcatNode,
-    constant::ConstantNode, constant_of_shape::ConstantOfShapeNode, conv1d::Conv1dNode,
-    conv2d::Conv2dNode, conv3d::Conv3dNode, conv_transpose_1d::ConvTranspose1dNode,
-    conv_transpose_2d::ConvTranspose2dNode, conv_transpose_3d::ConvTranspose3dNode,
-    dropout::DropoutNode, expand::ExpandNode, floor::FloorNode, gather::GatherNode,
-    gather_elements::GatherElementsNode, global_avg_pool::GlobalAvgPoolNode,
-    layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
-    max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, mean::MeanNode, one_hot::OneHotNode,
-    pad::PadNode, prelu::PReluNode, random_normal::RandomNormalNode,
-    random_normal_like::RandomNormalLikeNode, random_uniform::RandomUniformNode,
-    random_uniform_like::RandomUniformLikeNode, range::RangeNode, reshape::ReshapeNode,
-    resize::ResizeNode, slice::SliceNode, split::SplitNode, squeeze::SqueezeNode, sum::SumNode,
-    tile::TileNode, top_k::TopKNode, trilu::TriluNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
+    constant::ConstantNode, constant_of_shape::ConstantOfShapeNode,
+    conv_transpose_1d::ConvTranspose1dNode, conv_transpose_2d::ConvTranspose2dNode,
+    conv_transpose_3d::ConvTranspose3dNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
+    conv3d::Conv3dNode, dropout::DropoutNode, expand::ExpandNode, floor::FloorNode,
+    gather::GatherNode, gather_elements::GatherElementsNode, gemm::GemmNode,
+    global_avg_pool::GlobalAvgPoolNode, layer_norm::LayerNormNode, linear::LinearNode,
+    mask_where::WhereNode, matmul::MatmulNode, max_pool1d::MaxPool1dNode,
+    max_pool2d::MaxPool2dNode, mean::MeanNode, one_hot::OneHotNode, pad::PadNode, prelu::PReluNode,
+    random_normal::RandomNormalNode, random_normal_like::RandomNormalLikeNode,
+    random_uniform::RandomUniformNode, random_uniform_like::RandomUniformLikeNode,
+    range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode, split::SplitNode,
+    squeeze::SqueezeNode, sum::SumNode, tile::TileNode, top_k::TopKNode, trilu::TriluNode,
+    unary::UnaryNode, unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -103,6 +104,7 @@ pub enum Node<PS: PrecisionSettings> {
     Floor(FloorNode),
     Gather(GatherNode),
     GatherElements(GatherElementsNode),
+    Gemm(GemmNode),
     GlobalAvgPool(GlobalAvgPoolNode),
     LayerNorm(LayerNormNode),
     Linear(LinearNode),
@@ -159,6 +161,7 @@ macro_rules! match_all {
             Node::Floor(node) => $func(node),
             Node::Gather(node) => $func(node),
             Node::GatherElements(node) => $func(node),
+            Node::Gemm(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
             Node::LayerNorm(node) => $func(node),
             Node::Linear(node) => $func(node),
@@ -223,6 +226,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Floor(_) => "floor",
             Node::Gather(_) => "gather",
             Node::GatherElements(_) => "gather_elements",
+            Node::Gemm(_) => "gemm",
             Node::GlobalAvgPool(_) => "global_avg_pool",
             Node::LayerNorm(_) => "layer_norm",
             Node::Linear(_) => "linear",
@@ -300,12 +304,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::burn::{
-        graph::BurnGraph,
-        node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens, NodeCodegen},
         BurnImports, TensorType,
+        graph::BurnGraph,
+        node::{NodeCodegen, conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens},
     };
     use burn::{
-        nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings,
+        nn::PaddingConfig2d, nn::conv::Conv2dConfig, record::FullPrecisionSettings,
         tensor::TensorData,
     };
     use proc_macro2::TokenStream;

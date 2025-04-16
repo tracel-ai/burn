@@ -1,10 +1,16 @@
 use super::pool2d::{
-    pool2d_direct, Pool2dDirectArgsLaunch, Pool2dDirectStrategy, Pool2dDirectStrategyFamily,
+    Pool2dDirectArgsLaunch, Pool2dDirectStrategy, Pool2dDirectStrategyFamily, pool2d_direct,
 };
-use crate::{element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
-use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
+use crate::{
+    CubeRuntime,
+    element::CubeElement,
+    kernel::conv::permute_nchw_to_nhwc,
+    ops::{max_vectorization, numeric::empty_device, permute},
+    tensor::CubeTensor,
+};
+use burn_tensor::{Shape, ops::conv::calculate_pool_output_size};
 use cubecl::prelude::*;
-use cubecl::{calculate_cube_count_elemwise, prelude::ScalarArg, CubeDim};
+use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::ScalarArg};
 
 struct AvgPoolStrategy;
 
@@ -23,12 +29,15 @@ pub struct AvgPoolStrategyConfig {
 
 #[cube]
 impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
-    type Accumulator = (N, u32);
+    type Accumulator = (Line<N>, u32);
     type Config = AvgPoolStrategyConfig;
     type Indices = ();
 
-    fn initialize(#[comptime] config: &Self::Config) -> Self::Accumulator {
-        let sum = N::from_int(0);
+    fn initialize(
+        #[comptime] config: &Self::Config,
+        #[comptime] line_size: u32,
+    ) -> Self::Accumulator {
+        let sum = Line::empty(line_size).fill(N::from_int(0));
         let count = comptime! {if config.count_include_pad {
             config.kernel_size_h * config.kernel_size_w
         } else {
@@ -42,7 +51,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
         #[comptime] config: &Self::Config,
         accumulator: &mut Self::Accumulator,
         _index: u32,
-        result: N,
+        result: Line<N>,
     ) {
         let (sum, count) = accumulator;
 
@@ -56,12 +65,12 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
     fn store(
         #[comptime] _config: &Self::Config,
         position: u32,
-        output: &mut Tensor<N>,
+        output: &mut Tensor<Line<N>>,
         _output_indices: &mut (),
         accumulator: Self::Accumulator,
     ) {
         let (sum, count) = accumulator;
-        output[position] = sum / N::cast_from(count);
+        output[position] = sum / Line::cast_from(count);
     }
 }
 
@@ -90,18 +99,22 @@ pub(crate) fn avg_pool2d<R: CubeRuntime, E: CubeElement>(
         x.shape.dims[3],
     );
 
-    let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
+    let x = permute_nchw_to_nhwc::<R, E>(x);
+    let line_size = max_vectorization(&x);
+
+    let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
     let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), shape_out);
 
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let cube_count =
+        calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
     pool2d_direct::launch::<E, AvgPoolStrategy, R>(
         &x.client,
         cube_count,
         cube_dim,
-        x.as_tensor_arg::<E>(1),
-        output.as_tensor_arg::<E>(1),
+        x.as_tensor_arg::<E>(line_size),
+        output.as_tensor_arg::<E>(line_size),
         (),
         Pool2dDirectArgsLaunch::new(
             ScalarArg::new(stride[0] as u32),
@@ -119,5 +132,5 @@ pub(crate) fn avg_pool2d<R: CubeRuntime, E: CubeElement>(
         },
     );
 
-    output
+    permute(output, &[0, 3, 1, 2])
 }

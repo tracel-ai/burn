@@ -11,7 +11,7 @@ use crate::{
     tensor::AutodiffTensor,
 };
 use alloc::{boxed::Box, vec::Vec};
-use burn_tensor::{backend::Backend, ops::FloatTensor, Shape, TensorMetadata};
+use burn_tensor::{Shape, TensorMetadata, backend::Backend, ops::FloatTensor};
 use core::marker::PhantomData;
 
 /// Operation in preparation.
@@ -106,13 +106,17 @@ where
         B2: Backend,
         A: IntoIterator<Item = &'a AutodiffTensor<B2>>,
     {
-        C::checkpoint_parents(parents, &mut self.checkpointer_builder);
+        let compute_property = match C::checkpoint_parents(parents, &mut self.checkpointer_builder)
+        {
+            Ok(..) => self.compute_property,
+            Err(..) => ComputingProperty::ComputeBound,
+        };
 
         OpsPrep::new(
             self.nodes,
             self.requirement,
             self.backward,
-            self.compute_property,
+            compute_property,
             self.checkpointer_builder,
         )
     }

@@ -52,6 +52,78 @@ macro_rules! scalar_float_ops {
 
 #[allow(missing_docs)]
 #[macro_export(local_inner_macros)]
+macro_rules! reduce_float_ops {
+    (
+        $name:ident,
+        $ops:expr
+    ) => {
+        #[derive(new)]
+        struct $name<B: FusionBackend> {
+            desc: ReduceDimOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B>(&self.desc.input);
+                let output = $ops(input, self.desc.axis);
+
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+    };
+}
+
+#[allow(missing_docs)]
+#[macro_export(local_inner_macros)]
+macro_rules! reduce_float2int_ops {
+    (
+        $name:ident,
+        $ops:expr
+    ) => {
+        #[derive(new)]
+        struct $name<B: FusionBackend> {
+            desc: ReduceDimOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B>(&self.desc.input);
+                let output = $ops(input, self.desc.axis);
+
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+    };
+}
+
+#[allow(missing_docs)]
+#[macro_export(local_inner_macros)]
+macro_rules! reduce_int_ops {
+    (
+        $name:ident,
+        $ops:expr
+    ) => {
+        #[derive(new)]
+        struct $name<B: FusionBackend> {
+            desc: ReduceDimOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_int_tensor::<B>(&self.desc.input);
+                let output = $ops(input, self.desc.axis);
+
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+    };
+}
+
+#[allow(missing_docs)]
+#[macro_export(local_inner_macros)]
 macro_rules! scalar_float2int_ops {
     (
         $name:ident,

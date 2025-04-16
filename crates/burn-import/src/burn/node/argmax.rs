@@ -49,7 +49,7 @@ mod tests {
     use burn::record::FullPrecisionSettings;
 
     use super::*;
-    use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorType};
+    use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
 
     #[test]
     fn test_codegen_argmax() {

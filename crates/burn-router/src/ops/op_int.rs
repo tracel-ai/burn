@@ -5,17 +5,17 @@ use core::ops::Range;
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr, GatherOpIr,
     InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr, NumericOperationIr, OperationIr,
-    PermuteOpIr, RandomOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr,
-    SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
+    PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarOpIr,
+    ScatterOpIr, SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
 };
 use burn_tensor::ops::{
-    binary_ops_shape, BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, IntTensorOps,
+    BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, IntTensorOps, binary_ops_shape,
 };
 use burn_tensor::{
     Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
 };
 
-use crate::{get_client, BackendRouter, RunnerChannel, RunnerClient};
+use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 
 impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
@@ -731,17 +731,17 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+    fn int_sum_dim(tensor: IntTensor<Self>, axis: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
+        shape[axis] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
             out: out.to_ir_out(),
+            axis,
         };
 
         client.register(OperationIr::NumericInt(
@@ -777,9 +777,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
 
@@ -816,9 +816,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
 
@@ -837,9 +837,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
 
@@ -858,9 +858,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
 
@@ -972,9 +972,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
 
@@ -1037,9 +1037,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
 

@@ -14,6 +14,7 @@ pub fn coalesce(
     nodes_iter: &mut Peekable<Iter<NodeProto>>,
     graph_data: &GraphData,
 ) {
+    #[allow(clippy::single_match)]
     match node.node_type {
         NodeType::Gemm => convert_gemm_to_linear(node),
         NodeType::MatMul => {
@@ -51,8 +52,6 @@ pub(crate) fn convert_gemm_to_linear(node: &mut Node) {
 
         // Transpose the weights
         transpose_linear_node_weights(node);
-    } else {
-        panic!("Full Gemm node not supported yet.");
     }
 }
 

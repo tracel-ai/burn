@@ -1,6 +1,6 @@
 use proc_macro2::Ident;
 use quote::quote;
-use syn::{parse_quote, Generics, WhereClause, WherePredicate};
+use syn::{Generics, WhereClause, WherePredicate, parse_quote};
 
 #[derive(new)]
 pub struct GenericsHelper {

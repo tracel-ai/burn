@@ -17,7 +17,7 @@ Then run `cargo build` to build the project and import all the dependencies.
 [package]
 name = "guide"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 burn = { version = "~0.17", features = ["train", "wgpu", "vision"] }
@@ -221,6 +221,8 @@ impl ModelConfig {
 At a glance, you can view the model configuration by printing the model instance:
 
 ```rust , ignore
+mod model;
+
 use crate::model::ModelConfig;
 use burn::backend::Wgpu;
 

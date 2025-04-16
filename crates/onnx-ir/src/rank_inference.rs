@@ -6,7 +6,7 @@ use protobuf::Enum;
 use crate::{
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
     protos::tensor_proto::DataType,
-    util::{flatten_config, shape_config},
+    util::shape_config,
 };
 
 /// Infer the rank of each output tensor and update them based solely on rank inference.
@@ -25,6 +25,7 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::Conv1d => conv1d_update_outputs(node),
         NodeType::Conv2d => conv2d_update_outputs(node),
         NodeType::Cos => same_as_input(node),
+        NodeType::Cosh => same_as_input(node),
         NodeType::Div => same_as_input_broadcast(node),
         NodeType::Dropout => same_as_input(node),
         NodeType::Equal => elementwise_comparison_outputs(node),
@@ -36,6 +37,7 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::Gelu => same_as_input(node),
         NodeType::Gather => gather_update_outputs(node),
         NodeType::GatherElements => same_as_input(node),
+        NodeType::Gemm => gemm_output_shape(node),
         NodeType::Greater => elementwise_comparison_outputs(node),
         NodeType::GreaterOrEqual => elementwise_comparison_outputs(node),
         NodeType::HardSigmoid => same_as_input(node),
@@ -79,6 +81,7 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::Sigmoid => same_as_input(node),
         NodeType::Sign => same_as_input(node),
         NodeType::Sin => same_as_input(node),
+        NodeType::Sinh => same_as_input(node),
         NodeType::Slice => same_as_input(node),
         NodeType::Softmax => same_as_input(node),
         NodeType::Split => split_update_outputs(node),
@@ -215,7 +218,7 @@ fn random_like_update_output(node: &mut Node) {
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type,
             rank: tensor.rank,
-            static_shape: None,
+            static_shape: tensor.shape.clone(),
         });
     } else {
         panic!("Only tensor input is valid");
@@ -579,24 +582,24 @@ fn shape_update_outputs(node: &mut Node) {
     node.outputs[0].ty = ArgType::Shape(dim);
 }
 
-/// Update output rank for Flatten based on axes.
+/// Update output type for Flatten operation (rank 2).
 fn flatten_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
         panic!("Flatten: multiple inputs are not supported");
     }
-    let tensor = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Flatten: invalid input type"),
-    };
+    let tensor = node
+        .inputs
+        .iter()
+        .find_map(|input| match &input.ty {
+            ArgType::Tensor(tensor) => Some(tensor),
+            _ => None,
+        })
+        .unwrap();
 
-    let (start_dim, end_dim) = flatten_config(node);
-    let collapsed_dims = end_dim - start_dim;
-    let output_rank = tensor.rank - collapsed_dims;
-
+    // Flatten to a 2D tensor
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: tensor.elem_type.clone(),
-        rank: output_rank,
-        static_shape: None,
+        rank: 2,
+        ..tensor.clone()
     });
 }
 
@@ -889,5 +892,25 @@ fn one_hot_output_shape(node: &mut Node) {
         elem_type: node.outputs[0].ty.elem_type().clone(),
         rank: input_rank + 1,
         static_shape: None,
+    });
+}
+
+fn gemm_output_shape(node: &mut Node) {
+    let a_rank = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.rank,
+        _ => panic!("Input A should be a tensor!"),
+    };
+    let b_rank = match &node.inputs[1].ty {
+        ArgType::Tensor(tensor) => tensor.rank,
+        _ => panic!("Input B should be a tensor!"),
+    };
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        rank: max(a_rank, b_rank),
+        shape: None,
+        elem_type: match &node.inputs[0].ty {
+            ArgType::Tensor(t) => t.elem_type.clone(),
+            _ => panic!("Unexpected type for input A"),
+        },
     });
 }

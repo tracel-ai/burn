@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, BoolElement, CubeRuntime,
+    BoolElement, CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor,
 };
 use burn_tensor::Shape;
 use cubecl::{

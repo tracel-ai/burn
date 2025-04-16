@@ -1,10 +1,10 @@
 use super::{
-    cat::cat_with_slice_assign, repeat_dim::repeat_with_slice_assign, BoolTensor, Device,
-    FloatTensor, IntTensor,
+    BoolTensor, Device, FloatTensor, IntTensor, cat::cat_with_slice_assign,
+    repeat_dim::repeat_with_slice_assign,
 };
 use crate::{
-    argwhere_data, backend::Backend, chunk, narrow, split, split_with_sizes, tensor::Shape, Bool,
-    ElementConversion, TensorData, TensorMetadata,
+    Bool, ElementConversion, TensorData, TensorMetadata, argwhere_data, backend::Backend, chunk,
+    narrow, split, split_with_sizes, tensor::Shape,
 };
 use alloc::{vec, vec::Vec};
 use core::{future::Future, ops::Range};

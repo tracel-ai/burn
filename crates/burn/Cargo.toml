@@ -9,7 +9,7 @@ license.workspace = true
 name = "burn"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn"
-rust-version = "1.82"
+rust-version = "1.85"
 version.workspace = true
 
 [features]
@@ -89,23 +89,30 @@ fusion = ["burn-wgpu?/fusion", "burn-cuda?/fusion"]
 accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
 autotune = ["burn-wgpu?/autotune", "burn-cuda?/autotune", "burn-hip?/autotune"]
 blas-netlib = ["burn-ndarray?/blas-netlib"]
-metal = ["burn-candle?/metal"]
 openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]
 remote = ["burn-remote/client"]
 router = ["burn-router"]
 server = ["burn-remote/server"]
+simd = ["burn-ndarray?/simd"]
 template = ["burn-wgpu?/template"]
 
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
+candle-metal = ["burn-candle?/metal"]
 cuda = ["burn-cuda"]
 hip = ["burn-hip"]
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
-wgpu = ["burn-wgpu"]
 vulkan = ["wgpu", "burn-wgpu/vulkan"]
 webgpu = ["wgpu", "burn-wgpu/webgpu"]
+metal = ["wgpu", "burn-wgpu/metal"]
+wgpu = ["burn-wgpu"]
+
+compilation-cache = [
+    "burn-cuda?/compilation-cache",
+    "burn-hip?/compilation-cache",
+]
 
 [dependencies]
 

@@ -1,16 +1,16 @@
-use crate::{client::FusionClient, stream::execution::Operation, Fusion, FusionBackend};
+use crate::{Fusion, FusionBackend, client::FusionClient, stream::execution::Operation};
 use burn_ir::*;
 use burn_tensor::{
+    Element,
     ops::{
+        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
+        IntTensor, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
+        MaxPool2dWithIndices, ModuleOps,
         conv::{
             calculate_conv_output_size, calculate_conv_transpose_output_size,
             calculate_pool_output_size,
         },
-        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
-        IntTensor, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
-        MaxPool2dWithIndices, ModuleOps,
     },
-    Element,
 };
 use std::marker::PhantomData;
 

@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{backend::Backend, Shape, Tensor, TensorMetadata, TensorPrimitive};
+use crate::{Shape, Tensor, TensorMetadata, TensorPrimitive, backend::Backend};
 
 use super::{
     Calibration, CalibrationRange, QuantizationParameters, QuantizationParametersPrimitive,
@@ -111,7 +111,8 @@ impl QuantizationScheme {
                         let shape = tensor.shape();
                         let numel = shape.num_elements();
                         assert_eq!(
-                            numel % block_size, 0,
+                            numel % block_size,
+                            0,
                             "Cannot compute per-block quantization range with block size {block_size} and tensor of shape {shape:?}"
                         );
                         let num_blocks = numel / block_size;
@@ -238,5 +239,12 @@ impl QuantizationScheme {
             max: Tensor::from_primitive(TensorPrimitive::Float(max)),
         };
         self.compute_q_params(range).into()
+    }
+
+    pub fn q_type(&self) -> QuantizationType {
+        match self {
+            QuantizationScheme::PerTensor(_, quantization_type) => *quantization_type,
+            QuantizationScheme::PerBlock(_, quantization_type, _) => *quantization_type,
+        }
     }
 }

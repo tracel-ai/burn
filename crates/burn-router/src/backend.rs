@@ -6,7 +6,7 @@ use burn_tensor::{
     quantization::{QTensorPrimitive, QuantizationScheme},
 };
 
-use super::{get_client, set_seed, RouterTensor, RunnerChannel, RunnerClient};
+use super::{RouterTensor, RunnerChannel, RunnerClient, get_client, set_seed};
 
 /// A backend that forwards the tensor operations to the appropriate backend (given multiple backends).
 pub struct BackendRouter<R: RunnerChannel> {
@@ -57,8 +57,8 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
 
     type QuantizedEncoding = u32;
 
-    fn name() -> String {
-        format!("router<{}>", R::name())
+    fn name(device: &Self::Device) -> String {
+        format!("router<{}>", R::name(device))
     }
 
     fn seed(seed: u64) {

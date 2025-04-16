@@ -3,10 +3,10 @@ use std::marker::PhantomData;
 use burn::{
     module::Module,
     nn::{
-        conv::{Conv2d, Conv2dConfig},
         BatchNorm, BatchNormConfig,
+        conv::{Conv2d, Conv2dConfig},
     },
-    tensor::{backend::Backend, Device, Tensor},
+    tensor::{Device, Tensor, backend::Backend},
 };
 
 /// Some module that implements a specific method so it can be used in a sequential block.

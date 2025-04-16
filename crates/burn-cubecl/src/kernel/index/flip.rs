@@ -1,5 +1,6 @@
 use crate::{
-    element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, BoolElement, CubeRuntime,
+    BoolElement, CubeRuntime, element::CubeElement, kernel::into_contiguous,
+    ops::numeric::empty_device, tensor::CubeTensor,
 };
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
@@ -50,6 +51,7 @@ pub(crate) fn flip_on_output<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
     output: CubeTensor<R>,
     indices: &[usize],
 ) -> CubeTensor<R> {
+    let tensor = into_contiguous(tensor);
     let ndims = tensor.shape.num_dims();
     let mut indices_sequence = SequenceArg::<'_, R, BT>::new();
 

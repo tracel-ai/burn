@@ -1,16 +1,16 @@
 use crate::{
-    binary_float_cmp_ops, binary_float_ops,
+    Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops,
     client::FusionClient,
     get_client,
     ops::binary::check_binary_op_types,
-    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
-    stream::{execution::Operation, StreamId},
-    unary_float_ops, Fusion, FusionBackend,
+    reduce_float_ops, reduce_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
+    stream::{StreamId, execution::Operation},
+    unary_float_ops,
 };
 use burn_ir::*;
 use burn_tensor::{
-    ops::{binary_ops_shape, BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
     Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
+    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor, binary_ops_shape},
 };
 use std::{marker::PhantomData, ops::Range};
 
@@ -1251,19 +1251,19 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        scalar_float_ops!(SumDimOps, B::float_sum_dim, usize, noconvert);
+    fn float_sum_dim(tensor: FloatTensor<Self>, axis: usize) -> FloatTensor<Self> {
+        reduce_float_ops!(SumDimOps, B::float_sum_dim);
 
         let stream = tensor.stream;
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
+        shape[axis] = 1;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
             out: out.to_ir_out(),
+            axis,
         };
         out.client.register(
             vec![stream],
@@ -1295,7 +1295,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_prod_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        scalar_float_ops!(ProdDimOps, B::float_prod_dim, usize, noconvert);
+        reduce_float_ops!(ProdDimOps, B::float_prod_dim);
 
         let stream = tensor.stream;
         let dtype = tensor.dtype;
@@ -1303,11 +1303,12 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
+
         out.client.register(
             vec![stream],
             OperationIr::NumericFloat(
@@ -1341,7 +1342,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_mean_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        scalar_float_ops!(MeanDimOps, B::float_mean_dim, usize, noconvert);
+        reduce_float_ops!(MeanDimOps, B::float_mean_dim);
 
         let stream = tensor.stream;
         let dtype = tensor.dtype;
@@ -1349,9 +1350,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -1655,7 +1656,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
-        scalar_float2int_ops!(ArgMaxOps, B::float_argmax, usize);
+        reduce_float2int_ops!(ArgMaxOps, B::float_argmax);
 
         let stream = tensor.stream;
         let dtype = tensor.dtype;
@@ -1665,9 +1666,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .client
             .tensor_uninitialized(shape, B::IntElem::dtype());
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -1717,7 +1718,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
-        scalar_float2int_ops!(ArgMinOps, B::float_argmin, usize);
+        reduce_float2int_ops!(ArgMinOps, B::float_argmin);
 
         let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
@@ -1727,9 +1728,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .client
             .tensor_uninitialized(shape, B::IntElem::dtype());
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -1762,7 +1763,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_max_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        scalar_float_ops!(MaxDimOps, B::float_max_dim, usize, noconvert);
+        reduce_float_ops!(MaxDimOps, B::float_max_dim);
 
         let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
@@ -1770,9 +1771,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -1848,7 +1849,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_min_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        scalar_float_ops!(MinDimOps, B::float_min_dim, usize, noconvert);
+        reduce_float_ops!(MinDimOps, B::float_min_dim);
 
         let stream = tensor.stream;
         let dtype = tensor.dtype;
@@ -1856,9 +1857,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
             out: out.to_ir_out(),
         };
         out.client.register(

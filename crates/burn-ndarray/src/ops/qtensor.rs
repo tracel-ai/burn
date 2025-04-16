@@ -2,19 +2,19 @@ use alloc::vec;
 use core::ops::Range;
 
 use burn_tensor::{
+    DType, ElementConversion, Shape, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
         AffineQuantization, QParams, QuantizationMode, QuantizationParametersPrimitive,
         QuantizationScheme, QuantizationStrategy, QuantizationType, QuantizedBytes,
         SymmetricQuantization,
     },
-    DType, ElementConversion, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{
+    FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor, NdArrayTensorFloat,
     element::{IntNdArrayElement, NdArrayElement, QuantElement},
-    new_tensor_float, FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor,
-    NdArrayTensorFloat,
+    new_tensor_float,
 };
 
 use super::{NdArrayMathOps, NdArrayOps};

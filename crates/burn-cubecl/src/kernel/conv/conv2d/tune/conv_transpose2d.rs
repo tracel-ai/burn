@@ -1,13 +1,13 @@
-use burn_tensor::{ops::ConvTransposeOptions, ElementConversion, Shape};
-use cubecl::tune::{local_tuner, LocalTuner, TunableSet};
+use burn_tensor::{ElementConversion, Shape, ops::ConvTransposeOptions};
+use cubecl::tune::{LocalTuner, TunableSet, local_tuner};
 
 use crate::{
+    CubeAutotuneKey, CubeRuntime, CubeTuneId, FloatElement,
     kernel::{
         conv::{conv_transpose2d_col2im, conv_transpose2d_direct},
         prng::random_uniform,
     },
     tensor::CubeTensor,
-    CubeAutotuneKey, CubeRuntime, CubeTuneId, FloatElement,
 };
 
 use super::ConvTranspose2dAutotuneKey;
@@ -28,7 +28,7 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime, E: FloatElement>(
         .with_tunable(conv_transpose2d_col2im::<R, E>);
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&input.device),
+        &CubeTuneId::new::<R>(&input.client, &input.device),
         &client,
         &tune_set,
         (input, weights, bias, options),

@@ -47,7 +47,7 @@ represent the corresponding Burn Op.
 | [ConvTranspose2d][38]            | ✅             | ✅           |
 | [ConvTranspose3d][38]            | ✅             | ✅           |
 | [Cos][39]                        | ✅             | ✅           |
-| [Cosh][40]                       | ❌             | ❌           |
+| [Cosh][40]                       | ✅             | ✅           |
 | [CumSum][41]                     | ❌             | ❌           |
 | [DepthToSpace][42]               | ❌             | ❌           |
 | [DequantizeLinear][43]           | ❌             | ❌           |
@@ -69,7 +69,7 @@ represent the corresponding Burn Op.
 | [GatherElements][59]             | ✅             | ✅           |
 | [GatherND][60]                   | ❌             | ❌           |
 | [Gelu][61]                       | ✅             | ✅           |
-| [Gemm][62]                       | ❌             | ❌           |
+| [Gemm][62]                       | ✅             | 🟨           |
 | [GlobalAveragePool][63]          | ✅             | ✅           |
 | [GlobalLpPool][64]               | ❌             | ❌           |
 | [GlobalMaxPool][65]              | ❌             | ❌           |
@@ -171,7 +171,7 @@ represent the corresponding Burn Op.
 | [Sigmoid][162]                   | ✅             | ✅           |
 | [Sign][163]                      | ✅             | ✅           |
 | [Sin][164]                       | ✅             | ✅           |
-| [Sinh][165]                      | ❌             | ❌           |
+| [Sinh][165]                      | ✅             | ✅           |
 | [Size][166]                      | ❌             | ❌           |
 | [Slice][167]                     | ✅             | ✅           |
 | [Softmax][168]                   | ✅             | ✅           |
@@ -200,6 +200,8 @@ represent the corresponding Burn Op.
 | [Where][191]                     | ✅             | ✅           |
 | [Xor][192]                       | ❌             | ❌           |
 | [Unsqueeze][193]                 | ✅             | ✅           |
+
+🟨 Supported via other operations.
 
 [1]: https://onnx.ai/onnx/operators/onnx__Abs.html "ONNX Abs"
 [2]: https://onnx.ai/onnx/operators/onnx__Acos.html "ONNX Acos"

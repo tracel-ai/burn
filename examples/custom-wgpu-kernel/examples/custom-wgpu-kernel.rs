@@ -3,7 +3,7 @@ use burn::{
     tensor::{Distribution, Tensor},
 };
 use custom_wgpu_kernel::{
-    matmul_add_relu_custom, matmul_add_relu_reference, AutodiffBackend, Backend,
+    AutodiffBackend, Backend, matmul_add_relu_custom, matmul_add_relu_reference,
 };
 
 fn inference<B: Backend>(device: &B::Device) {

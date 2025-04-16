@@ -1,8 +1,9 @@
 use alloc::sync::Arc;
 use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorId, TensorIr};
 use burn_tensor::{
+    DType, Shape, TensorData,
     backend::{Backend, DeviceId, DeviceOps},
-    try_read_sync, DType, Shape, TensorData,
+    try_read_sync,
 };
 
 use crate::{
@@ -173,8 +174,8 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn sync(&self) -> impl core::future::Future<Output = ()> + Send + 'static {
-                    let fut: core::pin::Pin<Box<dyn core::future::Future<Output = ()> + Send + 'static>> = match self {
+                fn sync(&self) -> impl core::future::Future<Output = ()> + Send {
+                    let fut: core::pin::Pin<Box<dyn core::future::Future<Output = ()> + Send>> = match self {
                         Self::$DefaultBackend(runner) => Box::pin(runner.sync()),
                         $(
                             Self::$OtherBackend(runner) => Box::pin(runner.sync()),
@@ -251,10 +252,10 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn name() -> String {
-                    let mut name = format!("{}", $DefaultBackend::name());
+                fn name(_device: &Self::Device) -> String {
+                    let mut name = format!("{}", $DefaultBackend::name(&<$DefaultBackend::Device as Default>::default()));
                     $(
-                        name.push_str(&format!(", {}", $OtherBackend::name()));
+                        name.push_str(&format!(", {}", $OtherBackend::name(&<$OtherBackend::Device as Default>::default())));
                     )+
                     format!("direct<({})>", name)
                 }
@@ -376,7 +377,7 @@ impl_multi_backend_types!(quad, B1, B2, B3, B4);
 #[cfg(not(target_os = "windows"))] // cannot find a wgpu adapter on windows CI
 #[cfg(test)]
 mod tests {
-    use burn_tensor::{backend::Backend, Tensor};
+    use burn_tensor::{Tensor, backend::Backend};
 
     use super::*;
     use crate::tests::{TestBackend, TestBackend1, TestBackend2};

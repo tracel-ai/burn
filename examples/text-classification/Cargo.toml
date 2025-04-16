@@ -18,8 +18,9 @@ tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 vulkan = ["burn/vulkan", "burn/default"]
 remote = ["burn/remote"]
-cuda = ["burn/cuda"]
+cuda = ["burn/cuda", "burn/compilation-cache"]
 hip = ["burn/hip"]
+metal = ["burn/metal"]
 
 [dependencies]
 # Burn
@@ -34,7 +35,7 @@ burn = { path = "../../crates/burn", features = [
 ], default-features = false }
 
 # Tokenizer
-tokenizers = { version = "0.21.0", default-features = false, features = [
+tokenizers = { version = "0.21.1", default-features = false, features = [
   "onig",
   "http",
 ] }

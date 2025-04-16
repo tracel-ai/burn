@@ -1,9 +1,9 @@
 use crate::tensor::CubeTensor;
 use crate::{CubeElement, CubeRuntime, IntElement};
+use burn_tensor::Shape;
 use burn_tensor::quantization::{
     BlockLayout, QuantizationMode, QuantizationScheme, QuantizationType,
 };
-use burn_tensor::Shape;
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 
@@ -103,13 +103,13 @@ fn quantize_per_tensor_affine_int8_kernel(
 
     // Cast the scale to u32 and write the value in the output
     if ABSOLUTE_POS == output.len() - 1 {
-        output[ABSOLUTE_POS] = u32::bitcast_from(scale);
+        output[ABSOLUTE_POS] = u32::reinterpret(scale);
         terminate!();
     }
 
     // Cast the offset to u32 and write the value in the output
     if ABSOLUTE_POS == output.len() - 2 {
-        output[ABSOLUTE_POS] = u32::bitcast_from(offset);
+        output[ABSOLUTE_POS] = u32::reinterpret(offset);
         terminate!();
     }
 
@@ -146,7 +146,7 @@ fn quantize_per_tensor_symmetric_int8_kernel(
 
     // Cast the scale to u32 and write the value in the output
     if ABSOLUTE_POS == output.len() - 1 {
-        output[ABSOLUTE_POS] = u32::bitcast_from(scale);
+        output[ABSOLUTE_POS] = u32::reinterpret(scale);
         terminate!();
     }
 
@@ -182,7 +182,7 @@ fn quantize_per_block_flat_symmetric_int8_kernel(
     // Cast the scale to u32 and write the value in the output
     if ABSOLUTE_POS >= output.len() - num_blocks {
         let scale_idx = num_blocks - (output.len() - ABSOLUTE_POS);
-        output[ABSOLUTE_POS] = u32::bitcast_from(scale[scale_idx]);
+        output[ABSOLUTE_POS] = u32::reinterpret(scale[scale_idx]);
         terminate!();
     }
 
@@ -213,14 +213,14 @@ fn quantize_per_block_flat_affine_int8_kernel(
     // Cast the scale to u32 and write the value in the output
     if ABSOLUTE_POS >= output.len() - num_blocks {
         let scale_idx = num_blocks - (output.len() - ABSOLUTE_POS);
-        output[ABSOLUTE_POS] = u32::bitcast_from(scale[scale_idx]);
+        output[ABSOLUTE_POS] = u32::reinterpret(scale[scale_idx]);
         terminate!();
     }
 
     // Cast the offset to u32 and write the value in the output
     if ABSOLUTE_POS >= output.len() - 2 * num_blocks {
         let offset_idx = 2 * num_blocks - (output.len() - ABSOLUTE_POS);
-        output[ABSOLUTE_POS] = u32::bitcast_from(offset[offset_idx]);
+        output[ABSOLUTE_POS] = u32::reinterpret(offset[offset_idx]);
         terminate!();
     }
 
@@ -364,7 +364,9 @@ where
             BlockLayout::Flat(block_size),
         ) => {
             if line_size != 4 {
-                panic!("Per-block quantization is only supported for a line size of 4, got {line_size} ({num_elems} elements)")
+                panic!(
+                    "Per-block quantization is only supported for a line size of 4, got {line_size} ({num_elems} elements)"
+                )
             }
 
             if block_size % line_size as u32 != 0 {

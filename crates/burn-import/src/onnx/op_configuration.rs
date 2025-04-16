@@ -1,11 +1,11 @@
 use burn::nn::{
+    BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
+    PaddingConfig2d, PaddingConfig3d,
     conv::{
         Conv1dConfig, Conv2dConfig, Conv3dConfig, ConvTranspose1dConfig, ConvTranspose2dConfig,
         ConvTranspose3dConfig,
     },
     pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
-    BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
-    PaddingConfig2d, PaddingConfig3d,
 };
 
 use crate::burn::node::{
@@ -523,9 +523,9 @@ pub fn expand_config(node: &Node) -> ExpandShape {
 }
 
 /// Create a FlattenConfig from the attributes of the node
-pub fn flatten_config(curr: &Node) -> (usize, usize) {
+pub fn flatten_config(curr: &Node) -> usize {
     // the begin dimension is the first dimension (Default: 1 per ONNX spec)
-    let mut start_dim: i64 = 1;
+    let mut axis: i64 = 1;
 
     // check if the node has only one input
     if curr.inputs.len() != 1 {
@@ -549,23 +549,20 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
         );
     }
 
-    // the end dimension is the last dimension
-    let end_dim = tensor.rank - 1;
-
     // extract the attributes
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
-            "axis" => start_dim = value.clone().into_i64(),
+            "axis" => axis = value.clone().into_i64(),
             _ => {}
         }
     }
 
     // if beg_dim is negative, it is counted from the end
-    if start_dim < 0 {
-        start_dim += tensor.rank as i64;
+    if axis < 0 {
+        axis += tensor.rank as i64;
     }
 
-    (start_dim as usize, end_dim)
+    axis as usize
 }
 
 /// Create a GatherConfig from the attributes of the node
@@ -1035,7 +1032,9 @@ pub fn pad_config(node: &Node) -> PadConfig {
 
         for (index, &item) in pads.iter().enumerate() {
             if !index_list.contains(&index) && item != 0 {
-                panic!("Pad: padding will only be applied to the last two dimensions but found non zero padding for other dimensions");
+                panic!(
+                    "Pad: padding will only be applied to the last two dimensions but found non zero padding for other dimensions"
+                );
             }
         }
 
@@ -1898,7 +1897,9 @@ pub fn split_config(node: &Node) -> SplitConfig {
             dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
 
         if calculated_split_size == 0 {
-            panic!("Split: Calculated split size is zero. Please ensure 'num_outputs' is valid for the dimension size");
+            panic!(
+                "Split: Calculated split size is zero. Please ensure 'num_outputs' is valid for the dimension size"
+            );
         }
 
         // Assign the calculated split size
@@ -1945,7 +1946,9 @@ pub fn split_config(node: &Node) -> SplitConfig {
             dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
 
         if calculated_split_size == 0 {
-            panic!("Split: Inferred split size is zero. Please ensure the number of outputs is valid for the dimension size");
+            panic!(
+                "Split: Inferred split size is zero. Please ensure the number of outputs is valid for the dimension size"
+            );
         }
 
         split_size = Some(calculated_split_size);
@@ -1981,4 +1984,29 @@ pub fn one_hot_config(curr: &Node) -> (usize, [f32; 2], i64) {
         .unwrap_or(-1);
 
     (depth as usize, values.try_into().unwrap(), axis)
+}
+
+pub fn gemm_config(curr: &Node) -> (f32, f32, i64, i64) {
+    let alpha = curr
+        .attrs
+        .get("alpha")
+        .map(|val| val.clone().into_f32())
+        .unwrap_or(1.0);
+    let beta = curr
+        .attrs
+        .get("beta")
+        .map(|val| val.clone().into_f32())
+        .unwrap_or(1.0);
+    let trans_a = curr
+        .attrs
+        .get("transA")
+        .map(|val| val.clone().into_i64())
+        .unwrap_or(0);
+    let trans_b = curr
+        .attrs
+        .get("transB")
+        .map(|val| val.clone().into_i64())
+        .unwrap_or(0);
+
+    (alpha, beta, trans_a, trans_b)
 }

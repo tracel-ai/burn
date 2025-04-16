@@ -1,9 +1,12 @@
 #[cfg(feature = "autotune")]
 use super::{autotune_reduce, autotune_sum};
-use crate::{element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
+use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
 use burn_tensor::Shape;
 pub use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
-use cubecl::reduce::shared_sum;
+use cubecl::reduce::{
+    instructions::{ReduceFn, ReduceFnConfig},
+    shared_sum,
+};
 
 /// Specialize reduce function to compute the sum of all elements of the `input` tensor and return
 /// the value into a single-element tensor of shape `1 x 1 x 1 x ...` with the same rank as `input`.
@@ -32,7 +35,9 @@ pub fn sum<Run: CubeRuntime, E: CubeElement>(
 
             Ok(output)
         }
-        SumStrategy::Chained(strategy) => reduce::<Run, E, E, Sum>(tensor, strategy),
+        SumStrategy::Chained(strategy) => {
+            reduce::<Run, E, E>(tensor, strategy, ReduceFnConfig::Sum)
+        }
         #[cfg(feature = "autotune")]
         SumStrategy::Autotune => Ok(autotune_sum::<Run, E>(&client, tensor)),
     }
@@ -66,15 +71,16 @@ impl Default for SumStrategy {
 ///
 /// If there is no error, the output is a tensor with decreasing strides
 /// where the shape of reduced dim is set to 1 but all shape are similar to the input.
-pub fn reduce<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Rd: cubecl::reduce::Reduce>(
+pub fn reduce<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
     mut tensor: CubeTensor<Run>,
     strategy: ReduceStrategy,
+    config: ReduceFnConfig,
 ) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
     // In practice, it looks like starting by the axis with the smallest shape
     // and going in increasing order lead to the fastest calculation.
     let sorted_axis = argsort(&tensor.shape.dims);
     for axis in sorted_axis {
-        tensor = reduce_dim::<Run, In, Out, Rd>(tensor, axis, strategy)?;
+        tensor = reduce_dim::<Run, In, Out>(tensor, axis, strategy, config)?;
     }
     // reshape to scalar tensor
     tensor.shape = Shape::new([1]);
@@ -95,15 +101,11 @@ fn argsort(shape: &[usize]) -> Vec<usize> {
 ///
 /// If there is no error, the output is a tensor with decreasing strides
 /// where the shape of reduced dim is set to 1 but all shape are similar to the input.
-pub fn reduce_dim<
-    Run: CubeRuntime,
-    In: CubeElement,
-    Out: CubeElement,
-    Rd: cubecl::reduce::Reduce,
->(
+pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
     input: CubeTensor<Run>,
     dim: usize,
     strategy: ReduceStrategy,
+    config: ReduceFnConfig,
 ) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
     let client = input.client.clone();
     let output = init_reduce_output::<Run, In, Out>(&input, dim).ok_or(
@@ -113,23 +115,25 @@ pub fn reduce_dim<
         },
     )?;
     let result = match strategy {
-        ReduceStrategy::Unspecified => cubecl::reduce::reduce::<Run, In, Out, Rd>(
+        ReduceStrategy::Unspecified => cubecl::reduce::reduce::<Run, In, Out, ReduceFn>(
             &client,
             input.as_handle_ref(),
             output.as_handle_ref(),
             dim,
             None,
+            config,
         ),
-        ReduceStrategy::Specific(strategy) => cubecl::reduce::reduce::<Run, In, Out, Rd>(
+        ReduceStrategy::Specific(strategy) => cubecl::reduce::reduce::<Run, In, Out, ReduceFn>(
             &client,
             input.as_handle_ref(),
             output.as_handle_ref(),
             dim,
             Some(strategy),
+            config,
         ),
         #[cfg(feature = "autotune")]
         ReduceStrategy::Autotune => {
-            autotune_reduce::<Run, In, Out, Rd>(&client, input, output.clone(), dim);
+            autotune_reduce::<Run, In, Out, ReduceFn>(&client, input, output.clone(), dim, config);
             Ok(())
         }
     };

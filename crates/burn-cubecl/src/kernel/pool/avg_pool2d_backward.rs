@@ -1,10 +1,13 @@
 use crate::{
-    element::CubeElement, kernel::into_contiguous, ops::numeric::empty_device, tensor::CubeTensor,
     CubeRuntime,
+    element::CubeElement,
+    ops::{max_vectorization, numeric::empty_device, permute},
+    tensor::CubeTensor,
 };
+use burn_tensor::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 pub(crate) struct PoolBackwardArgs {
     pub stride_0: i32,
     pub stride_1: i32,
@@ -16,8 +19,8 @@ pub(crate) struct PoolBackwardArgs {
 
 #[cube(launch_unchecked)]
 fn avg_pool2d_backward_kernel<E: Numeric>(
-    grad: &Tensor<E>,
-    output: &mut Tensor<E>,
+    grad: &Tensor<Line<E>>,
+    output: &mut Tensor<Line<E>>,
     args: &PoolBackwardArgs,
     #[comptime] kernel_size_0: i32,
     #[comptime] kernel_size_1: i32,
@@ -27,18 +30,23 @@ fn avg_pool2d_backward_kernel<E: Numeric>(
         terminate!();
     }
 
-    let batch = ABSOLUTE_POS / output.stride(0) % output.shape(0);
-    let channel = ABSOLUTE_POS / output.stride(1) % output.shape(1);
-    let ih = ABSOLUTE_POS / output.stride(2) % output.shape(2);
-    let iw = ABSOLUTE_POS / output.stride(3) % output.shape(3);
+    let line_size = grad.line_size();
 
-    let mut grad_acc = E::from_int(0);
+    let channel_lines = output.shape(3) / line_size;
+    let channel = (ABSOLUTE_POS % channel_lines) * output.line_size();
+    let pos = ABSOLUTE_POS / channel_lines;
+    let iw = pos % output.shape(2);
+    let pos = pos / output.shape(2);
+    let ih = pos % output.shape(1);
+    let batch = pos / output.shape(1);
+
+    let mut grad_acc = Line::empty(grad.line_size()).fill(E::from_int(0));
 
     let (oh_start, oh_end, ow_start, ow_end) = loop_ranges(
         ih as i32,
         iw as i32,
+        grad.shape(1),
         grad.shape(2),
-        grad.shape(3),
         args,
         kernel_size_0,
         kernel_size_1,
@@ -51,9 +59,9 @@ fn avg_pool2d_backward_kernel<E: Numeric>(
     let kernel_size_0 = comptime![kernel_size_0 as u32];
     let kernel_size_1 = comptime![kernel_size_1 as u32];
 
-    let index_base = batch * grad.stride(0) + channel * grad.stride(1);
-    let border_bottom = output.shape(2) + padding_0;
-    let border_right = output.shape(3) + padding_1;
+    let index_base = batch * grad.stride(0) + channel * grad.stride(3);
+    let border_bottom = output.shape(1) + padding_0;
+    let border_right = output.shape(2) + padding_1;
     let begin_h = ih + padding_0;
     let begin_w = iw + padding_1;
 
@@ -64,7 +72,7 @@ fn avg_pool2d_backward_kernel<E: Numeric>(
 
         if begin_h >= ih_start && ih < ih_end {
             for ow in ow_start..ow_end {
-                let index = index_base + oh * grad.stride(2) + ow * grad.stride(3);
+                let index = index_base + oh * grad.stride(1) + ow * grad.stride(2);
 
                 let iw_start = ow * stride_1;
                 let iw_end = Min::min(iw_start + kernel_size_1, border_right);
@@ -72,12 +80,13 @@ fn avg_pool2d_backward_kernel<E: Numeric>(
 
                 if begin_w >= iw_start && iw < iw_end {
                     if count_include_pad {
-                        grad_acc += grad[index] / E::cast_from(kernel_size_0 * kernel_size_1);
+                        grad_acc += grad[index / line_size]
+                            / Line::cast_from(kernel_size_0 * kernel_size_1);
                     } else {
                         let ih_diff = ih_end - ih_start;
                         let iw_diff = iw_end - iw_start;
-                        let count = E::cast_from(ih_diff * iw_diff);
-                        grad_acc += grad[index] / count;
+                        let count = Line::cast_from(ih_diff * iw_diff);
+                        grad_acc += grad[index / line_size] / count;
                     }
                 }
             }
@@ -116,20 +125,31 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
     padding: [usize; 2],
     count_include_pad: bool,
 ) -> CubeTensor<R> {
-    let grad = into_contiguous(grad);
+    let [batches, channels, height, width] = x.shape.dims();
+
+    let grad = permute(grad, &[0, 2, 3, 1]);
+
+    let line_size = if x.strides[3] == grad.strides[3] {
+        max_vectorization(&x)
+    } else {
+        1
+    };
+
     let dilation = 1;
 
-    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), x.shape.clone());
+    let out_shape = Shape::new([batches, height, width, channels]);
+    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), out_shape);
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let cube_count =
+        calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
     unsafe {
         avg_pool2d_backward_kernel::launch_unchecked::<E, R>(
             &grad.client,
             cube_count,
             cube_dim,
-            grad.as_tensor_arg::<E>(1),
-            output.as_tensor_arg::<E>(1),
+            grad.as_tensor_arg::<E>(line_size),
+            output.as_tensor_arg::<E>(line_size),
             PoolBackwardArgsLaunch::new(
                 ScalarArg::new(stride[0] as i32),
                 ScalarArg::new(stride[1] as i32),
@@ -144,5 +164,5 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
         )
     };
 
-    output
+    permute(output, &[0, 3, 1, 2])
 }

@@ -1,19 +1,18 @@
 use burn_tensor::{
-    ops::{conv::calculate_conv_transpose_output_size, ConvTransposeOptions},
     Shape,
+    ops::{ConvTransposeOptions, conv::calculate_conv_transpose_output_size},
 };
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, linalg::convolution::ConvLaunchError, prelude::*};
 
 use crate::{
+    CubeElement, CubeRuntime, FloatElement,
     kernel::{
-        conv::ConvLaunchError,
         into_contiguous,
-        matmul::{matmul, MatmulStrategy},
+        matmul::{MatmulStrategy, matmul},
         slice,
     },
     ops::{numeric::empty_device, reshape, swap_dims},
     tensor::CubeTensor,
-    CubeElement, CubeRuntime, FloatElement,
 };
 
 use super::batches_per_run;
@@ -61,8 +60,7 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime, E: FloatElement>(
     );
     let im_channels = im_ch_per_group * groups;
 
-    let batches_per_run = batches_per_run(batch_size, input_h, input_w)
-        .expect("Image too large to run even one batch at once");
+    let batches_per_run = batches_per_run(batch_size, input_h, input_w)?;
     let col_shape_0 = im_ch_per_group * kernel_h * kernel_w;
 
     let weight = reshape(
@@ -217,7 +215,7 @@ fn col2im<R: CubeRuntime, E: FloatElement>(
     };
 }
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, CubeType)]
 struct Col2ImArgs {
     out_h: u32,
     out_w: u32,
@@ -260,13 +258,13 @@ fn col2im_kernel<F: Float>(
     let x_col_start = if im_x >= kernel_extent_w {
         (im_x - kernel_extent_w) / args.stride_w + 1
     } else {
-        0u32
+        0u32.runtime()
     };
     let x_col_end = Min::min(im_x / args.stride_w + 1, args.out_w);
     let y_col_start = if im_y >= kernel_extent_h {
         (im_y - kernel_extent_h) / args.stride_h + 1
     } else {
-        0u32
+        0u32.runtime()
     };
     let y_col_end = Min::min(im_y / args.stride_h + 1, args.out_h);
 

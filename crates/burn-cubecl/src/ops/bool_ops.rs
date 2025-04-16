@@ -1,7 +1,7 @@
 use crate::{
+    CubeBackend, CubeRuntime, FloatElement, IntElement,
     element::BoolElement,
     kernel::{self, AndOp, OrOp},
-    CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, Device, FloatTensor, IntTensor};
 use burn_tensor::{Shape, TensorData};

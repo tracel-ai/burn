@@ -6,10 +6,10 @@ use crate::config::Config;
 use crate::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param};
 use crate::nn::Initializer;
 use crate::nn::PaddingConfig3d;
+use crate::tensor::Tensor;
 use crate::tensor::backend::Backend;
 use crate::tensor::module::conv3d;
 use crate::tensor::ops::ConvOptions;
-use crate::tensor::Tensor;
 
 use crate::nn::conv::checks;
 
@@ -166,8 +166,8 @@ impl<B: Backend> Conv3d<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
 
     #[test]
     fn initializer_default() {
@@ -248,5 +248,15 @@ mod tests {
             alloc::format!("{}", conv),
             "Conv3d {stride: [1, 1, 1], kernel_size: [5, 5, 5], dilation: [1, 1, 1], groups: 1, padding: Valid, params: 626}"
         );
+    }
+
+    #[test]
+    #[should_panic = "Number of channels in input tensor and input channels of convolution must be equal. got: 4, expected: 5"]
+    fn input_channels_mismatch() {
+        let config = Conv3dConfig::new([5, 3], [3, 3, 3]);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        let input = Tensor::<TestBackend, 5>::zeros([1, 4, 10, 10, 10], &Default::default());
+        let _ = conv.forward(input);
     }
 }

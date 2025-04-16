@@ -10,8 +10,8 @@ use spin::Mutex;
 
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::{
-    backend::{DeviceId, DeviceOps},
     DType, FloatDType, TensorData,
+    backend::{DeviceId, DeviceOps},
 };
 
 use crate::{RouterTensor, RunnerChannel};
@@ -43,7 +43,7 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     /// Drop the tensor with the given [tensor id](TensorId).
     fn register_orphan(&self, id: &TensorId);
     /// Sync the runner, ensure that all computations are finished.
-    fn sync(&self) -> impl Future<Output = ()> + Send + 'static;
+    fn sync(&self) -> impl Future<Output = ()> + Send;
     /// Seed the runner.
     fn seed(&self, seed: u64);
 }

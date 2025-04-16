@@ -1,9 +1,9 @@
 use crate::tensor::CubeTensor;
 use crate::{CubeElement, CubeRuntime};
+use burn_tensor::DType;
 use burn_tensor::quantization::{
     BlockLayout, QuantizationMode, QuantizationScheme, QuantizationType,
 };
-use burn_tensor::DType;
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 
@@ -33,7 +33,7 @@ fn extract_i8(value: u32, offset: u32) -> i32 {
 
 #[cube]
 fn unpack_i8s(value: u32) -> Line<i32> {
-    let mut line = Line::empty(4);
+    let mut line = Line::empty(4_u32);
     // Extract each 8-bit segment
     line[0] = extract_i8(value, 0);
     line[1] = extract_i8(value, 8);

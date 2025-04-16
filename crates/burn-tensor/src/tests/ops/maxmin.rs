@@ -69,38 +69,6 @@ mod tests {
     }
 
     #[test]
-    fn test_sum_dim_2d() {
-        let tensor =
-            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
-
-        let output = tensor.clone().sum_dim(1);
-        let expected = TensorData::from([[3.], [12.]]);
-
-        output.into_data().assert_eq(&expected, false);
-
-        let output = tensor.sum_dim(0);
-        let expected = TensorData::from([[3., 5., 7.]]);
-
-        output.into_data().assert_eq(&expected, false);
-    }
-
-    #[test]
-    fn test_mean_dim_2d() {
-        let tensor =
-            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
-
-        let output = tensor.clone().mean_dim(1);
-        let expected = TensorData::from([[1.], [4.]]);
-
-        output.into_data().assert_approx_eq(&expected, 3);
-
-        let output = tensor.mean_dim(0);
-        let expected = TensorData::from([[1.5, 2.5, 3.5]]);
-
-        output.into_data().assert_approx_eq(&expected, 3);
-    }
-
-    #[test]
     fn test_min_dim_2d_with_0th_dim() {
         let tensor =
             TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());

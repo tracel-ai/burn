@@ -1,9 +1,9 @@
 use crate::kernel::{
-    launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int, AddOp,
-    BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
+    AddOp, BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
+    launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int,
 };
-use crate::{element::CubeElement, tensor::CubeTensor};
 use crate::{CubeRuntime, FloatElement, IntElement};
+use crate::{element::CubeElement, tensor::CubeTensor};
 use burn_tensor::{ElementConversion, Shape};
 use cubecl::client::ComputeClient;
 use cubecl::tensor_vectorization_factor;
@@ -99,6 +99,17 @@ pub fn empty_device<R: CubeRuntime, E: CubeElement>(
     let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
 
     CubeTensor::new_contiguous(client, device, shape, buffer, E::dtype())
+}
+
+/// Create a tensor with uninitialized memory
+pub fn empty_device_strided<R: CubeRuntime, E: CubeElement>(
+    client: ComputeClient<R::Server, R::Channel>,
+    device: R::Device,
+    shape: Shape,
+) -> CubeTensor<R> {
+    let (handle, strides) = client.empty_tensor(&shape.dims, size_of::<E>());
+
+    CubeTensor::new(client, handle, shape, device, strides, E::dtype())
 }
 
 /// Add two tensors

@@ -13,6 +13,7 @@ use log::warn;
 
 use crate::{
     burn::{
+        ScalarKind, ScalarType, ShapeType, TensorKind, TensorType, Type,
         graph::BurnGraph,
         node::{
             argmax::ArgMaxNode,
@@ -24,17 +25,18 @@ use crate::{
             concat::ConcatNode,
             constant::{ConstantNode, ConstantValue},
             constant_of_shape::ConstantOfShapeNode,
-            conv1d::Conv1dNode,
-            conv2d::Conv2dNode,
-            conv3d::Conv3dNode,
             conv_transpose_1d::ConvTranspose1dNode,
             conv_transpose_2d::ConvTranspose2dNode,
             conv_transpose_3d::ConvTranspose3dNode,
+            conv1d::Conv1dNode,
+            conv2d::Conv2dNode,
+            conv3d::Conv3dNode,
             dropout::DropoutNode,
             expand::ExpandNode,
             floor::FloorNode,
             gather::GatherNode,
             gather_elements::GatherElementsNode,
+            gemm::GemmNode,
             global_avg_pool::GlobalAvgPoolNode,
             layer_norm::LayerNormNode,
             linear::LinearNode,
@@ -62,7 +64,6 @@ use crate::{
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
         },
-        ScalarKind, ScalarType, ShapeType, TensorKind, TensorType, Type,
     },
     format_tokens,
     logger::init_log,
@@ -70,9 +71,9 @@ use crate::{
 
 use super::op_configuration::{
     argmax_config, avg_pool1d_config, avg_pool2d_config, batch_norm_config, clip_config,
-    concat_config, conv1d_config, conv2d_config, conv3d_config, conv_transpose1d_config,
-    conv_transpose2d_config, conv_transpose3d_config, dropout_config, expand_config,
-    flatten_config, gather_config, hard_sigmoid_config, layer_norm_config, leaky_relu_config,
+    concat_config, conv_transpose1d_config, conv_transpose2d_config, conv_transpose3d_config,
+    conv1d_config, conv2d_config, conv3d_config, dropout_config, expand_config, flatten_config,
+    gather_config, gemm_config, hard_sigmoid_config, layer_norm_config, leaky_relu_config,
     linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, one_hot_config,
     pad_config, reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
     reduce_sum_config, reshape_config, resize_config, shape_config, slice_config, softmax_config,
@@ -170,7 +171,7 @@ impl ModelGen {
     /// # Arguments
     ///
     /// * `embed_states` - If true, states are embedded in the generated code. Otherwise, states are
-    ///    saved as a separate file.
+    ///   saved as a separate file.
     pub fn embed_states(&mut self, embed_states: bool) -> &mut Self {
         self.embed_states = embed_states;
         self
@@ -284,6 +285,7 @@ impl ParsedOnnxGraph {
                 NodeType::Floor => graph.register(Self::floor_conversion(node)),
                 NodeType::Clip => graph.register(Self::clip_conversion(node)),
                 NodeType::Cos => graph.register(Self::cos_conversion(node)),
+                NodeType::Cosh => graph.register(Self::cosh_conversion(node)),
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
                 NodeType::Conv3d => graph.register(Self::conv3d_conversion::<PS>(node)),
@@ -336,6 +338,7 @@ impl ParsedOnnxGraph {
                 NodeType::Shape => graph.register(Self::shape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Sin => graph.register(Self::sin_conversion(node)),
+                NodeType::Sinh => graph.register(Self::sinh_conversion(node)),
                 NodeType::Slice => graph.register(Self::slice_conversion(node)),
                 NodeType::Sum => graph.register(Self::sum_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
@@ -375,6 +378,7 @@ impl ParsedOnnxGraph {
                     graph.register(Self::constant_of_shape_conversion(node))
                 }
                 NodeType::Split => graph.register(Self::split_conversion(node)),
+                NodeType::Gemm => graph.register(Self::gemm_conversion(node)),
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -692,9 +696,9 @@ impl ParsedOnnxGraph {
     fn flatten_conversion(node: Node) -> UnaryNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        let (start_dim, end_dim) = flatten_config(&node);
+        let axis = flatten_config(&node);
 
-        UnaryNode::flatten(input, output, start_dim, end_dim)
+        UnaryNode::flatten(input, output, axis)
     }
 
     fn gather_conversion(node: Node) -> GatherNode {
@@ -866,6 +870,13 @@ impl ParsedOnnxGraph {
         let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::sin(input, output)
+    }
+
+    fn sinh_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        UnaryNode::sinh(input, output)
     }
 
     fn slice_conversion(node: Node) -> SliceNode {
@@ -1181,6 +1192,13 @@ impl ParsedOnnxGraph {
         UnaryNode::cos(input, output)
     }
 
+    fn cosh_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        UnaryNode::cosh(input, output)
+    }
+
     fn exp_conversion(node: Node) -> UnaryNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
@@ -1325,6 +1343,15 @@ impl ParsedOnnxGraph {
         let output = TensorType::from(node.outputs.first().unwrap());
 
         FloorNode::new(input, output)
+    }
+
+    fn gemm_conversion(node: Node) -> GemmNode {
+        let a = TensorType::from(node.inputs.first().unwrap());
+        let b = TensorType::from(node.inputs.get(1).unwrap());
+        let c = node.inputs.get(2).map(Type::from);
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let (alpha, beta, trans_a, trans_b) = gemm_config(&node);
+        GemmNode::new(a, b, c, output, alpha, beta, trans_a, trans_b)
     }
 }
 

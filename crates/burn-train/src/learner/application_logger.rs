@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use tracing_core::{Level, LevelFilter};
 use tracing_subscriber::filter::filter_fn;
 use tracing_subscriber::prelude::*;
-use tracing_subscriber::{registry, Layer};
+use tracing_subscriber::{Layer, registry};
 
 /// This trait is used to install an application logger.
 pub trait ApplicationLoggerInstaller {
@@ -55,7 +55,7 @@ impl ApplicationLoggerInstaller for FileApplicationLoggerInstaller {
         let file_path = self.path.to_owned();
 
         std::panic::set_hook(Box::new(move |info| {
-            log::error!("PANIC => {}", info.to_string());
+            log::error!("PANIC => {}", info);
             eprintln!(
                 "=== PANIC ===\nA fatal error happened, you can check the experiment logs here => \
                     '{}'\n=============",

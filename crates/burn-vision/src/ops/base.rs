@@ -1,12 +1,12 @@
 use crate::{
-    backends::cpu::{self, morph, MorphOp},
     Point,
+    backends::cpu::{self, MorphOp, morph},
 };
 use bon::Builder;
 use burn_tensor::{
+    Bool, Float, Int, Tensor, TensorKind, TensorPrimitive,
     backend::Backend,
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
-    Bool, Float, Int, Tensor, TensorKind, TensorPrimitive,
 };
 
 /// Connected components connectivity

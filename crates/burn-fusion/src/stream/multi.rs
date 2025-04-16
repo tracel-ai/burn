@@ -1,9 +1,9 @@
 use burn_ir::{HandleContainer, OperationIr, TensorIr};
 
 use super::{
+    OperationQueue, StreamId,
     execution::{ExecutionMode, Operation, Processor, StreamSegment},
     store::{ExecutionPlanId, ExecutionPlanStore},
-    OperationQueue, StreamId,
 };
 use crate::FusionRuntime;
 use std::collections::HashMap;

@@ -1,6 +1,6 @@
 use crate::{
-    stream::{execution::Operation, MultiStream, StreamId},
     FusionBackend, FusionRuntime,
+    stream::{MultiStream, StreamId, execution::Operation},
 };
 use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr};
 use std::{future::Future, sync::Arc};

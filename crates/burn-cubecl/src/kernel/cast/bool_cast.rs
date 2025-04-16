@@ -1,5 +1,5 @@
-use crate::{tensor::CubeTensor, BoolElement, CubeElement, CubeRuntime};
-use cubecl::{calculate_cube_count_elemwise, prelude::*, CubeDim};
+use crate::{BoolElement, CubeElement, CubeRuntime, kernel::into_contiguous, tensor::CubeTensor};
+use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch)]
 fn bool_cast_kernel<B: Numeric, T: Numeric>(input: &Tensor<B>, output: &mut Tensor<T>) {
@@ -19,6 +19,7 @@ fn bool_cast_kernel<B: Numeric, T: Numeric>(input: &Tensor<B>, output: &mut Tens
 pub fn bool_cast<R: CubeRuntime, BT: BoolElement, EO: CubeElement>(
     tensor: CubeTensor<R>,
 ) -> CubeTensor<R> {
+    let tensor = into_contiguous(tensor);
     let num_elems = tensor.shape.num_elements();
     let buffer = tensor.client.empty(num_elems * core::mem::size_of::<EO>());
     let output = CubeTensor::new_contiguous(

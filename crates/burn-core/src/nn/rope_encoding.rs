@@ -1,9 +1,9 @@
 use crate as burn;
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use crate::tensor::backend::Backend;
 use crate::tensor::Int;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 use alloc::vec;
 
 #[cfg(not(feature = "std"))]
@@ -155,8 +155,8 @@ impl<B: Backend> RotaryEncoding<B> {
     ///
     /// Arguments:
     /// * `x` - Input tensor of shape (..., seq_len, d_model). Accommodate both 3D and 4D tensors
-    ///    for (batch size, seq_len, hidden_dim) or (batch size, num_heads, seq_len, hidden_dim)
-    ///    respectively.
+    ///   for (batch size, seq_len, hidden_dim) or (batch size, num_heads, seq_len, hidden_dim)
+    ///   respectively.
     ///
     /// Returns:
     /// * Output tensor with the same shape as input tensor after applying rotary encoding.
@@ -170,8 +170,8 @@ impl<B: Backend> RotaryEncoding<B> {
     ///
     /// Arguments:
     /// * `x` - Input tensor of shape (..., seq_len, d_model). Accommodate both 3D and 4D tensors
-    ///    for (batch size, seq_len, hidden_dim) or (batch size, num_heads, seq_len, hidden_dim)
-    ///    respectively.
+    ///   for (batch size, seq_len, hidden_dim) or (batch size, num_heads, seq_len, hidden_dim)
+    ///   respectively.
     /// * `start` - Sequence start position index.
     ///
     /// Returns:

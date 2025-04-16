@@ -1,10 +1,10 @@
+use crate::Tensor;
 use crate::check::TensorCheck;
 use crate::quantization::{QuantizationParameters, QuantizationScheme};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
-use crate::Tensor;
-use crate::{check, FloatDType};
+use crate::{FloatDType, check};
 use crate::{Int, TensorPrimitive};
 
 impl<const D: usize, B> Tensor<B, D>
@@ -65,7 +65,10 @@ where
         )))
     }
 
-    /// Applies element wise reciprocal operation.
+    /// Applies [reciprocal operation](https://en.wikipedia.org/wiki/Multiplicative_inverse)
+    /// (or multiplicative inverse) element wise.
+    ///
+    /// `y = 1/x`
     pub fn recip(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_recip(
             self.primitive.tensor(),
@@ -96,6 +99,20 @@ where
     /// Applies element wise tangent operation.
     pub fn tan(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_tan(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise hyperbolic cosine operation.
+    pub fn cosh(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_cosh(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise hyperbolic sine operation.
+    pub fn sinh(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_sinh(
             self.primitive.tensor(),
         )))
     }
@@ -187,10 +204,15 @@ where
     /// If the two tensors don't have a compatible shape.
     pub fn matmul(self, other: Self) -> Self {
         check!(TensorCheck::matmul(&self, &other));
-        Self::new(TensorPrimitive::Float(B::float_matmul(
-            self.primitive.tensor(),
-            other.primitive.tensor(),
-        )))
+        match (self.primitive, other.primitive) {
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
+                Self::new(TensorPrimitive::QFloat(B::q_matmul(lhs, rhs)))
+            }
+            (lhs, rhs) => Self::new(TensorPrimitive::Float(B::float_matmul(
+                lhs.tensor(),
+                rhs.tensor(),
+            ))),
+        }
     }
 
     /// Calculate the variance along the given dimension.

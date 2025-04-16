@@ -1,17 +1,17 @@
 use burn_tensor::{
+    Shape,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
         IntTensor, InterpolateMode, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
         ModuleOps, UnfoldOptions,
     },
-    Shape,
 };
 use candle_core::ToUsize2;
 
 use crate::{
+    Candle, CandleTensor,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
     ops::base::reshape,
-    Candle, CandleTensor,
 };
 
 impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I> {

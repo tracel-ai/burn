@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_conv3d)]
 mod tests {
     use super::*;
-    use burn_tensor::{module::conv3d, ops::ConvOptions, Shape};
+    use burn_tensor::{Shape, module::conv3d, ops::ConvOptions};
 
     #[test]
     fn test_conv3d_basic() {

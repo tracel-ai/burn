@@ -1,12 +1,12 @@
 use std::ops::Range;
 
 use burn_tensor::{
+    Distribution, Shape, TensorData, TensorMetadata,
     backend::Backend,
     ops::{IntTensor, IntTensorOps},
-    Distribution, Shape, TensorData, TensorMetadata,
 };
 
-use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor};
+use crate::{LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor, element::TchElement};
 
 use super::TchOps;
 

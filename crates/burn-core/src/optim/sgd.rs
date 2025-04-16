@@ -2,9 +2,9 @@ use crate::grad_clipping::GradientClippingConfig;
 use crate::module::AutodiffModule;
 use crate::{self as burn, LearningRate};
 
+use super::SimpleOptimizer;
 use super::decay::{WeightDecay, WeightDecayConfig};
 use super::momentum::{Momentum, MomentumConfig, MomentumState};
-use super::SimpleOptimizer;
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
 use crate::record::Record;
@@ -99,11 +99,11 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
 mod tests {
     use super::*;
     use crate::{
+        TestAutodiffBackend, TestBackend,
         grad_clipping::GradientClipping,
         nn::{Linear, LinearConfig},
         optim::{GradientsParams, Optimizer},
         tensor::{Distribution, Shape},
-        TestAutodiffBackend, TestBackend,
     };
 
     const LEARNING_RATE: LearningRate = 0.02;
@@ -164,8 +164,8 @@ mod tests {
         LinearConfig::new(20, 20).with_bias(true).init(device)
     }
 
-    fn sgd_with_all(
-    ) -> OptimizerAdaptor<Sgd<TestBackend>, Linear<TestAutodiffBackend>, TestAutodiffBackend> {
+    fn sgd_with_all()
+    -> OptimizerAdaptor<Sgd<TestBackend>, Linear<TestAutodiffBackend>, TestAutodiffBackend> {
         SgdConfig {
             weight_decay: Some(WeightDecayConfig { penalty: 0.05 }),
             momentum: Some(MomentumConfig {

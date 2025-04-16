@@ -1,6 +1,6 @@
 use crate::metric::TopKAccuracyInput;
 use crate::metric::{
-    processor::ItemLazy, AccuracyInput, Adaptor, ConfusionStatsInput, HammingScoreInput, LossInput,
+    AccuracyInput, Adaptor, ConfusionStatsInput, HammingScoreInput, LossInput, processor::ItemLazy,
 };
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor, Transaction};

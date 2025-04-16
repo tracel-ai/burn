@@ -1,12 +1,12 @@
 use std::marker::PhantomData;
 
-use burn_tensor::{backend::Backend, Element, Shape, TensorData, TensorMetadata};
+use burn_tensor::{Element, Shape, TensorData, TensorMetadata, backend::Backend};
 use candle_core::WithDType;
 use half::{bf16, f16};
 
 use crate::{
-    element::{CandleElement, FloatCandleElement, IntCandleElement},
     Candle, CandleDevice, CandleTensor,
+    element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
 use super::tensor;

@@ -1,18 +1,14 @@
 use super::args::FusedMatmulArgs;
-use cubecl::{linalg::matmul::components::MatmulSpec, prelude::Numeric};
+use cubecl::linalg::matmul::components::{MatmulPrecision, MatmulSpec};
 use std::marker::PhantomData;
 
 /// Specification for a fused standard matmul.
 #[derive(Clone)]
-pub struct FusedMatmulSpec<EG: Numeric, ES: Numeric, EA: Numeric> {
+pub struct FusedMatmulSpec<EG: MatmulPrecision> {
     _eg: PhantomData<EG>,
-    _es: PhantomData<ES>,
-    _ea: PhantomData<EA>,
 }
 
-impl<EG: Numeric, ES: Numeric, EA: Numeric> MatmulSpec for FusedMatmulSpec<EG, ES, EA> {
-    type EG = EG;
-    type ES = ES;
-    type EA = EA;
+impl<EG: MatmulPrecision> MatmulSpec for FusedMatmulSpec<EG> {
+    type Precision = EG;
     type Args = FusedMatmulArgs;
 }

@@ -4,8 +4,8 @@ use burn::{
     optim::AdamConfig,
     tensor::backend::AutodiffBackend,
     train::{
-        renderer::{MetricState, MetricsRenderer, TrainingProgress},
         LearnerBuilder,
+        renderer::{MetricState, MetricsRenderer, TrainingProgress},
     },
 };
 use guide::{data::MnistBatcher, model::ModelConfig};
@@ -51,21 +51,20 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     B::seed(config.seed);
 
     // Create the model and optimizer.
-    let model = config.model.init(&device);
+    let model = config.model.init::<B>(&device);
     let optim = config.optimizer.init();
 
     // Create the batcher.
-    let batcher_train = MnistBatcher::<B>::new(device.clone());
-    let batcher_valid = MnistBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher = MnistBatcher::default();
 
     // Create the dataloaders.
-    let dataloader_train = DataLoaderBuilder::new(batcher_train)
+    let dataloader_train = DataLoaderBuilder::new(batcher.clone())
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
         .build(MnistDataset::train());
 
-    let dataloader_test = DataLoaderBuilder::new(batcher_valid)
+    let dataloader_test = DataLoaderBuilder::new(batcher)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
