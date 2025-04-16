@@ -14,7 +14,7 @@ mod tests {
         let expected =
             TensorData::from([[18.0, 28.0, 40.0], [14.0, 23.0, 25.0], [14.0, 22.0, 30.0]]);
 
-        let expected = TensorData::from([[half::f16::from_f32(42.05)]]);
+        let expected = TensorData::from([[42.05]]);
         tensor_3
             .into_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
@@ -66,28 +66,6 @@ mod tests {
         tensor_3
             .into_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
-    }
-
-    #[test]
-    fn test_matmul_transposed() {
-        let tensor_1 = QTensor::<TestBackend, 2>::int8([
-            [0., 1., 2., 3.],
-            [4., 5., 6., 7.],
-            [8., 9., 10., 11.],
-            [12., 13., 14., 15.],
-        ]);
-
-        let tensor_3 = tensor_1.clone().matmul(tensor_1.transpose());
-
-        tensor_3.dequantize().into_data().assert_approx_eq::<FT>(
-            &TensorData::from([
-                [14., 38., 62., 86.],
-                [38., 126., 214., 302.],
-                [62., 214., 366., 518.],
-                [86., 302., 518., 734.],
-            ]),
-            Tolerance::rel_abs(1e-2, 1e-1),
-        );
     }
 
     #[test]

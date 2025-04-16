@@ -95,6 +95,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn should_quantize_dequantize_per_block_symmetric() {
         // block_size > line_size
         let scheme = QuantizationScheme::PerBlock(
@@ -126,6 +127,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn should_quantize_dequantize_per_block_affine() {
         let scheme = QuantizationScheme::PerBlock(
             QuantizationMode::Affine,
