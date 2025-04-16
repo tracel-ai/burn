@@ -137,7 +137,7 @@ mod tests {
 
         let output = tensor.max_abs();
         let expected = TensorData::from([6.0]);
-      
+
         output.into_data().assert_eq(&expected, false);
     }
 
@@ -161,6 +161,5 @@ mod tests {
         let expected = TensorData::from([[2.], [6.]]);
 
         output.into_data().assert_eq(&expected, false);
-
     }
 }
