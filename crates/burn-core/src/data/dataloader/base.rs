@@ -28,8 +28,8 @@ pub trait DataLoader<B: Backend, O>: Send {
     /// corresponding to the items_total of the progress returned by the iterator.
     fn num_items(&self) -> usize;
 
-    /// Sets the device for the data loader, ensuring the batches are assigned to the correct device.
-    fn set_device(&mut self, device: B::Device);
+    /// Forks the data loader to the given device, ensuring the batches are assigned to the correct device.
+    fn forked(&self, device: &B::Device) -> Box<dyn DataLoader<B, O>>;
 
     /// Returns a new data loader containing a subset of the data.
     ///

@@ -98,7 +98,7 @@ where
     /// # Returns
     ///
     /// The data loader builder.
-    pub fn set_device<D>(mut self, device: B::Device) -> Self {
+    pub fn set_device(mut self, device: B::Device) -> Self {
         self.device = Some(device);
         self
     }
@@ -225,10 +225,8 @@ mod tests {
         let (device1, device2) = (burn_cuda::CudaDevice::new(0), burn_cuda::CudaDevice::new(1));
 
         assert_eq!(dataloader.num_items(), 11);
-        let mut dataloader_1 = dataloader.slice(0, 5);
-        dataloader_1.set_device(device1);
-        let mut dataloader_2 = dataloader.slice(5, 11);
-        dataloader_2.set_device(device2);
+        let dataloader_1 = dataloader.slice(0, 5).forked(&device1);
+        let dataloader_2 = dataloader.slice(5, 11).forked(&device2);
 
         assert_eq!(dataloader_1.num_items(), 5);
         assert_eq!(dataloader_2.num_items(), 6);

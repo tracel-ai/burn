@@ -22,8 +22,7 @@ pub fn split_dataloader<B: Backend, O>(
             } else {
                 start + step
             };
-            let mut dataloader = dataloader.slice(start, end);
-            dataloader.set_device(device.clone());
+            let dataloader = dataloader.slice(start, end).forked(&device);
             dataloaders.push(Arc::from(dataloader));
             start = end;
         }

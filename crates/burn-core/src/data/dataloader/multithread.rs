@@ -166,8 +166,15 @@ where
         self.dataset.len()
     }
 
-    fn set_device(&mut self, device: B::Device) {
-        self.device = device;
+    fn forked(&self, device: &B::Device) -> Box<dyn DataLoader<B, O>> {
+        Box::new(Self::new(
+            self.strategy.clone_dyn(),
+            self.dataset.clone(),
+            self.batcher.clone_dyn(),
+            self.num_threads,
+            device.clone(),
+            self.rng.clone(),
+        ))
     }
 
     fn slice(&self, start: usize, end: usize) -> Box<dyn DataLoader<B, O>> {
