@@ -212,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    fn should_fusion_v() {
+    fn slice_maybe_fused_index_is_output() {
         let device: Device<TestBackend> = Default::default();
         let tensor = Tensor::<TestBackend, 1, Int>::empty([2], &device);
         let mut tensor_2 = Tensor::<TestBackend, 1, Int>::arange(0..2 as i64, &device);

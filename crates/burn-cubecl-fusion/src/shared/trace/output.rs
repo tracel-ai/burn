@@ -425,7 +425,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 strides,
                 dtype,
             };
-            println!("Register tensor {:?}", tensor_global.id);
             context
                 .handles
                 .register_handle(tensor_global.id, handle.clone());
