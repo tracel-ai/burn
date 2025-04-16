@@ -500,6 +500,16 @@ pub enum NumericOperationIr<E> {
     MinDim(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
+    /// Float => [max_abs](burn_tensor::ops::FloatTensorOps::float_max_abs).
+    /// Int => [max_abs](burn_tensor::ops::IntTensorOps::int_max_abs).
+    MaxAbs(UnaryOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [max_abs dim](burn_tensor::ops::FloatTensorOps::float_max_abs_dim).
+    /// Int => [max_abs dim](burn_tensor::ops::IntTensorOps::int_max_abs_dim).
+    MaxAbsDim(ReduceDimOpIr),
+    /// Operation corresponding to:
+    ///
     /// Float => [clamp](burn_tensor::ops::FloatTensorOps::float_clamp).
     /// Int => [clamp](burn_tensor::ops::IntTensorOps::int_clamp).
     Clamp(ClampOpIr<E>),
@@ -1548,6 +1558,12 @@ impl<E: Element> NumericOperationIr<E> {
             NumericOperationIr::MinDim(repr) => {
                 vec![&repr.input, &repr.out]
             }
+            NumericOperationIr::MaxAbs(repr) => {
+                vec![&repr.input, &repr.out]
+            }
+            NumericOperationIr::MaxAbsDim(repr) => {
+                vec![&repr.input, &repr.out]
+            }
             NumericOperationIr::IntRandom(repr) => {
                 vec![&repr.out]
             }
@@ -1854,6 +1870,8 @@ impl<E> core::hash::Hash for NumericOperationIr<E> {
             NumericOperationIr::Min(repr) => repr.hash(state),
             NumericOperationIr::MaxDim(repr) => repr.hash(state),
             NumericOperationIr::MinDim(repr) => repr.hash(state),
+            NumericOperationIr::MaxAbs(repr) => repr.hash(state),
+            NumericOperationIr::MaxAbsDim(repr) => repr.hash(state),
             NumericOperationIr::Clamp(repr) => repr.hash(state),
             NumericOperationIr::IntRandom(repr) => repr.hash(state),
             NumericOperationIr::Powf(repr) => repr.hash(state),

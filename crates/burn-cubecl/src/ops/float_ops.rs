@@ -399,6 +399,23 @@ where
         )
     }
 
+    fn float_max_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_dtype!(
+            float(tensor.dtype),
+            E,
+            reduce::reduce::<R, E, E>(tensor, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
+        )
+    }
+
+    fn float_max_abs_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_dtype!(
+            float(tensor.dtype),
+            E,
+            reduce::reduce_dim::<R, E, E>(tensor, dim, Default::default(), ReduceFnConfig::MaxAbs)
+                .unwrap()
+        )
+    }
+
     fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         execute_with_dtype!(
             float(tensor.dtype),

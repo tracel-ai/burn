@@ -1914,6 +1914,49 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         (out, out_indices)
     }
 
+    fn float_max_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(MaxAbsOps, B::float_max_abs, reduce);
+
+        let stream = tensor.stream;
+        let dtype = tensor.dtype;
+        let out = tensor.client.tensor_uninitialized(vec![1], dtype);
+
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationIr::NumericFloat(dtype, NumericOperationIr::MaxAbs(desc.clone())),
+            MaxAbsOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn float_max_abs_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        reduce_float_ops!(MaxAbsDimOps, B::float_max_abs_dim);
+
+        let stream = tensor.stream;
+        let mut shape = tensor.shape.clone();
+        let dtype = tensor.dtype;
+        shape[dim] = 1;
+        let out = tensor.client.tensor_uninitialized(shape, dtype);
+
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationIr::NumericFloat(dtype, NumericOperationIr::MaxAbsDim(desc.clone())),
+            MaxAbsDimOps::<B>::new(desc),
+        );
+
+        out
+    }
+
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         binary_float_ops!(PowOps, B::float_powf);
         let stream_1 = lhs.stream;
