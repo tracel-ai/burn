@@ -46,6 +46,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
     /// representation that can be reused when the same pattern emerge in different but similar
     /// scenario, so that the same optimization can be used.
     pub fn add(&mut self, global: OperationIr, operation: Box<dyn Operation<R>>) {
+        println!("Add node {global:?}");
         for node in global.nodes() {
             self.ids.insert(node.id);
         }

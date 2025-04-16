@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(slice)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, Tensor, TensorData, as_type};
+    use burn_tensor::{Device, Int, Tensor, TensorData, as_type};
 
     #[test]
     fn should_support_full_sliceing_1d() {
@@ -209,6 +209,25 @@ mod tests {
 
         let output = tensor.clone().slice([(0..1)]);
         output.into_data().assert_eq(&tensor.into_data(), true);
+    }
+
+    #[test]
+    fn should_fusion_v() {
+        let device: Device<TestBackend> = Default::default();
+        let tensor = Tensor::<TestBackend, 1, Int>::empty([2], &device);
+        let mut tensor_2 = Tensor::<TestBackend, 1, Int>::arange(0..2 as i64, &device);
+
+        let _x = tensor.clone().select(0, tensor_2.clone()).reshape([1, -1]);
+
+        {
+            let i = tensor_2.dims()[0];
+
+            tensor_2 = tensor_2.slice([i - 1..i]) + 1;
+        }
+
+        // let x = tensor.clone().select(0, tensor_2.clone());
+        // panic!(" {:?}", x.dims());
+        let _x = tensor.clone().select(0, tensor_2.clone()).reshape([1, 1]) + 1;
     }
 
     #[test]

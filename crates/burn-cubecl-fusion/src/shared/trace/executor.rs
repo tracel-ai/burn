@@ -54,6 +54,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         for b in plan.blocks.iter() {
             num_writes += b.writes.len();
         }
+        println!("Num Writes {num_writes:?}");
 
         #[cfg(feature = "autotune-checks")]
         let mut tune_output = TuneOutput::Checked {

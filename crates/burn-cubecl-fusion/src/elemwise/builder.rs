@@ -42,12 +42,14 @@ impl<R: Runtime> ElementWiseBuilder<R> {
 
 impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ElementWiseBuilder<R> {
     fn register(&mut self, operation: &burn_ir::OperationIr) {
+        // println!("{operation:?}");
         self.builder.register(operation);
     }
 
     fn build(&self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
         let trace = self.builder.build();
+        println!("Building {:?}", trace.blocks);
         let elementwise =
             ElemwiseOptimization::<R>::new(trace, client, self.device.clone(), self.len());
 

@@ -279,6 +279,7 @@ impl FuseBlockBuilder {
     ) -> (FuseBlock, RegisteredTensors) {
         let ops = self.ops.clone();
         let reads = self.reads.clone();
+        println!("Resources {resources:?}");
         let tensor_writes = self.tensor_writes(resources);
 
         let mut writes = BTreeMap::new();
