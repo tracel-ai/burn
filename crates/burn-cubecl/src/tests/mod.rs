@@ -122,7 +122,7 @@ macro_rules! testgen_jit {
 
         use burn_tensor::tests::qtensor::*;
 
-        // burn_tensor::testgen_q_matmul!();
+        burn_tensor::testgen_q_matmul!();
         burn_tensor::testgen_calibration!();
         burn_tensor::testgen_scheme!();
         burn_tensor::testgen_quantize!();

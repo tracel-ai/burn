@@ -68,7 +68,7 @@ fn dequantize_per_tensor_affine_int8_kernel(
 
         #[unroll]
         for j in 0..out.size() {
-            output[ABSOLUTE_POS + j] = Line::cast_from(out[j]);
+            output[ABSOLUTE_POS * out.size() + j] = Line::cast_from(out[j]);
         }
     }
 }
@@ -99,7 +99,7 @@ fn dequantize_per_tensor_symmetric_int8_kernel(
 
         #[unroll]
         for j in 0..out.size() {
-            output[ABSOLUTE_POS + j] = Line::cast_from(out[j]);
+            output[ABSOLUTE_POS * out.size() + j] = Line::cast_from(out[j]);
         }
     }
 }
@@ -130,7 +130,7 @@ fn dequantize_per_block_symmetric_int8_kernel(
 
         #[unroll]
         for j in 0..out.size() {
-            output[ABSOLUTE_POS + j] = Line::cast_from(out[j]);
+            output[ABSOLUTE_POS * out.size()+ j] = Line::cast_from(out[j]);
         }
     }
 }
@@ -161,7 +161,7 @@ fn dequantize_per_block_affine_int8_kernel(
 
         #[unroll]
         for j in 0..out.size() {
-            output[ABSOLUTE_POS + j] = Line::cast_from(out[j]);
+            output[ABSOLUTE_POS * out.size() + j] = Line::cast_from(out[j]);
         }
     }
 }
@@ -177,7 +177,7 @@ where
     let num_out_elems = tensor.shape.num_elements();
     let num_elems = usize::div_ceil(num_out_elems, 4);
     let line_size_in = 1;
-    let line_size_out = if num_out_elems < 4 { 1 } else { 4 };
+    let line_size_out = 1;
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size_in as usize, cube_dim);
 
