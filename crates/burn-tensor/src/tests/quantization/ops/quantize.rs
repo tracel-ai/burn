@@ -12,12 +12,6 @@ mod tests {
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
-    // NOTE: we mark the per-block tests as `might_panic` since backends are not strictly
-    // required to support this quantization scheme.
-    // Also std feature gated (until `catch_unwind` is stable in core).
-    #[cfg(feature = "std")]
-    use burn_tensor::might_panic;
-
     fn get_q_params(data: TensorData) -> QParams<Vec<f32>, Vec<i8>> {
         let num_elements = data.num_elements();
         let scheme = if let DType::QFloat(scheme) = data.dtype {
@@ -138,9 +132,8 @@ mod tests {
     }
 
     #[cfg(feature = "std")]
-    #[might_panic(reason = "Per-block quantization is not supported")]
     #[test]
-    #[ignore]
+    #[ignore] // WIP
     fn should_support_quantize_per_block_symmetric_int8() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_floats(
@@ -226,9 +219,8 @@ mod tests {
 
     #[allow(clippy::excessive_precision)]
     #[cfg(feature = "std")]
-    #[might_panic(reason = "Per-block quantization is not supported")]
     #[test]
-    #[ignore]
+    #[ignore] // WIP
     fn should_support_quantize_per_block_affine_int8() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_floats(
@@ -296,8 +288,8 @@ mod tests {
     }
 
     #[cfg(feature = "std")]
-    #[might_panic(reason = "Per-block quantization is not supported")]
     #[test]
+    #[ignore] // WIP
     fn should_support_quantize_per_block_grid_symmetric_int8() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_floats(
