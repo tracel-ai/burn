@@ -175,6 +175,8 @@ mod tests {
     use crate::optim::{GradientsParams, Optimizer};
     use crate::tensor::{Distribution, Tensor, TensorData};
     use crate::{TestAutodiffBackend, nn};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestAutodiffBackend>;
 
     const LEARNING_RATE: LearningRate = 0.01;
 
@@ -217,8 +219,6 @@ mod tests {
 
         assert_eq!(state_optim_before.len(), state_optim_after.len());
     }
-
-    const ASSERT_PRECISION: usize = 2;
 
     #[test]
     fn test_adamw_optimizer_with_numbers() {
@@ -292,8 +292,9 @@ mod tests {
             state_updated.bias.unwrap().to_data(),
         );
 
-        bias_updated.assert_approx_eq(&bias_expected, ASSERT_PRECISION);
-        weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
+        let tolerance = Tolerance::absolute(1e-2);
+        bias_updated.assert_approx_eq::<FT>(&bias_expected, tolerance);
+        weight_updated.assert_approx_eq::<FT>(&weights_expected, tolerance);
     }
 
     #[test]

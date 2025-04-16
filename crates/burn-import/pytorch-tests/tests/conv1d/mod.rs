@@ -30,12 +30,16 @@ impl<B: Backend> Net<B> {
 #[cfg(test)]
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
-    use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
+    use burn::{
+        record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder},
+        tensor::{Tolerance, ops::FloatElem},
+    };
     use burn_import::pytorch::PyTorchFileRecorder;
+    type FT = FloatElem<Backend>;
 
     use super::*;
 
-    fn conv1d(record: NetRecord<Backend>, precision: usize) {
+    fn conv1d(record: NetRecord<Backend>, precision: f32) {
         let device = Default::default();
 
         let model = Net::<Backend>::init(&device).load_record(record);
@@ -69,7 +73,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq(&expected.to_data(), precision);
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::absolute(precision));
     }
 
     #[test]
@@ -79,7 +83,7 @@ mod tests {
             .load("tests/conv1d/conv1d.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        conv1d(record, 7);
+        conv1d(record, 1e-7);
     }
 
     #[test]
@@ -89,6 +93,6 @@ mod tests {
             .load("tests/conv1d/conv1d.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        conv1d(record, 4);
+        conv1d(record, 1e-4);
     }
 }

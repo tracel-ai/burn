@@ -36,62 +36,74 @@ impl<R: CubeRuntime, E: CubeElement> From<CubeTensor<R>> for TensorHandle<R, E> 
 impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
     #[cfg(feature = "export_tests")]
     fn check_equivalence(&self, other: Self) {
+        use burn_tensor::Tolerance;
+
         use crate::ops::into_data_sync;
 
-        let (expected, actual) = match self.dtype {
-            DType::F64 => (
-                into_data_sync::<R, f64>(self.clone()),
-                into_data_sync::<R, f64>(other),
-            ),
-            DType::F32 => (
-                into_data_sync::<R, f32>(self.clone()),
-                into_data_sync::<R, f32>(other),
-            ),
-            DType::F16 => (
-                into_data_sync::<R, half::f16>(self.clone()),
-                into_data_sync::<R, half::f16>(other),
-            ),
-            DType::BF16 => (
-                into_data_sync::<R, half::bf16>(self.clone()),
-                into_data_sync::<R, half::bf16>(other),
-            ),
-            DType::I64 => (
-                into_data_sync::<R, i64>(self.clone()),
-                into_data_sync::<R, i64>(other),
-            ),
-            DType::I32 => (
-                into_data_sync::<R, i32>(self.clone()),
-                into_data_sync::<R, i32>(other),
-            ),
-            DType::I16 => (
-                into_data_sync::<R, i16>(self.clone()),
-                into_data_sync::<R, i16>(other),
-            ),
-            DType::I8 => (
-                into_data_sync::<R, i8>(self.clone()),
-                into_data_sync::<R, i8>(other),
-            ),
-            DType::U64 => (
-                into_data_sync::<R, u64>(self.clone()),
-                into_data_sync::<R, u64>(other),
-            ),
-            DType::U32 => (
-                into_data_sync::<R, u32>(self.clone()),
-                into_data_sync::<R, u32>(other),
-            ),
-            DType::U16 => (
-                into_data_sync::<R, u16>(self.clone()),
-                into_data_sync::<R, u16>(other),
-            ),
-            DType::U8 => (
-                into_data_sync::<R, u8>(self.clone()),
-                into_data_sync::<R, u8>(other),
-            ),
-            DType::Bool => return,
-            DType::QFloat(..) => return,
-        };
-
-        expected.assert_approx_eq(&actual, 2);
+        match self.dtype {
+            DType::F64 => {
+                let expected = into_data_sync::<R, f64>(self.clone());
+                let actual = into_data_sync::<R, f64>(other);
+                expected.assert_approx_eq::<f64>(&actual, Tolerance::relative(0.01));
+            }
+            DType::F32 => {
+                let expected = into_data_sync::<R, f32>(self.clone());
+                let actual = into_data_sync::<R, f32>(other);
+                expected.assert_approx_eq::<f32>(&actual, Tolerance::relative(0.01));
+            }
+            DType::F16 => {
+                let expected = into_data_sync::<R, half::f16>(self.clone());
+                let actual = into_data_sync::<R, half::f16>(other);
+                expected.assert_approx_eq::<half::f16>(&actual, Tolerance::relative(0.01));
+            }
+            DType::BF16 => {
+                let expected = into_data_sync::<R, half::bf16>(self.clone());
+                let actual = into_data_sync::<R, half::bf16>(other);
+                expected.assert_approx_eq::<half::bf16>(&actual, Tolerance::relative(0.01));
+            }
+            DType::I64 => {
+                let expected = into_data_sync::<R, i64>(self.clone());
+                let actual = into_data_sync::<R, i64>(other);
+                expected.assert_eq(&actual, true);
+            }
+            DType::I32 => {
+                let expected = into_data_sync::<R, i32>(self.clone());
+                let actual = into_data_sync::<R, i32>(other);
+                expected.assert_eq(&actual, true);
+            }
+            DType::I16 => {
+                let expected = into_data_sync::<R, i16>(self.clone());
+                let actual = into_data_sync::<R, i16>(other);
+                expected.assert_eq(&actual, true);
+            }
+            DType::I8 => {
+                let expected = into_data_sync::<R, i8>(self.clone());
+                let actual = into_data_sync::<R, i8>(other);
+                expected.assert_eq(&actual, true);
+            }
+            DType::U64 => {
+                let expected = into_data_sync::<R, u64>(self.clone());
+                let actual = into_data_sync::<R, u64>(other);
+                expected.assert_eq(&actual, true);
+            }
+            DType::U32 => {
+                let expected = into_data_sync::<R, u32>(self.clone());
+                let actual = into_data_sync::<R, u32>(other);
+                expected.assert_eq(&actual, true);
+            }
+            DType::U16 => {
+                let expected = into_data_sync::<R, u16>(self.clone());
+                let actual = into_data_sync::<R, u16>(other);
+                expected.assert_eq(&actual, true);
+            }
+            DType::U8 => {
+                let expected = into_data_sync::<R, u8>(self.clone());
+                let actual = into_data_sync::<R, u8>(other);
+                expected.assert_eq(&actual, true);
+            }
+            DType::Bool => (),
+            DType::QFloat(..) => (),
+        }
     }
 }
 

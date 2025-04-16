@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Distribution, Tensor, backend::Backend};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn cat_should_match_reference_backend_dim0() {
@@ -37,6 +39,6 @@ mod tests {
 
         tensor
             .into_data()
-            .assert_approx_eq(&tensor_ref.into_data(), 3);
+            .assert_approx_eq::<FT>(&tensor_ref.into_data(), Tolerance::default());
     }
 }

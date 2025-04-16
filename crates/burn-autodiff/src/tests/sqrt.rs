@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_diff_sqrt() {
@@ -19,10 +21,15 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[82.1126, 99.0832], [82.1126, 99.0832]]);
-        grad_1.to_data().assert_approx_eq_diff(&expected, 0.02);
+        let tolerance = Tolerance::rel_abs(1.2e-4, 1e-5).set_half_precision_relative(1e-3);
+        let expected = TensorData::from([[82.112640, 99.083275], [82.112640, 99.083275]]);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
 
-        let expected = TensorData::from([[30.3093, 33.1204], [34.5819, 38.7694]]);
-        grad_2.to_data().assert_approx_eq(&expected, 2);
+        let expected = TensorData::from([[30.309311, 33.120457], [34.581974, 38.769463]]);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 }

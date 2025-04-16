@@ -64,6 +64,8 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use crate::tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_leaky_relu_forward() {
@@ -106,7 +108,9 @@ mod tests {
         let model: LeakyRelu = LeakyReluConfig::new().init();
         let input_data = Tensor::<TestBackend, 3>::from_data(TensorData::from(input), &device);
         let actual_output = model.forward(input_data);
-        actual_output.to_data().assert_approx_eq(&expected, 4)
+        actual_output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default())
     }
 
     #[test]

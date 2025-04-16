@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_diff_tanh() {
@@ -20,9 +22,13 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([[32.0, 32.0], [32.0, 32.0]]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[8.00092, 8.000153], [8.000003, 7.999995]]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

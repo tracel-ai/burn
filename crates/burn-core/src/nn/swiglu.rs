@@ -92,6 +92,8 @@ impl<B: Backend> SwiGlu<B> {
 mod tests {
     use super::*;
     use crate::TestBackend;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_swiglu_forward_no_bias() {
@@ -108,7 +110,7 @@ mod tests {
         );
         output
             .to_data()
-            .assert_approx_eq(&expected_output.to_data(), 4);
+            .assert_approx_eq::<FT>(&expected_output.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -128,7 +130,7 @@ mod tests {
         );
         output
             .to_data()
-            .assert_approx_eq(&expected_output.to_data(), 4);
+            .assert_approx_eq::<FT>(&expected_output.to_data(), Tolerance::default());
     }
 
     #[test]

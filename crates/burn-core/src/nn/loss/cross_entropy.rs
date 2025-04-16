@@ -247,6 +247,8 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use crate::tensor::{Distribution, TensorData, loss::cross_entropy_with_logits, ops::IntElem};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     macro_rules! setup {
         () => {{
@@ -314,7 +316,9 @@ mod tests {
                 .unsqueeze()
                 .repeat_dim(0, 4);
         let loss_2 = loss_2.sum().neg() / (1. + 2. + 3. + 5.);
-        loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+        loss_1
+            .into_data()
+            .assert_approx_eq::<FT>(&loss_2.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -331,7 +335,9 @@ mod tests {
             .with_smoothing(Some(0.))
             .init(&device)
             .forward(logits.clone(), targets);
-        loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+        loss_1
+            .into_data()
+            .assert_approx_eq::<FT>(&loss_2.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -343,7 +349,9 @@ mod tests {
             .forward(logits.clone(), targets);
         let loss_2 = cross_entropy_with_logits(logits, targets_logits);
 
-        loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+        loss_1
+            .into_data()
+            .assert_approx_eq::<FT>(&loss_2.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -358,7 +366,9 @@ mod tests {
             .init(&device)
             .forward(logits, targets);
 
-        loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+        loss_1
+            .into_data()
+            .assert_approx_eq::<FT>(&loss_2.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -372,7 +382,9 @@ mod tests {
             .forward(logits.clone(), targets);
         let loss_2 = cross_entropy_with_logits(logits, targets_logits);
 
-        loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+        loss_1
+            .into_data()
+            .assert_approx_eq::<FT>(&loss_2.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -390,7 +402,9 @@ mod tests {
             .init(&logits.device())
             .forward(logits.clone(), targets);
 
-        loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+        loss_1
+            .into_data()
+            .assert_approx_eq::<FT>(&loss_2.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -409,7 +423,7 @@ mod tests {
         );
         smoothed_targets
             .into_data()
-            .assert_approx_eq(&targets_logits.into_data(), 3);
+            .assert_approx_eq::<FT>(&targets_logits.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -433,7 +447,9 @@ mod tests {
         let x = log_softmax(logits, 1);
         let loss_2 = (x * targets_logits).sum_dim(1).mean().neg();
 
-        loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+        loss_1
+            .into_data()
+            .assert_approx_eq::<FT>(&loss_2.into_data(), Tolerance::default());
     }
 
     #[test]

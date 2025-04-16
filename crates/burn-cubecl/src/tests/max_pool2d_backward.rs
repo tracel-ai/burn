@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Distribution, Tensor, TensorPrimitive, module, ops::ModuleOps};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     pub fn max_pool2d_with_indices_backward_should_match_reference_backend() {
@@ -51,10 +53,10 @@ mod tests {
 
         Tensor::<TestBackend, 4>::from_primitive(TensorPrimitive::Float(grad))
             .into_data()
-            .assert_approx_eq(
+            .assert_approx_eq::<FT>(
                 &Tensor::<ReferenceBackend, 4>::from_primitive(TensorPrimitive::Float(grad_ref))
                     .into_data(),
-                3,
+                Tolerance::default(),
             );
     }
 }

@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_max_dim_2d() {
@@ -123,7 +125,9 @@ mod tests {
         let output = a.min_pair(b);
         let expected = TensorData::from([1.0, 1.0, 3.0, 4.0]);
 
-        output.into_data().assert_approx_eq(&expected, 1);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -133,7 +137,7 @@ mod tests {
 
         let output = tensor.max_abs();
         let expected = TensorData::from([6.0]);
-
+      
         output.into_data().assert_eq(&expected, false);
     }
 
@@ -157,5 +161,6 @@ mod tests {
         let expected = TensorData::from([[2.], [6.]]);
 
         output.into_data().assert_eq(&expected, false);
+
     }
 }

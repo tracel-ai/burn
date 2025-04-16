@@ -26,5 +26,6 @@ Here's an easy way to define tests for a new operation's backward pass:
 3. Compare the actual outputs to the expected output for left-hand side, right-hand side.
 
 For float tensors, it is advised to use
-`actual_output_tensor.into_data().assert_approx_eq(&expected_tensor_data,3)` instead of
+`actual_output_tensor.into_data().assert_approx_eq::<FLOAT>(&expected_tensor_data, Tolerance::default())`
+where `FLOAT` is the floating point types (`f32`, `f64`, ...) you are using instead of
 `assert_eq!(...` due to occasional hiccups with floating point calculations.

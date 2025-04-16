@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Distribution, Tensor};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn clamp_should_match_reference() {
@@ -17,6 +19,6 @@ mod tests {
 
         output
             .into_data()
-            .assert_approx_eq(&input_ref.clamp(0.3, 0.7).into_data(), 3);
+            .assert_approx_eq::<FT>(&input_ref.clamp(0.3, 0.7).into_data(), Tolerance::default());
     }
 }

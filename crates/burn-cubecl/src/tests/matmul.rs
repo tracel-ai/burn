@@ -3,6 +3,8 @@ mod tests {
     use super::*;
     use burn_cubecl::kernel::matmul::{MatmulStrategy, matmul};
     use burn_tensor::{Shape, Tensor, TensorPrimitive};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     mod simple {
         use super::*;
@@ -152,7 +154,9 @@ mod tests {
             );
 
             let padded = TestTensor::from_primitive(TensorPrimitive::Float((padded.into_tensor())));
-            padded.into_data().assert_approx_eq(&tensor.into_data(), 3);
+            padded
+                .into_data()
+                .assert_approx_eq::<FT>(&tensor.into_data(), Tolerance::default());
         }
 
         #[test]
@@ -429,7 +433,9 @@ mod tests {
             strategy,
         )));
 
-        z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
+        z_reference
+            .into_data()
+            .assert_approx_eq::<FT>(&z.into_data(), Tolerance::default());
     }
 
     fn same_as_reference_swapped_dims<const D: usize, S>(
@@ -467,6 +473,8 @@ mod tests {
             strategy,
         )));
 
-        z_reference.into_data().assert_approx_eq(&z.into_data(), 3);
+        z_reference
+            .into_data()
+            .assert_approx_eq::<FT>(&z.into_data(), Tolerance::default());
     }
 }

@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Int, Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_matmul_d2() {
@@ -108,14 +110,14 @@ mod tests {
 
         let tensor_3 = tensor_1.clone().matmul(tensor_1);
 
-        tensor_3.into_data().assert_approx_eq(
+        tensor_3.into_data().assert_approx_eq::<FT>(
             &TensorData::from([
                 [56., 62., 68., 74.],
                 [152., 174., 196., 218.],
                 [248., 286., 324., 362.],
                 [344., 398., 452., 506.],
             ]),
-            3,
+            Tolerance::default(),
         );
     }
 
@@ -129,14 +131,14 @@ mod tests {
 
         let tensor_3 = tensor_1.clone().matmul(tensor_1.transpose());
 
-        tensor_3.into_data().assert_approx_eq(
+        tensor_3.into_data().assert_approx_eq::<FT>(
             &TensorData::from([
                 [14., 38., 62., 86.],
                 [38., 126., 214., 302.],
                 [62., 214., 366., 518.],
                 [86., 302., 518., 734.],
             ]),
-            3,
+            Tolerance::default(),
         );
     }
 
@@ -150,14 +152,14 @@ mod tests {
 
         let tensor_3 = tensor_1.clone().matmul(tensor_1.transpose());
 
-        tensor_3.into_data().assert_approx_eq(
+        tensor_3.into_data().assert_approx_eq::<FT>(
             &TensorData::from([
                 [140., 364., 588., 812.],
                 [364., 1100., 1836., 2572.],
                 [588., 1836., 3084., 4332.],
                 [812., 2572., 4332., 6092.],
             ]),
-            4,
+            Tolerance::default(),
         );
     }
 

@@ -152,6 +152,9 @@ impl<B: Backend, const D: usize> LrDecayState<B, D> {
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::Tolerance;
+    use burn_tensor::ops::FloatElem;
+
     use super::*;
     use crate::module::{Module, Param};
     use crate::optim::{GradientsParams, Optimizer};
@@ -199,7 +202,6 @@ mod tests {
 
         assert_eq!(state_optim_before.len(), state_optim_after.len());
     }
-    const ASSERT_PRECISION: usize = 6;
 
     #[test]
     fn test_adagrad_optimizer_with_numbers() {
@@ -271,8 +273,10 @@ mod tests {
             state_updated.bias.unwrap().val().into_data(),
         );
 
-        bias_updated.assert_approx_eq(&bias_expected, ASSERT_PRECISION);
-        weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
+        type FT = FloatElem<TestAutodiffBackend>;
+        let tolerance = Tolerance::absolute(1e-6);
+        bias_updated.assert_approx_eq::<FT>(&bias_expected, tolerance);
+        weight_updated.assert_approx_eq::<FT>(&weights_expected, tolerance);
     }
 
     fn given_linear_layer(weight: TensorData, bias: TensorData) -> nn::Linear<TestAutodiffBackend> {

@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_log)]
 mod tests {
     use super::*;
-    use burn_tensor::TensorData;
+    use burn_tensor::{TensorData, Tolerance};
 
     #[test]
     fn should_diff_log() {
@@ -19,10 +19,15 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-5).set_half_precision_relative(1e-3);
         let expected = TensorData::from([[60.2652, 72.3130], [60.2652, 72.3130]]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FloatType>(&expected, tolerance);
 
         let expected = TensorData::from([[22.8614, 24.5043], [24.5729, 26.8507]]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FloatType>(&expected, tolerance);
     }
 }

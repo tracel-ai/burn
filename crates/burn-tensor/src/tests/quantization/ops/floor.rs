@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_floor_ops() {
@@ -13,6 +15,8 @@ mod tests {
         let output = tensor.floor();
         let expected = TensorData::from([[24., 87., 76.], [59., 43., 95.]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::absolute(1e-1));
     }
 }

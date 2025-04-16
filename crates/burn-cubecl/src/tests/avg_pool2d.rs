@@ -4,6 +4,8 @@ mod tests {
     use burn_tensor::{
         Distribution, Tensor, TensorPrimitive, backend::Backend, module, ops::ModuleOps,
     };
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn avg_pool2d_should_match_reference_backend() {
@@ -25,7 +27,7 @@ mod tests {
 
         pooled
             .into_data()
-            .assert_approx_eq(&pooled_ref.into_data(), 3);
+            .assert_approx_eq::<FT>(&pooled_ref.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -77,6 +79,7 @@ mod tests {
             ),
         ));
 
-        grad.into_data().assert_approx_eq(&grad_ref.into_data(), 3);
+        grad.into_data()
+            .assert_approx_eq::<FT>(&grad_ref.into_data(), Tolerance::default());
     }
 }

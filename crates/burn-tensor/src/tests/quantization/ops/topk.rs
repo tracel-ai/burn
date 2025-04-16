@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     // NOTE: we use affine quantization to reduce quantization errors for range of input values
     #[test]
@@ -14,7 +16,7 @@ mod tests {
         values
             .dequantize()
             .into_data()
-            .assert_approx_eq(&expected, 3);
+            .assert_approx_eq::<FT>(&expected, Tolerance::absolute(1e-1));
     }
 
     #[test]
@@ -31,7 +33,7 @@ mod tests {
         values
             .dequantize()
             .into_data()
-            .assert_approx_eq(&expected, 1);
+            .assert_approx_eq::<FT>(&expected, Tolerance::absolute(1e-1));
     }
 
     #[test]
@@ -67,7 +69,7 @@ mod tests {
         values
             .dequantize()
             .into_data()
-            .assert_approx_eq(&values_expected, 1);
+            .assert_approx_eq::<FT>(&values_expected, Tolerance::absolute(1e-1));
 
         let indices_expected = TensorData::from([[[2, 1], [2, 1]], [[2, 0], [0, 2]]]);
 

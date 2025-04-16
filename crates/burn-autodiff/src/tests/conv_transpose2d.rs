@@ -1,7 +1,10 @@
 #[burn_tensor_testgen::testgen(ad_conv_transpose2d)]
 mod tests {
     use super::*;
-    use burn_tensor::{Shape, module::conv_transpose2d, ops::ConvTransposeOptions};
+    use burn_tensor::{
+        Shape, Tolerance, module::conv_transpose2d, ops::ConvTransposeOptions, ops::FloatElem,
+    };
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_conv_transpose2d_basic() {
@@ -691,18 +694,19 @@ mod tests {
             let weight_grad_actual = weight.grad(&grads).unwrap();
             let bias_grad_actual = bias.grad(&grads).unwrap();
 
+            let tolerance = Tolerance::rel_abs(1e-5, 1e-5).set_half_precision_relative(3e-3);
             expected_grads
                 .bias
                 .to_data()
-                .assert_approx_eq(&bias_grad_actual.to_data(), 5);
+                .assert_approx_eq::<FT>(&bias_grad_actual.to_data(), tolerance);
             expected_grads
                 .x
                 .to_data()
-                .assert_approx_eq(&x_grad_actual.to_data(), 5);
+                .assert_approx_eq::<FT>(&x_grad_actual.to_data(), tolerance);
             expected_grads
                 .weight
                 .to_data()
-                .assert_approx_eq(&weight_grad_actual.to_data(), 5);
+                .assert_approx_eq::<FT>(&weight_grad_actual.to_data(), tolerance);
         }
     }
 }

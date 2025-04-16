@@ -71,6 +71,8 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use crate::tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_hard_sigmoid_forward() {
@@ -80,7 +82,8 @@ mod tests {
             Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.4410, -0.2507]]), &device);
         let out = model.forward(input);
         let expected = TensorData::from([[0.5882, 0.44986]]);
-        out.to_data().assert_approx_eq(&expected, 4);
+        out.to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
