@@ -130,7 +130,7 @@ fn dequantize_per_block_symmetric_int8_kernel(
 
         #[unroll]
         for j in 0..out.size() {
-            output[ABSOLUTE_POS * out.size()+ j] = Line::cast_from(out[j]);
+            output[ABSOLUTE_POS * out.size() + j] = Line::cast_from(out[j]);
         }
     }
 }
