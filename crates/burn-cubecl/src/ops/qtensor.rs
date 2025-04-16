@@ -4,8 +4,8 @@ use burn_tensor::{
     DType, Device, Shape, TensorData,
     ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        BlockLayout, QTensorPrimitive, QuantizationScheme, QuantizationParametersPrimitive,
-        Quantization, QuantizationType,
+        BlockLayout, QTensorPrimitive, QuantizationMode, QuantizationParametersPrimitive,
+        QuantizationScheme, QuantizationType,
     },
 };
 use cubecl::{
@@ -27,7 +27,7 @@ use super::{permute, swap_dims};
 fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
     data: &[u8],
     shape: S,
-    scheme: Quantization,
+    scheme: QuantizationScheme,
     device: &R::Device,
 ) -> CubeTensor<R> {
     let client = R::client(device);
@@ -52,8 +52,8 @@ where
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
-                Quantization::PerTensor(_mode, QuantizationType::QInt8)
-                | Quantization::PerBlock(
+                QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8)
+                | QuantizationScheme::PerBlock(
                     _mode,
                     QuantizationType::QInt8,
                     BlockLayout::Flat(..),
@@ -62,7 +62,7 @@ where
                     // packed into u32 and quantization parameters appended to the bytes
                     new_qtensor(data.as_bytes(), data.shape.clone(), scheme, device)
                 }
-                Quantization::PerBlock(
+                QuantizationScheme::PerBlock(
                     _mode,
                     QuantizationType::QInt8,
                     BlockLayout::Grid(..),
@@ -79,7 +79,7 @@ where
 
     fn quantize(
         tensor: FloatTensor<Self>,
-        scheme: &Quantization,
+        scheme: &QuantizationScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         kernel::quantization::quantize::<R, F, I>(tensor, scheme, qparams.scale, qparams.offset)
@@ -167,11 +167,11 @@ where
     }
 }
 
-fn both_matches_symmetric_qint8(lhs: &Quantization, rhs: &Quantization) -> bool {
+fn both_matches_symmetric_qint8(lhs: &QuantizationScheme, rhs: &QuantizationScheme) -> bool {
     [lhs, rhs].iter().all(|scheme| {
         matches!(
             scheme,
-            Quantization::PerTensor(QuantizationScheme::Symmetric, QuantizationType::QInt8),
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8),
         )
     })
 }

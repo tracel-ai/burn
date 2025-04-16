@@ -1206,6 +1206,38 @@ pub trait QTensorOps<B: Backend> {
         (values, index)
     }
 
+    /// Gets the maximum element of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the maximum element of `tensor`.
+    fn q_max_abs(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
+        let shape = tensor.shape();
+        let tensor = B::q_reshape(tensor, Shape::new([shape.num_elements()]));
+
+        B::q_max_abs_dim(tensor, 0)
+    }
+
+    /// Gets the maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the maximum elements of `tensor` along `dim`.
+    fn q_max_abs_dim(tensor: QuantizedTensor<B>, dim: usize) -> QuantizedTensor<B> {
+        let index = B::q_argmax(B::q_abs(tensor.clone()), dim);
+
+        B::q_gather(dim, tensor, index)
+    }
+
     /// Returns a new tensor with the given dimension narrowed to the given range.
     ///
     /// # Arguments

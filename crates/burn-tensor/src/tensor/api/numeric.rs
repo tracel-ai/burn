@@ -1182,7 +1182,7 @@ where
     /// }
     /// ```
     pub fn max_abs_dim(self, dim: usize) -> Tensor<B, D, K> {
-        check!(TensorCheck::aggregate_dim::<D>("Max", dim));
+        check!(TensorCheck::aggregate_dim::<D>("MaxAbs", dim));
 
         Tensor::new(K::max_abs_dim(self.primitive, dim))
     }

@@ -973,6 +973,15 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
                 axis: desc.axis,
                 out: desc.out.to_relative(converter),
             }),
+            NumericOperationIr::MaxAbs(desc) => NumericOperationIr::MaxAbs(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::MaxAbsDim(desc) => NumericOperationIr::MaxAbsDim(ReduceDimOpIr {
+                input: desc.input.to_relative(converter),
+                axis: desc.axis,
+                out: desc.out.to_relative(converter),
+            }),
             NumericOperationIr::Clamp(desc) => NumericOperationIr::Clamp(ClampOpIr {
                 tensor: desc.tensor.to_relative(converter),
                 min: local_elem(converter, &desc.min),

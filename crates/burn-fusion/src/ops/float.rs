@@ -1915,7 +1915,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_max_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float_ops!(MaxAbsOps, B::float_max, reduce);
+        unary_float_ops!(MaxAbsOps, B::float_max_abs, reduce);
 
         let stream = tensor.stream;
         let dtype = tensor.dtype;
@@ -1934,8 +1934,8 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn float_max_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce_float_ops!(MaxAbsDimOps, B::float_max_dim);
+    fn float_max_abs_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        reduce_float_ops!(MaxAbsDimOps, B::float_max_abs_dim);
 
         let stream = tensor.stream;
         let mut shape = tensor.shape.clone();

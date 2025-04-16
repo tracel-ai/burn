@@ -558,6 +558,12 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 NumericOperationIr::MinDim(desc) => {
                     reduce_float_dim_ops!(handles, desc, B::float_min_dim)
                 }
+                NumericOperationIr::MaxAbs(desc) => {
+                    unary_float_ops!(handles, desc, B::float_max_abs)
+                }
+                NumericOperationIr::MaxAbsDim(desc) => {
+                    reduce_float_dim_ops!(handles, desc, B::float_max_abs_dim)
+                }
                 NumericOperationIr::Clamp(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
 
@@ -739,6 +745,12 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 NumericOperationIr::MinDim(desc) => {
                     reduce_int_dim_ops!(handles, desc, B::int_min_dim)
+                }
+                NumericOperationIr::MaxAbs(desc) => {
+                    unary_int_ops!(handles, desc, B::int_max_abs)
+                }
+                NumericOperationIr::MaxAbsDim(desc) => {
+                    reduce_int_dim_ops!(handles, desc, B::int_max_abs_dim)
                 }
                 NumericOperationIr::Clamp(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);

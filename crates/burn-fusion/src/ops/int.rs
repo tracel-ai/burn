@@ -1613,7 +1613,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_max_abs_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(MaxDimAbsOps, B::int_max_abs_dim);
+        reduce_int_ops!(MaxAbsDimOps, B::int_max_abs_dim);
 
         let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
