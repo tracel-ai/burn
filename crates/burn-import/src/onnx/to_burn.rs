@@ -31,7 +31,7 @@ use crate::{
             conv_transpose_2d::ConvTranspose2dNode,
             conv_transpose_3d::ConvTranspose3dNode,
             dropout::DropoutNode,
-            expand::{ExpandNode, ExpandShape},
+            expand::ExpandNode,
             floor::FloorNode,
             gather::GatherNode,
             gather_elements::GatherElementsNode,
@@ -217,6 +217,15 @@ impl ModelGen {
         log::debug!("Output file: {:?}", out_file);
 
         let graph = parse_onnx(input.as_ref());
+
+        if self.development {
+            // save onnx graph as a debug file
+            let debug_graph = format!("{:#?}", graph);
+            let graph_file = out_file.with_extension("onnx.txt");
+            log::debug!("Writing debug onnx graph file: {:?}", graph_file);
+            fs::write(graph_file, debug_graph).unwrap();
+        }
+
         let graph = ParsedOnnxGraph(graph);
 
         if self.development {
@@ -396,9 +405,6 @@ impl ParsedOnnxGraph {
     }
 
     fn constant_conversion<PS: PrecisionSettings>(node: Node) -> ConstantNode {
-        // Additional types needed for Constant:
-        // use crate::burn::node::constant::{ConstantValue, TensorValue};
-
         let output = node.outputs.first().unwrap();
 
         let attr = convert_constant_value(&node);
@@ -412,33 +418,28 @@ impl ParsedOnnxGraph {
                     let kind: TensorKind = tensor.elem_type.clone().into();
                     let rank = tensor.rank;
                     let name = node.name.clone();
-                    let shape = tensor.shape.clone();
-
+                    let tensor_data = attr.value.expect("Constant tensor should have value");
                     let tensor_data = match tensor.elem_type {
                         // TODO Review how double precision should be supported
                         ElementType::Float32 | ElementType::Float64 => {
-                            serialize_data::<PS::FloatElem>(
-                                attr.value.unwrap(),
-                                tensor.shape.unwrap(),
-                            )
+                            serialize_data::<PS::FloatElem>(tensor_data.data, tensor_data.shape)
                         }
-                        ElementType::Int32 | ElementType::Int64 => serialize_data::<PS::IntElem>(
-                            attr.value.unwrap(),
-                            tensor.shape.unwrap(),
-                        ),
+                        ElementType::Int32 | ElementType::Int64 => {
+                            serialize_data::<PS::IntElem>(tensor_data.data, tensor_data.shape)
+                        }
                         // TODO support Bool tensor when it is supported by Burn
                         _ => panic!("Unsupported constant tensor type: {:?} ", tensor.elem_type),
                     };
 
-                    ConstantValue::Tensor(TensorType::new(name, rank, kind, shape), tensor_data)
+                    ConstantValue::Tensor(TensorType::new(name, rank, kind), tensor_data)
                 }
             }
             ArgType::Scalar(elem_type) => match elem_type {
-                ElementType::Float64 => ConstantValue::Float64(attr.value.unwrap().into_f64()),
-                ElementType::Float32 => ConstantValue::Float32(attr.value.unwrap().into_f32()),
-                ElementType::Int32 => ConstantValue::Int32(attr.value.unwrap().into_i32()),
-                ElementType::Int64 => ConstantValue::Int64(attr.value.unwrap().into_i64()),
-                ElementType::Bool => ConstantValue::Bool(attr.value.unwrap().into_bool()),
+                ElementType::Float64 => ConstantValue::Float64(attr.value.unwrap().data.into_f64()),
+                ElementType::Float32 => ConstantValue::Float32(attr.value.unwrap().data.into_f32()),
+                ElementType::Int32 => ConstantValue::Int32(attr.value.unwrap().data.into_i32()),
+                ElementType::Int64 => ConstantValue::Int64(attr.value.unwrap().data.into_i64()),
+                ElementType::Bool => ConstantValue::Bool(attr.value.unwrap().data.into_bool()),
                 _ => panic!("Unsupported constant tensor type: {:?} ", elem_type),
             },
             ArgType::Shape(_) => panic!("Shape is not supported as constant value."),
@@ -462,11 +463,23 @@ impl ParsedOnnxGraph {
             .map(|val| val.clone().into_f32() as f64)
             .unwrap_or(0.0f64);
 
+        let shape = node
+            .attrs
+            .get("shape")
+            .map(|val| {
+                val.clone()
+                    .into_i64s()
+                    .into_iter()
+                    .map(|elem| elem as usize)
+                    .collect()
+            })
+            .unwrap_or(vec![]);
+
         if node.attrs.contains_key("seed") {
             warn!("seed attribute is not supported!");
         }
 
-        RandomUniformNode::new(output_type, low, high)
+        RandomUniformNode::new(output_type, low, high, shape)
     }
 
     fn random_uniform_like_conversion(node: Node) -> RandomUniformLikeNode {
@@ -505,11 +518,23 @@ impl ParsedOnnxGraph {
             .map(|val| val.clone().into_f32() as f64)
             .unwrap_or(1.0f64);
 
+        let shape = node
+            .attrs
+            .get("shape")
+            .map(|val| {
+                val.clone()
+                    .into_i64s()
+                    .into_iter()
+                    .map(|elem| elem as usize)
+                    .collect()
+            })
+            .unwrap_or(vec![]);
+
         if node.attrs.contains_key("seed") {
             warn!("seed attribute is not supported!");
         }
 
-        RandomNormalNode::new(output_type, mean, scale)
+        RandomNormalNode::new(output_type, mean, scale, shape)
     }
 
     fn random_normal_like_conversion(node: Node) -> RandomNormalLikeNode {
@@ -561,7 +586,6 @@ impl ParsedOnnxGraph {
                 ty => panic!("Unsupported value type {:?} for ConstantOfShape!", ty),
             })
             .unwrap_or(ConstantValue::Float32(0.0f32));
-
         ConstantOfShapeNode::new(input, output, value)
     }
 
@@ -1164,27 +1188,12 @@ impl ParsedOnnxGraph {
         UnaryNode::exp(input, output)
     }
 
-    fn expand_conversion(mut node: Node) -> ExpandNode {
+    fn expand_conversion(node: Node) -> ExpandNode {
         let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let shape = expand_config(&node);
 
-        // rank_inference left the rank at zero, so it needs to be filled before converting to TensorType:
-        assert_eq!(
-            node.outputs.len(),
-            1,
-            "ExpandNode must have exactly 1 output!"
-        );
-        let mut output_arg = node.outputs.pop().unwrap();
-        if let ArgType::Tensor(output_arg_tensor) = &mut output_arg.ty {
-            output_arg_tensor.rank = match &shape {
-                ExpandShape::Static(s) => s.len(),
-                ExpandShape::Runtime(Type::Shape(s)) => s.rank,
-                ExpandShape::Runtime(Type::Tensor(t)) => t.shape.as_ref().unwrap()[0],
-                _ => panic!("Invalid ExpandShape {shape:?}!"),
-            };
-        }
-
-        ExpandNode::new(input, TensorType::from(&output_arg), shape)
+        ExpandNode::new(input, output, shape)
     }
 
     fn neg_conversion(node: Node) -> UnaryNode {
@@ -1338,13 +1347,10 @@ fn extract_data_serialize<E: Element>(input_index: usize, node: &Node) -> Option
     let ty = input.ty.clone();
 
     match ty {
-        ArgType::Tensor(tensor_type) => {
-            let value = input.value.as_ref().expect("Value to be provided.").clone();
+        ArgType::Tensor(_) => {
+            let value = input.value.as_ref().expect("Value to be provided.");
 
-            Some(serialize_data::<E>(
-                value.clone(),
-                tensor_type.shape.unwrap().clone(),
-            ))
+            Some(serialize_data::<E>(value.data.clone(), value.shape.clone()))
         }
         _ => panic!("Unsupported serialization type"),
     }
@@ -1369,21 +1375,18 @@ impl From<&OnnxArgument> for TensorType {
             ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Float16 | ElementType::Float32 | ElementType::Float64,
                 rank,
-                shape,
                 ..
-            }) => TensorType::new_float_with_shape(arg.name.clone(), *rank, shape.clone()),
+            }) => TensorType::new_float(arg.name.clone(), *rank),
             ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Int32 | ElementType::Int64,
                 rank,
-                shape,
                 ..
-            }) => TensorType::new_int_with_shape(arg.name.clone(), *rank, shape.clone()),
+            }) => TensorType::new_int(arg.name.clone(), *rank),
             ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Bool,
                 rank,
-                shape,
                 ..
-            }) => TensorType::new_bool_with_shape(arg.name.clone(), *rank, shape.clone()),
+            }) => TensorType::new_bool(arg.name.clone(), *rank),
             _ => panic!("Can't transform {:?} to tensor.", arg.ty),
         }
     }
@@ -1402,8 +1405,7 @@ impl From<&OnnxArgument> for Type {
                     let kind: TensorKind = tensor.elem_type.clone().into();
                     let rank = tensor.rank;
                     let name = arg.name.clone();
-                    let shape = tensor.shape.clone();
-                    Type::Tensor(TensorType::new(name, rank, kind, shape))
+                    Type::Tensor(TensorType::new(name, rank, kind))
                 }
             }
 

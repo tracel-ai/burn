@@ -246,9 +246,39 @@ impl TryFrom<ValueInfoProto> for Argument {
             ArgType::Scalar(elem_type)
         } else {
             // tensor_proto describes a tensor
+            // Check if any dimension is None
+            let has_unknown_dim = tensor_proto.shape.dim.iter().any(|dim| {
+                match &dim.value {
+                    None => true,
+                    Some(Value::DimParam(_)) => true, // Unknown with string dimension parameter
+                    Some(Value::DimValue(_)) => false,
+                }
+            });
+
+            // TODO DT use infered shape information
+
+            let static_shape = if has_unknown_dim {
+                None
+            } else {
+                let shape: Vec<usize> = tensor_proto
+                    .shape
+                    .dim
+                    .iter()
+                    .filter_map(|dim| {
+                        if let Some(Value::DimValue(value)) = &dim.value {
+                            Some(*value as usize)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                Some(shape)
+            };
+
             let tensor_type = TensorType {
                 rank: tensor_proto.shape.dim.len(),
                 elem_type,
+                static_shape,
             };
 
             ArgType::Tensor(tensor_type)

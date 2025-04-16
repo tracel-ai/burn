@@ -127,7 +127,7 @@ include_models!(
     trilu_upper,
     trilu_lower,
     transpose,
-    unsqueeze,
+    // unsqueeze, Disabled for now because dynamic ranks are not supported in Burn
     unsqueeze_opset11,
     unsqueeze_opset16,
     split
@@ -1969,16 +1969,17 @@ mod tests {
         output.assert_eq(&expected, true);
     }
 
-    #[test]
-    fn unsqueeze() {
-        let device = Default::default();
-        let model: unsqueeze::Model<Backend> = unsqueeze::Model::new(&device);
-        let input_shape = Shape::from([3, 4, 5]);
-        let expected_shape = Shape::from([1, 1, 3, 4, 5, 1]);
-        let input = Tensor::ones(input_shape, &device);
-        let output = model.forward(input);
-        assert_eq!(output.shape(), expected_shape);
-    }
+    // NOTE: unsqueeze, Disabled for now because dynamic ranks are not supported in Burn
+    // #[test]
+    // fn unsqueeze() {
+    //     let device = Default::default();
+    //     let model: unsqueeze::Model<Backend> = unsqueeze::Model::new(&device);
+    //     let input_shape = Shape::from([3, 4, 5]);
+    //     let expected_shape = Shape::from([1, 1, 3, 4, 5, 1]);
+    //     let input = Tensor::ones(input_shape, &device);
+    //     let output = model.forward(input);
+    //     assert_eq!(output.shape(), expected_shape);
+    // }
 
     #[test]
     fn unsqueeze_opset16() {

@@ -18,7 +18,7 @@ use super::rank_inference::rank_inference;
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 13] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 15] = [
     NodeType::BatchNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
@@ -32,6 +32,8 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 13] = [
     NodeType::ReduceSum,
     NodeType::Slice,
     NodeType::Squeeze,
+    NodeType::Split,
+    NodeType::Trilu,
 ];
 
 #[derive(Debug, Clone)]
@@ -382,7 +384,10 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
 pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
     if let Some(value) = &out_arg.value {
         let shape_vec = value.shape.clone();
-        let inner = shape_vec.into_iter().map(|x| x as i64).collect::<Vec<i64>>();
+        let inner = shape_vec
+            .into_iter()
+            .map(|x| x as i64)
+            .collect::<Vec<i64>>();
         let shape_len = inner.len();
         let new_rhs_value = Some(TensorData {
             elem_type: ElementType::Int64,
@@ -396,6 +401,7 @@ pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
             ty: ArgType::Tensor(TensorType {
                 elem_type: ElementType::Int64,
                 rank: 1,
+                static_shape: None,
             }),
             value: new_rhs_value,
             passed: false,

@@ -116,17 +116,24 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
 
     fn field_init(&self) -> Option<TokenStream> {
         match &self.value {
-            ConstantValue::Tensor(tensor_type, _) => {
+            ConstantValue::Tensor(tensor_type, data) => {
                 let ty = tensor_type.ty();
                 let name = Ident::new(self.name.as_ref(), Span::call_site());
-                let shape = tensor_type.clone().shape.unwrap().to_tokens();
-                let dim = tensor_type.rank.to_tokens();
+
+                assert_eq!(
+                    data.shape.len(),
+                    tensor_type.rank,
+                    "Tensor data shape does not match tensor type rank"
+                );
+
+                let shape = data.shape.to_tokens();
+                let rank = tensor_type.rank.to_tokens();
 
                 match tensor_type.kind {
                     crate::burn::TensorKind::Int => Some(quote! {
                         let #name: burn::module::Param<#ty> = burn::module::Param::uninitialized(
                             burn::module::ParamId::new(),
-                            move |device, _require_grad| Tensor::<B, #dim, burn::tensor::Int>::zeros(#shape, &device),
+                            move |device, _require_grad| Tensor::<B, #rank, burn::tensor::Int>::zeros(#shape, &device),
                             device.clone(),
                             false
                         );
@@ -134,7 +141,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
                     crate::burn::TensorKind::Float => Some(quote! {
                         let #name: burn::module::Param<#ty> = burn::module::Param::uninitialized(
                             burn::module::ParamId::new(),
-                            move |device, _require_grad| Tensor::<B, #dim, burn::tensor::Float>::zeros(#shape, &device),
+                            move |device, _require_grad| Tensor::<B, #rank, burn::tensor::Float>::zeros(#shape, &device),
                             device.clone(),
                             false,
                         );
@@ -142,7 +149,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
                     crate::burn::TensorKind::Bool => Some(quote! {
                         let #name: burn::module::Param<#ty> = burn::module::Param::uninitialized(
                             burn::module::ParamId::new(),
-                            move |device, _require_grad| Tensor::<B, #dim, burn::tensor::Bool>::empty(#shape, &device),
+                            move |device, _require_grad| Tensor::<B, #rank, burn::tensor::Bool>::empty(#shape, &device),
                             device.clone(),
                             false,
                         );

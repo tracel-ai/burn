@@ -8,7 +8,9 @@ use ndarray::{
     s, Array2, Array4, ArrayView2, ArrayView3, ArrayView4, ArrayView6, ArrayViewMut2, Axis, Dim,
     Ix4, Zip,
 };
+
 #[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
 use num_traits::Float;
 
 use crate::{FloatNdArrayElement, NdArrayTensor};

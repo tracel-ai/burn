@@ -3,6 +3,7 @@ use ndarray::LinalgScalar;
 use num_traits::Signed;
 
 #[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
 use num_traits::Float;
 
 use num_traits::Pow;

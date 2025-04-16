@@ -32,7 +32,6 @@ impl Argument {
         self.value.clone_from(&other_arg.value);
     }
 
-    // TODO dt
     pub fn from_initializer(initializer: &TensorProto) -> Argument {
         let name = initializer.name.clone();
         let tensor_data = TensorData::try_from(initializer.clone())
@@ -52,6 +51,7 @@ impl Argument {
                 ty: ArgType::Tensor(TensorType {
                     elem_type: tensor_data.clone().elem_type,
                     rank: tensor_data.rank,
+                    static_shape: Some(tensor_data.shape.clone()),
                 }),
                 value: Some(tensor_data),
                 passed: false,
@@ -103,6 +103,9 @@ pub struct TensorType {
 
     /// The number of dimensions in the tensor
     pub rank: Rank,
+
+    /// The static shape information of the tensor determined during shape inference
+    pub static_shape: Option<Vec<usize>>, // TODO fill in with inferred shape information
 }
 
 impl Default for ElementType {
@@ -555,6 +558,7 @@ impl Data {
             Data::Float64(elem) => elem as f32,
             Data::Int32(elem) => elem as f32,
             Data::Int64(elem) => elem as f32,
+            Data::Float32s(elem) if elem.len() == 1 => elem[0],
             _ => panic!("Cannot convert {:?} to f32", self),
         }
     }
@@ -586,6 +590,7 @@ impl Data {
             Data::Int64(elem) => elem,
             Data::Float32(elem) => elem as i64,
             Data::Float64(elem) => elem as i64,
+            Data::Int64s(elem) if elem.len() == 1 => elem[0],
             _ => panic!("Cannot convert {:?} to i64", self),
         }
     }
@@ -654,6 +659,16 @@ impl Data {
             Data::Float32s(elem) => elem.into_iter().map(|x| x as i64).collect(),
             Data::Float64s(elem) => elem.into_iter().map(|x| x as i64).collect(),
             _ => panic!("Cannot convert {:?} to Vec<i64>", self),
+        }
+    }
+
+    pub fn into_usizes(self) -> Vec<usize> {
+        match self {
+            Data::Int32s(elem) => elem.into_iter().map(|x| x as usize).collect(),
+            Data::Int64s(elem) => elem.into_iter().map(|x| x as usize).collect(),
+            Data::Float32s(elem) => elem.into_iter().map(|x| x as usize).collect(),
+            Data::Float64s(elem) => elem.into_iter().map(|x| x as usize).collect(),
+            _ => panic!("Cannot convert {:?} to Vec<usize>", self),
         }
     }
 
@@ -747,10 +762,12 @@ impl AttributeValue {
         }
     }
 }
+
 /// Convert AttributeValue to an Argument
 impl From<AttributeValue> for Argument {
     fn from(attr: AttributeValue) -> Argument {
         // "" is used as a placeholder for the name
+        // TODO dt review this empty string placeholder; it came up a few times in the issues
         let name = "".to_string();
 
         match attr {
@@ -769,6 +786,7 @@ impl From<AttributeValue> for Argument {
                 ty: ArgType::Tensor(TensorType {
                     rank: 1,
                     elem_type: ElementType::Float32,
+                    static_shape: Some(vec![values.len()]),
                 }),
                 name,
                 value: Some(TensorData {
@@ -794,6 +812,7 @@ impl From<AttributeValue> for Argument {
                 ty: ArgType::Tensor(TensorType {
                     rank: 1,
                     elem_type: ElementType::Int64,
+                    static_shape: Some(vec![values.len()]),
                 }),
                 name,
                 value: Some(TensorData {
@@ -819,6 +838,7 @@ impl From<AttributeValue> for Argument {
                 ty: ArgType::Tensor(TensorType {
                     rank: 1,
                     elem_type: ElementType::String,
+                    static_shape: Some(vec![values.len()]),
                 }),
                 name,
                 value: Some(TensorData {
@@ -830,20 +850,36 @@ impl From<AttributeValue> for Argument {
                 passed: false,
             },
             AttributeValue::Tensor(tensor) => {
-                // Convert tensor to argument
-                Argument {
-                    ty: ArgType::Tensor(TensorType {
-                        rank: tensor.rank,
-                        elem_type: tensor.elem_type.clone(),
-                    }),
-                    name,
-                    value: Some(TensorData {
-                        elem_type: tensor.elem_type,
-                        rank: tensor.rank,
-                        shape: tensor.shape,
-                        data: tensor.data,
-                    }),
-                    passed: false,
+                if tensor.rank == 0 {
+                    // Handle scalar tensors by converting them to scalar arguments
+                    Argument {
+                        ty: ArgType::Scalar(tensor.elem_type.clone()),
+                        name,
+                        value: Some(TensorData {
+                            elem_type: tensor.elem_type,
+                            rank: 0,
+                            shape: vec![],
+                            data: tensor.data,
+                        }),
+                        passed: false,
+                    }
+                } else {
+                    // Convert tensor to argument
+                    Argument {
+                        ty: ArgType::Tensor(TensorType {
+                            rank: tensor.rank,
+                            elem_type: tensor.elem_type.clone(),
+                            static_shape: Some(tensor.shape.clone()),
+                        }),
+                        name,
+                        value: Some(TensorData {
+                            elem_type: tensor.elem_type,
+                            rank: tensor.rank,
+                            shape: tensor.shape,
+                            data: tensor.data,
+                        }),
+                        passed: false,
+                    }
                 }
             }
             _ => panic!("Unsupported attribute type"),
