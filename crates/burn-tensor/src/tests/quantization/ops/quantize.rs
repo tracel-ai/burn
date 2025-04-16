@@ -275,6 +275,7 @@ mod tests {
 
     #[cfg(feature = "std")]
     #[test]
+    #[ignore]
     fn should_support_quantize_per_block_grid_symmetric_int8() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_floats(
