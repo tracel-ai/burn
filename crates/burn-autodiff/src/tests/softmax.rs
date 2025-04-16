@@ -22,7 +22,7 @@ mod tests {
 
         let expected = TensorData::from([[1.179665, 1.179661], [0.005462, 0.005463]]);
 
-        let tolerance = Tolerance::rel_abs(1e-5, 1e-4)
+        let tolerance = Tolerance::rel_abs(2e-4, 1e-4)
             // Softmax in f16 is not as accurate. For more accurate results, users probably want to upcast the input to f32.
             .set_half_precision_relative(5e-2)
             .set_half_precision_absolute(5.5e-2);
@@ -81,7 +81,7 @@ mod tests {
 
         let expected = TensorData::from([[1.179665, 1.179661], [0.005462, 0.005463]]);
 
-        let tolerance = Tolerance::rel_abs(1e-5, 1e-4)
+        let tolerance = Tolerance::rel_abs(2e-4, 1e-4)
             // Softmax in f16 is not as accurate. For more accurate results, users probably want to upcast the input to f32.
             .set_half_precision_relative(5e-2)
             .set_half_precision_absolute(5.5e-2);

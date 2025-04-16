@@ -79,7 +79,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // FAIL ON cuda (relative err > 1e-3)
     fn test_div_complex_2() {
         let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
         let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);
@@ -95,25 +94,15 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        // NOTE for fusion w/ cuda:
-        /*
-        thread 'tests::cube_fusion::autodiff::f32_ty::ad_div::tests::test_div_complex_2' panicked at /home/laggui/workspace/burn/crates/burn-cubecl-fusion/src/shared/trace/base.rs:90:48:
-        Tensors are not approx eq:
-          => Position 2: -0.055704772 != -0.055555582
-             diff (rel = +1.34e-3, abs = +1.49e-4), tol (rel = +5.00e-4, abs = +1.88e-37)
-          => Position 3: -0.067275405 != -0.067142844
-             diff (rel = +9.86e-4, abs = +1.33e-4), tol (rel = +5.00e-4, abs = +1.88e-37)
-        */
-
+        let tolerance = Tolerance::rel_abs(1.3e-4, 1e-5).set_half_precision_relative(2e-3);
         let expected = TensorData::from([[2.00, 2.92857146], [1.36666667, 2.0]]);
         grad_1
             .to_data()
-            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, tolerance);
 
-        //
         let expected = TensorData::from([[0.08333334, 0.09591837], [-0.05555558, -0.06714284]]);
         grad_2
             .to_data()
-            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, tolerance);
     }
 }
