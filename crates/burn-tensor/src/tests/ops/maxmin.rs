@@ -63,7 +63,7 @@ mod tests {
         let output = a.max_pair(b);
         let expected = TensorData::from([2.0, 2.0, 4.0, 5.0]);
 
-        output.into_data().assert_approx_eq(&expected, 1);
+        output.into_data().assert_eq(&expected);
     }
 
     #[test]
@@ -125,9 +125,7 @@ mod tests {
         let output = a.min_pair(b);
         let expected = TensorData::from([1.0, 1.0, 3.0, 4.0]);
 
-        output
-            .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+        output.into_data().assert_eq::<FT>(&expected);
     }
 
     #[test]
