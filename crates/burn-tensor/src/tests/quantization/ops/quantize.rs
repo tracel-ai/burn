@@ -74,16 +74,16 @@ mod tests {
         let device = Default::default();
         // NOTE: we use fully representable values since different backend implementations could differ slightly
         // due to rounding discrepancies
-        let tensor = TestTensor::<1>::from_floats([5., 0., 4., -10.], &device);
+        let tensor = TestTensor::<1>::from_floats([5., 0., 4., -12.7], &device);
         let scheme =
             QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8);
 
         let x_q = tensor.quantize_dynamic(&scheme);
 
         let expected = TensorData::quantized(
-            vec![127i8, 42, 110, -128],
+            vec![50i8, 0, 40, -127],
             [4],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.05882353)),
+            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.1)),
         );
 
         x_q.into_data().assert_eq(&expected, false);
