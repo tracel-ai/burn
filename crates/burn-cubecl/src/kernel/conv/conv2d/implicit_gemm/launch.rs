@@ -5,7 +5,10 @@ use burn_tensor::{
 use cubecl::linalg::{
     convolution::{
         ConvLaunchError, ConvolutionArgs,
-        algorithm::{Algorithm, simple::SimpleConvAlgorithm, simple_tma::SimpleTmaConvAlgorithm},
+        algorithm::{
+            Algorithm, multi_stage_tma::MultiStageTmaConvAlgorithm, simple::SimpleConvAlgorithm,
+            simple_tma::SimpleTmaConvAlgorithm,
+        },
         args::ConvInputsLaunch,
         launch_conv2d_nhwc,
     },
@@ -52,6 +55,24 @@ pub fn conv2d_gemm_tma<R: CubeRuntime, F: FloatElement>(
     options: ConvOptions<2>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
     conv2d_gemm_with_algo::<R, F, SimpleTmaConvAlgorithm<Accelerated>>(input, weight, bias, options)
+}
+
+/// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
+/// components. Uses [`CmmaLargeMAlgorithm`] for the stage size
+///
+/// * `input` - The input feature map
+/// * `weight` - The weights (filter) applied to each kernel
+/// * `bias` - The bias added to each channel
+/// * `options` - The options to use for the convolution
+pub fn conv2d_gemm_tma_multi_stage<R: CubeRuntime, F: FloatElement>(
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
+    options: ConvOptions<2>,
+) -> Result<CubeTensor<R>, ConvLaunchError> {
+    conv2d_gemm_with_algo::<R, F, MultiStageTmaConvAlgorithm<Accelerated>>(
+        input, weight, bias, options,
+    )
 }
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul

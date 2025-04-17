@@ -21,20 +21,20 @@ std = ["burn-cubecl/std", "cubecl/std"]
 template = ["burn-cubecl/template", "cubecl/template"]
 
 # Backends
+metal = ["cubecl-msl"]
 vulkan = ["cubecl-spirv"]
 webgpu = ["cubecl-wgsl"]
-metal = ["cubecl-msl"]
 
 # Compilers
+cubecl-msl = ["cubecl/wgpu-msl"]
 cubecl-spirv = ["cubecl/wgpu-spirv"]
 cubecl-wgsl = []
-cubecl-msl = ["cubecl/wgpu-msl"]
 
 [dependencies]
 cubecl = { workspace = true, features = ["wgpu"] }
 
-burn-fusion = { path = "../burn-fusion", version = "0.17.0", optional = true }
 burn-cubecl = { path = "../burn-cubecl", version = "0.17.0", default-features = false }
+burn-fusion = { path = "../burn-fusion", version = "0.17.0", optional = true }
 burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false, features = [
     "cubecl-wgpu",
 ] }
