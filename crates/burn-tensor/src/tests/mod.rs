@@ -364,9 +364,7 @@ pub mod qtensor {
     use crate::{
         Tensor, TensorData,
         backend::Backend,
-        quantization::{
-            QuantizationOutput, QuantizationScheme,
-        },
+        quantization::{QuantizationOutput, QuantizationScheme},
     };
 
     pub struct QTensor<B: Backend, const D: usize> {

@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
-    use burn_tensor::{Tolerance, ops::FloatElem, ops::QTensorOps, TensorPrimitive};
+    use burn_tensor::{TensorPrimitive, Tolerance, ops::FloatElem, ops::QTensorOps};
     type FT = FloatElem<TestBackend>;
 
     #[test]

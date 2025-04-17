@@ -1,9 +1,7 @@
 use std::fmt::Debug;
 
 use burn_tensor::{
-    BasicOps, Bool, DType, Element, Shape, Tensor, TensorData,
-    backend::Backend,
-    cast::ToElement,
+    BasicOps, Bool, DType, Element, Shape, Tensor, TensorData, backend::Backend, cast::ToElement,
     ops::BoolTensor,
 };
 use filter::{MaxOp, MinOp, MorphOperator, VecMorphOperator};
@@ -107,7 +105,7 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
         }
         DType::U8 => morph_typed::<B, K, u8>(data, shape, kernel, op, iter, btype, bvalue, &device),
         DType::Bool => morph_bool::<B, K>(data, shape, kernel, op, iter, btype, bvalue, &device),
-        DType::QFloat(_) => unimplemented!()
+        DType::QFloat(_) => unimplemented!(),
     }
 }
 
