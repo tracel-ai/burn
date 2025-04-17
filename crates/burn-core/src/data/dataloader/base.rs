@@ -2,6 +2,7 @@ use burn_tensor::backend::Backend;
 
 pub use crate::data::dataset::{Dataset, DatasetIterator};
 use core::iter::Iterator;
+use std::sync::Arc;
 
 /// A progress struct that can be used to track the progress of a data loader.
 #[derive(new, Clone, Debug)]
@@ -28,8 +29,8 @@ pub trait DataLoader<B: Backend, O>: Send {
     /// corresponding to the items_total of the progress returned by the iterator.
     fn num_items(&self) -> usize;
 
-    /// Forks the data loader to the given device, ensuring the batches are assigned to the correct device.
-    fn forked(&self, device: &B::Device) -> Box<dyn DataLoader<B, O>>;
+    /// Move the data loader to the given device, ensuring the batches are assigned to the correct device.
+    fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O>>;
 
     /// Returns a new data loader containing a subset of the data.
     ///
@@ -44,5 +45,5 @@ pub trait DataLoader<B: Backend, O>: Send {
     /// # Returns
     ///
     /// A boxed [`DataLoader`] instance containing only the specified range.
-    fn slice(&self, start: usize, end: usize) -> Box<dyn DataLoader<B, O>>;
+    fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O>>;
 }

@@ -1,6 +1,6 @@
 use super::{
     BatchDataLoader, BatchStrategy, DataLoader, FixBatchStrategy, MultiThreadDataLoader,
-    batcher::DynBatcher,
+    batcher::Batcher,
 };
 use burn_dataset::Dataset;
 use burn_tensor::backend::Backend;
@@ -10,7 +10,7 @@ use std::sync::Arc;
 /// A builder for data loaders.
 pub struct DataLoaderBuilder<B: Backend, I, O> {
     strategy: Option<Box<dyn BatchStrategy<I>>>,
-    batcher: Box<dyn DynBatcher<B, I, O>>,
+    batcher: Arc<dyn Batcher<B, I, O>>,
     num_threads: Option<usize>,
     shuffle: Option<u64>,
     device: Option<B::Device>,
@@ -33,10 +33,10 @@ where
     /// The data loader builder.
     pub fn new<Bt>(batcher: Bt) -> Self
     where
-        Bt: DynBatcher<B, I, O> + 'static,
+        Bt: Batcher<B, I, O> + 'static,
     {
         Self {
-            batcher: Box::new(batcher),
+            batcher: Arc::new(batcher),
             strategy: None,
             num_threads: None,
             shuffle: None,
@@ -225,8 +225,8 @@ mod tests {
         let (device1, device2) = (burn_cuda::CudaDevice::new(0), burn_cuda::CudaDevice::new(1));
 
         assert_eq!(dataloader.num_items(), 11);
-        let dataloader_1 = dataloader.slice(0, 5).forked(&device1);
-        let dataloader_2 = dataloader.slice(5, 11).forked(&device2);
+        let dataloader_1 = dataloader.slice(0, 5).to_device(&device1);
+        let dataloader_2 = dataloader.slice(5, 11).to_device(&device2);
 
         assert_eq!(dataloader_1.num_items(), 5);
         assert_eq!(dataloader_2.num_items(), 6);

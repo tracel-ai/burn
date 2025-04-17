@@ -1,4 +1,4 @@
-use super::{BatchStrategy, DataLoader, DataLoaderIterator, Progress, batcher::DynBatcher};
+use super::{BatchStrategy, DataLoader, DataLoaderIterator, Progress, batcher::Batcher};
 use burn_dataset::{
     Dataset,
     transform::{PartialDataset, ShuffledDataset},
@@ -11,7 +11,7 @@ use std::sync::Arc;
 pub struct BatchDataLoader<B: Backend, I, O> {
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
-    batcher: Box<dyn DynBatcher<B, I, O>>,
+    batcher: Arc<dyn Batcher<B, I, O>>,
     device: B::Device,
     rng: Option<Arc<spin::Mutex<rand::rngs::StdRng>>>,
 }
@@ -21,7 +21,7 @@ impl<B: Backend, I, O> Clone for BatchDataLoader<B, I, O> {
         Self {
             strategy: self.strategy.clone_dyn(),
             dataset: self.dataset.clone(),
-            batcher: self.batcher.clone_dyn(),
+            batcher: self.batcher.clone(),
             device: self.device.clone(),
             rng: self.rng.clone(),
         }
@@ -46,7 +46,7 @@ impl<B: Backend, I, O> BatchDataLoader<B, I, O> {
     pub fn new(
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
-        batcher: Box<dyn DynBatcher<B, I, O>>,
+        batcher: Arc<dyn Batcher<B, I, O>>,
         device: B::Device,
         rng: Option<rand::rngs::StdRng>,
     ) -> Self {
@@ -65,7 +65,7 @@ struct BatchDataloaderIterator<B: Backend, I, O> {
     current_index: usize,
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
-    batcher: Box<dyn DynBatcher<B, I, O>>,
+    batcher: Arc<dyn Batcher<B, I, O>>,
     device: B::Device,
 }
 
@@ -93,7 +93,7 @@ where
         Box::new(BatchDataloaderIterator::new(
             self.strategy.clone_dyn(),
             dataset,
-            self.batcher.clone_dyn(),
+            self.batcher.clone(),
             self.device.clone(),
         ))
     }
@@ -102,21 +102,21 @@ where
         self.dataset.len()
     }
 
-    fn forked(&self, device: &B::Device) -> Box<dyn DataLoader<B, O>> {
+    fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O>> {
         let rng = self.rng.as_ref().map(|rng| {
             let rng = rng.lock();
             rng.clone()
         });
-        Box::new(Self::new(
+        Arc::new(Self::new(
             self.strategy.clone_dyn(),
             self.dataset.clone(),
-            self.batcher.clone_dyn(),
+            self.batcher.clone(),
             device.clone(),
             rng,
         ))
     }
 
-    fn slice(&self, start: usize, end: usize) -> Box<dyn DataLoader<B, O>> {
+    fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O>> {
         let rng = self.rng.as_ref().map(|rng| {
             let rng = rng.lock();
             rng.clone()
@@ -124,11 +124,11 @@ where
         let dataloader = Self::new(
             self.strategy.clone_dyn(),
             Arc::new(PartialDataset::new(self.dataset.clone(), start, end)),
-            self.batcher.clone_dyn(),
+            self.batcher.clone(),
             self.device.clone(),
             rng,
         );
-        Box::new(dataloader)
+        Arc::new(dataloader)
     }
 }
 
@@ -148,7 +148,7 @@ impl<B: Backend, I, O> BatchDataloaderIterator<B, I, O> {
     pub fn new(
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
-        batcher: Box<dyn DynBatcher<B, I, O>>,
+        batcher: Arc<dyn Batcher<B, I, O>>,
         device: B::Device,
     ) -> Self {
         BatchDataloaderIterator {
@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_batch_dataloader() {
-        let batcher = Box::new(TestBatcher::new());
+        let batcher = Arc::new(TestBatcher::new());
         let dataset = Arc::new(FakeDataset::<String>::new(27));
         let dataloader = BatchDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),
@@ -227,7 +227,7 @@ mod tests {
 
     #[test]
     fn test_batch_dataloader_slice() {
-        let batcher = Box::new(TestBatcher::new());
+        let batcher = Arc::new(TestBatcher::new());
         let dataset = Arc::new(FakeDataset::<String>::new(27));
         let dataloader = BatchDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),

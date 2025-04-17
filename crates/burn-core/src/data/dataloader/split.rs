@@ -22,8 +22,8 @@ pub fn split_dataloader<B: Backend, O>(
             } else {
                 start + step
             };
-            let dataloader = dataloader.slice(start, end).forked(device);
-            dataloaders.push(Arc::from(dataloader));
+            let dataloader = dataloader.slice(start, end).to_device(device);
+            dataloaders.push(dataloader);
             start = end;
         }
         dataloaders
@@ -56,7 +56,7 @@ mod tests {
             }
         }
 
-        let batcher = Box::new(TestBatcher::new());
+        let batcher = Arc::new(TestBatcher::new());
         let dataset = Arc::new(FakeDataset::<String>::new(11));
         let dataloader = Arc::new(BatchDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),

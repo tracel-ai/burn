@@ -4,7 +4,7 @@ use burn_tensor::backend::Backend;
 use crate::TestBackend;
 
 /// A trait for batching items of type `I` into items of type `O`.
-pub trait Batcher<B: Backend, I, O>: Send {
+pub trait Batcher<B: Backend, I, O>: Send + Sync {
     /// Batches the given items on the specified device.
     ///
     /// # Arguments
@@ -16,24 +16,6 @@ pub trait Batcher<B: Backend, I, O>: Send {
     ///
     /// The batched items.
     fn batch(&self, items: Vec<I>, device: &B::Device) -> O;
-}
-
-/// A super trait for [batcher](Batcher) that allows it to be cloned dynamically.
-///
-/// Any batcher that implements [Clone] should also implement this automatically.
-pub trait DynBatcher<B: Backend, I, O>: Send + Batcher<B, I, O> {
-    /// Clone the batcher and returns a new one.
-    fn clone_dyn(&self) -> Box<dyn DynBatcher<B, I, O>>;
-}
-
-impl<Bt, B, I, O> DynBatcher<B, I, O> for Bt
-where
-    Bt: Batcher<B, I, O> + Clone + 'static,
-    B: Backend,
-{
-    fn clone_dyn(&self) -> Box<dyn DynBatcher<B, I, O>> {
-        Box::new(self.clone())
-    }
 }
 
 /// Test batcher

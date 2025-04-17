@@ -5,7 +5,7 @@ use rand::SeedableRng;
 use rand::distr::{Distribution, StandardUniform};
 use rand::rngs::StdRng;
 
-use super::batcher::DynBatcher;
+use super::batcher::Batcher;
 use super::{BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, Progress};
 use core::cell::OnceCell;
 use std::sync::{Arc, mpsc};
@@ -18,7 +18,7 @@ pub struct MultiThreadDataLoader<B: Backend, I, O> {
     // Configuration parameters needed for initialization
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
-    batcher: Box<dyn DynBatcher<B, I, O>>,
+    batcher: Arc<dyn Batcher<B, I, O>>,
     device: B::Device,
     rng: Option<rand::rngs::StdRng>,
     num_threads: usize,
@@ -67,7 +67,7 @@ where
     pub fn new(
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
-        batcher: Box<dyn DynBatcher<B, I, O>>,
+        batcher: Arc<dyn Batcher<B, I, O>>,
         num_threads: usize,
         device: B::Device,
         rng: Option<rand::rngs::StdRng>,
@@ -105,7 +105,7 @@ where
                         BatchDataLoader::new(
                             strategy,
                             Arc::new(dataset),
-                            self.batcher.clone_dyn(),
+                            self.batcher.clone(),
                             self.device.clone(),
                             rng,
                         )
@@ -166,27 +166,27 @@ where
         self.dataset.len()
     }
 
-    fn forked(&self, device: &B::Device) -> Box<dyn DataLoader<B, O>> {
-        Box::new(Self::new(
+    fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O>> {
+        Arc::new(Self::new(
             self.strategy.clone_dyn(),
             self.dataset.clone(),
-            self.batcher.clone_dyn(),
+            self.batcher.clone(),
             self.num_threads,
             device.clone(),
             self.rng.clone(),
         ))
     }
 
-    fn slice(&self, start: usize, end: usize) -> Box<dyn DataLoader<B, O>> {
+    fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O>> {
         let dataloader = Self::new(
             self.strategy.clone_dyn(),
             Arc::new(PartialDataset::new(self.dataset.clone(), start, end)),
-            self.batcher.clone_dyn(),
+            self.batcher.clone(),
             self.num_threads,
             self.device.clone(),
             self.rng.clone(),
         );
-        Box::new(dataloader)
+        Arc::new(dataloader)
     }
 }
 
@@ -263,12 +263,12 @@ mod tests {
 
     #[test]
     fn test_multi_thread_batch_dataloader() {
-        let batcher = Box::new(TestBatcher::new());
+        let batcher = Arc::new(TestBatcher::new());
         let dataset = Arc::new(FakeDataset::<String>::new(27));
         let dataloader_single_thread = BatchDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),
             dataset.clone(),
-            batcher.clone_dyn(),
+            batcher.clone(),
             Default::default(),
             None,
         );

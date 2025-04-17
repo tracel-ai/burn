@@ -127,8 +127,8 @@ impl<LC: LearnerComponents> Learner<LC> {
         // The reference model is always on the first device provided.
         if let Some(device) = self.devices.first() {
             self.model = self.model.fork(device);
-            dataloader_train = Arc::from(dataloader_train.forked(device));
-            dataloader_valid = Arc::from(dataloader_valid.forked(device));
+            dataloader_train = dataloader_train.to_device(device);
+            dataloader_valid = dataloader_valid.to_device(device);
         }
 
         let starting_epoch = match self.checkpoint {
