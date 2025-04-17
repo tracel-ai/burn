@@ -181,5 +181,4 @@ mod tests {
 
         assert_eq!(q_values, values);
     }
-
 }

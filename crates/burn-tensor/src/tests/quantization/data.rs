@@ -2,9 +2,7 @@
 mod tests {
     use super::*;
     use alloc::{vec, vec::Vec};
-    use burn_tensor::quantization::{
-        QuantizationStrategy, SymmetricQuantization,
-    };
+    use burn_tensor::quantization::{QuantizationStrategy, SymmetricQuantization};
     use burn_tensor::{Tensor, TensorData};
 
     // NOTE: we mark the per-block tests as `might_panic` since backends are not strictly

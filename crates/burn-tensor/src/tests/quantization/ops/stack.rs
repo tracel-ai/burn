@@ -38,10 +38,8 @@ mod tests {
 
     #[test]
     fn should_support_stack_ops_3d() {
-        let tensor_1 =
-            QTensor::<TestBackend, 3>::int8([[[1.0, 2.0, 3.0]], [[3.0, 2.0, 1.0]]]);
-        let tensor_2 =
-            QTensor::<TestBackend, 3>::int8([[[4.0, 5.0, 6.0]], [[6.0, 5.0, 4.0]]]);
+        let tensor_1 = QTensor::<TestBackend, 3>::int8([[[1.0, 2.0, 3.0]], [[3.0, 2.0, 1.0]]]);
+        let tensor_2 = QTensor::<TestBackend, 3>::int8([[[4.0, 5.0, 6.0]], [[6.0, 5.0, 4.0]]]);
 
         let output = Tensor::stack::<4>(vec![tensor_1, tensor_2], 0);
         let expected = TensorData::from([
@@ -68,8 +66,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn should_panic_when_stack_exceeds_dimension() {
-        let tensor_1 =
-            QTensor::<TestBackend, 3>::int8([[[1.0, 2.0, 3.0]], [[3.0, 2.0, 1.0]]]);
+        let tensor_1 = QTensor::<TestBackend, 3>::int8([[[1.0, 2.0, 3.0]], [[3.0, 2.0, 1.0]]]);
         let tensor_2 = QTensor::<TestBackend, 3>::int8([[[4.0, 5.0, 6.0]]]);
 
         let output: TestTensor<4> = TestTensor::stack(vec![tensor_1, tensor_2], 3);

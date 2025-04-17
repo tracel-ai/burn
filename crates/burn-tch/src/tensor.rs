@@ -2,8 +2,8 @@ use crate::{LibTorchDevice, TchElement};
 use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     quantization::{
-        QTensorPrimitive, QuantizationMode, QuantizationScheme,
-        QuantizationStrategy, QuantizationType, SymmetricQuantization,
+        QTensorPrimitive, QuantizationMode, QuantizationScheme, QuantizationStrategy,
+        QuantizationType, SymmetricQuantization,
     },
 };
 use libc::c_void;

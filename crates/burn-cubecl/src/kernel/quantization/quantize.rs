@@ -85,7 +85,6 @@ fn quantize_per_tensor_symmetric_int8_kernel(
     }
 }
 
-
 fn create_quantized_output<R: CubeRuntime>(
     client: ComputeClient<R::Server, R::Channel>,
     num_input_elems: usize,
