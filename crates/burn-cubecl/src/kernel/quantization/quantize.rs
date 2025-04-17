@@ -1,7 +1,9 @@
 use crate::tensor::CubeTensor;
 use crate::{CubeElement, CubeRuntime, IntElement};
 use burn_tensor::Shape;
-use burn_tensor::quantization::{QuantizationMode, QuantizationScheme, QuantizationType};
+use burn_tensor::quantization::{
+    QuantizationLevel, QuantizationMode, QuantizationScheme, QuantizationType,
+};
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 
@@ -97,9 +99,13 @@ fn create_quantized_output<R: CubeRuntime>(
 
     // Scale and offset (optional) qparams are also packed in the tensor data
     let qparams_size = match &scheme {
-        QuantizationScheme::PerTensor(mode, ..) => match mode {
-            QuantizationMode::Symmetric => core::mem::size_of::<f32>(),
-        },
+        QuantizationScheme {
+            level: QuantizationLevel::Tensor,
+            mode: QuantizationMode::Symmetric,
+            q_type: QuantizationType::QInt8,
+            acc_precision: _,
+            output: _,
+        } => core::mem::size_of::<f32>(),
     };
 
     let handle = client.empty(output_elems_size + qparams_size);
@@ -142,32 +148,29 @@ where
     );
 
     match scheme {
-        QuantizationScheme::PerTensor(mode, QuantizationType::QInt8) => {
+        QuantizationScheme {
+            level: QuantizationLevel::Tensor,
+            mode: QuantizationMode::Symmetric,
+            q_type: QuantizationType::QInt8,
+            acc_precision: _,
+            output: _,
+        } => {
             let ndims = tensor.shape.num_dims();
             let dummy_array = vec![1; ndims];
 
-            match mode {
-                QuantizationMode::Symmetric => {
-                    unsafe {
-                        quantize_per_tensor_symmetric_int8_kernel::launch_unchecked::<R>(
-                            &client,
-                            cube_count,
-                            cube_dim,
-                            tensor.as_tensor_arg::<F>(line_size),
-                            // Ignore shape and stride
-                            TensorArg::from_raw_parts::<F>(
-                                &scale.handle,
-                                &dummy_array,
-                                &dummy_array,
-                                1,
-                            ),
-                            ScalarArg::new(-i8::MAX as f32),
-                            ScalarArg::new(i8::MAX as f32),
-                            output.as_array_arg::<u32>(1),
-                        )
-                    };
-                }
-            }
+            unsafe {
+                quantize_per_tensor_symmetric_int8_kernel::launch_unchecked::<R>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    tensor.as_tensor_arg::<F>(line_size),
+                    // Ignore shape and stride
+                    TensorArg::from_raw_parts::<F>(&scale.handle, &dummy_array, &dummy_array, 1),
+                    ScalarArg::new(-i8::MAX as f32),
+                    ScalarArg::new(i8::MAX as f32),
+                    output.as_array_arg::<u32>(1),
+                )
+            };
         }
     }
 

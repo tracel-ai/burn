@@ -10,8 +10,7 @@ mod tests {
     #[test]
     fn min_max_calibration_range_per_tensor() {
         let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &Default::default());
-        let scheme =
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8);
+        let scheme = QuantizationScheme::default();
 
         let range = scheme.compute_range(&tensor, &Calibration::MinMax);
 

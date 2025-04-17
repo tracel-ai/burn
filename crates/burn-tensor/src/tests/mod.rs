@@ -364,7 +364,9 @@ pub mod qtensor {
     use crate::{
         Tensor, TensorData,
         backend::Backend,
-        quantization::{QuantizationMode, QuantizationScheme, QuantizationType},
+        quantization::{
+            QuantizationOutput, QuantizationScheme,
+        },
     };
 
     pub struct QTensor<B: Backend, const D: usize> {
@@ -380,11 +382,14 @@ pub mod qtensor {
 
         /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.
         pub fn int8_symmetric<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
+            Tensor::from_floats(floats, &Default::default())
+                .quantize_dynamic(&QuantizationScheme::default())
+        }
+
+        /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.
+        pub fn int8_requantized<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
             Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
-                &QuantizationScheme::PerTensor(
-                    QuantizationMode::Symmetric,
-                    QuantizationType::QInt8,
-                ),
+                &QuantizationScheme::default().set_output(QuantizationOutput::Quantized),
             )
         }
     }

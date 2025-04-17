@@ -4,8 +4,8 @@ use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParams, QuantizationMode, QuantizationParametersPrimitive, QuantizationScheme,
-        QuantizationType, QuantizedBytes,
+        QParams, QuantizationLevel, QuantizationMode, QuantizationParametersPrimitive,
+        QuantizationScheme, QuantizationType, QuantizedBytes,
     },
 };
 
@@ -25,9 +25,13 @@ fn quantize<E: TchElement, Q: QuantElement>(
     }
 
     match scheme {
-        QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
-            tensor.quantize_per_tensor(qparams.scale.elem(), 0, tch::Kind::QInt8)
-        }
+        QuantizationScheme {
+            level: QuantizationLevel::Tensor,
+            mode: QuantizationMode::Symmetric,
+            q_type: QuantizationType::QInt8,
+            acc_precision: _,
+            output: _,
+        } => tensor.quantize_per_tensor(qparams.scale.elem(), 0, tch::Kind::QInt8),
     }
 }
 
@@ -41,8 +45,8 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         // So for now we have to load the dequantized values to quantize them back since the dequantization
         // methods take the values provided when quantizing.
         match data.dtype {
-            DType::QFloat(scheme) => match scheme {
-                QuantizationScheme::PerTensor(_, _) => {
+            DType::QFloat(scheme) => match scheme.level {
+                QuantizationLevel::Tensor => {
                     let num_elements = data.num_elements();
                     let q_bytes = QuantizedBytes {
                         bytes: data.into_bytes(),
@@ -83,13 +87,17 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         }
 
         let qtensor = match scheme {
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
-                tensor.tensor.quantize_per_tensor_tensor_qparams(
-                    &qparams.scale.tensor,
-                    &tch::Tensor::zeros_like(&qparams.scale.tensor),
-                    tch::Kind::QInt8,
-                )
-            }
+            QuantizationScheme {
+                level: QuantizationLevel::Tensor,
+                mode: QuantizationMode::Symmetric,
+                q_type: QuantizationType::QInt8,
+                acc_precision: _,
+                output: _,
+            } => tensor.tensor.quantize_per_tensor_tensor_qparams(
+                &qparams.scale.tensor,
+                &tch::Tensor::zeros_like(&qparams.scale.tensor),
+                tch::Kind::QInt8,
+            ),
         };
 
         TchQTensor {
@@ -103,7 +111,13 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         scheme: &QuantizationScheme,
     ) -> QuantizedTensor<Self> {
         let qtensor = match &scheme {
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
+            QuantizationScheme {
+                level: QuantizationLevel::Tensor,
+                mode: QuantizationMode::Symmetric,
+                q_type: QuantizationType::QInt8,
+                acc_precision: _,
+                output: _,
+            } => {
                 log::warn!(
                     "LibTorch backend does not support symmetric per-tensor scheme for dynamic quantization, reverting to the default per-tensor affine quantization"
                 );

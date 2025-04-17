@@ -4,8 +4,8 @@ use burn_tensor::{
     DType, Device, Shape, TensorData,
     ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QTensorPrimitive, QuantizationMode, QuantizationParametersPrimitive, QuantizationScheme,
-        QuantizationType,
+        QTensorPrimitive, QuantizationLevel, QuantizationMode, QuantizationParametersPrimitive,
+        QuantizationScheme, QuantizationType,
     },
 };
 use cubecl::{
@@ -52,7 +52,13 @@ where
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
-                QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8) => {
+                QuantizationScheme {
+                    level: QuantizationLevel::Tensor,
+                    mode: QuantizationMode::Symmetric,
+                    q_type: QuantizationType::QInt8,
+                    acc_precision: _,
+                    output: _,
+                } => {
                     // TensorData quantized representation is the same, with multiple quantized values
                     // packed into u32 and quantization parameters appended to the bytes
                     new_qtensor(data.as_bytes(), data.shape.clone(), scheme, device)
@@ -161,7 +167,13 @@ fn both_matches_symmetric_qint8(lhs: &QuantizationScheme, rhs: &QuantizationSche
     [lhs, rhs].iter().all(|scheme| {
         matches!(
             scheme,
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8),
+            QuantizationScheme {
+                level: QuantizationLevel::Tensor,
+                mode: QuantizationMode::Symmetric,
+                q_type: QuantizationType::QInt8,
+                acc_precision: _,
+                output: _,
+            }
         )
     })
 }

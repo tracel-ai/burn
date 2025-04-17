@@ -2,8 +2,8 @@ use crate::{LibTorchDevice, TchElement};
 use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     quantization::{
-        QTensorPrimitive, QuantizationMode, QuantizationScheme, QuantizationStrategy,
-        QuantizationType, SymmetricQuantization,
+        QTensorPrimitive, QuantizationLevel, QuantizationMode, QuantizationScheme,
+        QuantizationStrategy, QuantizationType, SymmetricQuantization,
     },
 };
 use libc::c_void;
@@ -331,7 +331,13 @@ impl TchQTensor {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
     pub fn strategy(&self) -> QuantizationStrategy {
         match &self.scheme {
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
+            QuantizationScheme {
+                level: QuantizationLevel::Tensor,
+                mode: QuantizationMode::Symmetric,
+                q_type: QuantizationType::QInt8,
+                acc_precision: _,
+                output: _,
+            } => {
                 let scale = self.qtensor.tensor.q_scale();
                 QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
                     scale as f32,
@@ -363,7 +369,7 @@ mod tests {
 
     use super::*;
     use burn_tensor::ops::QTensorOps;
-    use burn_tensor::quantization::{QuantizationMode, QuantizationParametersPrimitive};
+    use burn_tensor::quantization::QuantizationParametersPrimitive;
     use burn_tensor::{Distribution, Tensor, TensorPrimitive};
     use rand::SeedableRng;
     use rand::prelude::StdRng;
@@ -428,8 +434,7 @@ mod tests {
     fn should_support_qtensor_strategy() {
         let tensor =
             TchTensor::from_data::<f32>(TensorData::from([-1.8, -1.0, 0.0, 0.5]), tch::Device::Cpu);
-        let scheme =
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8);
+        let scheme = QuantizationScheme::default();
         let qparams = QuantizationParametersPrimitive::<LibTorch<f32, i8>> {
             scale: TchTensor::from_data::<f32>(TensorData::from([0.009_019_608]), tch::Device::Cpu),
             offset: Some(TchTensor::from_data::<i8>(

@@ -3,8 +3,8 @@ use core::mem;
 use burn_tensor::{
     DType, Element, Shape, TensorData, TensorMetadata,
     quantization::{
-        QParams, QTensorPrimitive, QuantizationMode, QuantizationScheme, QuantizationStrategy,
-        QuantizationType, SymmetricQuantization,
+        QParams, QTensorPrimitive, QuantizationLevel, QuantizationMode, QuantizationScheme,
+        QuantizationStrategy, QuantizationType, SymmetricQuantization,
     },
 };
 
@@ -350,11 +350,15 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
     pub fn strategy(&self) -> QuantizationStrategy {
         match self.scheme {
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
-                QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                    self.qparams[0].scale,
-                ))
-            }
+            QuantizationScheme {
+                level: QuantizationLevel::Tensor,
+                mode: QuantizationMode::Symmetric,
+                q_type: QuantizationType::QInt8,
+                acc_precision: _,
+                output: _,
+            } => QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                self.qparams[0].scale,
+            )),
         }
     }
 }
@@ -384,7 +388,7 @@ mod tests {
     use burn_tensor::{
         Distribution,
         ops::{FloatTensorOps, QTensorOps},
-        quantization::{QuantizationParametersPrimitive, QuantizationType},
+        quantization::QuantizationParametersPrimitive,
     };
 
     #[test]
@@ -450,8 +454,7 @@ mod tests {
         let device = Default::default();
 
         let tensor = B::float_from_data(TensorData::from([-1.8f32, -1.0, 0.0, 0.5]), &device);
-        let scheme =
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8);
+        let scheme = QuantizationScheme::default();
         let qparams = QuantizationParametersPrimitive {
             scale: B::float_from_data(TensorData::from([scale]), &device),
             offset: None,

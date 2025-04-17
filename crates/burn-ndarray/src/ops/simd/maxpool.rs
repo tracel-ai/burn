@@ -33,7 +33,7 @@ macro_rules! launch_kernel {
             DType::U16 if is_accelerated::<u16>() => Ok(cast($func::<u16>(cast($x), $($arg),*))),
             DType::U8 if is_accelerated::<u8>() => Ok(cast($func::<u8>(cast($x), $($arg),*))),
             DType::Bool if is_accelerated::<u8>() => Ok(cast($func::<u8>(cast($x), $($arg),*))),
-            DType::QFloat(scheme) => match scheme.q_type() {
+            DType::QFloat(scheme) => match scheme.q_type {
                 QuantizationType::QInt8 if is_accelerated::<i8>() => Ok(cast($func::<i8>(cast($x), $($arg),*))),
                 _ => Err($x)
             },

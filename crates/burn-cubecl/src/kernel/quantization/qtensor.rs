@@ -1,6 +1,8 @@
 #![allow(missing_docs)] // cube derive macros
 
-use burn_tensor::quantization::{QuantizationMode, QuantizationScheme};
+use burn_tensor::quantization::{
+    QuantizationLevel, QuantizationMode, QuantizationScheme, QuantizationType,
+};
 use cubecl::prelude::*;
 
 /// Quantization parameters.
@@ -16,7 +18,7 @@ pub type QTensor = Array<Line<u32>>;
 #[cube]
 impl QParams {
     /// Create a new quantization parameters instance.
-    pub fn new(scheme: QuantizationScheme) -> Self {
+    pub fn new(#[comptime] scheme: QuantizationScheme) -> Self {
         QParams { scheme }
     }
 
@@ -25,9 +27,13 @@ impl QParams {
         let len = tensor.len();
         match comptime!(self.scheme) {
             // Symmetric quantization only contains the scaling factor as the last element
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, _) => {
-                (f32::reinterpret(tensor[len - 1][tensor.line_size() - 1]), 0)
-            }
+            QuantizationScheme {
+                level: QuantizationLevel::Tensor,
+                mode: QuantizationMode::Symmetric,
+                q_type: QuantizationType::QInt8,
+                acc_precision: _,
+                output: _,
+            } => (f32::reinterpret(tensor[len - 1][tensor.line_size() - 1]), 0),
         }
     }
 }

@@ -335,10 +335,8 @@ impl DType {
             DType::U16 => core::mem::size_of::<u16>(),
             DType::U8 => core::mem::size_of::<u8>(),
             DType::Bool => core::mem::size_of::<bool>(),
-            DType::QFloat(scheme) => match scheme {
-                QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8) => {
-                    core::mem::size_of::<i8>()
-                }
+            DType::QFloat(scheme) => match scheme.q_type {
+                QuantizationType::QInt8 => core::mem::size_of::<i8>(),
             },
         }
     }

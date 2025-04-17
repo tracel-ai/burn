@@ -16,6 +16,8 @@ use crate::{
 
 use rand::RngCore;
 
+use super::quantization::{QuantizationLevel, QuantizationMode};
+
 /// The things that can go wrong when manipulating tensor data.
 #[derive(Debug)]
 pub enum DataError {
@@ -250,7 +252,13 @@ impl TensorData {
                 // bool is a byte value equal to either 0 or 1
                 DType::Bool => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
                 DType::QFloat(scheme) => match scheme {
-                    QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8) => {
+                    QuantizationScheme {
+                        level: QuantizationLevel::Tensor,
+                        mode: QuantizationMode::Symmetric,
+                        q_type: QuantizationType::QInt8,
+                        acc_precision: _,
+                        output: _,
+                    } => {
                         // Quantized int8 values
                         let q_bytes = QuantizedBytes {
                             bytes: self.bytes.clone(),
@@ -535,12 +543,10 @@ impl TensorData {
                 } else {
                     panic!("Quantized data differs from other not quantized data")
                 };
-                match (q, q_other) {
-                    (
-                        QuantizationScheme::PerTensor(mode, QuantizationType::QInt8),
-                        QuantizationScheme::PerTensor(mode_other, QuantizationType::QInt8),
-                    ) if mode == mode_other => self.assert_eq_elem::<i8>(other),
-                    _ => panic!("Quantization schemes differ ({:?} != {:?})", q, q_other),
+                if q == q_other {
+                    self.assert_eq_elem::<i8>(other)
+                } else {
+                    panic!("Quantization schemes differ ({:?} != {:?})", q, q_other)
                 }
             }
         }
@@ -808,7 +814,13 @@ impl core::fmt::Display for TensorData {
             DType::U8 => format!("{:?}", self.as_slice::<u8>().unwrap()),
             DType::Bool => format!("{:?}", self.as_slice::<bool>().unwrap()),
             DType::QFloat(scheme) => match scheme {
-                QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8) => {
+                QuantizationScheme {
+                    level: QuantizationLevel::Tensor,
+                    mode: QuantizationMode::Symmetric,
+                    q_type: QuantizationType::QInt8,
+                    acc_precision: _,
+                    output: _,
+                } => {
                     format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())
                 }
             },

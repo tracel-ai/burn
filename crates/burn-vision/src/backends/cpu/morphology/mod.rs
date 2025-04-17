@@ -5,7 +5,6 @@ use burn_tensor::{
     backend::Backend,
     cast::ToElement,
     ops::BoolTensor,
-    quantization::{QuantizationScheme, QuantizationType},
 };
 use filter::{MaxOp, MinOp, MorphOperator, VecMorphOperator};
 use filter_engine::{ColFilter, Filter, Filter2D, FilterEngine, RowFilter};
@@ -108,11 +107,7 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
         }
         DType::U8 => morph_typed::<B, K, u8>(data, shape, kernel, op, iter, btype, bvalue, &device),
         DType::Bool => morph_bool::<B, K>(data, shape, kernel, op, iter, btype, bvalue, &device),
-        DType::QFloat(scheme) => match scheme {
-            QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8) => {
-                morph_typed::<B, K, i8>(data, shape, kernel, op, iter, btype, bvalue, &device)
-            }
-        },
+        DType::QFloat(_) => unimplemented!()
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::tensor::CubeTensor;
 use crate::{CubeElement, CubeRuntime};
 use burn_tensor::DType;
-use burn_tensor::quantization::{QuantizationMode, QuantizationScheme, QuantizationType};
+use burn_tensor::quantization::{QuantizationLevel, QuantizationMode, QuantizationScheme, QuantizationType};
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 
@@ -93,7 +93,13 @@ where
 
     if let DType::QFloat(scheme) = tensor.dtype {
         match scheme {
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
+            QuantizationScheme {
+                level: QuantizationLevel::Tensor,
+                mode: QuantizationMode::Symmetric,
+                q_type: QuantizationType::QInt8,
+                acc_precision: _,
+                output: _,
+            } => {
                 unsafe {
                     dequantize_per_tensor_symmetric_int8_kernel::launch_unchecked::<R>(
                         &client,
