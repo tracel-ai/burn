@@ -3,8 +3,8 @@ use core::mem;
 use burn_tensor::{
     DType, Element, Shape, TensorData, TensorMetadata,
     quantization::{
-        AffineQuantization, QParams, QTensorPrimitive, QuantizationMode, QuantizationScheme,
-        QuantizationStrategy, QuantizationType, SymmetricQuantization,
+        QParams, QTensorPrimitive, QuantizationMode, QuantizationScheme, QuantizationStrategy,
+        QuantizationType, SymmetricQuantization,
     },
 };
 
@@ -350,41 +350,11 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
     pub fn strategy(&self) -> QuantizationStrategy {
         match self.scheme {
-            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8) => {
-                QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
-                    self.qparams[0].scale,
-                    self.qparams[0].offset.unwrap().elem(),
-                ))
-            }
             QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
                 QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
                     self.qparams[0].scale,
                 ))
             }
-            QuantizationScheme::PerBlock(
-                QuantizationMode::Affine,
-                QuantizationType::QInt8,
-                layout,
-            ) => QuantizationStrategy::PerBlockAffineInt8(
-                self.qparams
-                    .iter()
-                    .map(|qparams| {
-                        AffineQuantization::init(qparams.scale, qparams.offset.unwrap().elem())
-                    })
-                    .collect(),
-                layout,
-            ),
-            QuantizationScheme::PerBlock(
-                QuantizationMode::Symmetric,
-                QuantizationType::QInt8,
-                layout,
-            ) => QuantizationStrategy::PerBlockSymmetricInt8(
-                self.qparams
-                    .iter()
-                    .map(|qparams| SymmetricQuantization::init(qparams.scale))
-                    .collect(),
-                layout,
-            ),
         }
     }
 }
@@ -413,8 +383,8 @@ mod tests {
     use burn_common::rand::get_seeded_rng;
     use burn_tensor::{
         Distribution,
-        ops::{FloatTensorOps, IntTensorOps, QTensorOps},
-        quantization::{AffineQuantization, QuantizationParametersPrimitive, QuantizationType},
+        ops::{FloatTensorOps, QTensorOps},
+        quantization::{QuantizationParametersPrimitive, QuantizationType},
     };
 
     #[test]
@@ -477,22 +447,21 @@ mod tests {
     fn should_support_qtensor_strategy() {
         type B = NdArray<f32, i64, i8>;
         let scale: f32 = 0.009_019_608;
-        let offset: i8 = 72;
         let device = Default::default();
 
         let tensor = B::float_from_data(TensorData::from([-1.8f32, -1.0, 0.0, 0.5]), &device);
         let scheme =
-            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8);
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8);
         let qparams = QuantizationParametersPrimitive {
             scale: B::float_from_data(TensorData::from([scale]), &device),
-            offset: Some(B::int_from_data(TensorData::from([offset as i64]), &device)),
+            offset: None,
         };
         let qtensor: NdArrayQTensor<i8> = B::quantize(tensor, &scheme, qparams);
 
         assert_eq!(qtensor.scheme(), &scheme);
         assert_eq!(
             qtensor.strategy(),
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(scale, offset))
+            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(scale))
         );
     }
 }

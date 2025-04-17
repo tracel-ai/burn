@@ -3,11 +3,10 @@ mod tests {
     use super::*;
     use burn_tensor::TensorData;
 
-    // NOTE: we use affine quantization to reduce quantization errors since equality tests are precise
     #[test]
     fn test_equal() {
-        let tensor_1 = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor_2 = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 1.0], [3.0, 5.0, 4.0]]);
+        let tensor_1 = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor_2 = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 1.0], [3.0, 5.0, 4.0]]);
 
         let data_actual_cloned = tensor_1.clone().equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.equal(tensor_2);
@@ -19,8 +18,8 @@ mod tests {
 
     #[test]
     fn test_not_equal() {
-        let tensor_1 = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor_2 = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 1.0], [3.0, 5.0, 4.0]]);
+        let tensor_1 = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor_2 = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 1.0], [3.0, 5.0, 4.0]]);
 
         let data_actual_cloned = tensor_1.clone().not_equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.not_equal(tensor_2);
@@ -32,7 +31,7 @@ mod tests {
 
     #[test]
     fn test_equal_elem() {
-        let tensor = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 2.0], [3.0, 2.0, 5.0]]);
+        let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 2.0, 5.0]]);
 
         let data_actual_cloned = tensor.clone().equal_elem(2);
         let data_actual_inplace = tensor.equal_elem(2);
@@ -44,7 +43,7 @@ mod tests {
 
     #[test]
     fn test_not_equal_elem() {
-        let tensor = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 2.0], [3.0, 2.0, 5.0]]);
+        let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 2.0, 5.0]]);
 
         let data_actual_cloned = tensor.clone().not_equal_elem(2);
         let data_actual_inplace = tensor.not_equal_elem(2);
@@ -56,7 +55,7 @@ mod tests {
 
     #[test]
     fn test_greater_elem() {
-        let tensor = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let data_actual_cloned = tensor.clone().greater_elem(4);
         let data_actual_inplace = tensor.greater_elem(4);
@@ -68,7 +67,7 @@ mod tests {
 
     #[test]
     fn test_greater_equal_elem() {
-        let tensor = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let data_actual_cloned = tensor.clone().greater_equal_elem(4.0);
         let data_actual_inplace = tensor.greater_equal_elem(4.0);
@@ -80,8 +79,8 @@ mod tests {
 
     #[test]
     fn test_greater() {
-        let tensor_1 = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor_2 = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 1.0], [3.0, 5.0, 4.0]]);
+        let tensor_1 = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor_2 = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 1.0], [3.0, 5.0, 4.0]]);
 
         let data_actual_cloned = tensor_1.clone().greater(tensor_2.clone());
         let data_actual_inplace = tensor_1.greater(tensor_2);
@@ -93,8 +92,8 @@ mod tests {
 
     #[test]
     fn test_greater_equal() {
-        let tensor_1 = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 1.0], [3.0, 4.0, 5.0]]);
-        let tensor_2 = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 2.0], [3.0, 5.0, 4.0]]);
+        let tensor_1 = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 1.0], [3.0, 4.0, 5.0]]);
+        let tensor_2 = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 5.0, 4.0]]);
 
         let data_actual_cloned = tensor_1.clone().greater_equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.greater_equal(tensor_2);
@@ -106,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_lower_elem() {
-        let tensor = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let data_actual_cloned = tensor.clone().lower_elem(4.0);
         let data_actual_inplace = tensor.lower_elem(4.0);
@@ -118,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_lower_equal_elem() {
-        let tensor = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let data_actual_cloned = tensor.clone().lower_equal_elem(4.0);
         let data_actual_inplace = tensor.lower_equal_elem(4.0);
@@ -130,8 +129,8 @@ mod tests {
 
     #[test]
     fn test_lower() {
-        let tensor_1 = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 1.0], [3.0, 4.0, 5.0]]);
-        let tensor_2 = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 2.0], [3.0, 5.0, 4.0]]);
+        let tensor_1 = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 1.0], [3.0, 4.0, 5.0]]);
+        let tensor_2 = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 5.0, 4.0]]);
 
         let data_actual_cloned = tensor_1.clone().lower(tensor_2.clone());
         let data_actual_inplace = tensor_1.lower(tensor_2);
@@ -143,8 +142,8 @@ mod tests {
 
     #[test]
     fn test_lower_equal() {
-        let tensor_1 = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor_2 = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 1.0], [3.0, 5.0, 4.0]]);
+        let tensor_1 = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor_2 = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 1.0], [3.0, 5.0, 4.0]]);
 
         let data_actual_cloned = tensor_1.clone().lower_equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.lower_equal(tensor_2);

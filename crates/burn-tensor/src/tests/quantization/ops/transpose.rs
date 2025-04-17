@@ -5,10 +5,9 @@ mod tests {
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
-    // NOTE: we use affine quantization to reduce quantization errors for range of input values
     #[test]
     fn should_support_transpose_ops() {
-        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+        let tensor = QTensor::<TestBackend, 1>::int8([
             0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0,
         ])
         .reshape([2, 2, 3]);
@@ -28,7 +27,7 @@ mod tests {
 
     #[test]
     fn should_support_swap_dims() {
-        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+        let tensor = QTensor::<TestBackend, 1>::int8([
             0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0,
         ])
         .reshape([2, 2, 3]);

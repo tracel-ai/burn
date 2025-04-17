@@ -3,10 +3,9 @@ mod tests {
     use super::*;
     use burn_tensor::TensorData;
 
-    // NOTE: we use affine quantization to reduce quantization errors for the given values range
     #[test]
     fn permute_float() {
-        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+        let tensor = QTensor::<TestBackend, 1>::int8([
             0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.,
         ])
         .reshape([2, 2, 4]);
@@ -40,7 +39,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn edge_repeated_axes() {
-        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+        let tensor = QTensor::<TestBackend, 1>::int8([
             0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.,
         ])
         .reshape([2, 2, 4]);
@@ -52,7 +51,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn edge_out_of_bound_axis() {
-        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+        let tensor = QTensor::<TestBackend, 1>::int8([
             0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.,
         ])
         .reshape([2, 2, 4]);
