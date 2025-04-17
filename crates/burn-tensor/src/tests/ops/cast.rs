@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Bool, DType, Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn cast_float_to_int() {
@@ -47,6 +49,8 @@ mod tests {
 
         assert_eq!(output.dtype(), DType::F32);
         // Use precision 2 for parameterized tests in f16 and bf16
-        output.into_data().assert_approx_eq(&data, 2);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&data, Tolerance::default());
     }
 }

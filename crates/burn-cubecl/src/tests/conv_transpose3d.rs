@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Distribution, Tensor, backend::Backend, module};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn conv_transpose3d_should_match_reference_backend() {
@@ -53,6 +55,6 @@ mod tests {
 
         output
             .into_data()
-            .assert_approx_eq(&output_ref.into_data(), 3);
+            .assert_approx_eq::<FT>(&output_ref.into_data(), Tolerance::default());
     }
 }

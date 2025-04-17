@@ -107,6 +107,7 @@ impl<R: CubeRuntime> ReduceFallbackFn<R> for FallbackReduce {
             ReduceInstruction::Sum => ReduceFnConfig::Sum,
             ReduceInstruction::Min => ReduceFnConfig::Min,
             ReduceInstruction::Max => ReduceFnConfig::Max,
+            ReduceInstruction::MaxAbs => ReduceFnConfig::MaxAbs,
         };
 
         reduce_dtype::<R>(input, shape, axis, &d_i, d_o, config)

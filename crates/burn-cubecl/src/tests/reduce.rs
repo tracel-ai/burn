@@ -8,6 +8,8 @@ mod reduce {
         Distribution, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend,
         ops::IntTensorOps,
     };
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     const RANK: usize = 4;
     const SHAPE: [usize; RANK] = [2, 4, 8, 16];
@@ -53,7 +55,10 @@ mod reduce {
                 .clone()
                 .mean_dim(dim)
                 .into_data()
-                .assert_approx_eq_diff(&tensor_ref.clone().mean_dim(dim).into_data(), 1e-6);
+                .assert_approx_eq::<FT>(
+                    &tensor_ref.clone().mean_dim(dim).into_data(),
+                    Tolerance::default(),
+                );
         }
     }
 
@@ -67,7 +72,7 @@ mod reduce {
             .clone()
             .mean()
             .into_data()
-            .assert_approx_eq_diff(&tensor_ref.clone().mean().into_data(), 1e-6);
+            .assert_approx_eq::<FT>(&tensor_ref.clone().mean().into_data(), Tolerance::default());
     }
 
     #[test]
@@ -81,7 +86,10 @@ mod reduce {
                 .clone()
                 .prod_dim(dim)
                 .into_data()
-                .assert_approx_eq_diff(&tensor_ref.clone().prod_dim(dim).into_data(), 1e-6);
+                .assert_approx_eq::<FT>(
+                    &tensor_ref.clone().prod_dim(dim).into_data(),
+                    Tolerance::default(),
+                );
         }
     }
 
@@ -95,7 +103,7 @@ mod reduce {
             .clone()
             .prod()
             .into_data()
-            .assert_approx_eq_diff(&tensor_ref.clone().prod().into_data(), 1e-6);
+            .assert_approx_eq::<FT>(&tensor_ref.clone().prod().into_data(), Tolerance::default());
     }
 
     #[test]
@@ -109,7 +117,10 @@ mod reduce {
                 .clone()
                 .sum_dim(dim)
                 .into_data()
-                .assert_approx_eq_diff(&tensor_ref.clone().sum_dim(dim).into_data(), 1e-6);
+                .assert_approx_eq::<FT>(
+                    &tensor_ref.clone().sum_dim(dim).into_data(),
+                    Tolerance::default(),
+                );
         }
     }
 
@@ -123,6 +134,6 @@ mod reduce {
             .clone()
             .sum()
             .into_data()
-            .assert_approx_eq_diff(&tensor_ref.clone().sum().into_data(), 1e-6);
+            .assert_approx_eq::<FT>(&tensor_ref.clone().sum().into_data(), Tolerance::default());
     }
 }

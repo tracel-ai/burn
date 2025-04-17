@@ -165,6 +165,8 @@ impl<B: Backend> Conv3d<B> {
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::Tolerance;
+
     use super::*;
     use crate::TestBackend;
     use crate::tensor::TensorData;
@@ -194,9 +196,10 @@ mod tests {
         let conv = config.init::<TestBackend>(&device);
 
         assert_eq!(config.initializer, Initializer::Zeros);
-        conv.weight
-            .to_data()
-            .assert_approx_eq(&TensorData::zeros::<f32, _>(conv.weight.shape()), 3);
+        conv.weight.to_data().assert_approx_eq::<f32>(
+            &TensorData::zeros::<f32, _>(conv.weight.shape()),
+            Tolerance::default(),
+        );
     }
 
     #[test]

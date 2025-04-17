@@ -60,6 +60,8 @@ impl<R: Runtime> TuneOutput<R> {
 impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
     #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) {
+        use burn_tensor::{DType, Tolerance};
+
         if let (
             TuneOutput::Checked {
                 handles: handles_ref,
@@ -81,7 +83,18 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
                     let data_other =
                         TensorData::from_bytes(data_other, shape_other.clone(), handle.dtype);
 
-                    data_ref.assert_approx_eq(&data_other, 2);
+                    match handle.dtype {
+                        DType::F64 => {
+                            data_ref.assert_approx_eq::<f64>(&data_other, Tolerance::default())
+                        }
+                        DType::F32 => data_ref
+                            .assert_approx_eq::<f32>(&data_other, Tolerance::rel_abs(1e-2, 1e-4)),
+                        DType::F16 => data_ref
+                            .assert_approx_eq::<half::f16>(&data_other, Tolerance::default()),
+                        DType::BF16 => data_ref
+                            .assert_approx_eq::<half::bf16>(&data_other, Tolerance::default()),
+                        _ => data_ref.assert_eq(&data_other, true),
+                    }
                     num_checked += 1;
                 } else {
                     // Debug info for the tests.

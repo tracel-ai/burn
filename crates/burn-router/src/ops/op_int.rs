@@ -1012,6 +1012,45 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         (out, out_indices)
     }
 
+    fn int_max_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let out = client.register_empty_tensor(vec![1], dtype);
+
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::NumericInt(
+            dtype,
+            NumericOperationIr::MaxAbs(desc),
+        ));
+
+        out
+    }
+
+    fn int_max_abs_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let out = client.register_empty_tensor(shape, dtype);
+
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::NumericInt(
+            dtype,
+            NumericOperationIr::MaxAbsDim(desc),
+        ));
+
+        out
+    }
+
     fn int_min(tensor: IntTensor<Self>) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;

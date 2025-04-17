@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_cos)]
 mod tests {
     use super::*;
-    use burn_tensor::TensorData;
+    use burn_tensor::{TensorData, Tolerance};
 
     #[test]
     fn should_diff_cos() {
@@ -19,13 +19,15 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        grad_1.to_data().assert_approx_eq_diff(
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-5).set_half_precision_relative(1e-3);
+        grad_1.to_data().assert_approx_eq::<FloatType>(
             &TensorData::from([[26.8063, -27.7870], [26.8063, -27.7870]]),
-            2.0e-3,
+            tolerance,
         );
-        grad_2.to_data().assert_approx_eq_diff(
+
+        grad_2.to_data().assert_approx_eq::<FloatType>(
             &TensorData::from([[9.222064, -39.123375], [-28.721354, 49.748356]]),
-            2.0e-3,
+            tolerance,
         );
     }
 }

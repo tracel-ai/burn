@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Shape, Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_narrow_1() {
@@ -14,7 +16,9 @@ mod tests {
         let expected = TensorData::from([[1., 2., 3.], [4., 5., 6.]]);
 
         assert_eq!(output.shape(), Shape::from([2, 3]));
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -27,7 +31,9 @@ mod tests {
         let output = tensor.clone().narrow(1, 1, 2);
         let expected = TensorData::from([[2., 3.], [5., 6.], [8., 9.]]);
         assert_eq!(output.shape(), Shape::from([3, 2]));
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -46,7 +52,9 @@ mod tests {
             [40.0, 41.0, 42.0, 43.0, 44.0, 45.0, 46.0, 47.0],
             [48.0, 49.0, 50.0, 51.0, 52.0, 53.0, 54.0, 55.0],
         ]);
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]

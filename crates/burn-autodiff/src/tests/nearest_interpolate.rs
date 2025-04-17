@@ -4,6 +4,8 @@ mod tests {
     use burn_tensor::module::interpolate;
     use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
     use burn_tensor::{Shape, Tensor};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_upsample_interpolation() {
@@ -93,7 +95,7 @@ mod tests {
 
             x_grad
                 .to_data()
-                .assert_approx_eq(&x_grad_actual.into_data(), 3);
+                .assert_approx_eq::<FT>(&x_grad_actual.into_data(), Tolerance::default());
         }
     }
 }

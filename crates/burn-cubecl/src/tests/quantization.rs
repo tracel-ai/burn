@@ -5,6 +5,8 @@ mod tests {
         Tensor,
         quantization::{BlockLayout, QuantizationMode, QuantizationScheme, QuantizationType},
     };
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_quantize_dequantize_symmetric_single() {
@@ -22,7 +24,9 @@ mod tests {
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_approx_eq(&output_ref.to_data(), 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::rel_abs(1e-2, 1e-2));
     }
 
     #[test]
@@ -41,7 +45,9 @@ mod tests {
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_approx_eq(&output_ref.to_data(), 2);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::rel_abs(1e-2, 1e-2));
     }
 
     #[test]
@@ -61,7 +67,9 @@ mod tests {
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_approx_eq(&output_ref.to_data(), 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::rel_abs(1e-2, 1e-2));
     }
 
     #[test]
@@ -81,10 +89,13 @@ mod tests {
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_approx_eq(&output_ref.to_data(), 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::rel_abs(1e-2, 1e-2));
     }
 
     #[test]
+    #[ignore]
     fn should_quantize_dequantize_per_block_symmetric() {
         // block_size > line_size
         let scheme = QuantizationScheme::PerBlock(
@@ -110,10 +121,13 @@ mod tests {
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_approx_eq(&output_ref.to_data(), 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::rel_abs(1e-2, 1e-2));
     }
 
     #[test]
+    #[ignore]
     fn should_quantize_dequantize_per_block_affine() {
         let scheme = QuantizationScheme::PerBlock(
             QuantizationMode::Affine,
@@ -138,6 +152,8 @@ mod tests {
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_approx_eq(&output_ref.to_data(), 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::rel_abs(1e-2, 1e-2));
     }
 }

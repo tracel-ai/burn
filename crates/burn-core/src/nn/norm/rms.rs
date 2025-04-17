@@ -99,6 +99,8 @@ mod tests {
     use crate::TestBackend;
     use crate::tensor::TensorData;
     use alloc::format;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn rms_norm_forward() {
@@ -116,7 +118,9 @@ mod tests {
             [0.7348, 0.9798, 1.2247],
             [0.8514, 0.9933, 1.1352],
         ]);
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]

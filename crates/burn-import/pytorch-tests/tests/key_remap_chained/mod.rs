@@ -100,6 +100,9 @@ mod tests {
     use burn::record::{FullPrecisionSettings, Recorder};
     use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
 
+    use burn::tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<Backend>;
+
     use super::*;
 
     #[test]
@@ -177,6 +180,8 @@ mod tests {
         );
 
         let output = model.forward(input);
-        output.to_data().assert_approx_eq(&expected.to_data(), 7);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
     }
 }

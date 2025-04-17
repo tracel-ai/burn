@@ -1145,6 +1145,48 @@ where
         self.mask_where(mask, other)
     }
 
+    /// Find the maximum absolute value.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///   let device = B::Device::default();
+    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -7.0, 3.0], [5.0, -1.0, 6.0]], &device);
+    ///   let tensor = tensor.max_abs();
+    ///   println!("{tensor}");
+    ///   // [7.0]
+    /// }
+    /// ```
+    pub fn max_abs(self) -> Tensor<B, 1, K> {
+        Tensor::new(K::max_abs(self.primitive))
+    }
+
+    /// Find the maximum absolute value along the given dimension.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///   let device = B::Device::default();
+    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = tensor.max_dim(0);
+    ///   println!("{tensor}");
+    ///   // [[5.0, 9.0, 6.0]]
+    /// }
+    /// ```
+    pub fn max_abs_dim(self, dim: usize) -> Tensor<B, D, K> {
+        check!(TensorCheck::aggregate_dim::<D>("MaxAbs", dim));
+
+        Tensor::new(K::max_abs_dim(self.primitive, dim))
+    }
+
     /// Applies the argmin function along the given dimension and returns an integer tensor.
     ///
     /// # Example
@@ -3169,7 +3211,8 @@ where
     ///
     /// # Returns
     ///
-    /// A tensor with the same shape as the input tensor, where each element is the maximum element
+    /// A tensor with the same rank as the input tensor, but the given dim set to a shape of 1.
+    /// Each element is the maximum element of the corresponding input dim.
     ///
     /// # Remarks
     ///
@@ -3207,6 +3250,48 @@ where
         dim: usize,
     ) -> (Self::Primitive, B::IntTensorPrimitive);
 
+    /// Gets the maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The axis along which to get the maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A single-element tensor containing the maximum absolute element of the input tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the maximum absolute elements of a tensor, users should prefer the
+    /// [Tensor::max_abs](Tensor::max_abs) function, which is more high-level and designed for public use.
+    fn max_abs(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Gets the maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements from.
+    /// * `dim` - The axis along which to get the maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same rank as the input tensor, but the given dim set to a shape of 1.
+    /// Each element is the maximum absolute element of the corresponding input dim.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the maximum elements of a tensor along an axis, users should prefer the
+    /// [Tensor::max_abs_dim](Tensor::max_abs_dim) function, which is more high-level and designed for public use.
+    fn max_abs_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
+
     /// Gets the minimum elements of a tensor along an axis.
     ///
     /// # Arguments
@@ -3236,8 +3321,8 @@ where
     ///
     /// # Returns
     ///
-    /// A tensor with the same shape as the input tensor, where each element is the minimum element
-    /// of the input tensor at the corresponding index along the specified axis.
+    /// A tensor with the same rank as the input tensor, but the given dim set to a shape of 1.
+    /// Each element is the minimum element of the corresponding input dim.
     ///
     /// # Remarks
     ///
@@ -3659,6 +3744,14 @@ impl<B: Backend> Numeric<B> for Int {
         dim: usize,
     ) -> (Self::Primitive, IntTensor<B>) {
         B::int_max_dim_with_indices(tensor, dim)
+    }
+
+    fn max_abs(tensor: Self::Primitive) -> Self::Primitive {
+        B::int_max_abs(tensor)
+    }
+
+    fn max_abs_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        B::int_max_abs_dim(tensor, dim)
     }
 
     fn min(tensor: Self::Primitive) -> Self::Primitive {
@@ -4250,6 +4343,24 @@ impl<B: Backend> Numeric<B> for Float {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_argsort(tensor, dim, descending),
             TensorPrimitive::QFloat(tensor) => B::q_argsort(tensor, dim, descending),
+        }
+    }
+
+    fn max_abs(tensor: Self::Primitive) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_max_abs(tensor)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_max_abs(tensor)),
+        }
+    }
+
+    fn max_abs_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_max_abs_dim(tensor, dim))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_max_abs_dim(tensor, dim))
+            }
         }
     }
 }

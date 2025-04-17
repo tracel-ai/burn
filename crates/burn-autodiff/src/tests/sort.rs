@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_diff_sort() {
@@ -19,10 +21,14 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([[35.0, 35.0], [-1.0, -8.0]]);
-        grad_1.to_data().assert_approx_eq(&expected, 5);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[11.0, 7.0], [55.0, 16.0]]);
-        grad_2.to_data().assert_approx_eq(&expected, 5);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -42,9 +48,13 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([[35.0, 35.0], [-1.0, -8.0]]);
-        grad_1.to_data().assert_approx_eq(&expected, 5);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[11.0, 7.0], [55.0, 16.0]]);
-        grad_2.to_data().assert_approx_eq(&expected, 5);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

@@ -27,11 +27,13 @@ mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
 
     use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
+    use burn::tensor::{Tolerance, ops::FloatElem};
     use burn_import::pytorch::PyTorchFileRecorder;
+    type FT = FloatElem<Backend>;
 
     use super::*;
 
-    fn layer_norm(record: NetRecord<Backend>, precision: usize) {
+    fn layer_norm(record: NetRecord<Backend>, precision: f32) {
         let device = Default::default();
 
         let model = Net::<Backend>::init(&device).load_record(record);
@@ -56,7 +58,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq(&expected.to_data(), precision);
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::absolute(precision));
     }
 
     #[test]
@@ -65,7 +67,7 @@ mod tests {
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/layer_norm/layer_norm.pt".into(), &device)
             .expect("Should decode state successfully");
-        layer_norm(record, 3);
+        layer_norm(record, 1e-3);
     }
 
     #[test]
@@ -74,6 +76,6 @@ mod tests {
         let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
             .load("tests/layer_norm/layer_norm.pt".into(), &device)
             .expect("Should decode state successfully");
-        layer_norm(record, 3);
+        layer_norm(record, 1e-3);
     }
 }

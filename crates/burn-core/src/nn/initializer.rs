@@ -204,6 +204,8 @@ mod tests {
     use num_traits::Pow;
 
     pub type TB = burn_ndarray::NdArray<f32>;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TB>;
 
     fn assert_normal_init(expected_mean: f64, expected_var: f64, tensor: &Tensor<TB, 2>) {
         let (actual_vars, actual_means) = tensor.clone().var_mean(0);
@@ -271,10 +273,10 @@ mod tests {
         let constants: Tensor<TB, 4> = Initializer::Constant { value }
             .init([2, 2, 2, 2], &Default::default())
             .into_value();
-        constants
-            .sum()
-            .to_data()
-            .assert_approx_eq(&TensorData::from([value as f32 * 16.0]), 3);
+        constants.sum().to_data().assert_approx_eq::<FT>(
+            &TensorData::from([value as f32 * 16.0]),
+            Tolerance::default(),
+        );
     }
 
     #[test]
@@ -285,7 +287,7 @@ mod tests {
         zeros
             .sum()
             .to_data()
-            .assert_approx_eq(&TensorData::from([0.0]), 3);
+            .assert_approx_eq::<FT>(&TensorData::from([0.0]), Tolerance::default());
     }
 
     #[test]
@@ -295,7 +297,7 @@ mod tests {
             .into_value();
         ones.sum()
             .to_data()
-            .assert_approx_eq(&TensorData::from([16.0]), 3);
+            .assert_approx_eq::<FT>(&TensorData::from([16.0]), Tolerance::default());
     }
 
     #[test]

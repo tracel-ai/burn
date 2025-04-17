@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Tensor, TensorData, activation};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_leaky_relu_d2() {
@@ -10,8 +12,9 @@ mod tests {
         let output = activation::leaky_relu(tensor, 0.01);
 
         // Account for conversion errors if `FloatType != f32`
-        output
-            .into_data()
-            .assert_approx_eq(&TensorData::from([[0.0, -0.01, 2.0], [3.0, -0.04, 5.0]]), 5);
+        output.into_data().assert_approx_eq::<FT>(
+            &TensorData::from([[0.0, -0.01, 2.0], [3.0, -0.04, 5.0]]),
+            Tolerance::default(),
+        );
     }
 }

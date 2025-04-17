@@ -1588,6 +1588,57 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn int_max_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unary_int_ops!(MaxAbsOps, B::int_max_abs, reduce);
+
+        let stream = tensor.stream;
+        let out = tensor
+            .client
+            .tensor_uninitialized(vec![1], B::IntElem::dtype());
+
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationIr::NumericInt(
+                IntElem::<Self>::dtype(),
+                NumericOperationIr::MaxAbs(desc.clone()),
+            ),
+            MaxAbsOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn int_max_abs_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        reduce_int_ops!(MaxAbsDimOps, B::int_max_abs_dim);
+
+        let stream = tensor.stream;
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let out = tensor
+            .client
+            .tensor_uninitialized(shape, B::IntElem::dtype());
+
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationIr::NumericInt(
+                IntElem::<Self>::dtype(),
+                NumericOperationIr::MaxAbsDim(desc.clone()),
+            ),
+            MaxAbsDimOps::<B>::new(desc),
+        );
+
+        out
+    }
+
     fn int_min_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce_int_ops!(MinDimOps, B::int_min_dim);
 

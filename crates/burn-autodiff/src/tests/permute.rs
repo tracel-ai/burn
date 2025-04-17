@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_diff_permute() {
@@ -19,12 +21,13 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-5).set_half_precision_relative(1e-3);
         grad_1
             .into_data()
-            .assert_approx_eq(&TensorData::from([[[7.2, 12.0], [7.2, 12.0]]]), 3); // 1x2x2
-        grad_2.into_data().assert_approx_eq(
+            .assert_approx_eq::<FT>(&TensorData::from([[[7.2, 12.0], [7.2, 12.0]]]), tolerance); // 1x2x2
+        grad_2.into_data().assert_approx_eq::<FT>(
             &TensorData::from([[[3.0, 10.0], [3.0, 10.0], [3.0, 10.0]]]),
-            3,
+            tolerance,
         ); // 1x3x2
     }
 }

@@ -4,6 +4,8 @@ mod tests {
     use burn_tensor::Shape;
     use burn_tensor::module::interpolate;
     use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_upsample_interpolation() {
@@ -95,7 +97,7 @@ mod tests {
             1.541, 1.541, -0.2934, -2.1788, -2.1788, 0.5684, -1.0845, -1.0845, -1.3986,
         ]]]])
         .to_data()
-        .assert_approx_eq(&output.into_data(), 3);
+        .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
     }
 
     struct InterpolateTestCase {
@@ -122,7 +124,8 @@ mod tests {
                 InterpolateOptions::new(InterpolateMode::Nearest),
             );
 
-            y.to_data().assert_approx_eq_diff(&output.into_data(), 0.2);
+            y.to_data()
+                .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
         }
     }
 }

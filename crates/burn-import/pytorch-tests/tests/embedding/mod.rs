@@ -25,12 +25,15 @@ impl<B: Backend> Net<B> {
 #[cfg(test)]
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
-    use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
+    use burn::{
+        record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder},
+        tensor::Tolerance,
+    };
     use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
 
-    fn embedding(record: NetRecord<Backend>, precision: usize) {
+    fn embedding(record: NetRecord<Backend>, precision: f32) {
         let device = Default::default();
 
         let model = Net::<Backend>::init(&device).load_record(record);
@@ -59,7 +62,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq(&expected.to_data(), precision);
+            .assert_approx_eq::<f32>(&expected.to_data(), Tolerance::absolute(precision));
     }
 
     #[test]
@@ -69,7 +72,7 @@ mod tests {
             .load("tests/embedding/embedding.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        embedding(record, 3);
+        embedding(record, 1e-3);
     }
 
     #[test]
@@ -79,6 +82,6 @@ mod tests {
             .load("tests/embedding/embedding.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        embedding(record, 3);
+        embedding(record, 1e-3);
     }
 }

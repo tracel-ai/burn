@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Int, Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     /// From https://pytorch.org/docs/stable/generated/torch.remainder.html
     #[test]
@@ -18,7 +20,9 @@ mod tests {
         let output = lhs.remainder(rhs);
         let expected = TensorData::from([1.0, 1.0, -0.0, 1.0, 0.0, 0.0]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -30,7 +34,9 @@ mod tests {
         let output = tensor.remainder_scalar(2.0);
         let expected = TensorData::from([1.0, 0.0, 1.0, 1.0, 0.0, 1.0]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -47,7 +53,9 @@ mod tests {
         let output = lhs.remainder(rhs);
         let expected = TensorData::from([1.0, 2.0, 0.0949, 0.0698, 0.2824]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     /// Also from https://pytorch.org/docs/stable/generated/torch.remainder.html
@@ -60,7 +68,9 @@ mod tests {
         let output = tensor.clone().remainder_scalar(-1.5);
         let expected = TensorData::from([-0.5, -1.0, 0.0, -0.5, -1.0]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -72,7 +82,9 @@ mod tests {
         let output = lhs.remainder(rhs);
         let expected = TensorData::from([0.0, 0.0, 0.0]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -84,7 +96,9 @@ mod tests {
         let output = tensor.clone().remainder_scalar(3.5);
         let expected = TensorData::from([0.0, 0.0, 0.0]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -102,7 +116,9 @@ mod tests {
         let output = lhs.remainder(rhs);
         let expected = TensorData::from([-0., 0., -0., 0., 0., 0.]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -114,7 +130,9 @@ mod tests {
         let output = tensor.remainder_scalar(4.0);
         let expected = TensorData::from([-0.0, 0.0]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -131,7 +149,9 @@ mod tests {
         let output = lhs.remainder(rhs);
         let expected = TensorData::from([-2.0, -0.9, -1.0, -0.5]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -143,7 +163,9 @@ mod tests {
         let output = tensor.clone().remainder_scalar(-2.5);
         let expected = TensorData::from([-2.0, -0.50, -0.50, -1.5]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -155,7 +177,9 @@ mod tests {
         let output = tensor.remainder_scalar(3.0);
         let expected = TensorData::from([1.5, 0.5, 2.5, 1.5]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         // for tensor.remainder case, tests above have already covered float point dividend cases
     }
@@ -175,7 +199,9 @@ mod tests {
         let output = lhs.remainder(rhs);
         let expected = TensorData::from([9.0, 1.0, 8.5, 1.5, -1.0, -9.0, -1.5, -8.5]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -187,7 +213,9 @@ mod tests {
         let output = tensor.remainder_scalar(10.0);
         let expected = TensorData::from([9.0, 1.0]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -205,7 +233,9 @@ mod tests {
         let output = lhs % rhs;
         let expected = TensorData::from([1.0, 1.0, -0.0, 1.0, 0.0, 0.0]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -217,6 +247,8 @@ mod tests {
         let output = tensor % 2.0;
         let expected = TensorData::from([1.0, 0.0, 1.0, 1.0, 0.0, 1.0]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

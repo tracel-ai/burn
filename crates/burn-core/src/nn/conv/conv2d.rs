@@ -164,9 +164,13 @@ impl<B: Backend> Conv2d<B> {
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::Tolerance;
+    use burn_tensor::ops::FloatElem;
+
     use super::*;
     use crate::TestBackend;
     use crate::tensor::TensorData;
+    type FT = FloatElem<TestBackend>; // Float test
 
     #[test]
     fn initializer_default() {
@@ -190,9 +194,10 @@ mod tests {
         let conv = config.init::<TestBackend>(&device);
 
         assert_eq!(config.initializer, Initializer::Zeros);
-        conv.weight
-            .to_data()
-            .assert_approx_eq(&TensorData::zeros::<f32, _>(conv.weight.shape()), 3);
+        conv.weight.to_data().assert_approx_eq::<FT>(
+            &TensorData::zeros::<FT, _>(conv.weight.shape()),
+            Tolerance::default(),
+        );
     }
 
     #[test]

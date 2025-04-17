@@ -315,7 +315,8 @@ impl<B: Backend, const D: usize> RmsPropMomentumState<B, D> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::Shape;
+    use burn_tensor::ops::FloatElem;
+    use burn_tensor::{Shape, Tolerance};
 
     use super::*;
     use crate::module::{Module, Param};
@@ -323,8 +324,9 @@ mod tests {
     use crate::tensor::{Distribution, Tensor, TensorData};
     use crate::{TestAutodiffBackend, nn};
 
+    type FT = FloatElem<TestAutodiffBackend>;
+
     const LEARNING_RATE: LearningRate = 0.01;
-    const ASSERT_PRECISION: usize = 6;
 
     #[test]
     fn test_rmsprop_optimizer_save_load_state() {
@@ -438,8 +440,9 @@ mod tests {
         let bias_expected =
             TensorData::from([0.239199, 0.239199, 0.239199, 0.239199, 0.239199, 0.239199]);
 
-        bias_updated.assert_approx_eq(&bias_expected, ASSERT_PRECISION);
-        weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
+        let tolerance = Tolerance::absolute(1e-6);
+        bias_updated.assert_approx_eq::<FT>(&bias_expected, tolerance);
+        weight_updated.assert_approx_eq::<FT>(&weights_expected, tolerance);
     }
 
     #[test]
@@ -522,8 +525,9 @@ mod tests {
         // println!("\nweight_updated\n{:?}", weight_updated);
         // println!("\nbias_updated\n{:?}", bias_updated);
 
-        bias_updated.assert_approx_eq(&bias_expected, ASSERT_PRECISION);
-        weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
+        let tolerance = Tolerance::absolute(1e-6);
+        bias_updated.assert_approx_eq::<FT>(&bias_expected, tolerance);
+        weight_updated.assert_approx_eq::<FT>(&weights_expected, tolerance);
     }
 
     fn given_linear_layer(weight: TensorData, bias: TensorData) -> nn::Linear<TestAutodiffBackend> {

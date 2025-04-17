@@ -3,7 +3,9 @@ mod tests {
     use super::*;
     use burn_cubecl::kernel::prng::tests_utils::calculate_bin_stats;
     use burn_tensor::{Distribution, Shape, Tensor, TensorData, backend::Backend};
+    use burn_tensor::{Tolerance, ops::FloatElem};
     use serial_test::serial;
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     #[serial]
@@ -15,7 +17,10 @@ mod tests {
         let tensor =
             Tensor::<TestBackend, 2>::random(shape, Distribution::Normal(mean, 2.), &device);
         let empirical_mean = tensor.mean().into_data();
-        empirical_mean.assert_approx_eq(&TensorData::from([mean as f32]), 1);
+        empirical_mean.assert_approx_eq::<FT>(
+            &TensorData::from([mean as f32]),
+            Tolerance::rel_abs(1e-4, 3e-2),
+        );
     }
 
     #[test]

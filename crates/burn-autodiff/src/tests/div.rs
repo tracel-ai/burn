@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_div)]
 mod tests {
     use super::*;
-    use burn_tensor::TensorData;
+    use burn_tensor::{TensorData, Tolerance, ops::FloatElem};
 
     #[test]
     fn should_diff_div() {
@@ -18,11 +18,15 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected = TensorData::from([0.25, 0.1429]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        let expected = TensorData::from([0.25, 0.14285715]);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
 
-        let expected = TensorData::from([-0.0625, -0.1429]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        let expected = TensorData::from([-0.0625, -0.14285715]);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -51,18 +55,27 @@ mod tests {
         let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
 
         let tensor_4 = tensor_1.clone().div(tensor_2.clone());
-        let tensor_5 = tensor_4.div(tensor_3);
+        let tensor_5 = tensor_4.div(tensor_3.clone());
 
         let grads = tensor_5.backward();
 
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
+        let grad_3 = tensor_3.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[0.1250, 0.0714], [0.25, 0.1667]]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        let expected = TensorData::from([[0.1250, 0.07142857], [0.25, 0.16666667]]);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
 
-        let expected = TensorData::from([[-0.0312, -0.0714], [-1.6250, 0.1667]]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        let expected = TensorData::from([[-0.03125, -0.07142857], [-1.6250, 0.16666667]]);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
+        let expected = TensorData::from([[-0.0625, -0.25], [-1.6250, 0.25]]);
+        grad_3
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -81,10 +94,15 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[2.00, 2.9286], [1.3667, 2.0]]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        let tolerance = Tolerance::rel_abs(2e-3, 1e-5);
+        let expected = TensorData::from([[2.00, 2.92857146], [1.36666667, 2.0]]);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, tolerance);
 
-        let expected = TensorData::from([[0.0833, 0.0959], [-0.0556, -0.0671]]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        let expected = TensorData::from([[0.08333334, 0.09591837], [-0.05555558, -0.06714284]]);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(&expected, tolerance);
     }
 }

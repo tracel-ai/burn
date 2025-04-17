@@ -143,6 +143,7 @@ mod tests {
         tests::{ClassificationType, THRESHOLD, dummy_classification_input},
     };
     use burn_core::tensor::TensorData;
+    use burn_core::tensor::Tolerance;
     use rstest::rstest;
 
     #[rstest]
@@ -151,8 +152,10 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
         let mut metric = PrecisionMetric::binary(threshold);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value()])
-            .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
+        TensorData::from([metric.value()]).assert_approx_eq::<f64>(
+            &TensorData::from([expected * 100.0]),
+            Tolerance::rel_abs(1e-5, 1e-5),
+        )
     }
 
     #[rstest]
@@ -168,8 +171,10 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multiclass).into();
         let mut metric = PrecisionMetric::multiclass(top_k, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value()])
-            .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
+        TensorData::from([metric.value()]).assert_approx_eq::<f64>(
+            &TensorData::from([expected * 100.0]),
+            Tolerance::rel_abs(1e-5, 1e-5),
+        )
     }
 
     #[rstest]
@@ -183,8 +188,10 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multilabel).into();
         let mut metric = PrecisionMetric::multilabel(threshold, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value()])
-            .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
+        TensorData::from([metric.value()]).assert_approx_eq::<f64>(
+            &TensorData::from([expected * 100.0]),
+            Tolerance::rel_abs(1e-5, 1e-5),
+        )
     }
 
     #[test]

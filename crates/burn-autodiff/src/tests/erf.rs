@@ -1,7 +1,8 @@
 #[burn_tensor_testgen::testgen(ad_erf)]
 mod tests {
     use super::*;
-    use burn_tensor::TensorData;
+    use burn_tensor::{TensorData, Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_diff_erf() {
@@ -20,9 +21,13 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([[32.0, 32.0], [32.0, 32.0]]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::from([[8.0, 8.0], [8.0, 8.0]]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

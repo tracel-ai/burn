@@ -4,6 +4,8 @@ mod tests {
     use burn_tensor::module::conv_transpose1d;
     use burn_tensor::ops::ConvTransposeOptions;
     use burn_tensor::{Shape, Tensor};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_conv_transpose1d_diff_channels() {
@@ -140,7 +142,8 @@ mod tests {
                 ),
             );
 
-            y.to_data().assert_approx_eq(&output.into_data(), 3);
+            y.to_data()
+                .assert_approx_eq::<FT>(&output.into_data(), Tolerance::rel_abs(1e-5, 1e-5));
         }
     }
 }
