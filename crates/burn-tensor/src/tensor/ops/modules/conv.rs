@@ -2,6 +2,9 @@
 use super::{ConvOptions, ConvTransposeOptions};
 use crate::{Shape, TensorMetadata, backend::Backend, ops::FloatTensor};
 
+#[cfg(feature="no_std")]
+use num_traits::Float;
+
 /// Calculate the expected padding size required when applying a convolution.
 pub fn calculate_conv_padding(
     kernel_size: usize,
