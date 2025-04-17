@@ -4,8 +4,8 @@ use burn_tensor::{
     DType, Device, Shape, TensorData,
     ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        BlockLayout, QTensorPrimitive, QuantizationMode, QuantizationParametersPrimitive,
-        QuantizationScheme, QuantizationType,
+        QTensorPrimitive, QuantizationMode, QuantizationParametersPrimitive, QuantizationScheme,
+        QuantizationType,
     },
 };
 use cubecl::{
@@ -52,21 +52,11 @@ where
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
-                QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8)
-                | QuantizationScheme::PerBlock(
-                    _mode,
-                    QuantizationType::QInt8,
-                    BlockLayout::Flat(..),
-                ) => {
+                QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8) => {
                     // TensorData quantized representation is the same, with multiple quantized values
                     // packed into u32 and quantization parameters appended to the bytes
                     new_qtensor(data.as_bytes(), data.shape.clone(), scheme, device)
                 }
-                QuantizationScheme::PerBlock(
-                    _mode,
-                    QuantizationType::QInt8,
-                    BlockLayout::Grid(..),
-                ) => panic!("Per-block quantization is not supported for grid layout"),
             },
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
@@ -82,7 +72,7 @@ where
         scheme: &QuantizationScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        kernel::quantization::quantize::<R, F, I>(tensor, scheme, qparams.scale, qparams.offset)
+        kernel::quantization::quantize::<R, F, I>(tensor, scheme, qparams.scale)
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {

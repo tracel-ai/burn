@@ -2,8 +2,8 @@ use crate::{LibTorchDevice, TchElement};
 use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     quantization::{
-        AffineQuantization, QTensorPrimitive, QuantizationMode, QuantizationScheme,
-        QuantizationStrategy, QuantizationType, SymmetricQuantization,
+        QTensorPrimitive, QuantizationMode, QuantizationScheme, QuantizationStrategy,
+        QuantizationType, SymmetricQuantization,
     },
 };
 use libc::c_void;
@@ -331,22 +331,12 @@ impl TchQTensor {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
     pub fn strategy(&self) -> QuantizationStrategy {
         match &self.scheme {
-            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8) => {
-                let scale = self.qtensor.tensor.q_scale();
-                let offset = self.qtensor.tensor.q_zero_point();
-                QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
-                    scale as f32,
-                    offset as i8,
-                ))
-            }
             QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
                 let scale = self.qtensor.tensor.q_scale();
                 QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
                     scale as f32,
                 ))
             }
-            // Only per-tensor and per-channel are supported
-            QuantizationScheme::PerBlock(..) => unreachable!(),
         }
     }
 }
@@ -439,7 +429,7 @@ mod tests {
         let tensor =
             TchTensor::from_data::<f32>(TensorData::from([-1.8, -1.0, 0.0, 0.5]), tch::Device::Cpu);
         let scheme =
-            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8);
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8);
         let qparams = QuantizationParametersPrimitive::<LibTorch<f32, i8>> {
             scale: TchTensor::from_data::<f32>(TensorData::from([0.009_019_608]), tch::Device::Cpu),
             offset: Some(TchTensor::from_data::<i8>(
@@ -452,7 +442,9 @@ mod tests {
         assert_eq!(qtensor.scheme(), &scheme);
         assert_eq!(
             qtensor.strategy(),
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.009_019_608, 72))
+            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                0.009_019_608
+            ))
         );
     }
 }

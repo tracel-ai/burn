@@ -5,10 +5,9 @@ mod tests {
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
-    // NOTE: we use affine quantization to reduce quantization errors for range of input values
     #[test]
     fn test_topk_1d() {
-        let tensor = QTensor::<TestBackend, 1>::int8_affine([1.0, 2.0, 3.0, 4.0, 5.0]);
+        let tensor = QTensor::<TestBackend, 1>::int8([1.0, 2.0, 3.0, 4.0, 5.0]);
 
         let values = tensor.topk(3, /*dim*/ 0);
         let expected = TensorData::from([5., 4., 3.]);
@@ -21,7 +20,7 @@ mod tests {
 
     #[test]
     fn test_topk() {
-        let tensor = QTensor::<TestBackend, 3>::int8_affine([
+        let tensor = QTensor::<TestBackend, 3>::int8([
             [[1., 4., 7.], [2., 5., 6.]],
             [[3., 0., 9.], [8., 2., 7.]],
         ]);
@@ -39,7 +38,7 @@ mod tests {
     #[test]
     fn test_topk_with_indices() {
         // 1D
-        let tensor = QTensor::<TestBackend, 1>::int8_affine([1.0, 2.0, 3.0, 4.0, 5.0]);
+        let tensor = QTensor::<TestBackend, 1>::int8([1.0, 2.0, 3.0, 4.0, 5.0]);
 
         let (values, indices) = tensor.topk_with_indices(3, /*dim*/ 0);
 
@@ -56,7 +55,7 @@ mod tests {
     #[test]
     fn test_topk_with_indices_3d() {
         // 3D
-        let tensor = QTensor::<TestBackend, 3>::int8_affine([
+        let tensor = QTensor::<TestBackend, 3>::int8([
             [[1., 4., 7.], [2., 5., 6.]],
             [[3., 0., 9.], [8., 2., 7.]],
         ]);

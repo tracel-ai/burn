@@ -119,20 +119,11 @@ Burn currently supports the following `QuantizationScheme` variants.
 | Variant                        | Description                                                                                                                                                              |
 | :----------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `PerTensor(mode, type)`        | Applies a single set of quantization parameters to the entire tensor. The `mode` defines how values are transformed, and `type` represents the target quantization type. |
-| `PerBlock(mode, type, layout)` | Applies quantization parameters to individual blocks within the tensor. The `layout` defines how the tensor is partitioned.                                              |
 
 #### Quantization Mode
 
 | Mode        | Description                                                          |
 | ----------- | -------------------------------------------------------------------- |
-| `Affine`    | Maps values using an affine transformation with a zero point offset. |
 | `Symmetric` | Maps values using a scale factor for a range centered around zero.   |
 
 ---
-
-#### Block Layout
-
-| Layout             | Description                                              |
-| ------------------ | -------------------------------------------------------- |
-| `Flat(block_size)` | Divides the tensor into linear 1D blocks of fixed size.  |
-| `Grid(m, n)`       | Divides the tensor into 2D blocks of `m` x `n` elements. |
