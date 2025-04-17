@@ -361,11 +361,7 @@ macro_rules! as_type {
 pub mod qtensor {
     use core::marker::PhantomData;
 
-    use crate::{
-        Tensor, TensorData,
-        backend::Backend,
-        quantization::{QuantizationOutput, QuantizationScheme},
-    };
+    use crate::{Tensor, TensorData, backend::Backend, quantization::QuantizationScheme};
 
     pub struct QTensor<B: Backend, const D: usize> {
         b: PhantomData<B>,
