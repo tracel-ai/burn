@@ -1049,13 +1049,13 @@ pub fn pad_config(node: &Node) -> PadConfig {
         let mut constant_value = node.inputs
                 .get(2)
                 .and_then(|input| match &input.value.as_ref().expect("Value input must be present").data {
-                    Data::Float16s(ref constant_value) => {
+                    Data::Float16s(constant_value) => {
                         constant_value.first().map(|&f| f32::from(f))
                     }
-                    Data::Float32s(ref constant_value) => {
+                    Data::Float32s(constant_value) => {
                         constant_value.first().copied()
                     }
-                    Data::Float64s(ref constant_value) => {
+                    Data::Float64s(constant_value) => {
                         constant_value.first().map(|&f| f as f32)
                     }
                     Data::Float16(constant_value) => Some(f32::from(*constant_value)),

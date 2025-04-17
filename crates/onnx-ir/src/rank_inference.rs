@@ -218,7 +218,7 @@ fn random_like_update_output(node: &mut Node) {
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type,
             rank: tensor.rank,
-            static_shape: tensor.shape.clone(),
+            static_shape: tensor.static_shape.clone(),
         });
     } else {
         panic!("Only tensor input is valid");
@@ -907,7 +907,7 @@ fn gemm_output_shape(node: &mut Node) {
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
         rank: max(a_rank, b_rank),
-        shape: None,
+        static_shape: None,
         elem_type: match &node.inputs[0].ty {
             ArgType::Tensor(t) => t.elem_type.clone(),
             _ => panic!("Unexpected type for input A"),

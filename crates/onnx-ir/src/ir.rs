@@ -570,6 +570,7 @@ impl Data {
             Data::Float64(elem) => elem,
             Data::Int32(elem) => elem as f64,
             Data::Int64(elem) => elem as f64,
+            Data::Float64s(elem) if elem.len() == 1 => elem[0],
             _ => panic!("Cannot convert {:?} to f64", self),
         }
     }
@@ -580,6 +581,8 @@ impl Data {
             Data::Int64(elem) => elem as i32,
             Data::Float32(elem) => elem as i32,
             Data::Float64(elem) => elem as i32,
+            Data::Float32s(elem) if elem.len() == 1 => elem[0] as i32,
+            Data::Int32s(elem) if elem.len() == 1 => elem[0],
             _ => panic!("Cannot convert {:?} to i32", self),
         }
     }

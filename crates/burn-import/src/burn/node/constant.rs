@@ -295,23 +295,14 @@ mod tests {
 
         let const_tensor = Ident::new("const_tensor", Span::call_site());
         let dimensions = 1;
-        let shape = vec![4];
         let data = TensorData::from([2f32, 2f32, 2f32, 2f32]);
-        let tensor_type = TensorType::new_float_with_shape(
-            const_tensor.to_string(),
-            dimensions,
-            Some(shape.clone()),
-        );
+        let tensor_type = TensorType::new_float(const_tensor.to_string(), dimensions);
         let constant = ConstantValue::Tensor(tensor_type.clone(), data);
 
         graph.register(ConstantNode::new(
             const_tensor.to_string(),
             constant.clone(),
-            Type::Tensor(TensorType::new_float_with_shape(
-                "output",
-                dimensions,
-                Some(shape.clone()),
-            )),
+            Type::Tensor(TensorType::new_float("output", dimensions)),
         ));
 
         graph.register_input_output(vec![], vec!["output".to_string()]);
@@ -363,23 +354,14 @@ mod tests {
 
         let const_tensor = Ident::new("const_tensor_int", Span::call_site());
         let dimensions = 1;
-        let shape = vec![3];
         let data = TensorData::from([1i32, 2i32, 3i32]);
-        let tensor_type = TensorType::new_int_with_shape(
-            const_tensor.to_string(),
-            dimensions,
-            Some(shape.clone()),
-        );
+        let tensor_type = TensorType::new_int(const_tensor.to_string(), dimensions);
         let constant = ConstantValue::Tensor(tensor_type.clone(), data);
 
         graph.register(ConstantNode::new(
             const_tensor.to_string(),
             constant.clone(),
-            Type::Tensor(TensorType::new_int_with_shape(
-                "output",
-                dimensions,
-                Some(shape.clone()),
-            )),
+            Type::Tensor(TensorType::new_int("output", dimensions)),
         ));
 
         graph.register_input_output(vec![], vec!["output".to_string()]);
@@ -432,23 +414,14 @@ mod tests {
 
         let const_tensor = Ident::new("const_tensor_3d", Span::call_site());
         let dimensions = 3;
-        let shape = vec![1, 3, 2];
         let data = TensorData::from([[[true, false], [true, false], [true, false]]]);
-        let tensor_type = TensorType::new_bool_with_shape(
-            const_tensor.to_string(),
-            dimensions,
-            Some(shape.clone()),
-        );
+        let tensor_type = TensorType::new_bool(const_tensor.to_string(), dimensions);
         let constant = ConstantValue::Tensor(tensor_type.clone(), data);
 
         graph.register(ConstantNode::new(
             const_tensor.to_string(),
             constant.clone(),
-            Type::Tensor(TensorType::new_bool_with_shape(
-                "output",
-                dimensions,
-                Some(shape.clone()),
-            )),
+            Type::Tensor(TensorType::new_bool("output", dimensions)),
         ));
 
         graph.register_input_output(vec![], vec!["output".to_string()]);

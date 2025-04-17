@@ -80,8 +80,8 @@ impl TryFrom<TensorProto> for TensorData {
         Ok(TensorData {
             elem_type,
             rank: shape.len(),
-            shape: shape,
-            data: data,
+            shape,
+            data,
         })
     }
 }
@@ -124,7 +124,7 @@ impl TryFrom<&type_proto::Tensor> for TensorData {
         Ok(TensorData {
             elem_type,
             rank: shape.len(),
-            shape: shape,
+            shape,
             data: Data::Float32(0.0), // Default data when not provided
         })
     }
