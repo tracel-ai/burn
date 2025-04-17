@@ -2,7 +2,7 @@
 use super::{ConvOptions, ConvTransposeOptions};
 use crate::{Shape, TensorMetadata, backend::Backend, ops::FloatTensor};
 
-#[cfg(feature="no_std")]
+#[cfg(not(feature = "std"))]
 use num_traits::Float;
 
 /// Calculate the expected padding size required when applying a convolution.
