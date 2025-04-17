@@ -143,6 +143,7 @@ impl<E: Float + Send + Sync, Q: PrimInt + Signed + Send + Sync> Eq for Symmetric
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn test_int8_symmetric_quantization() {

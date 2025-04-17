@@ -1126,22 +1126,21 @@ mod tests {
 
     #[test]
     fn should_support_dequantize() {
-        // Quantized [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]
         let data = TensorData::quantized(
-            vec![-128i8, -77, -26, 25, 76, 127],
+            vec![-127i8, -77, -26, 25, 76, 127],
             [2, 3],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.019607844)),
+            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.1)),
         );
 
         let output = data.dequantize().unwrap();
 
         output.assert_approx_eq::<f32>(
-            &TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]),
+            &TensorData::from([[-12.7, -7.7, -2.6], [2.5, 7.6, 12.7]]),
             Tolerance::default(),
         );
 
         output.assert_approx_eq::<f16>(
-            &TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]),
+            &TensorData::from([[-12.7, -7.7, -2.6], [2.5, 7.6, 12.7]]),
             Tolerance::default(),
         );
     }
