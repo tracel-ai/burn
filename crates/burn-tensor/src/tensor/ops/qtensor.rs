@@ -2,10 +2,11 @@ use alloc::vec::Vec;
 use core::{future::Future, ops::Range};
 
 use crate::{
-    Device, Shape, TensorData, TensorMetadata,
+    Device, Shape, TensorData, TensorMetadata, TensorPrimitive,
     backend::Backend,
     quantization::{
-        Calibration, QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme,
+        Calibration, QTensorPrimitive, QuantizationOutput, QuantizationParametersPrimitive,
+        QuantizationScheme,
     },
 };
 
@@ -39,6 +40,28 @@ macro_rules! dequant_op_quant {
         let out_f = $float_op(tensor_f);
 
         <$ty>::quantize_dynamic(out_f, &scheme)
+    }};
+}
+
+/// Automatically applies dequantization -> float operation -> quantization.
+#[macro_export]
+macro_rules! dequant_op {
+    // Binary tensor float op w/ lhs & rhs
+    (
+        ty $ty:ty, float_op $float_op:expr, $t1:expr, $t2:expr
+    ) => {{
+        let t1_f = <$ty>::dequantize($t1);
+        let t2_f = <$ty>::dequantize($t2);
+        #[allow(clippy::redundant_closure_call)]
+        $float_op(t1_f, t2_f)
+    }};
+    // Unary tensor float op
+    (
+        ty $ty:ty, float_op $float_op:expr, $tensor:expr
+    ) => {{
+        let tensor_f = <$ty>::dequantize($tensor);
+        #[allow(clippy::redundant_closure_call)]
+        $float_op(tensor_f)
     }};
 }
 
@@ -411,13 +434,21 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of multiplying the two tensors together using matrix multiplication.
-    fn q_matmul(lhs: QuantizedTensor<B>, rhs: QuantizedTensor<B>) -> QuantizedTensor<B> {
-        dequant_op_quant!(
-            ty Self,
-            float_op |lhs, rhs| B::float_matmul(lhs, rhs),
-            lhs,
-            rhs
-        )
+    fn q_matmul(lhs: QuantizedTensor<B>, rhs: QuantizedTensor<B>) -> TensorPrimitive<B> {
+        match lhs.scheme().output {
+            QuantizationOutput::Quantized => TensorPrimitive::QFloat(dequant_op_quant!(
+                ty Self,
+                float_op |lhs, rhs| B::float_matmul(lhs, rhs),
+                lhs,
+                rhs
+            )),
+            QuantizationOutput::Dequantized => TensorPrimitive::Float(dequant_op!(
+                ty Self,
+                float_op |lhs, rhs| B::float_matmul(lhs, rhs),
+                lhs,
+                rhs
+            )),
+        }
     }
 
     /// Negates a tensor element-wise.

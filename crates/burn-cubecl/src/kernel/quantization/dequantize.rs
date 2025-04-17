@@ -1,7 +1,9 @@
 use crate::tensor::CubeTensor;
 use crate::{CubeElement, CubeRuntime};
 use burn_tensor::DType;
-use burn_tensor::quantization::{QuantizationLevel, QuantizationMode, QuantizationScheme, QuantizationType};
+use burn_tensor::quantization::{
+    QuantizationLevel, QuantizationMode, QuantizationScheme, QuantizationType,
+};
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 

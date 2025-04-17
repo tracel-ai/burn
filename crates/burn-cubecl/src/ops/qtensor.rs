@@ -1,11 +1,11 @@
 use std::ops::Range;
 
 use burn_tensor::{
-    DType, Device, Shape, TensorData,
+    DType, Device, Shape, TensorData, TensorPrimitive,
     ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QTensorPrimitive, QuantizationLevel, QuantizationMode, QuantizationParametersPrimitive,
-        QuantizationScheme, QuantizationType,
+        QTensorPrimitive, QuantizationLevel, QuantizationMode, QuantizationOutput,
+        QuantizationParametersPrimitive, QuantizationScheme, QuantizationType,
     },
 };
 use cubecl::{
@@ -145,21 +145,34 @@ where
         unimplemented!()
     }
 
-    fn q_matmul(lhs: QuantizedTensor<Self>, rhs: QuantizedTensor<Self>) -> QuantizedTensor<Self> {
+    fn q_matmul(lhs: QuantizedTensor<Self>, rhs: QuantizedTensor<Self>) -> TensorPrimitive<Self> {
         if features_enabled::<R>(&lhs.client)
             && both_matches_symmetric_qint8(lhs.scheme(), rhs.scheme())
         {
             let out =
                 kernel::matmul::q_matmul(lhs.clone(), rhs.clone(), None, MatmulStrategy::default());
             if let Ok(out) = out {
-                return out;
+                return match lhs.scheme().output {
+                    QuantizationOutput::Quantized => {
+                        TensorPrimitive::QFloat(Self::quantize_dynamic(out, lhs.scheme()))
+                    }
+                    QuantizationOutput::Dequantized => TensorPrimitive::Float(out),
+                };
             }
         }
 
         // If the above quantized matmul fail, we fallback to the dequantize-then-matmul pattern.
+        let scheme = *lhs.scheme();
         let t1_f = <Self>::dequantize(lhs);
         let t2_f = <Self>::dequantize(rhs);
-        Self::float_matmul(t1_f, t2_f)
+        let out = Self::float_matmul(t1_f, t2_f);
+
+        match scheme.output {
+            QuantizationOutput::Quantized => {
+                TensorPrimitive::QFloat(Self::quantize_dynamic(out, &scheme))
+            }
+            QuantizationOutput::Dequantized => TensorPrimitive::Float(out),
+        }
     }
 }
 

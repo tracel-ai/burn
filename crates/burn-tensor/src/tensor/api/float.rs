@@ -206,12 +206,17 @@ where
         check!(TensorCheck::matmul(&self, &other));
         match (self.primitive, other.primitive) {
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
-                Self::new(TensorPrimitive::QFloat(B::q_matmul(lhs, rhs)))
+                Self::new(B::q_matmul(lhs, rhs))
             }
-            (lhs, rhs) => Self::new(TensorPrimitive::Float(B::float_matmul(
-                lhs.tensor(),
-                rhs.tensor(),
-            ))),
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => Self::new(
+                TensorPrimitive::Float(B::float_matmul(B::dequantize(lhs), rhs)),
+            ),
+            (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => Self::new(
+                TensorPrimitive::Float(B::float_matmul(lhs, B::dequantize(rhs))),
+            ),
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                Self::new(TensorPrimitive::Float(B::float_matmul(lhs, rhs)))
+            }
         }
     }
 
