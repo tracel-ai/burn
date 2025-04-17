@@ -5,8 +5,8 @@ use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParams, QuantizationLevel, QuantizationMode, QuantizationParametersPrimitive,
-        QuantizationScheme, QuantizationStrategy, QuantizationType, QuantizedBytes,
+        QParams, QuantLevel, QuantMode, QuantizationParametersPrimitive,
+        QuantScheme, QuantizationStrategy, QuantInputType, QuantizedBytes,
         SymmetricQuantization,
     },
 };
@@ -47,12 +47,12 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                 };
 
                 match scheme {
-                    QuantizationScheme {
-                        level: QuantizationLevel::Tensor,
-                        mode: QuantizationMode::Symmetric,
-                        q_type: QuantizationType::QInt8,
+                    QuantScheme {
+                        level: QuantLevel::Tensor,
+                        mode: QuantMode::Symmetric,
+                        q_type: QuantInputType::QInt8,
                         acc_precision: _,
-                        output: _,
+                        propagation: _,
                     } => {
                         // We should probably check that `Q` matches i8.. but it's the only valid type now
                         let (values, qparams) = q_bytes.into_vec_i8();
@@ -84,17 +84,17 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
 
     fn quantize(
         tensor: FloatTensor<Self>,
-        scheme: &QuantizationScheme,
+        scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         // Implement with ndarray instead of QuantizationStrategy?
         let (strategy, qparams) = match scheme {
-            QuantizationScheme {
-                level: QuantizationLevel::Tensor,
-                mode: QuantizationMode::Symmetric,
-                q_type: QuantizationType::QInt8,
+            QuantScheme {
+                level: QuantLevel::Tensor,
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
                 acc_precision: _,
-                output: _,
+                propagation: _,
             } => {
                 let scale = into_data_f(qparams.scale).iter().next().unwrap();
                 (

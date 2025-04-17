@@ -3,8 +3,8 @@ use core::mem;
 use burn_tensor::{
     DType, Element, Shape, TensorData, TensorMetadata,
     quantization::{
-        QParams, QTensorPrimitive, QuantizationLevel, QuantizationMode, QuantizationScheme,
-        QuantizationStrategy, QuantizationType, SymmetricQuantization,
+        QParams, QTensorPrimitive, QuantLevel, QuantMode, QuantScheme,
+        QuantizationStrategy, QuantInputType, SymmetricQuantization,
     },
 };
 
@@ -341,7 +341,7 @@ pub struct NdArrayQTensor<Q: QuantElement> {
     /// The quantized tensor.
     pub qtensor: NdArrayTensor<Q>,
     /// The quantization scheme.
-    pub scheme: QuantizationScheme,
+    pub scheme: QuantScheme,
     /// The quantization parameters.
     pub qparams: Vec<QParams<f32, Q>>,
 }
@@ -350,12 +350,12 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
     pub fn strategy(&self) -> QuantizationStrategy {
         match self.scheme {
-            QuantizationScheme {
-                level: QuantizationLevel::Tensor,
-                mode: QuantizationMode::Symmetric,
-                q_type: QuantizationType::QInt8,
+            QuantScheme {
+                level: QuantLevel::Tensor,
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
                 acc_precision: _,
-                output: _,
+                propagation: _,
             } => QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
                 self.qparams[0].scale,
             )),
@@ -364,7 +364,7 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
 }
 
 impl<Q: QuantElement> QTensorPrimitive for NdArrayQTensor<Q> {
-    fn scheme(&self) -> &QuantizationScheme {
+    fn scheme(&self) -> &QuantScheme {
         &self.scheme
     }
 }
@@ -454,7 +454,7 @@ mod tests {
         let device = Default::default();
 
         let tensor = B::float_from_data(TensorData::from([-1.8f32, -1.0, 0.0, 0.5]), &device);
-        let scheme = QuantizationScheme::default();
+        let scheme = QuantScheme::default();
         let qparams = QuantizationParametersPrimitive {
             scale: B::float_from_data(TensorData::from([scale]), &device),
             offset: None,

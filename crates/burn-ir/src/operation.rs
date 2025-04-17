@@ -11,7 +11,7 @@ use burn_tensor::{
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
     },
-    quantization::QuantizationScheme,
+    quantization::QuantScheme,
 };
 
 use crate::TensorIr;
@@ -978,7 +978,7 @@ pub struct QuantizationParametersIr {
 pub struct QuantizeOpIr {
     pub tensor: TensorIr,
     pub qparams: QuantizationParametersIr,
-    pub scheme: QuantizationScheme,
+    pub scheme: QuantScheme,
     pub out: TensorIr,
 }
 

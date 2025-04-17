@@ -4,8 +4,8 @@ use num_traits::{Float, PrimInt, Signed};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    QuantizationAccPrecision, QuantizationLevel, QuantizationMode, QuantizationOutput,
-    QuantizationScheme, QuantizationType,
+    QuantAccPrecision, QuantLevel, QuantMode, QuantPropagation,
+    QuantScheme, QuantInputType,
 };
 
 /// Quantization strategy.
@@ -33,14 +33,14 @@ impl QuantizationStrategy {
 
 impl QuantizationStrategy {
     /// Returns the corresponding quantization scheme.
-    pub fn scheme(&self) -> QuantizationScheme {
+    pub fn scheme(&self) -> QuantScheme {
         match self {
-            QuantizationStrategy::PerTensorSymmetricInt8(_) => QuantizationScheme {
-                level: QuantizationLevel::Tensor,
-                mode: QuantizationMode::Symmetric,
-                q_type: QuantizationType::QInt8,
-                acc_precision: QuantizationAccPrecision::Full,
-                output: QuantizationOutput::Dequantized,
+            QuantizationStrategy::PerTensorSymmetricInt8(_) => QuantScheme {
+                level: QuantLevel::Tensor,
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
+                acc_precision: QuantAccPrecision::Full,
+                propagation: QuantPropagation::Inhibit,
             },
         }
     }

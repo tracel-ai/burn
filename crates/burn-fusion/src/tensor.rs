@@ -2,7 +2,7 @@ use crate::{Client, FusionBackend, FusionRuntime, client::FusionClient, stream::
 use burn_ir::{TensorId, TensorIr, TensorStatus};
 use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
-    quantization::{QTensorPrimitive, QuantizationScheme},
+    quantization::{QTensorPrimitive, QuantScheme},
 };
 use std::{future::Future, sync::Arc};
 
@@ -179,7 +179,7 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
 }
 
 impl<R: FusionRuntime> QTensorPrimitive for FusionTensor<R> {
-    fn scheme(&self) -> &QuantizationScheme {
+    fn scheme(&self) -> &QuantScheme {
         if let DType::QFloat(scheme) = &self.dtype {
             scheme
         } else {

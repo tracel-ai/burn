@@ -1,6 +1,6 @@
 use crate::Tensor;
 use crate::check::TensorCheck;
-use crate::quantization::{QuantizationParameters, QuantizationScheme};
+use crate::quantization::{QuantizationParameters, QuantScheme};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
@@ -331,7 +331,7 @@ where
     /// The quantized tensor.
     pub fn quantize(
         self,
-        scheme: &QuantizationScheme,
+        scheme: &QuantScheme,
         qparams: QuantizationParameters<B>,
     ) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::QFloat(B::quantize(
@@ -353,7 +353,7 @@ where
     ///
     /// # Notes
     /// This uses [min-max calibration](crate::quantization::Calibration::MinMax).
-    pub fn quantize_dynamic(self, scheme: &QuantizationScheme) -> Tensor<B, D> {
+    pub fn quantize_dynamic(self, scheme: &QuantScheme) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::QFloat(B::quantize_dynamic(
             self.primitive.tensor(),
             scheme,

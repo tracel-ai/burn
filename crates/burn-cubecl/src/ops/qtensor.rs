@@ -4,8 +4,8 @@ use burn_tensor::{
     DType, Device, Shape, TensorData, TensorPrimitive,
     ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QTensorPrimitive, QuantizationLevel, QuantizationMode, QuantizationOutput,
-        QuantizationParametersPrimitive, QuantizationScheme, QuantizationType,
+        QTensorPrimitive, QuantLevel, QuantMode, QuantPropagation,
+        QuantizationParametersPrimitive, QuantScheme, QuantInputType,
     },
 };
 use cubecl::{
@@ -27,7 +27,7 @@ use super::{permute, swap_dims};
 fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
     data: &[u8],
     shape: S,
-    scheme: QuantizationScheme,
+    scheme: QuantScheme,
     device: &R::Device,
 ) -> CubeTensor<R> {
     let client = R::client(device);
@@ -52,10 +52,10 @@ where
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
-                QuantizationScheme {
-                    level: QuantizationLevel::Tensor,
-                    mode: QuantizationMode::Symmetric,
-                    q_type: QuantizationType::QInt8,
+                QuantScheme {
+                    level: QuantLevel::Tensor,
+                    mode: QuantMode::Symmetric,
+                    q_type: QuantInputType::QInt8,
                     acc_precision: _,
                     output: _,
                 } => {
@@ -75,7 +75,7 @@ where
 
     fn quantize(
         tensor: FloatTensor<Self>,
-        scheme: &QuantizationScheme,
+        scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         kernel::quantization::quantize::<R, F, I>(tensor, scheme, qparams.scale)
@@ -153,10 +153,10 @@ where
                 kernel::matmul::q_matmul(lhs.clone(), rhs.clone(), None, MatmulStrategy::default());
             if let Ok(out) = out {
                 return match lhs.scheme().output {
-                    QuantizationOutput::Quantized => {
+                    QuantPropagation::Propagate => {
                         TensorPrimitive::QFloat(Self::quantize_dynamic(out, lhs.scheme()))
                     }
-                    QuantizationOutput::Dequantized => TensorPrimitive::Float(out),
+                    QuantPropagation::Inhibit => TensorPrimitive::Float(out),
                 };
             }
         }
@@ -168,22 +168,22 @@ where
         let out = Self::float_matmul(t1_f, t2_f);
 
         match scheme.output {
-            QuantizationOutput::Quantized => {
+            QuantPropagation::Propagate => {
                 TensorPrimitive::QFloat(Self::quantize_dynamic(out, &scheme))
             }
-            QuantizationOutput::Dequantized => TensorPrimitive::Float(out),
+            QuantPropagation::Inhibit => TensorPrimitive::Float(out),
         }
     }
 }
 
-fn both_matches_symmetric_qint8(lhs: &QuantizationScheme, rhs: &QuantizationScheme) -> bool {
+fn both_matches_symmetric_qint8(lhs: &QuantScheme, rhs: &QuantScheme) -> bool {
     [lhs, rhs].iter().all(|scheme| {
         matches!(
             scheme,
-            QuantizationScheme {
-                level: QuantizationLevel::Tensor,
-                mode: QuantizationMode::Symmetric,
-                q_type: QuantizationType::QInt8,
+            QuantScheme {
+                level: QuantLevel::Tensor,
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
                 acc_precision: _,
                 output: _,
             }

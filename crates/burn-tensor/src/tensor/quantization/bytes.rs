@@ -4,8 +4,8 @@ use crate::{Bytes, Element};
 use alloc::vec::Vec;
 
 use super::{
-    QParams, QuantizationLevel, QuantizationMode, QuantizationScheme, QuantizationStrategy,
-    QuantizationType, SymmetricQuantization, pack_i8s_to_u32s, unpack_u32s_to_i8s,
+    QParams, QuantLevel, QuantMode, QuantScheme, QuantizationStrategy,
+    QuantInputType, SymmetricQuantization, pack_i8s_to_u32s, unpack_u32s_to_i8s,
 };
 
 /// Quantized data bytes representation.
@@ -21,7 +21,7 @@ pub struct QuantizedBytes {
     /// The quantized values and quantization parameters represented as bytes.
     pub bytes: Bytes,
     /// The quantization scheme.
-    pub scheme: QuantizationScheme,
+    pub scheme: QuantScheme,
     /// The number of quantized elements.
     pub num_elements: usize,
 }
@@ -102,7 +102,7 @@ impl QuantizedBytes {
         };
 
         let num_params = match self.scheme.level {
-            QuantizationLevel::Tensor => 1,
+            QuantLevel::Tensor => 1,
         };
 
         let scale_size = num_params; // f32 scale is the same number of bytes as u32
@@ -116,12 +116,12 @@ impl QuantizedBytes {
     /// Dequantizes the data according to its quantization scheme.
     pub fn dequantize(self) -> (Vec<f32>, QParams<Vec<f32>, Vec<i8>>) {
         match self.scheme {
-            QuantizationScheme {
-                level: QuantizationLevel::Tensor,
-                mode: QuantizationMode::Symmetric,
-                q_type: QuantizationType::QInt8,
+            QuantScheme {
+                level: QuantLevel::Tensor,
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
                 acc_precision: _,
-                output: _,
+                propagation: _,
             } => {
                 let (values, qparams) = self.into_vec_i8();
                 let strategy = QuantizationStrategy::PerTensorSymmetricInt8(

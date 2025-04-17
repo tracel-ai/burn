@@ -4,8 +4,8 @@ mod tests {
     use super::*;
     use alloc::{vec, vec::Vec};
     use burn_tensor::quantization::{
-        QParams, QuantizationMode, QuantizationParameters, QuantizationScheme,
-        QuantizationStrategy, QuantizationType, QuantizedBytes, SymmetricQuantization,
+        QParams, QuantScheme, QuantizationParameters, QuantizationStrategy, QuantizedBytes,
+        SymmetricQuantization,
     };
     use burn_tensor::{DType, Tensor, TensorData};
     use burn_tensor::{Tolerance, ops::FloatElem};
@@ -30,7 +30,7 @@ mod tests {
     fn should_support_quantize_symmetric_int8() {
         let device = Default::default();
         let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
-        let scheme = QuantizationScheme::default();
+        let scheme = QuantScheme::default();
         let qparams = QuantizationParameters {
             scale: Tensor::from_floats([0.014_173_228], &device),
             offset: None,
@@ -74,7 +74,7 @@ mod tests {
         // NOTE: we use fully representable values since different backend implementations could differ slightly
         // due to rounding discrepancies
         let tensor = TestTensor::<1>::from_floats([5., 0., 4., -12.7], &device);
-        let scheme = QuantizationScheme::default();
+        let scheme = Quantcheme::default();
 
         let x_q = tensor.quantize_dynamic(&scheme);
 

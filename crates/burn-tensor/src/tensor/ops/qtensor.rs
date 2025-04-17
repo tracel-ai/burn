@@ -5,8 +5,8 @@ use crate::{
     Device, Shape, TensorData, TensorMetadata, TensorPrimitive,
     backend::Backend,
     quantization::{
-        Calibration, QTensorPrimitive, QuantizationOutput, QuantizationParametersPrimitive,
-        QuantizationScheme,
+        Calibration, QTensorPrimitive, QuantPropagation, QuantScheme,
+        QuantizationParametersPrimitive,
     },
 };
 
@@ -83,12 +83,12 @@ pub trait QTensorOps<B: Backend> {
     /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
     fn quantize(
         tensor: FloatTensor<B>,
-        scheme: &QuantizationScheme,
+        scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<B>,
     ) -> QuantizedTensor<B>;
 
     /// Dynamically convert the tensor to a lower precision data type based on the quantization scheme.
-    fn quantize_dynamic(tensor: FloatTensor<B>, scheme: &QuantizationScheme) -> QuantizedTensor<B> {
+    fn quantize_dynamic(tensor: FloatTensor<B>, scheme: &QuantScheme) -> QuantizedTensor<B> {
         // Dynamically compute min/max tensor range and qparams before quantizing
         let (min, max) = scheme.compute_range_primitive::<B>(tensor.clone(), &Calibration::MinMax);
         let qparams = scheme.compute_q_params_primitive(min, max);
@@ -435,14 +435,14 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// The result of multiplying the two tensors together using matrix multiplication.
     fn q_matmul(lhs: QuantizedTensor<B>, rhs: QuantizedTensor<B>) -> TensorPrimitive<B> {
-        match lhs.scheme().output {
-            QuantizationOutput::Quantized => TensorPrimitive::QFloat(dequant_op_quant!(
+        match lhs.scheme().propagation {
+            QuantPropagation::Propagate => TensorPrimitive::QFloat(dequant_op_quant!(
                 ty Self,
                 float_op |lhs, rhs| B::float_matmul(lhs, rhs),
                 lhs,
                 rhs
             )),
-            QuantizationOutput::Dequantized => TensorPrimitive::Float(dequant_op!(
+            QuantPropagation::Inhibit => TensorPrimitive::Float(dequant_op!(
                 ty Self,
                 float_op |lhs, rhs| B::float_matmul(lhs, rhs),
                 lhs,

@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::{
         Tensor, TensorData,
-        quantization::{CalibrationRange, QuantizationMode, QuantizationScheme, QuantizationType},
+        quantization::{CalibrationRange, QuantMode, QuantScheme, QuantInputType},
     };
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;

@@ -7,7 +7,7 @@ use burn_ir::{
 use burn_tensor::{
     DType, Device, Element, Shape, TensorData, TensorMetadata,
     ops::{FloatElem, FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
-    quantization::{QuantizationParametersPrimitive, QuantizationScheme},
+    quantization::{QuantizationParametersPrimitive, QuantScheme},
 };
 
 use crate::{
@@ -42,7 +42,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
     fn quantize(
         tensor: FloatTensor<Self>,
-        scheme: &QuantizationScheme,
+        scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         #[derive(new)]

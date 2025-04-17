@@ -2,7 +2,7 @@ use crate::tensor::CubeTensor;
 use crate::{CubeElement, CubeRuntime, IntElement};
 use burn_tensor::Shape;
 use burn_tensor::quantization::{
-    QuantizationLevel, QuantizationMode, QuantizationScheme, QuantizationType,
+    QuantLevel, QuantMode, QuantScheme, QuantInputType,
 };
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
@@ -92,17 +92,17 @@ fn create_quantized_output<R: CubeRuntime>(
     num_input_elems: usize,
     device: R::Device,
     shape: Shape,
-    scheme: QuantizationScheme,
+    scheme: QuantScheme,
 ) -> CubeTensor<R> {
     // Output tensor contains 4x less elements (four int8 values packed in a single u32)
     let output_elems_size = usize::div_ceil(num_input_elems, 4) * core::mem::size_of::<u32>();
 
     // Scale and offset (optional) qparams are also packed in the tensor data
     let qparams_size = match &scheme {
-        QuantizationScheme {
-            level: QuantizationLevel::Tensor,
-            mode: QuantizationMode::Symmetric,
-            q_type: QuantizationType::QInt8,
+        QuantScheme {
+            level: QuantLevel::Tensor,
+            mode: QuantMode::Symmetric,
+            q_type: QuantInputType::QInt8,
             acc_precision: _,
             output: _,
         } => core::mem::size_of::<f32>(),
@@ -121,7 +121,7 @@ fn create_quantized_output<R: CubeRuntime>(
 /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
 pub fn quantize<R, F, I>(
     tensor: CubeTensor<R>,
-    scheme: &QuantizationScheme,
+    scheme: &QuantScheme,
     scale: CubeTensor<R>,
 ) -> CubeTensor<R>
 where
@@ -148,10 +148,10 @@ where
     );
 
     match scheme {
-        QuantizationScheme {
-            level: QuantizationLevel::Tensor,
-            mode: QuantizationMode::Symmetric,
-            q_type: QuantizationType::QInt8,
+        QuantScheme {
+            level: QuantLevel::Tensor,
+            mode: QuantMode::Symmetric,
+            q_type: QuantInputType::QInt8,
             acc_precision: _,
             output: _,
         } => {

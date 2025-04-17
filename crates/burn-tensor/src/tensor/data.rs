@@ -10,13 +10,13 @@ use num_traits::{Float, ToPrimitive};
 
 use crate::{
     DType, Distribution, Element, ElementConversion,
-    quantization::{QuantizationScheme, QuantizationStrategy, QuantizationType, QuantizedBytes},
+    quantization::{QuantInputType, QuantScheme, QuantizationStrategy, QuantizedBytes},
     tensor::bytes::Bytes,
 };
 
 use rand::RngCore;
 
-use super::quantization::{QuantizationLevel, QuantizationMode};
+use super::quantization::{QuantLevel, QuantMode};
 
 /// The things that can go wrong when manipulating tensor data.
 #[derive(Debug)]
@@ -252,12 +252,12 @@ impl TensorData {
                 // bool is a byte value equal to either 0 or 1
                 DType::Bool => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
                 DType::QFloat(scheme) => match scheme {
-                    QuantizationScheme {
-                        level: QuantizationLevel::Tensor,
-                        mode: QuantizationMode::Symmetric,
-                        q_type: QuantizationType::QInt8,
+                    QuantScheme {
+                        level: QuantLevel::Tensor,
+                        mode: QuantMode::Symmetric,
+                        q_type: QuantInputType::QInt8,
                         acc_precision: _,
-                        output: _,
+                        propagation: _,
                     } => {
                         // Quantized int8 values
                         let q_bytes = QuantizedBytes {
@@ -814,12 +814,12 @@ impl core::fmt::Display for TensorData {
             DType::U8 => format!("{:?}", self.as_slice::<u8>().unwrap()),
             DType::Bool => format!("{:?}", self.as_slice::<bool>().unwrap()),
             DType::QFloat(scheme) => match scheme {
-                QuantizationScheme {
-                    level: QuantizationLevel::Tensor,
-                    mode: QuantizationMode::Symmetric,
-                    q_type: QuantizationType::QInt8,
+                QuantScheme {
+                    level: QuantLevel::Tensor,
+                    mode: QuantMode::Symmetric,
+                    q_type: QuantInputType::QInt8,
                     acc_precision: _,
-                    output: _,
+                    propagation: _,
                 } => {
                     format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())
                 }

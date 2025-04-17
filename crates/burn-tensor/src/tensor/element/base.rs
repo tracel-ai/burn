@@ -3,7 +3,7 @@ use core::cmp::Ordering;
 use crate::{
     Distribution,
     cast::ToElement,
-    quantization::{QuantizationScheme, QuantizationType},
+    quantization::{QuantScheme, QuantInputType},
 };
 #[cfg(feature = "cubecl")]
 use cubecl::flex32;
@@ -315,7 +315,7 @@ pub enum DType {
     U16,
     U8,
     Bool,
-    QFloat(QuantizationScheme),
+    QFloat(QuantScheme),
 }
 
 impl DType {
@@ -336,7 +336,7 @@ impl DType {
             DType::U8 => core::mem::size_of::<u8>(),
             DType::Bool => core::mem::size_of::<bool>(),
             DType::QFloat(scheme) => match scheme.q_type {
-                QuantizationType::QInt8 => core::mem::size_of::<i8>(),
+                QuantInputType::QInt8 => core::mem::size_of::<i8>(),
             },
         }
     }

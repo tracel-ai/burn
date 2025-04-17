@@ -3,7 +3,7 @@ use core::{marker::PhantomData, mem::transmute};
 use crate::{sharing::UnsafeSharedRef, tensor::NdArrayTensor};
 
 use burn_common::{iter_range_par, run_par};
-use burn_tensor::{DType, Element, TensorMetadata, quantization::QuantizationType};
+use burn_tensor::{DType, Element, TensorMetadata, quantization::QuantInputType};
 use macerator::{Simd, VOrd};
 use ndarray::{Array4, s};
 use nhwc::max_pool2d_nhwc;
@@ -34,7 +34,7 @@ macro_rules! launch_kernel {
             DType::U8 if is_accelerated::<u8>() => Ok(cast($func::<u8>(cast($x), $($arg),*))),
             DType::Bool if is_accelerated::<u8>() => Ok(cast($func::<u8>(cast($x), $($arg),*))),
             DType::QFloat(scheme) => match scheme.q_type {
-                QuantizationType::QInt8 if is_accelerated::<i8>() => Ok(cast($func::<i8>(cast($x), $($arg),*))),
+                QuantInputType::QInt8 if is_accelerated::<i8>() => Ok(cast($func::<i8>(cast($x), $($arg),*))),
                 _ => Err($x)
             },
             _ => Err($x),
