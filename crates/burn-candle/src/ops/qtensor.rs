@@ -4,7 +4,7 @@ use burn_tensor::{
     DType, Device, Shape, TensorData,
     backend::Backend,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
-    quantization::{QuantizationParametersPrimitive, QuantizationScheme},
+    quantization::{QuantizationParametersPrimitive, QuantScheme},
 };
 
 use crate::{
@@ -19,7 +19,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, 
 
     fn quantize(
         _tensor: FloatTensor<Self>,
-        _scheme: &QuantizationScheme,
+        _scheme: &QuantScheme,
         _qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         unimplemented!()

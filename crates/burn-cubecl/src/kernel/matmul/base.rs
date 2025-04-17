@@ -1,6 +1,9 @@
 use super::init_matmul_output;
 use crate::{CubeRuntime, FloatElement, tensor::CubeTensor};
-use burn_tensor::DType;
+use burn_tensor::{
+    DType,
+    quantization::{QTensorPrimitive, QuantAccPrecision},
+};
 use cubecl::linalg::matmul::{components::Quantized, kernels::MatmulLaunchError};
 
 #[cfg(feature = "autotune")]
@@ -65,16 +68,34 @@ pub fn q_matmul<R: CubeRuntime>(
 
     let client = &lhs.client;
 
+    let scheme = *lhs.scheme();
+
     lhs.dtype = DType::I8;
     rhs.dtype = DType::I8;
 
-    cubecl::linalg::matmul::launch_ref::<R, (i8, half::f16, half::f16, half::f16, Quantized)>(
-        &Default::default(),
-        client,
-        &lhs.as_handle_ref(),
-        &rhs.as_handle_ref(),
-        &out.as_handle_ref(),
-    )?;
+    match scheme.acc_precision {
+        QuantAccPrecision::Full => {
+            cubecl::linalg::matmul::launch_ref::<R, (i8, half::f16, f32, half::f16, Quantized)>(
+                &Default::default(),
+                client,
+                &lhs.as_handle_ref(),
+                &rhs.as_handle_ref(),
+                &out.as_handle_ref(),
+            )?;
+        }
+        QuantAccPrecision::Half => {
+            cubecl::linalg::matmul::launch_ref::<
+                R,
+                (i8, half::f16, half::f16, half::f16, Quantized),
+            >(
+                &Default::default(),
+                client,
+                &lhs.as_handle_ref(),
+                &rhs.as_handle_ref(),
+                &out.as_handle_ref(),
+            )?;
+        }
+    }
 
     Ok(out)
 }

@@ -5,8 +5,9 @@ use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParams, QuantizationMode, QuantizationParametersPrimitive, QuantizationScheme,
-        QuantizationStrategy, QuantizationType, QuantizedBytes, SymmetricQuantization,
+        QParams, QuantLevel, QuantMode, QuantizationParametersPrimitive,
+        QuantScheme, QuantizationStrategy, QuantInputType, QuantizedBytes,
+        SymmetricQuantization,
     },
 };
 
@@ -46,21 +47,25 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                 };
 
                 match scheme {
-                    QuantizationScheme::PerTensor(mode, QuantizationType::QInt8) => {
+                    QuantScheme {
+                        level: QuantLevel::Tensor,
+                        mode: QuantMode::Symmetric,
+                        q_type: QuantInputType::QInt8,
+                        acc_precision: _,
+                        propagation: _,
+                    } => {
                         // We should probably check that `Q` matches i8.. but it's the only valid type now
                         let (values, qparams) = q_bytes.into_vec_i8();
                         let data = TensorData::new(values, shape);
 
-                        let qparams = match mode {
-                            QuantizationMode::Symmetric => qparams
-                                .scale
-                                .into_iter()
-                                .map(|scale| QParams {
-                                    scale,
-                                    offset: None,
-                                })
-                                .collect(),
-                        };
+                        let qparams = qparams
+                            .scale
+                            .into_iter()
+                            .map(|scale| QParams {
+                                scale,
+                                offset: None,
+                            })
+                            .collect();
 
                         NdArrayQTensor {
                             qtensor: NdArrayTensor::<Q>::from_data(data),
@@ -79,12 +84,18 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
 
     fn quantize(
         tensor: FloatTensor<Self>,
-        scheme: &QuantizationScheme,
+        scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         // Implement with ndarray instead of QuantizationStrategy?
         let (strategy, qparams) = match scheme {
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
+            QuantScheme {
+                level: QuantLevel::Tensor,
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
+                acc_precision: _,
+                propagation: _,
+            } => {
                 let scale = into_data_f(qparams.scale).iter().next().unwrap();
                 (
                     QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
