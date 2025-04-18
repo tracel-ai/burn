@@ -70,7 +70,6 @@ pub(crate) fn create_key<R: Runtime>(
         &lhs_strides,
         &rhs_strides,
         lhs.dtype.into(),
-        rhs.dtype.into(),
         out.dtype.into(),
     );
     FusedMatmulAutotuneKey::new(key, opt.num_output_buffers(), opt.num_ops_fused())
