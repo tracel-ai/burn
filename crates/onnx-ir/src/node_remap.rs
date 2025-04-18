@@ -1,5 +1,3 @@
-use crate::util::infer_conv_kernel_shape;
-
 use super::ir::{AttributeValue, Node, NodeType};
 
 /// Remap node type using kernel shape
@@ -7,16 +5,10 @@ pub fn remap_node_with_kernel_shape<F>(node: &mut Node, new_node_type: F)
 where
     F: FnOnce(&Vec<i64>) -> NodeType,
 {
-    if let Some(kernel_shape) = node.attrs.get("kernel_shape") {
-        if let AttributeValue::Int64s(ints) = kernel_shape {
-            node.node_type = new_node_type(ints);
-        } else {
-            panic!("kernel_shape is not an int64s");
-        }
+    if let AttributeValue::Int64s(ints) = node.attrs.get("kernel_shape").unwrap() {
+        node.node_type = new_node_type(ints);
     } else {
-        // Handle conv where "kernel_shape" is optional and can be inferred from weights
-        let kernel_shape = infer_conv_kernel_shape(&node.inputs[1].ty);
-        node.node_type = new_node_type(&kernel_shape);
+        panic!("kernel_shape is not an int64s");
     }
 }
 

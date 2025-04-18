@@ -50,6 +50,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomUniformLikeNode {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::burn::{TensorKind, TensorType, graph::BurnGraph, node::test::assert_tokens};
     use burn::record::FullPrecisionSettings;
@@ -61,8 +62,8 @@ mod tests {
         graph.register(RandomUniformLikeNode::new(
             0.0f64,
             1.0f64,
-            TensorType::new("input", 2, TensorKind::Float, Some(vec![2, 3])),
-            TensorType::new("output", 2, TensorKind::Float, Some(vec![2, 3])),
+            TensorType::new("input", 2, TensorKind::Float),
+            TensorType::new("output", 2, TensorKind::Float),
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);

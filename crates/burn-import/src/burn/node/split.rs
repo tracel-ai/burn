@@ -48,14 +48,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
         if let Some(split_sizes) = &self.config.split_sizes {
             let split_sizes_tokens = split_sizes.to_tokens();
             quote! {
-                let mut split_tensors = #input.split_with_sizes(#split_sizes_tokens, #axis);
+                let split_tensors = #input.split_with_sizes(#split_sizes_tokens.to_vec(), #axis);
                 #unpack_outputs
             }
         } else {
             let split_size = &self.config.split_size.unwrap();
             let split_size_tokens = split_size.to_tokens();
             quote! {
-                let mut split_tensors = #input.split(#split_size_tokens, #axis);
+                let split_tensors = #input.split(#split_size_tokens, #axis);
                 #unpack_outputs
             }
         }
@@ -125,7 +125,7 @@ mod tests {
                     &self,
                     tensor1: Tensor<B, 2>,
                 ) -> (Tensor<B, 2>, Tensor<B, 2>) {
-                    let mut split_tensors = tensor1.split(2, 0);
+                    let split_tensors = tensor1.split(2, 0);
 
                     let [tensor2, tensor3] = split_tensors.try_into().unwrap();
                         (tensor2, tensor3)

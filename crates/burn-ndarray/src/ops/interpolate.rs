@@ -2,6 +2,7 @@ use burn_common::{iter_range_par, run_par};
 use burn_tensor::{ElementConversion, TensorMetadata};
 use ndarray::Array4;
 #[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
 use num_traits::Float;
 
 use crate::{FloatNdArrayElement, NdArrayTensor, UnsafeSharedRef};

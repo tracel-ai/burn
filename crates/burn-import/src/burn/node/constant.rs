@@ -117,17 +117,24 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
 
     fn field_init(&self) -> Option<TokenStream> {
         match &self.value {
-            ConstantValue::Tensor(tensor_type, _) => {
+            ConstantValue::Tensor(tensor_type, data) => {
                 let ty = tensor_type.ty();
                 let name = Ident::new(self.name.as_ref(), Span::call_site());
-                let shape = tensor_type.clone().shape.unwrap().to_tokens();
-                let dim = tensor_type.rank.to_tokens();
+
+                assert_eq!(
+                    data.shape.len(),
+                    tensor_type.rank,
+                    "Tensor data shape does not match tensor type rank"
+                );
+
+                let shape = data.shape.to_tokens();
+                let rank = tensor_type.rank.to_tokens();
 
                 match tensor_type.kind {
                     crate::burn::TensorKind::Int => Some(quote! {
                         let #name: burn::module::Param<#ty> = burn::module::Param::uninitialized(
                             burn::module::ParamId::new(),
-                            move |device, _require_grad| Tensor::<B, #dim, Int>::zeros(#shape, &device),
+                            move |device, _require_grad| Tensor::<B, #rank, Int>::zeros(#shape, &device),
                             device.clone(),
                             false
                         );
@@ -135,7 +142,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
                     crate::burn::TensorKind::Float => Some(quote! {
                         let #name: burn::module::Param<#ty> = burn::module::Param::uninitialized(
                             burn::module::ParamId::new(),
-                            move |device, _require_grad| Tensor::<B, #dim>::zeros(#shape, &device),
+                            move |device, _require_grad| Tensor::<B, #rank>::zeros(#shape, &device),
                             device.clone(),
                             false,
                         );
@@ -143,7 +150,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
                     crate::burn::TensorKind::Bool => Some(quote! {
                         let #name: burn::module::Param<#ty> = burn::module::Param::uninitialized(
                             burn::module::ParamId::new(),
-                            move |device, _require_grad| Tensor::<B, #dim, Bool>::empty(#shape, &device),
+                            move |device, _require_grad| Tensor::<B, #rank, Bool>::empty(#shape, &device),
                             device.clone(),
                             false,
                         );
@@ -288,23 +295,14 @@ mod tests {
 
         let const_tensor = Ident::new("const_tensor", Span::call_site());
         let dimensions = 1;
-        let shape = vec![4];
         let data = TensorData::from([2f32, 2f32, 2f32, 2f32]);
-        let tensor_type = TensorType::new_float_with_shape(
-            const_tensor.to_string(),
-            dimensions,
-            Some(shape.clone()),
-        );
+        let tensor_type = TensorType::new_float(const_tensor.to_string(), dimensions);
         let constant = ConstantValue::Tensor(tensor_type.clone(), data);
 
         graph.register(ConstantNode::new(
             const_tensor.to_string(),
             constant.clone(),
-            Type::Tensor(TensorType::new_float_with_shape(
-                "output",
-                dimensions,
-                Some(shape.clone()),
-            )),
+            Type::Tensor(TensorType::new_float("output", dimensions)),
         ));
 
         graph.register_input_output(vec![], vec!["output".to_string()]);
@@ -356,23 +354,14 @@ mod tests {
 
         let const_tensor = Ident::new("const_tensor_int", Span::call_site());
         let dimensions = 1;
-        let shape = vec![3];
         let data = TensorData::from([1i32, 2i32, 3i32]);
-        let tensor_type = TensorType::new_int_with_shape(
-            const_tensor.to_string(),
-            dimensions,
-            Some(shape.clone()),
-        );
+        let tensor_type = TensorType::new_int(const_tensor.to_string(), dimensions);
         let constant = ConstantValue::Tensor(tensor_type.clone(), data);
 
         graph.register(ConstantNode::new(
             const_tensor.to_string(),
             constant.clone(),
-            Type::Tensor(TensorType::new_int_with_shape(
-                "output",
-                dimensions,
-                Some(shape.clone()),
-            )),
+            Type::Tensor(TensorType::new_int("output", dimensions)),
         ));
 
         graph.register_input_output(vec![], vec!["output".to_string()]);
@@ -425,23 +414,14 @@ mod tests {
 
         let const_tensor = Ident::new("const_tensor_3d", Span::call_site());
         let dimensions = 3;
-        let shape = vec![1, 3, 2];
         let data = TensorData::from([[[true, false], [true, false], [true, false]]]);
-        let tensor_type = TensorType::new_bool_with_shape(
-            const_tensor.to_string(),
-            dimensions,
-            Some(shape.clone()),
-        );
+        let tensor_type = TensorType::new_bool(const_tensor.to_string(), dimensions);
         let constant = ConstantValue::Tensor(tensor_type.clone(), data);
 
         graph.register(ConstantNode::new(
             const_tensor.to_string(),
             constant.clone(),
-            Type::Tensor(TensorType::new_bool_with_shape(
-                "output",
-                dimensions,
-                Some(shape.clone()),
-            )),
+            Type::Tensor(TensorType::new_bool("output", dimensions)),
         ));
 
         graph.register_input_output(vec![], vec!["output".to_string()]);

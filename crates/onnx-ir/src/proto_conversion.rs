@@ -3,9 +3,8 @@ use std::str::{FromStr, from_utf8};
 use crate::ir::TensorType;
 
 use super::from_onnx::GraphData;
-use super::ir::Rank;
 use super::ir::{
-    ArgType, Argument, AttributeValue, Attributes, Data, ElementType, Node, NodeType, Tensor,
+    ArgType, Argument, AttributeValue, Attributes, Data, ElementType, Node, NodeType, TensorData,
 };
 use super::protos::{
     AttributeProto, NodeProto, TensorProto, TensorShapeProto, ValueInfoProto,
@@ -23,9 +22,9 @@ pub enum ParseError {
 }
 
 /// Convert a vector of AttributeProto to a HashMap of AttributeValue
-impl TryFrom<TensorProto> for Tensor {
+impl TryFrom<TensorProto> for TensorData {
     type Error = ParseError;
-    fn try_from(tensor: TensorProto) -> Result<Tensor, Self::Error> {
+    fn try_from(tensor: TensorProto) -> Result<TensorData, Self::Error> {
         let (elem_type, data) = match DataType::from_i32(tensor.data_type).unwrap() {
             DataType::FLOAT => (
                 ElementType::Float32,
@@ -78,11 +77,11 @@ impl TryFrom<TensorProto> for Tensor {
         };
         let shape = convert_shape(tensor.dims);
 
-        Ok(Tensor {
+        Ok(TensorData {
             elem_type,
             rank: shape.len(),
-            shape: Some(shape),
-            data: Some(data),
+            shape,
+            data,
         })
     }
 }
@@ -103,9 +102,9 @@ impl TryFrom<TensorShapeProto> for Vec<usize> {
 }
 
 /// Convert a vector of AttributeProto to a HashMap of AttributeValue
-impl TryFrom<&type_proto::Tensor> for Tensor {
+impl TryFrom<&type_proto::Tensor> for TensorData {
     type Error = ParseError;
-    fn try_from(tensor: &type_proto::Tensor) -> Result<Tensor, Self::Error> {
+    fn try_from(tensor: &type_proto::Tensor) -> Result<TensorData, Self::Error> {
         let elem_type = match DataType::from_i32(tensor.elem_type).unwrap() {
             DataType::FLOAT => ElementType::Float32,
             DataType::INT32 => ElementType::Int32,
@@ -122,19 +121,19 @@ impl TryFrom<&type_proto::Tensor> for Tensor {
         let shape_proto = tensor.shape.clone().unwrap();
         let shape: Vec<usize> = shape_proto.try_into().unwrap();
 
-        Ok(Tensor {
+        Ok(TensorData {
             elem_type,
             rank: shape.len(),
-            shape: Some(shape),
-            data: None,
+            shape,
+            data: Data::Float32(0.0), // Default data when not provided
         })
     }
 }
 
-fn convert_vec_tensor_proto(tensors: Vec<TensorProto>) -> Result<Vec<Tensor>, ParseError> {
+fn convert_vec_tensor_proto(tensors: Vec<TensorProto>) -> Result<Vec<TensorData>, ParseError> {
     let mut result = Vec::new();
     for tensor in tensors {
-        result.push(Tensor::try_from(tensor)?);
+        result.push(TensorData::try_from(tensor)?);
     }
     Ok(result)
 }
@@ -150,7 +149,7 @@ impl TryFrom<AttributeProto> for AttributeValue {
             AttributeType::STRING => AttributeValue::String(to_string(attr.s)),
 
             // warning: tensor can be empty TODO: check if it is empty
-            AttributeType::TENSOR => AttributeValue::Tensor(Tensor::try_from(attr.t.unwrap())?),
+            AttributeType::TENSOR => AttributeValue::Tensor(TensorData::try_from(attr.t.unwrap())?),
 
             // Graph is not supported for now
             // AttributeType::GRAPH => AttributeValue::Graph(attr.g),
@@ -248,17 +247,39 @@ impl TryFrom<ValueInfoProto> for Argument {
             ArgType::Scalar(elem_type)
         } else {
             // tensor_proto describes a tensor
+            // Check if any dimension is None
+            let has_unknown_dim = tensor_proto.shape.dim.iter().any(|dim| {
+                match &dim.value {
+                    None => true,
+                    Some(Value::DimParam(_)) => true, // Unknown with string dimension parameter
+                    Some(Value::DimValue(_)) => false,
+                }
+            });
+
+            // TODO DT use infered shape information
+
+            let static_shape = if has_unknown_dim {
+                None
+            } else {
+                let shape: Vec<usize> = tensor_proto
+                    .shape
+                    .dim
+                    .iter()
+                    .filter_map(|dim| {
+                        if let Some(Value::DimValue(value)) = &dim.value {
+                            Some(*value as usize)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                Some(shape)
+            };
+
             let tensor_type = TensorType {
                 rank: tensor_proto.shape.dim.len(),
                 elem_type,
-                shape: Some(
-                    tensor_proto
-                        .shape
-                        .dim
-                        .iter()
-                        .map(|x| x.dim_value() as Rank)
-                        .collect(),
-                ),
+                static_shape,
             };
 
             ArgType::Tensor(tensor_type)
