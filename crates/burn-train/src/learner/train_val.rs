@@ -111,8 +111,8 @@ impl<LC: LearnerComponents> Learner<LC> {
     /// The fitted model.
     pub fn fit<InputTrain, InputValid, OutputTrain, OutputValid>(
         mut self,
-        dataloader_train: Arc<dyn DataLoader<TrainBackend<LC>, InputTrain>>,
-        dataloader_valid: Arc<dyn DataLoader<ValidBackend<LC>, InputValid>>,
+        mut dataloader_train: Arc<dyn DataLoader<TrainBackend<LC>, InputTrain>>,
+        mut dataloader_valid: Arc<dyn DataLoader<ValidBackend<LC>, InputValid>>,
     ) -> LC::Model
     where
         InputTrain: Send + 'static,
@@ -127,6 +127,8 @@ impl<LC: LearnerComponents> Learner<LC> {
         // The reference model is always on the first device provided.
         if let Some(device) = self.devices.first() {
             self.model = self.model.fork(device);
+            dataloader_train = dataloader_train.to_device(device);
+            dataloader_valid = dataloader_valid.to_device(device);
         }
 
         let starting_epoch = match self.checkpoint {

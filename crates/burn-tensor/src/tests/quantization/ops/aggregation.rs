@@ -118,8 +118,7 @@ mod tests {
 
     #[test]
     fn test_prod_float() {
-        // NOTE: we use affine quantization to reduce quantization errors since `prod()` amplifies the error
-        let tensor = QTensor::<TestBackend, 2>::int8_affine([[2.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = QTensor::<TestBackend, 2>::int8([[2.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let output = tensor.prod();
 
@@ -128,8 +127,7 @@ mod tests {
             .into_data()
             .assert_approx_eq::<FT>(&TensorData::from([240.0]), Tolerance::absolute(1e-1));
 
-        let tensor_with_zero =
-            QTensor::<TestBackend, 2>::int8_affine([[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor_with_zero = QTensor::<TestBackend, 2>::int8([[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]);
         let output = tensor_with_zero.prod();
 
         output
@@ -140,8 +138,7 @@ mod tests {
 
     #[test]
     fn test_prod_dim_float() {
-        // NOTE: we use affine quantization to reduce quantization errors since `prod()` amplifies the error
-        let tensor = QTensor::<TestBackend, 2>::int8_affine([[2.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = QTensor::<TestBackend, 2>::int8([[2.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let output = tensor.prod_dim(1);
 
@@ -151,8 +148,7 @@ mod tests {
             Tolerance::absolute(1e-1),
         );
 
-        let tensor_with_zero =
-            QTensor::<TestBackend, 2>::int8_affine([[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor_with_zero = QTensor::<TestBackend, 2>::int8([[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]);
         let output = tensor_with_zero.prod_dim(1);
         let expected = TensorData::from([[0.0], [60.0]]);
 

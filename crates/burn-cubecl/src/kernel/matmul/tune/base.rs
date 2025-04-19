@@ -70,7 +70,6 @@ fn create_key<R: CubeRuntime, E: FloatElement>(
         &rhs.strides,
         E::dtype().into(),
         E::dtype().into(),
-        E::dtype().into(),
     )
 }
 

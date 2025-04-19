@@ -3,10 +3,9 @@ mod tests {
     use super::*;
     use burn_tensor::TensorData;
 
-    // NOTE: we use affine quantization to reduce quantization errors for range of input values
     #[test]
     fn should_support_reshape_1d() {
-        let tensor = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 2.0, 3.0]]);
+        let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0, 3.0]]);
 
         let output = tensor.clone().reshape([1, 4]);
         let expected = TensorData::from([[0.0, 1.0, 2.0, 3.0]]);
@@ -16,7 +15,7 @@ mod tests {
 
     #[test]
     fn should_support_reshape_2d() {
-        let tensor = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let output = tensor.clone().reshape([6]);
         let expected = TensorData::from([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
@@ -26,7 +25,7 @@ mod tests {
 
     #[test]
     fn should_support_dim_infererence() {
-        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+        let tensor = QTensor::<TestBackend, 1>::int8([
             0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0,
         ])
         .reshape([4, 3]);
