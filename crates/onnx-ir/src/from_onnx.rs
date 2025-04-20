@@ -5,6 +5,7 @@ use std::{
 };
 
 use crate::node_remap::remap_node_type;
+use crate::util::verify_opsets;
 
 use super::{
     coalesce::coalesce,
@@ -35,6 +36,9 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 15] = [
     NodeType::Split,
     NodeType::Trilu,
 ];
+
+/// Minimum required ONNX opset version
+pub const MIN_OPSET_VERSION: i64 = 16;
 
 #[derive(Debug, Clone)]
 pub(crate) enum IOEntry {
@@ -331,21 +335,25 @@ impl OnnxGraphBuilder {
     }
 }
 
-/// Open an onnx file and convert it to a Graph (intermediate representation)
+/// Parses an ONNX model file and converts it to an intermediate representation.
+///
+/// This function reads an ONNX model from the specified path, validates its opset version,
+/// and transforms it into our internal graph representation for further processing.
 ///
 /// # Arguments
 ///
-/// * `onnx_path` - Path to the onnx file
+/// * `onnx_path` - Path to the ONNX model file
 ///
 /// # Returns
 ///
-/// * `OnnxGraph` - The graph representation of the onnx file
+/// * `OnnxGraph` - The internal graph representation of the ONNX model
 ///
 /// # Panics
 ///
-/// * If the file cannot be opened
-/// * If the file cannot be parsed
-/// * If the nodes are not topologically sorted
+/// * If the file cannot be opened or read
+/// * If the ONNX model cannot be parsed
+/// * If the model uses an unsupported opset version (must be >= MIN_OPSET_VERSION)
+/// * If the nodes in the graph are not topologically sorted
 pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     log::info!("Parsing ONNX file: {}", onnx_path.display());
 
@@ -353,6 +361,16 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     let mut file = File::open(onnx_path).expect("Unable to open file");
     let onnx_model: ModelProto =
         Message::parse_from_reader(&mut file).expect("Unable to parse ONNX file");
+
+    // Check opset versions - must be >= MIN_OPSET_VERSION
+    if !verify_opsets(&onnx_model.opset_import, MIN_OPSET_VERSION) {
+        panic!(
+            "Unsupported ONNX opset version. This implementation requires opset {} or higher. \
+            Please upgrade your model using the ONNX shape inference tool. \
+            See documentation (https://burn.dev/burn-book/import/onnx-model.html) for details.",
+            MIN_OPSET_VERSION
+        );
+    }
 
     // ONNX nodes must be topologically sorted per spec:
     // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
@@ -369,6 +387,20 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     );
 
     log::debug!("Number of outputs: {:?}", onnx_model.graph.output.len());
+
+    // Debug information about opset versions
+    for opset in &onnx_model.opset_import {
+        log::debug!(
+            "Opset domain: {:?}, version: {:?}",
+            if opset.domain.is_empty() {
+                "<default>"
+            } else {
+                &opset.domain
+            },
+            opset.version
+        );
+    }
+
     let builder = OnnxGraphBuilder::default();
     let graph = builder.build(&onnx_model);
 

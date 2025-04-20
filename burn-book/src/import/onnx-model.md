@@ -6,67 +6,87 @@
 2. [Why Import Models?](#why-import-models)
 3. [Understanding ONNX](#understanding-onnx)
 4. [Burn's ONNX Support](#burns-onnx-support)
-5. [Step-by-Step Guide](#step-by-step-guide)
-6. [Advanced Configuration](#advanced-configuration)
-7. [Loading and Using Models](#loading-and-using-models)
-8. [Troubleshooting](#troubleshooting)
-9. [Examples and Resources](#examples-and-resources)
-10. [Conclusion](#conclusion)
+5. [ONNX Compatibility](#onnx-compatibility)
+6. [Step-by-Step Guide](#step-by-step-guide)
+7. [Advanced Configuration](#advanced-configuration)
+8. [Loading and Using Models](#loading-and-using-models)
+9. [Troubleshooting](#troubleshooting)
+10. [Examples and Resources](#examples-and-resources)
+11. [Conclusion](#conclusion)
 
 ## Introduction
 
-As the field of deep learning continues to evolve, the need for interoperability between different
-frameworks becomes increasingly important. Burn, a modern deep learning framework in Rust,
-recognizes this need and provides robust support for importing models from other popular frameworks.
-This section focuses on importing
+As deep learning evolves, interoperability between frameworks becomes crucial. Burn, a modern deep
+learning framework in Rust, provides robust support for importing models from other popular
+frameworks. This section focuses on importing
 [ONNX (Open Neural Network Exchange)](https://onnx.ai/onnx/intro/index.html) models into Burn,
-enabling you to leverage pre-trained models and seamlessly integrate them into your Rust-based deep
-learning projects.
+enabling you to leverage pre-trained models in your Rust-based deep learning projects.
 
 ## Why Import Models?
 
 Importing pre-trained models offers several advantages:
 
-1. **Time-saving**: Avoid the need to train models from scratch, which can be time-consuming and
-   resource-intensive.
+1. **Time-saving**: Skip the resource-intensive process of training models from scratch.
 2. **Access to state-of-the-art architectures**: Utilize cutting-edge models developed by
    researchers and industry leaders.
 3. **Transfer learning**: Fine-tune imported models for your specific tasks, benefiting from
    knowledge transfer.
-4. **Consistency across frameworks**: Ensure consistent performance when moving from one framework
-   to another.
+4. **Consistency across frameworks**: Maintain consistent performance when moving between
+   frameworks.
 
 ## Understanding ONNX
 
-ONNX (Open Neural Network Exchange) is an open format designed to represent machine learning models.
-Key features include:
+ONNX (Open Neural Network Exchange) is an open format designed to represent machine learning models
+with these key features:
 
-- **Framework agnostic**: ONNX provides a common format that works across various deep learning
+- **Framework agnostic**: Provides a common format that works across various deep learning
   frameworks.
-- **Comprehensive representation**: It captures both the model architecture and trained weights.
-- **Wide support**: Many popular frameworks like PyTorch, TensorFlow, and scikit-learn support ONNX
-  export.
+- **Comprehensive representation**: Captures both the model architecture and trained weights.
+- **Wide support**: Compatible with popular frameworks like PyTorch, TensorFlow, and scikit-learn.
 
-By using ONNX, you can easily move models between different frameworks and deployment environments.
+This standardization allows seamless movement of models between different frameworks and deployment
+environments.
 
 ## Burn's ONNX Support
 
-Burn takes a unique approach to ONNX import, offering several advantages:
+Burn's approach to ONNX import offers unique advantages:
 
-1. **Native Rust code generation**: ONNX models are translated into Rust source code, allowing for
-   deep integration with Burn's ecosystem.
-2. **Compile-time optimization**: The generated Rust code can be optimized by the Rust compiler,
+1. **Native Rust code generation**: Translates ONNX models into Rust source code for deep
+   integration with Burn's ecosystem.
+2. **Compile-time optimization**: Leverages the Rust compiler to optimize the generated code,
    potentially improving performance.
-3. **No runtime dependency**: Unlike some solutions that require an ONNX runtime, Burn's approach
-   eliminates this dependency.
-4. **Trainability**: Imported models can be further trained or fine-tuned using Burn.
-5. **Portability**: The generated Rust code can be compiled for various targets, including
-   WebAssembly and embedded devices.
-6. **Any Burn Backend**: The imported models can be used with any of Burn's backends.
+3. **No runtime dependency**: Eliminates the need for an ONNX runtime, unlike many other solutions.
+4. **Trainability**: Allows imported models to be further trained or fine-tuned using Burn.
+5. **Portability**: Enables compilation for various targets, including WebAssembly and embedded
+   devices.
+6. **Backend flexibility**: Works with any of Burn's supported backends.
+
+## ONNX Compatibility
+
+Burn requires ONNX models to use **opset version 16 or higher**. If your model uses an older
+version, you'll need to upgrade it using the ONNX version converter.
+
+### Upgrading ONNX Models
+
+You can upgrade your ONNX models with this simple Python script:
+
+```python
+import onnx
+from onnx import version_converter
+
+# Load your ONNX model
+model = onnx.load('path/to/your/model.onnx')
+
+# Convert the model to opset version 16
+converted_model = version_converter.convert_version(model, 16)
+
+# Save the converted model
+onnx.save(converted_model, 'upgraded_model.onnx')
+```
 
 ## Step-by-Step Guide
 
-Let's walk through the process of importing an ONNX model into a Burn project:
+Follow these steps to import an ONNX model into your Burn project:
 
 ### Step 1: Update `build.rs`
 
@@ -90,7 +110,7 @@ fn main() {
 }
 ```
 
-This script uses `ModelGen` to generate Rust code from your ONNX model during the build process.
+This generates Rust code from your ONNX model during the build process.
 
 ### Step 2: Modify `mod.rs`
 
@@ -102,11 +122,9 @@ pub mod my_model {
 }
 ```
 
-This makes the generated model code available in your project.
-
 ### Step 3: Use the Imported Model
 
-Now you can use the imported model in your Rust code:
+Now you can use the imported model in your code:
 
 ```rust
 use burn::tensor;
@@ -116,8 +134,7 @@ use model::my_model::Model;
 fn main() {
     let device = NdArrayDevice::default();
 
-    // Create model instance and load weights from target dir default device.
-    // (see more load options below in "Loading and Using Models" section)
+    // Create model instance and load weights from target dir default device
     let model: Model<NdArray<f32>> = Model::default();
 
     // Create input tensor (replace with your actual input)
@@ -132,7 +149,7 @@ fn main() {
 
 ## Advanced Configuration
 
-The `ModelGen` struct offers several configuration options:
+The `ModelGen` struct provides several configuration options:
 
 ```rust
 ModelGen::new()
@@ -144,72 +161,69 @@ ModelGen::new()
     .run_from_script();
 ```
 
-- `record_type`: Specifies the format for storing weights (Bincode, NamedMpk, NamedMpkGz, or
+- `record_type`: Defines the format for storing weights (Bincode, NamedMpk, NamedMpkGz, or
   PrettyJson).
-- `half_precision`: Use half-precision (f16) for weights to reduce model size.
-- `embed_states`: Embed model weights directly in the generated Rust code. Note: This requires
-  record type `Bincode`.
+- `half_precision`: Reduces model size by using half-precision (f16) for weights.
+- `embed_states`: Embeds model weights directly in the generated Rust code (requires record type
+  `Bincode`).
 
 ## Loading and Using Models
 
-Depending on your configuration, you can load models in different ways:
+Depending on your configuration, you can load models in several ways:
 
 ```rust
-// Create a new model instance with device. Initializes weights randomly and lazily.
-// You can load weights via `load_record` afterwards.
+// Create a new model instance with device
+// (initializes weights randomly and lazily; load weights via `load_record` afterward)
 let model = Model::<Backend>::new(&device);
 
-// Load from a file (must specify weights file in the target output directory or copy it from there).
-// File type should match the record type specified in `ModelGen`.
+// Load from a file
+// (file type should match the record type specified in `ModelGen`)
 let model = Model::<Backend>::from_file("path/to/weights", &device);
 
 // Load from embedded weights (if embed_states was true)
 let model = Model::<Backend>::from_embedded(&device);
 
-// Load from the out director location and load to default device (useful for testing)
+// Load from the output directory with default device (useful for testing)
 let model = Model::<Backend>::default();
 ```
 
 ## Troubleshooting
 
-Here are some common issues and their solutions:
+Common issues and solutions:
 
-1. **Unsupported ONNX operator**: If you encounter an error about an unsupported operator, check the
+1. **Unsupported ONNX operator**: Check the
    [list of supported ONNX operators](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/SUPPORTED-ONNX-OPS.md).
-   You may need to simplify your model or wait for support to be added.
+   You may need to simplify your model or wait for support.
 
-2. **Build errors**: Ensure that your `burn-import` version matches your Burn version. Also, check
-   that the ONNX file path in `build.rs` is correct.
+2. **Build errors**: Ensure your `burn-import` version matches your Burn version and verify the ONNX
+   file path in `build.rs`.
 
-3. **Runtime errors**: If you get errors when running your model, double-check that your input
-   tensors match the expected shape and data type of your model.
+3. **Runtime errors**: Confirm that your input tensors match the expected shape and data type of
+   your model.
 
-4. **Performance issues**: If your imported model is slower than expected, try using the
-   `half_precision` option to reduce memory usage, or experiment with different `record_type`
-   options.
+4. **Performance issues**: Try using the `half_precision` option to reduce memory usage or
+   experiment with different `record_type` options.
 
-5. **Artifact Files**: You can view the generated Rust code and weights files in the `OUT_DIR`
-   directory specified in `build.rs` (usually `target/debug/build/<project>/out`).
+5. **Viewing generated files**: Find the generated Rust code and weights in the `OUT_DIR` directory
+   (usually `target/debug/build/<project>/out`).
 
 ## Examples and Resources
 
-For more detailed examples, check out:
+For practical examples, check out:
 
 1. [MNIST Inference Example](https://github.com/tracel-ai/burn/tree/main/examples/onnx-inference)
 2. [SqueezeNet Image Classification](https://github.com/tracel-ai/models/tree/main/squeezenet-burn)
 
-These examples demonstrate real-world usage of ONNX import in Burn projects.
+These demonstrate real-world usage of ONNX import in Burn projects.
 
 ## Conclusion
 
-Importing ONNX models into Burn opens up a world of possibilities, allowing you to leverage
-pre-trained models from other frameworks while taking advantage of Burn's performance and Rust's
-safety features. By following this guide, you should be able to seamlessly integrate ONNX models
-into your Burn projects, whether for inference, fine-tuning, or as a starting point for further
-development.
+Importing ONNX models into Burn combines the vast ecosystem of pre-trained models with Burn's
+performance and Rust's safety features. Following this guide, you can seamlessly integrate ONNX
+models into your Burn projects for inference, fine-tuning, or further development.
 
-Remember that the `burn-import` crate is actively developed, with ongoing work to support more ONNX
-operators and improve performance. Stay tuned to the Burn repository for updates and new features!
+The `burn-import` crate is actively developed, with ongoing work to support more ONNX operators and
+improve performance. Stay tuned to the Burn repository for updates!
 
 ---
 

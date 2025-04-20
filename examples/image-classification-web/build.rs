@@ -10,7 +10,7 @@ use burn_import::{burn::graph::RecordType, onnx::ModelGen};
 
 const LABEL_SOURCE_FILE: &str = "src/model/label.txt";
 const LABEL_DEST_FILE: &str = "model/label.rs";
-const INPUT_ONNX_FILE: &str = "src/model/squeezenet1.onnx";
+const INPUT_ONNX_FILE: &str = "src/model/squeezenet1_opset16.onnx";
 const OUT_DIR: &str = "model/";
 
 fn main() {
