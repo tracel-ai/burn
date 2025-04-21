@@ -1,19 +1,5 @@
 # Importing ONNX Models in Burn
 
-## Table of Contents
-
-1. [Introduction](#introduction)
-2. [Why Import Models?](#why-import-models)
-3. [Understanding ONNX](#understanding-onnx)
-4. [Burn's ONNX Support](#burns-onnx-support)
-5. [ONNX Compatibility](#onnx-compatibility)
-6. [Step-by-Step Guide](#step-by-step-guide)
-7. [Advanced Configuration](#advanced-configuration)
-8. [Loading and Using Models](#loading-and-using-models)
-9. [Troubleshooting](#troubleshooting)
-10. [Examples and Resources](#examples-and-resources)
-11. [Conclusion](#conclusion)
-
 ## Introduction
 
 As deep learning evolves, interoperability between frameworks becomes crucial. Burn, a modern deep
@@ -68,19 +54,27 @@ version, you'll need to upgrade it using the ONNX version converter.
 
 ### Upgrading ONNX Models
 
-You can upgrade your ONNX models with this simple Python script:
+There are two simple ways to upgrade your ONNX models to the required opset version:
+
+Option 1: Use the provided utility script:
+
+```
+uv run --script https://raw.githubusercontent.com/tracel-ai/burn/refs/heads/main/crates/burn-import/onnx-opset-upgrade.py
+```
+
+Option 2: Use a custom Python script:
 
 ```python
 import onnx
 from onnx import version_converter
 
-# Load your ONNX model
+# Load the ONNX model
 model = onnx.load('path/to/your/model.onnx')
 
-# Convert the model to opset version 16
+# Upgrade to opset version 16
 converted_model = version_converter.convert_version(model, 16)
 
-# Save the converted model
+# Save the upgraded model
 onnx.save(converted_model, 'upgraded_model.onnx')
 ```
 
