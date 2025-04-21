@@ -396,6 +396,7 @@ fn matmul_launch_kernel<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
 ) -> Result<(), MatmulLaunchError> {
     if <A::TileMatmul as TileMatmulFamily>::requires_tensor_cores()
         && TypeId::of::<EG>() == TypeId::of::<f32>()
+        && tf32::is_supported(client)
     {
         select_kernel_virtual::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
             client, input, output, problem, plane_size,

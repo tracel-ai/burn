@@ -179,6 +179,11 @@ macro_rules! execute_with_dtype {
                 type $element = f32;
                 $op
             }
+            burn_tensor::DType::Flex32 => {
+                type $element = cubecl::flex32;
+                $op
+            }
+
             burn_tensor::DType::F16 => {
                 type $element = half::f16;
                 $op
