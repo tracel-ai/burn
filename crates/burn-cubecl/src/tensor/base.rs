@@ -46,7 +46,7 @@ impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
                 let actual = into_data_sync::<R, f64>(other);
                 expected.assert_approx_eq::<f64>(&actual, Tolerance::rel_abs(1e-2, 1e-3));
             }
-            DType::F32 => {
+            DType::F32 | DType::Flex32 => {
                 let expected = into_data_sync::<R, f32>(self.clone());
                 let actual = into_data_sync::<R, f32>(other);
                 expected.assert_approx_eq::<f32>(&actual, Tolerance::rel_abs(1e-2, 1e-3));
