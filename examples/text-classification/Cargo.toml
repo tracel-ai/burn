@@ -9,6 +9,7 @@ version.workspace = true
 [features]
 default = []
 f16 = []
+flex32 = []
 ndarray = ["burn/ndarray"]
 ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
 ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]

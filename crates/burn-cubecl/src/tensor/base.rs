@@ -192,7 +192,7 @@ macro_rules! execute_with_dtype {
                 type $element = half::bf16;
                 $op
             }
-            _ => unimplemented!("Unsupported dtype"),
+            _ => unimplemented!("Unsupported dtype {:?}", $dtype),
         }
     }};
 
@@ -214,6 +214,10 @@ macro_rules! execute_with_dtype {
             }
             burn_tensor::DType::F32 => {
                 type $element = f32;
+                $op
+            }
+            burn_tensor::DType::Flex32 => {
+                type $element = cubecl::flex32;
                 $op
             }
             burn_tensor::DType::F16 => {
@@ -265,7 +269,7 @@ macro_rules! execute_with_dtype {
                 type $element = u32;
                 $op
             }
-            _ => unimplemented!("Unsupported dtype"),
+            _ => unimplemented!("Unsupported dtype {:?}", $dtype),
         }
     }};
 }

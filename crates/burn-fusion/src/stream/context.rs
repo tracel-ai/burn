@@ -227,6 +227,7 @@ impl OperationConverter {
             burn_tensor::DType::F32 => self.scalar_f32.push(elem.elem()),
             burn_tensor::DType::F16 => self.scalar_f16.push(elem.elem()),
             burn_tensor::DType::BF16 => self.scalar_bf16.push(elem.elem()),
+            burn_tensor::DType::Flex32 => self.scalar_f32.push(elem.elem()),
             _ => todo!("Unsupported float dtype ({dtype:?}) for scalar ({elem:?})"),
         }
 

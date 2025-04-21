@@ -399,7 +399,9 @@ fn launch_reduce_input_output<Run: Runtime, Rd: ReduceFamily>(
 ) {
     match dtype_input {
         DType::F64 => launch_reduce_output::<Run, f64, Rd>(kwargs, dtype_output, config),
-        DType::F32 => launch_reduce_output::<Run, f32, Rd>(kwargs, dtype_output, config),
+        DType::F32 | DType::Flex32 => {
+            launch_reduce_output::<Run, f32, Rd>(kwargs, dtype_output, config)
+        }
         DType::F16 => launch_reduce_output::<Run, half::f16, Rd>(kwargs, dtype_output, config),
         DType::BF16 => launch_reduce_output::<Run, half::bf16, Rd>(kwargs, dtype_output, config),
         DType::I64 => launch_reduce_output::<Run, i64, Rd>(kwargs, dtype_output, config),
@@ -421,7 +423,7 @@ fn launch_reduce_output<Run: Runtime, In: Numeric, Rd: ReduceFamily>(
 ) {
     match dtype {
         DType::F64 => launch_reduce::<Run, In, f64, Rd>(kwargs, config),
-        DType::F32 => launch_reduce::<Run, In, f32, Rd>(kwargs, config),
+        DType::F32 | DType::Flex32 => launch_reduce::<Run, In, f32, Rd>(kwargs, config),
         DType::F16 => launch_reduce::<Run, In, half::f16, Rd>(kwargs, config),
         DType::BF16 => launch_reduce::<Run, In, half::bf16, Rd>(kwargs, config),
         DType::I64 => launch_reduce::<Run, In, i64, Rd>(kwargs, config),
