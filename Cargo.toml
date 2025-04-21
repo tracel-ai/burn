@@ -28,7 +28,7 @@ version = "0.17.0"
 atomic_float = "1"
 bytemuck = "1.21.0"
 candle-core = { version = "0.8.4" }
-clap = { version = "4.5.36", features = ["derive"] }
+clap = { version = "4.5.37", features = ["derive"] }
 colored = "3.0.0"
 console_error_panic_hook = "0.1.7"
 csv = "1.3.1"
@@ -120,7 +120,7 @@ cfg-if = "1.0.0"
 derive-new = { version = "0.7.0", default-features = false }
 
 blas-src = { version = "0.11.1", default-features = false }
-bon = "3.6.0"
+bon = "3.6.2"
 half = { version = "2.6.0", features = [
     "alloc",
     "num-traits",
@@ -133,7 +133,7 @@ num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
 openblas-src = "0.10.11"
-rand = { version = "0.9.0", default-features = false, features = [
+rand = { version = "0.9.1", default-features = false, features = [
     "std_rng",
 ] } # std_rng is for no_std
 rand_distr = { version = "0.5.0", default-features = false }
