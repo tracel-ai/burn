@@ -591,7 +591,7 @@ dependencies = [
  "log",
  "num-traits",
  "portable-atomic-util",
- "rand 0.9.0",
+ "rand 0.9.1",
  "regex",
  "rmp-serde",
  "serde",
@@ -623,7 +623,7 @@ dependencies = [
  "log",
  "num-traits",
  "paste",
- "rand 0.9.0",
+ "rand 0.9.1",
  "serde",
  "serial_test",
  "spin 0.10.0",
@@ -676,7 +676,7 @@ dependencies = [
  "polars",
  "r2d2",
  "r2d2_sqlite",
- "rand 0.9.0",
+ "rand 0.9.1",
  "rayon",
  "rmp-serde",
  "rstest",
@@ -787,7 +787,7 @@ dependencies = [
  "openblas-src",
  "paste",
  "portable-atomic-util",
- "rand 0.9.0",
+ "rand 0.9.1",
  "seq-macro",
  "spin 0.10.0",
 ]
@@ -848,7 +848,7 @@ dependencies = [
  "half",
  "libc",
  "log",
- "rand 0.9.0",
+ "rand 0.9.1",
  "tch",
  "torch-sys",
 ]
@@ -867,7 +867,7 @@ dependencies = [
  "half",
  "hashbrown 0.15.2",
  "num-traits",
- "rand 0.9.0",
+ "rand 0.9.1",
  "rand_distr 0.5.1",
  "serde",
  "serde_bytes",
@@ -1035,7 +1035,7 @@ dependencies = [
  "metal 0.27.0",
  "num-traits",
  "num_cpus",
- "rand 0.9.0",
+ "rand 0.9.1",
  "rand_distr 0.5.1",
  "rayon",
  "safetensors 0.4.5",
@@ -1526,7 +1526,7 @@ dependencies = [
  "log",
  "num-traits",
  "portable-atomic",
- "rand 0.9.0",
+ "rand 0.9.1",
  "sanitize-filename 0.5.0",
  "serde",
  "serde_json",
@@ -2272,7 +2272,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f5f203b70a419cb8880d1cfe6bebe488add0a0307d404e9f24021e5fd864b80"
 dependencies = [
  "deunicode",
- "rand 0.9.0",
+ "rand 0.9.1",
 ]
 
 [[package]]
@@ -3014,7 +3014,7 @@ dependencies = [
  "cfg-if",
  "crunchy",
  "num-traits",
- "rand 0.9.0",
+ "rand 0.9.1",
  "rand_distr 0.5.1",
  "serde",
 ]
@@ -4062,7 +4062,7 @@ version = "0.1.0"
 dependencies = [
  "burn",
  "polars",
- "rand 0.9.0",
+ "rand 0.9.1",
  "rand_distr 0.5.1",
  "serde",
 ]
@@ -5479,7 +5479,7 @@ checksum = "b820744eb4dc9b57a3398183639c511b5a26d2ed702cedd3febaa1393caa22cc"
 dependencies = [
  "bytes",
  "getrandom 0.3.2",
- "rand 0.9.0",
+ "rand 0.9.1",
  "ring",
  "rustc-hash 2.1.1",
  "rustls",
@@ -5555,13 +5555,12 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3779b94aeb87e8bd4e834cee3650289ee9e0d5677f976ecdb6d219e5f4f6cd94"
+checksum = "9fbfd9d094a40bf3ae768db9361049ace4c0e04a4fd6b359518bd7b73a73dd97"
 dependencies = [
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
- "zerocopy 0.8.24",
 ]
 
 [[package]]
@@ -5619,7 +5618,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a8615d50dcf34fa31f7ab52692afec947c4dd0ab803cc87cb3b0b4570ff7463"
 dependencies = [
  "num-traits",
- "rand 0.9.0",
+ "rand 0.9.1",
 ]
 
 [[package]]
@@ -7343,7 +7342,7 @@ dependencies = [
  "http",
  "httparse",
  "log",
- "rand 0.9.0",
+ "rand 0.9.1",
  "sha1",
  "thiserror 2.0.12",
  "utf-8",
@@ -7561,7 +7560,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "458f7a779bf54acc9f347480ac654f68407d3aab21269a6e3c9f922acd9e2da9"
 dependencies = [
  "getrandom 0.3.2",
- "rand 0.9.0",
+ "rand 0.9.1",
 ]
 
 [[package]]
