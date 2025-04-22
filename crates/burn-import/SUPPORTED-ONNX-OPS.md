@@ -1,6 +1,11 @@
 # Supported ONNX Operators
 
-Note: some ONNX Ops listed below are pseudo Ops, such as `Linear`, `Conv1d`, `Conv2d` (or other with 1d, 2d suffixes used to signify the dimensionality). These are not real ONNX Ops, but are used to represent the corresponding Burn Op.
+This table lists the support status for ONNX operators in Burn. Note that some
+entries marked with dimensional suffixes (such as `Conv1d`, `Conv2d`, etc.) or
+other specialized names like `Linear` are not standard ONNX operators. These
+represent Burn's implementation of dimension-specific versions of the
+corresponding ONNX operators to make the mapping clearer between ONNX and Burn
+functionality.
 
 | ONNX OP                          | Import Support | Burn Support |
 |----------------------------------|:--------------:|:------------:|
