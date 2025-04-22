@@ -9,7 +9,7 @@ use burn::{
 use text_classification::{AgNewsDataset, training::ExperimentConfig};
 
 #[cfg(not(any(feature = "f16", feature = "flex32")))]
-#[allow(dead_code)]
+#[allow(unused)]
 type ElemType = f32;
 #[cfg(feature = "f16")]
 type ElemType = burn::tensor::f16;
