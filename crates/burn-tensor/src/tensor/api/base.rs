@@ -874,6 +874,10 @@ where
     ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..12, &device).reshape([3, 4]);
     ///     let slice = tensor.slice(s![1.., ..]); // Select rows 1 and 2, all columns
     ///     assert_eq!(slice.dims(), [2, 4]);
+    ///
+    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..16, &device).reshape([2, 4, 2]);
+    ///     let slice = tensor.slice(s![1.., 1..=3, -1]);
+    ///     assert_eq!(slice.dims(), [1, 3, 1]);
     /// }
     /// ```
     ///

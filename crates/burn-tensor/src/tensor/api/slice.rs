@@ -8,7 +8,7 @@ use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInc
 ///
 /// # Examples
 ///
-/// ```
+/// ```rust,ignore
 /// // Basic slicing
 /// let slice = tensor.slice(s![0..5, .., 3]);
 ///
