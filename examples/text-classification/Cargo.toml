@@ -7,8 +7,9 @@ publish = false
 version.workspace = true
 
 [features]
-default = ["burn/dataset", "burn/sqlite-bundled"]
+default = []
 f16 = []
+flex32 = []
 ndarray = ["burn/ndarray"]
 ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
 ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
@@ -16,9 +17,9 @@ ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
-vulkan = ["burn/vulkan", "burn/default"]
+vulkan = ["burn/vulkan"]
 remote = ["burn/remote"]
-cuda = ["burn/cuda", "burn/compilation-cache"]
+cuda = ["burn/cuda"]
 hip = ["burn/hip"]
 metal = ["burn/metal"]
 
@@ -26,18 +27,19 @@ metal = ["burn/metal"]
 # Burn
 burn = { path = "../../crates/burn", features = [
     "train",
-    "ndarray",
-    "std",
+    "tui",
+    "sqlite-bundled",
     "metrics",
+    "ndarray",
     "autotune",
     "fusion",
-    "default",
+    "std",
 ], default-features = false }
 
 # Tokenizer
 tokenizers = { version = "0.21.1", default-features = false, features = [
-  "onig",
-  "http",
+    "onig",
+    "http",
 ] }
 
 # Utils

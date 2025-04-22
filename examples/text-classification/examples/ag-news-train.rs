@@ -8,11 +8,13 @@ use burn::{
 
 use text_classification::{AgNewsDataset, training::ExperimentConfig};
 
-#[cfg(not(feature = "f16"))]
-#[allow(dead_code)]
+#[cfg(not(any(feature = "f16", feature = "flex32")))]
+#[allow(unused)]
 type ElemType = f32;
 #[cfg(feature = "f16")]
 type ElemType = burn::tensor::f16;
+#[cfg(feature = "flex32")]
+type ElemType = burn::tensor::flex32;
 
 pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
     let config = ExperimentConfig::new(

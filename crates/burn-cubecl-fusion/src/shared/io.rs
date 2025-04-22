@@ -37,7 +37,7 @@ pub fn read<C: CubePrimitive>(
             read_output(inputs, outputs, locals, pos, ref_pos, layout, config)
         }
         Arg::Local(pos, precision) => match comptime![precision] {
-            FusePrecision::F32 => Line::cast_from(locals.l_f32.find(pos)),
+            FusePrecision::F32 | FusePrecision::Flex32 => Line::cast_from(locals.l_f32.find(pos)),
             FusePrecision::F16 => Line::cast_from(locals.l_f16.find(pos)),
             FusePrecision::BF16 => Line::cast_from(locals.l_bf16.find(pos)),
             FusePrecision::U64 => Line::cast_from(locals.l_u64.find(pos)),
@@ -307,7 +307,9 @@ pub fn write<C: CubePrimitive>(
             tensor.tensor[offset] = Line::cast_from(value);
         }
         Arg::Local(pos, precision) => match comptime![precision] {
-            FusePrecision::F32 => locals.l_f32.insert(pos, Line::cast_from(value)),
+            FusePrecision::F32 | FusePrecision::Flex32 => {
+                locals.l_f32.insert(pos, Line::cast_from(value))
+            }
             FusePrecision::F16 => locals.l_f16.insert(pos, Line::cast_from(value)),
             FusePrecision::BF16 => locals.l_bf16.insert(pos, Line::cast_from(value)),
             FusePrecision::U64 => locals.l_u64.insert(pos, Line::cast_from(value)),
