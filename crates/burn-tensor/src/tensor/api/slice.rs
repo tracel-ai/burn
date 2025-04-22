@@ -20,19 +20,12 @@ use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInc
 /// ```
 #[macro_export]
 macro_rules! s {
-    // Empty case
-    [] => {
-        []
-    };
-
-    // Single-element case
     [$range:expr] => {
-        Slice::from($range)
+        $crate::Slice::from($range)
     };
 
-    // Multiple elements case
     [$($range:expr),+] => {
-        [$(Slice::from($range)),+]
+        [$($crate::Slice::from($range)),+]
     };
 }
 

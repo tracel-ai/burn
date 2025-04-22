@@ -849,8 +849,7 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    /// use burn_tensor::{s, Slice};
+    /// use burn_tensor::{Tensor, Shape, s};
     ///
     /// fn example<B: Backend>() {
     ///     let device = B::Device::default();

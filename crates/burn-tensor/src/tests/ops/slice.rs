@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(slice)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, Tensor, TensorData, as_type};
+    use burn_tensor::{Int, Tensor, TensorData, as_type, s};
 
     #[test]
     fn should_support_full_sliceing_1d() {
@@ -188,23 +188,18 @@ mod tests {
         let output = tensor.clone().slice([0..-1, 0..-2]);
         output.into_data().assert_eq(&data, true);
 
-        // TODO: slice macro to support slicing with different range types
-        /*
-
         // Missing dimensions
-        let output = tensor.clone().slice([Some((0, 1)), None]);
+        let output = tensor.clone().slice(s![0..1, ..]);
         let data = TensorData::from(as_type!(FloatType: [[0.0f32, 1.0, 2.0]]));
         output.into_data().assert_eq(&data, true);
 
-        let output = tensor.clone().slice([None, Some((0, 2))]);
+        let output = tensor.clone().slice(s![.., 0..2]);
         let data = TensorData::from(as_type!(FloatType: [[0.0f32, 1.0], [3.0, 4.0]]));
         output.into_data().assert_eq(&data, true);
 
-        let output = tensor.clone().slice([None, None]);
+        let output = tensor.clone().slice(s![.., ..]);
         let data = TensorData::from(as_type!(FloatType: [[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]));
         output.into_data().assert_eq(&data, true);
-
-        */
     }
 
     #[test]
