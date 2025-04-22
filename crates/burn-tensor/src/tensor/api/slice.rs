@@ -61,7 +61,6 @@ impl Slice {
     }
 
     pub(crate) fn into_range(self, size: usize) -> Range<usize> {
-        println!("into_range {self:?}");
         let start = convert_signed_index(self.start, size);
 
         let end = match self.end {
