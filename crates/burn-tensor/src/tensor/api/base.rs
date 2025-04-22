@@ -9,6 +9,7 @@ use alloc::vec;
 use burn_common::stub::RwLock;
 use core::future::Future;
 use core::iter::repeat;
+use core::ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive};
 use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer};
 
@@ -829,10 +830,9 @@ where
     /// # Arguments
     ///
     /// * `ranges` - A type implementing the `RangesArg` trait, which can be:
-    ///   - A single `core::ops::Range<usize>` (slice the first dimension)
-    ///   - An array of `core::ops::Range<usize>`
-    ///   - An array of `Option<(i64, i64)>`
-    ///   - An array of `(i64, i64)` tuples
+    ///   - A single range (slice the first dimension)
+    ///   - A single index (slice the first dimension)
+    ///   - An array of ranges
     ///
     /// # Behavior
     ///
@@ -840,7 +840,6 @@ where
     /// - Missing ranges are treated as full slices if D > D2.
     /// - Handles negative indices by wrapping around from the end of the dimension.
     /// - Clamps ranges to the tensor's dimensions if they exceed the bounds.
-    /// - For `Option<(i64, i64)>` ranges, `None` selects the full range of that dimension.
     ///
     /// # Panics
     ///
@@ -912,11 +911,7 @@ where
     ///     println!("{:?}", tensor_sliced.dims()); // [2, 3, 3]
     /// }
     /// ```
-    pub fn slice_assign<const D2: usize>(
-        self,
-        ranges: [core::ops::Range<usize>; D2],
-        values: Self,
-    ) -> Self {
+    pub fn slice_assign<const D2: usize>(self, ranges: [Range<usize>; D2], values: Self) -> Self {
         check!(TensorCheck::slice_assign::<D, D2>(
             &self.shape(),
             &values.shape(),
@@ -1724,7 +1719,7 @@ where
                 acc.push_str(", ");
             }
             multi_index[depth] = i;
-            let range: [core::ops::Range<usize>; D] =
+            let range: [Range<usize>; D] =
                 core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
 
             let data =
@@ -3001,86 +2996,180 @@ impl MovedimArgs for i32 {
 
 /// Trait used for slice arguments
 pub trait RangesArg<const D2: usize> {
-    /// Converts into a set of ranges to `[core::ops::Range<usize>; D2]` for the `tensor.slice()` function
-    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; D2];
-
-    /// Handles negative index values
-    fn handle_negative_index(start: i64, end: i64, dim: usize) -> (usize, usize) {
-        let start = if start < 0 {
-            (dim as i64 + start) as usize
-        } else {
-            start as usize
-        };
-        let end = if end < 0 {
-            (dim as i64 + end) as usize
-        } else {
-            end as usize
-        };
-        (start, end)
-    }
-
-    /// Clamps the range to the shape dimensions
-    fn clamp_range(start: usize, end: usize, dim: usize) -> (usize, usize) {
-        let start = start.clamp(0, dim);
-        let end = end.clamp(0, dim);
-        (start, end)
-    }
+    /// Converts into a set of ranges to `[Range<usize>; D2]` for the `tensor.slice()` function
+    fn into_ranges(self, shape: Shape) -> [Range<usize>; D2];
 }
 
-impl<const D2: usize> RangesArg<D2> for [core::ops::Range<usize>; D2] {
-    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; D2] {
+impl<const D2: usize, T: IntoSliceRange> RangesArg<D2> for [T; D2] {
+    fn into_ranges(self, shape: Shape) -> [Range<usize>; D2] {
         // clamp the ranges to the shape dimensions
         let ranges = self
-            .iter()
+            .into_iter()
             .enumerate()
-            .map(|(i, range)| {
-                let (start, end) = Self::clamp_range(range.start, range.end, shape.dims[i]);
-                start..end
-            })
+            .map(|(i, range)| range.into_slice_range(shape.dims[i]))
             .collect::<Vec<_>>();
         ranges.try_into().unwrap()
     }
 }
 
-impl<const D2: usize> RangesArg<D2> for [Option<(i64, i64)>; D2] {
-    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; D2] {
-        let ranges = self
-            .iter()
-            .enumerate()
-            .map(|(i, range)| match range {
-                Some((start, end)) => {
-                    let (start, end) = Self::handle_negative_index(*start, *end, shape.dims[i]);
-                    let (start, end) = Self::clamp_range(start, end, shape.dims[i]);
-                    start..end
-                }
-                None => 0..shape.dims[i], // if None, use the full range
-            })
-            .collect::<Vec<_>>();
-
-        ranges.try_into().unwrap()
+impl<T: IntoSliceRange> RangesArg<1> for T {
+    fn into_ranges(self, shape: Shape) -> [Range<usize>; 1] {
+        [self.into_slice_range(shape.dims[0])]
     }
 }
 
-impl<const D2: usize> RangesArg<D2> for [(i64, i64); D2] {
-    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; D2] {
-        let ranges = self
-            .iter()
-            .enumerate()
-            .map(|(i, &(start, end))| {
-                let (start, end) = Self::handle_negative_index(start, end, shape.dims[i]);
-                let (start, end) = Self::clamp_range(start, end, shape.dims[i]);
-                start..end
-            })
-            .collect::<Vec<_>>();
-
-        ranges.try_into().unwrap()
+fn convert_signed_index(index: isize, size: usize) -> usize {
+    if index < 0 {
+        (size as isize + index).max(0) as usize
+    } else {
+        (index as usize).min(size)
     }
 }
 
-impl RangesArg<1> for core::ops::Range<usize> {
-    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; 1] {
-        let (start, end) = Self::clamp_range(self.start, self.end, shape.dims[0]);
-        [(start..end)]
+/// A helper trait to convert indices to usize with proper handling of negative indices
+pub trait IndexConversion {
+    /// Converts an index into a valid `usize` index within a given size.
+    fn convert_index(self, size: usize) -> usize;
+}
+
+impl IndexConversion for usize {
+    fn convert_index(self, size: usize) -> usize {
+        self.min(size)
+    }
+}
+
+impl IndexConversion for isize {
+    fn convert_index(self, size: usize) -> usize {
+        convert_signed_index(self, size)
+    }
+}
+
+// Default integer type
+impl IndexConversion for i32 {
+    fn convert_index(self, size: usize) -> usize {
+        convert_signed_index(self as isize, size)
+    }
+}
+
+/// Trait used to convert different slice types into a valid range.
+pub trait IntoSliceRange {
+    /// Converts into a valid (half-open) range to slice a single dimension.
+    fn into_slice_range(self, size: usize) -> Range<usize>;
+}
+
+impl IntoSliceRange for RangeFull {
+    fn into_slice_range(self, size: usize) -> Range<usize> {
+        0..size
+    }
+}
+
+impl<I: IndexConversion> IntoSliceRange for Range<I> {
+    fn into_slice_range(self, size: usize) -> Range<usize> {
+        self.start.convert_index(size)..self.end.convert_index(size)
+    }
+}
+
+impl<I: IndexConversion> IntoSliceRange for RangeFrom<I> {
+    fn into_slice_range(self, size: usize) -> Range<usize> {
+        self.start.convert_index(size)..size
+    }
+}
+
+impl<I: IndexConversion + Copy> IntoSliceRange for RangeInclusive<I> {
+    fn into_slice_range(self, size: usize) -> Range<usize> {
+        let start = self.start().convert_index(size);
+        let end = self.end().convert_index(size);
+        start..(end + 1).min(size)
+    }
+}
+
+impl<I: IndexConversion> IntoSliceRange for RangeToInclusive<I> {
+    fn into_slice_range(self, size: usize) -> Range<usize> {
+        let end = self.end.convert_index(size);
+        0..(end + 1).min(size)
+    }
+}
+
+impl IntoSliceRange for usize {
+    fn into_slice_range(self, size: usize) -> Range<usize> {
+        let idx = self.convert_index(size);
+        idx..(idx + 1)
+    }
+}
+
+impl IntoSliceRange for isize {
+    fn into_slice_range(self, size: usize) -> Range<usize> {
+        let idx = self.convert_index(size);
+        idx..(idx + 1)
+    }
+}
+
+// Default integer type
+impl IntoSliceRange for i32 {
+    fn into_slice_range(self, size: usize) -> Range<usize> {
+        let idx = self.convert_index(size);
+        idx..(idx + 1)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Shape;
+
+    use super::*;
+
+    #[test]
+    fn slice_range_single_dim_leading() {
+        let shape = Shape::new([8, 4]);
+
+        // Half-open range
+        assert_eq!([0..5], (0..5).into_ranges(shape.clone()));
+        assert_eq!([0..5], [0..5].into_ranges(shape.clone()));
+        assert_eq!([5..7], [-3..-1].into_ranges(shape.clone()));
+
+        // Inclusive range
+        assert_eq!([0..5], (0..=4).into_ranges(shape.clone()));
+        assert_eq!([0..5], [0..=4].into_ranges(shape.clone()));
+        assert_eq!([6..8], [-2..=-1].into_ranges(shape.clone()));
+
+        // Unbounded end
+        assert_eq!([5..8], (5..).into_ranges(shape.clone()));
+        assert_eq!([5..8], [5..].into_ranges(shape.clone()));
+        assert_eq!([5..8], [-3..].into_ranges(shape.clone()));
+
+        // Deprecated
+        // assert_eq!([0..5], [(0, 5)].into_ranges(shape.clone()));
+        // assert_eq!([0..5], [Some((0, 5))].into_ranges(shape.clone()));
+    }
+
+    #[test]
+    fn slice_range_multi_dim() {
+        let shape = Shape::new([8, 4]);
+
+        // Multiple ways to provide ranges
+        assert_eq!([0..5, 0..4], [0..5, 0..4].into_ranges(shape.clone()));
+        assert_eq!([0..8, 0..4], [0.., 0..].into_ranges(shape.clone()));
+        assert_eq!([0..8, 0..4], [0..=7, 0..=3].into_ranges(shape.clone()));
+
+        assert_eq!([0..5, 0..3], [0..5, 0..3].into_ranges(shape.clone()));
+
+        // Deprecated
+        // assert_eq!([0..5, 0..4], [(0, 5), (0, 4)].into_ranges(shape.clone()));
+        // assert_eq!(
+        //     [0..5, 0..4],
+        //     [Some((0, 5)), None].into_ranges(shape.clone())
+        // );
+    }
+
+    #[test]
+    fn slice_range_multi_dim_index() {
+        let shape = Shape::new([8, 4]);
+
+        // Indices (single integer) should also convert to correct range
+        assert_eq!([0..1, 2..3], [0, 2].into_ranges(shape.clone()));
+        assert_eq!([7..8, 3..4], [-1, -1].into_ranges(shape.clone()));
+        assert_eq!([7..8], (-1).into_ranges(shape.clone()));
+        assert_eq!([7..8], 7.into_ranges(shape.clone()));
     }
 }
 

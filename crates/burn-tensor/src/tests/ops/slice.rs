@@ -162,15 +162,15 @@ mod tests {
         let tensor = TestTensor::<2>::from_data(data.clone(), &Default::default());
 
         // Clamping to the tensor dimensions
-        let output = tensor.clone().slice([(0, 4), (0, 4)]);
+        let output = tensor.clone().slice([0..4, 0..4]);
         output.into_data().assert_eq(&data, true);
 
         // Negative dimensions
-        let output = tensor.clone().slice([(0, 1), (0, 1)]);
+        let output = tensor.clone().slice([0..1, 0..1]);
         let data = TensorData::from(as_type!(FloatType: [[0.0f32]]));
         output.into_data().assert_eq(&data, true);
 
-        let output = tensor.slice([(0, -1), (0, -2)]);
+        let output = tensor.slice([0..-1, 0..-2]);
         output.into_data().assert_eq(&data, true);
     }
 
@@ -180,13 +180,16 @@ mod tests {
         let tensor = TestTensor::<2>::from_data(data.clone(), &Default::default());
 
         // Clamping to the tensor dimensions
-        let output = tensor.clone().slice([Some((0, 4)), Some((0, 4))]);
+        let output = tensor.clone().slice([0..4, 0..4]);
         output.into_data().assert_eq(&data, true);
 
         // Negative dimensions
         let data = TensorData::from(as_type!(FloatType: [[0.0f32]]));
-        let output = tensor.clone().slice([Some((0, -1)), Some((0, -2))]);
+        let output = tensor.clone().slice([0..-1, 0..-2]);
         output.into_data().assert_eq(&data, true);
+
+        // TODO: slice macro to support slicing with different range types
+        /*
 
         // Missing dimensions
         let output = tensor.clone().slice([Some((0, 1)), None]);
@@ -200,6 +203,8 @@ mod tests {
         let output = tensor.clone().slice([None, None]);
         let data = TensorData::from(as_type!(FloatType: [[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]));
         output.into_data().assert_eq(&data, true);
+
+        */
     }
 
     #[test]
