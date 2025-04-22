@@ -1,6 +1,7 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
+use burn::tensor::s;
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -27,17 +28,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
                 let start = start.to_tokens();
                 let end = end.to_tokens();
 
-                quote! { Some((#start, #end))}
+                quote! { #start..#end}
             }
-            None => quote! { None },
+            None => quote! { .. },
         });
 
         quote! {
-            let #output = #input.slice([#(#ranges),*]);
+            let #output = #input.slice(s![#(#ranges),*]);
         }
     }
     fn into_node(self) -> Node<PS> {
         Node::Slice(self)
+    }
+
+    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
+        imports.register("burn::tensor::s");
     }
 }
 
@@ -65,7 +70,7 @@ mod tests {
         let expected = quote! {
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::{backend::Backend, Tensor, s},
             };
 
             #[derive(Module, Debug)]
@@ -84,7 +89,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.slice([Some((0, 1)), Some((0, 1)), Some((0, 1)), Some((0, 1))]);
+                    let tensor2 = tensor1.slice(s[0..1, 0..1, 0..1, 0..1]);
                     tensor2
                 }
             }

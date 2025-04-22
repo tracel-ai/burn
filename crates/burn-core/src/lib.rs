@@ -82,7 +82,7 @@ pub mod prelude {
         module::Module,
         nn,
         tensor::{
-            Bool, Device, ElementConversion, Float, Int, Shape, Slice, Tensor, TensorData,
+            Bool, Device, ElementConversion, Float, Int, Shape, Tensor, TensorData,
             backend::Backend, s,
         },
     };
