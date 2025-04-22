@@ -33,15 +33,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
         });
 
         quote! {
-            let #output = #input.slice(s![#(#ranges),*]);
+            let #output = #input.slice(burn::tensor::s![#(#ranges),*]);
         }
     }
     fn into_node(self) -> Node<PS> {
         Node::Slice(self)
-    }
-
-    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
-        imports.register("burn::tensor::s");
     }
 }
 
@@ -69,7 +65,7 @@ mod tests {
         let expected = quote! {
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor, s},
+                tensor::{backend::Backend, Tensor},
             };
 
             #[derive(Module, Debug)]
@@ -88,7 +84,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.slice(s[0..1, 0..1, 0..1, 0..1]);
+                    let tensor2 = tensor1.slice(burn::tensor::s![0..1, 0..1, 0..1, 0..1]);
                     tensor2
                 }
             }
