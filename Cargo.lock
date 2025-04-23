@@ -516,9 +516,9 @@ dependencies = [
  "burn-candle",
  "burn-core",
  "burn-cuda",
- "burn-hip",
  "burn-ndarray",
  "burn-remote",
+ "burn-rocm",
  "burn-router",
  "burn-tch",
  "burn-train",
@@ -576,9 +576,9 @@ dependencies = [
  "burn-cuda",
  "burn-dataset",
  "burn-derive",
- "burn-hip",
  "burn-ndarray",
  "burn-remote",
+ "burn-rocm",
  "burn-router",
  "burn-tch",
  "burn-tensor",
@@ -716,21 +716,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "burn-hip"
-version = "0.17.0"
-dependencies = [
- "burn-cubecl",
- "burn-fusion",
- "burn-tensor",
- "bytemuck",
- "cubecl",
- "derive-new 0.7.0",
- "half",
- "log",
- "paste",
-]
-
-[[package]]
 name = "burn-import"
 version = "0.17.0"
 dependencies = [
@@ -821,6 +806,21 @@ dependencies = [
  "tokio-tungstenite",
  "tracing-core",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "burn-rocm"
+version = "0.17.0"
+dependencies = [
+ "burn-cubecl",
+ "burn-fusion",
+ "burn-tensor",
+ "bytemuck",
+ "cubecl",
+ "derive-new 0.7.0",
+ "half",
+ "log",
+ "paste",
 ]
 
 [[package]]

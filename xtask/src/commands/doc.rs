@@ -3,7 +3,7 @@ use tracel_xtask::prelude::*;
 pub(crate) fn handle_command(mut args: DocCmdArgs) -> anyhow::Result<()> {
     if args.get_command() == DocSubCommand::Build {
         args.exclude
-            .extend(vec!["burn-cuda".to_string(), "burn-hip".to_string()]);
+            .extend(vec!["burn-cuda".to_string(), "burn-rocm".to_string()]);
     }
 
     // Execute documentation command on workspace
