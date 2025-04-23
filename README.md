@@ -198,16 +198,16 @@ then deploy on customer hardwares, which vary from user to user.
 
 **Supported Backends**
 
-| Backend  | Devices                      | First-Party |
+| Backend  | Devices                      | Class       |
 | -------  | ---------------------------- | ----------- |
-| CUDA     | NVIDIA GPUs                  | ✅          |
-| ROCm     | AMD GPUs                     | ✅          |
-| Metal    | Apple GPUs                   | ✅          |
-| Vulkan   | Most GPUs on Linux & Windows | ✅          |
-| Wgpu     | Most GPUs                    | ✅          |
-| NdArray  | Most CPUs                    | ❌          |
-| LibTorch | Most GPUs & CPUs             | ❌          |
-| Candle   | Nvidia, Apple GPUs & CPUs    | ❌          |
+| CUDA     | NVIDIA GPUs                  | First-Party |
+| ROCm     | AMD GPUs                     | First-Party |
+| Metal    | Apple GPUs                   | First-Party |
+| Vulkan   | Most GPUs on Linux & Windows | First-Party |
+| Wgpu     | Most GPUs                    | First-Party |
+| NdArray  | Most CPUs                    | Third-Party |
+| LibTorch | Most GPUs & CPUs             | Third-Party |
+| Candle   | Nvidia, Apple GPUs & CPUs    | Third-Party |
 
 <br />
 
@@ -297,11 +297,11 @@ See the [Fusion Backend README](./crates/burn-fusion/README.md) for more details
 
 <details>
 <summary>
-Router (Beta): Backend decorator that compose multiple backends into a single one
+Router (Beta): Backend decorator that composes multiple backends into a single one
 </summary>
 <br />
 
-That backend simplifies hardware operability, if you want to execute some operations on the CPU and other operations on the GPU for instance.
+That backend simplifies hardware operability, if for instance you want to execute some operations on the CPU and other operations on the GPU.
 
 ```rust
 use burn::tensor::{Distribution, Tensor};
@@ -332,7 +332,7 @@ Remote (Beta): Backend decorator for remote backend execution, useful for distri
 <br />
 
 That backend has two parts, one client and one server.
-The client sent tensor operations over the network to a remote compute backend.
+The client sends tensor operations over the network to a remote compute backend.
 You can use any first-party backend as server in a single line of code:
 
 ```rust
