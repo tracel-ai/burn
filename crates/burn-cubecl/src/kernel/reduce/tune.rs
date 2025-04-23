@@ -29,7 +29,7 @@ pub fn autotune_reduce<
 ) {
     use reduce_ops::*;
 
-    static TUNER: LocalTuner<ReduceAutotuneKey, CubeTuneId> = local_tuner!("reduce_dim");
+    static TUNER: LocalTuner<ReduceAutotuneKey, CubeTuneId> = local_tuner!("reduce-dim");
 
     let tunables = TunableSet::new(create_key::<Run, Rd>, reduce_input_gen::<Run, In, Out, Rd>)
         .with_tunable(reduce::<Run, In, Out, Rd>)
