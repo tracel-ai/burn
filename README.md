@@ -13,13 +13,14 @@
 
 ---
 
-**Burn is a new comprehensive dynamic Deep Learning Framework built using Rust <br /> with extreme
-flexibility, compute efficiency and portability as its primary goals.**
+**Burn is a next generation Deep Learning Framework that doesn't compromise on <br />
+flexibility, efficiency and portability.**
 
 <br/>
 </div>
 
 <div align="left">
+
 
 ## Performance
 
@@ -304,10 +305,13 @@ means it can run in bare metal environment such as embedded devices without an o
 
 <br />
 
-## Backends
+
+## Backend
 
 <div align="left">
 <img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/backend-chip.png" height="96px"/>
+
+
 Burn strives to be as fast as possible on as many hardwares as possible, with robust implementations.
 We believe this flexibility is crucial for modern needs where you may train your models in the cloud,
 then deploy on customer hardwares, which vary from user to user.
@@ -315,84 +319,24 @@ then deploy on customer hardwares, which vary from user to user.
 
 <br />
 
+**Supported Backends**
+
+| Backend  | Devices                      | Fusion | Official |
+| -------  | ---------------------------- | ------ |-|
+| CUDA     | NVIDIA GPUs                  | ✅      | ✅|
+| ROCm     | AMD GPUs                     | ✅      |✅|
+| Metal    | Apple GPUs                   | ✅      |✅|
+| Vulkan   | Most GPUs on Linux & Windows | ✅      |✅|
+| Wgpu     | Most GPUs                    | ✅      |✅|
+| Ndarray  | Most CPUs                    | ❌      |✅|
+| LibTorch | Most GPUs & CPUs             |❌|❌|
+| Candle   | Nvidia, Apple GPUs & CPUs    |❌|❌|
+
+
 Compared to other frameworks, Burn has a very different approach to supporting many backends. By
 design, most code is generic over the Backend trait, which allows us to build Burn with swappable
 backends. This makes composing backend possible, augmenting them with additional functionalities
 such as autodifferentiation and automatic kernel fusion.
-
-**We already have many backends implemented, all listed below 👇**
-
-<details>
-<summary>
-WGPU (WebGPU): Cross-Platform GPU Backend 🌐
-</summary>
-<br />
-
-**The go-to backend for running on any GPU.**
-
-Based on the most popular and well-supported Rust graphics library, [WGPU](https://wgpu.rs), this
-backend automatically targets Vulkan, OpenGL, Metal, Direct X11/12, and WebGPU, by using the WebGPU
-shading language [WGSL](https://www.w3.org/TR/WGSL/), or optionally
-[SPIR-V](https://www.khronos.org/spir/) when targeting Vulkan. It can also be compiled to Web
-Assembly to run in the browser while leveraging the GPU, see
-[this demo](https://antimora.github.io/image-classification/). For more information on the benefits
-of this backend, see [this blog](https://burn.dev/blog/cross-platform-gpu-backend).
-
-The WGPU backend is our first "in-house backend", which means we have complete control over its
-implementation details. It is fully optimized with the
-[performance characteristics mentioned earlier](#performance), as it serves as our research
-playground for a variety of optimizations. We've since added CUDA, ROCm and SPIR-V support using the
-same compiler infrastructure, so a kernel written for burn once, can run anywhere.
-
-See the [WGPU Backend README](./crates/burn-wgpu/README.md) and
-[CUDA Backend README](./crates/burn-cuda/README.md) for more details.
-
-</details>
-
-<details>
-<summary>
-Candle: Backend using the Candle bindings 🕯
-</summary>
-<br />
-
-Based on [Candle by Hugging Face](https://github.com/huggingface/candle), a minimalist ML framework
-for Rust with a focus on performance and ease of use, this backend can run on CPU with support for
-Web Assembly or on Nvidia GPUs using CUDA.
-
-See the [Candle Backend README](./crates/burn-candle/README.md) for more details.
-
-> _Disclaimer:_ This backend is not fully completed yet, but can work in some contexts like
-> inference.
-
-</details>
-
-<details>
-<summary>
-LibTorch: Backend using the LibTorch bindings 🎆
-</summary>
-<br />
-
-PyTorch doesn't need an introduction in the realm of deep learning. This backend leverages
-[PyTorch Rust bindings](https://github.com/LaurentMazare/tch-rs), enabling you to use LibTorch C++
-kernels on CPU, CUDA and Metal.
-
-See the [LibTorch Backend README](./crates/burn-tch/README.md) for more details.
-
-</details>
-
-<details>
-<summary>
-NdArray: Backend using the NdArray primitive as data structure 🦐
-</summary>
-<br />
-
-This CPU backend is admittedly not our fastest backend, but offers extreme portability.
-
-It is our only backend supporting _no_std_.
-
-See the [NdArray Backend README](./crates/burn-ndarray/README.md) for more details.
-
-</details>
 
 <details>
 <summary>
