@@ -46,7 +46,7 @@ impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
                 let actual = into_data_sync::<R, f64>(other);
                 expected.assert_approx_eq::<f64>(&actual, Tolerance::rel_abs(1e-2, 1e-3));
             }
-            DType::F32 => {
+            DType::F32 | DType::Flex32 => {
                 let expected = into_data_sync::<R, f32>(self.clone());
                 let actual = into_data_sync::<R, f32>(other);
                 expected.assert_approx_eq::<f32>(&actual, Tolerance::rel_abs(1e-2, 1e-3));
@@ -179,6 +179,11 @@ macro_rules! execute_with_dtype {
                 type $element = f32;
                 $op
             }
+            burn_tensor::DType::Flex32 => {
+                type $element = cubecl::flex32;
+                $op
+            }
+
             burn_tensor::DType::F16 => {
                 type $element = half::f16;
                 $op
@@ -187,7 +192,7 @@ macro_rules! execute_with_dtype {
                 type $element = half::bf16;
                 $op
             }
-            _ => unimplemented!("Unsupported dtype"),
+            _ => unimplemented!("Unsupported dtype {:?}", $dtype),
         }
     }};
 
@@ -209,6 +214,10 @@ macro_rules! execute_with_dtype {
             }
             burn_tensor::DType::F32 => {
                 type $element = f32;
+                $op
+            }
+            burn_tensor::DType::Flex32 => {
+                type $element = cubecl::flex32;
                 $op
             }
             burn_tensor::DType::F16 => {
@@ -260,7 +269,7 @@ macro_rules! execute_with_dtype {
                 type $element = u32;
                 $op
             }
-            _ => unimplemented!("Unsupported dtype"),
+            _ => unimplemented!("Unsupported dtype {:?}", $dtype),
         }
     }};
 }

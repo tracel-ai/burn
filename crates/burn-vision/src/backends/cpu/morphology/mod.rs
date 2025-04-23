@@ -74,7 +74,7 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
         DType::F64 => {
             morph_typed::<B, K, f64>(data, shape, kernel, op, iter, btype, bvalue, &device)
         }
-        DType::F32 => {
+        DType::F32 | DType::Flex32 => {
             morph_typed::<B, K, f32>(data, shape, kernel, op, iter, btype, bvalue, &device)
         }
         DType::F16 | DType::BF16 => morph_typed::<B, K, f32>(

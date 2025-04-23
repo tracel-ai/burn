@@ -18,6 +18,7 @@ use burn_fusion::{FusionBackend, FusionRuntime, client::MutexFusionClient};
 use burn_ir::{BackendIr, TensorHandle};
 use burn_tensor::{DType, Shape};
 use core::marker::PhantomData;
+use cubecl::flex32;
 use cubecl::reduce::instructions::ReduceFnConfig;
 use half::{bf16, f16};
 use std::sync::Arc;
@@ -82,6 +83,7 @@ impl<R: CubeRuntime> MatmulFallbackFn<R> for FallbackMatmul {
         match lhs.0.dtype {
             DType::F64 => run_fallback_matmul::<R, f64>(lhs, rhs),
             DType::F32 => run_fallback_matmul::<R, f32>(lhs, rhs),
+            DType::Flex32 => run_fallback_matmul::<R, flex32>(lhs, rhs),
             DType::F16 => run_fallback_matmul::<R, f16>(lhs, rhs),
             DType::BF16 => run_fallback_matmul::<R, bf16>(lhs, rhs),
             _ => todo!("Not yet supported"),
@@ -159,7 +161,7 @@ fn reduce_dtype<R: CubeRuntime>(
         DType::F64 => {
             reduce_dtype_output::<R, f64>(input_handle, shape, axis, dtype_output, config)
         }
-        DType::F32 => {
+        DType::F32 | DType::Flex32 => {
             reduce_dtype_output::<R, f32>(input_handle, shape, axis, dtype_output, config)
         }
         DType::F16 => {
@@ -199,7 +201,7 @@ fn reduce_dtype_output<R: CubeRuntime, In: CubeElement>(
 ) -> CubeFusionHandle<R> {
     match dtype_output {
         DType::F64 => reduce::<R, In, f64>(input_handle, shape, axis, config),
-        DType::F32 => reduce::<R, In, f32>(input_handle, shape, axis, config),
+        DType::F32 | DType::Flex32 => reduce::<R, In, f32>(input_handle, shape, axis, config),
         DType::F16 => reduce::<R, In, f16>(input_handle, shape, axis, config),
         DType::BF16 => reduce::<R, In, bf16>(input_handle, shape, axis, config),
         DType::I64 => reduce::<R, In, i64>(input_handle, shape, axis, config),
@@ -333,7 +335,7 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBack
         }
 
         match dtype {
-            DType::F32 => cast::<R, F, f32>(tensor),
+            DType::F32 | DType::Flex32 => cast::<R, F, f32>(tensor),
             DType::F16 => cast::<R, F, f16>(tensor),
             DType::BF16 => cast::<R, F, bf16>(tensor),
             _ => panic!("Casting error: {dtype:?} unsupported."),

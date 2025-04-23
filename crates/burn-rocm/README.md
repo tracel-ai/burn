@@ -1,4 +1,4 @@
-# Burn-hip
+# burn-rocm
 
 Backend using ROCm HIP runtime.
 

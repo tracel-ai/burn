@@ -338,6 +338,7 @@ pub struct BinaryFuseArgs {
 /// Precisions supported by [element wise operations](ElemwiseOp).
 pub enum FusePrecision {
     F32,
+    Flex32,
     F16,
     BF16,
     I64,
@@ -358,6 +359,7 @@ impl From<Elem> for FusePrecision {
                 cubecl::ir::FloatKind::F16 => Self::F16,
                 cubecl::ir::FloatKind::BF16 => Self::BF16,
                 cubecl::ir::FloatKind::F32 => Self::F32,
+                cubecl::ir::FloatKind::Flex32 => Self::Flex32,
                 _ => panic!("Unsupported precision for fusion: {value}"),
             },
             Elem::Int(kind) => match kind {
@@ -381,6 +383,7 @@ impl FusePrecision {
     pub fn into_elem(self) -> Elem {
         match self {
             FusePrecision::F32 => Elem::Float(cubecl::ir::FloatKind::F32),
+            FusePrecision::Flex32 => Elem::Float(cubecl::ir::FloatKind::Flex32),
             FusePrecision::F16 => Elem::Float(cubecl::ir::FloatKind::F16),
             FusePrecision::BF16 => Elem::Float(cubecl::ir::FloatKind::BF16),
             FusePrecision::I64 => Elem::Int(cubecl::ir::IntKind::I64),
@@ -400,6 +403,7 @@ impl From<DType> for FusePrecision {
     fn from(value: DType) -> Self {
         match value {
             DType::F32 => Self::F32,
+            DType::Flex32 => Self::Flex32,
             DType::F16 => Self::F16,
             DType::BF16 => Self::BF16,
             DType::I64 => Self::I64,

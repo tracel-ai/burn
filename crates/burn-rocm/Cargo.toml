@@ -5,10 +5,10 @@ description = "ROCm HIP backend for the Burn framework"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "gpu", "rocm", "hip"]
 license.workspace = true
-name = "burn-hip"
+name = "burn-rocm"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-hip"
-documentation = "https://docs.rs/burn-hip"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-rocm"
+documentation = "https://docs.rs/burn-rocm"
 version.workspace = true
 
 [features]
