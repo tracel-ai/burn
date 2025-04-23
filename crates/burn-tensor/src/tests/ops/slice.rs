@@ -197,7 +197,7 @@ mod tests {
         let data = TensorData::from(as_type!(FloatType: [[0.0f32, 1.0], [3.0, 4.0]]));
         output.into_data().assert_eq(&data, true);
 
-        let output = tensor.clone().slice(s![.., ..]);
+        let output = tensor.clone().slice([.., ..]);
         let data = TensorData::from(as_type!(FloatType: [[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]));
         output.into_data().assert_eq(&data, true);
     }

@@ -192,7 +192,7 @@ mod tests {
         let data = TensorData::from([[0.0f32, 1.0], [3.0, 4.0]]);
         output.dequantize().into_data().assert_eq(&data, false);
 
-        let output = tensor.clone().slice(s![.., ..]);
+        let output = tensor.clone().slice([.., ..]);
         let data = TensorData::from([[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         output.dequantize().into_data().assert_eq(&data, false);
     }

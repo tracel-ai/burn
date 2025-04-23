@@ -826,6 +826,9 @@ where
 
     /// Returns a tensor containing the elements selected from the given ranges.
     ///
+    /// For more complex indexing with different slice ranges, see also the slice
+    /// macro [`s!`](crate::s).
+    ///
     /// # Arguments
     ///
     /// * `ranges` - A type implementing the `RangesArg` trait, which can be:
@@ -3221,11 +3224,10 @@ mod tests {
         // Unbounded end
         assert_eq!([5..8], (5..).into_ranges(shape.clone()));
         assert_eq!([5..8], [5..].into_ranges(shape.clone()));
-        assert_eq!([5..8], [-3..].into_ranges(shape));
+        assert_eq!([5..8], [-3..].into_ranges(shape.clone()));
 
-        // Deprecated
-        // assert_eq!([0..5], [(0, 5)].into_ranges(shape.clone()));
-        // assert_eq!([0..5], [Some((0, 5))].into_ranges(shape.clone()));
+        // Full range
+        assert_eq!([0..8], [..].into_ranges(shape));
     }
 
     #[test]
@@ -3237,14 +3239,9 @@ mod tests {
         assert_eq!([0..8, 0..4], [0.., 0..].into_ranges(shape.clone()));
         assert_eq!([0..8, 0..4], [0..=7, 0..=3].into_ranges(shape.clone()));
 
-        assert_eq!([0..5, 0..3], [0..5, 0..3].into_ranges(shape));
+        assert_eq!([0..5, 0..3], [0..5, 0..3].into_ranges(shape.clone()));
 
-        // Deprecated
-        // assert_eq!([0..5, 0..4], [(0, 5), (0, 4)].into_ranges(shape.clone()));
-        // assert_eq!(
-        //     [0..5, 0..4],
-        //     [Some((0, 5)), None].into_ranges(shape.clone())
-        // );
+        assert_eq!([0..8, 0..4], [0..5, 0..3].into_ranges(shape));
     }
 
     #[test]
@@ -3259,7 +3256,7 @@ mod tests {
     }
 
     #[test]
-    fn slice_range_multi_dim_heterogenous() {
+    fn slice_range_multi_dim_heterogeneous() {
         // Slice macro `s![]` can be used to provide different range types
         let shape = Shape::new([8, 4, 2]);
         let slice = s![0..5, .., -1];
