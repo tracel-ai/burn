@@ -598,6 +598,7 @@ impl FuseOptimizationBuilder {
 struct TryFuseBuilder {
     builder: FuseTraceBuilder,
     max_bindings: u32,
+    max_ops: u32,
     added_ops: bool,
 }
 
@@ -606,11 +607,18 @@ impl TryFuseBuilder {
         Self {
             builder: FuseTraceBuilder::new(bool_precision, settings),
             max_bindings,
+            // A good default, avoid errors with for loops over only memory
+            // bound operations.
+            max_ops: 64,
             added_ops: false,
         }
     }
 
     fn register(&mut self, add_ops: impl FnOnce(&mut FuseTraceBuilder) -> Option<()>) -> bool {
+        if self.builder.num_ops_fused() > self.max_ops {
+            return false;
+        }
+
         // Always allow the first operation to be added.
         if !self.added_ops {
             self.added_ops = true;
