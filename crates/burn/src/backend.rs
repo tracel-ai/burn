@@ -56,3 +56,6 @@ pub use burn_tch::LibTorch;
 
 #[cfg(feature = "router")]
 pub use burn_router::Router;
+
+#[cfg(feature = "router")]
+pub use burn_router as router;
