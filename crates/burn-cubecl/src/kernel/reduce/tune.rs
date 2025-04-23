@@ -29,7 +29,7 @@ pub fn autotune_reduce<
 ) {
     use reduce_ops::*;
 
-    static TUNER: LocalTuner<ReduceAutotuneKey, CubeTuneId> = local_tuner!();
+    static TUNER: LocalTuner<ReduceAutotuneKey, CubeTuneId> = local_tuner!("reduce_dim");
 
     let tunables = TunableSet::new(create_key::<Run, Rd>, reduce_input_gen::<Run, In, Out, Rd>)
         .with_tunable(reduce::<Run, In, Out, Rd>)
@@ -203,7 +203,7 @@ pub fn autotune_sum<Run: CubeRuntime, E: CubeElement>(
 ) -> CubeTensor<Run> {
     use sum_ops::*;
 
-    static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
+    static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!("autotune-sum");
 
     let tunables = TunableSet::new(create_key_sum::<Run>, sum_input_gen::<Run, E>)
         .with_tunable(sum_chained::<Run, E>)
