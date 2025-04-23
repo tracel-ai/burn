@@ -16,7 +16,7 @@ Be sure to checkout the git branch corresponding to the version of Burn you are 
 guide.
 
 The current version of Burn is `0.17` and the corresponding branch to checkout is
-[`release/0.16`](https://github.com/tracel-ai/burn/tree/release/0.17).
+[`release/0.17`](https://github.com/tracel-ai/burn/tree/release/0.17).
 
 </div>
 
