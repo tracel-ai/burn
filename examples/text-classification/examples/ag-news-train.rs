@@ -136,13 +136,13 @@ mod cuda {
     }
 }
 
-#[cfg(feature = "hip")]
-mod hip {
+#[cfg(feature = "rocm")]
+mod rocm {
     use crate::{ElemType, launch};
-    use burn::backend::{Autodiff, Hip};
+    use burn::backend::{Autodiff, Rocm};
 
     pub fn run() {
-        launch::<Autodiff<Hip<ElemType, i32>>>(vec![Default::default()]);
+        launch::<Autodiff<Rocm<ElemType, i32>>>(vec![Default::default()]);
     }
 }
 
@@ -162,8 +162,8 @@ fn main() {
     wgpu::run();
     #[cfg(feature = "cuda")]
     cuda::run();
-    #[cfg(feature = "hip")]
-    hip::run();
+    #[cfg(feature = "rocm")]
+    rocm::run();
     #[cfg(feature = "remote")]
     remote::run();
     #[cfg(feature = "vulkan")]

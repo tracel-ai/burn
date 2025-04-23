@@ -12,11 +12,11 @@ use cubecl::hip::HipRuntime;
 
 #[cfg(target_os = "linux")]
 #[cfg(not(feature = "fusion"))]
-pub type Hip<F = f32, I = i32, B = u8> = CubeBackend<HipRuntime, F, I, B>;
+pub type Rocm<F = f32, I = i32, B = u8> = CubeBackend<HipRuntime, F, I, B>;
 
 #[cfg(target_os = "linux")]
 #[cfg(feature = "fusion")]
-pub type Hip<F = f32, I = i32, B = u8> = burn_fusion::Fusion<CubeBackend<HipRuntime, F, I, B>>;
+pub type Rocm<F = f32, I = i32, B = u8> = burn_fusion::Fusion<CubeBackend<HipRuntime, F, I, B>>;
 
 // TODO: Hang the computer when AMD isn't available.
 //

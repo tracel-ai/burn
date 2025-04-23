@@ -35,7 +35,7 @@ pub(crate) fn handle_command(
                 // Exclude crates that are not supported on CI
                 args.exclude.extend(vec![
                     "burn-cuda".to_string(),
-                    "burn-hip".to_string(),
+                    "burn-rocm".to_string(),
                     "burn-tch".to_string(),
                 ]);
             }

@@ -20,7 +20,7 @@ wgpu = ["burn/wgpu"]
 vulkan = ["burn/vulkan"]
 remote = ["burn/remote"]
 cuda = ["burn/cuda"]
-hip = ["burn/hip"]
+rocm = ["burn/rocm"]
 metal = ["burn/metal"]
 
 [dependencies]
