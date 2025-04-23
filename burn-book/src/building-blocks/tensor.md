@@ -214,6 +214,8 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.mask_fill(mask, value)`                                 | `tensor.masked_fill(mask, value)`              |
 | `tensor.mask_where(mask, value_tensor)`                         | `torch.where(mask, value_tensor, tensor)`      |
 | `tensor.max()`                                                  | `tensor.max()`                                 |
+| `tensor.max_abs()`                                              | `tensor.abs().max()`                           |
+| `tensor.max_abs_dim(dim)`                                       | `tensor.abs().max(dim, keepdim=True)`          |
 | `tensor.max_dim(dim)`                                           | `tensor.max(dim, keepdim=True)`                |
 | `tensor.max_dim_with_indices(dim)`                              | N/A                                            |
 | `tensor.max_pair(other)`                                        | `torch.Tensor.max(a,b)`                        |
