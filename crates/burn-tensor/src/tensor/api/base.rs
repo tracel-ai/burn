@@ -3241,7 +3241,7 @@ mod tests {
 
         assert_eq!([0..5, 0..3], [0..5, 0..3].into_ranges(shape.clone()));
 
-        assert_eq!([0..8, 0..4], [0..5, 0..3].into_ranges(shape));
+        assert_eq!([0..8, 0..4], [0.., 0..].into_ranges(shape));
     }
 
     #[test]
