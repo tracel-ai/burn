@@ -32,6 +32,8 @@ mod wgpu {
 > ```rust
 > #![recursion_limit = "256"]
 > ```
+> The default recursion limit (128) is often just below the required depth (typically 130-150) due to deeply nested associated types and trait bounds.
+
 
 ## Configuration
 
