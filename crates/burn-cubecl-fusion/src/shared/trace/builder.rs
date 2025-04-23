@@ -40,6 +40,18 @@ impl FuseTraceBuilder {
         self.block_current.ops.push(op);
     }
 
+    /// The number of operations fused.
+    pub fn num_ops_fused(&self) -> u32 {
+        let mut num_ops_fused = 0;
+
+        for (block, _) in self.blocks_previous.iter() {
+            num_ops_fused += block.ops.len();
+        }
+
+        num_ops_fused += self.block_current.ops.len();
+        num_ops_fused as u32
+    }
+
     pub fn next_block(&mut self, shape_ref: Vec<usize>, settings: FuseSettings) {
         let mut block_new = FuseBlockBuilder::new(self.bool_precision, settings);
         core::mem::swap(&mut self.block_current, &mut block_new);
