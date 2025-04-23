@@ -26,7 +26,7 @@ mod wgpu {
 }
 ```
 
-> [!WARNING]  
+> ⚠️ **Warning** 
 > When using one of the `wgpu` backends, you may encounter compilation errors related to recursive type evaluation. This is due to complex type nesting within the `wgpu` dependency chain.  
 > To resolve this issue, add the following line at the top of your `main.rs` or `lib.rs` file:
 > ```rust
