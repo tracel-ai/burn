@@ -10,7 +10,7 @@ use burn::nn::{
 
 use crate::burn::node::{
     expand::ExpandShape, pad::PadConfig, split::SplitConfig, tile::TileConfig, top_k::TopKConfig,
-    trilu::TriluConfig,
+    trilu::TriluConfig, unsqueeze::UnsqueezeAxes,
 };
 use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node, TensorData};
 
@@ -1385,11 +1385,11 @@ pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
 
 //Note this function should only execute if the second input is a constant
 //if it wasn't and the output shape was known, unsqueeze has been remapped to reshape
-pub fn unsqueeze_config(node: &Node) -> Vec<i64> {
+pub fn unsqueeze_config(node: &Node) -> UnsqueezeAxes {
     // Check if axes attribute exists
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
-            "axes" => return value.clone().into_i64s(),
+            "axes" => return UnsqueezeAxes::Static(value.clone().into_i64s()),
             _ => {}
         }
     }
@@ -1409,9 +1409,9 @@ pub fn unsqueeze_config(node: &Node) -> Vec<i64> {
                 ..
             }) = input_value.value.as_ref()
             {
-                shape.clone()
+                UnsqueezeAxes::Static(shape.clone())
             } else {
-                panic!("Tensor data type must be int64")
+                UnsqueezeAxes::Runtime(crate::burn::Type::from(&node.inputs[1]))
             }
         }
         _ => panic!("Arg for unsqueeze must be tensor or scalar"),

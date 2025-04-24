@@ -129,7 +129,7 @@ fn main() {
         .input("tests/trilu/trilu_upper.onnx")
         .input("tests/trilu/trilu_lower.onnx")
         .input("tests/transpose/transpose.onnx")
-        // .input("tests/unsqueeze/unsqueeze.onnx") disabled for now because dynamic ranks are not supported in Burn
+        .input("tests/unsqueeze/unsqueeze.onnx")
         .input("tests/unsqueeze/unsqueeze_opset11.onnx")
         .input("tests/unsqueeze/unsqueeze_opset16.onnx")
         .input("tests/split/split.onnx")

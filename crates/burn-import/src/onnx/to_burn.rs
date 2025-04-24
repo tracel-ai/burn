@@ -836,9 +836,8 @@ impl ParsedOnnxGraph {
     fn unsqueeze_conversion(node: Node) -> UnsqueezeNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let dims = unsqueeze_config(&node);
-
-        UnsqueezeNode::new(input, output, dims)
+        let axes = unsqueeze_config(&node);
+        UnsqueezeNode::new(input, output, axes)
     }
 
     fn where_conversion(node: Node) -> WhereNode {
