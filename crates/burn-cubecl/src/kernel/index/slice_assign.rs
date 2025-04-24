@@ -3,7 +3,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubecl_std::{FastDivmod, FastDivmodArgs};
 use std::ops::Range;
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 fn slice_assign_kernel<E: CubePrimitive>(
     input: &mut Tensor<Line<E>>,
     value: &Tensor<Line<E>>,
@@ -92,15 +92,17 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
     let cube_count =
         calculate_cube_count_elemwise(value.shape.num_elements() / line_size as usize, cube_dim);
 
-    slice_assign_kernel::launch::<E, R>(
-        &tensor.client,
-        cube_count,
-        cube_dim,
-        tensor.as_tensor_arg::<E>(line_size),
-        value.as_tensor_arg::<E>(line_size),
-        shape,
-        offsets,
-    );
+    unsafe {
+        slice_assign_kernel::launch_unchecked::<E, R>(
+            &tensor.client,
+            cube_count,
+            cube_dim,
+            tensor.as_tensor_arg::<E>(line_size),
+            value.as_tensor_arg::<E>(line_size),
+            shape,
+            offsets,
+        );
+    }
 
     tensor
 }
