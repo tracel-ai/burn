@@ -45,6 +45,11 @@ def print_opset_version(model):
 
 def upgrade_model(model):
     try:
+        current_opset = model.opset_import[0].version
+        if current_opset >= 16:
+            print(f"Current opset version {current_opset} is already >= 16, skipping upgrade.")
+            return model
+
         upgraded_model = version_converter.convert_version(model, 16)
         print("Model upgraded to opset 16.")
         return upgraded_model
