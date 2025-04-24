@@ -75,10 +75,10 @@ test-wgpu-spirv = [
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-common = { path = "../burn-common", version = "0.17.0", default-features = false }
-burn-dataset = { path = "../burn-dataset", version = "0.17.0", optional = true, default-features = false }
-burn-derive = { path = "../burn-derive", version = "0.17.0" }
-burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false }
+burn-common = { path = "../burn-common", version = "0.18.0", default-features = false }
+burn-dataset = { path = "../burn-dataset", version = "0.18.0", optional = true, default-features = false }
+burn-derive = { path = "../burn-derive", version = "0.18.0" }
+burn-tensor = { path = "../burn-tensor", version = "0.18.0", default-features = false }
 
 data-encoding = { workspace = true }
 uuid = { workspace = true }
@@ -105,20 +105,20 @@ spin = { workspace = true }                             # Using in place of use 
 thiserror = { workspace = true, optional = true }
 
 # FOR TESTING
-burn-cuda = { path = "../burn-cuda", version = "0.17.0", optional = true, default-features = false }
-burn-rocm = { path = "../burn-rocm", version = "0.17.0", optional = true, default-features = false }
-burn-remote = { path = "../burn-remote", version = "0.17.0", default-features = false, optional = true }
-burn-router = { path = "../burn-router", version = "0.17.0", default-features = false, optional = true }
-burn-tch = { path = "../burn-tch", version = "0.17.0", optional = true }
-burn-wgpu = { path = "../burn-wgpu", version = "0.17.0", optional = true, default-features = false }
+burn-cuda = { path = "../burn-cuda", version = "0.18.0", optional = true, default-features = false }
+burn-rocm = { path = "../burn-rocm", version = "0.18.0", optional = true, default-features = false }
+burn-remote = { path = "../burn-remote", version = "0.18.0", default-features = false, optional = true }
+burn-router = { path = "../burn-router", version = "0.18.0", default-features = false, optional = true }
+burn-tch = { path = "../burn-tch", version = "0.18.0", optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "0.18.0", optional = true, default-features = false }
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 portable-atomic-util = { workspace = true }
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "0.17.0" }
-burn-autodiff = { path = "../burn-autodiff", version = "0.17.0" }
-burn-dataset = { path = "../burn-dataset", version = "0.17.0", features = [
+burn-ndarray = { path = "../burn-ndarray", version = "0.18.0" }
+burn-autodiff = { path = "../burn-autodiff", version = "0.18.0" }
+burn-dataset = { path = "../burn-dataset", version = "0.18.0", features = [
     "fake",
 ] }
 
