@@ -611,7 +611,7 @@ fn unsqueeze_update_output(node: &mut Node) {
         input_rank + axes.len()
     } else if let ArgType::Tensor(tensor) = &node.inputs[1].ty {
         if let Some(static_shape) = &tensor.static_shape {
-            input_rank + static_shape.first().expect("Empty shape").clone()
+            input_rank + *static_shape.first().expect("Empty shape")
         } else {
             panic!("Unsqueeze: should have static shape")
         }
@@ -678,7 +678,7 @@ fn temporary_pass_through_stub(node: &mut Node) {
         node.name
     );
 
-    if let Some(input_rank) = node.inputs.get(0).map(|input| match &input.ty {
+    if let Some(input_rank) = node.inputs.first().map(|input| match &input.ty {
         ArgType::Tensor(tensor) => tensor.rank,
         ArgType::Scalar(_) => 0,
         _ => 0,
