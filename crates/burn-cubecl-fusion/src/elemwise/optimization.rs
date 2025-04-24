@@ -74,6 +74,7 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
         outputs: GlobalArgsLaunch<'a, R>,
         configs: &[FuseBlockConfig],
     ) -> Result<(), Self::Error> {
+        // println!("{:?}", configs);
         let config = &configs[0];
         let shape = match &config.ref_layout {
             RefLayout::Concrete(arg) => match arg {
