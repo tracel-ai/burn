@@ -477,10 +477,10 @@ impl ParsedOnnxGraph {
                     .map(|elem| elem as usize)
                     .collect()
             })
-            .unwrap_or_default();
+            .expect("Missing required 'shape' attribute");
 
         if node.attrs.contains_key("seed") {
-            warn!("seed attribute is not supported!");
+            warn!("The 'seed' attribute is not supported");
         }
 
         RandomUniformNode::new(output_type, low, high, shape)
@@ -532,10 +532,10 @@ impl ParsedOnnxGraph {
                     .map(|elem| elem as usize)
                     .collect()
             })
-            .unwrap_or_default();
+            .expect("Missing required 'shape' attribute");
 
         if node.attrs.contains_key("seed") {
-            warn!("seed attribute is not supported!");
+            warn!("The 'seed' attribute is not supported");
         }
 
         RandomNormalNode::new(output_type, mean, scale, shape)
