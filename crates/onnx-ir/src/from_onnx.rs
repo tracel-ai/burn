@@ -359,7 +359,7 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
 
     // Open the file
     let mut file = File::open(onnx_path)
-        .expect(format!("Unable to open file: {}", onnx_path.display()).as_str());
+        .unwrap_or_else(|_| panic!("Unable to open file: {}", onnx_path.display()));
     let onnx_model: ModelProto =
         Message::parse_from_reader(&mut file).expect("Unable to parse ONNX file");
 
