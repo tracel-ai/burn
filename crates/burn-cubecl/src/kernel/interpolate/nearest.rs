@@ -14,14 +14,14 @@ fn interpolate_nearest_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<F
     let x = ABSOLUTE_POS / output.stride(3) % output.shape(3);
 
     let factor = F::cast_from(y);
-    let numerator = F::cast_from(input.shape(2));
-    let denominator = F::cast_from(output.shape(2));
-    let y: F = Floor::floor(factor * numerator / denominator);
+    let numerator = f32::cast_from(input.shape(2));
+    let denominator = f32::cast_from(output.shape(2));
+    let y: F = Floor::floor(factor * F::cast_from(numerator / denominator));
 
     let factor = F::cast_from(x);
-    let numerator = F::cast_from(input.shape(3));
-    let denominator = F::cast_from(output.shape(3));
-    let x: F = Floor::floor(factor * numerator / denominator);
+    let numerator = f32::cast_from(input.shape(3));
+    let denominator = f32::cast_from(output.shape(3));
+    let x: F = Floor::floor(factor * F::cast_from(numerator / denominator));
 
     let index = batch * input.stride(0)
         + channel * input.stride(1)

@@ -14,10 +14,10 @@ fn interpolate_bicubic_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<F
     let x = ABSOLUTE_POS / output.stride(3) % output.shape(3);
 
     let input_height = input.shape(2) - 1;
-    let output_height = F::cast_from(Max::max(output.shape(2) - 1, 1));
-    let numerator = F::cast_from(y * input_height);
+    let output_height = f32::cast_from(Max::max(output.shape(2) - 1, 1));
+    let factor = F::cast_from(y);
 
-    let frac = numerator / output_height;
+    let frac = factor * F::cast_from(f32::cast_from(input_height) / output_height);
     let y_in_f = Floor::floor(frac);
     let y_in = u32::cast_from(y_in_f);
     let yw = frac - y_in_f;
@@ -28,9 +28,9 @@ fn interpolate_bicubic_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<F
     let y3 = Min::min(y_in + 2, input_height);
 
     let input_width = input.shape(3) - 1;
-    let output_width = F::cast_from(Max::max(output.shape(3) - 1, 1));
-    let numerator = F::cast_from(x * input_width);
-    let frac = numerator / output_width;
+    let output_width = f32::cast_from(Max::max(output.shape(3) - 1, 1));
+    let factor = F::cast_from(x);
+    let frac = factor * F::cast_from(f32::cast_from(input_width) / output_width);
     let x_in_f = Floor::floor(frac);
     let x_in = u32::cast_from(x_in_f);
     let xw = frac - x_in_f;
