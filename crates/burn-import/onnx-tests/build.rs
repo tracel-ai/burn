@@ -13,8 +13,7 @@ fn main() {
         .input("tests/avg_pool2d/avg_pool2d.onnx")
         .input("tests/batch_norm/batch_norm.onnx")
         .input("tests/cast/cast.onnx")
-        .input("tests/clip/clip_opset16.onnx")
-        // .input("tests/clip/clip_opset7.onnx"  // Disabled for OpSet 16 below)
+        .input("tests/clip/clip.onnx")
         .input("tests/concat/concat.onnx")
         .input("tests/constant/constant_f32.onnx")
         .input("tests/constant/constant_f64.onnx")
@@ -31,8 +30,7 @@ fn main() {
         .input("tests/cos/cos.onnx")
         .input("tests/cosh/cosh.onnx")
         .input("tests/div/div.onnx")
-        .input("tests/dropout/dropout_opset16.onnx")
-        // .input("tests/dropout/dropout_opset7.onnx"  // Disabled for OpSet 16 below)
+        .input("tests/dropout/dropout.onnx")
         .input("tests/equal/equal.onnx")
         .input("tests/erf/erf.onnx")
         .input("tests/exp/exp.onnx")
@@ -97,8 +95,7 @@ fn main() {
         .input("tests/reduce_mean/reduce_mean.onnx")
         .input("tests/reduce_min/reduce_min.onnx")
         .input("tests/reduce_prod/reduce_prod.onnx")
-        // .input("tests/reduce_sum/reduce_sum_opset11.onnx")  // Disabled for OpSet 16 below
-        // .input("tests/reduce_sum/reduce_sum_opset13.onnx") // Disabled for OpSet 16 below
+        .input("tests/reduce_sum/reduce_sum.onnx")
         .input("tests/relu/relu.onnx")
         .input("tests/reshape/reshape.onnx")
         .input("tests/resize/resize_with_sizes.onnx")
@@ -115,9 +112,8 @@ fn main() {
         .input("tests/slice/slice.onnx")
         .input("tests/softmax/softmax.onnx")
         .input("tests/sqrt/sqrt.onnx")
-        // .input("tests/squeeze/squeeze_multiple.onnx")  // Disabled for OpSet 16 below
-        // .input("tests/squeeze/squeeze_opset13.onnx")  // Disabled for OpSet 16 below
-        .input("tests/squeeze/squeeze_opset16.onnx")
+        .input("tests/squeeze/squeeze_multiple.onnx")
+        .input("tests/squeeze/squeeze.onnx")
         .input("tests/sub/sub.onnx")
         .input("tests/sub/sub_int.onnx")
         .input("tests/sum/sum.onnx")
@@ -129,9 +125,8 @@ fn main() {
         .input("tests/trilu/trilu_upper.onnx")
         .input("tests/trilu/trilu_lower.onnx")
         .input("tests/transpose/transpose.onnx")
-        .input("tests/unsqueeze/unsqueeze.onnx")
-        // .input("tests/unsqueeze/unsqueeze_opset11.onnx")  // Disabled for OpSet 16 below
-        .input("tests/unsqueeze/unsqueeze_opset16.onnx")
+        .input("tests/unsqueeze/unsqueeze_runtime_axes.onnx")
+        .input("tests/unsqueeze/unsqueeze_like.onnx")
         .input("tests/split/split.onnx")
         .out_dir("model/")
         .run_from_script();

@@ -33,18 +33,14 @@ def main():
 
     output = model.forward(*test_input)
 
-    torch.onnx.export(model, test_input, "unsqueeze_opset16.onnx", verbose=False, opset_version=16)
-    torch.onnx.export(model, test_input, "unsqueeze_opset11.onnx", verbose=False, opset_version=11)
+    torch.onnx.export(model, test_input, "unsqueeze_like.onnx", verbose=False, opset_version=16)
 
     print(f"Finished exporting model")
 
     # Output some test data for use in the test
-    print(f"Test input data of ones: {test_input}")
     print(f"Test input data shape of ones: {test_input[0].shape}")
-    # output = model.forward(test_input)
     print(f"Test output data shape: {output[0].shape}")
 
-    print(f"Test output: {output}")
 
 
 if __name__ == "__main__":

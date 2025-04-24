@@ -29,7 +29,7 @@ def main():
     model.eval()
     device = torch.device("cpu")
 
-    file_name = "clip_opset16.onnx"
+    file_name = "clip.onnx"
     test_input = torch.rand(6, device=device)
     torch.onnx.export(model, test_input, file_name,
                       verbose=False, opset_version=16)
