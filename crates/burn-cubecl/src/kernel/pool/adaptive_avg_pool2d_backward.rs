@@ -1,8 +1,8 @@
 use crate::{
     CubeRuntime,
     element::CubeElement,
-    kernel::conv::permute_nchw_to_nhwc,
-    ops::{max_vectorization, numeric::empty_device, permute},
+    kernel::into_contiguous,
+    ops::{max_line_size, numeric::empty_device, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_tensor::Shape;
@@ -92,8 +92,8 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
 ) -> CubeTensor<R> {
     let [batches, channels, height, width] = x.shape.dims();
 
-    let out_grad = permute_nchw_to_nhwc::<R, E>(out_grad);
-    let line_size = max_vectorization(&x);
+    let out_grad = into_contiguous(permute_nchw_to_nhwc(out_grad));
+    let line_size = max_line_size(&x);
 
     let out_shape = Shape::new([batches, height, width, channels]);
     let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), out_shape);
@@ -111,5 +111,5 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
         output.as_tensor_arg::<E>(line_size),
     );
 
-    permute(output, &[0, 3, 1, 2])
+    permute_nhwc_to_nchw(output)
 }

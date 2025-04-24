@@ -1,5 +1,7 @@
 #[burn_tensor_testgen::testgen(slice)]
 mod tests {
+    #![allow(clippy::reversed_empty_ranges)]
+
     use super::*;
     use burn_tensor::{Int, Tensor, TensorData, as_type, s};
 

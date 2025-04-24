@@ -72,6 +72,16 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
     tensor
 }
 
+/// Permute a tensor's dimensions from NCHW to NHWC
+pub fn permute_nchw_to_nhwc<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
+    permute(tensor, &[0, 2, 3, 1])
+}
+
+/// Permute a tensor's dimensions from NHWC to NCHW
+pub fn permute_nhwc_to_nchw<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
+    permute(tensor, &[0, 3, 1, 2])
+}
+
 pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape) -> CubeTensor<R> {
     let ndims_in = tensor.shape.num_dims();
     let ndims_out = target_shape.num_dims();
@@ -136,7 +146,7 @@ pub fn reshape<R: CubeRuntime>(tensor: CubeTensor<R>, shape: Shape) -> CubeTenso
     )
 }
 
-pub(crate) fn max_vectorization<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {
+pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {
     tensor_vectorization_factor(
         R::supported_line_sizes(),
         &tensor.shape.dims,

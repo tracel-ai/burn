@@ -3197,6 +3197,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::reversed_empty_ranges)]
+
     use crate::Shape;
     use crate::s;
 

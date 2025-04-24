@@ -1,5 +1,7 @@
 #[burn_tensor_testgen::testgen(q_slice)]
 mod tests {
+    #![allow(clippy::reversed_empty_ranges)]
+
     use super::*;
     use burn_tensor::TensorData;
     use burn_tensor::{Tolerance, ops::FloatElem, s};

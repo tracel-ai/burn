@@ -353,16 +353,11 @@ where
     }
 
     /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a, E: CubeElement>(&'a self, vectorisation: u8) -> TensorArg<'a, R> {
+    pub fn as_tensor_arg<'a, E: CubeElement>(&'a self, line_size: u8) -> TensorArg<'a, R> {
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref();
 
         unsafe {
-            TensorArg::from_raw_parts::<E>(
-                handle.handle,
-                handle.strides,
-                handle.shape,
-                vectorisation,
-            )
+            TensorArg::from_raw_parts::<E>(handle.handle, handle.strides, handle.shape, line_size)
         }
     }
 
@@ -476,6 +471,8 @@ pub(crate) fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
             if prev_stride >= *stride {
                 return false;
             }
+        } else if *stride != 1 {
+            return false;
         }
 
         current_num_elems_shape *= shape;
