@@ -128,19 +128,19 @@ fn constant_update_outputs(node: &mut Node) {
 
     node.outputs[0].ty = match matched_value {
         Some(value) => match &value {
-            AttributeValue::Tensor(tensor) if tensor.rank == 0 => {
+            AttributeValue::Tensor(tensor) if tensor.shape.is_empty() => {
                 log::debug!("Constant as scalar for {}", node.name);
                 ArgType::Scalar(tensor.elem_type.clone())
             }
             AttributeValue::Tensor(tensor) => {
                 log::debug!(
                     "Constant tensor with rank {} for {}",
-                    tensor.rank,
+                    tensor.shape.len(),
                     node.name
                 );
                 ArgType::Tensor(TensorType {
                     elem_type: tensor.elem_type.clone(),
-                    rank: tensor.rank,
+                    rank: tensor.shape.len(),
                     static_shape: None,
                 })
             }

@@ -391,7 +391,6 @@ pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
         let shape_len = inner.len();
         let new_rhs_value = Some(TensorData {
             elem_type: ElementType::Int64,
-            rank: 1,
             shape: vec![shape_len],
             data: Data::Int64s(inner),
         });

@@ -78,7 +78,6 @@ impl TryFrom<TensorProto> for TensorData {
 
         Ok(TensorData {
             elem_type,
-            rank: shape.len(),
             shape,
             data,
         })

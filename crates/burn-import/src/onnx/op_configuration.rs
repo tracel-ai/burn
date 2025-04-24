@@ -1247,8 +1247,8 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
     }
 
     match &node.inputs[1].value {
-        Some(TensorData { data, rank, .. }) => {
-            assert_eq!(rank, &1, "Reshape: shape tensor must be 1D");
+        Some(TensorData { data, shape, .. }) => {
+            assert_eq!(shape.len(), 1, "Reshape: shape tensor must be 1D");
             data.clone().into_i64s()
         }
         _ => panic!("Only tensor input is valid for shape"),

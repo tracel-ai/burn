@@ -37,7 +37,7 @@ impl Argument {
         let tensor_data = TensorData::try_from(initializer.clone())
             .unwrap_or_else(|_| panic!("invalid tensor {}", &initializer.name));
 
-        if tensor_data.rank == 0 {
+        if tensor_data.shape.is_empty() {
             // Convert zero dim tensor to scalar
             Self {
                 name,
@@ -50,7 +50,7 @@ impl Argument {
                 name,
                 ty: ArgType::Tensor(TensorType {
                     elem_type: tensor_data.clone().elem_type,
-                    rank: tensor_data.rank,
+                    rank: tensor_data.shape.len(),
                     static_shape: Some(tensor_data.shape.clone()),
                 }),
                 value: Some(tensor_data),
@@ -162,9 +162,6 @@ impl Argument {
 pub struct TensorData {
     /// The type of the tensor.
     pub elem_type: ElementType,
-
-    /// The rank of the tensor.
-    pub rank: Rank,
 
     /// The data of the tensor.
     pub data: Data,
@@ -779,7 +776,6 @@ impl From<AttributeValue> for Argument {
                 name,
                 value: Some(TensorData {
                     elem_type: ElementType::Float32,
-                    rank: 0,
                     shape: vec![],
                     data: Data::Float32(value),
                 }),
@@ -794,7 +790,6 @@ impl From<AttributeValue> for Argument {
                 name,
                 value: Some(TensorData {
                     elem_type: ElementType::Float32,
-                    rank: 1,
                     shape: vec![values.len()],
                     data: Data::Float32s(values),
                 }),
@@ -805,7 +800,6 @@ impl From<AttributeValue> for Argument {
                 name,
                 value: Some(TensorData {
                     elem_type: ElementType::Int64,
-                    rank: 0,
                     shape: vec![],
                     data: Data::Int64(value),
                 }),
@@ -820,7 +814,6 @@ impl From<AttributeValue> for Argument {
                 name,
                 value: Some(TensorData {
                     elem_type: ElementType::Int64,
-                    rank: 1,
                     shape: vec![values.len()],
                     data: Data::Int64s(values),
                 }),
@@ -831,7 +824,6 @@ impl From<AttributeValue> for Argument {
                 name,
                 value: Some(TensorData {
                     elem_type: ElementType::String,
-                    rank: 0,
                     shape: vec![],
                     data: Data::String(value),
                 }),
@@ -846,21 +838,19 @@ impl From<AttributeValue> for Argument {
                 name,
                 value: Some(TensorData {
                     elem_type: ElementType::String,
-                    rank: 1,
                     shape: vec![values.len()],
                     data: Data::Strings(values),
                 }),
                 passed: false,
             },
             AttributeValue::Tensor(tensor) => {
-                if tensor.rank == 0 {
+                if tensor.shape.is_empty() {
                     // Handle scalar tensors by converting them to scalar arguments
                     Argument {
                         ty: ArgType::Scalar(tensor.elem_type.clone()),
                         name,
                         value: Some(TensorData {
                             elem_type: tensor.elem_type,
-                            rank: 0,
                             shape: vec![],
                             data: tensor.data,
                         }),
@@ -870,14 +860,13 @@ impl From<AttributeValue> for Argument {
                     // Convert tensor to argument
                     Argument {
                         ty: ArgType::Tensor(TensorType {
-                            rank: tensor.rank,
+                            rank: tensor.shape.len(),
                             elem_type: tensor.elem_type.clone(),
                             static_shape: Some(tensor.shape.clone()),
                         }),
                         name,
                         value: Some(TensorData {
                             elem_type: tensor.elem_type,
-                            rank: tensor.rank,
                             shape: tensor.shape,
                             data: tensor.data,
                         }),
