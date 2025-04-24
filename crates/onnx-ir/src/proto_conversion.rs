@@ -24,7 +24,7 @@ pub enum ParseError {
 impl TryFrom<TensorProto> for TensorData {
     type Error = ParseError;
     fn try_from(tensor: TensorProto) -> Result<TensorData, Self::Error> {
-        let (elem_type, data) = match DataType::from_i32(tensor.data_type).unwrap() {
+        let (_, data) = match DataType::from_i32(tensor.data_type).unwrap() {
             DataType::FLOAT => (
                 ElementType::Float32,
                 // Convert the raw data to a vector of floats
@@ -76,11 +76,7 @@ impl TryFrom<TensorProto> for TensorData {
         };
         let shape = convert_shape(tensor.dims);
 
-        Ok(TensorData {
-            elem_type,
-            shape,
-            data,
-        })
+        Ok(TensorData { shape, data })
     }
 }
 

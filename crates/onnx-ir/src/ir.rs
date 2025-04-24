@@ -41,7 +41,7 @@ impl Argument {
             // Convert zero dim tensor to scalar
             Self {
                 name,
-                ty: ArgType::Scalar(tensor_data.clone().elem_type),
+                ty: ArgType::Scalar(tensor_data.elem_type()),
                 value: Some(tensor_data),
                 passed: false,
             }
@@ -49,7 +49,7 @@ impl Argument {
             Self {
                 name,
                 ty: ArgType::Tensor(TensorType {
-                    elem_type: tensor_data.clone().elem_type,
+                    elem_type: tensor_data.elem_type(),
                     rank: tensor_data.shape.len(),
                     static_shape: Some(tensor_data.shape.clone()),
                 }),
@@ -158,16 +158,40 @@ impl Argument {
     }
 }
 
+/// Representation of a tensor with data and shape information.
+///
+/// A tensor is a multi-dimensional array of data with a specific shape.
+/// This struct stores both the raw data values and the dimensional information
+/// that defines the tensor's structure.
 #[derive(Debug, Clone)]
 pub struct TensorData {
-    /// The type of the tensor.
-    pub elem_type: ElementType,
-
-    /// The data of the tensor.
+    /// The data values of the tensor.
     pub data: Data,
 
-    /// The shape of the tensor.
+    /// The dimensional shape of the tensor.
     pub shape: Shape,
+}
+
+impl TensorData {
+    /// The element type of the tensor inferred from the data.
+    pub fn elem_type(&self) -> ElementType {
+        match &self.data {
+            Data::Bool(_) => ElementType::Bool,
+            Data::Bools(_) => ElementType::Bool,
+            Data::Float16(_) => ElementType::Float16,
+            Data::Float16s(_) => ElementType::Float16,
+            Data::Float32(_) => ElementType::Float32,
+            Data::Float32s(_) => ElementType::Float32,
+            Data::Float64(_) => ElementType::Float64,
+            Data::Float64s(_) => ElementType::Float64,
+            Data::Int32(_) => ElementType::Int32,
+            Data::Int32s(_) => ElementType::Int32,
+            Data::Int64(_) => ElementType::Int64,
+            Data::Int64s(_) => ElementType::Int64,
+            Data::String(_) => ElementType::String,
+            Data::Strings(_) => ElementType::String,
+        }
+    }
 }
 
 /// Container to hold data for tensors and arguments
@@ -775,7 +799,6 @@ impl From<AttributeValue> for Argument {
                 ty: ArgType::Scalar(ElementType::Float32),
                 name,
                 value: Some(TensorData {
-                    elem_type: ElementType::Float32,
                     shape: vec![],
                     data: Data::Float32(value),
                 }),
@@ -789,7 +812,6 @@ impl From<AttributeValue> for Argument {
                 }),
                 name,
                 value: Some(TensorData {
-                    elem_type: ElementType::Float32,
                     shape: vec![values.len()],
                     data: Data::Float32s(values),
                 }),
@@ -799,7 +821,6 @@ impl From<AttributeValue> for Argument {
                 ty: ArgType::Scalar(ElementType::Int64),
                 name,
                 value: Some(TensorData {
-                    elem_type: ElementType::Int64,
                     shape: vec![],
                     data: Data::Int64(value),
                 }),
@@ -813,7 +834,6 @@ impl From<AttributeValue> for Argument {
                 }),
                 name,
                 value: Some(TensorData {
-                    elem_type: ElementType::Int64,
                     shape: vec![values.len()],
                     data: Data::Int64s(values),
                 }),
@@ -823,7 +843,6 @@ impl From<AttributeValue> for Argument {
                 ty: ArgType::Scalar(ElementType::String),
                 name,
                 value: Some(TensorData {
-                    elem_type: ElementType::String,
                     shape: vec![],
                     data: Data::String(value),
                 }),
@@ -837,7 +856,6 @@ impl From<AttributeValue> for Argument {
                 }),
                 name,
                 value: Some(TensorData {
-                    elem_type: ElementType::String,
                     shape: vec![values.len()],
                     data: Data::Strings(values),
                 }),
@@ -847,10 +865,9 @@ impl From<AttributeValue> for Argument {
                 if tensor.shape.is_empty() {
                     // Handle scalar tensors by converting them to scalar arguments
                     Argument {
-                        ty: ArgType::Scalar(tensor.elem_type.clone()),
+                        ty: ArgType::Scalar(tensor.elem_type()),
                         name,
                         value: Some(TensorData {
-                            elem_type: tensor.elem_type,
                             shape: vec![],
                             data: tensor.data,
                         }),
@@ -861,12 +878,11 @@ impl From<AttributeValue> for Argument {
                     Argument {
                         ty: ArgType::Tensor(TensorType {
                             rank: tensor.shape.len(),
-                            elem_type: tensor.elem_type.clone(),
+                            elem_type: tensor.elem_type(),
                             static_shape: Some(tensor.shape.clone()),
                         }),
                         name,
                         value: Some(TensorData {
-                            elem_type: tensor.elem_type,
                             shape: tensor.shape,
                             data: tensor.data,
                         }),

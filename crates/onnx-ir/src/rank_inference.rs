@@ -130,7 +130,7 @@ fn constant_update_outputs(node: &mut Node) {
         Some(value) => match &value {
             AttributeValue::Tensor(tensor) if tensor.shape.is_empty() => {
                 log::debug!("Constant as scalar for {}", node.name);
-                ArgType::Scalar(tensor.elem_type.clone())
+                ArgType::Scalar(tensor.elem_type())
             }
             AttributeValue::Tensor(tensor) => {
                 log::debug!(
@@ -139,7 +139,7 @@ fn constant_update_outputs(node: &mut Node) {
                     node.name
                 );
                 ArgType::Tensor(TensorType {
-                    elem_type: tensor.elem_type.clone(),
+                    elem_type: tensor.elem_type(),
                     rank: tensor.shape.len(),
                     static_shape: None,
                 })
@@ -181,7 +181,7 @@ fn constant_of_shape_update_output(node: &mut Node) {
     let value_type = node
         .attrs
         .get("value")
-        .map(|v| v.clone().into_tensor().elem_type)
+        .map(|v| v.clone().into_tensor().elem_type())
         .unwrap_or(ElementType::Float32); // If not given, defaults to 0 as float32
     log::debug!(
         "ConstantOfShape value type for {}: {:?}",

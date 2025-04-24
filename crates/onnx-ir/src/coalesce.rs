@@ -67,7 +67,6 @@ fn transpose_linear_node_weights(node: &mut Node) {
     let tensor_data = node.inputs[1].value.as_ref().unwrap();
     let data = &tensor_data.data;
     let shape = &tensor_data.shape;
-    let elem_type = tensor_data.elem_type.clone();
 
     assert_eq!(shape.len(), 2, "Weight must be a 2D tensor");
 
@@ -80,7 +79,6 @@ fn transpose_linear_node_weights(node: &mut Node) {
             let tensor_data = TensorData {
                 data: Data::Float32s(data_t),
                 shape: new_shape,
-                elem_type,
             };
 
             node.inputs[1].value = Some(tensor_data);
@@ -91,7 +89,6 @@ fn transpose_linear_node_weights(node: &mut Node) {
             let tensor_data = TensorData {
                 data: Data::Float64s(data_t),
                 shape: new_shape,
-                elem_type,
             };
 
             node.inputs[1].value = Some(tensor_data);
@@ -102,7 +99,6 @@ fn transpose_linear_node_weights(node: &mut Node) {
             let tensor_data = TensorData {
                 data: Data::Float16s(data_t),
                 shape: new_shape,
-                elem_type,
             };
 
             node.inputs[1].value = Some(tensor_data);
