@@ -21,11 +21,21 @@ use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInc
 #[macro_export]
 macro_rules! s {
     [$range:expr] => {
-        $crate::Slice::from($range)
+        {
+            #[allow(clippy::reversed_empty_ranges)]
+            {
+                $crate::Slice::from($range)
+            }
+        }
     };
 
     [$($range:expr),+] => {
-        [$($crate::Slice::from($range)),+]
+        {
+            #[allow(clippy::reversed_empty_ranges)]
+            {
+                [$($crate::Slice::from($range)),+]
+            }
+        }
     };
 }
 

@@ -1,7 +1,5 @@
 #[burn_tensor_testgen::testgen(q_slice)]
 mod tests {
-    #![allow(clippy::reversed_empty_ranges)]
-
     use super::*;
     use burn_tensor::TensorData;
     use burn_tensor::{Tolerance, ops::FloatElem, s};
@@ -167,7 +165,7 @@ mod tests {
         let data = TensorData::from([[0.0f32]]);
         output.dequantize().into_data().assert_eq(&data, false);
 
-        let output = tensor.slice([0..-1, 0..-2]);
+        let output = tensor.slice(s![0..-1, 0..-2]);
         output.dequantize().into_data().assert_eq(&data, false);
     }
 
@@ -182,7 +180,7 @@ mod tests {
 
         // Negative dimensions
         let data = TensorData::from([[0.0f32]]);
-        let output = tensor.clone().slice([0..-1, 0..-2]);
+        let output = tensor.clone().slice(s![0..-1, 0..-2]);
         output.dequantize().into_data().assert_eq(&data, false);
 
         // Missing dimensions
@@ -212,8 +210,7 @@ mod tests {
     fn should_panic_when_slice_is_desc() {
         let tensor = QTensor::<TestBackend, 1>::int8([0.0, 1.0, 2.0]);
 
-        #[allow(clippy::reversed_empty_ranges)]
-        let output = tensor.slice([2..1]);
+        let output = tensor.slice(s![2..1]);
     }
 
     #[test]
