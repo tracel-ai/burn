@@ -9,7 +9,6 @@ use super::ir::{
 use super::protos::{
     AttributeProto, NodeProto, TensorProto, TensorShapeProto, ValueInfoProto,
     attribute_proto::AttributeType, tensor_proto::DataType, tensor_shape_proto::dimension::Value,
-    type_proto,
 };
 
 use bytemuck::cast_slice;
@@ -98,35 +97,6 @@ impl TryFrom<TensorShapeProto> for Vec<usize> {
         }
 
         Ok(result)
-    }
-}
-
-/// Convert a vector of AttributeProto to a HashMap of AttributeValue
-impl TryFrom<&type_proto::Tensor> for TensorData {
-    type Error = ParseError;
-    fn try_from(tensor: &type_proto::Tensor) -> Result<TensorData, Self::Error> {
-        let elem_type = match DataType::from_i32(tensor.elem_type).unwrap() {
-            DataType::FLOAT => ElementType::Float32,
-            DataType::INT32 => ElementType::Int32,
-            DataType::INT64 => ElementType::Int64,
-            DataType::DOUBLE => ElementType::Float64,
-            DataType::BOOL => ElementType::Bool,
-
-            // TODO : Add more types
-            _ => {
-                return Err(ParseError::VariantNotFound);
-            }
-        };
-
-        let shape_proto = tensor.shape.clone().unwrap();
-        let shape: Vec<usize> = shape_proto.try_into().unwrap();
-
-        Ok(TensorData {
-            elem_type,
-            rank: shape.len(),
-            shape,
-            data: Data::Float32(0.0), // Default data when not provided
-        })
     }
 }
 
