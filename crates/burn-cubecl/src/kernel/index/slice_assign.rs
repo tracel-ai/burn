@@ -79,7 +79,7 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
     for i in 0..ndims {
         let range = indices.get(i).cloned().unwrap_or(Range {
             start: 0,
-            end: tensor.shape.dims[ndims - 1],
+            end: tensor.shape.dims[i],
         });
         let start = range.start;
         let length = range.end - start;
