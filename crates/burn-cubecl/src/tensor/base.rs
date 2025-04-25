@@ -456,7 +456,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn is_contiguous_degenerate() {
+    fn is_contiguous_non_increasing() {
         assert!(is_contiguous(&[3, 1], &[1, 1]));
     }
 
