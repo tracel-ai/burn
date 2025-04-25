@@ -510,4 +510,10 @@ mod tests {
     fn is_contiguous_4d_negative() {
         assert!(!is_contiguous(&[256, 8, 32, 32], &[1024, 262144, 32, 1]));
     }
+
+    /// Based on a bug encountered in interpolate_1d
+    #[test]
+    fn is_contiguous_4d_unit_shape() {
+        assert!(!is_contiguous(&[1, 1, 1, 9], &[72, 1, 72, 8]));
+    }
 }
