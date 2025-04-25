@@ -437,7 +437,7 @@ where
     /// Check if the current tensor is contiguous.
     ///
     /// A tensor is contiguous if the elements are stored in memory
-    /// if the strides in strict decreasing order and the
+    /// if the strides in non-increasing order and the
     /// strides at position k is equal to the product of the shapes
     /// at all positions greater than k. However, all axes with a shape of 1 are ignored.
     pub fn is_contiguous(&self) -> bool {

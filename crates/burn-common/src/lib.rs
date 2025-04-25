@@ -28,9 +28,9 @@ pub mod tensor {
     /// Check if the current tensor is contiguous.
     ///
     /// A tensor is considered contiguous if its elements are stored in memory
-    /// such that the strides are in strictly decreasing order, and the stride at
-    /// position `k` is equal to the product of the shapes of all dimensions greater
-    /// than `k`. Axes with a shape of 1 are ignored.
+    /// such that the strides are in non-increasing order, and the stride at position
+    /// `k` is equal to the product of the shapes of all dimensions greater than `k`.
+    /// Axes with a shape of 1 are ignored.
     pub fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
         if shape.is_empty() {
             return true;
