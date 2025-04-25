@@ -199,7 +199,7 @@ jobs:
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
-  publish-burn-hip:
+  publish-burn-rocm:
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
     needs:
       - publish-burn-tensor
@@ -208,7 +208,7 @@ jobs:
       - publish-burn-common
       - publish-burn-cubecl
     with:
-      crate: burn-hip
+      crate: burn-rocm
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
