@@ -399,7 +399,7 @@ pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
             ty: ArgType::Tensor(TensorType {
                 elem_type: ElementType::Int64,
                 rank: 1,
-                static_shape: None,
+                static_shape: Some(vec![shape_len]),
             }),
             value: new_rhs_value,
             passed: false,
