@@ -59,7 +59,7 @@ There are two simple ways to upgrade your ONNX models to the required opset vers
 Option 1: Use the provided utility script:
 
 ```
-uv run --script https://raw.githubusercontent.com/tracel-ai/burn/refs/heads/main/crates/burn-import/onnx-opset-upgrade.py
+uv run --script https://raw.githubusercontent.com/tracel-ai/burn/refs/heads/main/crates/burn-import/onnx_opset_upgrade.py
 ```
 
 Option 2: Use a custom Python script:

@@ -77,8 +77,7 @@ def save_model(inferred_model, output_path):
     except Exception as e:
         raise RuntimeError(f"Failed to save model: {str(e)}")
 
-
-try:
+def main():
     # Get input path from user prompt
     model_path = input("Enter the path to the input ONNX model: ")
     validate_model_path(model_path)
@@ -96,9 +95,10 @@ try:
 
     save_model(inferred_model, output_path)
 
-except KeyboardInterrupt:
-    print("\nOperation cancelled by user.")
-    sys.exit(1)
-except Exception as e:
-    print(f"Error: {str(e)}")
-    sys.exit(1)
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nOperation cancelled by user.")
+        sys.exit(1)
