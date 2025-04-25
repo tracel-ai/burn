@@ -353,16 +353,11 @@ where
     }
 
     /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a, E: CubeElement>(&'a self, vectorisation: u8) -> TensorArg<'a, R> {
+    pub fn as_tensor_arg<'a, E: CubeElement>(&'a self, line_size: u8) -> TensorArg<'a, R> {
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref();
 
         unsafe {
-            TensorArg::from_raw_parts::<E>(
-                handle.handle,
-                handle.strides,
-                handle.shape,
-                vectorisation,
-            )
+            TensorArg::from_raw_parts::<E>(handle.handle, handle.strides, handle.shape, line_size)
         }
     }
 
@@ -476,6 +471,8 @@ pub(crate) fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
             if prev_stride >= *stride {
                 return false;
             }
+        } else if *stride != 1 {
+            return false;
         }
 
         current_num_elems_shape *= shape;
@@ -512,5 +509,11 @@ mod tests {
     #[test]
     fn is_contiguous_4d_negative() {
         assert!(!is_contiguous(&[256, 8, 32, 32], &[1024, 262144, 32, 1]));
+    }
+
+    /// Based on a bug encountered in interpolate_1d
+    #[test]
+    fn is_contiguous_4d_unit_shape() {
+        assert!(!is_contiguous(&[1, 1, 1, 9], &[72, 1, 72, 8]));
     }
 }
