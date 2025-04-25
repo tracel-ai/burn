@@ -15,10 +15,10 @@ tutorial on importing a more complex model.
 ## How to export a PyTorch model
 
 If you have a PyTorch model that you want to import into Burn, you will need to export it first,
-unless you are using a pre-trained published model. To export a PyTorch model, you can use the
-`torch.save` function.
+unless you are using a pre-trained published model. To export a PyTorch model correctly, you need to
+save only the model weights (state_dict) using the `torch.save` function, not the entire model.
 
-The following is an example of how to export a PyTorch model:
+The following is an example of how to properly export a PyTorch model:
 
 ```python
 import torch
@@ -38,9 +38,22 @@ class Net(nn.Module):
 if __name__ == "__main__":
     torch.manual_seed(42)  # To make it reproducible
     model = Net().to(torch.device("cpu"))
-    model_weights = model.state_dict()
-    torch.save(model_weights, "conv2d.pt")
+    model_weights = model.state_dict()  # This extracts just the weights
+    torch.save(model_weights, "conv2d.pt")  # Save only the weights, not the entire model
 ```
+
+If you accidentally save the entire model instead of just the weights, you may encounter errors
+during import like:
+
+```
+Failed to decode candy: DeserializeError("Serde error: other error:
+Missing source values for the 'foo1' field of type 'BarRecordItem'.
+Please verify the source data and ensure the field name is correct")
+```
+
+You can verify if your model is exported correctly by opening the `.pt` file in Netron. A properly
+exported weights file will show a flat structure of tensors, while an incorrectly exported file will
+display nested blocks representing the entire model architecture.
 
 Use [Netron](https://github.com/lutzroeder/netron) to view the exported model. You should see
 something like this:
@@ -286,22 +299,6 @@ Shape: [2, 2, 2, 2]
 Dtype: F32
 ---
 ```
-
-### Making sure the PyTorch model is exported correctly
-
-When exporting a PyTorch model, ensure you're exporting only the weights (state_dict) rather than
-the entire model. If the entire model is exported instead of just the weights, you may encounter
-errors like:
-
-```
-Failed to decode candy: DeserializeError("Serde error: other error:
-Missing source values for the 'foo1' field of type 'BarRecordItem'.
-Please verify the source data and ensure the field name is correct")
-```
-
-You can verify if your model is exported correctly by opening the `.pt` file in Netron. A properly
-exported weights file will show a flat structure of tensors, while an incorrectly exported file will
-display nested blocks representing the entire model architecture.
 
 ### Non-contiguous indices in the source model
 
