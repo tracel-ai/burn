@@ -46,17 +46,16 @@ If you accidentally save the entire model instead of just the weights, you may e
 during import like:
 
 ```
-Failed to decode candy: DeserializeError("Serde error: other error:
+Failed to decode foobar: DeserializeError("Serde error: other error:
 Missing source values for the 'foo1' field of type 'BarRecordItem'.
 Please verify the source data and ensure the field name is correct")
 ```
 
-You can verify if your model is exported correctly by opening the `.pt` file in Netron. A properly
-exported weights file will show a flat structure of tensors, while an incorrectly exported file will
-display nested blocks representing the entire model architecture.
-
-Use [Netron](https://github.com/lutzroeder/netron) to view the exported model. You should see
-something like this:
+You can verify if your model is exported correctly by opening the `.pt` file in
+[Netron](https://github.com/lutzroeder/netron). A properly exported weights file will show a flat
+structure of tensors, while an incorrectly exported file will display nested blocks representing the
+entire model architecture. When viewing the exported model in Netron, you should see something like
+this:
 
 ![image alt>](./conv2d.svg)
 
