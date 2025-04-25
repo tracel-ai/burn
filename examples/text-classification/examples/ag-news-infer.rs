@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 use burn::tensor::backend::Backend;
 use text_classification::AgNewsDataset;
 

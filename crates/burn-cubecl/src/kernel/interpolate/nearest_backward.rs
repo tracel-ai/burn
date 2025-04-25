@@ -1,41 +1,54 @@
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, linalg::tensor::StridedLayout, prelude::*};
+use cubecl_std::FastDivmod;
 
-use crate::{CubeRuntime, FloatElement, tensor::CubeTensor};
+use crate::{
+    CubeRuntime, FloatElement,
+    kernel::utils::{shape_divmod, strided_layout},
+    ops::max_line_size,
+    tensor::CubeTensor,
+};
 
 #[cube(launch_unchecked)]
-fn interpolate_nearest_backward_kernel<F: Float>(grad: &Tensor<F>, output: &mut Tensor<F>) {
+fn interpolate_nearest_backward_kernel<F: Float>(
+    grad: &Tensor<Line<F>>,
+    output: &mut Tensor<Line<F>>,
+    shape_out: Sequence<FastDivmod>,
+    out_layout: StridedLayout,
+) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
     }
 
-    let out_h = output.shape(2);
-    let out_w = output.shape(3);
-    let grad_h = grad.shape(2);
-    let grad_w = grad.shape(3);
+    let line_size = grad.line_size();
+    let out_idx = out_layout.index(output, ABSOLUTE_POS);
 
-    let batch = ABSOLUTE_POS / output.stride(0) % output.shape(0);
-    let channel = ABSOLUTE_POS / output.stride(1) % output.shape(1);
-    let oh = ABSOLUTE_POS / output.stride(2) % out_h;
-    let ow = ABSOLUTE_POS / output.stride(3) % out_w;
+    let out_h = output.shape(1);
+    let out_w = output.shape(2);
+    let grad_h = grad.shape(1);
+    let grad_w = grad.shape(2);
 
-    let gh_start = start_index::<F>(oh, grad_h, out_h);
-    let gh_end = end_index::<F>(oh, grad_h, out_h);
-    let gw_start = start_index::<F>(ow, grad_w, out_w);
-    let gw_end = end_index::<F>(ow, grad_w, out_w);
+    let (rem, c) = shape_out.index(3).div_mod(ABSOLUTE_POS * line_size);
+    let (rem, out_x) = shape_out.index(2).div_mod(rem);
+    let (b, out_y) = shape_out.index(1).div_mod(rem);
 
-    let index_grad_base = batch * grad.stride(0) + channel * grad.stride(1);
+    let grad_y_start = start_index::<F>(out_y, grad_h, out_h);
+    let grad_y_end = end_index::<F>(out_y, grad_h, out_h);
+    let grad_x_start = start_index::<F>(out_x, grad_w, out_w);
+    let grad_x_end = end_index::<F>(out_x, grad_w, out_w);
 
-    let mut sum = F::new(0.0);
+    let index_grad_base = b * grad.stride(0) + c * grad.stride(3);
 
-    for gh in gh_start..gh_end {
-        for gw in gw_start..gw_end {
-            let index_grad = index_grad_base + gh * grad.stride(2) + gw * grad.stride(3);
+    let mut sum = Line::empty(line_size).fill(F::new(0.0));
+
+    for grad_y in grad_y_start..grad_y_end {
+        for grad_x in grad_x_start..grad_x_end {
+            let index_grad = index_grad_base + grad_y * grad.stride(1) + grad_x * grad.stride(2);
 
             sum += grad[index_grad];
         }
     }
 
-    output[ABSOLUTE_POS] = sum;
+    output[out_idx] = sum;
 }
 
 #[cube]
@@ -59,16 +72,23 @@ pub(crate) fn interpolate_nearest_backward_launch<R: CubeRuntime, E: FloatElemen
     out_grad: CubeTensor<R>,
     output: CubeTensor<R>,
 ) -> CubeTensor<R> {
+    let line_size = max_line_size(&out_grad);
+    let out_shape = shape_divmod(&output);
+    let out_layout = strided_layout(&output);
+
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let cube_count =
+        calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
     unsafe {
         interpolate_nearest_backward_kernel::launch_unchecked::<E, R>(
             &out_grad.client,
             cube_count,
             cube_dim,
-            out_grad.as_tensor_arg::<E>(1),
-            output.as_tensor_arg::<E>(1),
+            out_grad.as_tensor_arg::<E>(line_size),
+            output.as_tensor_arg::<E>(line_size),
+            out_shape,
+            out_layout,
         )
     };
 

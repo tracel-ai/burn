@@ -3,7 +3,7 @@ use cubecl::{calculate_cube_count_elemwise, linalg::tensor::index_offset_with_la
 use crate::{
     BoolElement, CubeRuntime,
     element::CubeElement,
-    ops::{max_vectorization, numeric::empty_device},
+    ops::{max_line_size, numeric::empty_device},
     tensor::CubeTensor,
 };
 
@@ -92,7 +92,7 @@ fn mask_where_readonly<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
-    let vectorization = max_vectorization(&input);
+    let vectorization = max_line_size(&input);
 
     mask_where_readonly_kernel::launch::<EI, EM, R>(
         &input.client,
@@ -117,7 +117,7 @@ fn mask_where_inplace<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
     let ndims = input.shape.num_dims();
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
-    let vectorization = max_vectorization(&input);
+    let vectorization = max_line_size(&input);
 
     mask_where_inplace_kernel::launch::<EI, EM, R>(
         &input.client,

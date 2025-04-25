@@ -227,10 +227,7 @@ impl<B: Backend> StackedLstm<B> {
 
         let mut layer_outputs = vec![];
         for t in 0..seq_length {
-            let mut input_t = x
-                .clone()
-                .slice([None, Some((t as i64, t as i64 + 1)), None])
-                .squeeze::<2>(1);
+            let mut input_t = x.clone().slice(s![.., t..t + 1, ..]).squeeze::<2>(1);
             for (i, lstm_cell) in self.layers.iter().enumerate() {
                 let mut state: LstmState<B, 2> =
                     LstmState::new(states[i].cell.clone(), states[i].hidden.clone());
@@ -333,7 +330,7 @@ impl<B: Backend> LstmNetwork<B> {
     /// Returns:
     ///     Output tensor of shape (batch_size, output_size)
     pub fn forward(&self, x: Tensor<B, 3>, states: Option<Vec<LstmState<B, 2>>>) -> Tensor<B, 2> {
-        let seq_length = x.dims()[1] as i64;
+        let seq_length = x.dims()[1];
         // Forward direction
         let (mut output, _states) = self.stacked_lstm.forward(x.clone(), states);
 
@@ -355,7 +352,7 @@ impl<B: Backend> LstmNetwork<B> {
         // Use final timestep output for prediction
         self.fc.forward(
             output
-                .slice([None, Some((seq_length - 1, seq_length)), None])
+                .slice(s![.., seq_length - 1..seq_length, ..])
                 .squeeze::<2>(1),
         )
     }
