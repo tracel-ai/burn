@@ -1,5 +1,7 @@
 #![no_std]
 
+extern crate alloc;
+
 /// Include generated models in the `model` directory in the target directory.
 macro_rules! include_models {
     ($($model:ident),*) => {
@@ -2086,9 +2088,14 @@ mod tests {
         let device = Default::default();
         let model: unsqueeze::Model<Backend> = unsqueeze::Model::new(&device);
         let input_shape = Shape::from([3, 4, 5]);
-        let expected_shape = Shape::from([1, 1, 3, 4, 5, 1]);
+        let expected_shape = Shape::from([1, 3, 1, 4, 5, 1]);
         let input = Tensor::ones(input_shape, &device);
-        let output = model.forward(input);
+
+        // Note: The axes tensor must have rank 1 with a single element
+        // as the generated ONNX requires a 1D tensor for static shape operations
+        // see unsqueeze.onnx
+        let axes = Tensor::from_ints([2], &device);
+        let output = model.forward(input, axes);
         assert_eq!(output.shape(), expected_shape);
     }
 
