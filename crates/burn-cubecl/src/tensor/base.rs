@@ -1,6 +1,7 @@
 use crate::CubeRuntime;
 use crate::element::CubeElement;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
+use burn_common::tensor::is_contiguous;
 use burn_tensor::quantization::QTensorPrimitive;
 use burn_tensor::{DType, Shape, TensorMetadata};
 use cubecl::client::ComputeClient;
@@ -435,7 +436,7 @@ where
 
     /// Check if the current tensor is contiguous.
     ///
-    /// A tensor is contiguous if the elements are stored
+    /// A tensor is contiguous if the elements are stored in memory
     /// if the strides in strict decreasing order and the
     /// strides at position k is equal to the product of the shapes
     /// at all positions greater than k. However, all axes with a shape of 1 are ignored.
@@ -450,41 +451,14 @@ where
     }
 }
 
-pub(crate) fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
-    if shape.is_empty() {
-        return true;
-    }
-
-    let mut prev_stride = 1;
-    let mut current_num_elems_shape = 1;
-
-    for (i, (stride, shape)) in strides.iter().zip(shape).rev().enumerate() {
-        if *shape == 1 {
-            continue;
-        }
-
-        if i > 0 {
-            if current_num_elems_shape != *stride {
-                return false;
-            }
-
-            if prev_stride >= *stride {
-                return false;
-            }
-        } else if *stride != 1 {
-            return false;
-        }
-
-        current_num_elems_shape *= shape;
-        prev_stride = *stride;
-    }
-
-    true
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::tensor::base::is_contiguous;
+    use super::*;
+
+    #[test]
+    fn is_contiguous_degenerate() {
+        assert!(is_contiguous(&[3, 1], &[1, 1]));
+    }
 
     #[test]
     fn is_contiguous_basic() {

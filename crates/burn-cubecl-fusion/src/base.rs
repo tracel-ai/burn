@@ -137,33 +137,3 @@ impl<R: Runtime> CubeFusionHandle<R> {
         }
     }
 }
-
-pub(crate) fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
-    if shape.is_empty() {
-        return true;
-    }
-
-    if shape.len() == 1 {
-        return strides[0] == 1;
-    }
-
-    let mut prev_stride = 1;
-    let mut current_num_elems_shape = 1;
-
-    for (i, (stride, shape)) in strides.iter().zip(shape).rev().enumerate() {
-        if i > 0 {
-            if current_num_elems_shape != *stride {
-                return false;
-            }
-
-            if prev_stride >= *stride {
-                return false;
-            }
-        }
-
-        current_num_elems_shape *= shape;
-        prev_stride = *stride;
-    }
-
-    true
-}
