@@ -176,20 +176,13 @@ impl TensorData {
     /// The element type of the tensor inferred from the data.
     pub fn elem_type(&self) -> ElementType {
         match &self.data {
-            Data::Bool(_) => ElementType::Bool,
-            Data::Bools(_) => ElementType::Bool,
-            Data::Float16(_) => ElementType::Float16,
-            Data::Float16s(_) => ElementType::Float16,
-            Data::Float32(_) => ElementType::Float32,
-            Data::Float32s(_) => ElementType::Float32,
-            Data::Float64(_) => ElementType::Float64,
-            Data::Float64s(_) => ElementType::Float64,
-            Data::Int32(_) => ElementType::Int32,
-            Data::Int32s(_) => ElementType::Int32,
-            Data::Int64(_) => ElementType::Int64,
-            Data::Int64s(_) => ElementType::Int64,
-            Data::String(_) => ElementType::String,
-            Data::Strings(_) => ElementType::String,
+            Data::Bool(_) | Data::Bools(_) => ElementType::Bool,
+            Data::Float16(_) | Data::Float16s(_) => ElementType::Float16,
+            Data::Float32(_) | Data::Float32s(_) => ElementType::Float32,
+            Data::Float64(_) | Data::Float64s(_) => ElementType::Float64,
+            Data::Int32(_) | Data::Int32s(_) => ElementType::Int32,
+            Data::Int64(_) | Data::Int64s(_) => ElementType::Int64,
+            Data::String(_) | Data::Strings(_) => ElementType::String,
         }
     }
 }
