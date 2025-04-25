@@ -121,7 +121,7 @@ fn main() {
         .input("tests/tan/tan.onnx")
         .input("tests/tanh/tanh.onnx")
         .input("tests/tile/tile.onnx")
-        // .input("tests/top_k/top_k_opset_1.onnx") // Disabled for OpSet 16 below
+        .input("tests/topk/topk.onnx")
         .input("tests/trilu/trilu_upper.onnx")
         .input("tests/trilu/trilu_lower.onnx")
         .input("tests/transpose/transpose.onnx")

@@ -19,7 +19,7 @@ use super::rank_inference::rank_inference;
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 15] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 16] = [
     NodeType::BatchNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
@@ -27,14 +27,15 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 15] = [
     NodeType::Dropout,
     NodeType::Expand,
     NodeType::OneHot,
+    NodeType::ReduceSum,
     NodeType::Reshape,
     NodeType::Resize,
-    NodeType::Unsqueeze,
-    NodeType::ReduceSum,
     NodeType::Slice,
-    NodeType::Squeeze,
     NodeType::Split,
+    NodeType::Squeeze,
+    NodeType::TopK,
     NodeType::Trilu,
+    NodeType::Unsqueeze,
 ];
 
 /// Minimum required ONNX opset version
