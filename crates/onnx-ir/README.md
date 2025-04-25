@@ -6,6 +6,9 @@ features including ONNX model parsing, rank inference, and node remapping. The c
 converting ONNX models to Burn graphs and includes utilities for handling constants and graph
 transformations.
 
+For a full list of currently supported operators, please check
+[here](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/SUPPORTED-ONNX-OPS.md)
+
 ## ONNX Compatibility
 
 This library requires ONNX models to use **opset version 16 or higher**. If your model uses an older
