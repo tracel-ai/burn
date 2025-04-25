@@ -170,7 +170,7 @@ mod tests {
         let data = TensorData::from(as_type!(FloatType: [[0.0f32]]));
         output.into_data().assert_eq(&data, true);
 
-        let output = tensor.slice([0..-1, 0..-2]);
+        let output = tensor.slice(s![0..-1, 0..-2]);
         output.into_data().assert_eq(&data, true);
     }
 
@@ -185,7 +185,7 @@ mod tests {
 
         // Negative dimensions
         let data = TensorData::from(as_type!(FloatType: [[0.0f32]]));
-        let output = tensor.clone().slice([0..-1, 0..-2]);
+        let output = tensor.clone().slice(s![0..-1, 0..-2]);
         output.into_data().assert_eq(&data, true);
 
         // Missing dimensions
@@ -228,8 +228,7 @@ mod tests {
         let data = TensorData::from([0.0, 1.0, 2.0]);
         let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
 
-        #[allow(clippy::reversed_empty_ranges)]
-        let output = tensor.slice([2..1]);
+        let output = tensor.slice(s![2..1]);
 
         output.into_data().assert_eq(&data, false);
     }
