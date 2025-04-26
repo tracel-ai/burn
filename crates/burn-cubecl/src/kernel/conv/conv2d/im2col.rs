@@ -24,7 +24,7 @@ use crate::{
     ops::{
         max_line_size,
         numeric::{empty_device, empty_device_strided},
-        permute, permute_nchw_to_nhwc, permute_nhwc_to_nchw, reshape, swap_dims,
+        permute_nchw_to_nhwc, permute_nhwc_to_nchw, reshape, swap_dims,
     },
     tensor::CubeTensor,
 };
@@ -216,6 +216,10 @@ pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
+    if options.groups != 1 {
+        return Err(ConvLaunchError::Groups(options.groups));
+    }
+
     if let Ok(out) =
         conv2d_im2col_1x1::<R, E>(input.clone(), weight.clone(), bias.clone(), options.clone())
     {
@@ -224,8 +228,6 @@ pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
 
     let [batch_size, _, in_height, in_width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
-    let groups = options.groups;
-    let out_c_per_group = out_channels / groups;
 
     let out_h = calculate_conv_output_size(
         kernel_h,
@@ -247,40 +249,35 @@ pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
 
     let batches_per_run = batches_per_run(batch_size, out_h, out_w)?;
     let shape_m = batches_per_run * out_h * out_w;
-    let shape_n = out_c_per_group;
-    let matmul_shape = Shape::new([groups, shape_m, shape_n]);
+    let shape_n = out_channels;
+    let matmul_shape = Shape::new([shape_m, shape_n]);
 
     let mut out = if batches_per_run != batch_size {
         let runs = batch_size / batches_per_run;
-        let out_shape = Shape::new([runs, groups, batches_per_run, out_h, out_w, out_c_per_group]);
+        let out_shape = Shape::new([runs, batches_per_run, out_h, out_w, out_channels]);
         let out = empty_device::<R, E>(input.client.clone(), input.device.clone(), out_shape);
-        let input = split_dim(input, 0, runs, batches_per_run);
+        let input = split_dim(input, 0, [runs, batches_per_run]);
 
         for run in 0..runs {
             let input = index::<R, E>(input.clone(), run);
             let mut out_slice = index::<R, E>(out.clone(), run);
-            out_slice.shape.dims = vec![groups, shape_m, shape_n];
-            out_slice.strides = vec![
-                out_slice.strides[0],
-                out_slice.strides[3],
-                out_slice.strides[4],
-            ];
+            out_slice.shape.dims = vec![shape_m, shape_n];
+            out_slice.strides = vec![out_slice.strides[3], out_slice.strides[4]];
             execute::<R, E>(
                 input,
                 weight.clone(),
-                out_slice,
+                &mut out_slice,
                 options.clone(),
                 out_h,
                 out_w,
             )?;
         }
-        let out = permute(out, &[1, 2, 3, 4, 0, 5]);
-        reshape(out, Shape::new([batch_size, out_h, out_w, out_channels]))
+        merge_dims(out, 0, 1)
     } else {
-        let out = empty_device::<R, E>(input.client.clone(), input.device.clone(), matmul_shape);
-        execute::<R, E>(input, weight, out.clone(), options, out_h, out_w)?;
-        let out = permute(out, &[1, 0, 2]);
-        reshape(out, Shape::new([batch_size, out_h, out_w, out_channels]))
+        let mut out =
+            empty_device::<R, E>(input.client.clone(), input.device.clone(), matmul_shape);
+        execute::<R, E>(input, weight, &mut out, options, out_h, out_w)?;
+        split_dim(out, 0, [batch_size, out_h, out_w]) // [N, H, W, C]    
     };
 
     if let Some(bias) = bias {
@@ -297,13 +294,15 @@ pub fn conv2d_im2col_1x1<R: CubeRuntime, E: FloatElement>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
+    if options.groups != 1 {
+        return Err(ConvLaunchError::Groups(options.groups));
+    }
+
     let client = input.client.clone();
     let device = input.device.clone();
 
     let [batch_size, _, height, width] = input.shape.dims();
-    let [out_channels, in_c_per_grp, kernel_h, kernel_w] = weight.shape.dims();
-    let groups = options.groups;
-    let out_c_per_group = out_channels / groups;
+    let [out_channels, in_channels, kernel_h, kernel_w] = weight.shape.dims();
 
     let out_h = calculate_conv_output_size(
         kernel_h,
@@ -324,38 +323,31 @@ pub fn conv2d_im2col_1x1<R: CubeRuntime, E: FloatElement>(
         return Err(ConvLaunchError::Unknown);
     }
 
-    let input = reshape_input::<R, E>(input, groups); // [groups, N, H, W, C]
+    let input = reshape_input::<R, E>(input); // [(NHW), C] : [M, K]
 
     // Efficient permutation that takes the stride required for TMA into account
-    let mut weight = if weight.strides[1] != 1 {
+    let weight = if weight.strides[1] != 1 {
         // Remove kernel dims so padded dim is channels
-        weight.shape.dims = vec![out_channels, in_c_per_grp]; // [(groups, N), K]
+        weight.shape.dims = vec![out_channels, in_channels]; // [N, K]
         weight.strides = vec![weight.strides[0], weight.strides[1]];
         // Pitched contiguous to skip running another kernel for TMA
         let contiguous = into_contiguous_pitched::<R, E>(&input.client, &weight.as_handle_ref());
         from_handle(&client, &device, contiguous)
     } else {
         // Already compatible, skip initial reshape
+        weight.shape.dims = vec![out_channels, in_channels]; // [N, K]
+        weight.strides = vec![weight.strides[0], 1];
         weight
     };
-    weight.shape.dims = vec![groups, out_c_per_group, in_c_per_grp]; // [groups, N, K]
-    weight.strides = vec![weight.strides[0] * out_c_per_group, weight.strides[0], 1];
 
     // Permute to N-major, while keeping memory layout K-major. K-major for both sides is the most
     // efficient for matmul, and allows skipping a contiguous kernel
-    let weight = swap_dims(weight, 1, 2); // [groups, K, N]
+    let weight = swap_dims(weight, 0, 1); // [K, N]
 
-    let out = matmul::<R, E>(input, weight, None, MatmulStrategy::default())?;
-    let out = permute(out, &[1, 0, 2]);
+    let out = matmul::<R, E>(input, weight, None, MatmulStrategy::default())?; // [M, N]
 
-    let mut out = if groups > 1 {
-        reshape(out, Shape::new([batch_size, height, width, out_channels]))
-    } else {
-        // Skip reshape to avoid potential `into_contiguous`. We're only splitting dims so it's safe.
-        let m_n = merge_dims(out, 1, 2);
-        let m_x_n = split_dim(m_n, 0, batch_size * height, width);
-        split_dim(m_x_n, 0, batch_size, height)
-    };
+    // Skip reshape to avoid potential `into_contiguous`. We're only splitting dims so it's safe.
+    let mut out = split_dim(out, 0, [batch_size, height, width]); // [N, H, W, C]
 
     if let Some(bias) = bias {
         let bias = reshape(bias, Shape::new([1, 1, 1, out_channels]));
@@ -366,28 +358,16 @@ pub fn conv2d_im2col_1x1<R: CubeRuntime, E: FloatElement>(
 }
 
 /// Reshapes NCHW input to [groups, N, H, W, C]
-fn reshape_input<R: CubeRuntime, E: CubeElement>(
-    mut input: CubeTensor<R>,
-    groups: usize,
-) -> CubeTensor<R> {
+fn reshape_input<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> CubeTensor<R> {
     let [batch_size, in_c, height, width] = input.shape.dims();
-    let in_c_per_grp = in_c / groups;
 
-    input.shape.dims = vec![batch_size, groups, in_c_per_grp, height, width];
-    input.strides = vec![
-        input.strides[0],
-        input.strides[1] * in_c_per_grp,
-        input.strides[1],
-        input.strides[2],
-        input.strides[3],
-    ];
-    let mut input = permute(input, &[1, 0, 3, 4, 2]); // [groups, NHWC]
+    let mut input = permute_nchw_to_nhwc(input); // NHWC
     if !is_spatial_contiguous(&input.shape.dims, &input.strides) {
         let contiguous = into_contiguous_pitched::<R, E>(&input.client, &input.as_handle_ref());
         input = from_handle(&input.client, &input.device, contiguous);
     }
-    input.shape.dims = vec![groups, batch_size * height * width, in_c_per_grp]; // [groups, M, K]
-    input.strides = vec![input.strides[0], input.strides[3], input.strides[4]];
+    input.shape.dims = vec![batch_size * height * width, in_c]; // [M, K]
+    input.strides = vec![input.strides[2], input.strides[3]];
     input
 }
 
@@ -426,36 +406,22 @@ fn from_handle<R: CubeRuntime, E: CubeElement>(
 fn execute<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
-    out: CubeTensor<R>,
+    out: &mut CubeTensor<R>,
     options: ConvOptions<2>,
     out_h: usize,
     out_w: usize,
 ) -> Result<(), ConvLaunchError> {
-    let [out_channels, kernel_h, kernel_w, in_c_per_group] = weight.shape.dims();
-    let groups = options.groups;
+    let [out_channels, kernel_h, kernel_w] = weight.shape.dims();
 
-    let mut columns = im2col::<R, E>(input, options.clone(), kernel_h, kernel_w, out_h, out_w);
+    let columns = im2col::<R, E>(input, options.clone(), kernel_h, kernel_w, out_h, out_w);
 
-    let [shape_m, shape_k] = columns.shape.dims();
-    let shape_k = shape_k / groups;
-    let shape_n = out_channels / groups;
+    let [_, shape_k] = columns.shape.dims();
+    let shape_n = out_channels;
 
-    let columns = if groups > 1 {
-        let reshaped = reshape(
-            columns,
-            Shape::new([shape_m, kernel_h, kernel_w, groups, in_c_per_group]),
-        );
-        let permuted = permute(reshaped, &[3, 0, 1, 2, 4]);
-        reshape(permuted, Shape::new([groups, shape_m, shape_k]))
-    } else {
-        columns.shape.dims.insert(0, 1);
-        columns.strides.insert(0, columns.strides[0]);
-        columns
-    };
-    let weight = reshape(weight, Shape::new([groups, shape_n, shape_k]));
-    let weight = swap_dims(weight, 1, 2); // Col-major [K, N]
+    let weight = reshape(weight, Shape::new([shape_n, shape_k]));
+    let weight = swap_dims(weight, 0, 1); // Col-major [K, N]
 
-    matmul::<R, E>(columns, weight, Some(out), Default::default())?;
+    matmul::<R, E>(columns, weight, Some(out.clone()), Default::default())?;
 
     Ok(())
 }
