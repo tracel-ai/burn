@@ -45,7 +45,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
     let tunables = TunableSet::new(create_key::<R, E>, matmul_input_gen::<R, E>)
         .with_tunable(matmul_tiling2d::<R, E>)
         .with_tunable(matmul_simple::<R, E>)
-        .with_tunable(matmul_double_buffering::<R, E>)
+        //.with_tunable(matmul_double_buffering::<R, E>)
         .with_tunable(matmul_naive::<R, E>);
 
     TUNER.execute(

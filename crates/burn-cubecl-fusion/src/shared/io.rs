@@ -1,9 +1,5 @@
 use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
-use cubecl::{
-    ir::{ExpandElement, Variable},
-    prelude::*,
-    unexpanded,
-};
+use cubecl::{intrinsic, prelude::*, unexpanded};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -552,10 +548,10 @@ fn reshaped_index(
 
     #[unroll]
     for r in 0..rank {
-        let i = comptime![reverse_index(rank, r)];
-        let arg = comptime![shape.index(i.clone())];
+        let i = reverse_index(rank, r);
+        let arg = comptime![shape.index(i)];
         let shape_i = read_scalar_shape(inputs, comptime![arg.clone()]);
-        let ogwl = index / locals.ref_strides[comptime![i.clone()]];
+        let ogwl = index / locals.ref_strides[i];
 
         offset += ogwl % shape_i * stride_curr;
 
@@ -565,6 +561,7 @@ fn reshaped_index(
     offset
 }
 
+#[allow(unreachable_code)]
 #[cube]
 fn reshaped_index_to_original_index<C: CubePrimitive>(
     original: &Tensor<Line<C>>,
@@ -576,8 +573,8 @@ fn reshaped_index_to_original_index<C: CubePrimitive>(
 
     #[unroll]
     for r in 0..rank {
-        let i = comptime![reverse_index(rank, r)];
-        let shape = original.shape(comptime![i.clone()]);
+        let i = reverse_index(rank, r);
+        let shape = original.shape(i);
         let stride = original.stride(i);
 
         let coordinate = remaining % shape;
@@ -589,17 +586,13 @@ fn reshaped_index_to_original_index<C: CubePrimitive>(
     offset / original.line_size()
 }
 
-pub(crate) fn reverse_index<Elem: Into<ExpandElementTyped<u32>>>(
-    rank: u32,
-    iter: Elem,
-) -> ExpandElementTyped<u32> {
-    let elem = iter.into();
-    let elem = elem.constant().map(|cons| cons.as_u32()).unwrap();
-    let result = rank - elem - 1;
-    let scalar: Variable = result.into();
-    let expand: ExpandElement = ExpandElement::Plain(scalar);
-
-    expand.into()
+#[cube]
+#[allow(unused_variables)]
+pub(crate) fn reverse_index(#[comptime] rank: u32, iter: u32) -> comptime_type!(u32) {
+    intrinsic!(|_| {
+        let elem = iter.constant().map(|cons| cons.as_u32()).unwrap();
+        rank - elem - 1
+    })
 }
 
 /// Generic way to construct any [`CubePrimitive`] from an int. Used for fusion.
