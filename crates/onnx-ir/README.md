@@ -20,16 +20,19 @@ You can upgrade your ONNX models using the following Python script:
 
 ```python
 import onnx
-from onnx import version_converter
+from onnx import version_converter, shape_inference
 
 # Load your ONNX model
 model = onnx.load('path/to/your/model.onnx')
 
 # Convert the model to opset version 16
-converted_model = version_converter.convert_version(model, 16)
+upgraded_model = version_converter.convert_version(model, 16)
+
+# Apply shape inference to the upgraded model
+inferred_model = shape_inference.infer_shapes(upgraded_model)
 
 # Save the converted model
-onnx.save(converted_model, 'upgraded_model.onnx')
+onnx.save(inferred_model, 'upgraded_model.onnx')
 ```
 
 For a full list of currently supported operators, please check

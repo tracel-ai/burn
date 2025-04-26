@@ -66,16 +66,19 @@ Option 2: Use a custom Python script:
 
 ```python
 import onnx
-from onnx import version_converter
+from onnx import version_converter, shape_inference
 
-# Load the ONNX model
+# Load your ONNX model
 model = onnx.load('path/to/your/model.onnx')
 
-# Upgrade to opset version 16
-converted_model = version_converter.convert_version(model, 16)
+# Convert the model to opset version 16
+upgraded_model = version_converter.convert_version(model, 16)
 
-# Save the upgraded model
-onnx.save(converted_model, 'upgraded_model.onnx')
+# Apply shape inference to the upgraded model
+inferred_model = shape_inference.infer_shapes(upgraded_model)
+
+# Save the converted model
+onnx.save(inferred_model, 'upgraded_model.onnx')
 ```
 
 ## Step-by-Step Guide
