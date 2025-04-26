@@ -92,7 +92,7 @@ where
 mod tests {
 
     use super::*;
-    use crate::{test_data, SqliteDataset};
+    use crate::{SqliteDataset, test_data};
 
     use rstest::{fixture, rstest};
     use serde::{Deserialize, Serialize};

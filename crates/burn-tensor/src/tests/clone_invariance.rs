@@ -11,6 +11,8 @@ mod tests {
         gelu, log_sigmoid, log_softmax, mish, relu, sigmoid, silu, softmax, softplus, tanh,
     };
     use burn_tensor::{Distribution, Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     pub trait CloneInvarianceTest<const D: usize> {
         type Args;
@@ -24,7 +26,7 @@ mod tests {
             let out = self.run(&args, false);
             let out_inplace = self.run(&args, true);
 
-            out.assert_approx_eq(&out_inplace, 4);
+            out.assert_approx_eq::<FT>(&out_inplace, Tolerance::default());
         }
     }
 
@@ -55,7 +57,8 @@ mod tests {
                             $ops(lhs).into_data().convert::<f32>()
                         } else {
                             let out = $ops(lhs.clone()).into_data().convert::<f32>();
-                            lhs.into_data().assert_approx_eq(args, 3);
+                            lhs.into_data()
+                                .assert_approx_eq::<FT>(args, Tolerance::default());
                             out
                         }
                     }
@@ -97,8 +100,10 @@ mod tests {
                         } else {
                             let out = $ops(lhs.clone(), rhs.clone()).into_data().convert::<f32>();
 
-                            lhs.into_data().assert_approx_eq(lhs_arg, 3);
-                            rhs.into_data().assert_approx_eq(rhs_arg, 3);
+                            lhs.into_data()
+                                .assert_approx_eq::<FT>(lhs_arg, Tolerance::default());
+                            rhs.into_data()
+                                .assert_approx_eq::<FT>(rhs_arg, Tolerance::default());
 
                             out
                         }
@@ -135,7 +140,9 @@ mod tests {
                             $ops(lhs).into_data().convert::<f32>()
                         } else {
                             let out = $ops(lhs.clone()).into_data().convert::<f32>();
-                            lhs.into_data().convert::<i32>().assert_approx_eq(args, 4);
+                            lhs.into_data()
+                                .convert::<i32>()
+                                .assert_approx_eq::<FT>(args, Tolerance::default());
                             out
                         }
                     }
@@ -187,10 +194,10 @@ mod tests {
 
                             lhs.into_data()
                                 .convert::<i32>()
-                                .assert_approx_eq(lhs_arg, 4);
+                                .assert_approx_eq::<FT>(lhs_arg, Tolerance::default());
                             rhs.into_data()
                                 .convert::<i32>()
-                                .assert_approx_eq(rhs_arg, 4);
+                                .assert_approx_eq::<FT>(rhs_arg, Tolerance::default());
 
                             out
                         }
@@ -277,6 +284,10 @@ mod tests {
         clone_invariance_test!(
             unary: Sin,
             ops_float: |tensor: TestTensor<2>| tensor.sin()
+        );
+        clone_invariance_test!(
+            unary: Tan,
+            ops_float: |tensor: TestTensor<2>| tensor.tan()
         );
         clone_invariance_test!(
             unary: Log,

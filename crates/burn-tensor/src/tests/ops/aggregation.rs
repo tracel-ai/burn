@@ -1,7 +1,10 @@
 #[burn_tensor_testgen::testgen(aggregation)]
 mod tests {
     use super::*;
+    use burn_tensor::backend::Backend;
     use burn_tensor::{Shape, Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_should_mean() {
@@ -10,7 +13,9 @@ mod tests {
         let output = tensor.mean();
         let expected = TensorData::from([15.0 / 6.0]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -32,6 +37,20 @@ mod tests {
             .into_data()
             .assert_eq(&TensorData::from([15.0]), false);
     }
+    #[test]
+    fn test_should_sum_dim_maybe_fused() {
+        let tensor = TestTensor::<2>::from([[5.0], [-12.0]]);
+        let tensor1 = TestTensor::<2>::from([[2.0, 3.0], [-1.0, -5.0]]);
+        let ones = TestTensor::<2>::ones([2, 2], &Default::default());
+        let x = ones.clone() * tensor;
+        let y = ones * tensor1;
+
+        let output = y.sum_dim(1);
+
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[5.0], [-6.0]]), false);
+    }
 
     #[test]
     fn test_should_sum_int() {
@@ -49,7 +68,9 @@ mod tests {
         let output = tensor.mean_dim(1);
         let expected = TensorData::from([[3.0 / 3.0], [12.0 / 3.0]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -145,7 +166,9 @@ mod tests {
 
         // 2 * 1 * 2 * 3 * 4 * 5 = 240 but we need to check the precision because of the float
         let expected = TensorData::from([240.0]);
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let tensor_with_zero = TestTensor::<2>::from([[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]);
         let output = tensor_with_zero.prod();
@@ -177,13 +200,17 @@ mod tests {
         let output = tensor.prod_dim(1);
         let expected = TensorData::from([[4.0], [60.0]]);
 
-        output.into_data().assert_approx_eq(&expected, 4);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let tensor_with_zero = TestTensor::<2>::from([[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]);
         let output = tensor_with_zero.prod_dim(1);
         let expected = TensorData::from([[0.0], [60.0]]);
 
-        output.into_data().assert_approx_eq(&expected, 4);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -202,5 +229,93 @@ mod tests {
         output
             .into_data()
             .assert_eq(&TensorData::from([[0], [60]]), false);
+    }
+
+    #[test]
+    fn test_sum_dim_2d() {
+        let tensor =
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+
+        let output = tensor.clone().sum_dim(1);
+        let expected = TensorData::from([[3.], [12.]]);
+
+        output.into_data().assert_eq(&expected, false);
+
+        let output = tensor.sum_dim(0);
+        let expected = TensorData::from([[3., 5., 7.]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_sum_dim_1_reshape_maybe_fused() {
+        let tensor = TestTensorInt::arange(0..9, &Default::default()).float();
+        TestBackend::sync(&tensor.device());
+
+        let output = (tensor.reshape([3, 3]) + 2);
+        let output = output.sum_dim(1);
+        let expected = TensorData::from([[9.0], [18.0], [27.0]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_sum_dim_1_swap_dims_maybe_fused() {
+        let tensor = TestTensorInt::arange(0..9, &Default::default()).float();
+        let tensor = tensor.reshape([3, 3]);
+        TestBackend::sync(&tensor.device());
+
+        let output = (tensor.swap_dims(0, 1) + 2);
+        let output = output.sum_dim(1);
+        let expected = TensorData::from([[15.0], [18.0], [21.0]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_sum_dim_2_reshape_maybe_fused_broadcast() {
+        let tensor = TestTensorInt::arange(0..9, &Default::default()).float();
+        TestBackend::sync(&tensor.device());
+
+        let output = (tensor.reshape([1, 3, 3]) + 2);
+        let output = output.sum_dim(2);
+        let expected = TensorData::from([[[9.0], [18.0], [27.0]]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_sum_dim_2_maybe_fused_on_write() {
+        let tensor_1 = TestTensorInt::arange(0..8, &Default::default()).float();
+        let tensor_2 = TestTensorInt::arange(10..12, &Default::default()).float();
+        let tensor_1 = tensor_1.reshape([1, 2, 4]);
+        let tensor_2 = tensor_2.reshape([1, 2, 1]);
+        TestBackend::sync(&tensor_1.device());
+
+        let output = (tensor_1 + tensor_2.clone()).sum_dim(2) + tensor_2;
+        TestBackend::sync(&output.device());
+        let expected = TensorData::from([[[56.0], [77.0]]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_mean_dim_2d() {
+        let tensor =
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+
+        let output = tensor.clone().mean_dim(1);
+        let expected = TensorData::from([[1.], [4.]]);
+
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+
+        let output = tensor.mean_dim(0);
+        let expected = TensorData::from([[1.5, 2.5, 3.5]]);
+
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

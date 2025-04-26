@@ -1,9 +1,10 @@
-use crate::{checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor, Autodiff};
+use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor};
+use alloc::vec::Vec;
 
 use burn_tensor::{
+    Device, Distribution, Shape, TensorData,
     backend::Backend,
     ops::{BoolTensor, IntTensor, IntTensorOps},
-    Device, Distribution, Shape, TensorData,
 };
 
 impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
@@ -27,7 +28,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_reshape(tensor, shape)
     }
 
-    fn int_slice(tensor: IntTensor<B>, ranges: &[std::ops::Range<usize>]) -> IntTensor<B> {
+    fn int_slice(tensor: IntTensor<B>, ranges: &[core::ops::Range<usize>]) -> IntTensor<B> {
         B::int_slice(tensor, ranges)
     }
 
@@ -37,7 +38,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
 
     fn int_slice_assign(
         tensor: IntTensor<B>,
-        ranges: &[std::ops::Range<usize>],
+        ranges: &[core::ops::Range<usize>],
         value: IntTensor<B>,
     ) -> IntTensor<B> {
         B::int_slice_assign(tensor, ranges, value)
@@ -305,7 +306,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_random(shape, distribution, device)
     }
 
-    fn int_arange(range: std::ops::Range<i64>, device: &Device<Self>) -> IntTensor<Self> {
+    fn int_arange(range: core::ops::Range<i64>, device: &Device<Self>) -> IntTensor<Self> {
         B::int_arange(range, device)
     }
 
@@ -347,5 +348,49 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
 
     fn int_argsort(tensor: IntTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
         B::int_argsort(tensor, dim, descending)
+    }
+
+    fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        B::bitwise_and(lhs, rhs)
+    }
+
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: B::IntElem) -> IntTensor<Self> {
+        B::bitwise_and_scalar(lhs, rhs)
+    }
+
+    fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        B::bitwise_or(lhs, rhs)
+    }
+
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: B::IntElem) -> IntTensor<Self> {
+        B::bitwise_or_scalar(lhs, rhs)
+    }
+
+    fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        B::bitwise_xor(lhs, rhs)
+    }
+
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: B::IntElem) -> IntTensor<Self> {
+        B::bitwise_xor_scalar(lhs, rhs)
+    }
+
+    fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        B::bitwise_not(tensor)
+    }
+
+    fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        B::bitwise_left_shift(lhs, rhs)
+    }
+
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: B::IntElem) -> IntTensor<Self> {
+        B::bitwise_left_shift_scalar(lhs, rhs)
+    }
+
+    fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        B::bitwise_right_shift(lhs, rhs)
+    }
+
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: B::IntElem) -> IntTensor<Self> {
+        B::bitwise_right_shift_scalar(lhs, rhs)
     }
 }

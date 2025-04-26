@@ -1,17 +1,18 @@
 use burn::nn::{
+    BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
+    PaddingConfig2d, PaddingConfig3d,
     conv::{
         Conv1dConfig, Conv2dConfig, Conv3dConfig, ConvTranspose1dConfig, ConvTranspose2dConfig,
         ConvTranspose3dConfig,
     },
     pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
-    BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
-    PaddingConfig2d, PaddingConfig3d,
 };
 
 use crate::burn::node::{
-    expand::ExpandShape, pad::PadConfig, tile::TileConfig, trilu::TriluConfig,
+    expand::ExpandShape, pad::PadConfig, split::SplitConfig, tile::TileConfig, top_k::TopKConfig,
+    trilu::TriluConfig, unsqueeze::UnsqueezeAxes,
 };
-use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node};
+use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node, TensorData};
 
 /// Create a Conv1dConfig from the attributes of the node
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
@@ -21,12 +22,12 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
     let mut dilations = vec![1];
     let mut group: usize = 1;
 
-    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
-        weight
-    } else {
-        panic!("Conv1d: weight tensor must be present");
-    };
+    let weight_shape = curr.inputs[1]
+        .value
+        .as_ref()
+        .expect("Conv1d: weight tensor must be present")
+        .shape
+        .clone();
 
     // check if the bias is present
     let bias = curr.inputs.len() == 3;
@@ -42,14 +43,9 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
         }
     }
 
-    if kernel_shape.is_empty() {
-        kernel_shape = onnx_ir::util::infer_conv_kernel_shape(&curr.inputs[1].ty);
-    }
-
     // the channels are inverted in the weight tensor
-    let shape = weight.shape.clone().unwrap();
-    let channels_in = shape[1] * group;
-    let channels_out = shape[0];
+    let channels_in = weight_shape[1] * group;
+    let channels_out = weight_shape[0];
 
     let padding = padding_config_1d(&pads);
 
@@ -69,12 +65,13 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
     let mut dilations = vec![1, 1];
     let mut group: usize = 1;
 
-    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
-        weight
-    } else {
-        panic!("Conv2d: weight tensor must be present");
-    };
+    let weight_shape = curr.inputs[1]
+        .value
+        .as_ref()
+        .expect("Conv2d: weight tensor must be present")
+        .shape
+        .clone();
+
     // check if the bias is present
     let bias = curr.inputs.len() == 3;
 
@@ -89,18 +86,14 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
         }
     }
 
-    if kernel_shape.is_empty() {
-        kernel_shape = onnx_ir::util::infer_conv_kernel_shape(&curr.inputs[1].ty);
-    }
-
     // the channels are inverted in the weight tensor
-    let shape = weight.shape.clone().unwrap();
-    let channels: [usize; 2] = [shape[1] * group, shape[0]];
+    let channels_in = weight_shape[1] * group;
+    let channels_out = weight_shape[0];
 
     let padding = padding_config_2d(&pads);
 
     Conv2dConfig::new(
-        channels,
+        [channels_in, channels_out],
         [kernel_shape[0] as usize, kernel_shape[1] as usize],
     )
     .with_stride([strides[0] as usize, strides[1] as usize])
@@ -118,12 +111,13 @@ pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
     let mut dilations = vec![1, 1, 1];
     let mut group: usize = 1;
 
-    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
-        weight
-    } else {
-        panic!("Conv3d: weight tensor must be present");
-    };
+    let weight_shape = curr.inputs[1]
+        .value
+        .as_ref()
+        .expect("Conv3d: weight tensor must be present")
+        .shape
+        .clone();
+
     // check if the bias is present
     let bias = curr.inputs.len() == 3;
 
@@ -138,18 +132,14 @@ pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
         }
     }
 
-    if kernel_shape.is_empty() {
-        kernel_shape = onnx_ir::util::infer_conv_kernel_shape(&curr.inputs[1].ty);
-    }
-
     // the channels are inverted in the weight tensor
-    let shape = weight.shape.clone().unwrap();
-    let channels: [usize; 2] = [shape[1] * group, shape[0]];
+    let channels_in = weight_shape[1] * group;
+    let channels_out = weight_shape[0];
 
     let padding = padding_config_3d(&pads);
 
     Conv3dConfig::new(
-        channels,
+        [channels_in, channels_out],
         [
             kernel_shape[0] as usize,
             kernel_shape[1] as usize,
@@ -273,19 +263,19 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
             pads
         );
     }
-    // Extract weight tensor, verify it's present
-    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
-        weight
-    } else {
-        panic!("ConvTranspose1d: weight tensor must be present");
-    };
+
+    let weight_shape = curr.inputs[1]
+        .value
+        .as_ref()
+        .expect("ConvTranspose1d: weight tensor must be present")
+        .shape
+        .clone();
 
     // Check if bias is present (third input)
     let bias = curr.inputs.len() == 3;
 
     // Extract channels from the weight tensor shape [out_channels, in_channels]
-    let shape = weight.shape.clone().unwrap();
-    let channels: [usize; 2] = [shape[1] * group, shape[0]];
+    let channels: [usize; 2] = [weight_shape[1] * group, weight_shape[0]];
 
     // Create the ConvTranspose1d configuration
     ConvTranspose1dConfig::new(channels, kernel_shape[0] as usize)
@@ -335,19 +325,19 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     } else if (left != right) || (top != bottom) {
         panic!("Asymmetric padding is not supported");
     }
-    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
-        weight
-    } else {
-        panic!("ConvTranspose2d: weight tensor must be present");
-    };
+
+    let weight_shape = curr.inputs[1]
+        .value
+        .as_ref()
+        .expect("ConvTranspose2d: weight tensor must be present")
+        .shape
+        .clone();
 
     // check if the bias is present
     let bias = curr.inputs.len() == 3;
 
     // the channels are inverted in the weight tensor
-    let shape = weight.shape.clone().unwrap();
-    let channels: [usize; 2] = [shape[1] * group, shape[0]];
+    let channels: [usize; 2] = [weight_shape[1] * group, weight_shape[0]];
 
     ConvTranspose2dConfig::new(
         channels,
@@ -401,19 +391,19 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
     } else if (left != right) || (top != bottom) || (front != back) {
         panic!("Asymmetric padding is not supported");
     }
-    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
-        weight
-    } else {
-        panic!("ConvTranspose3d: weight tensor must be present");
-    };
+
+    let weight_shape = curr.inputs[1]
+        .value
+        .as_ref()
+        .expect("ConvTranspose3d: weight tensor must be present")
+        .shape
+        .clone();
 
     // check if the bias is present
     let bias = curr.inputs.len() == 3;
 
     // the channels are inverted in the weight tensor
-    let shape = weight.shape.clone().unwrap();
-    let channels: [usize; 2] = [shape[1] * group, shape[0]];
+    let channels: [usize; 2] = [weight_shape[1] * group, weight_shape[0]];
 
     ConvTranspose3dConfig::new(
         channels,
@@ -502,14 +492,9 @@ pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
 }
 
 pub fn expand_config(node: &Node) -> ExpandShape {
-    let input_value = &node.inputs[1].value;
     match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.dim, 1, "Expand: shape tensor must be 1D");
-            assert!(
-                tensor.shape.is_some(),
-                "Expand: shape tensor shape must be known!"
-            );
+            assert_eq!(tensor.rank, 1, "Expand: shape tensor must be 1D");
             assert!(
                 matches!(tensor.elem_type, ElementType::Int64),
                 "Expand: shape tensor must have element type int64"
@@ -521,20 +506,26 @@ pub fn expand_config(node: &Node) -> ExpandShape {
         _ => panic!("Only tensor input is valid for shape"),
     }
 
-    match input_value.as_ref() {
-        Some(Data::Int64s(shape)) => ExpandShape::Static(shape.clone()),
+    match &node.inputs[1].value {
+        Some(TensorData {
+            data: Data::Int64s(shape),
+            ..
+        }) => ExpandShape::Static(shape.clone()),
         None => {
             // we were unable to statically determine the input value, so we'll need to fetch it at runtime
             ExpandShape::Runtime(crate::burn::Type::from(&node.inputs[1]))
         }
-        _ => panic!("Shape data type must be int64, is {:?}", input_value),
+        _ => panic!(
+            "Shape data type must be int64, is {:?}",
+            &node.inputs[1].value
+        ),
     }
 }
 
 /// Create a FlattenConfig from the attributes of the node
-pub fn flatten_config(curr: &Node) -> (usize, usize) {
+pub fn flatten_config(curr: &Node) -> usize {
     // the begin dimension is the first dimension (Default: 1 per ONNX spec)
-    let mut start_dim: i64 = 1;
+    let mut axis: i64 = 1;
 
     // check if the node has only one input
     if curr.inputs.len() != 1 {
@@ -551,30 +542,27 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
     };
 
     // check if the input tensor has at least 2 dimensions
-    if tensor.dim < 2 {
+    if tensor.rank < 2 {
         panic!(
             "Flatten: input tensor must have at least 2 dimensions (got {:?})",
-            tensor.dim
+            tensor.rank
         );
     }
-
-    // the end dimension is the last dimension
-    let end_dim = tensor.dim - 1;
 
     // extract the attributes
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
-            "axis" => start_dim = value.clone().into_i64(),
+            "axis" => axis = value.clone().into_i64(),
             _ => {}
         }
     }
 
     // if beg_dim is negative, it is counted from the end
-    if start_dim < 0 {
-        start_dim += tensor.dim as i64;
+    if axis < 0 {
+        axis += tensor.rank as i64;
     }
 
-    (start_dim as usize, end_dim)
+    axis as usize
 }
 
 /// Create a GatherConfig from the attributes of the node
@@ -589,7 +577,7 @@ pub fn gather_config(curr: &Node) -> usize {
 
     // extract the shape of the input tensor
     let input_dim = match curr.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor.dim as i64,
+        ArgType::Tensor(tensor) => tensor.rank as i64,
         ArgType::Shape(_shape) => 1, //Shape is always 1-D
         other => panic!("Only tensor or shape input is valid, got {:?}", other),
     };
@@ -616,23 +604,22 @@ pub fn linear_config(node: &Node) -> LinearConfig {
         panic!("Linear: missing weight tensor");
     }
 
-    // extract the shape of the weight tensor
-    let weight = if let ArgType::Tensor(ref weight) = node.inputs[1].ty {
-        weight
-    } else {
-        panic!("Linear: weight tensor must be present");
-    };
+    let weight_shape = node.inputs[1]
+        .value
+        .as_ref()
+        .expect("Linear: weight tensor must be present")
+        .shape
+        .clone();
 
     // check if the weight tensor has at least 2 dimensions
-    if weight.dim < 2 {
+    if weight_shape.len() < 2 {
         panic!(
             "Linear: weight tensor must have at least 2 dimensions (got {:?})",
-            weight.dim
+            weight_shape.len()
         );
     }
 
-    let shape = weight.shape.clone().unwrap();
-    let (in_size, out_size) = (shape[0], shape[1]);
+    let (in_size, out_size) = (weight_shape[0], weight_shape[1]);
 
     // check if the bias is present
     let bias = node.inputs.len() == 3 && node.inputs[2].value.is_some();
@@ -656,6 +643,7 @@ pub fn dropout_config(node: &Node) -> DropoutConfig {
         .value
         .clone()
         .expect("Dropout ratio must be passed in the second input")
+        .data
         .into_scalar();
 
     let prob = match ratio {
@@ -697,7 +685,7 @@ pub fn log_softmax_config(node: &Node) -> usize {
 
     // if axis is negative, it is counted from the end
     if axis < 0 {
-        axis += tensor.dim as i64;
+        axis += tensor.rank as i64;
     }
 
     axis as usize
@@ -732,7 +720,7 @@ pub fn softmax_config(node: &Node) -> usize {
 
     // if axis is negative, it is counted from the end
     if axis < 0 {
-        axis += tensor.dim as i64;
+        axis += tensor.rank as i64;
     }
 
     axis as usize
@@ -784,7 +772,7 @@ pub fn argmax_config(node: &Node) -> usize {
 
     // if axis is negative, it is counted from the end
     if axis < 0 {
-        axis += tensor.dim as i64;
+        axis += tensor.rank as i64;
     }
 
     axis as usize
@@ -811,7 +799,7 @@ pub fn concat_config(node: &Node) -> usize {
 
     // if axis is negative, it is counted from the end
     if axis < 0 {
-        axis += tensor.dim as i64;
+        axis += tensor.rank as i64;
     }
 
     axis as usize
@@ -819,14 +807,14 @@ pub fn concat_config(node: &Node) -> usize {
 
 /// Create a BatchNormConfig from the attributes of the node
 pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
-    // extract the shape of the weight tensor
-    let tensor_type = if let ArgType::Tensor(ref tensor_type) = node.inputs[1].ty {
-        tensor_type
-    } else {
-        panic!("BatchNorm: weight tensor must be present");
-    };
+    let weight_shape = node.inputs[1]
+        .value
+        .as_ref()
+        .expect("BatchNorm: weight tensor must be present")
+        .shape
+        .clone();
 
-    let num_features: usize = tensor_type.shape.clone().unwrap()[0];
+    let num_features = weight_shape[0];
 
     let mut epsilon = 0f32;
     let mut momentum = 0f32;
@@ -846,14 +834,14 @@ pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
 
 /// Create a LayerNormConfig from the attributes of the node
 pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
-    // Extract the shape of the weight tensor
-    let tensor_type = if let ArgType::Tensor(ref tensor_type) = node.inputs[1].ty {
-        tensor_type
-    } else {
-        panic!("LayerNorm: weight tensor must be present");
-    };
+    let weight_shape = node.inputs[1]
+        .value
+        .as_ref()
+        .expect("LayerNorm: weight tensor must be present")
+        .shape
+        .clone();
 
-    let num_features: usize = tensor_type.shape.clone().unwrap()[0];
+    let num_features = weight_shape[0];
 
     // When `stash_type` is `1` (default), perform operations in 32-bit float and
     // cast the results back to original dtype
@@ -870,7 +858,7 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
         }
     }
 
-    if axis != -1 && axis != tensor_type.dim as i64 - 1 {
+    if axis != -1 && axis != weight_shape.len() as i64 - 1 {
         panic!("LayerNorm: normalization is only supported on the last axis right now")
     }
 
@@ -886,7 +874,7 @@ pub fn tile_config(node: &Node) -> TileConfig {
         .inputs
         .get(1)
         .map(|input| {
-            if let Some(data) = &input.value {
+            if let Some(TensorData { data, .. }) = &input.value {
                 data.clone()
                     .into_i64s()
                     .iter()
@@ -898,6 +886,54 @@ pub fn tile_config(node: &Node) -> TileConfig {
         })
         .unwrap_or_default();
     TileConfig::new(repeat)
+}
+
+/// Create a TopKConfig from the attributes of the node.
+pub fn top_k_config(node: &Node) -> TopKConfig {
+    // extract the shape of the input data tensor
+    let data_tensor = match node.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    let k = match node.inputs.get(1) {
+        Some(k_tensor) => k_tensor
+            .clone()
+            .value
+            .expect("TopK: only constant 'k' tensor is currently supported")
+            .data
+            .into_i64s()[0],
+        _ => node
+            .attrs
+            .get("k")
+            .expect("TopK: number of top elements 'k' is missing")
+            .clone()
+            .into_i64(),
+    };
+
+    let mut axis = match node.attrs.get("axis") {
+        Some(axis) => axis.clone().into_i64(),
+        None => -1,
+    };
+
+    // if axis is negative, it is counted from the end
+    if axis < 0 {
+        axis += data_tensor.rank as i64;
+    }
+
+    if let Some(largest) = node.attrs.get("largest") {
+        if largest.clone().into_i64() != 1 {
+            unimplemented!("TopK: only largest elements is supported")
+        }
+    };
+
+    if let Some(sorted) = node.attrs.get("sorted") {
+        if sorted.clone().into_i64() != 1 {
+            unimplemented!("TopK: only sorted elements is supported")
+        }
+    };
+
+    TopKConfig::new(axis as usize, k as usize)
 }
 
 /// Create a TriluConfig from the attributes of the node
@@ -912,7 +948,11 @@ pub fn trilu_config(node: &Node) -> TriluConfig {
     }
     // The second input of the Trilu node is the diagonal value, coming from a constant node
     if let Some(diagonal_arg) = node.inputs.get(1) {
-        if let Some(Data::Int64(diagonal_val)) = &diagonal_arg.value {
+        if let Some(TensorData {
+            data: Data::Int64(diagonal_val),
+            ..
+        }) = &diagonal_arg.value
+        {
             diagonal = *diagonal_val;
         }
     }
@@ -922,14 +962,9 @@ pub fn trilu_config(node: &Node) -> TriluConfig {
 /// Create a PadConfig from the attributes of the node
 pub fn pad_config(node: &Node) -> PadConfig {
     fn get_pads_input(node: &Node) -> Vec<i64> {
-        // If the input is not provided, return an empty vector
-        if node.inputs.get(1).is_none() {
-            return Vec::new();
-        }
-
         match &node.inputs[1].value {
-            Some(Data::Int64s(shape)) => shape.clone(),
-            _ => panic!("Tensor data type must be int64"),
+            Some(TensorData { data, .. }) => data.clone().into_i64s(),
+            _ => Vec::new(),
         }
     }
     fn get_pads(node: &Node) -> Vec<usize> {
@@ -941,7 +976,7 @@ pub fn pad_config(node: &Node) -> PadConfig {
         }
 
         let input_dim = match &node.inputs.first().unwrap().ty {
-            ArgType::Tensor(tensor) => tensor.dim,
+            ArgType::Tensor(tensor) => tensor.rank,
             _ => panic!("Pad: Only tensor input is valid"),
         };
 
@@ -997,7 +1032,9 @@ pub fn pad_config(node: &Node) -> PadConfig {
 
         for (index, &item) in pads.iter().enumerate() {
             if !index_list.contains(&index) && item != 0 {
-                panic!("Pad: padding will only be applied to the last two dimensions but found non zero padding for other dimensions");
+                panic!(
+                    "Pad: padding will only be applied to the last two dimensions but found non zero padding for other dimensions"
+                );
             }
         }
 
@@ -1011,19 +1048,19 @@ pub fn pad_config(node: &Node) -> PadConfig {
         // TODO: support int, boolean
         let mut constant_value = node.inputs
                 .get(2)
-                .and_then(|input| match &input.value {
-                    Some(Data::Float16s(constant_value)) => {
+                .and_then(|input| match &input.value.as_ref().expect("Value input must be present").data {
+                    Data::Float16s(constant_value) => {
                         constant_value.first().map(|&f| f32::from(f))
                     }
-                    Some(Data::Float32s(constant_value)) => {
+                    Data::Float32s(constant_value) => {
                         constant_value.first().copied()
                     }
-                    Some(Data::Float64s(constant_value)) => {
+                    Data::Float64s(constant_value) => {
                         constant_value.first().map(|&f| f as f32)
                     }
-                    Some(Data::Float16(constant_value)) => Some(f32::from(*constant_value)),
-                    Some(Data::Float32(constant_value)) => Some(*constant_value),
-                    Some(Data::Float64(constant_value)) => Some(*constant_value as f32),
+                    Data::Float16(constant_value) => Some(f32::from(*constant_value)),
+                    Data::Float32(constant_value) => Some(*constant_value),
+                    Data::Float64(constant_value) => Some(*constant_value as f32),
                      _ => panic!("Pad: only float values are currently supported for constant value, submit an issue on github"),
                 })
                 .unwrap_or(0.0);
@@ -1209,16 +1246,10 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
         panic!("Reshape: shape tensor must be present for {:?}", node);
     }
 
-    let input_value = &node.inputs[1].value;
-    match &node.inputs[1].ty {
-        ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.dim, 1, "Reshape: shape tensor must be 1D");
-
-            if let Some(Data::Int64s(shape)) = input_value.as_ref() {
-                shape.clone()
-            } else {
-                panic!("Tensor data type must be int64")
-            }
+    match &node.inputs[1].value {
+        Some(TensorData { data, shape, .. }) => {
+            assert_eq!(shape.len(), 1, "Reshape: shape tensor must be 1D");
+            data.clone().into_i64s()
         }
         _ => panic!("Only tensor input is valid for shape"),
     }
@@ -1287,7 +1318,7 @@ pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
         .inputs
         .get(1)
         .map(|input| {
-            if let Some(data) = &input.value {
+            if let Some(TensorData { data, .. }) = &input.value {
                 data.clone().into_f32s()
             } else {
                 vec![]
@@ -1299,7 +1330,7 @@ pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
         .inputs
         .get(2)
         .map(|input| {
-            if let Some(data) = &input.value {
+            if let Some(TensorData { data, .. }) = &input.value {
                 data.clone().into_f32s()
             } else {
                 vec![]
@@ -1311,7 +1342,7 @@ pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
         .inputs
         .get(3)
         .map(|input| {
-            if let Some(data) = &input.value {
+            if let Some(TensorData { data, .. }) = &input.value {
                 data.clone()
                     .into_i64s()
                     .iter()
@@ -1336,14 +1367,14 @@ pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
     }
 
     if !scales.is_empty() {
-        assert!(scales.len() == input.dim);
+        assert!(scales.len() == input.rank);
         // ignore the fist two items from scales
         // because they are the batch and channel dimensions
         scales = scales.iter().skip(2).cloned().collect();
     }
 
     if !sizes.is_empty() {
-        assert!(sizes.len() == input.dim);
+        assert!(sizes.len() == input.rank);
         // ignore the fist two items from sizes
         // because they are the batch and channel dimensions
         sizes = sizes.iter().skip(2).cloned().collect();
@@ -1354,11 +1385,11 @@ pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
 
 //Note this function should only execute if the second input is a constant
 //if it wasn't and the output shape was known, unsqueeze has been remapped to reshape
-pub fn unsqueeze_config(node: &Node) -> Vec<i64> {
+pub fn unsqueeze_config(node: &Node) -> UnsqueezeAxes {
     // Check if axes attribute exists
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
-            "axes" => return value.clone().into_i64s(),
+            "axes" => return UnsqueezeAxes::Static(value.clone().into_i64s()),
             _ => {}
         }
     }
@@ -1372,11 +1403,15 @@ pub fn unsqueeze_config(node: &Node) -> Vec<i64> {
 
     match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.dim, 1, "Unsqueeze: axes tensor must be 1D");
-            if let Some(Data::Int64s(shape)) = input_value.value.as_ref() {
-                shape.clone()
+            assert_eq!(tensor.rank, 1, "Unsqueeze: axes tensor must be 1D");
+            if let Some(TensorData {
+                data: Data::Int64s(shape),
+                ..
+            }) = input_value.value.as_ref()
+            {
+                UnsqueezeAxes::Static(shape.clone())
             } else {
-                panic!("Tensor data type must be int64")
+                UnsqueezeAxes::Runtime(crate::burn::Type::from(&node.inputs[1]))
             }
         }
         _ => panic!("Arg for unsqueeze must be tensor or scalar"),
@@ -1409,7 +1444,7 @@ pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
         let max = &node.inputs[2].value;
 
         if min_result.is_none() && min.is_some() {
-            let min = min.clone().unwrap().into_scalar();
+            let min = min.clone().unwrap().data.into_scalar();
             min_result = match min {
                 Data::Float16(min) => Some(f32::from(min) as f64),
                 Data::Float32(min) => Some(min as f64),
@@ -1419,7 +1454,7 @@ pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
         }
 
         if max_result.is_none() && max.is_some() {
-            let max = max.clone().unwrap().into_scalar();
+            let max = max.clone().unwrap().data.into_scalar();
             max_result = match max {
                 Data::Float16(max) => Some(f32::from(max) as f64),
                 Data::Float32(max) => Some(max as f64),
@@ -1474,7 +1509,7 @@ pub fn reduce_max_config(node: &Node) -> Option<usize> {
 
         if dim < 0 {
             // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
-            dim += tensor.dim as i64;
+            dim += tensor.rank as i64;
         }
         Some(dim as usize)
     }
@@ -1516,7 +1551,7 @@ pub fn reduce_min_config(node: &Node) -> Option<usize> {
         let mut dim = axes[0];
 
         if dim < 0 {
-            dim += tensor.dim as i64;
+            dim += tensor.rank as i64;
         }
         Some(dim as usize)
     }
@@ -1560,7 +1595,7 @@ pub fn reduce_mean_config(node: &Node) -> Option<usize> {
 
         if dim < 0 {
             // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
-            dim += tensor.dim as i64;
+            dim += tensor.rank as i64;
         }
         Some(dim as usize)
     }
@@ -1605,7 +1640,7 @@ pub fn reduce_prod_config(node: &Node) -> Option<usize> {
 
         if dim < 0 {
             // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
-            dim += tensor.dim as i64;
+            dim += tensor.rank as i64;
         }
         Some(dim as usize)
     }
@@ -1636,7 +1671,7 @@ pub fn reduce_sum_config(node: &Node) -> Option<usize> {
         .get(1)
         .and_then(|argument| argument.value.as_ref())
     {
-        axes = value.clone().into_i64s();
+        axes = value.clone().data.into_i64s();
     }
 
     if axes.len() > 1 {
@@ -1659,7 +1694,7 @@ pub fn reduce_sum_config(node: &Node) -> Option<usize> {
 
         if dim < 0 {
             // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
-            dim += tensor.dim as i64;
+            dim += tensor.rank as i64;
         }
         Some(dim as usize)
     }
@@ -1681,7 +1716,7 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
 
     // Default: all axes up to the last one (included)
     let mut start_dim: i64 = 0;
-    let mut end_dim: i64 = tensor.dim as i64;
+    let mut end_dim: i64 = tensor.rank as i64;
 
     // Extract the attributes
     for (key, value) in curr.attrs.iter() {
@@ -1694,10 +1729,10 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
 
     // If dim is negative, it is counted from the end
     if start_dim < 0 {
-        start_dim += tensor.dim as i64;
+        start_dim += tensor.rank as i64;
     }
     if end_dim < 0 {
-        end_dim += tensor.dim as i64;
+        end_dim += tensor.rank as i64;
     }
 
     (start_dim as usize, end_dim as usize)
@@ -1711,7 +1746,10 @@ pub fn slice_config(node: &Node) -> Vec<Option<(i64, i64)>> {
         }
 
         match &node.inputs[index].value {
-            Some(Data::Int64s(shape)) => shape.clone(),
+            Some(TensorData {
+                data: Data::Int64s(shape),
+                ..
+            }) => shape.clone(),
 
             _ => panic!("Tensor data type must be int64"),
         }
@@ -1740,7 +1778,7 @@ pub fn slice_config(node: &Node) -> Vec<Option<(i64, i64)>> {
 
     // Extract the shape of the input tensor
     let input_dim = match node.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor.dim,
+        ArgType::Tensor(tensor) => tensor.rank,
         _ => panic!("Only tensor input is valid"),
     };
 
@@ -1787,7 +1825,7 @@ pub fn transpose_config(curr: &Node) -> Vec<i64> {
     };
 
     // Default: reverse the dimensions
-    let mut perm = (0..tensor.dim as i64).rev().collect::<Vec<i64>>();
+    let mut perm = (0..tensor.rank as i64).rev().collect::<Vec<i64>>();
 
     if let Some(axes) = curr.attrs.get("perm") {
         perm = axes.clone().into_i64s();
@@ -1816,4 +1854,159 @@ pub fn squeeze_config(curr: &Node) -> Vec<i64> {
     };
 
     axes
+}
+pub fn split_config(node: &Node) -> SplitConfig {
+    // Initialize the axis to split along (default is 0 as per ONNX specification)
+    let mut axis: i64 = 0;
+    // Holds the uniform split size if calculated or provided
+    let mut split_size: Option<usize> = None;
+    // Holds the custom split sizes if provided as input
+    let mut split_sizes: Option<Vec<usize>> = None;
+
+    // Extract the input tensor type to determine rank and shape
+    let tensor = match node.inputs.first().unwrap().ty {
+        ArgType::Tensor(ref tensor) => tensor,
+        _ => panic!("Split: Input must be a valid tensor"),
+    };
+
+    // Optionally store the number of outputs if provided as an attribute
+    let mut num_outputs: Option<usize> = None;
+
+    // Iterate through node attributes to extract relevant values
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "axis" => axis = value.clone().into_i64(),
+            "num_outputs" => num_outputs = Some(value.clone().into_i64() as usize),
+            _ => {}
+        }
+    }
+
+    // Handle the case when num_outputs is provided to calculate uniform split size
+    if let Some(num_outputs) = num_outputs {
+        if num_outputs == 0 {
+            panic!("Split: 'num_outputs' must be a positive value greater than zero");
+        }
+
+        let dim_size = tensor
+            .static_shape
+            .as_ref()
+            .expect("Split: Static shape must be known to calculate split size")[axis as usize];
+
+        // Calculate the split size considering any remainder for non-evenly divisible dimensions
+        let calculated_split_size =
+            dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
+
+        if calculated_split_size == 0 {
+            panic!(
+                "Split: Calculated split size is zero. Please ensure 'num_outputs' is valid for the dimension size"
+            );
+        }
+
+        // Assign the calculated split size
+        split_size = Some(calculated_split_size);
+    }
+
+    // Adjust axis if negative to count from the end as per ONNX spec
+    if axis < 0 {
+        axis += tensor.rank as i64;
+    }
+
+    // Check for custom split sizes provided as a second input
+    if node.inputs.len() > 1 && node.inputs[1].value.is_some() {
+        let sizes = node.inputs[1]
+            .value
+            .as_ref()
+            .unwrap()
+            .data
+            .clone()
+            .into_usizes();
+
+        if !sizes.is_empty() {
+            split_sizes = Some(sizes);
+        }
+    }
+
+    // Ensure that only one of 'split_sizes' or 'num_outputs' is specified
+    if split_sizes.is_some() && split_size.is_some() {
+        panic!(
+            "Split: Cannot specify both 'split' input and 'num_outputs' attribute simultaneously"
+        );
+    }
+
+    // Infer split_size if neither custom split_sizes nor split_size is provided
+    if split_sizes.is_none() && split_size.is_none() {
+        let num_outputs = node.outputs.len();
+        let dim_size = tensor
+            .static_shape
+            .as_ref()
+            .expect("Split: Static shape must be known to infer split size")[axis as usize];
+
+        // Calculate inferred split size based on number of outputs
+        let calculated_split_size =
+            dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
+
+        if calculated_split_size == 0 {
+            panic!(
+                "Split: Inferred split size is zero. Please ensure the number of outputs is valid for the dimension size"
+            );
+        }
+
+        split_size = Some(calculated_split_size);
+    }
+
+    // Return the configuration for splitting operation
+    SplitConfig {
+        axis: axis as usize,
+        split_size,
+        split_sizes,
+    }
+}
+
+pub fn one_hot_config(curr: &Node) -> (usize, [f32; 2], i64) {
+    let depth = curr.inputs[1]
+        .value
+        .clone()
+        .expect("OneHot: Only constant depth is currently supported")
+        .data
+        .into_i64();
+
+    let values = curr.inputs[2]
+        .value
+        .clone()
+        .expect("OneHot: Only constant on/off values is currently supported")
+        .data
+        .into_f32s();
+
+    let axis = curr
+        .attrs
+        .get("axis")
+        .map(|val| val.clone().into_i64())
+        .unwrap_or(-1);
+
+    (depth as usize, values.try_into().unwrap(), axis)
+}
+
+pub fn gemm_config(curr: &Node) -> (f32, f32, i64, i64) {
+    let alpha = curr
+        .attrs
+        .get("alpha")
+        .map(|val| val.clone().into_f32())
+        .unwrap_or(1.0);
+    let beta = curr
+        .attrs
+        .get("beta")
+        .map(|val| val.clone().into_f32())
+        .unwrap_or(1.0);
+    let trans_a = curr
+        .attrs
+        .get("transA")
+        .map(|val| val.clone().into_i64())
+        .unwrap_or(0);
+    let trans_b = curr
+        .attrs
+        .get("transB")
+        .map(|val| val.clone().into_i64())
+        .unwrap_or(0);
+
+    (alpha, beta, trans_a, trans_b)
 }

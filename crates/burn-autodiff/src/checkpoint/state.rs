@@ -1,6 +1,8 @@
-use std::{any::Any, collections::HashMap};
+use core::any::Any;
 
+use crate::collections::HashMap;
 use crate::graph::NodeID;
+use alloc::boxed::Box;
 
 /// In order to accept arbitrary node output in the same hashmap, we need to upcast them to any.
 pub(crate) type StateContent = Box<dyn Any + Send>;
@@ -25,7 +27,9 @@ impl State {
     pub(crate) fn to_state_content(&self) -> &StateContent {
         match self {
             State::Recompute { n_required: _ } => {
-                unreachable!("Can't get state content of recompute state. A child has likely been accessed before its parents.")
+                unreachable!(
+                    "Can't get state content of recompute state. A child has likely been accessed before its parents."
+                )
             }
             State::Computed {
                 state_content,
@@ -38,7 +42,9 @@ impl State {
     pub(crate) fn into_state_content(self) -> StateContent {
         match self {
             State::Recompute { n_required: _ } => {
-                unreachable!("Can't get state content of recompute state. A child has likely been accessed before its parents.")
+                unreachable!(
+                    "Can't get state content of recompute state. A child has likely been accessed before its parents."
+                )
             }
             State::Computed {
                 state_content,

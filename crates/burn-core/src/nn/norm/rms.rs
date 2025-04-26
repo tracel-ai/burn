@@ -7,8 +7,8 @@ use crate::module::Module;
 use crate::module::Param;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::nn::Initializer;
-use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 
 /// Configuration to create a [RMS Norm](RmsNorm) layer using the [init function](RmsNormConfig::init).
 #[derive(Config)]
@@ -96,9 +96,11 @@ impl<B: Backend> ModuleDisplay for RmsNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
     use alloc::format;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn rms_norm_forward() {
@@ -116,7 +118,9 @@ mod tests {
             [0.7348, 0.9798, 1.2247],
             [0.8514, 0.9933, 1.1352],
         ]);
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]

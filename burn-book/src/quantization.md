@@ -45,12 +45,12 @@ tensors and can collect their statistics, such as the min and max value when usi
 
 ```rust , ignore
 # use burn::module::Quantizer;
-# use burn::tensor::quantization::{MinMaxCalibration, QuantizationScheme, QuantizationType};
+# use burn::tensor::quantization::{Calibration, QuantizationScheme, QuantizationType};
 #
 // Quantization config
 let mut quantizer = Quantizer {
-    calibration: MinMaxCalibration {},
-    scheme: QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8),
+    calibration: Calibration::MinMax,
+    scheme: QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8),
 };
 
 // Quantize the weights
@@ -95,9 +95,9 @@ _quantization-time_ (weights are static), but activations require more attention
 
 To compute the quantization parameters, Burn supports the following `Calibration` methods.
 
-| Method              | Description                                                                      |
-| :------------------ | :------------------------------------------------------------------------------- |
-| `MinMaxCalibration` | Computes the quantization range mapping based on the running min and max values. |
+| Method   | Description                                                                      |
+| :------- | :------------------------------------------------------------------------------- |
+| `MinMax` | Computes the quantization range mapping based on the running min and max values. |
 
 ### Quantization Scheme
 
@@ -116,7 +116,14 @@ channel with per-channel quantization (commonly used with CNNs).
 
 Burn currently supports the following `QuantizationScheme` variants.
 
-| Variant              | Description                                                                                                    |
-| :------------------- | :------------------------------------------------------------------------------------------------------------- |
-| `PerTensorAffine`    | Computes the quantization parameters for the whole tensor and applies an affine range mapping with zero point. |
-| `PerTensorSymmetric` | Computes the quantization parameters for the whole tensor and applies a scale range mapping centered around 0. |
+| Variant                        | Description                                                                                                                                                              |
+| :----------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PerTensor(mode, type)`        | Applies a single set of quantization parameters to the entire tensor. The `mode` defines how values are transformed, and `type` represents the target quantization type. |
+
+#### Quantization Mode
+
+| Mode        | Description                                                          |
+| ----------- | -------------------------------------------------------------------- |
+| `Symmetric` | Maps values using a scale factor for a range centered around zero.   |
+
+---

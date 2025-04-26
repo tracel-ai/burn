@@ -9,24 +9,21 @@ pub struct RandomUniformNode {
     pub low: f64,
     pub high: f64,
     pub output_ty: TensorType,
+    pub shape: Vec<usize>,
 }
 
 impl RandomUniformNode {
-    pub fn new(output_ty: TensorType, low: f64, high: f64) -> Self {
+    pub fn new(output_ty: TensorType, low: f64, high: f64, shape: Vec<usize>) -> Self {
         Self {
             low,
             high,
             output_ty,
+            shape,
         }
     }
 
     fn get_output_shape(&self) -> TokenStream {
-        let shape_it = self
-            .output_ty
-            .shape
-            .as_ref()
-            .expect("RandomUniform output has no shape!")
-            .iter();
+        let shape_it = self.shape.iter();
         quote! { Shape::new([#(#shape_it),*]) }
     }
 
@@ -71,9 +68,9 @@ mod tests {
 
     use super::*;
     use crate::burn::{
+        TensorKind, TensorType,
         graph::BurnGraph,
         node::{random_uniform::RandomUniformNode, test::assert_tokens},
-        TensorKind, TensorType,
     };
 
     #[test]
@@ -81,9 +78,10 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(RandomUniformNode::new(
-            TensorType::new("tensor1", 2, TensorKind::Float, Some(vec![2, 3])),
+            TensorType::new("tensor1", 2, TensorKind::Float),
             0.0f64,
             1.0f64,
+            vec![2, 3],
         ));
 
         graph.register_input_output(vec![], vec!["tensor1".to_string()]);

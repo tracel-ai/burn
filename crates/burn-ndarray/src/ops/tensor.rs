@@ -3,18 +3,17 @@ use alloc::vec::Vec;
 use burn_tensor::cast::ToElement;
 use burn_tensor::ops::FloatTensor;
 use core::ops::Range;
-use ndarray::Zip;
 
 // Current crate
-use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
+use super::{NdArrayMathOps, NdArrayOps, matmul::matmul};
 use crate::element::{ExpElement, FloatNdArrayElement, IntNdArrayElement, QuantElement};
-use crate::{execute_with_float_dtype, new_tensor_float, NdArrayDevice, NdArrayTensorFloat, SEED};
-use crate::{tensor::NdArrayTensor, NdArray};
+use crate::{NdArray, tensor::NdArrayTensor};
+use crate::{NdArrayDevice, NdArrayTensorFloat, SEED, execute_with_float_dtype};
 
 // Workspace crates
 use burn_common::rand::get_seeded_rng;
-use burn_tensor::{backend::Backend, ops::FloatTensorOps, ElementConversion, Shape, TensorData};
-use burn_tensor::{Distribution, FloatDType};
+use burn_tensor::{DType, Distribution, FloatDType};
+use burn_tensor::{ElementConversion, Shape, TensorData, backend::Backend, ops::FloatTensorOps};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -42,7 +41,11 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     for NdArray<E, I, Q>
 {
     fn float_from_data(data: TensorData, _device: &NdArrayDevice) -> FloatTensor<Self> {
-        new_tensor_float!(NdArrayTensor::from_data(data))
+        match data.dtype {
+            DType::F64 => NdArrayTensorFloat::F64(NdArrayTensor::from_data(data)),
+            DType::F32 => NdArrayTensorFloat::F32(NdArrayTensor::from_data(data)),
+            _ => unimplemented!("Unsupported dtype for `float_from_data`"),
+        }
     }
 
     fn float_random(
@@ -223,75 +226,61 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
 
     fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor<bool> {
         execute_with_float_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
-            let output = Zip::from(&lhs.array)
-                .and(&rhs.array)
-                .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
-                .into_shared();
-            NdArrayTensor::new(output)
+            NdArrayMathOps::equal(lhs, rhs)
         })
     }
 
     fn float_equal_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor<bool> {
         execute_with_float_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv(|a| a == rhs.elem::<E>()).into_shared();
-
-            NdArrayTensor::new(array)
+            NdArrayMathOps::equal_elem(tensor, rhs.elem())
         })
     }
 
     fn float_greater(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor<bool> {
-        let tensor = NdArray::<E>::float_sub(lhs, rhs);
-        let zero = 0.elem();
-        Self::float_greater_elem(tensor, zero)
+        execute_with_float_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
+            NdArrayMathOps::greater(lhs, rhs)
+        })
     }
 
     fn float_greater_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor<bool> {
         execute_with_float_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv(|a| a > rhs.elem::<E>()).into_shared();
-
-            NdArrayTensor::new(array)
+            NdArrayMathOps::greater_elem(tensor, rhs.elem())
         })
     }
 
     fn float_greater_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor<bool> {
-        let tensor = NdArray::<E>::float_sub(lhs, rhs);
-        let zero = 0.elem();
-        Self::float_greater_equal_elem(tensor, zero)
+        execute_with_float_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
+            NdArrayMathOps::greater_equal(lhs, rhs)
+        })
     }
 
     fn float_greater_equal_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor<bool> {
         execute_with_float_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv(|a| a >= rhs.elem::<E>()).into_shared();
-
-            NdArrayTensor::new(array)
+            NdArrayMathOps::greater_equal_elem(tensor, rhs.elem())
         })
     }
 
     fn float_lower(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor<bool> {
-        let tensor = NdArray::<E>::float_sub(lhs, rhs);
-        let zero = 0.elem();
-        Self::float_lower_elem(tensor, zero)
+        execute_with_float_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
+            NdArrayMathOps::lower(lhs, rhs)
+        })
     }
 
     fn float_lower_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor<bool> {
         execute_with_float_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv(|a| a < rhs.elem::<E>()).into_shared();
-
-            NdArrayTensor::new(array)
+            NdArrayMathOps::lower_elem(tensor, rhs.elem())
         })
     }
 
     fn float_lower_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor<bool> {
-        let tensor = NdArray::<E>::float_sub(lhs, rhs);
-        let zero = 0.elem();
-        Self::float_lower_equal_elem(tensor, zero)
+        execute_with_float_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
+            NdArrayMathOps::lower_equal(lhs, rhs)
+        })
     }
 
     fn float_lower_equal_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor<bool> {
         execute_with_float_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv(|a| a <= rhs.elem::<E>()).into_shared();
-
-            NdArrayTensor::new(array)
+            NdArrayMathOps::lower_equal_elem(tensor, rhs.elem())
         })
     }
 

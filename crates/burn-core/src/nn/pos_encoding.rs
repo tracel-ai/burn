@@ -4,9 +4,9 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 
-use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 use crate::tensor::TensorData;
+use crate::tensor::backend::Backend;
 
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
@@ -189,6 +189,8 @@ mod tests {
 
     use super::*;
     use crate::TestBackend;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_module() {
@@ -225,7 +227,9 @@ mod tests {
             &device,
         );
 
-        output.to_data().assert_approx_eq(&expected.to_data(), 5);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -251,7 +255,9 @@ mod tests {
             ],
             &device,
         );
-        sinusoids.to_data().assert_approx_eq(&expected.to_data(), 5);
+        sinusoids
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]

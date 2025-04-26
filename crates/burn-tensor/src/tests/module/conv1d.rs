@@ -4,6 +4,8 @@ mod tests {
     use burn_tensor::module::conv1d;
     use burn_tensor::ops::ConvOptions;
     use burn_tensor::{Shape, Tensor};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_conv1d_simple() {
@@ -132,7 +134,8 @@ mod tests {
                 ConvOptions::new([self.stride], [self.padding], [self.dilation], self.groups),
             );
 
-            y.to_data().assert_approx_eq(&output.into_data(), 3);
+            y.to_data()
+                .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
         }
     }
 }

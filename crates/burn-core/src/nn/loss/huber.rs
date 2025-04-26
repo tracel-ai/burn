@@ -1,8 +1,8 @@
 use crate as burn;
 
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
-use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 use crate::{config::Config, module::Module};
 
 use super::Reduction;
@@ -140,9 +140,11 @@ impl HuberLoss {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
     type TestTensor<const D: usize> = Tensor<TestBackend, D>;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_huber_loss() {
@@ -161,13 +163,18 @@ mod tests {
         let loss_no_reduction = huber.forward_no_reduction(predict, targets);
 
         let expected = TensorData::from([0.875, 0.125, 0., 0.045, 0.375]);
-        loss_no_reduction.into_data().assert_approx_eq(&expected, 7);
+        loss_no_reduction
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::from([0.284]);
-        loss.into_data().assert_approx_eq(&expected, 7);
+        loss.into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         let expected = TensorData::from([1.42]);
-        loss_sum.into_data().assert_approx_eq(&expected, 5);
+        loss_sum
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[cfg(feature = "std")]
@@ -189,7 +196,9 @@ mod tests {
         let grads_predict = predict.grad(&grads).unwrap();
 
         let expected = TensorData::from([-0.5, -0.5, 0., 0.3, 0.5]);
-        grads_predict.to_data().assert_approx_eq(&expected, 3);
+        grads_predict
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]

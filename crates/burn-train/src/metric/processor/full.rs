@@ -62,6 +62,9 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessor for FullEventProcessor<T, V> {
                 self.store
                     .add_event_train(crate::metric::store::Event::EndEpoch(epoch));
             }
+            Event::End => {
+                self.renderer.on_train_end().ok();
+            }
         }
     }
 
@@ -97,6 +100,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessor for FullEventProcessor<T, V> {
                 self.store
                     .add_event_valid(crate::metric::store::Event::EndEpoch(epoch));
             }
+            Event::End => {} // no-op for now
         }
     }
 }

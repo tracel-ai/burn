@@ -1,7 +1,7 @@
 use crate::{QuantElement, TchQTensor};
 
-use super::element::TchElement;
 use super::TchTensor;
+use super::element::TchElement;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::IntTensorOps;
 use burn_tensor::{Int, Tensor};
@@ -38,10 +38,17 @@ pub enum LibTorchDevice {
 }
 
 impl From<LibTorchDevice> for tch::Device {
+    #[allow(
+        unreachable_code,
+        reason = "CUDA branch always panics if the library is missing"
+    )]
     fn from(device: LibTorchDevice) -> Self {
         match device {
             LibTorchDevice::Cpu => tch::Device::Cpu,
-            LibTorchDevice::Cuda(num) => tch::Device::Cuda(num),
+            LibTorchDevice::Cuda(_num) => {
+                include!(concat!(env!("OUT_DIR"), "/tch_gpu_check.rs"));
+                tch::Device::Cuda(_num)
+            }
             LibTorchDevice::Mps => tch::Device::Mps,
             LibTorchDevice::Vulkan => tch::Device::Vulkan,
         }
@@ -114,8 +121,14 @@ impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
         false
     }
 
-    fn name() -> String {
-        "tch".to_string()
+    fn name(device: &Self::Device) -> String {
+        match device {
+            LibTorchDevice::Cpu => "libtorch<cpu>",
+            LibTorchDevice::Cuda(_) => "libtorch<cuda>",
+            LibTorchDevice::Mps => "libtorch<metal>",
+            LibTorchDevice::Vulkan => "libtorch<vulkan>",
+        }
+        .to_string()
     }
 
     fn sync(device: &Self::Device) {

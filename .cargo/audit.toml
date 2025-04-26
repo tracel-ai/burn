@@ -1,0 +1,28 @@
+# Audit config file
+#
+# It may be located in the user home (`~/.cargo/audit.toml`) or in the project
+# root (`.cargo/audit.toml`).
+#
+# All of the options which can be passed via CLI arguments can also be
+# permanently specified in this file.
+
+[advisories]
+ignore = [
+    "RUSTSEC-2024-0437", # Protobuf used in ONNX graph parsing.
+    "RUSTSEC-2024-0436", # Paste used to generate macro, should be removed at some point.
+] # advisory IDs to ignore e.g. ["RUSTSEC-2019-0001", ...]
+informational_warnings = [
+    "unmaintained",
+] # warn for categories of informational advisories
+severity_threshold = "low" # CVSS severity ("none", "low", "medium", "high", "critical")
+
+# Output Configuration
+[output]
+deny = ["unmaintained"] # exit on error if unmaintained dependencies are found
+format = "terminal"     # "terminal" (human readable report) or "json"
+quiet = false           # Only print information on error
+show_tree = true        # Show inverse dependency trees along with advisories (default: true)
+
+[yanked]
+enabled = true      # Warn for yanked crates in Cargo.lock (default: true)
+update_index = true # Auto-update the crates.io index (default: true)

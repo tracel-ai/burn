@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 use super::{PrecisionSettings, Record};
-use burn_tensor::{backend::Backend, Bool, DType, Element, Int, Tensor, TensorData};
+use burn_tensor::{Bool, DType, Element, Int, Tensor, TensorData, backend::Backend};
 use serde::{Deserialize, Serialize};
 
 use alloc::format;

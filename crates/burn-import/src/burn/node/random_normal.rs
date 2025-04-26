@@ -9,24 +9,21 @@ pub struct RandomNormalNode {
     pub mean: f64,
     pub scale: f64,
     pub output_ty: TensorType,
+    pub shape: Vec<usize>,
 }
 
 impl RandomNormalNode {
-    pub fn new(output_ty: TensorType, mean: f64, scale: f64) -> Self {
+    pub fn new(output_ty: TensorType, mean: f64, scale: f64, shape: Vec<usize>) -> Self {
         Self {
             mean,
             scale,
             output_ty,
+            shape,
         }
     }
 
     fn get_output_shape(&self) -> TokenStream {
-        let shape_it = self
-            .output_ty
-            .shape
-            .as_ref()
-            .expect("RandomNormal output has no shape!")
-            .iter();
+        let shape_it = self.shape.iter();
         quote! { Shape::new([#(#shape_it),*]) }
     }
 
@@ -71,9 +68,9 @@ mod tests {
 
     use super::*;
     use crate::burn::{
+        TensorKind, TensorType,
         graph::BurnGraph,
         node::{random_normal::RandomNormalNode, test::assert_tokens},
-        TensorKind, TensorType,
     };
 
     #[test]
@@ -81,9 +78,10 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(RandomNormalNode::new(
-            TensorType::new("tensor1", 2, TensorKind::Float, Some(vec![2, 3])),
+            TensorType::new("tensor1", 2, TensorKind::Float),
             0.0f64,
             1.0f64,
+            vec![2, 3],
         ));
 
         graph.register_input_output(vec![], vec!["tensor1".to_string()]);

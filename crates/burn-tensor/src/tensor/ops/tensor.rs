@@ -2,10 +2,10 @@ use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
 use crate::tensor::cast::ToElement;
-use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Float, TensorData};
+use crate::{Distribution, ElementConversion, Float, TensorData, backend::Backend, tensor::Shape};
 use crate::{
-    tensor::api::chunk, tensor::api::narrow, tensor::api::split, tensor::api::split_with_sizes,
-    FloatDType, TensorMetadata, TensorPrimitive,
+    FloatDType, TensorMetadata, TensorPrimitive, tensor::api::chunk, tensor::api::narrow,
+    tensor::api::split, tensor::api::split_with_sizes,
 };
 use alloc::vec::Vec;
 use core::future::Future;
@@ -39,7 +39,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The tensor with the given shape and random values.
     fn float_random(shape: Shape, distribution: Distribution, device: &Device<B>)
-        -> FloatTensor<B>;
+    -> FloatTensor<B>;
 
     /// Creates a new tensor with zeros.
     ///
@@ -94,7 +94,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The data structure with the tensor's data.
     fn float_into_data(tensor: FloatTensor<B>)
-        -> impl Future<Output = TensorData> + 'static + Send;
+    -> impl Future<Output = TensorData> + 'static + Send;
 
     /// Gets the device of the tensor.
     ///
@@ -918,7 +918,60 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with tangent values.
-    fn float_tanh(tensor: FloatTensor<B>) -> FloatTensor<B>;
+    fn float_tan(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        let sin = B::float_sin(tensor.clone());
+        let cos = B::float_cos(tensor);
+        B::float_div(sin, cos)
+    }
+
+    /// Returns a new tensor with hyperbolic cosine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the hyperbolic cosine of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic cosine values.
+    fn float_cosh(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        // cosh = ( e^x + e^(-x) ) / 2
+        let e_x = B::float_exp(tensor.clone());
+        let e_neg_x = B::float_exp(B::float_neg(tensor));
+        let num = B::float_add(e_x, e_neg_x); // e^x + e^(-x)
+        B::float_div_scalar(num, 2.0.elem())
+    }
+
+    /// Returns a new tensor with hyperbolic sine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the hyperbolic sine of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic sine values.
+    fn float_sinh(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        // sinh = ( e^x - e^(-x) ) / 2
+        let e_x = B::float_exp(tensor.clone());
+        let e_neg_x = B::float_exp(B::float_neg(tensor));
+        let num = B::float_sub(e_x, e_neg_x); // e^x - e^(-x)
+        B::float_div_scalar(num, 2.0.elem())
+    }
+
+    /// Returns a new tensor with hyperbolic tangent values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the hyperbolic tangent of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic tangent values.
+    fn float_tanh(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        let sinh = B::float_sinh(tensor.clone());
+        let cosh = B::float_cosh(tensor);
+        B::float_div(sinh, cosh)
+    }
 
     /// Returns a new tensor with rounded values.
     ///
@@ -1111,6 +1164,36 @@ pub trait FloatTensorOps<B: Backend> {
         let values = B::float_gather(dim, tensor, index.clone());
 
         (values, index)
+    }
+
+    /// Gets the maximum absolute element of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the maximum element of `tensor`.
+    fn float_max_abs(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        let shape = tensor.shape();
+        let tensor = B::float_reshape(tensor, Shape::new([shape.num_elements()]));
+
+        B::float_max_abs_dim(tensor, 0)
+    }
+
+    /// Gets the maximum absolute elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the maximum elements of `tensor` along `dim`.
+    fn float_max_abs_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
+        B::float_max_dim(B::float_abs(tensor), dim)
     }
 
     /// Returns a new tensor with the given dimension narrowed to the given range.

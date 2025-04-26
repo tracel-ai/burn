@@ -10,8 +10,9 @@ use crate::{
     graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
     tensor::AutodiffTensor,
 };
-use burn_tensor::{backend::Backend, ops::FloatTensor, Shape, TensorMetadata};
-use std::marker::PhantomData;
+use alloc::{boxed::Box, vec::Vec};
+use burn_tensor::{Shape, TensorMetadata, backend::Backend, ops::FloatTensor};
+use core::marker::PhantomData;
 
 /// Operation in preparation.
 ///
@@ -105,13 +106,17 @@ where
         B2: Backend,
         A: IntoIterator<Item = &'a AutodiffTensor<B2>>,
     {
-        C::checkpoint_parents(parents, &mut self.checkpointer_builder);
+        let compute_property = match C::checkpoint_parents(parents, &mut self.checkpointer_builder)
+        {
+            Ok(..) => self.compute_property,
+            Err(..) => ComputingProperty::ComputeBound,
+        };
 
         OpsPrep::new(
             self.nodes,
             self.requirement,
             self.backward,
-            self.compute_property,
+            compute_property,
             self.checkpointer_builder,
         )
     }
@@ -134,7 +139,7 @@ where
 impl<BO, B, S, C, const N: usize> OpsPrep<BO, B, S, C, N, ComputePropertyDone>
 where
     B: Backend,
-    S: Clone + Send + std::fmt::Debug + 'static,
+    S: Clone + Send + core::fmt::Debug + 'static,
     BO: Backward<B, N, State = S>,
 {
     /// Prepare an operation that requires a state during the backward pass.
@@ -161,7 +166,7 @@ where
 impl<BO, B, S, C, const N: usize> OpsPrep<BO, B, S, C, N, UnTracked>
 where
     B: Backend,
-    S: Clone + Send + std::fmt::Debug + 'static,
+    S: Clone + Send + core::fmt::Debug + 'static,
     BO: Backward<B, N, State = S>,
 {
     /// Finish the preparation of an untracked operation and returns the output tensor.
@@ -184,7 +189,7 @@ where
 impl<BO, B, S, C, const N: usize> OpsPrep<BO, B, S, C, N, Tracked>
 where
     B: Backend,
-    S: Clone + Send + std::fmt::Debug + 'static,
+    S: Clone + Send + core::fmt::Debug + 'static,
     BO: Backward<B, N, State = S>,
 {
     /// Finish the preparation of a tracked operation and returns the output tensor.
@@ -235,7 +240,7 @@ struct OpsStep<B, T, SB, const N: usize>
 where
     B: Backend,
     T: Backward<B, N, State = SB>,
-    SB: Clone + Send + std::fmt::Debug + 'static,
+    SB: Clone + Send + core::fmt::Debug + 'static,
 {
     ops: Ops<SB, N>,
     backward: T,
@@ -246,7 +251,7 @@ impl<B, T, SB, const N: usize> Step for OpsStep<B, T, SB, N>
 where
     B: Backend,
     T: Backward<B, N, State = SB>,
-    SB: Clone + Send + std::fmt::Debug + 'static,
+    SB: Clone + Send + core::fmt::Debug + 'static,
 {
     fn step(self: Box<Self>, grads: &mut Gradients, checkpointer: &mut Checkpointer) {
         self.backward.backward(self.ops, grads, checkpointer);

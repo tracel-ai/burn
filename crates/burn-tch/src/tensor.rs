@@ -1,10 +1,10 @@
 use crate::{LibTorchDevice, TchElement};
 use burn_tensor::{
+    DType, Shape, TensorData, TensorMetadata,
     quantization::{
-        AffineQuantization, QTensorPrimitive, QuantizationScheme, QuantizationStrategy,
+        QTensorPrimitive, QuantizationMode, QuantizationScheme, QuantizationStrategy,
         QuantizationType, SymmetricQuantization,
     },
-    DType, Shape, TensorData, TensorMetadata,
 };
 use libc::c_void;
 use std::sync::Arc;
@@ -292,8 +292,7 @@ impl TchTensor {
     /// A new tensor.
     pub fn from_data<E: TchElement>(data: TensorData, device: tch::Device) -> Self {
         let shape_tch = TchShape::from(data.shape.as_slice());
-        let tensor =
-            tch::Tensor::from_slice(data.convert::<E>().as_slice::<E>().unwrap()).to(device);
+        let tensor = tch::Tensor::from_slice(data.as_slice::<E>().unwrap()).to(device);
         let tensor = tensor.reshape(shape_tch.dims).to_kind(E::KIND);
 
         Self::new(tensor)
@@ -332,24 +331,12 @@ impl TchQTensor {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
     pub fn strategy(&self) -> QuantizationStrategy {
         match &self.scheme {
-            QuantizationScheme::PerTensorAffine(dtype) => match dtype {
-                QuantizationType::QInt8 => {
-                    let scale = self.qtensor.tensor.q_scale();
-                    let offset = self.qtensor.tensor.q_zero_point();
-                    QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
-                        scale as f32,
-                        offset as i8,
-                    ))
-                }
-            },
-            QuantizationScheme::PerTensorSymmetric(dtype) => match dtype {
-                QuantizationType::QInt8 => {
-                    let scale = self.qtensor.tensor.q_scale();
-                    QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                        scale as f32,
-                    ))
-                }
-            },
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
+                let scale = self.qtensor.tensor.q_scale();
+                QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                    scale as f32,
+                ))
+            }
         }
     }
 }
@@ -376,17 +363,17 @@ mod tests {
 
     use super::*;
     use burn_tensor::ops::QTensorOps;
-    use burn_tensor::quantization::QuantizationParametersPrimitive;
+    use burn_tensor::quantization::{QuantizationMode, QuantizationParametersPrimitive};
     use burn_tensor::{Distribution, Tensor, TensorPrimitive};
-    use rand::prelude::StdRng;
     use rand::SeedableRng;
+    use rand::prelude::StdRng;
 
     #[test]
     fn should_support_into_and_from_data_1d() {
         let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([3]),
             Distribution::Default,
-            &mut StdRng::from_entropy(),
+            &mut StdRng::from_os_rng(),
         );
         let tensor = TchTensor::from_data::<f32>(data_expected.clone(), tch::Device::Cpu);
 
@@ -401,7 +388,7 @@ mod tests {
         let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([2, 3]),
             Distribution::Default,
-            &mut StdRng::from_entropy(),
+            &mut StdRng::from_os_rng(),
         );
         let tensor = TchTensor::from_data::<f32>(data_expected.clone(), tch::Device::Cpu);
 
@@ -441,7 +428,8 @@ mod tests {
     fn should_support_qtensor_strategy() {
         let tensor =
             TchTensor::from_data::<f32>(TensorData::from([-1.8, -1.0, 0.0, 0.5]), tch::Device::Cpu);
-        let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
+        let scheme =
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8);
         let qparams = QuantizationParametersPrimitive::<LibTorch<f32, i8>> {
             scale: TchTensor::from_data::<f32>(TensorData::from([0.009_019_608]), tch::Device::Cpu),
             offset: Some(TchTensor::from_data::<i8>(
@@ -454,7 +442,17 @@ mod tests {
         assert_eq!(qtensor.scheme(), &scheme);
         assert_eq!(
             qtensor.strategy(),
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.009_019_608, 72))
+            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                0.009_019_608
+            ))
         );
     }
 }
+
+unsafe extern "C" {
+    /// Dummy function to get CUDA to link properly
+    pub fn dummy_cuda_dependency();
+}
+
+#[used]
+static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [dummy_cuda_dependency];

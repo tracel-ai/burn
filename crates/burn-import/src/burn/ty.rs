@@ -8,9 +8,8 @@ use crate::burn::ToTokens;
 #[derive(Debug, Clone)]
 pub struct TensorType {
     pub name: Ident,
-    pub dim: usize,
+    pub rank: usize,
     pub kind: TensorKind,
-    pub shape: Option<Vec<usize>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,7 +37,7 @@ pub struct ScalarType {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShapeType {
     pub name: Ident,
-    pub dim: usize,
+    pub rank: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -158,19 +157,20 @@ impl ScalarType {
 }
 
 impl ShapeType {
-    pub fn new<S: AsRef<str>>(name: S, dim: usize) -> Self {
+    pub fn new<S: AsRef<str>>(name: S, rank: usize) -> Self {
         if name.as_ref().is_empty() {
             panic!("Shape was passed with empty name");
         }
         let formatted_name = Type::format_name(name.as_ref());
         Self {
             name: Ident::new(&formatted_name, Span::call_site()),
-            dim,
+            rank,
         }
     }
     pub fn ty(&self) -> TokenStream {
-        let dim = self.dim.to_tokens();
-        quote! { [usize; #dim] }
+        let rank = self.rank.to_tokens();
+
+        quote! { [usize; #rank] }
     }
 
     /// Helper for Ops that need to process a shape as a tensor on device
@@ -186,68 +186,35 @@ impl ShapeType {
 }
 
 impl TensorType {
-    pub fn new<S: AsRef<str>>(
-        name: S,
-        dim: usize,
-        kind: TensorKind,
-        shape: Option<Vec<usize>>,
-    ) -> Self {
+    pub fn new<S: AsRef<str>>(name: S, rank: usize, kind: TensorKind) -> Self {
         if name.as_ref().is_empty() {
-            panic!(
-                "Tensor of Kind {:?} with dim shape {:?} was passed with empty name",
-                kind, shape
-            );
+            panic!("Tensor of Kind {:?} was passed with empty name", kind);
         }
         let formatted_name = Type::format_name(name.as_ref());
         assert_ne!(
-            dim, 0,
+            rank, 0,
             "Trying to create TensorType with dim = 0 - should be a Scalar instead!"
         );
         Self {
             name: Ident::new(&formatted_name, Span::call_site()),
-            dim,
+            rank,
             kind,
-            shape,
         }
     }
-    pub fn new_float<S: AsRef<str>>(name: S, dim: usize) -> Self {
-        Self::new_float_with_shape(name, dim, None)
+    pub fn new_float<S: AsRef<str>>(name: S, rank: usize) -> Self {
+        Self::new(name, rank, TensorKind::Float)
     }
 
-    pub fn new_float_with_shape<S: AsRef<str>>(
-        name: S,
-        dim: usize,
-        shape: Option<Vec<usize>>,
-    ) -> Self {
-        Self::new(name, dim, TensorKind::Float, shape)
+    pub fn new_int<S: AsRef<str>>(name: S, rank: usize) -> Self {
+        Self::new(name, rank, TensorKind::Int)
     }
 
-    pub fn new_int<S: AsRef<str>>(name: S, dim: usize) -> Self {
-        Self::new_int_with_shape(name, dim, None)
-    }
-
-    pub fn new_int_with_shape<S: AsRef<str>>(
-        name: S,
-        dim: usize,
-        shape: Option<Vec<usize>>,
-    ) -> Self {
-        Self::new(name, dim, TensorKind::Int, shape)
-    }
-
-    pub fn new_bool<S: AsRef<str>>(name: S, dim: usize) -> Self {
-        Self::new_bool_with_shape(name, dim, None)
-    }
-
-    pub fn new_bool_with_shape<S: AsRef<str>>(
-        name: S,
-        dim: usize,
-        shape: Option<Vec<usize>>,
-    ) -> Self {
-        Self::new(name, dim, TensorKind::Bool, shape)
+    pub fn new_bool<S: AsRef<str>>(name: S, rank: usize) -> Self {
+        Self::new(name, rank, TensorKind::Bool)
     }
 
     pub fn ty(&self) -> TokenStream {
-        let dim = self.dim.to_tokens();
+        let dim = self.rank.to_tokens();
         match self {
             TensorType {
                 kind: TensorKind::Float,

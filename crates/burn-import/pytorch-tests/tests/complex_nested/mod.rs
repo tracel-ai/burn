@@ -1,15 +1,17 @@
 use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
 
+use burn::tensor::Tolerance;
+use burn::tensor::ops::FloatElem;
 use burn::{
     module::Module,
     nn::{
-        conv::{Conv2d, Conv2dConfig},
         BatchNorm, BatchNormConfig, Linear, LinearConfig,
+        conv::{Conv2d, Conv2dConfig},
     },
     tensor::{
+        Tensor,
         activation::{log_softmax, relu},
         backend::Backend,
-        Tensor,
     },
 };
 use burn_autodiff::Autodiff;
@@ -126,7 +128,7 @@ impl<B: Backend> PartialWithExtraNet<B> {
 
 type TestBackend = burn_ndarray::NdArray<f32>;
 
-fn model_test(record: NetRecord<TestBackend>, precision: usize) {
+fn model_test(record: NetRecord<TestBackend>, precision: f32) {
     let device = Default::default();
     let model = Net::<TestBackend>::init(&device).load_record(record);
 
@@ -150,9 +152,10 @@ fn model_test(record: NetRecord<TestBackend>, precision: usize) {
         &device,
     );
 
-    output
-        .to_data()
-        .assert_approx_eq(&expected.to_data(), precision);
+    output.to_data().assert_approx_eq::<FloatElem<TestBackend>>(
+        &expected.to_data(),
+        Tolerance::absolute(precision),
+    );
 }
 
 #[test]
@@ -162,7 +165,7 @@ fn full_record() {
         .load("tests/complex_nested/complex_nested.pt".into(), &device)
         .expect("Should decode state successfully");
 
-    model_test(record, 8);
+    model_test(record, 1e-8);
 }
 
 #[test]
@@ -183,7 +186,7 @@ fn half_record() {
         .load("tests/complex_nested/complex_nested.pt".into(), &device)
         .expect("Should decode state successfully");
 
-    model_test(record, 4);
+    model_test(record, 1e-4);
 }
 
 #[test]
@@ -207,7 +210,7 @@ fn partial_model_loading() {
     // get the sum of all elements in the output tensor for quick check
     let sum = output.sum();
 
-    assert_eq!(4.871538, sum.into_scalar());
+    assert!((sum.into_scalar() - 4.871538).abs() < 0.000002);
 }
 
 #[test]
@@ -232,7 +235,7 @@ fn extra_field_model_loading() {
     // get the sum of all elements in the output tensor for quick check
     let sum = output.sum();
 
-    assert_eq!(4.871538, sum.into_scalar());
+    assert!((sum.into_scalar() - 4.871538).abs() < 0.000002);
 
     assert!(model.extra_field);
 }

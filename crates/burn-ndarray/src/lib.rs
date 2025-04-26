@@ -21,7 +21,7 @@ mod sharing;
 mod tensor;
 
 pub use backend::*;
-pub use element::FloatNdArrayElement;
+pub use element::*;
 pub(crate) use sharing::*;
 pub use tensor::*;
 
@@ -38,7 +38,6 @@ mod tests {
     use alloc::vec;
 
     burn_tensor::testgen_all!();
-    burn_tensor::testgen_quantization!();
 
     #[cfg(feature = "std")]
     burn_autodiff::testgen_all!();

@@ -17,10 +17,10 @@ Then run `cargo build` to build the project and import all the dependencies.
 [package]
 name = "guide"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-burn = { version = "~0.17", features = ["train", "wgpu", "vision"] }
+burn = { version = "~0.18", features = ["train", "wgpu", "vision"] }
 ```
 
 Our goal will be to create a basic convolutional neural network used for image classification. We
@@ -221,6 +221,8 @@ impl ModelConfig {
 At a glance, you can view the model configuration by printing the model instance:
 
 ```rust , ignore
+mod model;
+
 use crate::model::ModelConfig;
 use burn::backend::Wgpu;
 
@@ -305,7 +307,7 @@ are set using the configuration of the corresponding neural network's underlying
 specific case, we have chosen to expand the tensor channels from 1 to 8 with the first layer, then
 from 8 to 16 with the second layer, using a kernel size of 3 on all dimensions. We also use the
 adaptive average pooling module to reduce the dimensionality of the images to an 8 by 8 matrix,
-which we will flatten in the forward pass to have a 1024 (16 _ 8 _ 8) resulting tensor.
+which we will flatten in the forward pass to have a 1024 (16 * 8 * 8) resulting tensor.
 
 Now let's see how the forward pass is defined.
 

@@ -1,11 +1,11 @@
-use burn_tensor::repr::HandleContainer;
+use burn_ir::HandleContainer;
 
 use crate::{
-    stream::{
-        store::{ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy},
-        OperationQueue, RelativeOps,
-    },
     FusionRuntime, Optimization,
+    stream::{
+        OperationQueue, RelativeOps,
+        store::{ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy},
+    },
 };
 
 /// The mode in which the execution is done.

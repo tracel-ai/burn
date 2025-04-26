@@ -1,11 +1,11 @@
 use burn_tensor::{
-    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
     Device, Shape, TensorData, TensorMetadata,
+    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
 };
 
 use crate::{
-    element::{CandleElement, FloatCandleElement, IntCandleElement},
     Candle, CandleTensor,
+    element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
 use super::base::{expand, permute};
@@ -22,8 +22,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
     }
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
-        let data: TensorData = TensorData::new(data.iter::<bool>().collect(), data.shape);
-        super::base::from_data::<u8>(data, device)
+        match data.dtype {
+            burn_tensor::DType::U8 => super::base::from_data::<u8>(data, device),
+            _ => unimplemented!("Unsupported dtype for `bool_from_data`"),
+        }
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
@@ -69,6 +71,21 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
     fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         let x = (candle_core::Tensor::zeros_like(&tensor.tensor).unwrap());
         CandleTensor::new(tensor.tensor.eq(&x).unwrap())
+    }
+
+    fn bool_and(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        let x = candle_core::Tensor::ones_like(&lhs.tensor).unwrap();
+        CandleTensor::new(lhs.tensor.add(&rhs.tensor).unwrap().gt(&x).unwrap())
+    }
+
+    fn bool_or(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        CandleTensor::new(
+            lhs.tensor
+                .add(&rhs.tensor)
+                .unwrap()
+                .clamp(0u32, 1u32)
+                .unwrap(),
+        )
     }
 
     fn bool_swap_dims(tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {

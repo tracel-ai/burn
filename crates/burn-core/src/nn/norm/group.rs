@@ -5,8 +5,8 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
-use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 
 /// Configuration to create a [GroupNorm](GroupNorm) layer using the [init function](GroupNormConfig::init).
 #[derive(Debug, Config)]
@@ -171,7 +171,7 @@ pub(crate) fn group_norm<B: Backend, const D: usize>(
     let input = input.sub(mean);
 
     let var = input.clone().powf_scalar(2.).sum_dim(2) / hidden_size as f64;
-    let input_normalized = input.div(var.sqrt().add_scalar(epsilon));
+    let input_normalized = input.div(var.add_scalar(epsilon).sqrt());
 
     if affine {
         let mut affine_shape = [1; D];
@@ -189,9 +189,11 @@ pub(crate) fn group_norm<B: Backend, const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
     use alloc::format;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn group_norm_forward_affine_false() {
@@ -245,7 +247,9 @@ mod tests {
                 [-0.3428, 0.7970, 1.1845],
             ],
         ]);
-        output.to_data().assert_approx_eq(&expected, 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -255,13 +259,14 @@ mod tests {
             .with_affine(true)
             .init::<TestBackend>(&device);
 
+        let tolerance = Tolerance::rel_abs(1e-4, 3e-4);
         module
             .gamma
             .as_ref()
             .expect("gamma should not be None")
             .val()
             .to_data()
-            .assert_approx_eq(&TensorData::ones::<f32, _>([6]), 3);
+            .assert_approx_eq::<FT>(&TensorData::ones::<f32, _>([6]), tolerance);
 
         module
             .beta
@@ -269,7 +274,7 @@ mod tests {
             .expect("beta should not be None")
             .val()
             .to_data()
-            .assert_approx_eq(&TensorData::zeros::<f32, _>([6]), 3);
+            .assert_approx_eq::<FT>(&TensorData::zeros::<f32, _>([6]), tolerance);
 
         let input = Tensor::<TestBackend, 3>::from_data(
             TensorData::from([
@@ -313,7 +318,9 @@ mod tests {
                 [-1.0903, -0.0419, -1.3623],
             ],
         ]);
-        output.to_data().assert_approx_eq(&expected, 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 
     #[test]

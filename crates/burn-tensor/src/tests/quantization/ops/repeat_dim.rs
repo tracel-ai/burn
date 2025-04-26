@@ -3,10 +3,9 @@ mod tests {
     use super::*;
     use burn_tensor::TensorData;
 
-    // NOTE: we use affine quantization to reduce quantization errors for range of input values
     #[test]
     fn should_support_repeat_ops() {
-        let tensor = QTensor::<TestBackend, 2>::int8_affine([[0.0, 1.0, 2.0, 3.0]]);
+        let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0, 3.0]]);
 
         let output = tensor.repeat_dim(0, 4);
         let expected = TensorData::from([
@@ -21,7 +20,7 @@ mod tests {
 
     #[test]
     fn should_support_repeat_on_dims_larger_than_1() {
-        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+        let tensor = QTensor::<TestBackend, 1>::int8([
             0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.,
         ])
         .reshape([4, 2, 2]);

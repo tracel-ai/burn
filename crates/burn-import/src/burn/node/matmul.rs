@@ -39,8 +39,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
         let rhs = scope.tensor_use_owned(&self.rhs, node_position);
         let output = &self.output.name;
 
-        let lhs_dim = self.lhs.dim;
-        let rhs_dim = self.rhs.dim;
+        let lhs_dim = self.lhs.rank;
+        let rhs_dim = self.rhs.rank;
 
         // Support broadcasting for missing dimensions
         match lhs_dim.cmp(&rhs_dim) {
@@ -97,9 +97,9 @@ mod tests {
 
     use super::*;
     use crate::burn::{
+        TensorType,
         graph::BurnGraph,
         node::{matmul::MatmulNode, test::assert_tokens},
-        TensorType,
     };
 
     #[test]

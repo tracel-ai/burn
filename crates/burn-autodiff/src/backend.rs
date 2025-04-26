@@ -4,6 +4,7 @@ use crate::{
     runtime::AutodiffClient,
     tensor::AutodiffTensor,
 };
+use alloc::{format, string::String};
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
     ops::{BoolTensor, IntTensor, QuantizedTensor},
@@ -39,8 +40,8 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         true
     }
 
-    fn name() -> String {
-        format!("autodiff<{}>", B::name())
+    fn name(device: &Self::Device) -> String {
+        format!("autodiff<{}>", B::name(device))
     }
 
     fn seed(seed: u64) {

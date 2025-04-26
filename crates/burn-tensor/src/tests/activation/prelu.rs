@@ -1,7 +1,9 @@
 #[burn_tensor_testgen::testgen(prelu)]
 mod tests {
     use super::*;
-    use burn_tensor::{activation, Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData, activation};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_prelu_2_dimension() {
@@ -16,7 +18,9 @@ mod tests {
             [-2.2835, 0.5600, -0.0000, 99.9000, -0.0000],
         ]);
 
-        output.into_data().assert_approx_eq(&expected, 5);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
     #[test]
     fn test_prelu_2_dimension_scalar_weight() {
@@ -31,7 +35,9 @@ mod tests {
             [3.6536, 0.5600, 1.2400, 99.9000, -0.0000],
         ]);
 
-        output.into_data().assert_approx_eq(&expected, 5);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -44,7 +50,9 @@ mod tests {
         let output = activation::prelu(tensor, TestTensor::from([0.25]));
         let expected = TensorData::from(data);
 
-        output.into_data().assert_approx_eq(&expected, 7);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -55,7 +63,9 @@ mod tests {
         let output = activation::prelu(tensor, TestTensor::from([0.0]));
         let expected = TensorData::from([0.0, 0.0, 1.2, 0.25, 0.0]);
 
-        output.into_data().assert_approx_eq(&expected, 7);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -65,7 +75,9 @@ mod tests {
         let tensor = TestTensor::<1>::from(data);
         let output = activation::prelu(tensor, TestTensor::from([0.5]));
         let expected = TensorData::from([-0.550, 0.0, 1.20, 0.250, -2.70]);
-        output.into_data().assert_approx_eq(&expected, 7);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -77,7 +89,7 @@ mod tests {
         let data_actual =
             activation::prelu(tensor, TestTensor::from([0.5, -0.25, 0.0, 0.5, -1.0])).into_data();
         let data_expected = TensorData::from([-0.550, 0.0, 1.20, 0.250, -2.70]);
-        data_expected.assert_approx_eq(&data_actual, 7);
+        data_expected.assert_approx_eq::<FT>(&data_actual, Tolerance::default());
     }
 
     #[test]

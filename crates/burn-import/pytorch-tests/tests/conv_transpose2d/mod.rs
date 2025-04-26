@@ -1,7 +1,7 @@
 use burn::{
     module::Module,
     nn::conv::{ConvTranspose2d, ConvTranspose2dConfig},
-    tensor::{backend::Backend, Tensor},
+    tensor::{Tensor, backend::Backend},
 };
 
 #[derive(Module, Debug)]
@@ -31,12 +31,15 @@ impl<B: Backend> Net<B> {
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
 
-    use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
+    use burn::{
+        record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder},
+        tensor::Tolerance,
+    };
     use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
 
-    fn conv_transpose2d(record: NetRecord<Backend>, precision: usize) {
+    fn conv_transpose2d(record: NetRecord<Backend>, precision: f32) {
         let device = Default::default();
 
         let model = Net::<Backend>::init(&device).load_record(record);
@@ -68,10 +71,9 @@ mod tests {
             ]],
             &device,
         );
-
         output
             .to_data()
-            .assert_approx_eq(&expected.to_data(), precision);
+            .assert_approx_eq::<f32>(&expected.to_data(), Tolerance::absolute(precision));
     }
 
     #[test]
@@ -81,7 +83,7 @@ mod tests {
             .load("tests/conv_transpose2d/conv_transpose2d.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        conv_transpose2d(record, 7);
+        conv_transpose2d(record, 1e-7);
     }
     #[test]
     fn conv_transpose2d_half() {
@@ -90,6 +92,6 @@ mod tests {
             .load("tests/conv_transpose2d/conv_transpose2d.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        conv_transpose2d(record, 4);
+        conv_transpose2d(record, 1e-4);
     }
 }

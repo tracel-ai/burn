@@ -1,9 +1,9 @@
 use core::cmp::Ordering;
 
 use crate::{
+    Distribution,
     cast::ToElement,
     quantization::{QuantizationScheme, QuantizationType},
-    Distribution,
 };
 #[cfg(feature = "cubecl")]
 use cubecl::flex32;
@@ -18,8 +18,10 @@ pub trait Element:
     + ElementConversion
     + ElementPrecision
     + ElementComparison
+    + ElementLimits
     + bytemuck::CheckedBitPattern
     + bytemuck::NoUninit
+    + bytemuck::Zeroable
     + core::fmt::Debug
     + core::fmt::Display
     + Default
@@ -70,6 +72,14 @@ pub trait ElementComparison {
     fn cmp(&self, other: &Self) -> Ordering;
 }
 
+/// Element ordering trait.
+pub trait ElementLimits {
+    /// The minimum representable value
+    const MIN: Self;
+    /// The maximum representable value
+    const MAX: Self;
+}
+
 /// Element precision trait for tensor.
 #[derive(Clone, PartialEq, Eq, Copy, Debug)]
 pub enum Precision {
@@ -101,19 +111,32 @@ macro_rules! make_element {
         random $random:expr,
         cmp $cmp:expr,
         dtype $dtype:expr
-
+    ) => {
+        make_element!(ty $type $precision, convert $convert, random $random, cmp $cmp, dtype $dtype, min $type::MIN, max $type::MAX);
+    };
+    (
+        ty $type:ident $precision:expr,
+        convert $convert:expr,
+        random $random:expr,
+        cmp $cmp:expr,
+        dtype $dtype:expr,
+        min $min:expr,
+        max $max:expr
     ) => {
         impl Element for $type {
+            #[inline(always)]
             fn dtype() -> $crate::DType {
                 $dtype
             }
         }
 
         impl ElementConversion for $type {
+            #[inline(always)]
             fn from_elem<E: ToElement>(elem: E) -> Self {
                 #[allow(clippy::redundant_closure_call)]
                 $convert(&elem)
             }
+            #[inline(always)]
             fn elem<E: Element>(self) -> E {
                 E::from_elem(self)
             }
@@ -140,12 +163,17 @@ macro_rules! make_element {
                 $cmp(&a, &b)
             }
         }
+
+        impl ElementLimits for $type {
+            const MIN: Self = $min;
+            const MAX: Self = $max;
+        }
     };
 }
 
 make_element!(
     ty f64 Precision::Double,
-    convert |elem: &dyn ToElement| elem.to_f64(),
+    convert ToElement::to_f64,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &f64, b: &f64| a.total_cmp(b),
     dtype DType::F64
@@ -153,7 +181,7 @@ make_element!(
 
 make_element!(
     ty f32 Precision::Full,
-    convert |elem: &dyn ToElement| elem.to_f32(),
+    convert ToElement::to_f32,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &f32, b: &f32| a.total_cmp(b),
     dtype DType::F32
@@ -161,7 +189,7 @@ make_element!(
 
 make_element!(
     ty i64 Precision::Double,
-    convert |elem: &dyn ToElement| elem.to_i64(),
+    convert ToElement::to_i64,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i64, b: &i64| Ord::cmp(a, b),
     dtype DType::I64
@@ -169,7 +197,7 @@ make_element!(
 
 make_element!(
     ty u64 Precision::Double,
-    convert |elem: &dyn ToElement| elem.to_u64(),
+    convert ToElement::to_u64,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &u64, b: &u64| Ord::cmp(a, b),
     dtype DType::U64
@@ -177,7 +205,7 @@ make_element!(
 
 make_element!(
     ty i32 Precision::Full,
-    convert |elem: &dyn ToElement| elem.to_i32(),
+    convert ToElement::to_i32,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i32, b: &i32| Ord::cmp(a, b),
     dtype DType::I32
@@ -185,7 +213,7 @@ make_element!(
 
 make_element!(
     ty u32 Precision::Full,
-    convert |elem: &dyn ToElement| elem.to_u32(),
+    convert ToElement::to_u32,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &u32, b: &u32| Ord::cmp(a, b),
     dtype DType::U32
@@ -193,7 +221,7 @@ make_element!(
 
 make_element!(
     ty i16 Precision::Half,
-    convert |elem: &dyn ToElement| elem.to_i16(),
+    convert ToElement::to_i16,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i16, b: &i16| Ord::cmp(a, b),
     dtype DType::I16
@@ -201,7 +229,7 @@ make_element!(
 
 make_element!(
     ty u16 Precision::Half,
-    convert |elem: &dyn ToElement| elem.to_u16(),
+    convert ToElement::to_u16,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &u16, b: &u16| Ord::cmp(a, b),
     dtype DType::U16
@@ -209,7 +237,7 @@ make_element!(
 
 make_element!(
     ty i8 Precision::Other,
-    convert |elem: &dyn ToElement| elem.to_i8(),
+    convert ToElement::to_i8,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &i8, b: &i8| Ord::cmp(a, b),
     dtype DType::I8
@@ -217,7 +245,7 @@ make_element!(
 
 make_element!(
     ty u8 Precision::Other,
-    convert |elem: &dyn ToElement| elem.to_u8(),
+    convert ToElement::to_u8,
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
     cmp |a: &u8, b: &u8| Ord::cmp(a, b),
     dtype DType::U8
@@ -225,7 +253,7 @@ make_element!(
 
 make_element!(
     ty f16 Precision::Half,
-    convert |elem: &dyn ToElement| f16::from_f32(elem.to_f32()),
+    convert ToElement::to_f16,
     random |distribution: Distribution, rng: &mut R| {
         let sample: f32 = distribution.sampler(rng).sample();
         f16::from_elem(sample)
@@ -235,7 +263,7 @@ make_element!(
 );
 make_element!(
     ty bf16 Precision::Half,
-    convert |elem: &dyn ToElement| bf16::from_f32(elem.to_f32()),
+    convert ToElement::to_bf16,
     random |distribution: Distribution, rng: &mut R| {
         let sample: f32 = distribution.sampler(rng).sample();
         bf16::from_elem(sample)
@@ -253,18 +281,22 @@ make_element!(
         flex32::from_elem(sample)
     },
     cmp |a: &flex32, b: &flex32| a.total_cmp(b),
-    dtype DType::F32
+    dtype DType::Flex32,
+    min flex32::from_f32(half::f16::MIN.to_f32_const()),
+    max flex32::from_f32(half::f16::MAX.to_f32_const())
 );
 
 make_element!(
     ty bool Precision::Other,
-    convert |elem: &dyn ToElement| elem.to_u8() != 0,
+    convert ToElement::to_bool,
     random |distribution: Distribution, rng: &mut R| {
         let sample: u8 = distribution.sampler(rng).sample();
         bool::from_elem(sample)
     },
     cmp |a: &bool, b: &bool| Ord::cmp(a, b),
-    dtype DType::Bool
+    dtype DType::Bool,
+    min false,
+    max true
 );
 
 #[allow(missing_docs)]
@@ -272,6 +304,7 @@ make_element!(
 pub enum DType {
     F64,
     F32,
+    Flex32,
     F16,
     BF16,
     I64,
@@ -292,6 +325,7 @@ impl DType {
         match self {
             DType::F64 => core::mem::size_of::<f64>(),
             DType::F32 => core::mem::size_of::<f32>(),
+            DType::Flex32 => core::mem::size_of::<f32>(),
             DType::F16 => core::mem::size_of::<f16>(),
             DType::BF16 => core::mem::size_of::<bf16>(),
             DType::I64 => core::mem::size_of::<i64>(),
@@ -304,10 +338,9 @@ impl DType {
             DType::U8 => core::mem::size_of::<u8>(),
             DType::Bool => core::mem::size_of::<bool>(),
             DType::QFloat(scheme) => match scheme {
-                QuantizationScheme::PerTensorAffine(qtype)
-                | QuantizationScheme::PerTensorSymmetric(qtype) => match qtype {
-                    QuantizationType::QInt8 => core::mem::size_of::<i8>(),
-                },
+                QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8) => {
+                    core::mem::size_of::<i8>()
+                }
             },
         }
     }
@@ -330,6 +363,7 @@ impl DType {
         match self {
             DType::F64 => "f64",
             DType::F32 => "f32",
+            DType::Flex32 => "flex32",
             DType::F16 => "f16",
             DType::BF16 => "bf16",
             DType::I64 => "i64",

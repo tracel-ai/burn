@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_diff_log1p() {
@@ -15,10 +17,16 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let expected = TensorData::from([[64.80622, 75.49362], [64.80622, 75.49362]]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        let tolerance = Tolerance::rel_abs(1.5e-4, 1e-5).set_half_precision_relative(1e-3);
+        let expected = TensorData::from([[64.80622101, 75.49362183], [64.80622101, 75.49362183]]);
+        grad_1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
 
-        let expected = TensorData::from([[22.922085, 24.475657], [24.727802, 26.864166]]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        let expected = TensorData::from([[22.92208481, 24.47565651], [24.72780228, 26.86416626]]);
+
+        grad_2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 }

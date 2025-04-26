@@ -8,12 +8,12 @@ use crate::module::DisplaySettings;
 use crate::module::Module;
 use crate::module::ModuleDisplay;
 use crate::module::Param;
-use crate::nn::conv::checks;
 use crate::nn::Initializer;
+use crate::nn::conv::checks;
+use crate::tensor::Tensor;
 use crate::tensor::backend::Backend;
 use crate::tensor::module::conv_transpose3d;
 use crate::tensor::ops::ConvTransposeOptions;
-use crate::tensor::Tensor;
 
 /// Configuration to create an [3D transposed convolution](ConvTranspose3d) layer
 /// using the [init function](ConvTranspose3dConfig::init).
@@ -159,9 +159,11 @@ impl<B: Backend> ConvTranspose3d<B> {
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::Tolerance;
+
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
 
     #[test]
     fn initializer_default() {
@@ -187,9 +189,10 @@ mod tests {
         let conv = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(config.initializer, Initializer::Zeros);
-        conv.weight
-            .to_data()
-            .assert_approx_eq(&TensorData::zeros::<f32, _>(conv.weight.shape()), 3);
+        conv.weight.to_data().assert_approx_eq::<f32>(
+            &TensorData::zeros::<f32, _>(conv.weight.shape()),
+            Tolerance::default(),
+        );
     }
 
     #[test]
@@ -201,5 +204,15 @@ mod tests {
             format!("{}", conv),
             "ConvTranspose3d {channels: [5, 2], stride: [1, 1, 1], kernel_size: [5, 5, 5], dilation: [1, 1, 1], groups: 1, padding: [0, 0, 0], padding_out: [0, 0, 0], params: 1252}"
         );
+    }
+
+    #[test]
+    #[should_panic = "Number of channels in input tensor and input channels of convolution must be equal. got: 4, expected: 5"]
+    fn input_channels_mismatch() {
+        let config = ConvTranspose3dConfig::new([5, 3], [3, 3, 3]);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        let input = Tensor::<TestBackend, 5>::zeros([1, 4, 10, 10, 10], &Default::default());
+        let _ = conv.forward(input);
     }
 }

@@ -2,12 +2,13 @@
 mod tests {
     use super::*;
     use burn_tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_powf_ops() {
-        // NOTE: we use affine quantization to reduce quantization errors
-        let tensor = QTensor::<TestBackend, 2>::int8_affine([[1.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor_pow = QTensor::<TestBackend, 2>::int8_affine([[1.0, 1.0, 2.0], [3.0, 4.0, 2.0]]);
+        let tensor = QTensor::<TestBackend, 2>::int8([[1.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor_pow = QTensor::<TestBackend, 2>::int8([[1.0, 1.0, 2.0], [3.0, 4.0, 2.0]]);
 
         let output = tensor.powf(tensor_pow);
         let expected = TensorData::from([[1.0, 1.0, 4.0], [27.0, 256.0, 25.0]]);
@@ -16,7 +17,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&expected, 1);
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 
     #[test]
@@ -32,7 +33,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&expected, 1);
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 
     #[test]
@@ -47,7 +48,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&expected, 1);
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 
     #[test]
@@ -62,6 +63,6 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&expected, 1);
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
     }
 }

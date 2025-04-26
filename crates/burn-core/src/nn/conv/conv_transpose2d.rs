@@ -8,12 +8,12 @@ use crate::module::DisplaySettings;
 use crate::module::Module;
 use crate::module::ModuleDisplay;
 use crate::module::Param;
-use crate::nn::conv::checks;
 use crate::nn::Initializer;
+use crate::nn::conv::checks;
+use crate::tensor::Tensor;
 use crate::tensor::backend::Backend;
 use crate::tensor::module::conv_transpose2d;
 use crate::tensor::ops::ConvTransposeOptions;
-use crate::tensor::Tensor;
 
 /// Configuration to create an [2D transposed convolution](ConvTranspose2d) layer
 /// using the [init function](ConvTranspose2dConfig::init).
@@ -159,8 +159,10 @@ impl<B: Backend> ConvTranspose2d<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn initializer_default() {
@@ -183,9 +185,10 @@ mod tests {
         let conv = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(config.initializer, Initializer::Zeros);
-        conv.weight
-            .to_data()
-            .assert_approx_eq(&TensorData::zeros::<f32, _>(conv.weight.shape()), 3);
+        conv.weight.to_data().assert_approx_eq::<FT>(
+            &TensorData::zeros::<f32, _>(conv.weight.shape()),
+            Tolerance::default(),
+        );
     }
 
     #[test]
@@ -197,5 +200,15 @@ mod tests {
             format!("{}", conv),
             "ConvTranspose2d {channels: [5, 2], stride: [1, 1], kernel_size: [5, 5], dilation: [1, 1], groups: 1, padding: [0, 0], padding_out: [0, 0], params: 252}"
         );
+    }
+
+    #[test]
+    #[should_panic = "Number of channels in input tensor and input channels of convolution must be equal. got: 4, expected: 5"]
+    fn input_channels_mismatch() {
+        let config = ConvTranspose2dConfig::new([5, 3], [3, 3]);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        let input = Tensor::<TestBackend, 4>::zeros([1, 4, 10, 10], &Default::default());
+        let _ = conv.forward(input);
     }
 }

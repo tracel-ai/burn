@@ -23,6 +23,7 @@ pub enum UnaryNodeKind {
     // Input and output tensor types (required for codegen imports)
     Cast(Option<TensorKind>, Option<TensorKind>),
     Cos,
+    Cosh,
     Erf,
     Exp,
     Flatten,
@@ -43,8 +44,10 @@ pub enum UnaryNodeKind {
     Shape,
     Sigmoid,
     Sin,
+    Sinh,
     Softmax,
     Sqrt,
+    Tan,
     Tanh,
     Transpose,
     Sign,
@@ -55,6 +58,7 @@ impl UnaryNodeKind {
         match self {
             Self::Cast(..) => "cast",
             Self::Cos => "cos",
+            Self::Cosh => "cosh",
             Self::Erf => "erf",
             Self::Exp => "exp",
             Self::Flatten => "flatten",
@@ -75,8 +79,10 @@ impl UnaryNodeKind {
             Self::Shape => "shape",
             Self::Sigmoid => "sigmoid",
             Self::Sin => "sin",
+            Self::Sinh => "sinh",
             Self::Softmax => "softmax",
             Self::Sqrt => "sqrt",
+            Self::Tan => "tan",
             Self::Tanh => "tanh",
             Self::Transpose => "transpose",
             Self::Sign => "sign",
@@ -122,8 +128,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
         let function = (self.function)(input);
 
         match &self.output {
-            Type::Shape(ref shape_type) => {
-                let dim = shape_type.dim.to_tokens();
+            Type::Shape(shape_type) => {
+                let dim = shape_type.rank.to_tokens();
                 quote! {
                     let #output: [usize;#dim] = #function.try_into().unwrap();
                 }
@@ -168,12 +174,22 @@ impl UnaryNode {
         Self::new(input, output, UnaryNodeKind::Erf, Rc::new(function))
     }
 
-    pub(crate) fn flatten(input: Type, output: Type, start_dim: usize, end_dim: usize) -> Self {
-        let start_dim = start_dim.to_tokens();
-        let end_dim = end_dim.to_tokens();
-        let function = move |input| quote! { #input.flatten(#start_dim, #end_dim) };
-
-        Self::new(input, output, UnaryNodeKind::Flatten, Rc::new(function))
+    pub(crate) fn flatten(input: Type, output: Type, axis: usize) -> Self {
+        if axis == 0 {
+            let function = move |input| quote! {#input.reshape::<2>([1, -1])};
+            Self::new(input, output, UnaryNodeKind::Flatten, Rc::new(function))
+        } else {
+            let axis = axis.to_tokens();
+            let function = move |input| {
+                quote! {
+                    {
+                        let leading_dim = #input.shape().dims[..#axis].iter().product::<usize>() as i32;
+                        #input.reshape::<2, _>([leading_dim, -1])
+                    };
+                }
+            };
+            Self::new(input, output, UnaryNodeKind::Flatten, Rc::new(function))
+        }
     }
 
     pub(crate) fn relu(input: Type, output: Type) -> Self {
@@ -217,6 +233,11 @@ impl UnaryNode {
         Self::new(input, output, UnaryNodeKind::Sqrt, Rc::new(function))
     }
 
+    pub(crate) fn tan(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.tan()};
+        Self::new(input, output, UnaryNodeKind::Tan, Rc::new(function))
+    }
+
     pub(crate) fn tanh(input: Type, output: Type) -> Self {
         let function = move |input| quote! { burn::tensor::activation::tanh(#input)};
         Self::new(input, output, UnaryNodeKind::Tanh, Rc::new(function))
@@ -238,9 +259,19 @@ impl UnaryNode {
         Self::new(input, output, UnaryNodeKind::Cos, Rc::new(function))
     }
 
+    pub(crate) fn cosh(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.cosh()};
+        Self::new(input, output, UnaryNodeKind::Cosh, Rc::new(function))
+    }
+
     pub(crate) fn sin(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.sin()};
         Self::new(input, output, UnaryNodeKind::Sin, Rc::new(function))
+    }
+
+    pub(crate) fn sinh(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.sinh()};
+        Self::new(input, output, UnaryNodeKind::Sinh, Rc::new(function))
     }
 
     pub(crate) fn exp(input: Type, output: Type) -> Self {
@@ -495,13 +526,15 @@ mod tests {
         one_node_graph(
             UnaryNode::flatten(
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_float("tensor2", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 2)),
                 1,
-                2,
             ),
             quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.flatten(1, 2);
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 2> {
+                    let tensor2 = {
+                        let leading_dim = tensor1.shape().dims[..1].iter().product::<usize>() as i32;
+                        tensor1.reshape::<2, _>([leading_dim, -1])
+                    };
 
                     tensor2
                 }
@@ -640,6 +673,25 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = burn::tensor::activation::softmax(tensor1, 1);
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_tan() {
+        one_node_graph(
+            UnaryNode::tan(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.tan();
 
                     tensor2
                 }

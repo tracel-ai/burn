@@ -1,7 +1,7 @@
 use burn::{
     module::Module,
     nn::{GroupNorm, GroupNormConfig},
-    tensor::{backend::Backend, Tensor},
+    tensor::{Tensor, backend::Backend},
 };
 
 #[derive(Module, Debug)]
@@ -26,11 +26,12 @@ impl<B: Backend> Net<B> {
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
     use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
+    use burn::tensor::Tolerance;
     use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
 
-    fn group_norm(record: NetRecord<Backend>, precision: usize) {
+    fn group_norm(record: NetRecord<Backend>, precision: f32) {
         let device = Default::default();
 
         let model = Net::<Backend>::init(&device).load_record(record);
@@ -63,7 +64,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq(&expected.to_data(), precision);
+            .assert_approx_eq::<f32>(&expected.to_data(), Tolerance::absolute(precision));
     }
 
     #[test]
@@ -73,7 +74,7 @@ mod tests {
             .load("tests/group_norm/group_norm.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        group_norm(record, 3);
+        group_norm(record, 1e-3);
     }
 
     #[test]
@@ -83,6 +84,6 @@ mod tests {
             .load("tests/group_norm/group_norm.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        group_norm(record, 3);
+        group_norm(record, 1e-3);
     }
 }

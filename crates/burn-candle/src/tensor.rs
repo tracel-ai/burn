@@ -1,9 +1,9 @@
 use burn_tensor::{
-    quantization::{QTensorPrimitive, QuantizationScheme, QuantizationStrategy},
     DType, Element, Shape, TensorData, TensorMetadata,
+    quantization::{QTensorPrimitive, QuantizationScheme},
 };
 
-use crate::{element::CandleElement, CandleDevice};
+use crate::{CandleDevice, element::CandleElement};
 
 /// A tensor that uses the candle backend.
 #[derive(Debug, Clone)]
@@ -48,7 +48,7 @@ impl CandleTensor {
     pub fn from_data<E: CandleElement>(data: TensorData, device: CandleDevice) -> Self {
         let candle_shape: candle_core::Shape = data.shape.clone().into();
         let tensor = candle_core::Tensor::from_slice(
-            data.convert::<E>().as_slice::<E>().unwrap(),
+            data.as_slice::<E>().unwrap(),
             candle_shape,
             &device.into(),
         );

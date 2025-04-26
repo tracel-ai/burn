@@ -1,11 +1,11 @@
 use burn_tensor::{
-    ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
     Bool, Device, Distribution, ElementConversion, Shape, TensorData,
+    ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
 };
 
 use crate::{
-    element::{CandleElement, FloatCandleElement, IntCandleElement},
     Candle, CandleTensor,
+    element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
 use super::base::{expand, permute, sign};
@@ -20,7 +20,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
-        super::base::from_data::<I>(data, device)
+        match data.dtype {
+            burn_tensor::DType::I64 => super::base::from_data::<i64>(data, device),
+            burn_tensor::DType::U32 => super::base::from_data::<u32>(data, device),
+            burn_tensor::DType::U8 => super::base::from_data::<u8>(data, device),
+            _ => unimplemented!("Unsupported dtype for `int_from_data`"),
+        }
     }
 
     fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {
@@ -258,11 +263,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        todo!("prod is not implemented for Candle IntTensor (see https://github.com/tracel-ai/burn/issues/1454)")
+        todo!(
+            "prod is not implemented for Candle IntTensor (see https://github.com/tracel-ai/burn/issues/1454)"
+        )
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        todo!("prod_int is not implemented for Candle IntTensor (see https://github.com/tracel-ai/burn/issues/1454)")
+        todo!(
+            "prod_int is not implemented for Candle IntTensor (see https://github.com/tracel-ai/burn/issues/1454)"
+        )
     }
 
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
@@ -371,5 +380,48 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
 
     fn int_sign(tensor: IntTensor<Self>) -> IntTensor<Self> {
         sign(tensor)
+    }
+    fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_and is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_and_scalar is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_or is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_or_scalar is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_xor is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_xor_scalar is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_not is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_left_shift is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_right_shift is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_left_shift_scalar is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_right_shift_scalar is not implemented for Candle IntTensor");
     }
 }

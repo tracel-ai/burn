@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::backend::Backend;
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData, Tolerance};
 
     type FloatElem = <TestBackend as Backend>::FloatElem;
     type IntElem = <TestBackend as Backend>::IntElem;
@@ -14,9 +14,12 @@ mod tests {
 
         let output = tensor.cov(1, 1);
         let expected =
-            TensorData::from([[2.4892, -1.7333], [-1.7333, 15.3333]]).convert::<FloatElem>();
+            TensorData::from([[2.48917, -1.73333], [-1.73333, 15.33333]]).convert::<FloatElem>();
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-5).set_half_precision_relative(1e-3);
+        output
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&expected, tolerance);
     }
 
     #[test]
@@ -26,9 +29,12 @@ mod tests {
 
         let output = tensor.cov(1, 0);
         let expected =
-            TensorData::from([[1.8668, -1.2999], [-1.2999, 11.5]]).convert::<FloatElem>();
+            TensorData::from([[1.86687, -1.30000], [-1.30000, 11.5]]).convert::<FloatElem>();
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-5).set_half_precision_relative(1e-3);
+        output
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&expected, tolerance);
     }
 
     #[test]
@@ -45,7 +51,10 @@ mod tests {
         ])
         .convert::<FloatElem>();
 
-        output.into_data().assert_approx_eq(&expected, 2);
+        let tolerance = Tolerance::rel_abs(4e-4, 1e-3).set_half_precision_relative(1e-3);
+        output
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&expected, tolerance);
     }
 
     #[test]
@@ -60,6 +69,6 @@ mod tests {
         let tensor = TestTensor::<3>::from_data(data, &device);
         let data_actual = tensor.cov(0, 1).into_data();
         let data_expected = TestTensor::<3>::zeros([4, 4, 4], &device).to_data();
-        data_expected.assert_approx_eq(&data_actual, 3);
+        data_expected.assert_approx_eq::<FloatElem>(&data_actual, Tolerance::default());
     }
 }

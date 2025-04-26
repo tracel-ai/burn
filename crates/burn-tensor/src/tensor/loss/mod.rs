@@ -1,5 +1,5 @@
 use crate::backend::Backend;
-use crate::{activation, Tensor};
+use crate::{Tensor, activation};
 
 /// Computes the log softmax cross entropy between logits and target probabilities.
 ///

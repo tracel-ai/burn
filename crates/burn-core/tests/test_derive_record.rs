@@ -1,8 +1,8 @@
 use burn_core as burn;
 use burn_core::record::Record;
 
-use burn_tensor::backend::Backend;
 use burn_tensor::Tensor;
+use burn_tensor::backend::Backend;
 
 // It compiles
 #[derive(Record)]

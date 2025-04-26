@@ -4,29 +4,30 @@ use alloc::vec::Vec;
 use burn_tensor::ops::{BoolTensorOps, FloatTensor, IntTensorOps};
 use burn_tensor::{ElementConversion, TensorMetadata};
 use core::ops::Range;
-use ndarray::{IntoDimension, Zip};
+use ndarray::IntoDimension;
 
 // Current crate
 use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
-use crate::{new_tensor_float, NdArrayDevice};
-use crate::{tensor::NdArrayTensor, NdArray};
+use crate::{NdArray, tensor::NdArrayTensor};
+use crate::{NdArrayDevice, new_tensor_float};
 
 // Workspace crates
-use burn_tensor::{backend::Backend, Shape, TensorData};
+use burn_tensor::{Shape, TensorData, backend::Backend};
 
-use super::NdArrayOps;
+use super::{NdArrayBoolOps, NdArrayOps};
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BoolTensorOps<Self>
     for NdArray<E, I, Q>
 {
     fn bool_from_data(data: TensorData, _device: &NdArrayDevice) -> NdArrayTensor<bool> {
+        if !data.dtype.is_bool() {
+            unimplemented!("Unsupported dtype for `bool_from_data`")
+        }
         NdArrayTensor::from_data(data)
     }
 
     async fn bool_into_data(tensor: NdArrayTensor<bool>) -> TensorData {
-        let shape = tensor.shape();
-        let values = tensor.array.into_iter().collect();
-        TensorData::new(values, shape)
+        NdArrayOps::into_data(tensor)
     }
 
     fn bool_to_device(tensor: NdArrayTensor<bool>, _device: &NdArrayDevice) -> NdArrayTensor<bool> {
@@ -72,16 +73,20 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BoolTensorOp
     }
 
     fn bool_equal(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
-        let output = Zip::from(&lhs.array)
-            .and(&rhs.array)
-            .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
-            .into_shared();
-        NdArrayTensor::new(output)
+        NdArrayBoolOps::equal(lhs, rhs)
     }
 
     fn bool_not(tensor: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
         let array = tensor.array.mapv(|a| !a).into_shared();
         NdArrayTensor { array }
+    }
+
+    fn bool_and(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
+        NdArrayBoolOps::and(lhs, rhs)
+    }
+
+    fn bool_or(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
+        NdArrayBoolOps::or(lhs, rhs)
     }
 
     fn bool_into_float(tensor: NdArrayTensor<bool>) -> FloatTensor<Self> {

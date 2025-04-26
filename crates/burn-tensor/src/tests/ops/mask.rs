@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Bool, Int, Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_mask_where_ops() {
@@ -104,7 +106,9 @@ mod tests {
             [f32::NAN, f32::NAN, f32::NAN],
         ]);
 
-        output.into_data().assert_approx_eq(&expected, 5);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]

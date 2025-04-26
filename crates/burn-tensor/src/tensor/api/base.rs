@@ -7,7 +7,6 @@ use alloc::string::String;
 use alloc::vec;
 
 use burn_common::stub::RwLock;
-use core::any::TypeId;
 use core::future::Future;
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
@@ -15,14 +14,14 @@ use serde::{Deserialize, Deserializer};
 
 use serde::{Serialize, Serializer};
 
-use crate::check::TensorCheck;
 use crate::tensor::api::narrow::narrow;
 use crate::{
-    backend::Backend, check, ops::Device, Bool, Float, Int, Shape, TensorData, TensorKind,
+    Bool, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check, ops::Device,
 };
 use crate::{DType, Element, TensorPrimitive};
+use crate::{cast::ToElement, check::TensorCheck};
 
-use super::{TensorMetadata, Transaction};
+use super::{Slice, TensorMetadata, Transaction};
 
 /// A tensor with a given backend, shape and data type.
 ///
@@ -176,6 +175,8 @@ where
 
     /// Reshape the tensor to have the given shape.
     ///
+    /// The tensor has the same data and number of elements as the input.
+    ///
     /// A `-1` in the shape is used to infer the remaining dimensions, e.g.: `[2, -1]`
     /// will reshape the tensor with [2, 3, 4] dimensions to [2, 12].
     ///
@@ -215,6 +216,12 @@ where
     }
 
     /// Transpose the tensor.
+    ///
+    /// For a 2D tensor, this is the standard matrix transpose. For `D > 2`, the transpose is
+    /// applied on the last two dimensions. For example, the transpose of a tensor with shape
+    /// `[1, 2, 3, 4]` will have shape `[1, 2, 4, 3]`.
+    ///
+    /// See also [`permute`](Tensor::permute).
     ///
     /// # Arguments
     ///
@@ -286,9 +293,9 @@ where
     /// # Arguments
     ///
     /// * `axes` - The new order of the dimensions. The length of the axes
-    ///            must be equal to the number of dimensions of the tensor.
-    ///            The values must be unique and in the range of the number of dimensions.
-    ///            The values can be negative, in which case they are used as an offset from the end.
+    ///   must be equal to the number of dimensions of the tensor.
+    ///   The values must be unique and in the range of the number of dimensions.
+    ///   The values can be negative, in which case they are used as an offset from the end.
     ///
     /// # Returns
     ///
@@ -337,7 +344,7 @@ where
     /// # Arguments
     ///
     /// * `src` - The dimension(s) to move. The values must be unique and in the range of the number of dimensions.
-    ///              The values can be negative, in which case they are used as an offset from the end.
+    ///   The values can be negative, in which case they are used as an offset from the end.
     ///
     /// * `dst` - Destination positions for each of the original dims. These must also be unique.
     ///
@@ -369,8 +376,11 @@ where
     ///     println!("{moved}");
     /// }
     /// ```
-    // This is a syntactic sugar for `permute`. It is used widely enough, so we define a separate Op
-    // for it
+    ///
+    /// # Note
+    ///
+    /// This is a syntactic sugar for `permute`. It is used widely enough, so we define a separate Op
+    /// for it
     pub fn movedim<S1: MovedimArgs, S2: MovedimArgs>(self, src: S1, dst: S2) -> Tensor<B, D, K> {
         let source_dims = src.into_dim_vec::<D>();
         let destination_dims = dst.into_dim_vec::<D>();
@@ -407,7 +417,7 @@ where
     /// # Arguments
     ///
     /// * `axes` - The dimensions to reverse. The values must be unique and in the range of the number of dimensions.
-    ///            The values can be negative, in which case they are used as an offset from the end.
+    ///   The values can be negative, in which case they are used as an offset from the end.
     ///
     /// # Returns
     ///
@@ -522,7 +532,11 @@ where
     ///
     /// # Type Parameters
     ///
-    ///  - 'D2': The resulting number of dimensions in the squeezed tensor.
+    ///  - `D2`: The resulting number of dimensions in the squeezed tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the size in the squeezed dimension is not 1.
     ///
     /// # Returns
     ///
@@ -574,7 +588,7 @@ where
     ///
     /// # Type Parameters
     ///
-    ///  - 'D2': The resulting number of dimensions in the squeezed tensor.
+    ///  - `D2`: The resulting number of dimensions in the squeezed tensor.
     ///
     /// # Returns
     ///
@@ -650,9 +664,19 @@ where
         Tensor::new(K::reshape(self.primitive, new_dims.into()))
     }
 
-    /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
+    /// Unsqueeze the current tensor. Create new leading dimensions to fit the given size.
     ///
-    /// If the output size is higher than the current tensor.
+    /// # Type Parameters
+    ///
+    ///  - `D2`: The resulting number of dimensions in the unsqueezed tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the output size `D2` is smaller than the current number of dimensions.
+    ///
+    /// # Returns
+    ///
+    /// A new `Tensor<B, D2, K>` instance with the specified dimensions added.
     ///
     /// # Example
     ///
@@ -802,13 +826,15 @@ where
 
     /// Returns a tensor containing the elements selected from the given ranges.
     ///
+    /// For more complex indexing with different slice ranges, see also the slice
+    /// macro [`s!`](crate::s).
+    ///
     /// # Arguments
     ///
     /// * `ranges` - A type implementing the `RangesArg` trait, which can be:
-    ///   - A single `core::ops::Range<usize>` (slice the first dimension)
-    ///   - An array of `core::ops::Range<usize>`
-    ///   - An array of `Option<(i64, i64)>`
-    ///   - An array of `(i64, i64)` tuples
+    ///   - A single range (slice the first dimension)
+    ///   - A single index (slice the first dimension)
+    ///   - An array of ranges
     ///
     /// # Behavior
     ///
@@ -816,7 +842,6 @@ where
     /// - Missing ranges are treated as full slices if D > D2.
     /// - Handles negative indices by wrapping around from the end of the dimension.
     /// - Clamps ranges to the tensor's dimensions if they exceed the bounds.
-    /// - For `Option<(i64, i64)>` ranges, `None` selects the full range of that dimension.
     ///
     /// # Panics
     ///
@@ -827,7 +852,7 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
+    /// use burn_tensor::{Tensor, Shape, s};
     ///
     /// fn example<B: Backend>() {
     ///     let device = B::Device::default();
@@ -844,13 +869,17 @@ where
     ///
     ///     // Using negative indices
     ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..5, &device);
-    ///     let slice = tensor.slice([(1, -1)]); // Equivalent to 1..4
+    ///     let slice = tensor.slice([1..-1]); // Equivalent to 1..4
     ///     assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![1i32, 2, 3]);
     ///
-    ///     // Using Option<(i64, i64)>
+    ///     // Using the slice macro to select different ranges
     ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..12, &device).reshape([3, 4]);
-    ///     let slice = tensor.slice([Some((1, -1)), None]); // Select rows 1 and 2, all columns
+    ///     let slice = tensor.slice(s![1.., ..]); // Select rows 1 and 2, all columns
     ///     assert_eq!(slice.dims(), [2, 4]);
+    ///
+    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..16, &device).reshape([2, 4, 2]);
+    ///     let slice = tensor.slice(s![1.., 1..=3, -1]);
+    ///     assert_eq!(slice.dims(), [1, 3, 1]);
     /// }
     /// ```
     ///
@@ -888,11 +917,7 @@ where
     ///     println!("{:?}", tensor_sliced.dims()); // [2, 3, 3]
     /// }
     /// ```
-    pub fn slice_assign<const D2: usize>(
-        self,
-        ranges: [core::ops::Range<usize>; D2],
-        values: Self,
-    ) -> Self {
+    pub fn slice_assign<const D2: usize>(self, ranges: [Range<usize>; D2], values: Self) -> Self {
         check!(TensorCheck::slice_assign::<D, D2>(
             &self.shape(),
             &values.shape(),
@@ -906,7 +931,7 @@ where
         K::device(&self.primitive)
     }
 
-    /// Returns a new tensor on the given device.
+    /// Move the tensor to the given device.
     pub fn to_device(self, device: &B::Device) -> Self {
         Self::new(K::to_device(self.primitive, device))
     }
@@ -960,8 +985,22 @@ where
         Self::new(K::from_data(data, device))
     }
 
+    /// Create a tensor from the given data on the given device enforcing the given data type.
+    pub fn from_data_dtype<T>(data: T, device: &B::Device, dtype: DType) -> Self
+    where
+        T: Into<TensorData>,
+    {
+        let data = data.into();
+        check!(TensorCheck::creation_ops::<D>(
+            "From Data",
+            data.shape.as_slice()
+        ));
+        Self::new(K::from_data_dtype(data, device, dtype))
+    }
+
     /// Repeat the tensor along the given dimension.
     ///
+    /// The output tensor has the same shape, except along the given dimension.
     ///
     /// # Arguments
     /// - `dim`: The dimension to repeat.
@@ -1001,6 +1040,10 @@ where
     ///
     /// A new tensor with the given dimensions repeated `times` times.
     ///
+    /// # Panics
+    ///
+    /// If `sizes` contains more elements than the number of dimensions.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -1029,7 +1072,10 @@ where
         tensor
     }
 
-    /// Applies element-wise equal comparison and returns a boolean tensor.
+    /// Applies element-wise equal comparison.
+    ///
+    /// # Returns
+    /// A boolean tensor that is `true` where input is equal to `other` and `false` elsewhere.
     ///
     /// # Panics
     ///
@@ -1056,7 +1102,10 @@ where
         Tensor::new(K::equal(self.primitive, other.primitive))
     }
 
-    /// Applies element-wise non-equality comparison and returns a boolean tensor.
+    /// Applies element-wise non-equality comparison.
+    ///
+    /// # Returns
+    /// A boolean tensor that is `true` where input is not equal to `other` and `false` elsewhere.
     ///
     /// # Panics
     ///
@@ -1087,7 +1136,9 @@ where
     ///
     /// # Panics
     ///
-    /// If all tensors don't have the same shape.
+    /// - If `dim` is higher than the rank.
+    /// - If `tensors` is an empty vector.
+    /// - If all tensors don't have the same shape (the dimension `dim` is ignored).
     ///
     /// # Example
     ///
@@ -1097,12 +1148,12 @@ where
     ///
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
-    ///     let t1 = Tensor::<B, 2>::from_data([[3.0, 4.9, 2.0], [2.0, 1.9, 3.0]], &device);
+    ///     let t1 = Tensor::<B, 2>::from_data([[3.0, 4.9, 2.0, 1.0], [2.0, 1.9, 3.0, 1.0]], &device);
     ///     let t2 = Tensor::<B, 2>::from_data([[4.0, 5.9, 8.0], [1.4, 5.8, 6.0]], &device);
     ///
-    ///     // Concatenate the two tensors with shape [2, 3] along the dimension 1.
-    ///     // [[3.0, 4.9, 2.0, 4.0, 5.9, 8.0], [2.0, 1.9, 3.0, 1.4, 5.8, 6.0]]
-    ///     // The resulting tensor will have shape [2, 6].
+    ///     // Concatenate the two tensors with shapes [2, 4] and [2, 3] along the dimension 1.
+    ///     // [[3.0, 4.9, 2.0, 1.0, 4.0, 5.9, 8.0], [2.0, 1.9, 3.0, 1.0, 1.4, 5.8, 6.0]]
+    ///     // The resulting tensor will have shape [2, 7].
     ///     let concat = Tensor::cat(vec![t1, t2], 1);
     ///     println!("{concat}");
     /// }
@@ -1120,8 +1171,8 @@ where
     ///
     /// # Panics
     ///
-    /// If all tensors don't have the same shape.
-    /// Given dimension is not with range of 0..D2
+    /// - If all tensors don't have the same shape.
+    /// - If given dimension is not with range of 0..D2
     ///
     /// # Example
     ///
@@ -1154,7 +1205,7 @@ where
     ///
     /// # Panics
     ///
-    /// Given dimension is less than tensor rank.
+    /// If given dimension is greater than or equal to tensor rank.
     ///
     /// # Returns
     ///
@@ -1168,7 +1219,7 @@ where
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B,2>::from_data([[3.0, 4.9, 2.0], [2.0, 1.9, 3.0]], &device);
-    ///   // Given a 2D tensor with dimensions (2, 3), iterate over slices of tensors along the dimension 0.
+    ///   // Given a 2D tensor with dimensions [2, 3], iterate over slices of tensors along the dimension 0.
     ///   let iter = tensor.iter_dim(0);
     ///   for (i,tensor) in iter.enumerate() {
     ///     println!("Tensor {}: {}", i, tensor);
@@ -1232,7 +1283,7 @@ where
     ///
     /// # Panics
     ///
-    ///  If the dimension is greater than the number of dimensions of the tensor.
+    /// If the dimension is greater than the number of dimensions of the tensor.
     ///
     /// # Returns
     /// A vector of tensors.
@@ -1379,12 +1430,12 @@ where
     ///   let tensor = Tensor::<B,2, Bool>::from_data([[true,false,true],[false,true,false]], &device);
     ///   let tensor_two = Tensor::<B,2, Bool>::from_data([[false,false,false],[false,false,false]], &device);
     ///
-    ///   // Given a 2D tensor with dimensions (2, 3), test if any element in the tensor evaluates to True.
+    ///   // Given a 2D tensor with dimensions [2, 3], test if any element in the tensor evaluates to True.
     ///   let any_tensor = tensor.any();
     ///   println!("{}", any_tensor);
     ///   // Tensor { data: [true], ... }
     ///
-    ///   // Given a 2D tensor with dimensions (2, 3), test if any element in the tensor evaluates to True.
+    ///   // Given a 2D tensor with dimensions [2, 3], test if any element in the tensor evaluates to True.
     ///   let any_tensor_two = tensor_two.any();
     ///   println!("{}", any_tensor_two);
     ///   // Tensor { data: [false], ... }
@@ -1403,7 +1454,7 @@ where
     ///
     /// # Returns
     ///
-    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// A boolean tensor `Tensor<B, D, Bool>` with the same shape as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the input
     /// evaluates to True, False otherwise.
     ///
@@ -1467,7 +1518,7 @@ where
     ///
     /// # Returns
     ///
-    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// A boolean tensor `Tensor<B, D, Bool>` with the same shape as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
     ///
@@ -1495,8 +1546,8 @@ where
     ///
     /// # Panics
     ///
-    /// If the tensor doesn't have one element.
-    /// If the backend fails to read the tensor data synchronously.
+    /// - If the tensor doesn't have one element.
+    /// - If the backend fails to read the tensor data synchronously.
     ///
     /// # Returns
     ///
@@ -1536,12 +1587,15 @@ where
 
     /// Broadcast the tensor to the given shape.
     ///
+    /// Only singleton dimensions can be expanded to a larger size. Other dimensions must have the same size
+    /// (which can be inferred with `-1`).
+    ///
     /// # Arguments
     ///
     /// * `shape` - The shape to broadcast the tensor to.
-    ///             Can contain -1 for dimensions that should be inferred.
-    ///             The number of elements in the shape must be greater or equal as
-    ///             the number of dimensions of the tensor.
+    ///   Can contain -1 for dimensions that should be inferred.
+    ///   The number of elements in the shape must be greater or equal as
+    ///   the number of dimensions of the tensor.
     ///
     /// # Panics
     ///
@@ -1671,7 +1725,7 @@ where
                 acc.push_str(", ");
             }
             multi_index[depth] = i;
-            let range: [core::ops::Range<usize>; D] =
+            let range: [Range<usize>; D] =
                 core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
 
             let data =
@@ -1681,6 +1735,7 @@ where
                 let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
                 match (precision, K::name()) {
                     (Some(p), "Float") => acc.push_str(&format!("{:.1$}", elem, p)),
+                    (_, "Bool") => acc.push_str(&format!("{}", elem.to_bool())),
                     _ => acc.push_str(&format!("{:?}", elem)),
                 }
             } else {
@@ -1882,15 +1937,10 @@ where
 
         writeln!(f, "  shape:  {:?},", self.dims())?;
         writeln!(f, "  device:  {:?},", self.device())?;
-        writeln!(f, "  backend:  {:?},", B::name())?;
+        writeln!(f, "  backend:  {:?},", B::name(&self.device()))?;
         writeln!(f, "  kind:  {:?},", K::name())?;
 
-        // Bool tensors might be encoded in a different type, which we abstract for the display
-        let dtype = if TypeId::of::<K::Elem>() == TypeId::of::<bool>() {
-            DType::Bool
-        } else {
-            self.primitive.dtype()
-        };
+        let dtype = self.primitive.dtype();
 
         writeln!(f, "  dtype:  {:?},", dtype.name())?;
         write!(f, "}}")
@@ -2155,6 +2205,17 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// For creating a tensor from data, users should prefer the [Tensor::from_data](Tensor::from_data) function,
     /// which is more high-level and designed for public use.
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive;
+    /// Creates a tensor from the given data enforcing the given data type.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For creating a tensor from data, users should prefer the [Tensor::from_data_dtype](Tensor::from_data_dtype)
+    /// function, which is more high-level and designed for public use.
+    fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive;
 
     /// Repeat the tensor along the given dimension.
     ///
@@ -2501,7 +2562,19 @@ impl<B: Backend> BasicOps<B> for Float {
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
         match data.dtype {
             DType::QFloat(_strategy) => TensorPrimitive::QFloat(B::q_from_data(data, device)),
-            _ => TensorPrimitive::Float(B::float_from_data(data, device)),
+            _ => TensorPrimitive::Float(B::float_from_data(data.convert::<B::FloatElem>(), device)),
+        }
+    }
+
+    fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
+        match dtype {
+            DType::QFloat(_strategy) => {
+                TensorPrimitive::QFloat(B::q_from_data(data.convert_dtype(dtype), device))
+            }
+            _ if dtype.is_float() => {
+                TensorPrimitive::Float(B::float_from_data(data.convert_dtype(dtype), device))
+            }
+            _ => panic!("Expected float dtype, got {dtype:?}"),
         }
     }
 
@@ -2674,7 +2747,15 @@ impl<B: Backend> BasicOps<B> for Int {
     }
 
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
-        B::int_from_data(data, device)
+        B::int_from_data(data.convert::<B::IntElem>(), device)
+    }
+
+    fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
+        if !dtype.is_int() {
+            panic!("Expected int dtype, got {dtype:?}")
+        }
+
+        B::int_from_data(data.convert_dtype(dtype), device)
     }
 
     fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
@@ -2739,7 +2820,7 @@ impl<B: Backend> BasicOps<B> for Int {
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
-    type Elem = bool;
+    type Elem = B::BoolElem;
 
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::bool_empty(shape, device)
@@ -2786,7 +2867,15 @@ impl<B: Backend> BasicOps<B> for Bool {
     }
 
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
-        B::bool_from_data(data, device)
+        B::bool_from_data(data.convert::<B::BoolElem>(), device)
+    }
+
+    fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
+        // Backends only use one bool representation dtype
+        if dtype != B::BoolElem::dtype() {
+            panic!("Expected bool dtype, got {dtype:?}")
+        }
+        B::bool_from_data(data.convert_dtype(dtype), device)
     }
 
     fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
@@ -2913,86 +3002,25 @@ impl MovedimArgs for i32 {
 
 /// Trait used for slice arguments
 pub trait RangesArg<const D2: usize> {
-    /// Converts into a set of ranges to `[core::ops::Range<usize>; D2]` for the `tensor.slice()` function
-    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; D2];
-
-    /// Handles negative index values
-    fn handle_negative_index(start: i64, end: i64, dim: usize) -> (usize, usize) {
-        let start = if start < 0 {
-            (dim as i64 + start) as usize
-        } else {
-            start as usize
-        };
-        let end = if end < 0 {
-            (dim as i64 + end) as usize
-        } else {
-            end as usize
-        };
-        (start, end)
-    }
-
-    /// Clamps the range to the shape dimensions
-    fn clamp_range(start: usize, end: usize, dim: usize) -> (usize, usize) {
-        let start = start.clamp(0, dim);
-        let end = end.clamp(0, dim);
-        (start, end)
-    }
+    /// Converts into a set of ranges to `[Range<usize>; D2]` for the `tensor.slice()` function
+    fn into_ranges(self, shape: Shape) -> [Range<usize>; D2];
 }
 
-impl<const D2: usize> RangesArg<D2> for [core::ops::Range<usize>; D2] {
-    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; D2] {
+impl<const D2: usize, T: Into<Slice>> RangesArg<D2> for [T; D2] {
+    fn into_ranges(self, shape: Shape) -> [Range<usize>; D2] {
         // clamp the ranges to the shape dimensions
         let ranges = self
-            .iter()
+            .into_iter()
             .enumerate()
-            .map(|(i, range)| {
-                let (start, end) = Self::clamp_range(range.start, range.end, shape.dims[i]);
-                start..end
-            })
+            .map(|(i, range)| range.into().into_range(shape.dims[i]))
             .collect::<Vec<_>>();
         ranges.try_into().unwrap()
     }
 }
 
-impl<const D2: usize> RangesArg<D2> for [Option<(i64, i64)>; D2] {
-    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; D2] {
-        let ranges = self
-            .iter()
-            .enumerate()
-            .map(|(i, range)| match range {
-                Some((start, end)) => {
-                    let (start, end) = Self::handle_negative_index(*start, *end, shape.dims[i]);
-                    let (start, end) = Self::clamp_range(start, end, shape.dims[i]);
-                    start..end
-                }
-                None => 0..shape.dims[i], // if None, use the full range
-            })
-            .collect::<Vec<_>>();
-
-        ranges.try_into().unwrap()
-    }
-}
-
-impl<const D2: usize> RangesArg<D2> for [(i64, i64); D2] {
-    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; D2] {
-        let ranges = self
-            .iter()
-            .enumerate()
-            .map(|(i, &(start, end))| {
-                let (start, end) = Self::handle_negative_index(start, end, shape.dims[i]);
-                let (start, end) = Self::clamp_range(start, end, shape.dims[i]);
-                start..end
-            })
-            .collect::<Vec<_>>();
-
-        ranges.try_into().unwrap()
-    }
-}
-
-impl RangesArg<1> for core::ops::Range<usize> {
-    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; 1] {
-        let (start, end) = Self::clamp_range(self.start, self.end, shape.dims[0]);
-        [(start..end)]
+impl<T: Into<Slice>> RangesArg<1> for T {
+    fn into_ranges(self, shape: Shape) -> [Range<usize>; 1] {
+        [self.into().into_range(shape.dims[0])]
     }
 }
 
@@ -3164,5 +3192,82 @@ where
             &<B::Device as Default>::default(),
         );
         Ok(tensor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Shape;
+    use crate::s;
+
+    use super::*;
+
+    #[test]
+    fn slice_range_single_dim_leading() {
+        let shape = Shape::new([8, 4]);
+
+        // Half-open range
+        assert_eq!([0..5], (0..5).into_ranges(shape.clone()));
+        assert_eq!([0..5], [0..5].into_ranges(shape.clone()));
+        assert_eq!([5..7], [-3..-1].into_ranges(shape.clone()));
+
+        // Inclusive range
+        assert_eq!([0..5], (0..=4).into_ranges(shape.clone()));
+        assert_eq!([0..5], [0..=4].into_ranges(shape.clone()));
+        assert_eq!([6..8], [-2..=-1].into_ranges(shape.clone()));
+
+        // Unbounded start
+        assert_eq!([0..3], (..3).into_ranges(shape.clone()));
+        assert_eq!([0..3], [..3].into_ranges(shape.clone()));
+        assert_eq!([0..3], [..-5].into_ranges(shape.clone()));
+
+        // Unbounded end
+        assert_eq!([5..8], (5..).into_ranges(shape.clone()));
+        assert_eq!([5..8], [5..].into_ranges(shape.clone()));
+        assert_eq!([5..8], [-3..].into_ranges(shape.clone()));
+
+        // Full range
+        assert_eq!([0..8], [..].into_ranges(shape));
+    }
+
+    #[test]
+    fn slice_range_multi_dim() {
+        let shape = Shape::new([8, 4]);
+
+        // Multiple ways to provide ranges
+        assert_eq!([0..5, 0..4], [0..5, 0..4].into_ranges(shape.clone()));
+        assert_eq!([0..8, 0..4], [0.., 0..].into_ranges(shape.clone()));
+        assert_eq!([0..8, 0..4], [0..=7, 0..=3].into_ranges(shape.clone()));
+
+        assert_eq!([0..5, 0..3], [0..5, 0..3].into_ranges(shape.clone()));
+
+        assert_eq!([0..8, 0..4], [0.., 0..].into_ranges(shape));
+    }
+
+    #[test]
+    fn slice_range_multi_dim_index() {
+        let shape = Shape::new([8, 4]);
+
+        // Indices (single integer) should also convert to correct range
+        assert_eq!([0..1, 2..3], [0, 2].into_ranges(shape.clone()));
+        assert_eq!([7..8, 3..4], [-1, -1].into_ranges(shape.clone()));
+        assert_eq!([7..8], (-1).into_ranges(shape.clone()));
+        assert_eq!([7..8], 7.into_ranges(shape));
+    }
+
+    #[test]
+    fn slice_range_multi_dim_heterogeneous() {
+        // Slice macro `s![]` can be used to provide different range types
+        let shape = Shape::new([8, 4, 2]);
+        let slice = s![0..5, .., -1];
+        assert_eq!([0..5, 0..4, 1..2], slice.into_ranges(shape));
+
+        let shape = Shape::new([8, 4, 2, 3]);
+        let slice = s![..=4, 0..=3, .., -2..];
+        assert_eq!([0..5, 0..4, 0..2, 1..3], slice.into_ranges(shape));
+
+        let shape = Shape::new([3, 4]);
+        let slice = s![1..-1, ..];
+        assert_eq!([1..2, 0..4], slice.into_ranges(shape));
     }
 }

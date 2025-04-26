@@ -76,12 +76,14 @@
 //!   - `vision`: Enables vision datasets (MnistDataset)
 //! - Backends
 //!   - `wgpu`: Makes available the WGPU backend
-//!   - `wgpu-spirv`: Makes available the `wgpu` backend with the alternative SPIR-V compiler
+//!   - `webgpu`: Makes available the `wgpu` backend with the WebGPU Shading Language (WGSL) compiler
+//!   - `vulkan`: Makes available the `wgpu` backend with the alternative SPIR-V compiler
+//!   - `cuda`: Makes available the CUDA backend
+//!   - `rocm`: Makes available the ROCm backend
 //!   - `candle`: Makes available the Candle backend
 //!   - `tch`: Makes available the LibTorch backend
 //!   - `ndarray`: Makes available the NdArray backend
 //! - Backend specifications
-//!   - `cuda`: If supported, CUDA will be used
 //!   - `accelerate`: If supported, Accelerate will be used
 //!   - `blas-netlib`: If supported, Blas Netlib will be use
 //!   - `openblas`: If supported, Openblas will be use
@@ -105,3 +107,9 @@ pub use burn_core::*;
 pub mod train {
     pub use burn_train::*;
 }
+
+/// Backend module.
+pub mod backend;
+
+#[cfg(feature = "server")]
+pub use burn_remote::server;

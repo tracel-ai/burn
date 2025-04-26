@@ -3,11 +3,11 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
-use crate::nn::rnn::gate_controller::GateController;
 use crate::nn::Initializer;
+use crate::nn::rnn::gate_controller::GateController;
+use crate::tensor::Tensor;
 use crate::tensor::activation;
 use crate::tensor::backend::Backend;
-use crate::tensor::Tensor;
 
 /// A LstmState is used to store cell state and hidden state in LSTM.
 pub struct LstmState<B: Backend, const D: usize> {
@@ -109,13 +109,13 @@ impl<B: Backend> Lstm<B> {
     /// ## Parameters:
     /// - batched_input: The input tensor of shape `[batch_size, sequence_length, input_size]`.
     /// - state: An optional `LstmState` representing the initial cell state and hidden state.
-    ///          Each state tensor has shape `[batch_size, hidden_size]`.
-    ///          If no initial state is provided, these tensors are initialized to zeros.
+    ///   Each state tensor has shape `[batch_size, hidden_size]`.
+    ///   If no initial state is provided, these tensors are initialized to zeros.
     ///
     /// ## Returns:
     /// - output: A tensor represents the output features of LSTM. Shape: `[batch_size, sequence_length, hidden_size]`
     /// - state: A `LstmState` represents the final states. Both `state.cell` and `state.hidden` have the shape
-    ///          `[batch_size, hidden_size]`.
+    ///   `[batch_size, hidden_size]`.
     pub fn forward(
         &self,
         batched_input: Tensor<B, 3>,
@@ -274,13 +274,13 @@ impl<B: Backend> BiLstm<B> {
     /// ## Parameters:
     /// - batched_input: The input tensor of shape `[batch_size, sequence_length, input_size]`.
     /// - state: An optional `LstmState` representing the initial cell state and hidden state.
-    ///          Each state tensor has shape `[2, batch_size, hidden_size]`.
-    ///          If no initial state is provided, these tensors are initialized to zeros.
+    ///   Each state tensor has shape `[2, batch_size, hidden_size]`.
+    ///   If no initial state is provided, these tensors are initialized to zeros.
     ///
     /// ## Returns:
     /// - output: A tensor represents the output features of LSTM. Shape: `[batch_size, sequence_length, hidden_size * 2]`
     /// - state: A `LstmState` represents the final forward and reverse states. Both `state.cell` and
-    ///          `state.hidden` have the shape `[2, batch_size, hidden_size]`.
+    ///   `state.hidden` have the shape `[2, batch_size, hidden_size]`.
     pub fn forward(
         &self,
         batched_input: Tensor<B, 3>,
@@ -356,7 +356,9 @@ impl<B: Backend> BiLstm<B> {
 mod tests {
     use super::*;
     use crate::tensor::{Device, Distribution, TensorData};
-    use crate::{module::Param, nn::LinearRecord, TestBackend};
+    use crate::{TestBackend, module::Param, nn::LinearRecord};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[cfg(feature = "std")]
     use crate::TestAutodiffBackend;
@@ -463,16 +465,23 @@ mod tests {
         let (output, state) = lstm.forward(input, None);
 
         let expected = TensorData::from([[0.046]]);
-        state.cell.to_data().assert_approx_eq(&expected, 3);
+        let tolerance = Tolerance::rel_abs(1e-5, 1e-4);
+        state
+            .cell
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
 
-        let expected = TensorData::from([[0.024]]);
-        state.hidden.to_data().assert_approx_eq(&expected, 3);
+        let expected = TensorData::from([[0.0242]]);
+        state
+            .hidden
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
 
         output
             .select(0, Tensor::arange(0..1, &device))
             .squeeze::<2>(0)
             .to_data()
-            .assert_approx_eq(&state.hidden.to_data(), 3);
+            .assert_approx_eq::<FT>(&state.hidden.to_data(), tolerance);
     }
 
     #[test]
@@ -718,28 +727,29 @@ mod tests {
             lstm.forward(input.clone(), Some(LstmState::new(c0, h0)));
         let (output_without_init_state, state_without_init_state) = lstm.forward(input, None);
 
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-4);
         output_with_init_state
             .to_data()
-            .assert_approx_eq(&expected_output_with_init_state, 3);
+            .assert_approx_eq::<FT>(&expected_output_with_init_state, tolerance);
         output_without_init_state
             .to_data()
-            .assert_approx_eq(&expected_output_without_init_state, 3);
+            .assert_approx_eq::<FT>(&expected_output_without_init_state, tolerance);
         state_with_init_state
             .hidden
             .to_data()
-            .assert_approx_eq(&expected_hn_with_init_state, 3);
+            .assert_approx_eq::<FT>(&expected_hn_with_init_state, tolerance);
         state_with_init_state
             .cell
             .to_data()
-            .assert_approx_eq(&expected_cn_with_init_state, 3);
+            .assert_approx_eq::<FT>(&expected_cn_with_init_state, tolerance);
         state_without_init_state
             .hidden
             .to_data()
-            .assert_approx_eq(&expected_hn_without_init_state, 3);
+            .assert_approx_eq::<FT>(&expected_hn_without_init_state, tolerance);
         state_without_init_state
             .cell
             .to_data()
-            .assert_approx_eq(&expected_cn_without_init_state, 3);
+            .assert_approx_eq::<FT>(&expected_cn_without_init_state, tolerance);
     }
 
     #[test]

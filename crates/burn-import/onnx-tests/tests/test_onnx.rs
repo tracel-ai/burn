@@ -1,5 +1,7 @@
 #![no_std]
 
+extern crate alloc;
+
 /// Include generated models in the `model` directory in the target directory.
 macro_rules! include_models {
     ($($model:ident),*) => {
@@ -25,6 +27,10 @@ include_models!(
     clip_opset16,
     clip_opset7,
     concat,
+    constant_f32,
+    constant_f64,
+    constant_i32,
+    constant_i64,
     constant_of_shape,
     constant_of_shape_full_like,
     conv1d,
@@ -34,6 +40,7 @@ include_models!(
     conv_transpose2d,
     conv_transpose3d,
     cos,
+    cosh,
     div,
     dropout_opset16,
     dropout_opset7,
@@ -44,13 +51,20 @@ include_models!(
     expand_tensor,
     expand_shape,
     flatten,
+    flatten_2d,
+    floor,
     gather_1d_idx,
     gather_2d_idx,
     gather_scalar,
+    gather_scalar_out,
     gather_shape,
     gather_elements,
     gelu,
+    gemm,
+    gemm_non_unit_alpha_beta,
+    gemm_no_c,
     global_avr_pool,
+    graph_multiple_output_tracking,
     greater,
     greater_scalar,
     greater_or_equal,
@@ -79,6 +93,7 @@ include_models!(
     mul,
     neg,
     not,
+    one_hot,
     pad,
     pow,
     pow_int,
@@ -107,6 +122,7 @@ include_models!(
     sigmoid,
     sign,
     sin,
+    sinh,
     slice,
     softmax,
     sqrt,
@@ -117,14 +133,17 @@ include_models!(
     sub_int,
     sum,
     sum_int,
+    tan,
     tanh,
     tile,
+    top_k_opset_1,
     trilu_upper,
     trilu_lower,
     transpose,
     unsqueeze,
     unsqueeze_opset11,
-    unsqueeze_opset16
+    unsqueeze_opset16,
+    split
 );
 
 #[cfg(test)]
@@ -133,11 +152,14 @@ mod tests {
 
     use super::*;
 
-    use burn::tensor::{Bool, Int, Shape, Tensor, TensorData};
+    use burn::tensor::{
+        Bool, Int, Shape, Tensor, TensorData, Tolerance, cast::ToElement, ops::FloatElem,
+    };
 
     use float_cmp::ApproxEq;
 
     type Backend = burn_ndarray::NdArray<f32>;
+    type FT = FloatElem<Backend>;
 
     #[test]
     fn add_scalar_to_tensor_and_tensor_to_tensor() {
@@ -459,7 +481,9 @@ mod tests {
         let expected =
             Tensor::<Backend, 4>::from_data([[[[0.8427f32, 0.9953, 1.0000, 1.0000]]]], &device);
 
-        output.to_data().assert_approx_eq(&expected.to_data(), 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -520,6 +544,19 @@ mod tests {
     }
 
     #[test]
+    fn gather_scalar_out() {
+        let model: gather_scalar_out::Model<Backend> = gather_scalar_out::Model::default();
+
+        let device = Default::default();
+
+        let input = Tensor::<Backend, 1>::from_floats([1., 2., 3.], &device);
+        let index = 1;
+        let output = model.forward(input, index);
+
+        assert_eq!(output, 2f32);
+    }
+
+    #[test]
     fn gather_elements() {
         // Initialize the model with weights (loaded from the exported file)
         let model: gather_elements::Model<Backend> = gather_elements::Model::default();
@@ -532,6 +569,15 @@ mod tests {
         let expected = TensorData::from([[1f32, 1.], [4., 3.]]);
 
         assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn graph_multiple_output_tracking() {
+        // Initialize the model with weights (loaded from the exported file)
+        let _model: graph_multiple_output_tracking::Model<Backend> =
+            graph_multiple_output_tracking::Model::default();
+
+        // We don't actually care about the output here, the compiler will tell us if we passed
     }
 
     #[test]
@@ -785,9 +831,16 @@ mod tests {
         assert_eq!(output2.shape(), expected_shape2);
         assert_eq!(output3.shape(), expected_shape3);
 
-        output1.to_data().assert_approx_eq(&expected1, 3);
-        output2.to_data().assert_approx_eq(&expected2, 3);
-        output3.to_data().assert_approx_eq(&expected3, 3);
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-3);
+        output1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected1, tolerance);
+        output2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected2, tolerance);
+        output3
+            .to_data()
+            .assert_approx_eq::<FT>(&expected3, tolerance);
     }
 
     #[test]
@@ -828,9 +881,16 @@ mod tests {
         assert_eq!(output2.shape(), expected_shape2);
         assert_eq!(output3.shape(), expected_shape3);
 
-        output1.to_data().assert_approx_eq(&expected1, 3);
-        output2.to_data().assert_approx_eq(&expected2, 3);
-        output3.to_data().assert_approx_eq(&expected3, 3);
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-3);
+        output1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected1, tolerance);
+        output2
+            .to_data()
+            .assert_approx_eq::<FT>(&expected2, tolerance);
+        output3
+            .to_data()
+            .assert_approx_eq::<FT>(&expected3, tolerance);
     }
 
     #[test]
@@ -895,11 +955,13 @@ mod tests {
         // Tolerance of 0.001 since floating-point multiplication won't be perfect
         output_scalar
             .to_data()
-            .assert_approx_eq(&expected_scalar, 3);
+            .assert_approx_eq::<FT>(&expected_scalar, Tolerance::default());
         output_tensor
             .to_data()
-            .assert_approx_eq(&input.to_data(), 3);
-        output_value.to_data().assert_approx_eq(&expected, 3);
+            .assert_approx_eq::<FT>(&input.to_data(), Tolerance::default());
+        output_value
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -992,7 +1054,7 @@ mod tests {
             1.5410, 0.3945, -0.7648, -1.9431, -0.8052, 0.3618, -0.6713, -1.2023, -1.3986,
         ]]])
         .to_data()
-        .assert_approx_eq(&output.into_data(), 3);
+        .assert_approx_eq::<FT>(&output.into_data(), Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1138,6 +1200,21 @@ mod tests {
     }
 
     #[test]
+    fn flatten_2d() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: flatten_2d::Model<Backend> = flatten_2d::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::ones([2, 3, 4, 5], &device);
+        let output = model.forward(input);
+
+        // Flatten leading and trailing dimensions (axis = 2) and returns a 2D tensor
+        let expected_shape = Shape::from([6, 20]);
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
     fn batch_norm() {
         let model: batch_norm::Model<Backend> = batch_norm::Model::default();
 
@@ -1184,7 +1261,9 @@ mod tests {
             ],
         ]);
 
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1276,7 +1355,9 @@ mod tests {
             [0.557_33, 0.24548186, 0.45355222],
         ]);
 
-        output.to_data().assert_approx_eq(&expected, 7);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1299,7 +1380,9 @@ mod tests {
             [0.53838885, 0.31285727, 0.46894526],
         ]);
 
-        output.to_data().assert_approx_eq(&expected, 7);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -1312,7 +1395,24 @@ mod tests {
         let output = model.forward(input);
         let expected = TensorData::from([[[[0.8415f32, -0.7568, 0.4121, -0.1324]]]]);
 
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
+    }
+
+    #[test]
+    fn sinh() {
+        let device = Default::default();
+        let model: sinh::Model<Backend> = sinh::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[-4.0, 0.5, 1.0, 9.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = TensorData::from([[[[-27.2899, 0.5211, 1.1752, 4051.5419]]]]);
+
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1469,6 +1569,22 @@ mod tests {
     }
 
     #[test]
+    fn tan() {
+        // Initialize the model
+        let device = Default::default();
+        let model = tan::Model::<Backend>::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]], &device);
+        let output = model.forward(input);
+        // data from pyTorch
+        let expected = TensorData::from([[[[1.5574f32, -2.1850, -0.1425, 1.1578]]]]);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
+    }
+
+    #[test]
     fn tanh() {
         // Initialize the model
         let device = Default::default();
@@ -1479,7 +1595,9 @@ mod tests {
         let output = model.forward(input);
         // data from pyTorch
         let expected = TensorData::from([[[[0.7616f32, 0.9640, 0.9951, 0.9993]]]]);
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1508,7 +1626,9 @@ mod tests {
         let output = model.forward(input);
         // data from pyTorch
         let expected = TensorData::from([[[[1.0000f32, 0.5000, 0.3333, 0.2500]]]]);
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1587,7 +1707,24 @@ mod tests {
         let output = model.forward(input);
         let expected = TensorData::from([[[[0.5403f32, -0.6536, -0.9111, 0.9912]]]]);
 
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
+    }
+
+    #[test]
+    fn cosh() {
+        let device = Default::default();
+        let model: cosh::Model<Backend> = cosh::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[-4.0, 0.5, 1.0, 9.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = TensorData::from([[[[27.3082, 1.1276, 1.5431, 4051.5420]]]]);
+
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1601,7 +1738,9 @@ mod tests {
         let output = model.forward(input);
         let expected = TensorData::from([[[[1f32, 2.]]]]);
 
-        output.to_data().assert_approx_eq(&expected, 2);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1655,7 +1794,9 @@ mod tests {
         let output = model.forward(input);
         let expected = TensorData::from([[[[0.8413f32, 3.9999, 9.0000, 25.0000]]]]);
 
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1668,7 +1809,9 @@ mod tests {
         let output = model.forward(input);
         let expected = TensorData::from([[[[0.0000f32, 1.3863, 2.1972, 3.2189]]]]);
 
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -1683,7 +1826,9 @@ mod tests {
         let expected1 = TensorData::from([[[[-1.0f32, -4.0, -9.0, -25.0]]]]);
         let expected2 = -99f64;
 
-        output1.to_data().assert_approx_eq(&expected1, 4);
+        output1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected1, Tolerance::default());
 
         assert_eq!(output2, expected2);
     }
@@ -1849,7 +1994,9 @@ mod tests {
         let expected1 = TensorData::from([[[[-1.0f32, -4.0, -9.0, -25.0]]]]);
         let expected2 = -99f64;
 
-        output1.to_data().assert_approx_eq(&expected1, 4);
+        output1
+            .to_data()
+            .assert_approx_eq::<FT>(&expected1, Tolerance::default());
 
         assert_eq!(output2, expected2);
     }
@@ -1941,9 +2088,14 @@ mod tests {
         let device = Default::default();
         let model: unsqueeze::Model<Backend> = unsqueeze::Model::new(&device);
         let input_shape = Shape::from([3, 4, 5]);
-        let expected_shape = Shape::from([1, 1, 3, 4, 5, 1]);
+        let expected_shape = Shape::from([1, 3, 1, 4, 5, 1]);
         let input = Tensor::ones(input_shape, &device);
-        let output = model.forward(input);
+
+        // Note: The axes tensor must have rank 1 with a single element
+        // as the generated ONNX requires a 1D tensor for static shape operations
+        // see unsqueeze.onnx
+        let axes = Tensor::from_ints([2], &device);
+        let output = model.forward(input, axes);
         assert_eq!(output.shape(), expected_shape);
     }
 
@@ -2006,15 +2158,21 @@ mod tests {
 
         output1.to_data().assert_eq(&expected_bool, true);
         output2.to_data().assert_eq(&expected_int, true);
-        output3.to_data().assert_approx_eq(&expected_float, 4);
+        output3
+            .to_data()
+            .assert_approx_eq::<FT>(&expected_float, Tolerance::default());
 
         output4.to_data().assert_eq(&expected_bool, true);
         output5.to_data().assert_eq(&expected_int, true);
-        output6.to_data().assert_approx_eq(&expected_float, 4);
+        output6
+            .to_data()
+            .assert_approx_eq::<FT>(&expected_float, Tolerance::default());
 
         output7.to_data().assert_eq(&expected_bool, true);
         output8.to_data().assert_eq(&expected_int, true);
-        output9.to_data().assert_approx_eq(&expected_float, 4);
+        output9
+            .to_data()
+            .assert_approx_eq::<FT>(&expected_float, Tolerance::default());
 
         assert_eq!(output_scalar, expected_scalar);
     }
@@ -2105,7 +2263,9 @@ mod tests {
         let output = model.forward(input);
         let expected = TensorData::from([[[[-1.0f32, 1.0, 0.0, -1.0]]]]);
 
-        output.to_data().assert_approx_eq(&expected, 4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -2184,6 +2344,54 @@ mod tests {
     }
 
     #[test]
+    fn add_constant_f32() {
+        let device = Default::default();
+        let model = constant_f32::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn add_constant_f64() {
+        let device = Default::default();
+        let model = constant_f64::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn add_constant_i32() {
+        let device = Default::default();
+        let model = constant_i32::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn add_constant_i64() {
+        let device = Default::default();
+        let model = constant_i64::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
+
+        let output = model.forward(input);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
     fn constant_of_shape() {
         // This tests shape is being passed directly to the model
         let device = Default::default();
@@ -2193,7 +2401,9 @@ mod tests {
 
         let output = model.forward(input_shape);
 
-        output.to_data().assert_approx_eq(&expected, 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -2213,5 +2423,165 @@ mod tests {
         assert!(f_output.equal(f_expected).all().into_scalar());
         assert!(i_output.equal(i_expected).all().into_scalar());
         assert!(b_output.equal(b_expected).all().into_scalar());
+    }
+
+    #[test]
+    fn split() {
+        let device = Default::default();
+        let model = split::Model::<Backend>::new(&device);
+        let shape = [5, 2];
+        let input = Tensor::ones(shape, &device);
+
+        let (tensor_1, tensor_2, tensor_3) = model.forward(input);
+
+        assert_eq!(tensor_1.shape(), Shape::from([2, 2]));
+        assert_eq!(tensor_2.shape(), Shape::from([2, 2]));
+        assert_eq!(tensor_3.shape(), Shape::from([1, 2]));
+    }
+
+    #[test]
+    fn top_k_opset_1() {
+        // Initialize the model
+        let device = Default::default();
+        let model = top_k_opset_1::Model::<Backend>::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats(
+            [[1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0, 4.0]],
+            &device,
+        );
+        let (values_tensor, indices_tensor) = model.forward(input);
+
+        // expected results
+        let expected_values_tensor =
+            TensorData::from([[4.0, 3.0, 2.to_f32()], [4.0, 3.0, 2.to_f32()]]);
+        let expected_indices_tensor = TensorData::from([[3i64, 2, 1], [3, 2, 1]]);
+
+        values_tensor
+            .to_data()
+            .assert_eq(&expected_values_tensor, true);
+        indices_tensor
+            .to_data()
+            .assert_eq(&expected_indices_tensor, true);
+    }
+
+    #[test]
+    fn one_hot() {
+        // Test for OneHot model
+
+        let device = Default::default();
+        let model = one_hot::Model::<Backend>::new(&device);
+        let input: Tensor<Backend, 1, Int> = Tensor::from_ints([1, 0, 2], &device);
+        let expected: Tensor<Backend, 2, burn::prelude::Float> =
+            Tensor::from_data(TensorData::from([[0, 1, 0], [1, 0, 0], [0, 0, 1]]), &device);
+        let output: Tensor<Backend, 2, Int> = model.forward(input);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
+    }
+
+    #[test]
+    fn floor_test() {
+        // Test for floor
+
+        let device = Default::default();
+        let model = floor::Model::<Backend>::new(&device);
+
+        let input = Tensor::<Backend, 1>::from_floats([-0.5, 1.5, 2.1], &device);
+        let expected = Tensor::<Backend, 1>::from_floats([-1., 1., 2.], &device);
+
+        let output = model.forward(input);
+
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
+    }
+
+    #[test]
+    fn gemm_test() {
+        // Test for GEMM
+        let device = Default::default();
+        let model = gemm::Model::<Backend>::new(&device);
+
+        // Create input matrices
+        let a =
+            Tensor::<Backend, 2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
+
+        let b =
+            Tensor::<Backend, 2>::from_data(TensorData::from([[5.0, 6.0], [7.0, 8.0]]), &device);
+
+        let c = 1.0;
+
+        // Expected result of matrix multiplication
+        // [1.0, 2.0] × [5.0, 6.0] = [1×5 + 2×7, 1×6 + 2×8] = [19.0 + 1.0, 22.0 + 1.0] = [20.0, 23.0]
+        // [3.0, 4.0] × [7.0, 8.0] = [3×5 + 4×7, 3×6 + 4×8] = [43.0 + 1.0, 50.0 + 1.0] = [44.0, 51.0]
+        let expected = Tensor::<Backend, 2>::from_data(
+            TensorData::from([[20.0, 23.0], [44.0, 51.0]]),
+            &device,
+        );
+
+        // Run the model
+        let output = model.forward(a, b, c);
+
+        // Verify the output
+        output.to_data().assert_eq(&expected.to_data(), true);
+    }
+
+    #[test]
+    fn gemm_test_non_unit_alpha_beta() {
+        // Test for GEMM
+        let device = Default::default();
+        let model = gemm_non_unit_alpha_beta::Model::<Backend>::new(&device);
+
+        // Create input matrices
+        let a =
+            Tensor::<Backend, 2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
+
+        let b =
+            Tensor::<Backend, 2>::from_data(TensorData::from([[5.0, 6.0], [7.0, 8.0]]), &device);
+
+        let c = 1.0;
+
+        // Alpha = Beta = 0.5
+        // Expected result of matrix multiplication
+        // [1.0, 2.0] × [5.0, 6.0] = [1×5 + 2×7, 1×6 + 2×8] = [19.0 * .5 + 1.0 * .5, 22.0 * .5 + 1.0 * .5] = [10.0, 11.5]
+        // [3.0, 4.0] × [7.0, 8.0] = [3×5 + 4×7, 3×6 + 4×8] = [43.0 * .4 + 1.0 * .5, 50.0 * .5 + 1.0 * .5] = [22.0, 25.5]
+        let expected = Tensor::<Backend, 2>::from_data(
+            TensorData::from([[10.0, 11.5], [22.0, 25.5]]),
+            &device,
+        );
+
+        // Run the model
+        let output = model.forward(a, b, c);
+
+        // Verify the output
+        output.to_data().assert_eq(&expected.to_data(), true);
+    }
+
+    #[test]
+    fn gemm_test_no_c() {
+        // Test for GEMM
+        let device = Default::default();
+        let model = gemm_no_c::Model::<Backend>::new(&device);
+
+        // Create input matrices
+        let a =
+            Tensor::<Backend, 2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
+
+        let b =
+            Tensor::<Backend, 2>::from_data(TensorData::from([[5.0, 6.0], [7.0, 8.0]]), &device);
+
+        // Alpha = Beta = 0.5
+        // Expected result of matrix multiplication
+        // [1.0, 2.0] × [5.0, 6.0] = [1×5 + 2×7, 1×6 + 2×8] = [19.0, 22.0]
+        // [3.0, 4.0] × [7.0, 8.0] = [3×5 + 4×7, 3×6 + 4×8] = [43.0, 50.0]
+        let expected =
+            Tensor::<Backend, 2>::from_data(TensorData::from([[19.0, 22.], [43., 50.]]), &device);
+
+        // Run the model
+        let output = model.forward(a, b);
+
+        // Verify the output
+        output.to_data().assert_eq(&expected.to_data(), true);
     }
 }

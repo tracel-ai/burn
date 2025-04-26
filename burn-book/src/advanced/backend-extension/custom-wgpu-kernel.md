@@ -200,7 +200,7 @@ the raw `WgpuBackend` type.
 
 ```rust, ignore
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
+impl<F: FloatElement, I: IntElement> Backend for CubeBackend<WgpuRuntime, F, I> {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -239,7 +239,7 @@ impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output = JitTensor::new_contiguous(
+        let output = CubeTensor::new_contiguous(
             lhs.client.clone(),
             lhs.device.clone(),
             shape_out,

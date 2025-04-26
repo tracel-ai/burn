@@ -1,7 +1,7 @@
 use burn::{
     module::Module,
     nn::{Linear, LinearConfig, Relu},
-    tensor::{backend::Backend, Tensor},
+    tensor::{Tensor, backend::Backend},
 };
 
 #[derive(Module, Debug)]
@@ -54,12 +54,13 @@ mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
 
     use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
-
+    use burn::tensor::{Tolerance, ops::FloatElem};
     use burn_import::pytorch::PyTorchFileRecorder;
+    type FT = FloatElem<Backend>;
 
     use super::*;
 
-    fn linear_test(record: NetRecord<Backend>, precision: usize) {
+    fn linear_test(record: NetRecord<Backend>, precision: f32) {
         let device = Default::default();
         let model = Net::<Backend>::init(&device).load_record(record);
 
@@ -87,7 +88,7 @@ mod tests {
         );
         output
             .to_data()
-            .assert_approx_eq(&expected.to_data(), precision);
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::absolute(precision));
     }
 
     #[test]
@@ -97,7 +98,7 @@ mod tests {
             .load("tests/linear/linear.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        linear_test(record, 7);
+        linear_test(record, 1e-7);
     }
 
     #[test]
@@ -107,7 +108,7 @@ mod tests {
             .load("tests/linear/linear.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        linear_test(record, 4);
+        linear_test(record, 1e-4);
     }
 
     #[test]
@@ -144,6 +145,8 @@ mod tests {
             &device,
         );
 
-        output.to_data().assert_approx_eq(&expected.to_data(), 6);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::default());
     }
 }

@@ -1,9 +1,9 @@
 use crate as burn;
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use crate::tensor::backend::Backend;
 use crate::tensor::Int;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 use alloc::vec;
 
 #[cfg(not(feature = "std"))]
@@ -155,8 +155,8 @@ impl<B: Backend> RotaryEncoding<B> {
     ///
     /// Arguments:
     /// * `x` - Input tensor of shape (..., seq_len, d_model). Accommodate both 3D and 4D tensors
-    ///    for (batch size, seq_len, hidden_dim) or (batch size, num_heads, seq_len, hidden_dim)
-    ///    respectively.
+    ///   for (batch size, seq_len, hidden_dim) or (batch size, num_heads, seq_len, hidden_dim)
+    ///   respectively.
     ///
     /// Returns:
     /// * Output tensor with the same shape as input tensor after applying rotary encoding.
@@ -170,8 +170,8 @@ impl<B: Backend> RotaryEncoding<B> {
     ///
     /// Arguments:
     /// * `x` - Input tensor of shape (..., seq_len, d_model). Accommodate both 3D and 4D tensors
-    ///    for (batch size, seq_len, hidden_dim) or (batch size, num_heads, seq_len, hidden_dim)
-    ///    respectively.
+    ///   for (batch size, seq_len, hidden_dim) or (batch size, num_heads, seq_len, hidden_dim)
+    ///   respectively.
     /// * `start` - Sequence start position index.
     ///
     /// Returns:
@@ -217,6 +217,8 @@ impl<B: Backend> RotaryEncoding<B> {
 mod tests {
     use super::*;
     use crate::TestBackend;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_rotary_encoding_forward() {
@@ -252,7 +254,7 @@ mod tests {
         output
             .squeeze::<3>(0)
             .to_data()
-            .assert_approx_eq(&expected_output.to_data(), 4);
+            .assert_approx_eq::<FT>(&expected_output.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -281,7 +283,7 @@ mod tests {
         output
             .squeeze::<3>(0)
             .to_data()
-            .assert_approx_eq(&expected_output.to_data(), 4);
+            .assert_approx_eq::<FT>(&expected_output.to_data(), Tolerance::default());
     }
 
     #[test]
@@ -325,7 +327,7 @@ mod tests {
         rotary_encoding
             .freq_complex
             .to_data()
-            .assert_approx_eq(&expected_freqs.to_data(), 4);
+            .assert_approx_eq::<FT>(&expected_freqs.to_data(), Tolerance::rel_abs(1e-4, 1e-5));
     }
 
     fn apply_freq_scaling_by_parts<B: Backend>(freqs: Tensor<B, 1>) -> Tensor<B, 1> {
@@ -396,7 +398,7 @@ mod tests {
         rotary_encoding
             .freq_complex
             .to_data()
-            .assert_approx_eq(&expected_freqs.to_data(), 4);
+            .assert_approx_eq::<FT>(&expected_freqs.to_data(), Tolerance::rel_abs(1e-4, 1e-5));
     }
 
     #[test]

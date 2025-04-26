@@ -1,8 +1,9 @@
 use alloc::sync::Arc;
+use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorId, TensorIr};
 use burn_tensor::{
+    DType, Shape, TensorData,
     backend::{Backend, DeviceId, DeviceOps},
-    repr::{OperationDescription, ReprBackend, TensorDescription, TensorHandle, TensorId},
-    try_read_sync, DType, Shape, TensorData,
+    try_read_sync,
 };
 
 use crate::{
@@ -27,7 +28,7 @@ macro_rules! impl_multi_backend_types {
 
             /// The type that can be used to point to a tensor of any kind.
             /// Each backend has its own variant.
-            pub enum Handle<$DefaultBackend: ReprBackend, $($OtherBackend: ReprBackend),+> {
+            pub enum Handle<$DefaultBackend: BackendIr, $($OtherBackend: BackendIr),+> {
                 #[allow(missing_docs)]
                 $DefaultBackend($DefaultBackend::Handle),
                 $(
@@ -79,7 +80,7 @@ macro_rules! impl_multi_backend_types {
 
             /// A local client with multiple runners (each responsible to execute tensor operations on a given backend).
             #[derive(Clone)]
-            pub enum MultiRunnerClient<$DefaultBackend: ReprBackend, $($OtherBackend: ReprBackend),+> {
+            pub enum MultiRunnerClient<$DefaultBackend: BackendIr, $($OtherBackend: BackendIr),+> {
                 #[allow(missing_docs)]
                 $DefaultBackend(Runner<$DefaultBackend>),
                 $(
@@ -88,11 +89,11 @@ macro_rules! impl_multi_backend_types {
                 )+
             }
 
-            impl<$DefaultBackend: ReprBackend, $($OtherBackend: ReprBackend),+> RunnerClient for MultiRunnerClient<$DefaultBackend, $($OtherBackend),+>
+            impl<$DefaultBackend: BackendIr, $($OtherBackend: BackendIr),+> RunnerClient for MultiRunnerClient<$DefaultBackend, $($OtherBackend),+>
             {
                type Device = MultiDevice<$DefaultBackend, $($OtherBackend),+>;
 
-                fn register(&self, op: OperationDescription) {
+                fn register(&self, op: OperationIr) {
                     match self {
                         Self::$DefaultBackend(runner) => runner.register(op),
                         $(
@@ -101,7 +102,7 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                async fn read_tensor(&self, tensor: TensorDescription) -> TensorData {
+                async fn read_tensor(&self, tensor: TensorIr) -> TensorData {
                     match self {
                         Self::$DefaultBackend(runner) => runner.read_tensor(tensor).await,
                         $(
@@ -173,8 +174,8 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn sync(&self) -> impl core::future::Future<Output = ()> + Send + 'static {
-                    let fut: core::pin::Pin<Box<dyn core::future::Future<Output = ()> + Send + 'static>> = match self {
+                fn sync(&self) -> impl core::future::Future<Output = ()> + Send {
+                    let fut: core::pin::Pin<Box<dyn core::future::Future<Output = ()> + Send>> = match self {
                         Self::$DefaultBackend(runner) => Box::pin(runner.sync()),
                         $(
                             Self::$OtherBackend(runner) => Box::pin(runner.sync()),
@@ -196,7 +197,7 @@ macro_rules! impl_multi_backend_types {
                 }
             }
 
-            impl<$DefaultBackend: ReprBackend, $($OtherBackend: ReprBackend),+, Br> RunnerChannel for DirectChannel<($DefaultBackend, $($OtherBackend),+), Br>
+            impl<$DefaultBackend: BackendIr, $($OtherBackend: BackendIr),+, Br> RunnerChannel for DirectChannel<($DefaultBackend, $($OtherBackend),+), Br>
             where
                 Br: MultiBackendBridge<TensorHandle = Handle<$DefaultBackend, $($OtherBackend),+>, Device = MultiDevice<$DefaultBackend, $($OtherBackend),+>>,
             {
@@ -220,7 +221,7 @@ macro_rules! impl_multi_backend_types {
                 }
 
                 fn get_tensor_handle(
-                    tensor: &TensorDescription,
+                    tensor: &TensorIr,
                     client: &Self::Client,
                 ) -> <Self::Bridge as MultiBackendBridge>::TensorHandle {
                     match client {
@@ -251,16 +252,16 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn name() -> String {
-                    let mut name = format!("{}", $DefaultBackend::name());
+                fn name(_device: &Self::Device) -> String {
+                    let mut name = format!("{}", $DefaultBackend::name(&<$DefaultBackend::Device as Default>::default()));
                     $(
-                        name.push_str(&format!(", {}", $OtherBackend::name()));
+                        name.push_str(&format!(", {}", $OtherBackend::name(&<$OtherBackend::Device as Default>::default())));
                     )+
                     format!("direct<({})>", name)
                 }
             }
 
-            impl<$DefaultBackend: ReprBackend, $($OtherBackend: ReprBackend),+> MultiBackendBridge for ByteBridge<($DefaultBackend, $($OtherBackend),+)> {
+            impl<$DefaultBackend: BackendIr, $($OtherBackend: BackendIr),+> MultiBackendBridge for ByteBridge<($DefaultBackend, $($OtherBackend),+)> {
                 type TensorHandle = Handle<$DefaultBackend, $($OtherBackend),+>;
                 type Device = MultiDevice<$DefaultBackend, $($OtherBackend),+>;
 
@@ -376,7 +377,7 @@ impl_multi_backend_types!(quad, B1, B2, B3, B4);
 #[cfg(not(target_os = "windows"))] // cannot find a wgpu adapter on windows CI
 #[cfg(test)]
 mod tests {
-    use burn_tensor::{backend::Backend, Tensor};
+    use burn_tensor::{Tensor, backend::Backend};
 
     use super::*;
     use crate::tests::{TestBackend, TestBackend1, TestBackend2};

@@ -1,5 +1,4 @@
-use strum::IntoEnumIterator;
-use tracel_xtask::prelude::*;
+use tracel_xtask::prelude::{clap::ValueEnum, *};
 
 use crate::NO_STD_CRATES;
 
@@ -36,12 +35,20 @@ pub(crate) fn handle_command(
                 // Exclude crates that are not supported on CI
                 args.exclude.extend(vec![
                     "burn-cuda".to_string(),
-                    "burn-hip".to_string(),
+                    "burn-rocm".to_string(),
                     "burn-tch".to_string(),
                 ]);
             }
-            if std::env::var("DISABLE_WGPU").is_ok() {
-                args.exclude.extend(vec!["burn-wgpu".to_string()]);
+            let disable_wgpu = std::env::var("DISABLE_WGPU")
+                .map(|val| val == "1" || val == "true")
+                .unwrap_or(false);
+
+            if disable_wgpu {
+                args.exclude.extend(vec![
+                    "burn-wgpu".to_string(),
+                    // "burn-router" uses "burn-wgpu" for the tests.
+                    "burn-router".to_string(),
+                ]);
             };
 
             // test workspace
@@ -67,7 +74,16 @@ pub(crate) fn handle_command(
                 "std with features: test-tch,record-item-custom-serde",
             )?;
 
-            if std::env::var("DISABLE_WGPU").is_err() {
+            // burn-vision
+            helpers::custom_crates_tests(
+                vec!["burn-vision"],
+                vec!["--features", "test-cpu"],
+                None,
+                None,
+                "std cpu",
+            )?;
+
+            if !disable_wgpu {
                 helpers::custom_crates_tests(
                     vec!["burn-core"],
                     vec!["--features", "test-wgpu"],
@@ -75,16 +91,37 @@ pub(crate) fn handle_command(
                     None,
                     "std wgpu",
                 )?;
+                helpers::custom_crates_tests(
+                    vec!["burn-vision"],
+                    vec!["--features", "test-wgpu"],
+                    None,
+                    None,
+                    "std wgpu",
+                )?;
+
                 // Vulkan isn't available on MacOS
                 #[cfg(not(target_os = "macos"))]
-                if std::env::var("DISABLE_WGPU_SPIRV").is_err() {
-                    helpers::custom_crates_tests(
-                        vec!["burn-core"],
-                        vec!["--features", "test-wgpu-spirv"],
-                        None,
-                        None,
-                        "std wgpu-spirv",
-                    )?;
+                {
+                    let disable_wgpu_spirv = std::env::var("DISABLE_WGPU_SPIRV")
+                        .map(|val| val == "1" || val == "true")
+                        .unwrap_or(false);
+
+                    if !disable_wgpu_spirv {
+                        helpers::custom_crates_tests(
+                            vec!["burn-core"],
+                            vec!["--features", "test-wgpu-spirv"],
+                            None,
+                            None,
+                            "std vulkan",
+                        )?;
+                        helpers::custom_crates_tests(
+                            vec!["burn-vision"],
+                            vec!["--features", "test-vulkan"],
+                            None,
+                            None,
+                            "std vulkan",
+                        )?;
+                    }
                 }
             }
 
@@ -110,8 +147,9 @@ pub(crate) fn handle_command(
             }
             Ok(())
         }
-        ExecutionEnvironment::All => ExecutionEnvironment::iter()
-            .filter(|env| *env != ExecutionEnvironment::All)
+        ExecutionEnvironment::All => ExecutionEnvironment::value_variants()
+            .iter()
+            .filter(|env| **env != ExecutionEnvironment::All)
             .try_for_each(|env| {
                 handle_command(
                     BurnTestCmdArgs {
@@ -125,7 +163,7 @@ pub(crate) fn handle_command(
                         features: args.features.clone(),
                         no_default_features: args.no_default_features,
                     },
-                    env,
+                    env.clone(),
                 )
             }),
     }

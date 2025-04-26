@@ -1,7 +1,9 @@
 #[burn_tensor_testgen::testgen(ad_log_sigmoid)]
 mod tests {
     use super::*;
-    use burn_tensor::{activation, TensorData};
+    use burn_tensor::{TensorData, activation};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_diff_log_sigmoid() {
@@ -15,6 +17,7 @@ mod tests {
         let grad = tensor_1.grad(&grads).unwrap();
 
         let expected = TensorData::from([[0.293966, 0.535515], [1.000000, 0.000000]]);
-        grad.to_data().assert_approx_eq(&expected, 4);
+        grad.to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

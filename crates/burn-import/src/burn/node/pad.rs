@@ -50,9 +50,9 @@ mod tests {
 
     use super::*;
     use crate::burn::{
+        TensorType,
         graph::BurnGraph,
         node::{pad::PadNode, test::assert_tokens},
-        TensorType,
     };
 
     #[test]

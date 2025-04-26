@@ -1,7 +1,8 @@
-use crate::components::LearnerComponents;
-use crate::metric::processor::EventProcessor;
+use crate::components::{LearnerComponents, TrainBackend, ValidBackend};
+use crate::metric::processor::{Event, EventProcessor};
 use crate::{Learner, TrainEpoch, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
+use burn_core::data::dataloader::split::split_dataloader;
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::AutodiffBackend;
@@ -110,8 +111,8 @@ impl<LC: LearnerComponents> Learner<LC> {
     /// The fitted model.
     pub fn fit<InputTrain, InputValid, OutputTrain, OutputValid>(
         mut self,
-        dataloader_train: Arc<dyn DataLoader<InputTrain>>,
-        dataloader_valid: Arc<dyn DataLoader<InputValid>>,
+        mut dataloader_train: Arc<dyn DataLoader<TrainBackend<LC>, InputTrain>>,
+        mut dataloader_valid: Arc<dyn DataLoader<ValidBackend<LC>, InputValid>>,
     ) -> LC::Model
     where
         InputTrain: Send + 'static,
@@ -122,10 +123,12 @@ impl<LC: LearnerComponents> Learner<LC> {
         <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
         LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain, ItemValid = OutputValid>,
     {
-        log::info!("Fitting the model:\n {}", self.model.to_string());
+        log::info!("Fitting the model:\n {}", self.model);
         // The reference model is always on the first device provided.
         if let Some(device) = self.devices.first() {
             self.model = self.model.fork(device);
+            dataloader_train = dataloader_train.to_device(device);
+            dataloader_valid = dataloader_valid.to_device(device);
         }
 
         let starting_epoch = match self.checkpoint {
@@ -144,14 +147,20 @@ impl<LC: LearnerComponents> Learner<LC> {
             None => 1,
         };
 
-        for epoch in starting_epoch..self.num_epochs + 1 {
-            let epoch_train = TrainEpoch::new(
-                dataloader_train.clone(),
-                epoch,
-                self.num_epochs,
-                self.grad_accumulation,
-            );
+        // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy
+        // for each (worker) data loader. This matches the expected device on the worker, so we
+        // don't have to move the data between devices.
+        let dataloaders_train = split_dataloader(dataloader_train, &self.devices);
 
+        // Changed the train epoch to keep the dataloaders
+        let mut epoch_train = TrainEpoch::new(
+            dataloaders_train,
+            starting_epoch,
+            self.num_epochs,
+            self.grad_accumulation,
+        );
+
+        for epoch in starting_epoch..self.num_epochs + 1 {
             if self.devices.len() > 1 {
                 (self.model, self.optim) = epoch_train.run_multi_device::<LC, OutputTrain>(
                     self.model,
@@ -175,6 +184,7 @@ impl<LC: LearnerComponents> Learner<LC> {
                 break;
             }
 
+            // TODO: multi-device validation?
             let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
             epoch_valid.run::<LC, OutputValid>(
                 &self.model,
@@ -199,13 +209,13 @@ impl<LC: LearnerComponents> Learner<LC> {
             }
         }
 
+        // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
+        self.event_processor.process_train(Event::End);
+
         // Display learner summary
         if let Some(summary) = self.summary {
             match summary.init() {
                 Ok(summary) => {
-                    // Drop event processor (includes renderer) so the summary is displayed
-                    // when switching back to "main" screen
-                    core::mem::drop(self.event_processor);
                     println!("{}", summary.with_model(self.model.to_string()))
                 }
                 Err(err) => log::error!("Could not retrieve learner summary:\n{err}"),

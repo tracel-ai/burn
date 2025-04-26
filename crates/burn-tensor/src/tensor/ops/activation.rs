@@ -1,5 +1,5 @@
 use crate::TensorMetadata;
-use crate::{backend::Backend, ElementConversion};
+use crate::{ElementConversion, backend::Backend};
 use core::f64::consts::SQRT_2;
 
 use super::FloatTensor;

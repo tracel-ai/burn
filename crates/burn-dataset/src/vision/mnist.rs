@@ -1,4 +1,4 @@
-use std::fs::{create_dir_all, File};
+use std::fs::{File, create_dir_all};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
@@ -6,8 +6,8 @@ use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    transform::{Mapper, MapperDataset},
     Dataset, InMemDataset,
+    transform::{Mapper, MapperDataset},
 };
 
 use burn_common::network::downloader::download_file_as_bytes;

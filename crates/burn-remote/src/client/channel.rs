@@ -1,9 +1,9 @@
+use burn_ir::TensorIr;
 use burn_router::{RouterTensor, RunnerChannel, TensorHandle};
-use burn_tensor::repr::TensorDescription;
 
 use super::{
-    runner::{WsBridge, WsDevice},
     WsClient,
+    runner::{WsBridge, WsDevice},
 };
 
 /// A local channel with direct connection to the backend runner clients.
@@ -21,18 +21,15 @@ impl RunnerChannel for WsChannel {
 
     type BoolElem = u32;
 
-    fn name() -> String {
-        "remote".into()
+    fn name(device: &Self::Device) -> String {
+        format!("remote-{device:?}")
     }
 
     fn init_client(device: &Self::Device) -> Self::Client {
         WsClient::init(device.clone())
     }
 
-    fn get_tensor_handle(
-        _tensor: &TensorDescription,
-        _client: &Self::Client,
-    ) -> TensorHandle<Self::Bridge> {
+    fn get_tensor_handle(_tensor: &TensorIr, _client: &Self::Client) -> TensorHandle<Self::Bridge> {
         panic!("Unsupported")
     }
 

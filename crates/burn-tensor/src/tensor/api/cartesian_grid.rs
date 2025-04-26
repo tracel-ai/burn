@@ -1,4 +1,4 @@
-use crate::{backend::Backend, Int, Shape, Tensor};
+use crate::{Int, Shape, Tensor, backend::Backend};
 use alloc::vec::Vec;
 
 /// Generates a cartesian grid for the given tensor shape on the specified device.

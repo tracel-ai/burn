@@ -1,4 +1,4 @@
-use super::{server::AutodiffServer, AutodiffClient};
+use super::{AutodiffClient, server::AutodiffServer};
 use crate::{
     checkpoint::builder::CheckpointerBuilder,
     grads::Gradients,
@@ -11,7 +11,7 @@ use burn_tensor::backend::Backend;
 pub struct MutexClient;
 
 impl core::fmt::Debug for MutexClient {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str("MutexClient")
     }
 }

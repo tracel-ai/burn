@@ -11,9 +11,9 @@ use crate::{
 };
 use burn::record::PrecisionSettings;
 use burn_tensor::{
+    BasicAutodiffOps, BasicOps, Tensor,
     backend::{AutodiffBackend, Backend},
     ops::Device,
-    BasicAutodiffOps, BasicOps, Tensor,
 };
 
 /// Record used for constant type implementing the [module](crate::module::Module) trait.
@@ -132,6 +132,7 @@ constant!(u16);
 constant!(u8);
 
 // Signed Integer Types
+constant!(isize);
 constant!(i64);
 constant!(i32);
 constant!(i16);
@@ -338,8 +339,8 @@ mod tests {
 
     use crate::TestBackend;
     use crate::{
-        record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
         TestAutodiffBackend,
+        record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
     };
     use burn::module::Module;
 

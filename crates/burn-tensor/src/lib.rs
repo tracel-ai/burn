@@ -2,8 +2,9 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-//! This library provides multiple tensor implementations hidden behind an easy to use API
-//! that supports reverse mode automatic differentiation.
+//! This library provides the core abstractions required to run tensor operations with Burn.
+//! `Tensor`s are generic over the backend to allow users to perform operations using different `Backend` implementations.
+//! Burn's tensors also support support auto-differentiation thanks to the `AutodiffBackend` trait.
 
 #[macro_use]
 extern crate derive_new;
@@ -12,19 +13,22 @@ extern crate alloc;
 
 mod tensor;
 
-/// Burn Tensor representaton
-#[cfg(feature = "repr")]
-pub mod repr;
-
 #[cfg(feature = "export_tests")]
 #[allow(missing_docs)]
 pub mod tests;
+
+#[cfg(feature = "export_tests")]
+// Re-export the might_panic proc macro for easy access
+pub use burn_tensor_testgen::might_panic;
 
 pub use half::{bf16, f16};
 pub(crate) use tensor::check::macros::check;
 pub use tensor::*;
 
 pub use burn_common::reader::*; // Useful so that backends don't have to add `burn_common` as a dependency.
+
+#[cfg(feature = "cubecl")]
+pub use cubecl::flex32;
 
 #[cfg(feature = "cubecl")]
 mod cube {
@@ -35,6 +39,7 @@ mod cube {
             match dtype {
                 crate::DType::F64 => Elem::Float(FloatKind::F64),
                 crate::DType::F32 => Elem::Float(FloatKind::F32),
+                crate::DType::Flex32 => Elem::Float(FloatKind::Flex32),
                 crate::DType::F16 => Elem::Float(FloatKind::F16),
                 crate::DType::BF16 => Elem::Float(FloatKind::BF16),
                 crate::DType::I64 => Elem::Int(IntKind::I64),

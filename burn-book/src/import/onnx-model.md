@@ -74,7 +74,7 @@ First, add the `burn-import` crate to your `Cargo.toml`:
 
 ```toml
 [build-dependencies]
-burn-import = "~0.17"
+burn-import = "~0.18"
 ```
 
 Then, in your `build.rs` file:
@@ -164,7 +164,7 @@ let model = Model::<Backend>::new(&device);
 let model = Model::<Backend>::from_file("path/to/weights", &device);
 
 // Load from embedded weights (if embed_states was true)
-let model = Model::<Backend>::from_embedded();
+let model = Model::<Backend>::from_embedded(&device);
 
 // Load from the out director location and load to default device (useful for testing)
 let model = Model::<Backend>::default();

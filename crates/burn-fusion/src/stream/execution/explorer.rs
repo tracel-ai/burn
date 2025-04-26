@@ -1,4 +1,4 @@
-use burn_tensor::repr::OperationDescription;
+use burn_ir::OperationIr;
 
 use super::ExecutionMode;
 use crate::{OptimizationBuilder, OptimizationStatus};
@@ -47,7 +47,7 @@ impl<O> Explorer<O> {
     /// Explore the provided operations.
     pub(crate) fn explore<'a>(
         &'a mut self,
-        operations: &[OperationDescription],
+        operations: &[OperationIr],
         mode: ExecutionMode,
     ) -> Exploration<'a, O> {
         self.update(operations);
@@ -68,7 +68,7 @@ impl<O> Explorer<O> {
     }
 
     /// Reset the state of the explorer to the provided list of operations.
-    pub(crate) fn reset(&mut self, operations: &[OperationDescription]) {
+    pub(crate) fn reset(&mut self, operations: &[OperationIr]) {
         for operation in self.builders.iter_mut() {
             operation.reset();
         }
@@ -78,7 +78,7 @@ impl<O> Explorer<O> {
     }
 
     /// Register any operations that we had deferred
-    fn update(&mut self, operations: &[OperationDescription]) {
+    fn update(&mut self, operations: &[OperationIr]) {
         for i in (0..self.num_deferred).rev() {
             if !self.is_still_optimizing {
                 break;

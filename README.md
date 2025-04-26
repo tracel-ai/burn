@@ -7,13 +7,14 @@
 [![Documentation](https://img.shields.io/badge/docs-latest-blue)](https://burn.dev/docs/burn)
 [![Test Status](https://github.com/tracel-ai/burn/actions/workflows/test.yml/badge.svg)](https://github.com/tracel-ai/burn/actions/workflows/test.yml)
 [![CodeCov](https://codecov.io/gh/tracel-ai/burn/branch/main/graph/badge.svg)](https://codecov.io/gh/tracel-ai/burn)
-[![Blaze](https://runblaze.dev/gh/114041730602611213183421653564341667516/badge.svg)](https://runblaze.dev)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
+
+[<img src="https://www.runblaze.dev/ci-blaze-powered.png" width="125px"/>](https://www.runblaze.dev)
 
 ---
 
-**Burn is a new comprehensive dynamic Deep Learning Framework built using Rust <br /> with extreme
-flexibility, compute efficiency and portability as its primary goals.**
+**Burn is a next generation Deep Learning Framework that doesn't compromise on <br />
+flexibility, efficiency and portability.**
 
 <br/>
 </div>
@@ -61,10 +62,6 @@ lines of WGSL [WebGPU Shading Language]("https://www.w3.org/TR/WGSL/https://www.
 an extremely verbose lower level shader language you probably don't want to program your deep
 learning models in!
 
-> As of now, our fusion strategy is only implemented for our own WGPU and CUDA backends and supports
-> only a subset of operations. We plan to add more operations very soon and extend this technique to
-> other future in-house backends.
-
 </details>
 
 <details>
@@ -73,7 +70,7 @@ Asynchronous execution ❤️‍🔥
 </summary>
 <br />
 
-For [backends developed from scratch by the Burn team](#backends), an asynchronous execution style
+For [first-party backends](#backends), an asynchronous execution style
 is used, which allows to perform various optimizations, such as the previously mentioned automatic
 kernel fusion.
 
@@ -160,7 +157,7 @@ since this is how fully-connected neural networks are modeled.
 
 More and more, hardware manufacturers optimize their chips specifically for matrix multiplication
 workloads. For instance, Nvidia has its _Tensor Cores_ and today most cellphones have AI specialized
-chips. As of this moment, we support Tensor Cores with our LibTorch, Candle, CUDA and WGPU/SPIR-V
+chips. As of this moment, we support Tensor Cores with our LibTorch, Candle, CUDA, Metal and WGPU/SPIR-V
 backends, but not other accelerators yet. We hope
 [this issue](https://github.com/gpuweb/gpuweb/issues/4195) gets resolved at some point to bring
 support to our WGPU backend.
@@ -181,6 +178,181 @@ This versatility is advantageous in numerous ways, such as supporting custom ope
 attention or manually writing your own kernel for a specific backend to enhance performance. See
 [this section](https://burn.dev/burn-book/advanced/backend-extension/index.html) in the Burn Book 🔥
 for more details.
+
+</details>
+
+<br />
+
+## Backend
+
+<div align="left">
+<img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/backend-chip.png" height="96px"/>
+
+
+Burn strives to be as fast as possible on as many hardwares as possible, with robust implementations.
+We believe this flexibility is crucial for modern needs where you may train your models in the cloud,
+then deploy on customer hardwares, which vary from user to user.
+</div>
+
+<br />
+
+**Supported Backends**
+
+| Backend  | Devices                      | Class       |
+| -------  | ---------------------------- | ----------- |
+| CUDA     | NVIDIA GPUs                  | First-Party |
+| ROCm     | AMD GPUs                     | First-Party |
+| Metal    | Apple GPUs                   | First-Party |
+| Vulkan   | Most GPUs on Linux & Windows | First-Party |
+| Wgpu     | Most GPUs                    | First-Party |
+| NdArray  | Most CPUs                    | Third-Party |
+| LibTorch | Most GPUs & CPUs             | Third-Party |
+| Candle   | Nvidia, Apple GPUs & CPUs    | Third-Party |
+
+<br />
+
+Compared to other frameworks, Burn has a very different approach to supporting many backends. By
+design, most code is generic over the Backend trait, which allows us to build Burn with swappable
+backends. This makes composing backend possible, augmenting them with additional functionalities
+such as autodifferentiation and automatic kernel fusion.
+
+<details>
+<summary>
+Autodiff: Backend decorator that brings backpropagation to any backend 🔄
+</summary>
+<br />
+
+Contrary to the aforementioned backends, Autodiff is actually a backend _decorator_. This means that
+it cannot exist by itself; it must encapsulate another backend.
+
+The simple act of wrapping a base backend with Autodiff transparently equips it with
+autodifferentiation support, making it possible to call backward on your model.
+
+```rust
+use burn::backend::{Autodiff, Wgpu};
+use burn::tensor::{Distribution, Tensor};
+
+fn main() {
+    type Backend = Autodiff<Wgpu>;
+
+    let x: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default);
+    let y: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default).require_grad();
+
+    let tmp = x.clone() + y.clone();
+    let tmp = tmp.matmul(x);
+    let tmp = tmp.exp();
+
+    let grads = tmp.backward();
+    let y_grad = y.grad(&grads).unwrap();
+    println!("{y_grad}");
+}
+```
+
+Of note, it is impossible to make the mistake of calling backward on a model that runs on a backend
+that does not support autodiff (for inference), as this method is only offered by an Autodiff
+backend.
+
+See the [Autodiff Backend README](./crates/burn-autodiff/README.md) for more details.
+
+</details>
+
+<details>
+<summary>
+Fusion: Backend decorator that brings kernel fusion to all first-party backends
+</summary>
+<br />
+
+This backend decorator enhances a backend with kernel fusion, provided that the inner backend
+supports it. Note that you can compose this backend with other backend decorators such as Autodiff.
+For now, only the WGPU and CUDA backends have support for fused kernels.
+
+```rust
+use burn::backend::{Autodiff, Fusion, Wgpu};
+use burn::tensor::{Distribution, Tensor};
+
+fn main() {
+    type Backend = Autodiff<Fusion<Wgpu>>;
+
+    let x: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default);
+    let y: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default).require_grad();
+
+    let tmp = x.clone() + y.clone();
+    let tmp = tmp.matmul(x);
+    let tmp = tmp.exp();
+
+    let grads = tmp.backward();
+    let y_grad = y.grad(&grads).unwrap();
+    println!("{y_grad}");
+}
+
+```
+
+Of note, we plan to implement automatic gradient checkpointing based on compute bound and memory
+bound operations, which will work gracefully with the fusion backend to make your code run even
+faster during training, see [this issue](https://github.com/tracel-ai/burn/issues/936).
+
+See the [Fusion Backend README](./crates/burn-fusion/README.md) for more details.
+
+</details>
+
+<details>
+<summary>
+Router (Beta): Backend decorator that composes multiple backends into a single one
+</summary>
+<br />
+
+That backend simplifies hardware operability, if for instance you want to execute some operations on the CPU and other operations on the GPU.
+
+```rust
+use burn::tensor::{Distribution, Tensor};
+use burn::backend::{
+    NdArray, Router, Wgpu, ndarray::NdArrayDevice, router::duo::MultiDevice, wgpu::WgpuDevice,
+};
+
+fn main() {
+    type Backend = Router<(Wgpu, NdArray)>;
+
+    let device_0 = MultiDevice::B1(WgpuDevice::DiscreteGpu(0));
+    let device_1 = MultiDevice::B2(NdArrayDevice::Cpu);
+
+    let tensor_gpu =
+        Tensor::<Backend, 2>::random([3, 3], burn::tensor::Distribution::Default, &device_0);
+    let tensor_cpu =
+        Tensor::<Backend, 2>::random([3, 3], burn::tensor::Distribution::Default, &device_1);
+}
+
+```
+
+</details>
+
+<details>
+<summary>
+Remote (Beta): Backend decorator for remote backend execution, useful for distributed computations
+</summary>
+<br />
+
+That backend has two parts, one client and one server.
+The client sends tensor operations over the network to a remote compute backend.
+You can use any first-party backend as server in a single line of code:
+
+```rust
+fn main_server() {
+    // Start a server on port 3000.
+    burn::server::start::<burn::backend::Cuda>(Default::default(), 3000);
+}
+
+fn main_client() {
+    // Create a client that communicate with the server on port 3000.
+    use burn::backend::{Autodiff, RemoteBackend};
+
+    type Backend = Autodiff<RemoteDevice>;
+
+    let device = RemoteDevice::new("ws://localhost:3000");
+    let tensor_gpu =
+        Tensor::<Backend, 2>::random([3, 3], Distribution::Default, &device);
+}
+
+```
 
 </details>
 
@@ -296,176 +468,23 @@ means it can run in bare metal environment such as embedded devices without an o
 
 <br />
 
-## Backends
 
-<div align="left">
-<img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/backend-chip.png" height="96px"/>
-Burn strives to be as fast as possible on as many hardwares as possible, with robust implementations.
-We believe this flexibility is crucial for modern needs where you may train your models in the cloud,
-then deploy on customer hardwares, which vary from user to user.
-</div>
+### Benchmarks
 
-<br />
+To evaluate performance across different backends and track improvements over time, we provide a
+dedicated benchmarking suite.
 
-Compared to other frameworks, Burn has a very different approach to supporting many backends. By
-design, most code is generic over the Backend trait, which allows us to build Burn with swappable
-backends. This makes composing backend possible, augmenting them with additional functionalities
-such as autodifferentiation and automatic kernel fusion.
+Run and compare benchmarks using [burn-bench](https://github.com/tracel-ai/burn-bench).
 
-**We already have many backends implemented, all listed below 👇**
 
-<details>
-<summary>
-WGPU (WebGPU): Cross-Platform GPU Backend 🌐
-</summary>
-<br />
+> ⚠️ **Warning**  
+> When using one of the `wgpu` backends, you may encounter compilation errors related to recursive type evaluation. This is due to complex type nesting within the `wgpu` dependency chain.  
+> To resolve this issue, add the following line at the top of your `main.rs` or `lib.rs` file:
+> ```rust
+> #![recursion_limit = "256"]
+> ```
+> The default recursion limit (128) is often just below the required depth (typically 130-150) due to deeply nested associated types and trait bounds.
 
-**The go-to backend for running on any GPU.**
-
-Based on the most popular and well-supported Rust graphics library, [WGPU](https://wgpu.rs), this
-backend automatically targets Vulkan, OpenGL, Metal, Direct X11/12, and WebGPU, by using the WebGPU
-shading language [WGSL](https://www.w3.org/TR/WGSL/), or optionally
-[SPIR-V](https://www.khronos.org/spir/) when targeting Vulkan. It can also be compiled to Web
-Assembly to run in the browser while leveraging the GPU, see
-[this demo](https://antimora.github.io/image-classification/). For more information on the benefits
-of this backend, see [this blog](https://burn.dev/blog/cross-platform-gpu-backend).
-
-The WGPU backend is our first "in-house backend", which means we have complete control over its
-implementation details. It is fully optimized with the
-[performance characteristics mentioned earlier](#performance), as it serves as our research
-playground for a variety of optimizations. We've since added CUDA, ROCm and SPIR-V support using the
-same compiler infrastructure, so a kernel written for burn once, can run anywhere.
-
-See the [WGPU Backend README](./crates/burn-wgpu/README.md) and
-[CUDA Backend README](./crates/burn-cuda/README.md) for more details.
-
-</details>
-
-<details>
-<summary>
-Candle: Backend using the Candle bindings 🕯
-</summary>
-<br />
-
-Based on [Candle by Hugging Face](https://github.com/huggingface/candle), a minimalist ML framework
-for Rust with a focus on performance and ease of use, this backend can run on CPU with support for
-Web Assembly or on Nvidia GPUs using CUDA.
-
-See the [Candle Backend README](./crates/burn-candle/README.md) for more details.
-
-> _Disclaimer:_ This backend is not fully completed yet, but can work in some contexts like
-> inference.
-
-</details>
-
-<details>
-<summary>
-LibTorch: Backend using the LibTorch bindings 🎆
-</summary>
-<br />
-
-PyTorch doesn't need an introduction in the realm of deep learning. This backend leverages
-[PyTorch Rust bindings](https://github.com/LaurentMazare/tch-rs), enabling you to use LibTorch C++
-kernels on CPU, CUDA and Metal.
-
-See the [LibTorch Backend README](./crates/burn-tch/README.md) for more details.
-
-</details>
-
-<details>
-<summary>
-NdArray: Backend using the NdArray primitive as data structure 🦐
-</summary>
-<br />
-
-This CPU backend is admittedly not our fastest backend, but offers extreme portability.
-
-It is our only backend supporting _no_std_.
-
-See the [NdArray Backend README](./crates/burn-ndarray/README.md) for more details.
-
-</details>
-
-<details>
-<summary>
-Autodiff: Backend decorator that brings backpropagation to any backend 🔄
-</summary>
-<br />
-
-Contrary to the aforementioned backends, Autodiff is actually a backend _decorator_. This means that
-it cannot exist by itself; it must encapsulate another backend.
-
-The simple act of wrapping a base backend with Autodiff transparently equips it with
-autodifferentiation support, making it possible to call backward on your model.
-
-```rust
-use burn::backend::{Autodiff, Wgpu};
-use burn::tensor::{Distribution, Tensor};
-
-fn main() {
-    type Backend = Autodiff<Wgpu>;
-
-    let x: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default);
-    let y: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default).require_grad();
-
-    let tmp = x.clone() + y.clone();
-    let tmp = tmp.matmul(x);
-    let tmp = tmp.exp();
-
-    let grads = tmp.backward();
-    let y_grad = y.grad(&grads).unwrap();
-    println!("{y_grad}");
-}
-```
-
-Of note, it is impossible to make the mistake of calling backward on a model that runs on a backend
-that does not support autodiff (for inference), as this method is only offered by an Autodiff
-backend.
-
-See the [Autodiff Backend README](./crates/burn-autodiff/README.md) for more details.
-
-</details>
-
-<details>
-<summary>
-Fusion: Backend decorator that brings kernel fusion to backends that support it 💥
-</summary>
-<br />
-
-This backend decorator enhances a backend with kernel fusion, provided that the inner backend
-supports it. Note that you can compose this backend with other backend decorators such as Autodiff.
-For now, only the WGPU and CUDA backends have support for fused kernels.
-
-```rust
-use burn::backend::{Autodiff, Fusion, Wgpu};
-use burn::tensor::{Distribution, Tensor};
-
-fn main() {
-    type Backend = Autodiff<Fusion<Wgpu>>;
-
-    let x: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default);
-    let y: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default).require_grad();
-
-    let tmp = x.clone() + y.clone();
-    let tmp = tmp.matmul(x);
-    let tmp = tmp.exp();
-
-    let grads = tmp.backward();
-    let y_grad = y.grad(&grads).unwrap();
-    println!("{y_grad}");
-}
-
-```
-
-Of note, we plan to implement automatic gradient checkpointing based on compute bound and memory
-bound operations, which will work gracefully with the fusion backend to make your code run even
-faster during training, see [this issue](https://github.com/tracel-ai/burn/issues/936).
-
-See the [Fusion Backend README](./crates/burn-fusion/README.md) for more details.
-
-</details>
-
-<br />
 
 ## Getting Started
 

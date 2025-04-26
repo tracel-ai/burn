@@ -8,10 +8,10 @@ use hashbrown::HashMap;
 
 use spin::Mutex;
 
+use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::{
-    backend::{DeviceId, DeviceOps},
-    repr::{OperationDescription, TensorDescription, TensorId},
     DType, FloatDType, TensorData,
+    backend::{DeviceId, DeviceOps},
 };
 
 use crate::{RouterTensor, RunnerChannel};
@@ -29,9 +29,9 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     type Device: DeviceOps;
 
     /// Register a new tensor operation to be executed by the (runner) server.
-    fn register(&self, op: OperationDescription);
+    fn register(&self, op: OperationIr);
     /// Read the values contained by a tensor.
-    fn read_tensor(&self, tensor: TensorDescription) -> impl Future<Output = TensorData> + Send;
+    fn read_tensor(&self, tensor: TensorIr) -> impl Future<Output = TensorData> + Send;
     /// Create a new [RouterTensor] from the tensor data.
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self>;
     /// Create a new [RouterTensor] with no resources associated.
@@ -43,7 +43,7 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     /// Drop the tensor with the given [tensor id](TensorId).
     fn register_orphan(&self, id: &TensorId);
     /// Sync the runner, ensure that all computations are finished.
-    fn sync(&self) -> impl Future<Output = ()> + Send + 'static;
+    fn sync(&self) -> impl Future<Output = ()> + Send;
     /// Seed the runner.
     fn seed(&self, seed: u64);
 }

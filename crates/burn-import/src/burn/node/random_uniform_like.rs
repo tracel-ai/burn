@@ -30,9 +30,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomUniformLikeNode {
         vec![Type::Tensor(self.output.clone())]
     }
 
-    fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {
+    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let output = &self.output.name;
-        let input = &self.input.name;
+        let input = scope.tensor_use_owned(&self.input, node_position);
         let dist = self.get_distribution();
         quote! {
             let #output = #input.random_like(#dist);
@@ -50,8 +50,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomUniformLikeNode {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
-    use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorKind, TensorType};
+    use crate::burn::{TensorKind, TensorType, graph::BurnGraph, node::test::assert_tokens};
     use burn::record::FullPrecisionSettings;
 
     #[test]
@@ -61,8 +62,8 @@ mod tests {
         graph.register(RandomUniformLikeNode::new(
             0.0f64,
             1.0f64,
-            TensorType::new("input", 2, TensorKind::Float, Some(vec![2, 3])),
-            TensorType::new("output", 2, TensorKind::Float, Some(vec![2, 3])),
+            TensorType::new("input", 2, TensorKind::Float),
+            TensorType::new("output", 2, TensorKind::Float),
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);

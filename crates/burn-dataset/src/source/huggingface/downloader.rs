@@ -57,12 +57,14 @@ pub enum ImporterError {
 ///  let train_ds:SqliteDataset<MnistItemRaw> = HuggingfaceDatasetLoader::new("mnist")
 ///       .dataset("train")
 ///       .unwrap();
+/// ```
 pub struct HuggingfaceDatasetLoader {
     name: String,
     subset: Option<String>,
     base_dir: Option<PathBuf>,
     huggingface_token: Option<String>,
     huggingface_cache_dir: Option<String>,
+    huggingface_data_dir: Option<String>,
     trust_remote_code: bool,
 }
 
@@ -75,6 +77,7 @@ impl HuggingfaceDatasetLoader {
             base_dir: None,
             huggingface_token: None,
             huggingface_cache_dir: None,
+            huggingface_data_dir: None,
             trust_remote_code: false,
         }
     }
@@ -110,6 +113,16 @@ impl HuggingfaceDatasetLoader {
     /// If not specified, the dataset will be stored in `~/.cache/huggingface/datasets`.
     pub fn with_huggingface_cache_dir(mut self, huggingface_cache_dir: &str) -> Self {
         self.huggingface_cache_dir = Some(huggingface_cache_dir.to_string());
+        self
+    }
+
+    /// Specify a relative path to a subset of a dataset. This is used in some datasets for the
+    /// manual steps of dataset download process.
+    ///
+    /// Unless you've encountered a ManualDownloadError
+    /// when loading your dataset you probably don't have to worry about this setting.
+    pub fn with_huggingface_data_dir(mut self, huggingface_data_dir: &str) -> Self {
+        self.huggingface_data_dir = Some(huggingface_data_dir.to_string());
         self
     }
 
@@ -163,6 +176,7 @@ impl HuggingfaceDatasetLoader {
                 base_dir,
                 self.huggingface_token,
                 self.huggingface_cache_dir,
+                self.huggingface_data_dir,
                 self.trust_remote_code,
             )?;
         }
@@ -172,6 +186,7 @@ impl HuggingfaceDatasetLoader {
 }
 
 /// Import a dataset from huggingface. The transformed dataset is stored as sqlite database.
+#[allow(clippy::too_many_arguments)]
 fn import(
     name: String,
     subset: Option<String>,
@@ -179,6 +194,7 @@ fn import(
     base_dir: PathBuf,
     huggingface_token: Option<String>,
     huggingface_cache_dir: Option<String>,
+    huggingface_data_dir: Option<String>,
     trust_remote_code: bool,
 ) -> Result<(), ImporterError> {
     let venv_python_path = install_python_deps(&base_dir)?;
@@ -206,6 +222,10 @@ fn import(
     if let Some(huggingface_cache_dir) = huggingface_cache_dir {
         command.arg("--cache_dir");
         command.arg(huggingface_cache_dir);
+    }
+    if let Some(huggingface_data_dir) = huggingface_data_dir {
+        command.arg("--data_dir");
+        command.arg(huggingface_data_dir);
     }
     if trust_remote_code {
         command.arg("--trust_remote_code");

@@ -1,11 +1,11 @@
-use crate::{element::TchElement, LibTorch, QuantElement, TchTensor};
+use crate::{LibTorch, QuantElement, TchTensor, element::TchElement};
 use burn_tensor::{
+    TensorMetadata,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
         InterpolateMode, InterpolateOptions, MaxPool1dWithIndices, MaxPool2dBackward,
         MaxPool2dWithIndices, ModuleOps,
     },
-    TensorMetadata,
 };
 
 impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {

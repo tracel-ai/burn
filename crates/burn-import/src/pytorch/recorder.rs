@@ -7,7 +7,7 @@ use burn::{
 };
 
 use regex::Regex;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use super::reader::from_file;
 
@@ -35,7 +35,10 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for PyTorchFileRecorder<PS> 
         unimplemented!("save_item not implemented for PyTorchFileRecorder")
     }
 
-    fn load_item<I: DeserializeOwned>(&self, _file: Self::LoadArgs) -> Result<I, RecorderError> {
+    fn load_item<I: DeserializeOwned>(
+        &self,
+        _file: &mut Self::LoadArgs,
+    ) -> Result<I, RecorderError> {
         unimplemented!("load_item not implemented for PyTorchFileRecorder")
     }
 
@@ -60,8 +63,8 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for PyTorchFileRecorder<PS> 
 ///
 /// * `file` - The path to the file to load.
 /// * `key_remap` - A vector of tuples containing a regular expression and a replacement string.
-///                See [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace)
-///                for more information.
+///   See [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace)
+///   for more information.
 ///
 /// # Notes
 ///

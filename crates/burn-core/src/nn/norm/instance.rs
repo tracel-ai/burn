@@ -3,9 +3,9 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::module::{Module, Param};
-use crate::nn::norm::group_norm;
 use crate::nn::Initializer;
-use crate::tensor::{backend::Backend, Tensor};
+use crate::nn::norm::group_norm;
+use crate::tensor::{Tensor, backend::Backend};
 
 /// Configuration to create a [InstanceNorm](InstanceNorm) layer using the [init function](InstanceNormConfig::init).
 #[derive(Debug, Config)]
@@ -101,9 +101,11 @@ impl<B: Backend> InstanceNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
     use alloc::format;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn instance_norm_forward_affine_false() {
@@ -154,7 +156,9 @@ mod tests {
                 [-1.3714, 0.3868, 0.9846],
             ],
         ]);
-        output.to_data().assert_approx_eq(&expected, 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     #[test]
@@ -200,13 +204,15 @@ mod tests {
             [
                 [1.26372, -0.08229, -1.18144],
                 [-0.44049, 1.38403, -0.94354],
-                [-1.23979, 0.03109, 1.2087],
+                [-1.23828, 0.03109, 1.2072],
                 [1.32524, -1.08999, -0.23524],
                 [-0.75061, 1.4132, -0.66259],
                 [-0.45469, 1.38697, -0.93228],
             ],
         ]);
-        output.to_data().assert_approx_eq(&expected, 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-3));
     }
 
     #[test]

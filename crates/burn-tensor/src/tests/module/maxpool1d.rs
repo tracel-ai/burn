@@ -2,7 +2,9 @@
 mod tests {
     use super::*;
     use burn_tensor::module::{max_pool1d, max_pool1d_with_indices};
-    use burn_tensor::{backend::Backend, Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData, backend::Backend};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_max_pool1d_simple() {
@@ -22,7 +24,8 @@ mod tests {
 
         let output = max_pool1d(x, kernel_size, stride, padding, dilation);
 
-        y.to_data().assert_approx_eq(&output.into_data(), 3);
+        y.to_data()
+            .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -37,7 +40,8 @@ mod tests {
 
         let output = max_pool1d(x, kernel_size, stride, padding, dilation);
 
-        y.to_data().assert_approx_eq(&output.into_data(), 3);
+        y.to_data()
+            .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -52,7 +56,8 @@ mod tests {
 
         let output = max_pool1d(x, kernel_size, stride, padding, dilation);
 
-        y.to_data().assert_approx_eq(&output.into_data(), 3);
+        y.to_data()
+            .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -73,7 +78,8 @@ mod tests {
 
         let output = max_pool1d(x, kernel_size, stride, padding, dilation);
 
-        y.to_data().assert_approx_eq(&output.into_data(), 3);
+        y.to_data()
+            .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -90,7 +96,8 @@ mod tests {
         let (output, output_indices) =
             max_pool1d_with_indices(x, kernel_size, stride, padding, dilation);
 
-        y.to_data().assert_approx_eq(&output.into_data(), 3);
+        y.to_data()
+            .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
         output_indices.into_data().assert_eq(&indices, false);
     }
 
@@ -108,7 +115,8 @@ mod tests {
         let (output, output_indices) =
             max_pool1d_with_indices(x, kernel_size, stride, padding, dilation);
 
-        y.to_data().assert_approx_eq(&output.into_data(), 3);
+        y.to_data()
+            .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
         output_indices.into_data().assert_eq(&indices, false);
     }
 }

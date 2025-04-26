@@ -17,7 +17,7 @@ class InterpolateModel(nn.Module):
                                          mode=self.mode, align_corners=self.align_corners)
 
 def export_interpolate_onnx(filename, batch_size=1, channels=1, height=6, width=6,
-                            scale_factor=None, size=None, mode='nearest', dim=2, align_corners=None):
+                            scale_factor=None, size=None, mode='nearest', rank=2, align_corners=None):
     model = InterpolateModel(scale_factor, size, mode, align_corners)
     model.eval()
 
@@ -25,12 +25,12 @@ def export_interpolate_onnx(filename, batch_size=1, channels=1, height=6, width=
     torch.manual_seed(0)
 
     # Create a dummy input
-    if dim == 1:
+    if rank == 1:
         dummy_input = torch.randn(batch_size, channels, width)
-    elif dim == 2:
+    elif rank == 2:
         dummy_input = torch.randn(batch_size, channels, height, width)
     else:
-        raise ValueError("Unsupported dimension. Use 1 for temporal or 2 for spatial.")
+        raise ValueError("Unsupported rank. Use 1 for temporal or 2 for spatial.")
 
     # Export the model
     torch.onnx.export(model, dummy_input, filename,
@@ -59,13 +59,13 @@ if __name__ == "__main__":
 
 
     # 1D (temporal) examples
-    export_interpolate_onnx("resize_1d_nearest_scale.onnx", scale_factor=1.5, mode='nearest', dim=1)
-    export_interpolate_onnx("resize_1d_linear_scale.onnx", scale_factor=1.5, mode='linear', dim=1, align_corners=True)
+    export_interpolate_onnx("resize_1d_nearest_scale.onnx", scale_factor=1.5, mode='nearest', rank=1)
+    export_interpolate_onnx("resize_1d_linear_scale.onnx", scale_factor=1.5, mode='linear', rank=1, align_corners=True)
 
     # Cubic interpolation is not supported for 1D tensors
-    # export_interpolate_onnx("resize_1d_cubic_scale.onnx", scale_factor=1.5, mode='cubic', dim=1)
+    # export_interpolate_onnx("resize_1d_cubic_scale.onnx", scale_factor=1.5, mode='cubic', rank=1)
 
     # 2D (spatial) examples
-    export_interpolate_onnx("resize_2d_nearest_scale.onnx", scale_factor=1.5, mode='nearest', dim=2)
-    export_interpolate_onnx("resize_2d_bilinear_scale.onnx", scale_factor=1.5, mode='bilinear', dim=2, align_corners=True)
-    export_interpolate_onnx("resize_2d_bicubic_scale.onnx", scale_factor=1.5, mode='bicubic', dim=2, align_corners=True)
+    export_interpolate_onnx("resize_2d_nearest_scale.onnx", scale_factor=1.5, mode='nearest', rank=2)
+    export_interpolate_onnx("resize_2d_bilinear_scale.onnx", scale_factor=1.5, mode='bilinear', rank=2, align_corners=True)
+    export_interpolate_onnx("resize_2d_bicubic_scale.onnx", scale_factor=1.5, mode='bicubic', rank=2, align_corners=True)

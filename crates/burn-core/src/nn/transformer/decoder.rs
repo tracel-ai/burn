@@ -6,15 +6,15 @@ use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::Bool;
 use crate::{
     self as burn,
-    nn::{attention::MhaCache, cache::TensorCache, Initializer},
+    nn::{Initializer, attention::MhaCache, cache::TensorCache},
 };
 use crate::{
     config::Config,
     nn::{
-        attention::{MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
         Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
+        attention::{MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
     },
-    tensor::{backend::Backend, Tensor},
+    tensor::{Tensor, backend::Backend},
 };
 
 /// Configuration to create a [Transformer Decoder](TransformerDecoder) layer using the [init function](TransformerDecoderConfig::init).
@@ -455,9 +455,13 @@ impl<B: Backend> TransformerDecoder<B> {
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::Device;
+
     use super::*;
-    use crate::tensor::Distribution;
-    use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
+    use crate::{TestBackend, nn::attention::generate_autoregressive_mask};
+
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn test_autoregressive_norm_last() {
@@ -481,20 +485,16 @@ mod tests {
     }
 
     fn test_autoregressive(config: TransformerDecoderConfig) {
-        let device = Default::default();
+        let device: Device<TestBackend> = Default::default();
         let [batch_size, seq_length, d_model] = [3, 4, config.d_model];
-        let transformer = config.init(&device);
+        let transformer = config.init::<TestBackend>(&device);
 
-        let memory = Tensor::<TestBackend, 3>::random(
-            [batch_size, seq_length, d_model],
-            Distribution::Default,
-            &device,
-        );
-        let target = Tensor::<TestBackend, 3>::random(
-            [batch_size, seq_length, d_model],
-            Distribution::Default,
-            &device,
-        );
+        let memory = Tensor::arange(0..(batch_size * seq_length * d_model) as i64, &device)
+            .float()
+            .reshape([batch_size, seq_length, d_model]);
+        let target = Tensor::arange(0..(batch_size * seq_length * d_model) as i64, &device)
+            .float()
+            .reshape([batch_size, seq_length, d_model]);
         let mask_attn = generate_autoregressive_mask(batch_size, seq_length, &target.device());
         let input = TransformerDecoderInput::new(target.clone(), memory.clone())
             .target_mask_attn(mask_attn);
@@ -523,7 +523,7 @@ mod tests {
         // Should produce the same tokens.
         output_1
             .into_data()
-            .assert_approx_eq(&output_2.into_data(), 2);
+            .assert_approx_eq::<FT>(&output_2.into_data(), Tolerance::rel_abs(1e-3, 1e-4));
     }
 
     #[test]

@@ -5,7 +5,7 @@ use burn::{
 };
 
 #[cfg(feature = "wgpu")]
-use burn::backend::wgpu::{init_setup_async, AutoGraphicsApi, Wgpu, WgpuDevice};
+use burn::backend::wgpu::{Wgpu, WgpuDevice, graphics::AutoGraphicsApi, init_setup_async};
 
 #[cfg(feature = "wgpu")]
 pub type Backend = Wgpu<f32, i32>;
@@ -21,8 +21,8 @@ pub async fn build_and_load_model() -> Model<Backend> {
     init_setup_async::<AutoGraphicsApi>(&WgpuDevice::default(), Default::default()).await;
 
     let model: Model<Backend> = Model::new(&Default::default());
-    let record = BinBytesRecorder::<FullPrecisionSettings>::default()
-        .load(STATE_ENCODED.to_vec(), &Default::default())
+    let record = BinBytesRecorder::<FullPrecisionSettings, &'static [u8]>::default()
+        .load(STATE_ENCODED, &Default::default())
         .expect("Failed to decode state");
 
     model.load_record(record)

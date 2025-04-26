@@ -31,7 +31,7 @@ env:
   # Note: It is not possible to define env vars in composite actions.
   # To work around this issue we use inputs and define all the env vars here.
 
-  RUST_PREVIOUS_VERSION: 1.82.0
+  RUST_PREVIOUS_VERSION: 1.85.0
 
   # Cargo
   CARGO_TERM_COLOR: "always"
@@ -147,6 +147,10 @@ jobs:
           - rust: prev
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
+      # disable incremental compilation (reduces artifact size)
+      - name: Set CI Profile
+        run: echo "CARGO_PROFILE_TEST_INCREMENTAL=false" >> $GITHUB_ENV
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
         with:
@@ -264,4 +268,4 @@ jobs:
           cache-key: ${{ matrix.rust }}-macos
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask test --ci
+        run: CUBECL_DEBUG_LOG=stdout cargo xtask test --ci

@@ -1,26 +1,23 @@
 use alloc::vec::Vec;
 
-use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
-use burn_tensor::repr::{
-    BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
-    CatOperationDescription, ExpandOperationDescription, FlipOperationDescription,
-    OperationDescription, PermuteOperationDescription, RepeatDimOperationDescription,
-    ReshapeDescription, SliceAssignOperationDescription, SliceOperationDescription,
-    SwapDimsDescription, UnaryOperationDescription,
+use burn_ir::{
+    BaseOperationIr, BinaryOpIr, BoolOperationIr, CatOpIr, ExpandOpIr, FlipOpIr, InitOperationIr,
+    OperationIr, PermuteOpIr, RepeatDimOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
 };
-use burn_tensor::{DType, Device, Element, Shape, TensorData, TensorMetadata};
+use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
+use burn_tensor::{Device, Element, Shape, TensorData, TensorMetadata};
 
-use crate::{get_client, BackendRouter, RunnerChannel, RunnerClient};
+use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 
 impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let out = client.register_empty_tensor(shape.into(), DType::Bool);
+        let out = client.register_empty_tensor(shape.into(), R::BoolElem::dtype());
 
-        client.register(OperationDescription::BaseBool(
-            BaseOperationDescription::Empty(out.to_description_out()),
-        ));
+        client.register(OperationIr::BaseBool(BaseOperationIr::Empty(
+            out.to_ir_out(),
+        )));
 
         out
     }
@@ -31,21 +28,26 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         let client = get_client::<R>(device);
-        client.register_tensor_data(data.convert::<bool>())
+        let out = client.register_tensor_data(data);
+        let desc = InitOperationIr {
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::Init(desc));
+
+        out
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(tensor.shape.clone(), IntElem::<Self>::dtype());
 
-        let desc = UnaryOperationDescription {
-            input: tensor.into_description(),
-            out: out.to_description_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationDescription::Bool(
-            BoolOperationDescription::IntoInt(desc),
-        ));
+        client.register(OperationIr::Bool(BoolOperationIr::IntoInt(desc)));
 
         out
     }
@@ -54,14 +56,12 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(tensor.shape.clone(), FloatElem::<Self>::dtype());
 
-        let desc = UnaryOperationDescription {
-            input: tensor.into_description(),
-            out: out.to_description_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationDescription::Bool(
-            BoolOperationDescription::IntoFloat(desc),
-        ));
+        client.register(OperationIr::Bool(BoolOperationIr::IntoFloat(desc)));
 
         out
     }
@@ -81,14 +81,12 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(shape.into(), tensor.dtype);
 
-        let desc = ReshapeDescription {
-            input: tensor.into_description(),
-            out: out.to_description_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationDescription::BaseBool(
-            BaseOperationDescription::Reshape(desc),
-        ));
+        client.register(OperationIr::BaseBool(BaseOperationIr::Reshape(desc)));
 
         out
     }
@@ -107,15 +105,13 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
-        let desc = SliceOperationDescription {
-            tensor: tensor.into_description(),
+        let desc = SliceOpIr {
+            tensor: tensor.into_ir(),
             ranges: ranges.to_vec(),
-            out: out.to_description_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationDescription::BaseBool(
-            BaseOperationDescription::Slice(desc),
-        ));
+        client.register(OperationIr::BaseBool(BaseOperationIr::Slice(desc)));
 
         out
     }
@@ -128,33 +124,29 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(tensor.shape.clone(), tensor.dtype);
 
-        let desc = SliceAssignOperationDescription {
-            tensor: tensor.into_description(),
+        let desc = SliceAssignOpIr {
+            tensor: tensor.into_ir(),
             ranges: ranges.to_vec(),
-            value: value.into_description(),
-            out: out.to_description_out(),
+            value: value.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationDescription::BaseBool(
-            BaseOperationDescription::SliceAssign(desc),
-        ));
+        client.register(OperationIr::BaseBool(BaseOperationIr::SliceAssign(desc)));
 
         out
     }
 
     fn bool_equal(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let out = client.register_empty_tensor(lhs.shape.clone(), DType::Bool);
+        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
 
-        let desc = BinaryOperationDescription {
-            lhs: lhs.into_description(),
-            rhs: rhs.into_description(),
-            out: out.to_description_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationDescription::BaseBool(
-            BaseOperationDescription::Equal(desc),
-        ));
+        client.register(OperationIr::BaseBool(BaseOperationIr::Equal(desc)));
 
         out
     }
@@ -163,14 +155,42 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(tensor.shape.clone(), tensor.dtype);
 
-        let desc = UnaryOperationDescription {
-            input: tensor.into_description(),
-            out: out.to_description_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationDescription::Bool(BoolOperationDescription::Not(
-            desc,
-        )));
+        client.register(OperationIr::Bool(BoolOperationIr::Not(desc)));
+
+        out
+    }
+
+    fn bool_and(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        let client = lhs.client.clone();
+        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
+
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::Bool(BoolOperationIr::And(desc)));
+
+        out
+    }
+
+    fn bool_or(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        let client = lhs.client.clone();
+        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
+
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::Bool(BoolOperationIr::Or(desc)));
 
         out
     }
@@ -182,16 +202,14 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         shape[dim2] = tensor.shape[dim1];
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
-        let desc = SwapDimsDescription {
-            input: tensor.into_description(),
-            out: out.to_description_out(),
+        let desc = SwapDimsOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
             dim1,
             dim2,
         };
 
-        client.register(OperationDescription::BaseBool(
-            BaseOperationDescription::SwapDims(desc),
-        ));
+        client.register(OperationIr::BaseBool(BaseOperationIr::SwapDims(desc)));
 
         out
     }
@@ -202,15 +220,13 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let shape = axes.iter().map(|x| tensor.shape[*x]).collect();
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
-        let desc = PermuteOperationDescription {
-            input: tensor.into_description(),
-            out: out.to_description_out(),
+        let desc = PermuteOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
             axes: axes.to_vec(),
         };
 
-        client.register(OperationDescription::BaseBool(
-            BaseOperationDescription::Permute(desc),
-        ));
+        client.register(OperationIr::BaseBool(BaseOperationIr::Permute(desc)));
 
         out
     }
@@ -219,15 +235,13 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(tensor.shape.clone(), tensor.dtype);
 
-        let desc = FlipOperationDescription {
-            input: tensor.into_description(),
-            out: out.to_description_out(),
+        let desc = FlipOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
             axes: axes.to_vec(),
         };
 
-        client.register(OperationDescription::BaseBool(
-            BaseOperationDescription::Flip(desc),
-        ));
+        client.register(OperationIr::BaseBool(BaseOperationIr::Flip(desc)));
 
         out
     }
@@ -237,15 +251,13 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let shape: Vec<_> = shape.into();
         let out = client.register_empty_tensor(shape.clone(), tensor.dtype);
 
-        let desc = ExpandOperationDescription {
-            input: tensor.into_description(),
-            out: out.to_description_out(),
+        let desc = ExpandOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
             shape,
         };
 
-        client.register(OperationDescription::BaseBool(
-            BaseOperationDescription::Expand(desc),
-        ));
+        client.register(OperationIr::BaseBool(BaseOperationIr::Expand(desc)));
 
         out
     }
@@ -263,15 +275,13 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         }
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = CatOperationDescription {
-            tensors: tensors.into_iter().map(|t| t.into_description()).collect(),
+        let desc = CatOpIr {
+            tensors: tensors.into_iter().map(|t| t.into_ir()).collect(),
             dim,
-            out: out.to_description_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationDescription::BaseBool(
-            BaseOperationDescription::Cat(desc),
-        ));
+        client.register(OperationIr::BaseBool(BaseOperationIr::Cat(desc)));
 
         out
     }
@@ -282,16 +292,14 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         shape[dim] *= times;
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
-        let desc = RepeatDimOperationDescription {
-            tensor: tensor.into_description(),
+        let desc = RepeatDimOpIr {
+            tensor: tensor.into_ir(),
             dim,
             times,
-            out: out.to_description_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationDescription::BaseBool(
-            BaseOperationDescription::RepeatDim(desc),
-        ));
+        client.register(OperationIr::BaseBool(BaseOperationIr::RepeatDim(desc)));
 
         out
     }

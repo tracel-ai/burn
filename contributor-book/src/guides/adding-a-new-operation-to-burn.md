@@ -183,27 +183,27 @@ Here's how powf was added to `burn-fusion`:
 
 1. Added powf to the float ops under
    [`crates/burn-fusion/src/ops/float.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-fusion/src/ops/float.rs#L1838)
-2. Added powf to the `NumericOperationDescription` enum under
+2. Added powf to the `NumericOperationIr` enum under
    [crates/burn-fusion/src/stream/operation.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-fusion/src/stream/operation.rs#L433)
-3. Added powf to the implementations of `NumericOperationDescription` enum under
+3. Added powf to the implementations of `NumericOperationIr` enum under
    [crates/burn-fusion/src/stream/context.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-fusion/src/stream/context.rs#L771)
 
 The way `cubecl` handles tensor-scalar operations is by transforming both into a sequence of
 vectorized scalar operations. Since powf already existed in `cubecl`, it was pretty easy to reuse
 the existing implementation for the situation where both sides of the operation were tensors. The
 `cubecl` crate is primarily concerned with how the operation is compiled and executed by the gpu.
-The actual implementation is defined in `burn-jit`.
+The actual implementation is defined in `burn-cubecl`.
 
-Here is where code was added for powf in `burn-jit` and `cubecl`:
+Here is where code was added for powf in `burn-cubecl` and `cubecl`:
 
 1. to the implementation of
-   [`FloatTensorOps` under `crates/burn-jit/src/ops/float_ops.rs`](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-jit/src/ops/float_ops.rs#L410)
+   [`FloatTensorOps` under `crates/burn-cubecl/src/ops/float_ops.rs`](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-cubecl/src/ops/float_ops.rs#L410)
 2. the function being called was added to
-   [crates/burn-jit/src/ops/numeric.rs](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-jit/src/ops/numeric.rs#L147)
+   [crates/burn-cubecl/src/ops/numeric.rs](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-cubecl/src/ops/numeric.rs#L147)
 3. the operator was defined in
    [`cubecl-core/src/ir/operation.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-core/src/ir/operation.rs#L68)
 4. how the operation looks to the gpu was added to
-   [`crates/burn-jit/src/fusion/on_write/ir.rs`](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-jit/src/fusion/on_write/ir.rs#L52)
+   [`crates/burn-cubecl/src/fusion/on_write/ir.rs`](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-cubecl/src/fusion/on_write/ir.rs#L52)
 5. the mappings between the gpu operation and the CPP, WGSL and SPIR-V instructions were added to
    [`cubecl-cpp/src/shared/base.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-cpp/src/shared/base.rs#L456),
    [`cubecl-wgpu/src/compiler/wgsl/compiler.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-wgpu/src/compiler/wgsl/compiler.rs#L652)
@@ -251,16 +251,16 @@ Let's review the changes made for powf starting from `src/burn` and moving to `s
 
 1. Determine the type of operator and add your operator to the appropriate node (operation) type, in
    this case
-   [BinaryNode under `crates/burn-import/src/burn/node/binary.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-import/src/burn/node/binary.rs#L160)
+   [BinaryNode under `crates/burn-import/src/burn/node/binary.rs`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/binary.rs#L173)
    along with its
-   [`to_str` definition](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-import/src/burn/node/binary.rs#L15)
+   [`as_str` definition](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/binary.rs#L15)
 2. Add an arm to the match statement inside the `into_burn` function in
-   [crates/burn-import/src/onnx/to_burn.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-import/src/onnx/to_burn.rs#L272)
+   [crates/burn-import/src/onnx/to_burn.rs](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/onnx/to_burn.rs#L349)
    for the ONNX `NodeType` (which corresponds to an op in the ONNX spec), and make an
-   [`{op}_conversion` function](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-import/src/onnx/to_burn.rs#L717)
+   [`{op}_conversion` function](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/onnx/to_burn.rs#L1238)
    that maps the ONNX node to the binary type
 3. Specify how dimensions for the output should be derived in
-   [crates/onnx-ir/src/dim_inference.rs](https://github.com/tracel-ai/burn/blob/d4ae82b21ac3dd1def01bd380ab7ea4d3293eccb/crates/onnx-ir/src/dim_inference.rs#L17)
+   [crates/onnx-ir/src/rank_inference.rs](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/rank_inference.rs#L64)
 
 And you're done! Congrats, you just fully added a new operation to burn, and we are all one step
 closer to the answer to [Are we learning yet?](https://www.arewelearningyet.com/) being "Yes, and

@@ -477,4 +477,118 @@ impl TchOps {
     pub fn argsort(tensor: TchTensor, dim: usize, descending: bool) -> TchTensor {
         TchTensor::new(tensor.tensor.argsort(dim as i64, descending))
     }
+
+    pub fn bitwise_and(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.f_bitwise_and_tensor_(rhs).unwrap(),
+            |lhs, rhs| rhs.f_bitwise_and_tensor_(lhs).unwrap(),
+            |lhs, rhs| lhs.f_bitwise_and_tensor(rhs).unwrap(),
+        )
+    }
+
+    pub fn bitwise_and_scalar<S: Into<Scalar> + Clone>(tensor: TchTensor, scalar: S) -> TchTensor {
+        tensor.unary_ops(
+            |mut tensor| tensor.f_bitwise_and_(scalar.clone().into()).unwrap(),
+            |tensor| tensor.f_bitwise_and(scalar.clone().into()).unwrap(),
+        )
+    }
+
+    pub fn bitwise_or(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.f_bitwise_or_tensor_(rhs).unwrap(),
+            |lhs, rhs| rhs.f_bitwise_or_tensor_(lhs).unwrap(),
+            |lhs, rhs| lhs.f_bitwise_or_tensor(rhs).unwrap(),
+        )
+    }
+
+    pub fn bitwise_or_scalar<S: Into<Scalar> + Clone>(tensor: TchTensor, scalar: S) -> TchTensor {
+        tensor.unary_ops(
+            |mut tensor| tensor.f_bitwise_or_(scalar.clone().into()).unwrap(),
+            |tensor| tensor.f_bitwise_or(scalar.clone().into()).unwrap(),
+        )
+    }
+
+    pub fn bitwise_xor(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.f_bitwise_xor_tensor_(rhs).unwrap(),
+            |lhs, rhs| rhs.f_bitwise_xor_tensor_(lhs).unwrap(),
+            |lhs, rhs| lhs.f_bitwise_xor_tensor(rhs).unwrap(),
+        )
+    }
+
+    pub fn bitwise_xor_scalar<S: Into<Scalar> + Clone>(tensor: TchTensor, scalar: S) -> TchTensor {
+        tensor.unary_ops(
+            |mut tensor| tensor.f_bitwise_xor_(scalar.clone().into()).unwrap(),
+            |tensor| tensor.f_bitwise_xor(scalar.clone().into()).unwrap(),
+        )
+    }
+
+    pub fn bitwise_not(tensor: TchTensor) -> TchTensor {
+        tensor.unary_ops(
+            |mut tensor| tensor.f_bitwise_not_().unwrap(),
+            |tensor| tensor.f_bitwise_not().unwrap(),
+        )
+    }
+
+    pub fn bitwise_left_shift(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.f_bitwise_left_shift_(rhs).unwrap(),
+            |lhs, rhs| lhs.f_bitwise_left_shift(rhs).unwrap(),
+            |lhs, rhs| lhs.f_bitwise_left_shift(rhs).unwrap(),
+        )
+    }
+
+    pub fn bitwise_left_shift_scalar<S: Into<Scalar> + Clone>(
+        tensor: TchTensor,
+        scalar: S,
+    ) -> TchTensor {
+        tensor.unary_ops(
+            |mut tensor| {
+                tensor
+                    .f_bitwise_left_shift_tensor_scalar_(scalar.clone().into())
+                    .unwrap()
+            },
+            |tensor| {
+                tensor
+                    .f_bitwise_left_shift_tensor_scalar(scalar.clone().into())
+                    .unwrap()
+            },
+        )
+    }
+
+    pub fn bitwise_right_shift(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.f_bitwise_right_shift_(rhs).unwrap(),
+            |lhs, rhs| lhs.f_bitwise_right_shift(rhs).unwrap(),
+            |lhs, rhs| lhs.f_bitwise_right_shift(rhs).unwrap(),
+        )
+    }
+
+    pub fn bitwise_right_shift_scalar<S: Into<Scalar> + Clone>(
+        tensor: TchTensor,
+        scalar: S,
+    ) -> TchTensor {
+        tensor.unary_ops(
+            |mut tensor| {
+                tensor
+                    .f_bitwise_right_shift_tensor_scalar_(scalar.clone().into())
+                    .unwrap()
+            },
+            |tensor| {
+                tensor
+                    .f_bitwise_right_shift_tensor_scalar(scalar.clone().into())
+                    .unwrap()
+            },
+        )
+    }
 }

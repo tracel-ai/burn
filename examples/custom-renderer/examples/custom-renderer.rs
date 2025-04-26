@@ -1,5 +1,5 @@
-use burn::backend::{wgpu::WgpuDevice, Autodiff, Wgpu};
+use burn::backend::{Autodiff, WebGpu, wgpu::WgpuDevice};
 
 fn main() {
-    custom_renderer::run::<Autodiff<Wgpu>>(WgpuDevice::default());
+    custom_renderer::run::<Autodiff<WebGpu>>(WgpuDevice::default());
 }

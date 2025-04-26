@@ -1,5 +1,5 @@
 use super::{ExecutionPlanIndex, InsertQuery, SearchQuery};
-use burn_tensor::repr::OperationDescription;
+use burn_ir::OperationIr;
 use serde::{Deserialize, Serialize};
 
 /// The store that contains all explorations done on a device.
@@ -21,7 +21,7 @@ pub(crate) enum ExecutionStrategy<O> {
 /// The trigger that indicates when to stop exploring.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) enum ExecutionTrigger {
-    OnOperations(Vec<OperationDescription>),
+    OnOperations(Vec<OperationIr>),
     OnSync,
     Always,
 }
@@ -33,7 +33,7 @@ pub(crate) type ExecutionPlanId = usize;
 #[derive(Serialize, Deserialize)]
 pub(crate) struct ExecutionPlan<O> {
     /// The operations on which the exploration is related to.
-    pub(crate) operations: Vec<OperationDescription>,
+    pub(crate) operations: Vec<OperationIr>,
     /// The criteria that signal when this plan should be executed. Only one trigger is necessary.
     pub(crate) triggers: Vec<ExecutionTrigger>,
     /// The strategy that should be used when executing this plan.

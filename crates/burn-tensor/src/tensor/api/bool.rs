@@ -1,4 +1,4 @@
-use crate::{backend::Backend, Bool, Int, Shape, Tensor, TensorData, TensorPrimitive};
+use crate::{Bool, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend};
 use alloc::vec::Vec;
 
 use crate::try_read_sync;
@@ -21,7 +21,7 @@ where
 {
     /// Create a boolean tensor from data on the given device.
     pub fn from_bool(data: TensorData, device: &B::Device) -> Self {
-        Self::new(B::bool_from_data(data, device))
+        Self::new(B::bool_from_data(data.convert::<B::BoolElem>(), device))
     }
 
     /// Convert the bool tensor into an int tensor.
@@ -37,6 +37,16 @@ where
     /// Inverses boolean values.
     pub fn bool_not(self) -> Self {
         Tensor::new(B::bool_not(self.primitive))
+    }
+
+    /// Performs logical and (`&&`) on two boolean tensors
+    pub fn bool_and(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
+        Tensor::new(B::bool_and(self.primitive, rhs.primitive))
+    }
+
+    /// Performs logical or (`||`) on two boolean tensors
+    pub fn bool_or(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
+        Tensor::new(B::bool_or(self.primitive, rhs.primitive))
     }
 
     /// Compute the indices of the elements that are non-zero.
@@ -134,7 +144,7 @@ where
     ///
     /// * `shape`: The shape of the matrix.
     /// * `offset`: The offset from the diagonal, where 0 means the diagonal, and positive values shift
-    ///    towards the upper triangle.
+    ///   towards the upper triangle.
     /// * `device`: The device on which the tensor will be allocated.
     ///
     /// # Returns
@@ -168,7 +178,7 @@ where
     ///
     /// * `shape`: The shape of the matrix.
     /// * `offset`: The offset from the diagonal, where 0 means the diagonal, and negative values shift
-    ///    towards the lower triangle.
+    ///   towards the lower triangle.
     /// * `device`: The device on which the tensor will be allocated.
     ///
     /// # Returns
@@ -201,6 +211,8 @@ where
     /// # Arguments
     ///
     /// * `shape`: The shape of the matrix.
+    /// * `offset`: The offset from the diagonal, where 0 means the diagonal, and positive values shift
+    ///   towards the upper triangle.
     /// * `device`: The device on which the tensor will be allocated.
     ///
     /// # Returns

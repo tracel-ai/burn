@@ -2,7 +2,7 @@ use crate as burn;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
 
 use crate::tensor::activation::log_sigmoid;
-use crate::tensor::{backend::Backend, Int, Tensor};
+use crate::tensor::{Int, Tensor, backend::Backend};
 use crate::{config::Config, module::Module};
 use alloc::vec::Vec;
 
@@ -118,9 +118,9 @@ impl<B: Backend> BinaryCrossEntropyLoss<B> {
             (targets_float.neg() + 1.) * logits.clone() - log_sigmoid(logits)
         } else {
             // - (target * log(input) + (1 - target) * log(1 - input))
-            (targets_float.clone() * logits.clone().log()
-                + (targets_float.neg() + 1.) * (logits.neg() + 1.).log())
-            .neg()
+            // https://github.com/tracel-ai/burn/issues/2739: clamp at -100.0 to avoid undefined values
+            (targets_float.clone() - 1) * logits.clone().neg().log1p().clamp_min(-100.0)
+                - targets_float * logits.log().clamp_min(-100.0)
         };
 
         if let Some(weights) = &self.weights {
@@ -168,8 +168,42 @@ impl<B: Backend> BinaryCrossEntropyLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{activation::sigmoid, TensorData};
     use crate::TestBackend;
+    use crate::tensor::{TensorData, activation::sigmoid};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
+
+    #[test]
+    fn test_binary_cross_entropy_preds_all_correct() {
+        let device = Default::default();
+        let preds = Tensor::<TestBackend, 1>::from_floats([1.0, 0.0, 1.0, 0.0], &device);
+        let targets =
+            Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([1, 0, 1, 0]), &device);
+
+        let loss_actual = BinaryCrossEntropyLossConfig::new()
+            .init(&device)
+            .forward(preds, targets)
+            .into_data();
+
+        let loss_expected = TensorData::from([0.000]);
+        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::default());
+    }
+
+    #[test]
+    fn test_binary_cross_entropy_preds_all_incorrect() {
+        let device = Default::default();
+        let preds = Tensor::<TestBackend, 1>::from_floats([0.0, 1.0, 0.0, 1.0], &device);
+        let targets =
+            Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([1, 0, 1, 0]), &device);
+
+        let loss_actual = BinaryCrossEntropyLossConfig::new()
+            .init(&device)
+            .forward(preds, targets)
+            .into_data();
+
+        let loss_expected = TensorData::from([100.000]); // clamped value
+        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::default());
+    }
 
     #[test]
     fn test_binary_cross_entropy() {
@@ -193,7 +227,7 @@ mod tests {
             .into_data();
 
         let loss_expected = TensorData::from([0.7491]);
-        loss_actual.assert_approx_eq(&loss_expected, 3);
+        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::relative(1e-4));
     }
 
     #[test]
@@ -211,7 +245,7 @@ mod tests {
             .into_data();
 
         let loss_expected = TensorData::from([0.7491]);
-        loss_actual.assert_approx_eq(&loss_expected, 3);
+        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::relative(1e-4));
     }
 
     #[test]
@@ -239,7 +273,7 @@ mod tests {
             .into_data();
 
         let loss_expected = TensorData::from([3.1531]);
-        loss_actual.assert_approx_eq(&loss_expected, 3);
+        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::relative(1e-4));
     }
 
     #[test]
@@ -266,7 +300,7 @@ mod tests {
             .into_data();
 
         let loss_expected = TensorData::from([0.7490]);
-        loss_actual.assert_approx_eq(&loss_expected, 3);
+        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::relative(1e-4));
     }
 
     #[test]
@@ -296,7 +330,7 @@ mod tests {
             .into_data();
 
         let loss_expected = TensorData::from([0.7112]);
-        loss_actual.assert_approx_eq(&loss_expected, 3);
+        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::relative(1e-4));
     }
 
     #[test]
@@ -327,7 +361,7 @@ mod tests {
             .into_data();
 
         let loss_expected = TensorData::from([3.1708]);
-        loss_actual.assert_approx_eq(&loss_expected, 3);
+        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::default());
     }
 
     #[test]
@@ -358,7 +392,7 @@ mod tests {
             .into_data();
 
         let loss_expected = TensorData::from([0.7228]);
-        loss_actual.assert_approx_eq(&loss_expected, 3);
+        loss_actual.assert_approx_eq::<FT>(&loss_expected, Tolerance::default());
     }
 
     #[test]

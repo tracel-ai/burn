@@ -1,8 +1,8 @@
 use super::{
+    Metric, MetricEntry, MetricMetadata, Numeric,
     classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
     confusion_stats::{ConfusionStats, ConfusionStatsInput},
     state::{FormatOptions, NumericMetricState},
-    Metric, MetricEntry, MetricMetadata, Numeric,
 };
 use burn_core::{
     prelude::{Backend, Tensor},
@@ -11,7 +11,7 @@ use burn_core::{
 use core::marker::PhantomData;
 use std::num::NonZeroUsize;
 
-///The Precision Metric
+/// The Precision Metric
 #[derive(Default)]
 pub struct PrecisionMetric<B: Backend> {
     state: NumericMetricState,
@@ -78,7 +78,12 @@ impl<B: Backend> PrecisionMetric<B> {
         let avg_tensor = match self.config.class_reduction {
             Micro => aggregated_metric,
             Macro => {
-                if aggregated_metric.contains_nan().any().into_scalar() {
+                if aggregated_metric
+                    .contains_nan()
+                    .any()
+                    .into_scalar()
+                    .to_bool()
+                {
                     let nan_mask = aggregated_metric.is_nan();
                     aggregated_metric = aggregated_metric
                         .clone()
@@ -92,7 +97,6 @@ impl<B: Backend> PrecisionMetric<B> {
 }
 
 impl<B: Backend> Metric for PrecisionMetric<B> {
-    const NAME: &'static str = "Precision";
     type Input = ConfusionStatsInput<B>;
 
     fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
@@ -105,12 +109,20 @@ impl<B: Backend> Metric for PrecisionMetric<B> {
         self.state.update(
             100.0 * metric,
             sample_size,
-            FormatOptions::new(Self::NAME).unit("%").precision(2),
+            FormatOptions::new(self.name()).unit("%").precision(2),
         )
     }
 
     fn clear(&mut self) {
         self.state.reset()
+    }
+
+    fn name(&self) -> String {
+        // "Precision @ Threshold(0.5) [Macro]"
+        format!(
+            "Precision @ {:?} [{:?}]",
+            self.config.decision_rule, self.config.class_reduction
+        )
     }
 }
 
@@ -126,8 +138,12 @@ mod tests {
         ClassReduction::{self, *},
         Metric, MetricMetadata, Numeric, PrecisionMetric,
     };
-    use crate::tests::{dummy_classification_input, ClassificationType, THRESHOLD};
+    use crate::{
+        TestBackend,
+        tests::{ClassificationType, THRESHOLD, dummy_classification_input},
+    };
     use burn_core::tensor::TensorData;
+    use burn_core::tensor::Tolerance;
     use rstest::rstest;
 
     #[rstest]
@@ -136,8 +152,10 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
         let mut metric = PrecisionMetric::binary(threshold);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value()])
-            .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
+        TensorData::from([metric.value()]).assert_approx_eq::<f64>(
+            &TensorData::from([expected * 100.0]),
+            Tolerance::rel_abs(1e-5, 1e-5),
+        )
     }
 
     #[rstest]
@@ -153,8 +171,10 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multiclass).into();
         let mut metric = PrecisionMetric::multiclass(top_k, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value()])
-            .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
+        TensorData::from([metric.value()]).assert_approx_eq::<f64>(
+            &TensorData::from([expected * 100.0]),
+            Tolerance::rel_abs(1e-5, 1e-5),
+        )
     }
 
     #[rstest]
@@ -168,7 +188,23 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multilabel).into();
         let mut metric = PrecisionMetric::multilabel(threshold, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value()])
-            .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
+        TensorData::from([metric.value()]).assert_approx_eq::<f64>(
+            &TensorData::from([expected * 100.0]),
+            Tolerance::rel_abs(1e-5, 1e-5),
+        )
+    }
+
+    #[test]
+    fn test_parameterized_unique_name() {
+        let metric_a = PrecisionMetric::<TestBackend>::multiclass(1, ClassReduction::Macro);
+        let metric_b = PrecisionMetric::<TestBackend>::multiclass(2, ClassReduction::Macro);
+        let metric_c = PrecisionMetric::<TestBackend>::multiclass(1, ClassReduction::Macro);
+
+        assert_ne!(metric_a.name(), metric_b.name());
+        assert_eq!(metric_a.name(), metric_c.name());
+
+        let metric_a = PrecisionMetric::<TestBackend>::binary(0.5);
+        let metric_b = PrecisionMetric::<TestBackend>::binary(0.75);
+        assert_ne!(metric_a.name(), metric_b.name());
     }
 }

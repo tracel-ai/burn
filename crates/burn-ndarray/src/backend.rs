@@ -2,11 +2,11 @@ use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
 use crate::{NdArrayQTensor, NdArrayTensor, NdArrayTensorFloat};
 use alloc::string::String;
 use burn_common::stub::Mutex;
+use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-use burn_tensor::repr::{HandleKind, ReprBackend, TensorHandle};
 use core::marker::PhantomData;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
@@ -61,7 +61,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for 
         false
     }
 
-    fn name() -> String {
+    fn name(_device: &Self::Device) -> String {
         String::from("ndarray")
     }
 
@@ -72,9 +72,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for 
     }
 }
 
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ReprBackend
-    for NdArray<E, I, Q>
-{
+impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BackendIr for NdArray<E, I, Q> {
     type Handle = HandleKind<Self>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {

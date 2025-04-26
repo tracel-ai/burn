@@ -1,205 +1,210 @@
 # Supported ONNX Operators
 
-Note: some ONNX Ops listed below are pseudo Ops, such as `Linear`, `Conv1d`, `Conv2d` (or other with
-1d, 2d suffixes used signify the dimensionality). These are not real ONNX Ops, but are used to
-represent the corresponding Burn Op.
+This table lists the support status for ONNX operators in Burn. Note that some
+entries marked with dimensional suffixes (such as `Conv1d`, `Conv2d`, etc.) or
+other specialized names like `Linear` are not standard ONNX operators. These
+represent Burn's implementation of dimension-specific versions of the
+corresponding ONNX operators to make the mapping clearer between ONNX and Burn
+functionality.
 
 | ONNX OP                          | Import Support | Burn Support |
-| -------------------------------- | :------------: | :----------: |
-| [Abs][1]                         |       ✅       |      ✅      |
-| [Acos][2]                        |       ❌       |      ❌      |
-| [Acosh][3]                       |       ❌       |      ❌      |
-| [Add][4]                         |       ✅       |      ✅      |
-| [And][5]                         |       ❌       |      ❌      |
-| [ArgMax][6]                      |       ✅       |      ✅      |
-| [ArgMin][7]                      |       ❌       |      ❌      |
-| [Asin][8]                        |       ❌       |      ❌      |
-| [Asinh][9]                       |       ❌       |      ❌      |
-| [Atan][10]                       |       ❌       |      ❌      |
-| [Atanh][11]                      |       ❌       |      ❌      |
-| [AveragePool1d][12]              |       ✅       |      ✅      |
-| [AveragePool2d][12]              |       ✅       |      ✅      |
-| [BatchNormalization][14]         |       ✅       |      ✅      |
-| [Bernoulli][15]                  |       ❌       |      ❌      |
-| [BitShift][16]                   |       ❌       |      ❌      |
-| [BitwiseAnd][17]                 |       ❌       |      ❌      |
-| [BitwiseNot][18]                 |       ❌       |      ❌      |
-| [BitwiseOr][19]                  |       ❌       |      ❌      |
-| [BitwiseXor][20]                 |       ❌       |      ❌      |
-| [BlackmanWindow][21]             |       ❌       |      ❌      |
-| [Cast][22]                       |       ✅       |      ✅      |
-| [CastLike][23]                   |       ❌       |      ❌      |
-| [Ceil][24]                       |       ❌       |      ❌      |
-| [Celu][25]                       |       ❌       |      ❌      |
-| [CenterCropPad][26]              |       ❌       |      ❌      |
-| [Clip][27]                       |       ✅       |      ✅      |
-| [Col2Im][28]                     |       ❌       |      ❌      |
-| [Compress][29]                   |       ❌       |      ❌      |
-| [Concat][30]                     |       ✅       |      ✅      |
-| [ConcatFromSequence][31]         |       ❌       |      ❌      |
-| [Constant][32]                   |       ✅       |      ✅      |
-| [ConstantOfShape][33]            |       ✅       |      ✅      |
-| [Conv1d][34]                     |       ✅       |      ✅      |
-| [Conv2d][34]                     |       ✅       |      ✅      |
-| [Conv3d][34]                     |       ✅       |      ✅      |
-| [ConvInteger][37]                |       ❌       |      ❌      |
-| [ConvTranspose1d][38]            |       ✅       |      ✅      |
-| [ConvTranspose2d][38]            |       ✅       |      ✅      |
-| [ConvTranspose3d][38]            |       ✅       |      ✅      |
-| [Cos][39]                        |       ✅       |      ✅      |
-| [Cosh][40]                       |       ❌       |      ❌      |
-| [CumSum][41]                     |       ❌       |      ❌      |
-| [DepthToSpace][42]               |       ❌       |      ❌      |
-| [DequantizeLinear][43]           |       ❌       |      ❌      |
-| [Det][44]                        |       ❌       |      ❌      |
-| [DFT][45]                        |       ❌       |      ❌      |
-| [Div][46]                        |       ✅       |      ✅      |
-| [Dropout][47]                    |       ✅       |      ✅      |
-| [DynamicQuantizeLinear][48]      |       ❌       |      ❌      |
-| [Einsum][49]                     |       ❌       |      ❌      |
-| [Elu][50]                        |       ❌       |      ❌      |
-| [Equal][51]                      |       ✅       |      ✅      |
-| [Erf][52]                        |       ✅       |      ✅      |
-| [Exp][53]                        |       ✅       |      ✅      |
-| [Expand][54]                     |       ✅       |      ✅      |
-| [EyeLike][55]                    |       ❌       |      ❌      |
-| [Flatten][56]                    |       ✅       |      ✅      |
-| [Floor][57]                      |       ❌       |      ❌      |
-| [Gather][58]                     |       ✅       |      ✅      |
-| [GatherElements][59]             |       ✅       |      ✅      |
-| [GatherND][60]                   |       ❌       |      ❌      |
-| [Gelu][61]                       |       ✅       |      ✅      |
-| [Gemm][62]                       |       ❌       |      ❌      |
-| [GlobalAveragePool][63]          |       ✅       |      ✅      |
-| [GlobalLpPool][64]               |       ❌       |      ❌      |
-| [GlobalMaxPool][65]              |       ❌       |      ❌      |
-| [Greater][66]                    |       ✅       |      ✅      |
-| [GreaterOrEqual][67]             |       ✅       |      ✅      |
-| [GridSample][68]                 |       ❌       |      ❌      |
-| [GroupNormalization][69]         |       ❌       |      ✅      |
-| [GRU][70]                        |       ❌       |      ✅      |
-| [HammingWindow][71]              |       ❌       |      ❌      |
-| [HannWindow][72]                 |       ❌       |      ❌      |
-| [Hardmax][73]                    |       ❌       |      ❌      |
-| [HardSigmoid][74]                |       ✅       |      ✅      |
-| [HardSwish][75]                  |       ❌       |      ❌      |
-| [Identity][76]                   |       ✅       |      ✅      |
-| [If][77]                         |       ❌       |      ✅      |
-| [Im][78]                         |       ❌       |      ❌      |
-| [InstanceNormalization][79]      |       ❌       |      ✅      |
-| [IsInf][80]                      |       ❌       |      ❌      |
-| [IsNaN][81]                      |       ❌       |      ❌      |
-| [LayerNormalization][82]         |       ✅       |      ✅      |
-| [LeakyRelu][83]                  |       ✅       |      ✅      |
-| [Less][84]                       |       ✅       |      ✅      |
-| [LessOrEqual][85]                |       ✅       |      ✅      |
-| Linear                           |       ✅       |      ✅      |
-| [Log][87]                        |       ✅       |      ✅      |
-| [LogSoftmax][88]                 |       ✅       |      ✅      |
-| [Loop][89]                       |       ❌       |      ❌      |
-| [LpNormalization][90]            |       ❌       |      ❌      |
-| [LpPool][91]                     |       ❌       |      ❌      |
-| [LRN][92]                        |       ❌       |      ❌      |
-| [LSTM][93]                       |       ❌       |      ✅      |
-| [MatMul][94]                     |       ✅       |      ✅      |
-| [MatMulInteger][95]              |       ❌       |      ✅      |
-| [Max][96]                        |       ✅       |      ✅      |
-| [MaxPool1d][97]                  |       ✅       |      ✅      |
-| [MaxPool2d][98]                  |       ✅       |      ✅      |
-| [MaxRoiPool][99]                 |       ❌       |      ❌      |
-| [MaxUnpool][100]                 |       ❌       |      ❌      |
-| [Mean][101]                      |       ✅       |      ✅      |
-| [MeanVarianceNormalization][102] |       ❌       |      ❌      |
-| [MelWeightMatrix][103]           |       ❌       |      ❌      |
-| [Min][104]                       |       ✅       |      ✅      |
-| [Mish][105]                      |       ❌       |      ❌      |
-| [Mod][106]                       |       ❌       |      ❌      |
-| [Mul][107]                       |       ✅       |      ✅      |
-| [Multinomial][108]               |       ❌       |      ❌      |
-| [Neg][109]                       |       ✅       |      ✅      |
-| [NegativeLogLikelihoodLoss][110] |       ❌       |      ❌      |
-| [NonMaxSuppression][112]         |       ❌       |      ❌      |
-| [NonZero][113]                   |       ❌       |      ❌      |
-| [Not][114]                       |       ✅       |      ✅      |
-| [OneHot][115]                    |       ❌       |      ✅      |
-| [Optional][116]                  |       ❌       |      ❌      |
-| [OptionalGetElement][117]        |       ❌       |      ❌      |
-| [OptionalHasElement][118]        |       ❌       |      ❌      |
-| [Or][119]                        |       ❌       |      ❌      |
-| [Pad][120]                       |       ✅       |      ✅      |
-| [Pow][121]                       |       ✅       |      ✅      |
-| [PRelu][122]                     |       ✅       |      ✅      |
-| [QLinearConv][123]               |       ❌       |      ❌      |
-| [QLinearMatMul][124]             |       ❌       |      ❌      |
-| [QuantizeLinear][125]            |       ❌       |      ❌      |
-| [RandomNormal][126]              |       ✅       |      ✅      |
-| [RandomNormalLike][127]          |       ✅       |      ✅      |
-| [RandomUniform][128]             |       ✅       |      ✅      |
-| [RandomUniformLike][129]         |       ✅       |      ✅      |
-| [Range][130]                     |       ✅       |      ✅      |
-| [Reciprocal][131]                |       ✅       |      ✅      |
-| [ReduceL][132]                   |       ❌       |      ❌      |
-| [ReduceLogSum][133]              |       ❌       |      ❌      |
-| [ReduceLogSumExp][134]           |       ❌       |      ❌      |
-| [ReduceMax][135]                 |       ✅       |      ✅      |
-| [ReduceMean][136]                |       ✅       |      ✅      |
-| [ReduceMin][137]                 |       ✅       |      ✅      |
-| [ReduceProd][138]                |       ✅       |      ✅      |
-| [ReduceSum][139]                 |       ✅       |      ✅      |
-| [ReduceSumSquare][140]           |       ❌       |      ❌      |
-| [Relu][141]                      |       ✅       |      ✅      |
-| [Reshape][142]                   |       ✅       |      ✅      |
-| [Resize][143]                    |       ✅       |      ✅      |
-| [ReverseSequence][144]           |       ❌       |      ❌      |
-| [RNN][145]                       |       ❌       |      ✅      |
-| [RoiAlign][146]                  |       ❌       |      ❌      |
-| [Round][147]                     |       ❌       |      ❌      |
-| [Scan][148]                      |       ❌       |      ❌      |
-| [Scatter][149]                   |       ❌       |      ✅      |
-| [ScatterElements][150]           |       ❌       |      ❌      |
-| [ScatterND][151]                 |       ❌       |      ❌      |
-| [Selu][152]                      |       ❌       |      ❌      |
-| [SequenceAt][153]                |       ❌       |      ❌      |
-| [SequenceConstruct][154]         |       ❌       |      ❌      |
-| [SequenceEmpty][155]             |       ❌       |      ❌      |
-| [SequenceErase][156]             |       ❌       |      ❌      |
-| [SequenceInsert][157]            |       ❌       |      ❌      |
-| [SequenceLength][158]            |       ❌       |      ❌      |
-| [SequenceMap][159]               |       ❌       |      ❌      |
-| [Shape][160]                     |       ✅       |      ✅      |
-| [Shrink][161]                    |       ❌       |      ❌      |
-| [Sigmoid][162]                   |       ✅       |      ✅      |
-| [Sign][163]                      |       ✅       |      ✅      |
-| [Sin][164]                       |       ✅       |      ✅      |
-| [Sinh][165]                      |       ❌       |      ❌      |
-| [Size][166]                      |       ❌       |      ❌      |
-| [Slice][167]                     |       ✅       |      ✅      |
-| [Softmax][168]                   |       ✅       |      ✅      |
-| [SoftmaxCrossEntropyLoss][169]   |       ❌       |      ❌      |
-| [Softplus][170]                  |       ❌       |      ❌      |
-| [Softsign][171]                  |       ❌       |      ❌      |
-| [SpaceToDepth][172]              |       ❌       |      ❌      |
-| [Split][173]                     |       ❌       |      ❌      |
-| [SplitToSequence][174]           |       ❌       |      ❌      |
-| [Sqrt][175]                      |       ✅       |      ✅      |
-| [Squeeze][176]                   |       ✅       |      ✅      |
-| [STFT][177]                      |       ❌       |      ❌      |
-| [StringNormalizer][178]          |       ❌       |      ❌      |
-| [Sub][179]                       |       ✅       |      ✅      |
-| [Sum][180]                       |       ✅       |      ✅      |
-| [Tan][181]                       |       ❌       |      ❌      |
-| [Tanh][182]                      |       ✅       |      ✅      |
-| [TfIdfVectorizer][183]           |       ❌       |      ❌      |
-| [ThresholdedRelu][184]           |       ❌       |      ❌      |
-| [Tile][185]                      |       ✅       |      ✅      |
-| [TopK][186]                      |       ❌       |      ✅      |
-| [Transpose][187]                 |       ✅       |      ✅      |
-| [Trilu][188]                     |       ✅       |      ✅      |
-| [Unique][189]                    |       ❌       |      ❌      |
-| [Upsample][190]                  |       ❌       |      ❌      |
-| [Where][191]                     |       ✅       |      ✅      |
-| [Xor][192]                       |       ❌       |      ❌      |
-| [Unsqueeze][193]                 |       ✅       |      ✅      |
+|----------------------------------|:--------------:|:------------:|
+| [Abs][1]                         | ✅             | ✅           |
+| [Acos][2]                        | ❌             | ❌           |
+| [Acosh][3]                       | ❌             | ❌           |
+| [Add][4]                         | ✅             | ✅           |
+| [And][5]                         | ❌             | ✅           |
+| [ArgMax][6]                      | ✅             | ✅           |
+| [ArgMin][7]                      | ❌             | ✅           |
+| [Asin][8]                        | ❌             | ❌           |
+| [Asinh][9]                       | ❌             | ❌           |
+| [Atan][10]                       | ❌             | ❌           |
+| [Atanh][11]                      | ❌             | ❌           |
+| [Attention][194]                 | ❌             | ✅           |
+| [AveragePool1d][12]              | ✅             | ✅           |
+| [AveragePool2d][12]              | ✅             | ✅           |
+| [BatchNormalization][14]         | ✅             | ✅           |
+| [Bernoulli][15]                  | ❌             | ❌           |
+| [BitShift][16]                   | ❌             | ✅           |
+| [BitwiseAnd][17]                 | ❌             | ✅           |
+| [BitwiseNot][18]                 | ❌             | ✅           |
+| [BitwiseOr][19]                  | ❌             | ✅           |
+| [BitwiseXor][20]                 | ❌             | ✅           |
+| [BlackmanWindow][21]             | ❌             | ❌           |
+| [Cast][22]                       | ✅             | ✅           |
+| [CastLike][23]                   | ❌             | ❌           |
+| [Ceil][24]                       | ❌             | ✅           |
+| [Celu][25]                       | ❌             | ❌           |
+| [CenterCropPad][26]              | ❌             | ❌           |
+| [Clip][27]                       | ✅             | ✅           |
+| [Col2Im][28]                     | ❌             | ❌           |
+| [Compress][29]                   | ❌             | ❌           |
+| [Concat][30]                     | ✅             | ✅           |
+| [ConcatFromSequence][31]         | ❌             | ❌           |
+| [Constant][32]                   | ✅             | ✅           |
+| [ConstantOfShape][33]            | ✅             | ✅           |
+| [Conv1d][34]                     | ✅             | ✅           |
+| [Conv2d][34]                     | ✅             | ✅           |
+| [Conv3d][34]                     | ✅             | ✅           |
+| [ConvInteger][37]                | ❌             | ❌           |
+| [ConvTranspose1d][38]            | ✅             | ✅           |
+| [ConvTranspose2d][38]            | ✅             | ✅           |
+| [ConvTranspose3d][38]            | ✅             | ✅           |
+| [Cos][39]                        | ✅             | ✅           |
+| [Cosh][40]                       | ✅             | ✅           |
+| [CumSum][41]                     | ❌             | ❌           |
+| [DeformConv][196]                | ❌             | ❌           |
+| [DepthToSpace][42]               | ❌             | ❌           |
+| [DequantizeLinear][43]           | ❌             | ❌           |
+| [Det][44]                        | ❌             | ❌           |
+| [DFT][45]                        | ❌             | ❌           |
+| [Div][46]                        | ✅             | ✅           |
+| [Dropout][47]                    | ✅             | ✅           |
+| [DynamicQuantizeLinear][48]      | ❌             | ❌           |
+| [Einsum][49]                     | ❌             | ❌           |
+| [Elu][50]                        | ❌             | ❌           |
+| [Equal][51]                      | ✅             | ✅           |
+| [Erf][52]                        | ✅             | ✅           |
+| [Exp][53]                        | ✅             | ✅           |
+| [Expand][54]                     | ✅             | ✅           |
+| [EyeLike][55]                    | ❌             | ✅           |
+| [Flatten][56]                    | ✅             | ✅           |
+| [Floor][57]                      | ✅             | ✅           |
+| [Gather][58]                     | ✅             | ✅           |
+| [GatherElements][59]             | ✅             | ✅           |
+| [GatherND][60]                   | ❌             | ❌           |
+| [Gelu][61]                       | ✅             | ✅           |
+| [Gemm][62]                       | ✅             | ✅           |
+| [GlobalAveragePool][63]          | ✅             | ✅           |
+| [GlobalLpPool][64]               | ❌             | ❌           |
+| [GlobalMaxPool][65]              | ❌             | ❌           |
+| [Greater][66]                    | ✅             | ✅           |
+| [GreaterOrEqual][67]             | ✅             | ✅           |
+| [GridSample][68]                 | ❌             | ❌           |
+| [GroupNormalization][69]         | ❌             | ✅           |
+| [GRU][70]                        | ❌             | ✅           |
+| [HammingWindow][71]              | ❌             | ❌           |
+| [HannWindow][72]                 | ❌             | ❌           |
+| [Hardmax][73]                    | ❌             | ❌           |
+| [HardSigmoid][74]                | ✅             | ✅           |
+| [HardSwish][75]                  | ❌             | ❌           |
+| [Identity][76]                   | ✅             | ✅           |
+| [If][77]                         | ❌             | ✅           |
+| [Im][78]                         | ❌             | ❌           |
+| [InstanceNormalization][79]      | ❌             | ✅           |
+| [IsInf][80]                      | ❌             | ❌           |
+| [IsNaN][81]                      | ❌             | ❌           |
+| [LayerNormalization][82]         | ✅             | ✅           |
+| [LeakyRelu][83]                  | ✅             | ✅           |
+| [Less][84]                       | ✅             | ✅           |
+| [LessOrEqual][85]                | ✅             | ✅           |
+| Linear                           | ✅             | ✅           |
+| [Log][87]                        | ✅             | ✅           |
+| [LogSoftmax][88]                 | ✅             | ✅           |
+| [Loop][89]                       | ❌             | ❌           |
+| [LpNormalization][90]            | ❌             | ❌           |
+| [LpPool][91]                     | ❌             | ❌           |
+| [LRN][92]                        | ❌             | ❌           |
+| [LSTM][93]                       | ❌             | ✅           |
+| [MatMul][94]                     | ✅             | ✅           |
+| [MatMulInteger][95]              | ❌             | ✅           |
+| [Max][96]                        | ✅             | ✅           |
+| [MaxPool1d][97]                  | ✅             | ✅           |
+| [MaxPool2d][98]                  | ✅             | ✅           |
+| [MaxRoiPool][99]                 | ❌             | ❌           |
+| [MaxUnpool][100]                 | ❌             | ❌           |
+| [Mean][101]                      | ✅             | ✅           |
+| [MeanVarianceNormalization][102] | ❌             | ❌           |
+| [MelWeightMatrix][103]           | ❌             | ❌           |
+| [Min][104]                       | ✅             | ✅           |
+| [Mish][105]                      | ❌             | ❌           |
+| [Mod][106]                       | ❌             | ❌           |
+| [Mul][107]                       | ✅             | ✅           |
+| [Multinomial][108]               | ❌             | ❌           |
+| [Neg][109]                       | ✅             | ✅           |
+| [NegativeLogLikelihoodLoss][110] | ❌             | ❌           |
+| [NonMaxSuppression][112]         | ❌             | ❌           |
+| [NonZero][113]                   | ❌             | ✅           |
+| [Not][114]                       | ✅             | ✅           |
+| [OneHot][115]                    | ✅             | ✅           |
+| [Optional][116]                  | ❌             | ❌           |
+| [OptionalGetElement][117]        | ❌             | ❌           |
+| [OptionalHasElement][118]        | ❌             | ❌           |
+| [Or][119]                        | ❌             | ✅           |
+| [Pad][120]                       | ✅             | ✅           |
+| [Pow][121]                       | ✅             | ✅           |
+| [PRelu][122]                     | ✅             | ✅           |
+| [QLinearConv][123]               | ❌             | ❌           |
+| [QLinearMatMul][124]             | ❌             | ❌           |
+| [QuantizeLinear][125]            | ❌             | ❌           |
+| [RandomNormal][126]              | ✅             | ✅           |
+| [RandomNormalLike][127]          | ✅             | ✅           |
+| [RandomUniform][128]             | ✅             | ✅           |
+| [RandomUniformLike][129]         | ✅             | ✅           |
+| [Range][130]                     | ✅             | ✅           |
+| [Reciprocal][131]                | ✅             | ✅           |
+| [ReduceL][132]                   | ❌             | ❌           |
+| [ReduceLogSum][133]              | ❌             | ❌           |
+| [ReduceLogSumExp][134]           | ❌             | ❌           |
+| [ReduceMax][135]                 | ✅             | ✅           |
+| [ReduceMean][136]                | ✅             | ✅           |
+| [ReduceMin][137]                 | ✅             | ✅           |
+| [ReduceProd][138]                | ✅             | ✅           |
+| [ReduceSum][139]                 | ✅             | ✅           |
+| [ReduceSumSquare][140]           | ❌             | ❌           |
+| [Relu][141]                      | ✅             | ✅           |
+| [Reshape][142]                   | ✅             | ✅           |
+| [Resize][143]                    | ✅             | ✅           |
+| [ReverseSequence][144]           | ❌             | ❌           |
+| [RNN][145]                       | ❌             | ✅           |
+| [RoiAlign][146]                  | ❌             | ❌           |
+| [Round][147]                     | ❌             | ✅           |
+| [Scan][148]                      | ❌             | ❌           |
+| [Scatter][149]                   | ❌             | ✅           |
+| [ScatterElements][150]           | ❌             | ❌           |
+| [ScatterND][151]                 | ❌             | ❌           |
+| [Selu][152]                      | ❌             | ❌           |
+| [SequenceAt][153]                | ❌             | ❌           |
+| [SequenceConstruct][154]         | ❌             | ❌           |
+| [SequenceEmpty][155]             | ❌             | ❌           |
+| [SequenceErase][156]             | ❌             | ❌           |
+| [SequenceInsert][157]            | ❌             | ❌           |
+| [SequenceLength][158]            | ❌             | ❌           |
+| [SequenceMap][159]               | ❌             | ❌           |
+| [Shape][160]                     | ✅             | ✅           |
+| [Shrink][161]                    | ❌             | ❌           |
+| [Sigmoid][162]                   | ✅             | ✅           |
+| [Sign][163]                      | ✅             | ✅           |
+| [Sin][164]                       | ✅             | ✅           |
+| [Sinh][165]                      | ✅             | ✅           |
+| [Size][166]                      | ❌             | ❌           |
+| [Slice][167]                     | ✅             | ✅           |
+| [Softmax][168]                   | ✅             | ✅           |
+| [SoftmaxCrossEntropyLoss][169]   | ❌             | ❌           |
+| [Softplus][170]                  | ❌             | ❌           |
+| [Softsign][171]                  | ❌             | ❌           |
+| [SpaceToDepth][172]              | ❌             | ❌           |
+| [Split][173]                     | ✅             | ✅           |
+| [SplitToSequence][174]           | ❌             | ❌           |
+| [Sqrt][175]                      | ✅             | ✅           |
+| [Squeeze][176]                   | ✅             | ✅           |
+| [STFT][177]                      | ❌             | ❌           |
+| [StringNormalizer][178]          | ❌             | ❌           |
+| [Sub][179]                       | ✅             | ✅           |
+| [Sum][180]                       | ✅             | ✅           |
+| [Tan][181]                       | ✅             | ✅           |
+| [Tanh][182]                      | ✅             | ✅           |
+| [TfIdfVectorizer][183]           | ❌             | ❌           |
+| [ThresholdedRelu][184]           | ❌             | ❌           |
+| [Tile][185]                      | ✅             | ✅           |
+| [TopK][186]                      | ✅             | ✅           |
+| [Transpose][187]                 | ✅             | ✅           |
+| [Trilu][188]                     | ✅             | ✅           |
+| [Unique][189]                    | ❌             | ❌           |
+| [Upsample][190]                  | ❌             | ❌           |
+| [Where][191]                     | ✅             | ✅           |
+| [Xor][192]                       | ❌             | ❌           |
+| [Unsqueeze][193]                 | ✅             | ✅           |
 
 [1]: https://onnx.ai/onnx/operators/onnx__Abs.html "ONNX Abs"
 [2]: https://onnx.ai/onnx/operators/onnx__Acos.html "ONNX Acos"
@@ -293,8 +298,8 @@ represent the corresponding Burn Op.
 [94]: https://onnx.ai/onnx/operators/onnx__MatMul.html "ONNX MatMul"
 [95]: https://onnx.ai/onnx/operators/onnx__MatMulInteger.html "ONNX MatMulInteger"
 [96]: https://onnx.ai/onnx/operators/onnx__Max.html "ONNX Max"
-[97]: https://onnx.ai/onnx/operators/onnx__MaxPool1d.html "ONNX MaxPool1d"
-[98]: https://onnx.ai/onnx/operators/onnx__MaxPool2d.html "ONNX MaxPool2d"
+[97]: https://onnx.ai/onnx/operators/onnx__MaxPool.html "ONNX MaxPool1d"
+[98]: https://onnx.ai/onnx/operators/onnx__MaxPool.html "ONNX MaxPool2d"
 [99]: https://onnx.ai/onnx/operators/onnx__MaxRoiPool.html "ONNX MaxRoiPool"
 [100]: https://onnx.ai/onnx/operators/onnx__MaxUnpool.html "ONNX MaxUnpool"
 [101]: https://onnx.ai/onnx/operators/onnx__Mean.html "ONNX Mean"
@@ -318,8 +323,6 @@ represent the corresponding Burn Op.
 [120]: https://onnx.ai/onnx/operators/onnx__Pad.html "ONNX Pad"
 [121]: https://onnx.ai/onnx/operators/onnx__Pow.html "ONNX Pow"
 [122]: https://onnx.ai/onnx/operators/onnx__PRelu.html "ONNX PRelu"
-[123]: https://onnx.ai/onnx/operators/onnx__QLinearConv.html "ONNX QLinearConv"
-[124]: https://onnx.ai/onnx/operators/onnx__QLinearMatMul.html "ONNX QLinearMatMul"
 [125]: https://onnx.ai/onnx/operators/onnx__QuantizeLinear.html "ONNX QuantizeLinear"
 [126]: https://onnx.ai/onnx/operators/onnx__RandomNormal.html "ONNX RandomNormal"
 [127]: https://onnx.ai/onnx/operators/onnx__RandomNormalLike.html "ONNX RandomNormalLike"
@@ -327,7 +330,7 @@ represent the corresponding Burn Op.
 [129]: https://onnx.ai/onnx/operators/onnx__RandomUniformLike.html "ONNX RandomUniformLike"
 [130]: https://onnx.ai/onnx/operators/onnx__Range.html "ONNX Range"
 [131]: https://onnx.ai/onnx/operators/onnx__Reciprocal.html "ONNX Reciprocal"
-[132]: https://onnx.ai/onnx/operators/onnx__ReduceL.html "ONNX ReduceL"
+[132]: https://onnx.ai/onnx/operators/onnx__ReduceL1.html "ONNX ReduceL"
 [133]: https://onnx.ai/onnx/operators/onnx__ReduceLogSum.html "ONNX ReduceLogSum"
 [134]: https://onnx.ai/onnx/operators/onnx__ReduceLogSumExp.html "ONNX ReduceLogSumExp"
 [135]: https://onnx.ai/onnx/operators/onnx__ReduceMax.html "ONNX ReduceMax"
@@ -389,3 +392,5 @@ represent the corresponding Burn Op.
 [191]: https://onnx.ai/onnx/operators/onnx__Where.html "ONNX Where"
 [192]: https://onnx.ai/onnx/operators/onnx__Xor.html "ONNX Xor"
 [193]: https://onnx.ai/onnx/operators/onnx__Unsqueeze.html "ONNX Unsqueeze"
+[194]: https://onnx.ai/onnx/operators/onnx__Attention.html "ONNX Attention"
+[196]: https://onnx.ai/onnx/operators/onnx__DeformConv.html "ONNX DeformConv"

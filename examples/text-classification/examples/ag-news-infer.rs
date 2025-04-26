@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 use burn::tensor::backend::Backend;
 use text_classification::AgNewsDataset;
 
@@ -39,7 +41,7 @@ pub fn launch<B: Backend>(device: B::Device) {
 mod ndarray {
     use burn::backend::ndarray::{NdArray, NdArrayDevice};
 
-    use crate::{launch, ElemType};
+    use crate::{ElemType, launch};
 
     pub fn run() {
         launch::<NdArray<ElemType>>(NdArrayDevice::Cpu);
@@ -48,7 +50,7 @@ mod ndarray {
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use crate::{launch, ElemType};
+    use crate::{ElemType, launch};
     use burn::backend::libtorch::{LibTorch, LibTorchDevice};
 
     pub fn run() {
@@ -63,7 +65,7 @@ mod tch_gpu {
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use crate::{launch, ElemType};
+    use crate::{ElemType, launch};
     use burn::backend::libtorch::{LibTorch, LibTorchDevice};
 
     pub fn run() {
@@ -73,7 +75,7 @@ mod tch_cpu {
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use crate::{launch, ElemType};
+    use crate::{ElemType, launch};
     use burn::backend::wgpu::{Wgpu, WgpuDevice};
 
     pub fn run() {
@@ -81,13 +83,13 @@ mod wgpu {
     }
 }
 
-#[cfg(feature = "cuda-jit")]
-mod cuda_jit {
-    use crate::{launch, ElemType};
-    use burn::backend::{cuda_jit::CudaDevice, CudaJit};
+#[cfg(feature = "cuda")]
+mod cuda {
+    use crate::{ElemType, launch};
+    use burn::backend::{Cuda, cuda::CudaDevice};
 
     pub fn run() {
-        launch::<CudaJit<ElemType, i32>>(CudaDevice::default());
+        launch::<Cuda<ElemType, i32>>(CudaDevice::default());
     }
 }
 
@@ -105,6 +107,6 @@ fn main() {
     tch_cpu::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
-    #[cfg(feature = "cuda-jit")]
-    cuda_jit::run();
+    #[cfg(feature = "cuda")]
+    cuda::run();
 }

@@ -1,17 +1,19 @@
 use burn_common::{iter_par, run_par};
 use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, DeformConvOptions},
     TensorMetadata,
+    ops::{DeformConvOptions, conv::calculate_conv_output_size},
 };
 use core::ops::AddAssign;
 use ndarray::{
-    s, Array2, Array4, ArrayView2, ArrayView3, ArrayView4, ArrayView6, ArrayViewMut2, Axis, Dim,
-    Ix4, Zip,
+    Array2, Array4, ArrayView2, ArrayView3, ArrayView4, ArrayView6, ArrayViewMut2, Axis, Dim, Ix4,
+    Zip, s,
 };
+
 #[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
 use num_traits::Float;
 
-use crate::{element::QuantElement, FloatNdArrayElement, NdArrayTensor};
+use crate::{FloatNdArrayElement, NdArrayTensor};
 
 use super::matmul::matmul;
 
@@ -255,7 +257,6 @@ pub mod backward {
     #[cfg(target_has_atomic = "32")]
     use core::sync::atomic::Ordering;
 
-    use crate::element::IntNdArrayElement;
     use atomic_float::AtomicF32;
     use ndarray::{Array1, Array5, ArrayView4, ArrayView6, Ix4};
 
@@ -270,11 +271,7 @@ pub mod backward {
     );
 
     /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
-    pub(crate) fn deform_conv2d_backward<
-        F: FloatNdArrayElement,
-        I: IntNdArrayElement,
-        Q: QuantElement,
-    >(
+    pub(crate) fn deform_conv2d_backward<F: FloatNdArrayElement>(
         input: NdArrayTensor<F>,
         offset: NdArrayTensor<F>,
         weight: NdArrayTensor<F>,

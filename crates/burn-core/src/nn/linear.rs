@@ -3,7 +3,7 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Param;
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use crate::tensor::{backend::Backend, Tensor};
+use crate::tensor::{Tensor, backend::Backend};
 
 use super::Initializer;
 
@@ -77,7 +77,6 @@ impl<B: Backend> Linear<B> {
 
         let weight = self.weight.val().unsqueeze();
         let bias = self.bias.as_ref().map(|b| b.val().unsqueeze());
-
         let output = input.matmul(weight);
 
         match bias {
@@ -107,8 +106,10 @@ impl<B: Backend> ModuleDisplay for Linear<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{Shape, TensorData};
     use crate::TestBackend;
+    use crate::tensor::{Shape, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn initializer_default() {
@@ -138,10 +139,10 @@ mod tests {
         let linear = config.init::<TestBackend>(&device);
 
         assert_eq!(config.initializer, Initializer::Zeros);
-        linear
-            .weight
-            .to_data()
-            .assert_approx_eq(&TensorData::zeros::<f32, _>(linear.weight.shape()), 3);
+        linear.weight.to_data().assert_approx_eq::<FT>(
+            &TensorData::zeros::<f32, _>(linear.weight.shape()),
+            Tolerance::default(),
+        );
     }
 
     #[test]

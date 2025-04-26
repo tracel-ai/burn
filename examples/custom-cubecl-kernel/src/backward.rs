@@ -3,17 +3,17 @@ use crate::FloatTensor;
 use super::{AutodiffBackend, Backend};
 use burn::{
     backend::autodiff::{
+        Autodiff, NodeID,
         checkpoint::{base::Checkpointer, strategy::CheckpointStrategy},
         grads::Gradients,
-        ops::{broadcast_shape, Backward, Ops, OpsKind},
-        Autodiff, NodeID,
+        ops::{Backward, Ops, OpsKind, broadcast_shape},
     },
     tensor::{Shape, TensorMetadata},
 };
-use burn_jit::{element::BoolElement, FloatElement, IntElement, JitBackend, JitRuntime};
+use burn_cubecl::{CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement};
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
-    for Autodiff<JitBackend<R, F, I, BT>>
+impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
+    for Autodiff<CubeBackend<R, F, I, BT>>
 {
 }
 

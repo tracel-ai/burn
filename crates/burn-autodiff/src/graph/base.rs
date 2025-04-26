@@ -1,9 +1,9 @@
 use super::NodeID;
 use crate::{checkpoint::base::Checkpointer, grads::Gradients};
-use std::collections::HashMap;
+use alloc::{boxed::Box, vec::Vec};
 
 /// Backward step for reverse mode autodiff.
-pub trait Step: Send + std::fmt::Debug {
+pub trait Step: Send + core::fmt::Debug {
     /// Executes the step and consumes it.
     fn step(self: Box<Self>, grads: &mut Gradients, checkpointer: &mut Checkpointer);
     /// Depth of the operation relative to the first node added to a graph.
@@ -15,4 +15,3 @@ pub trait Step: Send + std::fmt::Debug {
 }
 
 pub type StepBoxed = Box<dyn Step>;
-pub type NodeSteps = HashMap<NodeID, StepBoxed>;

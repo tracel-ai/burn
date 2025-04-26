@@ -105,7 +105,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
         let input = self.input.name();
 
         let output_rank = match &self.output {
-            Type::Tensor(tensor) => tensor.dim.to_tokens(),
+            Type::Tensor(tensor) => tensor.rank.to_tokens(),
             _ => unreachable!(),
         };
 
@@ -145,9 +145,9 @@ mod tests {
 
     use super::*;
     use crate::burn::{
+        ShapeType, TensorType,
         graph::BurnGraph,
         node::{constant_of_shape::ConstantOfShapeNode, test::assert_tokens},
-        ShapeType, TensorType,
     };
 
     #[test]

@@ -7,7 +7,7 @@ use js_sys::Array;
 use wasm_bindgen::prelude::*;
 
 use crate::model::Model;
-use crate::state::{build_and_load_model, Backend};
+use crate::state::{Backend, build_and_load_model};
 
 use burn::tensor::Tensor;
 

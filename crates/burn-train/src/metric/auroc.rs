@@ -67,7 +67,6 @@ impl<B: Backend> AurocMetric<B> {
 }
 
 impl<B: Backend> Metric for AurocMetric<B> {
-    const NAME: &'static str = "Area Under the Receiver Operating Characteristic Curve";
     type Input = AurocInput<B>;
 
     fn update(&mut self, input: &AurocInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
@@ -91,12 +90,16 @@ impl<B: Backend> Metric for AurocMetric<B> {
         self.state.update(
             100.0 * area_under_curve,
             batch_size,
-            FormatOptions::new(Self::NAME).unit("%").precision(2),
+            FormatOptions::new(self.name()).unit("%").precision(2),
         )
     }
 
     fn clear(&mut self) {
         self.state.reset()
+    }
+
+    fn name(&self) -> String {
+        "AUROC".to_string()
     }
 }
 

@@ -21,7 +21,7 @@ pub struct GlobalAvgPoolNode {
 impl GlobalAvgPoolNode {
     pub fn new<S: AsRef<str>>(name: S, input: TensorType, output: TensorType) -> Self {
         // Depending on the input dimension, we need to use a different type nn module
-        let field_type = match input.dim {
+        let field_type = match input.rank {
             3 => quote! {
                 AdaptiveAvgPool1d
             },
@@ -53,7 +53,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GlobalAvgPoolNode {
     fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
 
-        let tokens = match self.input.dim {
+        let tokens = match self.input.rank {
             3 => {
                 quote! {
                     let #name = AdaptiveAvgPool1dConfig::new(1)
@@ -83,7 +83,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GlobalAvgPoolNode {
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
-        match self.input.dim {
+        match self.input.rank {
             3 => {
                 imports.register("burn::nn::pool::AdaptiveAvgPool1d");
                 imports.register("burn::nn::pool::AdaptiveAvgPool1dConfig");
@@ -109,9 +109,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GlobalAvgPoolNode {
 mod tests {
     use super::*;
     use crate::burn::{
+        TensorType,
         graph::BurnGraph,
         node::{global_avg_pool::GlobalAvgPoolNode, test::assert_tokens},
-        TensorType,
     };
     use burn::record::FullPrecisionSettings;
 

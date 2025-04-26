@@ -1,12 +1,15 @@
+use core::mem;
+
 use burn_tensor::{
+    DType, Element, Shape, TensorData, TensorMetadata,
     quantization::{
-        AffineQuantization, QParams, QTensorPrimitive, QuantizationScheme, QuantizationStrategy,
+        QParams, QTensorPrimitive, QuantizationMode, QuantizationScheme, QuantizationStrategy,
         QuantizationType, SymmetricQuantization,
     },
-    DType, Element, Shape, TensorData, TensorMetadata,
 };
 
-use ndarray::{ArcArray, Array, Dim, IxDyn};
+use alloc::vec::Vec;
+use ndarray::{ArcArray, ArrayD, IxDyn};
 
 use crate::element::QuantElement;
 
@@ -186,25 +189,23 @@ macro_rules! execute_with_float_dtype {
     }};
 }
 
-#[cfg(test)]
 mod utils {
     use super::*;
-    use crate::element::FloatNdArrayElement;
 
     impl<E> NdArrayTensor<E>
     where
-        E: Default + Clone,
+        E: Element,
     {
-        pub(crate) fn into_data(self) -> TensorData
-        where
-            E: FloatNdArrayElement,
-        {
+        pub(crate) fn into_data(self) -> TensorData {
             let shape = self.shape();
 
             let vec = if self.is_contiguous() {
                 match self.array.try_into_owned_nocopy() {
                     Ok(owned) => {
-                        let (vec, _offset) = owned.into_raw_vec_and_offset();
+                        let (mut vec, offset) = owned.into_raw_vec_and_offset();
+                        if let Some(offset) = offset {
+                            vec.drain(..offset);
+                        }
                         vec
                     }
                     Err(array) => array.into_iter().collect(),
@@ -242,7 +243,7 @@ mod utils {
                         return false;
                     }
 
-                    if prev_stride >= stride {
+                    if prev_stride > stride {
                         return false;
                     }
                 }
@@ -284,10 +285,14 @@ macro_rules! reshape {
     ) => {{
         let dim = $crate::to_typed_dims!($n, $shape.dims, justdim);
         let array: ndarray::ArcArray<$ty, Dim<[usize; $n]>> = match $array.is_standard_layout() {
-            true => $array
-                .to_shape(dim)
-                .expect("Safe to change shape without relayout")
-                .into_shared(),
+            true => {
+                match $array.to_shape(dim) {
+                    Ok(val) => val.into_shared(),
+                    Err(err) => {
+                        core::panic!("Shape should be compatible shape={dim:?}: {err:?}");
+                    }
+                }
+            },
             false => $array.to_shape(dim).unwrap().as_standard_layout().into_shared(),
         };
         let array = array.into_dyn();
@@ -317,27 +322,16 @@ where
     E: Element,
 {
     /// Create a new [ndarray tensor](NdArrayTensor) from [data](TensorData).
-    pub fn from_data(data: TensorData) -> NdArrayTensor<E> {
-        let shape: Shape = data.shape.clone().into();
-        let into_array = |data: TensorData| match data.into_vec::<E>() {
-            Ok(vec) => Array::from_vec(vec).into_shared(),
+    pub fn from_data(mut data: TensorData) -> NdArrayTensor<E> {
+        let shape = mem::take(&mut data.shape);
+
+        let array = match data.into_vec::<E>() {
+            // Safety: TensorData checks shape validity on creation, so we don't need to repeat that check here
+            Ok(vec) => unsafe { ArrayD::from_shape_vec_unchecked(shape, vec) }.into_shared(),
             Err(err) => panic!("Data should have the same element type as the tensor {err:?}"),
         };
-        let to_array = |data: TensorData| Array::from_iter(data.iter::<E>()).into_shared();
 
-        let array = if data.dtype == E::dtype() {
-            into_array(data)
-        } else {
-            to_array(data)
-        };
-        let ndims = shape.num_dims();
-
-        reshape!(
-            ty E,
-            shape shape,
-            array array,
-            d ndims
-        )
+        NdArrayTensor::new(array)
     }
 }
 
@@ -349,22 +343,16 @@ pub struct NdArrayQTensor<Q: QuantElement> {
     /// The quantization scheme.
     pub scheme: QuantizationScheme,
     /// The quantization parameters.
-    pub qparams: QParams<f32, Q>,
+    pub qparams: Vec<QParams<f32, Q>>,
 }
 
 impl<Q: QuantElement> NdArrayQTensor<Q> {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
     pub fn strategy(&self) -> QuantizationStrategy {
         match self.scheme {
-            QuantizationScheme::PerTensorAffine(QuantizationType::QInt8) => {
-                QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
-                    self.qparams.scale,
-                    self.qparams.offset.unwrap().elem(),
-                ))
-            }
-            QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
                 QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                    self.qparams.scale,
+                    self.qparams[0].scale,
                 ))
             }
         }
@@ -394,9 +382,9 @@ mod tests {
     use super::*;
     use burn_common::rand::get_seeded_rng;
     use burn_tensor::{
-        ops::{FloatTensorOps, IntTensorOps, QTensorOps},
-        quantization::{AffineQuantization, QuantizationParametersPrimitive, QuantizationType},
         Distribution,
+        ops::{FloatTensorOps, QTensorOps},
+        quantization::{QuantizationParametersPrimitive, QuantizationType},
     };
 
     #[test]
@@ -458,20 +446,22 @@ mod tests {
     #[test]
     fn should_support_qtensor_strategy() {
         type B = NdArray<f32, i64, i8>;
+        let scale: f32 = 0.009_019_608;
         let device = Default::default();
 
-        let tensor = B::float_from_data(TensorData::from([-1.8, -1.0, 0.0, 0.5]), &device);
-        let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
+        let tensor = B::float_from_data(TensorData::from([-1.8f32, -1.0, 0.0, 0.5]), &device);
+        let scheme =
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8);
         let qparams = QuantizationParametersPrimitive {
-            scale: B::float_from_data(TensorData::from([0.009_019_608]), &device),
-            offset: Some(B::int_from_data(TensorData::from([72]), &device)),
+            scale: B::float_from_data(TensorData::from([scale]), &device),
+            offset: None,
         };
         let qtensor: NdArrayQTensor<i8> = B::quantize(tensor, &scheme, qparams);
 
         assert_eq!(qtensor.scheme(), &scheme);
         assert_eq!(
             qtensor.strategy(),
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.009_019_608, 72))
+            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(scale))
         );
     }
 }

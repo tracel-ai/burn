@@ -1,12 +1,12 @@
 use crate as burn;
 
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use crate::nn::cache::TensorCache;
 use crate::nn::Initializer;
+use crate::nn::cache::TensorCache;
 use crate::{
     config::Config,
     nn,
-    tensor::{activation, backend::Backend, Bool, Tensor},
+    tensor::{Bool, Tensor, activation, backend::Backend},
 };
 
 #[cfg(not(feature = "std"))]
@@ -355,8 +355,10 @@ mod tests {
     use super::*;
     use crate::tensor::Int;
     use crate::tensor::{Distribution, Shape};
-    use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
+    use crate::{TestBackend, nn::attention::generate_autoregressive_mask};
     use alloc::vec::Vec;
+    use burn_tensor::Tolerance;
+    use burn_tensor::ops::FloatElem;
 
     #[test]
     fn test_self_attention_shapes() {
@@ -471,7 +473,7 @@ mod tests {
                     .context
                     .slice([0..batch_size, 0..seq_length - num_padded, 0..d_model])
                     .into_data(),
-                3,
+                Tolerance::<f32>::default(),
             );
     }
 
@@ -509,7 +511,10 @@ mod tests {
         output_1
             .context
             .into_data()
-            .assert_approx_eq(&output_2.into_data(), 3);
+            .assert_approx_eq::<FloatElem<TestBackend>>(
+                &output_2.into_data(),
+                Tolerance::rel_abs(1e-5, 1e-5),
+            );
     }
 
     #[test]

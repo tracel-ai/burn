@@ -3,11 +3,11 @@ use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
-use crate::nn::rnn::gate_controller;
 use crate::nn::Initializer;
+use crate::nn::rnn::gate_controller;
+use crate::tensor::Tensor;
 use crate::tensor::activation;
 use crate::tensor::backend::Backend;
-use crate::tensor::Tensor;
 
 use super::gate_controller::GateController;
 
@@ -124,7 +124,7 @@ impl<B: Backend> Gru<B> {
     /// # Parameters
     /// - batched_input: `[batch_size, sequence_length, input_size]`.
     /// - state: An optional tensor representing an initial cell state with dimensions
-    ///          `[batch_size, hidden_size]`. If none is provided, an empty state will be used.
+    ///   `[batch_size, hidden_size]`. If none is provided, an empty state will be used.
     ///
     /// # Returns
     /// - output: `[batch_size, sequence_length, hidden_size]`
@@ -245,7 +245,9 @@ impl<B: Backend> Gru<B> {
 mod tests {
     use super::*;
     use crate::tensor::{Distribution, TensorData};
-    use crate::{module::Param, nn::LinearRecord, TestBackend};
+    use crate::{TestBackend, module::Param, nn::LinearRecord};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     fn init_gru<B: Backend>(reset_after: bool, device: &B::Device) -> Gru<B> {
         fn create_gate_controller<B: Backend>(
@@ -331,7 +333,10 @@ mod tests {
             .select(0, Tensor::arange(0..1, &device))
             .squeeze::<2>(0);
 
-        output.to_data().assert_approx_eq(&expected, 3);
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
 
         // Reset gate applied to hidden state after the matrix multiplication
         gru.reset_after = true; // override forward behavior
@@ -341,7 +346,9 @@ mod tests {
             .select(0, Tensor::arange(0..1, &device))
             .squeeze::<2>(0);
 
-        output.to_data().assert_approx_eq(&expected, 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 
     #[test]
@@ -359,7 +366,10 @@ mod tests {
             .select(0, Tensor::arange(0..1, &device))
             .squeeze::<2>(0);
 
-        output.to_data().assert_approx_eq(&expected, 3);
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-4);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
 
         // Reset gate applied to hidden state before the matrix multiplication
         gru.reset_after = false; // override forward behavior
@@ -369,7 +379,9 @@ mod tests {
             .select(0, Tensor::arange(0..1, &device))
             .squeeze::<2>(0);
 
-        output.to_data().assert_approx_eq(&expected, 3);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 
     #[test]

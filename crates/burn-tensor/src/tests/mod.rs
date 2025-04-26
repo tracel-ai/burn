@@ -78,46 +78,13 @@ macro_rules! testgen_all {
 #[macro_export]
 macro_rules! testgen_quantization {
     () => {
-        // Quantized tensor utilities
-        pub mod qtensor {
-            use core::marker::PhantomData;
-
-            use burn_tensor::{
-                backend::Backend,
-                quantization::{QuantizationScheme, QuantizationType},
-                Tensor, TensorData,
-            };
-
-            pub struct QTensor<B: Backend, const D: usize> {
-                b: PhantomData<B>,
-            }
-
-            impl<B: Backend, const D: usize> QTensor<B, D> {
-                /// Creates a quantized int8 tensor from the floating point data using the default quantization scheme
-                /// (i.e., per-tensor symmetric quantization).
-                pub fn int8<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
-                    Self::int8_symmetric(floats)
-                }
-                /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.
-                pub fn int8_symmetric<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
-                    Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
-                        &QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8),
-                    )
-                }
-                /// Creates a quantized int8 tensor from the floating point data using per-tensor affine quantization.
-                pub fn int8_affine<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
-                    Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
-                        &QuantizationScheme::PerTensorAffine(QuantizationType::QInt8),
-                    )
-                }
-            }
-        }
-        pub use qtensor::*;
+        pub use burn_tensor::tests::qtensor::*;
 
         // test quantization
         burn_tensor::testgen_calibration!();
         burn_tensor::testgen_scheme!();
         burn_tensor::testgen_quantize!();
+        burn_tensor::testgen_q_data!();
 
         // test ops
         burn_tensor::testgen_q_abs!();
@@ -130,6 +97,7 @@ macro_rules! testgen_quantization {
         burn_tensor::testgen_q_chunk!();
         burn_tensor::testgen_q_clamp!();
         burn_tensor::testgen_q_cos!();
+        burn_tensor::testgen_q_cosh!();
         burn_tensor::testgen_q_div!();
         burn_tensor::testgen_q_erf!();
         burn_tensor::testgen_q_exp!();
@@ -155,12 +123,14 @@ macro_rules! testgen_quantization {
         burn_tensor::testgen_q_round!();
         burn_tensor::testgen_q_select!();
         burn_tensor::testgen_q_sin!();
+        burn_tensor::testgen_q_sinh!();
         burn_tensor::testgen_q_slice!();
         burn_tensor::testgen_q_sort_argsort!();
         burn_tensor::testgen_q_split!();
         burn_tensor::testgen_q_sqrt!();
         burn_tensor::testgen_q_stack!();
         burn_tensor::testgen_q_sub!();
+        burn_tensor::testgen_q_tan!();
         burn_tensor::testgen_q_tanh!();
         burn_tensor::testgen_q_topk!();
         burn_tensor::testgen_q_transpose!();
@@ -218,6 +188,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_clamp!();
         burn_tensor::testgen_close!();
         burn_tensor::testgen_cos!();
+        burn_tensor::testgen_cosh!();
         burn_tensor::testgen_create_like!();
         burn_tensor::testgen_div!();
         burn_tensor::testgen_erf!();
@@ -242,12 +213,14 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_repeat!();
         burn_tensor::testgen_reshape!();
         burn_tensor::testgen_sin!();
+        burn_tensor::testgen_sinh!();
         burn_tensor::testgen_slice!();
         burn_tensor::testgen_stack!();
         burn_tensor::testgen_sqrt!();
         burn_tensor::testgen_abs!();
         burn_tensor::testgen_squeeze!();
         burn_tensor::testgen_sub!();
+        burn_tensor::testgen_tan!();
         burn_tensor::testgen_tanh!();
         burn_tensor::testgen_transpose!();
         burn_tensor::testgen_tri!();
@@ -310,6 +283,7 @@ macro_rules! testgen_with_int_param {
         burn_tensor::testgen_sub!();
         burn_tensor::testgen_transpose!();
         burn_tensor::testgen_gather_scatter!();
+        burn_tensor::testgen_bitwise!();
 
         // test stats
         burn_tensor::testgen_eye!();
@@ -381,4 +355,37 @@ macro_rules! as_type {
             $ty::new($elem)
         }
     };
+}
+
+// Quantized tensor utilities
+pub mod qtensor {
+    use core::marker::PhantomData;
+
+    use crate::{
+        Tensor, TensorData,
+        backend::Backend,
+        quantization::{QuantizationMode, QuantizationScheme, QuantizationType},
+    };
+
+    pub struct QTensor<B: Backend, const D: usize> {
+        b: PhantomData<B>,
+    }
+
+    impl<B: Backend, const D: usize> QTensor<B, D> {
+        /// Creates a quantized int8 tensor from the floating point data using the default quantization scheme
+        /// (i.e., per-tensor symmetric quantization).
+        pub fn int8<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
+            Self::int8_symmetric(floats)
+        }
+
+        /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.
+        pub fn int8_symmetric<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
+            Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
+                &QuantizationScheme::PerTensor(
+                    QuantizationMode::Symmetric,
+                    QuantizationType::QInt8,
+                ),
+            )
+        }
+    }
 }

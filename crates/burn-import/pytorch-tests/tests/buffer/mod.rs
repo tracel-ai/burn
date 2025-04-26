@@ -1,6 +1,6 @@
 use burn::{
     module::{Module, Param},
-    tensor::{backend::Backend, Tensor},
+    tensor::{Tensor, backend::Backend},
 };
 
 #[derive(Module, Debug)]
@@ -26,7 +26,10 @@ impl<B: Backend> Net<B> {
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
 
-    use burn::record::{FullPrecisionSettings, Recorder};
+    use burn::{
+        record::{FullPrecisionSettings, Recorder},
+        tensor::Tolerance,
+    };
     use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
@@ -46,6 +49,8 @@ mod tests {
 
         let expected = Tensor::<Backend, 2>::ones([3, 3], &device) * 2.0;
 
-        output.to_data().assert_approx_eq(&expected.to_data(), 3);
+        output
+            .to_data()
+            .assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
     }
 }

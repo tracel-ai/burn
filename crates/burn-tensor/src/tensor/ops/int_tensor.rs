@@ -3,12 +3,12 @@ use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use crate::cast::ToElement;
 use crate::tensor::api::{chunk, narrow, split, split_with_sizes};
-use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Int, TensorData};
+use crate::{Distribution, ElementConversion, Int, TensorData, backend::Backend, tensor::Shape};
 use alloc::vec::Vec;
 use core::future::Future;
 use core::ops::Range;
 
-use crate::{argsort, sort, sort_with_indices, TensorMetadata};
+use crate::{TensorMetadata, argsort, sort, sort_with_indices};
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
@@ -805,6 +805,36 @@ pub trait IntTensorOps<B: Backend> {
         (values, index)
     }
 
+    /// Gets the maximum absolute element in the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum element of.
+    ///
+    /// # Returns
+    ///
+    /// The maximum element in the tensor.
+    fn int_max_abs(tensor: IntTensor<B>) -> IntTensor<B> {
+        let shape = tensor.shape();
+        let tensor = B::int_reshape(tensor, Shape::new([shape.num_elements()]));
+
+        B::int_max_abs_dim(tensor, 0)
+    }
+
+    /// Gets the maximum absolute element in the tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum element of.
+    /// * `dim` - The dimension to get the maximum element along.
+    ///
+    /// # Returns
+    ///
+    /// The maximum element in the tensor along the dimension.
+    fn int_max_abs_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
+        B::int_max_dim(B::int_abs(tensor), dim)
+    }
+
     /// Gets the minimum element in the tensor.
     ///
     /// # Arguments
@@ -1185,4 +1215,37 @@ pub trait IntTensorOps<B: Backend> {
     fn int_argsort(tensor: IntTensor<B>, dim: usize, descending: bool) -> IntTensor<B> {
         argsort::<B, Int>(tensor, dim, descending)
     }
+
+    /// Bitwise AND operation for Int Tensors
+    fn bitwise_and(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+
+    /// Bitwise AND operation for Int Tensors with a scalar
+    fn bitwise_and_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+
+    /// Bitwise OR operation for Int Tensors
+    fn bitwise_or(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+
+    /// Bitwise OR operation for Int Tensors with a scalar
+    fn bitwise_or_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+
+    /// Bitwise XOR operation for Int Tensors
+    fn bitwise_xor(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+
+    /// Bitwise XOR operation for Int Tensors with a scalar
+    fn bitwise_xor_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+
+    /// Bitwise NOT operation for Int Tensors
+    fn bitwise_not(tensor: IntTensor<B>) -> IntTensor<B>;
+
+    /// Bitwise left shift operation for Int Tensors
+    fn bitwise_left_shift(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+
+    /// Bitwise left shift operation for Int Tensors with a scalar
+    fn bitwise_left_shift_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+
+    /// Bitwise right shift operation for Int Tensors
+    fn bitwise_right_shift(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+
+    /// Bitwise right shift operation for Int Tensors with a scalar
+    fn bitwise_right_shift_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
 }

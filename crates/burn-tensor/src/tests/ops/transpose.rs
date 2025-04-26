@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{Bool, Int, Tensor, TensorData};
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_transpose_ops() {
@@ -19,7 +21,34 @@ mod tests {
             [[6.0, 9.0], [7.0, 10.0], [8.0, 11.0]],
         ]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    #[test]
+    fn should_support_transpose_maybe_fused_with_one() {
+        let tensor = TestTensor::<3>::from_floats(
+            [
+                [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
+                [[6.0, 7.0, 8.0], [9.0, 10.0, 11.0]],
+            ],
+            &Default::default(),
+        );
+        let ones = TestTensor::<3>::ones([1, 1, 1], &Default::default());
+
+        let output = tensor.transpose();
+        let expected = TensorData::from([
+            [[0.0, 3.0], [1.0, 4.0], [2.0, 5.0]],
+            [[6.0, 9.0], [7.0, 10.0], [8.0, 11.0]],
+        ]);
+        let expected_ones = TensorData::from([[[1.0]]]);
+
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+        ones.into_data()
+            .assert_approx_eq::<FT>(&expected_ones, Tolerance::default());
     }
 
     #[test]
@@ -39,7 +68,9 @@ mod tests {
             [[2.0, 8.0], [5.0, 11.0]],
         ]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -84,7 +115,7 @@ mod tests {
             [[false, false], [false, false], [true, true]],
         ]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -104,6 +135,6 @@ mod tests {
             [[false, true], [false, true]],
         ]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 }

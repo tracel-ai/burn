@@ -5,9 +5,9 @@ use crate::config::Config;
 use crate::module::Module;
 use crate::module::Param;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
-use crate::tensor::backend::Backend;
 use crate::tensor::Int;
 use crate::tensor::Tensor;
+use crate::tensor::backend::Backend;
 
 use crate::tensor::module::embedding;
 
@@ -78,8 +78,10 @@ impl<B: Backend> Embedding<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
+    use burn_tensor::{Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn initializer_default() {
@@ -99,10 +101,10 @@ mod tests {
         );
         var_act
             .to_data()
-            .assert_approx_eq(&TensorData::from([1.0f32]), 0);
+            .assert_approx_eq::<FT>(&TensorData::from([1.0f32]), Tolerance::relative(5e-2));
         mean_act
             .to_data()
-            .assert_approx_eq(&TensorData::from([0.0f32]), 0);
+            .assert_approx_eq::<FT>(&TensorData::from([0.0f32]), Tolerance::absolute(1e-1));
     }
 
     #[test]
@@ -113,10 +115,10 @@ mod tests {
         let embed = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(config.initializer, Initializer::Zeros);
-        embed
-            .weight
-            .to_data()
-            .assert_approx_eq(&TensorData::zeros::<f32, _>(embed.weight.shape()), 3);
+        embed.weight.to_data().assert_approx_eq::<FT>(
+            &TensorData::zeros::<f32, _>(embed.weight.shape()),
+            Tolerance::default(),
+        );
     }
 
     #[test]

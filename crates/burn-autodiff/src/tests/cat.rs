@@ -2,6 +2,9 @@
 mod tests {
     use super::*;
 
+    use burn_tensor::{Tensor, Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
+
     #[test]
     fn should_diff_cat() {
         let device = Default::default();
@@ -40,21 +43,21 @@ mod tests {
             .clone()
             .slice([0..1])
             .to_data()
-            .assert_approx_eq(&grad_1_slice_1.to_data(), 5);
+            .assert_approx_eq::<FT>(&grad_1_slice_1.to_data(), Tolerance::default());
         grad_1
             .slice([1..2])
             .to_data()
-            .assert_approx_eq(&grad_1_slice_2.to_data(), 5);
+            .assert_approx_eq::<FT>(&grad_1_slice_2.to_data(), Tolerance::default());
 
         grad_2
             .clone()
             .slice([0..1])
             .to_data()
-            .assert_approx_eq(&grad_2_slice_1.to_data(), 5);
+            .assert_approx_eq::<FT>(&grad_2_slice_1.to_data(), Tolerance::default());
         grad_2
             .slice([1..2])
             .to_data()
-            .assert_approx_eq(&grad_2_slice_2.to_data(), 5);
+            .assert_approx_eq::<FT>(&grad_2_slice_2.to_data(), Tolerance::default());
     }
 
     #[test]

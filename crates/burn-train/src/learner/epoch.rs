@@ -1,31 +1,33 @@
+use burn_core::data::dataloader::DataLoader;
+use burn_core::tensor::backend::AutodiffBackend;
 use burn_core::{
-    data::dataloader::DataLoader, lr_scheduler::LrScheduler, module::AutodiffModule,
-    optim::GradientsAccumulator, tensor::backend::Backend,
+    lr_scheduler::LrScheduler, module::AutodiffModule, optim::GradientsAccumulator,
+    tensor::backend::Backend,
 };
 use std::sync::Arc;
 
 use crate::metric::processor::{Event, EventProcessor, LearnerItem};
-use crate::{components::LearnerComponents, learner::base::TrainingInterrupter};
 use crate::{MultiDevicesTrainStep, TrainStep, ValidStep};
+use crate::{components::LearnerComponents, learner::base::TrainingInterrupter};
 
 /// A validation epoch.
 #[derive(new)]
-pub struct ValidEpoch<VI> {
-    dataloader: Arc<dyn DataLoader<VI>>,
+pub struct ValidEpoch<B: Backend, VI> {
+    dataloader: Arc<dyn DataLoader<B, VI>>,
     epoch: usize,
     epoch_total: usize,
 }
 
 /// A training epoch.
 #[derive(new)]
-pub struct TrainEpoch<TI> {
-    dataloader: Arc<dyn DataLoader<TI>>,
+pub struct TrainEpoch<B: AutodiffBackend, TI> {
+    dataloader: Vec<Arc<dyn DataLoader<B, TI>>>,
     epoch: usize,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<VI> ValidEpoch<VI> {
+impl<B: Backend, VI> ValidEpoch<B, VI> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
@@ -40,6 +42,7 @@ impl<VI> ValidEpoch<VI> {
     ) where
         LC::EventProcessor: EventProcessor<ItemValid = VO>,
         <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<VI, VO>,
+        LC::Backend: AutodiffBackend<InnerBackend = B>,
     {
         log::info!("Executing validation step for epoch {}", self.epoch);
         let model = model.valid();
@@ -72,7 +75,7 @@ impl<VI> ValidEpoch<VI> {
     }
 }
 
-impl<TI> TrainEpoch<TI> {
+impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     /// Runs the training epoch.
     ///
     /// # Arguments
@@ -85,8 +88,8 @@ impl<TI> TrainEpoch<TI> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    pub fn run<LC: LearnerComponents, TO>(
-        &self,
+    pub fn run<LC: LearnerComponents<Backend = B>, TO>(
+        &mut self,
         mut model: LC::Model,
         mut optim: LC::Optimizer,
         scheduler: &mut LC::LrScheduler,
@@ -99,7 +102,8 @@ impl<TI> TrainEpoch<TI> {
     {
         log::info!("Executing training step for epoch {}", self.epoch,);
 
-        let mut iterator = self.dataloader.iter();
+        // Single device / dataloader
+        let mut iterator = self.dataloader[0].iter();
         let mut iteration = 0;
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
@@ -144,11 +148,13 @@ impl<TI> TrainEpoch<TI> {
         }
         processor.process_train(Event::EndEpoch(self.epoch));
 
+        self.epoch += 1;
+
         (model, optim)
     }
 }
 
-impl<TI> TrainEpoch<TI> {
+impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     /// Runs the training epoch on multiple devices.
     ///
     /// # Arguments
@@ -162,8 +168,8 @@ impl<TI> TrainEpoch<TI> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    pub fn run_multi_device<LC: LearnerComponents, TO>(
-        &self,
+    pub fn run_multi_device<LC: LearnerComponents<Backend = B>, TO>(
+        &mut self,
         mut model: LC::Model,
         mut optim: LC::Optimizer,
         lr_scheduler: &mut LC::LrScheduler,
@@ -183,7 +189,7 @@ impl<TI> TrainEpoch<TI> {
             devices
         );
 
-        let mut iterator = self.dataloader.iter();
+        let mut iterators = self.dataloader.iter().map(|d| d.iter()).collect::<Vec<_>>();
         let mut iteration = 0;
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
@@ -196,7 +202,7 @@ impl<TI> TrainEpoch<TI> {
         let mut interrupted = false;
 
         loop {
-            let items = step.step(&mut iterator, &model);
+            let (items, progress) = step.step(iterators.as_mut_slice(), &model);
             if items.is_empty() {
                 break;
             }
@@ -204,8 +210,8 @@ impl<TI> TrainEpoch<TI> {
             for item in items {
                 iteration += 1;
                 let lr = lr_scheduler.step();
-                let progress = iterator.progress();
 
+                // TODO: aggregate multi device (all-reduce)
                 let grads = item.grads.to_device(&device_main, &model);
 
                 accumulator.accumulate(&model, grads);
@@ -219,7 +225,7 @@ impl<TI> TrainEpoch<TI> {
 
                 let item = LearnerItem::new(
                     item.item,
-                    progress,
+                    progress.clone(),
                     self.epoch,
                     self.epoch_total,
                     iteration,
@@ -241,6 +247,8 @@ impl<TI> TrainEpoch<TI> {
         }
 
         processor.process_train(Event::EndEpoch(self.epoch));
+
+        self.epoch += 1;
 
         (model, optim)
     }

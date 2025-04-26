@@ -2,16 +2,18 @@
 mod tests {
     use super::*;
     use burn_tensor::{
-        quantization::{Calibration, MinMaxCalibration, QuantizationType},
         Tensor, TensorData,
+        quantization::{Calibration, QuantizationMode, QuantizationScheme, QuantizationType},
     };
 
+    // NOTE: The scheme variant fields are not important for calibration, only the "main" variant (e.g., per-tensor)
     #[test]
-    fn min_max_calibration_range() {
+    fn min_max_calibration_range_per_tensor() {
         let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &Default::default());
-        let calibration = MinMaxCalibration {};
+        let scheme =
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8);
 
-        let range = calibration.compute_range(&tensor);
+        let range = scheme.compute_range(&tensor, &Calibration::MinMax);
 
         range
             .min

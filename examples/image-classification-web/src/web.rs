@@ -9,17 +9,17 @@ use core::convert::Into;
 use crate::model::{label::LABELS, normalizer::Normalizer, squeezenet::Model as SqueezenetModel};
 
 use burn::{
-    backend::{wgpu::init_setup_async, NdArray},
+    backend::{NdArray, wgpu::init_setup_async},
     prelude::*,
     tensor::activation::softmax,
 };
 
-use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
+use burn::backend::wgpu::{WebGpu, WgpuDevice, graphics::AutoGraphicsApi};
 use burn_candle::Candle;
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
-use wasm_timer::Instant;
+use web_time::Instant;
 
 #[wasm_bindgen(start)]
 pub fn start() {
@@ -37,8 +37,8 @@ pub enum ModelType {
     /// The model is loaded to the NdArray backend
     WithNdArrayBackend(Model<NdArray<f32>>),
 
-    /// The model is loaded to the Wgpu backend
-    WithWgpuBackend(Model<Wgpu<f32, i32>>),
+    /// The model is loaded to the WebGpu backend
+    WithWgpuBackend(Model<WebGpu<f32, i32>>),
 }
 
 /// The image is 224x224 pixels with 3 channels (RGB)

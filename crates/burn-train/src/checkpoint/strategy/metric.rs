@@ -2,8 +2,8 @@ use super::CheckpointingStrategy;
 use crate::{
     checkpoint::CheckpointingAction,
     metric::{
-        store::{Aggregate, Direction, EventStoreClient, Split},
         Metric,
+        store::{Aggregate, Direction, EventStoreClient, Split},
     },
 };
 
@@ -17,14 +17,14 @@ pub struct MetricCheckpointingStrategy {
 }
 
 impl MetricCheckpointingStrategy {
-    /// Create a new metric strategy.
-    pub fn new<M>(aggregate: Aggregate, direction: Direction, split: Split) -> Self
+    /// Create a new metric checkpointing strategy.
+    pub fn new<M>(metric: &M, aggregate: Aggregate, direction: Direction, split: Split) -> Self
     where
         M: Metric,
     {
         Self {
             current: None,
-            name: M::NAME.to_string(),
+            name: metric.name(),
             aggregate,
             direction,
             split,
@@ -65,16 +65,16 @@ impl CheckpointingStrategy for MetricCheckpointingStrategy {
 #[cfg(test)]
 mod tests {
     use crate::{
+        TestBackend,
         logger::InMemoryMetricLogger,
         metric::{
+            LossMetric,
             processor::{
-                test_utils::{end_epoch, process_train},
                 Metrics, MinimalEventProcessor,
+                test_utils::{end_epoch, process_train},
             },
             store::LogEventStore,
-            LossMetric,
         },
-        TestBackend,
     };
 
     use super::*;
@@ -82,8 +82,10 @@ mod tests {
 
     #[test]
     fn always_keep_the_best_epoch() {
+        let loss = LossMetric::<TestBackend>::new();
         let mut store = LogEventStore::default();
-        let mut strategy = MetricCheckpointingStrategy::new::<LossMetric<TestBackend>>(
+        let mut strategy = MetricCheckpointingStrategy::new(
+            &loss,
             Aggregate::Mean,
             Direction::Lowest,
             Split::Train,
@@ -92,7 +94,7 @@ mod tests {
         // Register an in memory logger.
         store.register_logger_train(InMemoryMetricLogger::default());
         // Register the loss metric.
-        metrics.register_train_metric_numeric(LossMetric::<TestBackend>::new());
+        metrics.register_train_metric_numeric(loss);
         let store = Arc::new(EventStoreClient::new(store));
         let mut processor = MinimalEventProcessor::new(metrics, store.clone());
 

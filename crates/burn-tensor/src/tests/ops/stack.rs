@@ -37,7 +37,7 @@ mod tests {
         let output = Tensor::stack::<3>(vec![tensor_1, tensor_2], 0);
         let expected = TensorData::from([[[false, true, true]], [[true, true, false]]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]

@@ -7,9 +7,9 @@ use crate::config::Config;
 use crate::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param};
 use crate::nn::Initializer;
 use crate::nn::PaddingConfig2d;
+use crate::tensor::Tensor;
 use crate::tensor::backend::Backend;
 use crate::tensor::module::deform_conv2d;
-use crate::tensor::Tensor;
 
 use crate::nn::conv::checks;
 
@@ -186,9 +186,11 @@ impl<B: Backend> DeformConv2d<B> {
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::Tolerance;
+
     use super::*;
-    use crate::tensor::TensorData;
     use crate::TestBackend;
+    use crate::tensor::TensorData;
 
     #[test]
     fn initializer_default() {
@@ -212,9 +214,10 @@ mod tests {
         let conv = config.init::<TestBackend>(&device);
 
         assert_eq!(config.initializer, Initializer::Zeros);
-        conv.weight
-            .to_data()
-            .assert_approx_eq(&TensorData::zeros::<f32, _>(conv.weight.shape()), 3);
+        conv.weight.to_data().assert_approx_eq::<f32>(
+            &TensorData::zeros::<f32, _>(conv.weight.shape()),
+            Tolerance::default(),
+        );
     }
 
     #[test]
@@ -274,5 +277,16 @@ mod tests {
             alloc::format!("{}", conv),
             "DeformConv2d {stride: [1, 1], kernel_size: [5, 5], dilation: [1, 1], weight_groups: 1, offset_groups: 1, padding: Valid, params: 126}"
         );
+    }
+
+    #[test]
+    #[should_panic = "Number of channels in input tensor and input channels of convolution must be equal. got: 4, expected: 5"]
+    fn input_channels_mismatch() {
+        let config = DeformConv2dConfig::new([5, 3], [3, 3]);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        let input = Tensor::<TestBackend, 4>::zeros([1, 4, 10, 10], &Default::default());
+        let offset = Tensor::<TestBackend, 4>::zeros([1, 2 * 3 * 3, 10, 10], &Default::default());
+        let _ = conv.forward(input, offset, None);
     }
 }
