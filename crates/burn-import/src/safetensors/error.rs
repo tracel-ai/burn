@@ -1,4 +1,4 @@
-use burn::record::{serde::error, RecorderError};
+use burn::record::{RecorderError, serde::error};
 use zip::result::ZipError;
 
 #[derive(thiserror::Error, Debug)]
@@ -6,8 +6,8 @@ pub enum Error {
     #[error("Serde error: {0}")]
     Serde(#[from] error::Error),
 
-    #[error("Candle SafeTensors error: {0}")]
-    CandleSafeTensors(#[from] candle_core::Error),
+    #[error("Candle Safetensor error: {0}")]
+    CandleSafeTensor(#[from] candle_core::Error),
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),

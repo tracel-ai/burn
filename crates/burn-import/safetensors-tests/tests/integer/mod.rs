@@ -1,6 +1,6 @@
 use burn::{
     module::{Module, Param},
-    tensor::{backend::Backend, Int, Tensor},
+    tensor::{Int, Tensor, backend::Backend},
 };
 
 #[derive(Module, Debug)]

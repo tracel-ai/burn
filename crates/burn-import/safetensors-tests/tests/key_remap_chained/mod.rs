@@ -3,10 +3,10 @@ use std::marker::PhantomData;
 use burn::{
     module::Module,
     nn::{
-        conv::{Conv2d, Conv2dConfig},
         BatchNorm, BatchNormConfig,
+        conv::{Conv2d, Conv2dConfig},
     },
-    tensor::{backend::Backend, Device, Tensor},
+    tensor::{Device, Tensor, backend::Backend},
 };
 
 /// Some module that implements a specific method so it can be used in a sequential block.
@@ -97,7 +97,10 @@ impl<B: Backend> Model<B, ConvBlock<B>> {
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
 
-    use burn::record::{FullPrecisionSettings, Recorder};
+    use burn::{
+        record::{FullPrecisionSettings, Recorder},
+        tensor::Tolerance,
+    };
     use burn_import::safetensors::{LoadArgs, SafeTensorsFileRecorder};
 
     use super::*;
@@ -179,6 +182,8 @@ mod tests {
         );
 
         let output = model.forward(input);
-        output.to_data().assert_approx_eq(&expected.to_data(), 7);
+        output
+            .to_data()
+            .assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
     }
 }

@@ -1,8 +1,13 @@
+use super::error::Error;
 use core::ops::Deref;
 use std::collections::HashMap;
 use std::path::Path;
 
-use super::{adapter::PyTorchAdapter, error::Error};
+#[cfg(feature = "pytorch")]
+use super::super::pytorch::adapter::PyTorchAdapter as Adapter;
+
+#[cfg(not(feature = "pytorch"))]
+use burn::record::serde::adapter::DefaultAdapter as Adapter;
 
 use burn::{
     module::ParamId,
@@ -11,7 +16,7 @@ use burn::{
 };
 use burn::{
     record::serde::{
-        data::{remap, unflatten, NestedValue, Serializable},
+        data::{NestedValue, Serializable, remap, unflatten},
         de::Deserializer,
         error,
         ser::Serializer,
@@ -19,10 +24,10 @@ use burn::{
     tensor::backend::Backend,
 };
 
-use candle_core::{safetensors, Device, WithDType};
+use candle_core::{Device, WithDType, safetensors};
 use half::{bf16, f16};
 use regex::Regex;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 /// Deserializes a PyTorch file.
 ///
@@ -75,7 +80,7 @@ where
     let nested_value = unflatten::<PS, _>(tensors)?;
 
     // Create a deserializer with PyTorch adapter and nested value
-    let deserializer = Deserializer::<PyTorchAdapter<PS, B>>::new(nested_value, true);
+    let deserializer = Deserializer::<Adapter<PS, B>>::new(nested_value, true);
 
     // Deserialize the nested value into a record type
     let value = D::deserialize(deserializer)?;

@@ -1,7 +1,7 @@
 use burn::{
     module::Module,
     nn::{GroupNorm, GroupNormConfig},
-    tensor::{backend::Backend, Tensor},
+    tensor::{Tensor, backend::Backend},
 };
 
 #[derive(Module, Debug)]
@@ -25,7 +25,10 @@ impl<B: Backend> Net<B> {
 #[cfg(test)]
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
-    use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
+    use burn::{
+        record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder},
+        tensor::Tolerance,
+    };
     use burn_import::safetensors::SafeTensorsFileRecorder;
 
     use super::*;
@@ -63,7 +66,7 @@ mod tests {
 
         output
             .to_data()
-            .assert_approx_eq(&expected.to_data(), precision);
+            .assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
     }
 
     #[test]

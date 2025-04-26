@@ -18,6 +18,12 @@ default-run = "onnx2burn"
 default = ["onnx", "pytorch", "safetensors"]
 onnx = ["burn-ndarray"]
 pytorch = ["burn/record-item-custom-serde", "thiserror", "zip", "candle-core"]
+safetensors = [
+    "burn/record-item-custom-serde",
+    "thiserror",
+    "zip",
+    "candle-core",
+]
 
 [dependencies]
 burn = { path = "../burn", version = "0.18.0", default-features = false, features = [
