@@ -110,6 +110,7 @@ fn main() {
         .input("tests/sin/sin.onnx")
         .input("tests/sinh/sinh.onnx")
         .input("tests/slice/slice.onnx")
+        .input("tests/slice/slice_shape.onnx")
         .input("tests/softmax/softmax.onnx")
         .input("tests/sqrt/sqrt.onnx")
         .input("tests/squeeze/squeeze_multiple.onnx")

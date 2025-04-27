@@ -5,6 +5,7 @@ use protobuf::Enum;
 
 use crate::{
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
+    node::slice::slice_update_output_rank,
     protos::tensor_proto::DataType,
     util::shape_config,
 };
@@ -84,7 +85,7 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::Sign => same_as_input(node),
         NodeType::Sin => same_as_input(node),
         NodeType::Sinh => same_as_input(node),
-        NodeType::Slice => same_as_input(node),
+        NodeType::Slice => slice_update_output_rank(node),
         NodeType::Softmax => same_as_input(node),
         NodeType::Split => split_update_outputs(node),
         NodeType::Squeeze => squeeze_update_output(node),
@@ -514,8 +515,9 @@ fn squeeze_update_output(node: &mut Node) {
 
     let input_rank = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
-        _ => panic!("Squeeze: invalid input type"),
+        ty => panic!("Squeeze: invalid input type: {:?}", ty),
     };
+
     log::debug!("Squeeze input rank for {}: {}", node.name, input_rank);
 
     let output_rank = input_rank - axes.len();

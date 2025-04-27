@@ -121,6 +121,7 @@ include_models!(
     sin,
     sinh,
     slice,
+    slice_shape,
     softmax,
     split,
     sqrt,
@@ -618,6 +619,19 @@ mod tests {
         ]);
 
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn slice_shape() {
+        let model: slice_shape::Model<Backend> = slice_shape::Model::default();
+        let device = Default::default();
+
+        let input = Tensor::<Backend, 4>::zeros([1, 2, 3, 1], &device);
+
+        // Slice Start == 1, End == 3
+        let output = model.forward(input);
+
+        assert_eq!(output, [2, 3]);
     }
 
     #[test]
