@@ -1,7 +1,11 @@
 use burn_tensor::ops::{ConvOptions, ConvTransposeOptions};
 use cubecl::linalg::convolution::ConvLaunchError;
 
-use crate::{CubeRuntime, FloatElement, IntElement, tensor::CubeTensor};
+use crate::{
+    CubeRuntime, FloatElement, IntElement,
+    ops::{permute_nchw_to_nhwc, permute_nhwc_to_nchw},
+    tensor::CubeTensor,
+};
 
 #[cfg(feature = "autotune")]
 use super::{conv_transpose2d_autotune, conv2d_autotune};
@@ -74,13 +78,18 @@ pub fn conv2d<R: CubeRuntime, E: FloatElement>(
     options: ConvOptions<2>,
     strategy: Conv2dStrategy,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    match strategy {
+    let input = permute_nchw_to_nhwc(input);
+    let weight = permute_nchw_to_nhwc(weight);
+
+    let out = match strategy {
         Conv2dStrategy::Direct => conv2d_direct::<R, E>(input, weight, bias, options),
         #[cfg(feature = "autotune")]
         Conv2dStrategy::Autotune => Ok(conv2d_autotune::<R, E>(input, weight, bias, options)),
         Conv2dStrategy::Gemm => conv2d_im2col::<R, E>(input, weight, bias, options),
         Conv2dStrategy::ImplicitGemm => conv2d_gemm_cyclic::<R, E>(input, weight, bias, options),
-    }
+    }?;
+
+    Ok(permute_nhwc_to_nchw(out))
 }
 
 /// Perform a 2D convolution with the given strategy

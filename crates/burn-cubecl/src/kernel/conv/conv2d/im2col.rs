@@ -24,7 +24,7 @@ use crate::{
     ops::{
         max_line_size,
         numeric::{empty_device, empty_device_strided},
-        permute_nchw_to_nhwc, permute_nhwc_to_nchw, reshape, swap_dims,
+        reshape, swap_dims,
     },
     tensor::CubeTensor,
 };
@@ -226,8 +226,8 @@ pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
         return Ok(out);
     }
 
-    let [batch_size, _, in_height, in_width] = input.shape.dims();
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
+    let [batch_size, in_height, in_width, _] = input.shape.dims();
+    let [out_channels, kernel_h, kernel_w, _] = weight.shape.dims();
 
     let out_h = calculate_conv_output_size(
         kernel_h,
@@ -243,9 +243,6 @@ pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
         options.dilation[1],
         in_width,
     );
-
-    let input = permute_nchw_to_nhwc(input);
-    let weight = permute_nchw_to_nhwc(weight);
 
     let batches_per_run = batches_per_run(batch_size, out_h, out_w)?;
     let shape_m = batches_per_run * out_h * out_w;
@@ -285,7 +282,7 @@ pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
         out = launch_binop::<R, E, AddOp>(out, bias)
     }
 
-    Ok(permute_nhwc_to_nchw(out))
+    Ok(out)
 }
 
 pub fn conv2d_im2col_1x1<R: CubeRuntime, E: FloatElement>(
@@ -301,8 +298,8 @@ pub fn conv2d_im2col_1x1<R: CubeRuntime, E: FloatElement>(
     let client = input.client.clone();
     let device = input.device.clone();
 
-    let [batch_size, _, height, width] = input.shape.dims();
-    let [out_channels, in_channels, kernel_h, kernel_w] = weight.shape.dims();
+    let [batch_size, height, width, _] = input.shape.dims();
+    let [out_channels, kernel_h, kernel_w, in_channels] = weight.shape.dims();
 
     let out_h = calculate_conv_output_size(
         kernel_h,
@@ -354,14 +351,13 @@ pub fn conv2d_im2col_1x1<R: CubeRuntime, E: FloatElement>(
         out = launch_binop::<R, E, AddOp>(out, bias)
     }
 
-    Ok(permute_nhwc_to_nchw(out))
+    Ok(out)
 }
 
-/// Reshapes NCHW input to [groups, N, H, W, C]
-fn reshape_input<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> CubeTensor<R> {
-    let [batch_size, in_c, height, width] = input.shape.dims();
+/// Reshapes NHWC input to [(N, H, W), C]
+fn reshape_input<R: CubeRuntime, E: CubeElement>(mut input: CubeTensor<R>) -> CubeTensor<R> {
+    let [batch_size, height, width, in_c] = input.shape.dims();
 
-    let mut input = permute_nchw_to_nhwc(input); // NHWC
     if !is_spatial_contiguous(&input.shape.dims, &input.strides) {
         let contiguous = into_contiguous_pitched::<R, E>(&input.client, &input.as_handle_ref());
         input = from_handle(&input.client, &input.device, contiguous);
@@ -411,7 +407,7 @@ fn execute<R: CubeRuntime, E: FloatElement>(
     out_h: usize,
     out_w: usize,
 ) -> Result<(), ConvLaunchError> {
-    let [out_channels, kernel_h, kernel_w] = weight.shape.dims();
+    let [out_channels, kernel_h, kernel_w, _] = weight.shape.dims();
 
     let columns = im2col::<R, E>(input, options.clone(), kernel_h, kernel_w, out_h, out_w);
 

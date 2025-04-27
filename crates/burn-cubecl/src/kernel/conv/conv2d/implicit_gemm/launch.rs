@@ -17,9 +17,7 @@ use cubecl::linalg::{
 };
 
 use crate::{
-    CubeElement, CubeRuntime, FloatElement,
-    ops::{numeric::empty_device_strided, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
-    tensor::CubeTensor,
+    CubeElement, CubeRuntime, FloatElement, ops::numeric::empty_device_strided, tensor::CubeTensor,
 };
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -77,8 +75,8 @@ where
         return Err(ConvLaunchError::Groups(options.groups));
     }
 
-    let [batch_size, _, height, width] = input.shape.dims();
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
+    let [batch_size, height, width, _] = input.shape.dims();
+    let [out_channels, kernel_h, kernel_w, _] = weight.shape.dims();
 
     let out_h = calculate_conv_output_size(
         kernel_h,
@@ -94,9 +92,6 @@ where
         options.dilation[1],
         width,
     );
-
-    let input = permute_nchw_to_nhwc(input);
-    let weight = permute_nchw_to_nhwc(weight);
 
     let out_shape = Shape::new([batch_size, out_h, out_w, out_channels]);
     let out =
@@ -117,5 +112,5 @@ where
         },
     )?;
 
-    Ok(permute_nhwc_to_nchw(out))
+    Ok(out)
 }
