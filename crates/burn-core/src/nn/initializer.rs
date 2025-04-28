@@ -284,8 +284,6 @@ fn qr_decomposition<B: Backend>(
 
 #[cfg(test)]
 mod tests {
-    use core::default;
-
     use super::*;
 
     use crate::tensor::{ElementConversion, TensorData};
@@ -544,6 +542,23 @@ mod tests {
             .sum()
             .into_data()
             .assert_within_range(-0.00001..0.00001);
+    }
+
+
+    #[test]
+    fn initializer_orthogonal_correct() {
+        TB::seed(0);
+
+        let gain = 1.;
+
+        // test 2D tensor
+        let size = 10;
+        let q: Tensor<TB, 2> = Initializer::Orthogonal { gain }
+            .init([size, size], &Default::default())
+            .into_value();
+        let eye = Tensor::<TB, 2>::eye(size, &Default::default());
+        let diff: f32 = (eye - q.clone().transpose().matmul(q.clone()).round()).sum().into_scalar();
+        assert!(-0.00001 < diff && diff < 0.00001, "Expected Q.T @ Q to be close to identiy matrix.");
     }
 
     #[test]
