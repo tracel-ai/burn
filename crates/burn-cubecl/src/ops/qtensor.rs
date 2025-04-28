@@ -56,8 +56,7 @@ where
                     level: QuantLevel::Tensor,
                     mode: QuantMode::Symmetric,
                     q_type: QuantInputType::QInt8,
-                    acc_precision: _,
-                    output: _,
+                    ..
                 } => {
                     // TensorData quantized representation is the same, with multiple quantized values
                     // packed into u32 and quantization parameters appended to the bytes
@@ -152,7 +151,7 @@ where
             let out =
                 kernel::matmul::q_matmul(lhs.clone(), rhs.clone(), None, MatmulStrategy::default());
             if let Ok(out) = out {
-                return match lhs.scheme().output {
+                return match lhs.scheme().propagation {
                     QuantPropagation::Propagate => {
                         TensorPrimitive::QFloat(Self::quantize_dynamic(out, lhs.scheme()))
                     }
@@ -167,7 +166,7 @@ where
         let t2_f = <Self>::dequantize(rhs);
         let out = Self::float_matmul(t1_f, t2_f);
 
-        match scheme.output {
+        match scheme.propagation {
             QuantPropagation::Propagate => {
                 TensorPrimitive::QFloat(Self::quantize_dynamic(out, &scheme))
             }
@@ -184,8 +183,7 @@ fn both_matches_symmetric_qint8(lhs: &QuantScheme, rhs: &QuantScheme) -> bool {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
-                acc_precision: _,
-                output: _,
+                ..
             }
         )
     })

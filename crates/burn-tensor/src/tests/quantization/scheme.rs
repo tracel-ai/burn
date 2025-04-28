@@ -11,7 +11,7 @@ mod tests {
     #[test]
     fn per_tensor_symmetric_int8() {
         let device = Default::default();
-        let scheme = QuantizationScheme::default();
+        let scheme = QuantScheme::default();
         let range = CalibrationRange {
             min: TestTensor::<1>::from_floats([0.5], &device),
             max: TestTensor::<1>::from_floats([1.8], &device),

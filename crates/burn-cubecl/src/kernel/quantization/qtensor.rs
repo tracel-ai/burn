@@ -30,7 +30,7 @@ impl QParams {
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
                 acc_precision: _,
-                output: _,
+                propagation: _,
             } => (f32::reinterpret(tensor[len - 1][tensor.line_size() - 1]), 0),
         }
     }

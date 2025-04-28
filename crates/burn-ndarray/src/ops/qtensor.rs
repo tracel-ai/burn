@@ -51,8 +51,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                         level: QuantLevel::Tensor,
                         mode: QuantMode::Symmetric,
                         q_type: QuantInputType::QInt8,
-                        acc_precision: _,
-                        propagation: _,
+                        ..
                     } => {
                         // We should probably check that `Q` matches i8.. but it's the only valid type now
                         let (values, qparams) = q_bytes.into_vec_i8();
@@ -93,8 +92,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
-                acc_precision: _,
-                propagation: _,
+                ..
             } => {
                 let scale = into_data_f(qparams.scale).iter().next().unwrap();
                 (

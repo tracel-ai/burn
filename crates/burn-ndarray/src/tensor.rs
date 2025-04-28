@@ -354,8 +354,7 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
-                acc_precision: _,
-                propagation: _,
+                ..
             } => QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
                 self.qparams[0].scale,
             )),

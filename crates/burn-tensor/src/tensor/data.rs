@@ -256,8 +256,7 @@ impl TensorData {
                         level: QuantLevel::Tensor,
                         mode: QuantMode::Symmetric,
                         q_type: QuantInputType::QInt8,
-                        acc_precision: _,
-                        propagation: _,
+                        ..
                     } => {
                         // Quantized int8 values
                         let q_bytes = QuantizedBytes {
@@ -818,8 +817,7 @@ impl core::fmt::Display for TensorData {
                     level: QuantLevel::Tensor,
                     mode: QuantMode::Symmetric,
                     q_type: QuantInputType::QInt8,
-                    acc_precision: _,
-                    propagation: _,
+                    ..
                 } => {
                     format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())
                 }

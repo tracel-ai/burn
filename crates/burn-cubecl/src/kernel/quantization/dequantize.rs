@@ -97,8 +97,7 @@ where
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
-                acc_precision: _,
-                propagation: _,
+                ..
             } => {
                 unsafe {
                     dequantize_per_tensor_symmetric_int8_kernel::launch_unchecked::<R>(

@@ -74,7 +74,7 @@ mod tests {
         // NOTE: we use fully representable values since different backend implementations could differ slightly
         // due to rounding discrepancies
         let tensor = TestTensor::<1>::from_floats([5., 0., 4., -12.7], &device);
-        let scheme = Quantcheme::default();
+        let scheme = QuantScheme::default();
 
         let x_q = tensor.quantize_dynamic(&scheme);
 

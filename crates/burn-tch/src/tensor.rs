@@ -335,8 +335,7 @@ impl TchQTensor {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
-                acc_precision: _,
-                propagation: _,
+                ..
             } => {
                 let scale = self.qtensor.tensor.q_scale();
                 QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(

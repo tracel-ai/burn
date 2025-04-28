@@ -29,8 +29,7 @@ fn quantize<E: TchElement, Q: QuantElement>(
             level: QuantLevel::Tensor,
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
-            acc_precision: _,
-            propagation: _,
+            ..
         } => tensor.quantize_per_tensor(qparams.scale.elem(), 0, tch::Kind::QInt8),
     }
 }
@@ -91,8 +90,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
-                acc_precision: _,
-                propagation: _,
+                ..
             } => tensor.tensor.quantize_per_tensor_tensor_qparams(
                 &qparams.scale.tensor,
                 &tch::Tensor::zeros_like(&qparams.scale.tensor),
@@ -112,8 +110,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
-                acc_precision: _,
-                propagation: _,
+                ..
             } => {
                 log::warn!(
                     "LibTorch backend does not support symmetric per-tensor scheme for dynamic quantization, reverting to the default per-tensor affine quantization"

@@ -101,8 +101,7 @@ fn create_quantized_output<R: CubeRuntime>(
             level: QuantLevel::Tensor,
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
-            acc_precision: _,
-            propagation: _,
+            ..
         } => core::mem::size_of::<f32>(),
     };
 
@@ -150,8 +149,7 @@ where
             level: QuantLevel::Tensor,
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
-            acc_precision: _,
-            propagation: _,
+            ..
         } => {
             let ndims = tensor.shape.num_dims();
             let dummy_array = vec![1; ndims];

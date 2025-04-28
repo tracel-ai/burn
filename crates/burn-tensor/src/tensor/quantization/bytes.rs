@@ -120,8 +120,7 @@ impl QuantizedBytes {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
-                acc_precision: _,
-                propagation: _,
+                ..
             } => {
                 let (values, qparams) = self.into_vec_i8();
                 let strategy = QuantizationStrategy::PerTensorSymmetricInt8(
