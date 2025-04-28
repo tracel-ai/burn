@@ -154,16 +154,12 @@ where
         .unwrap_or(GridCompatIndexing::MatrixIndexing);
     let swap_dims = indexing_mode == GridCompatIndexing::CartesianIndexing && N > 1;
 
-    let mut grid_shape = [0; N];
-    for (i, tensor) in tensors.iter().enumerate() {
-        assert_eq!(
-            tensor.dims().len(),
-            1,
-            "All tensors must be 1D, found shape: {:?}",
-            tensor.dims()
-        );
-        grid_shape[i] = tensor.dims()[0];
-    }
+    let grid_shape: [usize; N] = tensors
+        .iter()
+        .map(|t| t.dims()[0])
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
 
     let result = tensors
         .iter()
