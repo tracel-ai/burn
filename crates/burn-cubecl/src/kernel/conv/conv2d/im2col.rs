@@ -259,7 +259,7 @@ pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
             let input = index::<R, E>(input.clone(), run);
             let mut out_slice = index::<R, E>(out.clone(), run);
             out_slice.shape.dims = vec![shape_m, shape_n];
-            out_slice.strides = vec![out_slice.strides[3], out_slice.strides[4]];
+            out_slice.strides = vec![out_slice.strides[2], out_slice.strides[3]];
             execute::<R, E>(
                 input,
                 weight.clone(),
