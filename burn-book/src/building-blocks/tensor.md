@@ -361,6 +361,12 @@ strategies.
 | `activation::softplus(tensor, beta)`             | `nn.functional.softplus(tensor, beta)`             |
 | `activation::tanh(tensor)`                       | `nn.functional.tanh(tensor)`                       |
 
+## Grid Functions
+
+| Burn API                        | PyTorch Equivalent                      |
+|---------------------------------|-----------------------------------------|
+| `grid::meshgrid_dense(tensors)` | `torch.meshgrid(tensors, indexing="ij") |
+
 ## Displaying Tensor Details
 
 Burn provides flexible options for displaying tensor information, allowing you to control the level

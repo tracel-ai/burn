@@ -23,6 +23,9 @@ pub mod backend;
 /// The container module.
 pub mod container;
 
+/// The grid module.
+pub mod grid;
+
 /// The loss module.
 pub mod loss;
 
@@ -43,6 +46,7 @@ mod report;
 
 #[cfg(feature = "experimental-named-tensor")]
 mod named;
+
 #[cfg(feature = "experimental-named-tensor")]
 pub use named::*;
 
