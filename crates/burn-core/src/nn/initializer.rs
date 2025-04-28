@@ -216,6 +216,7 @@ fn qr_decomposition<B: Backend>(
             r = r
                 .clone()
                 .slice_assign([i..i + 1, j..j + 1], r_ij.clone().unsqueeze());
+
             v = v - q_i.mul(r_ij);
         }
 
@@ -224,14 +225,16 @@ fn qr_decomposition<B: Backend>(
             .powf(Tensor::from_floats([2.0], device))
             .sum()
             .sqrt();
+
         r = r
             .clone()
             .slice_assign([j..j + 1, j..j + 1], r_jj.clone().unsqueeze());
 
         let q_j = v / r_jj;
+
         q = q
             .clone()
-            .slice_assign([0..n, j..j + 1], q_j.unsqueeze_dim(1));
+            .slice_assign([0..m, j..j+1], q_j.unsqueeze_dim(1));
     }
 
     (q, r)
