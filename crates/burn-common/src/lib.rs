@@ -25,6 +25,8 @@ pub mod parallel;
 
 /// Tensor utilities.
 pub mod tensor {
+    use alloc::vec::Vec;
+
     /// Check if the current tensor is contiguous.
     ///
     /// A tensor is considered contiguous if its elements are stored in memory
