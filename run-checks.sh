@@ -19,4 +19,6 @@ set -e
 # If no `environment` value has been passed.
 exec_env=${1:-all}
 
-cargo xtask --execution-environment "$exec_env" validate
+RUSTC_BOOTSTRAP=1 \
+RUSTC_FLAGS="-Zmacro-backtrace" \
+  cargo xtask --execution-environment "$exec_env" validate
