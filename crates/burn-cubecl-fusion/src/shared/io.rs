@@ -539,6 +539,7 @@ pub(crate) fn swap_dims_transform<I: Index + Clone>(i: &I, dims: (u32, u32)) -> 
 }
 
 #[cube]
+#[allow(clippy::clone_on_copy)]
 /// The index the input tensor would be at if it was contiguous.
 fn reshaped_index(
     inputs: &GlobalArgs,
@@ -566,6 +567,7 @@ fn reshaped_index(
 }
 
 #[cube]
+#[allow(clippy::clone_on_copy)]
 fn reshaped_index_to_original_index<C: CubePrimitive>(
     original: &Tensor<Line<C>>,
     index_reshaped: u32,
