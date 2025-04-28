@@ -70,4 +70,15 @@ mod tests {
             .into_data()
             .assert_eq(&TensorData::from([[1, 1, 2], [3, 4, 4]]), false);
     }
+
+    #[test]
+    fn clamp_min_max_vec_should_compile() {
+        let input = TestTensor::<2>::ones([2, 4], &Default::default());
+        let output = input.clamp(0., 0.5);
+
+        output.into_data().assert_eq(
+            &TensorData::from([[0.5, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]]),
+            false,
+        );
+    }
 }
