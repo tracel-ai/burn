@@ -25,10 +25,11 @@ pub(crate) fn clamp<R: CubeRuntime, E: CubeElement>(
         type Options = Options<N>;
 
         fn execute(input: Line<N>, options: &Self::Options) -> Line<N> {
+            let line_size = input.size();
             Line::clamp(
                 input,
-                Line::new(options.min_value),
-                Line::new(options.max_value),
+                Line::empty(line_size).fill(options.min_value),
+                Line::empty(line_size).fill(options.max_value),
             )
         }
     }

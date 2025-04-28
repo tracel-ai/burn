@@ -32,10 +32,9 @@ def main():
     test_input = torch.randn(3, 4, 1, 5, device=device)
 
     # Export to ONNX
-    torch.onnx.export(model, test_input, "squeeze_opset16.onnx", verbose=False, opset_version=16)
-    torch.onnx.export(model, test_input, "squeeze_opset13.onnx", verbose=False, opset_version=13)
+    torch.onnx.export(model, test_input, "squeeze.onnx", verbose=False, opset_version=16)
 
-    print("Finished exporting model to 16 and 13")
+    print("Finished exporting model")
 
     # Output some test data for use in the test
     output = model(test_input)
@@ -50,7 +49,7 @@ def main():
     squeeze = helper.make_node(op_type="Squeeze", inputs=["input", "axes"], outputs=["output"], name="SqueezeOp")
     axes = helper.make_tensor("axes", TensorProto.INT64, dims=[2], vals=[2, 4])
     graph = helper.make_graph([squeeze], "SqueezeMultiple", [test_input_ms], [output], [axes])
-    opset = helper.make_opsetid("", 13)
+    opset = helper.make_opsetid("", 16)
     m = helper.make_model(graph, opset_imports=[opset])
 
     onnx.checker.check_model(m, full_check=True)
