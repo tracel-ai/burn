@@ -68,6 +68,13 @@ pub enum Initializer {
         /// The gain to use in initialization formula
         gain: f64,
     },
+    /// Fills tensor with values according to the (semi) orthogonal initialization
+    /// described in [Exact solutions to the nonlinear dynamics of learning in deep linear neural networks`
+    ///  - Saxe, A. et al. (2013)](https://arxiv.org/abs/1312.6120)
+    Orthogonal {
+        /// The gain to use in initialization formula
+        gain: f64,
+    },
 }
 
 impl Initializer {
@@ -146,6 +153,40 @@ impl Initializer {
                 let std = *gain * self.xavier_std(fan_in, fan_out);
                 normal_draw(shape, 0.0, std, device)
             }
+            Initializer::Orthogonal { gain } => {
+                // following the implementation in pytorch:
+                // https://github.com/pytorch/pytorch/blob/v2.7.0/torch/nn/init.py#L574
+
+                assert!(
+                    D >= 2,
+                    "Expected D (in Tensor<B, D>) to be greater or equal 2; (D >= 2)"
+                );
+
+                let rows: usize = shape.dims::<D>()[0];
+                let cols: usize = shape.num_elements() / rows;
+
+                let mut t: Tensor<B, 2> = normal_draw([rows, cols], 0.0, 1.0, device);
+
+                if rows < cols {
+                    t = t.transpose();
+                }
+
+                let (q, r) = qr_decomposition(t, device);
+                let [r_rows, r_cols] = r.clone().dims();
+
+                let diag_r = Tensor::<B, 2>::ones([1, r_rows], device)
+                    .matmul(Tensor::<B, 2>::eye(r_cols, device).mul(r.clone()));
+
+                let ph = diag_r.clone().sign();
+
+                let mut q = q.mul(ph);
+
+                if rows < cols {
+                    q = q.transpose();
+                }
+
+                q.reshape(shape).mul_scalar(*gain)
+            }
         }
     }
 
@@ -220,6 +261,7 @@ fn qr_decomposition<B: Backend>(
             v = v - q_i.mul(r_ij);
         }
 
+        // norm of v
         let r_jj = v
             .clone()
             .powf(Tensor::from_floats([2.0], device))
@@ -234,7 +276,7 @@ fn qr_decomposition<B: Backend>(
 
         q = q
             .clone()
-            .slice_assign([0..m, j..j+1], q_j.unsqueeze_dim(1));
+            .slice_assign([0..m, j..j + 1], q_j.unsqueeze_dim(1));
     }
 
     (q, r)
@@ -277,28 +319,6 @@ mod tests {
                 "Expected mean to be between {expected_mean} += 0.1, but got {actual_mean}"
             );
         }
-    }
-
-    #[test]
-    fn test_qr_decomposition() {
-        TB::seed(0);
-
-        // test values follow the example from https://pytorch.org/docs/stable/generated/torch.linalg.qr.html#torch.linalg.qr
-        let a = Tensor::<TB, 2>::from_floats(
-            [
-                [12., -51., 4.], 
-                [6., 167., -68.], 
-                [-4., 24., -41.]
-            ],
-            &Default::default(),
-        );
-        let qr = qr_decomposition(a.clone(), &Default::default());
-
-        // Q @ R should reconstruct input `a` 
-        let q_matmul_r = qr.0.clone().matmul(qr.1.clone());
-
-        // assert that the difference between input (`a`) and Q @ R is (almost) zero
-        (a.round() - q_matmul_r.clone().round()).sum().into_data().assert_within_range(-0.00001..0.00001);
     }
 
     #[test]
@@ -502,6 +522,71 @@ mod tests {
         let (fan_in, fan_out) = (5, 6);
         let _: Tensor<TB, 2> = Initializer::XavierUniform { gain }
             .init([fan_out, fan_in], &Default::default())
+            .into_value();
+    }
+
+    #[test]
+    fn test_qr_decomposition() {
+        TB::seed(0);
+
+        // test values follow the example from https://pytorch.org/docs/stable/generated/torch.linalg.qr.html#torch.linalg.qr
+        let a = Tensor::<TB, 2>::from_floats(
+            [[12., -51., 4.], [6., 167., -68.], [-4., 24., -41.]],
+            &Default::default(),
+        );
+        let qr = qr_decomposition(a.clone(), &Default::default());
+
+        // Q @ R should reconstruct input `a`
+        let q_matmul_r = qr.0.clone().matmul(qr.1.clone());
+
+        // assert that the difference between input (`a`) and Q @ R is (almost) zero
+        (a.round() - q_matmul_r.clone().round())
+            .sum()
+            .into_data()
+            .assert_within_range(-0.00001..0.00001);
+    }
+
+    #[test]
+    fn initializer_orthogonal_init() {
+        TB::seed(0);
+
+        let gain = 1.;
+
+        // test 2D tensor
+        let shape = [25, 30];
+        let t: Tensor<TB, 2> = Initializer::Orthogonal { gain }
+            .init(shape, &Default::default())
+            .into_value();
+        let dims = t.dims();
+        assert_eq!(
+            shape, dims,
+            "Expected the shape of the input tensor to match the shape of the ouput. ({:?}, {:?})",
+            shape, dims
+        );
+
+        // test 3D tensor
+        let shape = [24, 6, 85];
+        let t: Tensor<TB, 3> = Initializer::Orthogonal { gain }
+            .init(shape, &Default::default())
+            .into_value();
+        let dims = t.dims();
+        assert_eq!(
+            shape, dims,
+            "Expected the shape of the input tensor to match the shape of the ouput. ({:?}, {:?})",
+            shape, dims
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn initializer_orthogonal_init_1d() {
+        TB::seed(0);
+        let gain = 1.;
+
+        // test 1D tensor
+        let shape = [3];
+        let _: Tensor<TB, 1> = Initializer::Orthogonal { gain }
+            .init(shape, &Default::default())
             .into_value();
     }
 }
