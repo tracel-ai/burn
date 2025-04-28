@@ -539,6 +539,7 @@ pub(crate) fn swap_dims_transform<I: Index + Clone>(i: &I, dims: (u32, u32)) -> 
 }
 
 #[cube]
+#[allow(clippy::clone_on_copy)]
 /// The index the input tensor would be at if it was contiguous.
 fn reshaped_index(
     inputs: &GlobalArgs,
@@ -552,10 +553,10 @@ fn reshaped_index(
 
     #[unroll]
     for r in 0..rank {
-        let i = comptime![reverse_index(rank, r)];
+        let i = reverse_index(rank, r);
         let arg = comptime![shape.index(i.clone())];
         let shape_i = read_scalar_shape(inputs, comptime![arg.clone()]);
-        let ogwl = index / locals.ref_strides[comptime![i.clone()]];
+        let ogwl = index / locals.ref_strides[i];
 
         offset += ogwl % shape_i * stride_curr;
 
@@ -566,6 +567,7 @@ fn reshaped_index(
 }
 
 #[cube]
+#[allow(clippy::clone_on_copy)]
 fn reshaped_index_to_original_index<C: CubePrimitive>(
     original: &Tensor<Line<C>>,
     index_reshaped: u32,
@@ -576,7 +578,7 @@ fn reshaped_index_to_original_index<C: CubePrimitive>(
 
     #[unroll]
     for r in 0..rank {
-        let i = comptime![reverse_index(rank, r)];
+        let i = reverse_index(rank, r);
         let shape = original.shape(comptime![i.clone()]);
         let stride = original.stride(i);
 
@@ -589,17 +591,25 @@ fn reshaped_index_to_original_index<C: CubePrimitive>(
     offset / original.line_size()
 }
 
-pub(crate) fn reverse_index<Elem: Into<ExpandElementTyped<u32>>>(
-    rank: u32,
-    iter: Elem,
-) -> ExpandElementTyped<u32> {
-    let elem = iter.into();
-    let elem = elem.constant().map(|cons| cons.as_u32()).unwrap();
-    let result = rank - elem - 1;
-    let scalar: Variable = result.into();
-    let expand: ExpandElement = ExpandElement::Plain(scalar);
+pub(crate) fn reverse_index(_rank: u32, _iter: u32) -> u32 {
+    unexpanded!()
+}
 
-    expand.into()
+pub(crate) mod reverse_index {
+    use super::*;
+
+    pub(crate) fn expand(
+        _scope: &mut Scope,
+        rank: u32,
+        elem: ExpandElementTyped<u32>,
+    ) -> ExpandElementTyped<u32> {
+        let elem = elem.constant().map(|cons| cons.as_u32()).unwrap();
+        let result = rank - elem - 1;
+        let scalar: Variable = result.into();
+        let expand: ExpandElement = ExpandElement::Plain(scalar);
+
+        expand.into()
+    }
 }
 
 /// Generic way to construct any [`CubePrimitive`] from an int. Used for fusion.

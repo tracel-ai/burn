@@ -3,6 +3,7 @@ use crate::shared::DYN_ELEM_ID;
 use super::io::*;
 use super::ir::*;
 use cubecl::prelude::*;
+use cubecl::unexpanded;
 
 #[cube]
 /// Fuse element-wise operations at the given write position.
@@ -110,7 +111,7 @@ pub fn init_locals(
                 #[unroll]
                 #[allow(clippy::clone_on_copy)]
                 for i in 0..config.rank {
-                    let reverse = comptime![reverse_index(config.rank, comptime![i.clone()])];
+                    let reverse = reverse_index(config.rank, i);
                     let swap = comptime![swap_dims_transform(comptime![&reverse], dims)];
                     let shape = layout.tensor.shape(comptime![swap.clone()]);
 
@@ -132,8 +133,8 @@ pub fn init_locals(
                 #[unroll]
                 #[allow(clippy::clone_on_copy)]
                 for i in 0..config.rank {
-                    let reverse = comptime![reverse_index(config.rank, comptime![i.clone()])];
-                    let reverse_u32_comptime = comptime!(unwrap_const_u32(reverse));
+                    let reverse = reverse_index(config.rank, i);
+                    let reverse_u32_comptime = unwrap_const_u32(reverse);
                     let arg = comptime![Arg::ScalarShape(start + reverse_u32_comptime)];
                     let shape = read_scalar_shape(inputs, comptime![arg.clone()]);
 
@@ -149,8 +150,16 @@ pub fn init_locals(
     }
 }
 
-fn unwrap_const_u32(elem: ExpandElementTyped<u32>) -> u32 {
-    elem.constant().map(|cons| cons.as_u32()).unwrap()
+fn unwrap_const_u32(_elem: u32) -> u32 {
+    unexpanded!()
+}
+
+mod unwrap_const_u32 {
+    use super::*;
+
+    pub(crate) fn expand(_scope: &mut Scope, elem: ExpandElementTyped<u32>) -> u32 {
+        elem.constant().map(|cons| cons.as_u32()).unwrap()
+    }
 }
 
 #[cube]

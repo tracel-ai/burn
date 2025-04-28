@@ -11,6 +11,7 @@ pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) ->
 }
 
 pub(crate) async fn into_data<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
+    println!("Into data");
     let tensor = kernel::into_contiguous(tensor);
 
     let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
