@@ -11,11 +11,9 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use super::reader::from_file;
 
-/// A recorder that loads HuggingFace SafeTensors files (`.safetensors`) into Burn modules.
+/// Recorder for loading HuggingFace SafeTensors files (`.safetensors`) into Burn modules.
 ///
-/// LoadArgs can be used to remap keys or file path.
-/// See [LoadArgs](struct.LoadArgs.html) for more information.
-///
+/// This recorder uses [LoadArgs] to configure loading behavior, such as key remapping.
 #[derive(new, Debug, Default, Clone)]
 pub struct SafeTensorsFileRecorder<PS: PrecisionSettings> {
     _settings: PhantomData<PS>,
@@ -47,85 +45,128 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for SafeTensorsFileRecorder<
         args: Self::LoadArgs,
         device: &B::Device,
     ) -> Result<R, RecorderError> {
-        let item =
-            from_file::<PS, R::Item<Self::Settings>, B>(&args.file, args.key_remap, args.debug)?;
+        let item = from_file::<PS, R::Item<Self::Settings>, B>(
+            &args.file,
+            args.key_remap,
+            args.debug,
+            args.adapter_type,
+        )?;
         Ok(R::from_item(item, device))
     }
 }
 
-/// Arguments for loading a SafeTensors file.
+/// Arguments for loading a SafeTensors file using [SafeTensorsFileRecorder].
 ///
-/// # Fields
+/// # Example
 ///
-/// * `file` - The path to the file to load.
-/// * `key_remap` - A vector of tuples containing a regular expression and a replacement string.
-///   See [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace)
-///   for more information.
+/// ```rust,ignore
+/// use burn_import::safetensors::{AdapterType, LoadArgs, SafeTensorsFileRecorder}};
+/// use burn::record::{FullPrecisionSettings, Recorder};
+/// use std::path::PathBuf;
 ///
-/// # Notes
+/// // Dummy model record structure
+/// #[derive(Record, Default)]
+/// struct MyModelRecord<B: Backend> {
+///     // fields matching the tensor names in the file
+/// }
 ///
+/// let device = Default::default(); // Replace with your actual device
 ///
+/// // Example assuming a file named 'model.safetensors' exists
+/// let args = LoadArgs::new(PathBuf::from("model.safetensors"))
+///    // Example: Remove "model.encoder." prefix from keys
+///    .with_key_remap("model\\.encoder\\.(.*)", "$1")
+///    .with_adapter_type(AdapterType::PyTorch) // Specify if adaptation is needed
+///    .with_debug_print(); // Enable debug output
 ///
-/// # Examples
-///
-/// ```text
-/// use burn_import::safetensors::{LoadArgs, SafeTensorsFileRecorder")};
-/// use burn::record::FullPrecisionSettings;
-/// use burn::record::Recorder;
-///
-/// let args = LoadArgs::new("tests/key_remap/key_remap.pt".into())
-///    .with_key_remap("conv\\.(.*)", "$1"); // // Remove "conv" prefix, e.g. "conv.conv1" -> "conv1"
-///
-/// let record = SafeTensorsFileRecorder")::<FullPrecisionSettings>::default()
-///   .load(args)
-///   .expect("Should decode state successfully");
+/// let record: MyModelRecord<MyBackend> = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+///    .load(args, &device)
+///    .expect("Should decode state successfully");
 /// ```
 #[derive(Debug, Clone)]
 pub struct LoadArgs {
-    /// The path to the file to load.
+    /// The path to the SafeTensors file to load.
     pub file: PathBuf,
 
-    /// A list of key remappings.
+    /// A list of key remapping rules applied sequentially. Each tuple contains a
+    /// regular expression ([`Regex`]) to match keys and a replacement string.
+    /// See [regex::Regex::replace_all](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace_all)
+    /// for replacement syntax details.
     pub key_remap: Vec<(Regex, String)>,
 
-    /// Whether to print debug information.
+    /// If true, prints debug information during the loading process.
     pub debug: bool,
+
+    /// The type of adapter to apply for potential framework-specific tensor transformations
+    /// (e.g., transposing certain weights).
+    pub adapter_type: AdapterType,
+}
+
+/// Specifies the type of adapter to use for tensor loading.
+///
+/// Adapters handle potential differences in tensor formats or naming conventions
+/// between the source framework (like PyTorch or TensorFlow) and Burn.
+#[derive(Debug, Clone, Default, Copy)]
+pub enum AdapterType {
+    /// Adapts tensors assuming they originated from PyTorch.
+    #[default]
+    PyTorch,
+
+    /// Adapts tensors assuming they originated from TensorFlow.
+    TensorFlow,
+
+    /// Loads tensors directly without any specific adaptation.
+    NoAdapter,
 }
 
 impl LoadArgs {
-    /// Creates a new `LoadArgs` instance.
+    /// Creates new `LoadArgs` for the given file path.
+    ///
+    /// By default, no key remapping is applied, debug printing is off,
+    /// and the adapter type is [AdapterType::PyTorch].
     ///
     /// # Arguments
     ///
-    /// * `file` - The path to the file to load.
+    /// * `file` - The path to the SafeTensors file.
     pub fn new(file: PathBuf) -> Self {
         Self {
             file,
             key_remap: Vec::new(),
             debug: false,
+            adapter_type: Default::default(),
         }
     }
 
-    /// Sets key remapping.
+    /// Adds a key remapping rule.
+    ///
+    /// Rules are applied in the order they are added.
     ///
     /// # Arguments
     ///
-    /// * `pattern` - The Regex pattern to be replaced.
-    /// * `replacement` - The pattern to replace with.
+    /// * `pattern` - The regular expression pattern to match tensor keys.
+    /// * `replacement` - The replacement string. Capture groups like `$1`, `$2` can be used.
     ///
-    /// See [Regex](https://docs.rs/regex/1.5.4/regex/#syntax) for the pattern syntax and
-    /// [Replacement](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace) for the
-    /// replacement syntax.
+    /// # Panics
+    ///
+    /// Panics if `pattern` is not a valid regular expression.
+    ///
+    /// See [Regex syntax](https://docs.rs/regex/latest/regex/#syntax) and
+    /// [replacement string syntax](https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax).
     pub fn with_key_remap(mut self, pattern: &str, replacement: &str) -> Self {
-        let regex = Regex::new(pattern).expect("Valid regex");
-
-        self.key_remap.push((regex, replacement.into()));
+        let regex = Regex::new(pattern).expect("Invalid regex pattern provided");
+        self.key_remap.push((regex, replacement.to_string()));
         self
     }
 
-    /// Sets printing debug information on.
+    /// Enables printing of debug information during loading.
     pub fn with_debug_print(mut self) -> Self {
         self.debug = true;
+        self
+    }
+
+    /// Sets the adapter type to use for loading tensors.
+    pub fn with_adapter_type(mut self, adapter_type: AdapterType) -> Self {
+        self.adapter_type = adapter_type;
         self
     }
 }
