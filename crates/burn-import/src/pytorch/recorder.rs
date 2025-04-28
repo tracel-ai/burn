@@ -31,14 +31,16 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for PyTorchFileRecorder<PS> 
         _item: I,
         _file: Self::RecordArgs,
     ) -> Result<(), RecorderError> {
-        unimplemented!("save_item not implemented for PyTorchFileRecorder")
+        // Saving items is not supported for PyTorch files via this recorder.
+        unimplemented!("Save operations are not supported by PyTorchFileRecorder.")
     }
 
     fn load_item<I: DeserializeOwned>(
         &self,
         _file: &mut Self::LoadArgs,
     ) -> Result<I, RecorderError> {
-        unimplemented!("load_item not implemented for PyTorchFileRecorder")
+        // Loading individual items directly is not the intended use case; use `load` instead.
+        unimplemented!("load_item is not implemented for PyTorchFileRecorder; use load instead.")
     }
 
     fn load<R: Record<B>>(
@@ -77,7 +79,7 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for PyTorchFileRecorder<PS> 
 /// // Load the record using the default recorder.
 /// let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
 ///   .load(args, &burn::backend::NdArray::default().device()) // Provide a device
-///   .expect("Should decode state successfully");
+///   .expect("Failed to decode state from file"); // Example assertion
 /// ```
 #[derive(Debug, Clone)]
 pub struct LoadArgs {
@@ -122,10 +124,14 @@ impl LoadArgs {
     /// * `pattern` - The regular expression pattern to match against state dictionary keys.
     /// * `replacement` - The replacement string. Capture groups can be used (e.g., `$1`).
     ///
+    /// # Panics
+    ///
+    /// Panics if the provided `pattern` is an invalid regular expression.
+    ///
     /// See the [regex crate documentation](https://docs.rs/regex/latest/regex/) for pattern syntax
     /// and [replacement string syntax](https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax).
     pub fn with_key_remap(mut self, pattern: &str, replacement: &str) -> Self {
-        let regex = Regex::new(pattern).expect("Invalid regex pattern provided");
+        let regex = Regex::new(pattern).expect("Invalid regex pattern provided to with_key_remap");
         self.key_remap.push((regex, replacement.into()));
         self
     }
