@@ -100,8 +100,23 @@ git clone https://github.com/tracel-ai/burn.git
 cd burn
 
 # Use the --release flag to really speed up training.
+# Add the f16 feature to run in f16. 
 
 # AG News
 cargo run --example ag-news-train --release --features cuda   # Train on the ag news dataset
 cargo run --example ag-news-infer --release --features cuda   # Run inference on the ag news dataset
+```
+
+## Metal backend
+
+```bash
+git clone https://github.com/tracel-ai/burn.git
+cd burn
+
+# Use the --release flag to really speed up training.
+# Add the f16 feature to run in f16. 
+
+# AG News
+cargo run --example ag-news-train --release --features metal   # Train on the ag news dataset
+cargo run --example ag-news-infer --release --features metal   # Run inference on the ag news dataset
 ```

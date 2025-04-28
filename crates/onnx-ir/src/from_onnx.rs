@@ -8,7 +8,7 @@ use crate::node_remap::remap_node_type;
 
 use super::{
     coalesce::coalesce,
-    ir::{Data, OnnxGraph, TensorType},
+    ir::{Data, ElementType, OnnxGraph, TensorData, TensorType},
     proto_conversion::convert_node_proto,
     protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto},
 };
@@ -18,7 +18,7 @@ use super::rank_inference::rank_inference;
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 13] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 15] = [
     NodeType::BatchNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
@@ -32,6 +32,8 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 13] = [
     NodeType::ReduceSum,
     NodeType::Slice,
     NodeType::Squeeze,
+    NodeType::Split,
+    NodeType::Trilu,
 ];
 
 #[derive(Debug, Clone)]
@@ -380,23 +382,24 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
 /// properly deleted if nothing else uses it
 /// Remap the unsqueeze node to a reshape node
 pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
-    if let ArgType::Tensor(output_tensor) = &out_arg.ty {
-        let inner = output_tensor
-            .shape
-            .clone()
-            .unwrap()
+    if let Some(value) = &out_arg.value {
+        let shape_vec = value.shape.clone();
+        let inner = shape_vec
             .into_iter()
             .map(|x| x as i64)
             .collect::<Vec<i64>>();
         let shape_len = inner.len();
-        let new_rhs_value = Some(Data::Int64s(inner));
+        let new_rhs_value = Some(TensorData {
+            shape: vec![shape_len],
+            data: Data::Int64s(inner),
+        });
         //moving the remap to here
         let rhs_arg = Argument {
             name: format!("{}_generated_const", &node.name),
             ty: ArgType::Tensor(TensorType {
-                elem_type: super::ir::ElementType::Int64,
+                elem_type: ElementType::Int64,
                 rank: 1,
-                shape: Some(vec![shape_len]),
+                static_shape: Some(vec![shape_len]),
             }),
             value: new_rhs_value,
             passed: false,

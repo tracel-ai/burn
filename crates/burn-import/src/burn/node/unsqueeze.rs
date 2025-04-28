@@ -8,7 +8,13 @@ use quote::quote;
 pub struct UnsqueezeNode {
     pub input: Type,
     pub output: TensorType,
-    pub axes: Vec<i64>,
+    pub axes: UnsqueezeAxes,
+}
+
+#[derive(Debug, Clone)]
+pub enum UnsqueezeAxes {
+    Static(Vec<i64>),
+    Runtime(Type),
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
@@ -17,39 +23,64 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
     }
 
     fn input_types(&self) -> Vec<Type> {
-        vec![self.input.clone()]
+        let input = self.input.clone();
+        match &self.axes {
+            UnsqueezeAxes::Static(_) => vec![input],
+            UnsqueezeAxes::Runtime(rt_type) => vec![input, rt_type.clone()],
+        }
     }
-
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name;
-        let shape_values = &self.axes.to_tokens();
-        let new_dims = self.output.rank.to_tokens();
+        let output_name = &self.output.name;
+        let output_rank = self.output.rank.to_tokens();
+
+        let axes = match &self.axes {
+            UnsqueezeAxes::Static(static_axes) => static_axes.to_tokens(),
+            UnsqueezeAxes::Runtime(Type::Tensor(axes_tensor)) => {
+                let tensor_name = &axes_tensor.name;
+                quote! {
+                    #tensor_name.to_data().as_slice::<B::IntElem>().unwrap().iter().map(|&x| x.to_isize()).collect::<Vec<isize>>()
+                }
+            }
+            _ => panic!(
+                "UnsqueezeNode received invalid axes type: expected static axes or tensor but got {:?}",
+                self.axes
+            ),
+        };
 
         match &self.input {
             Type::Tensor(tensor) => {
                 let input = scope.tensor_use_owned(tensor, node_position);
                 quote! {
-                    let #output: Tensor<B, #new_dims> = #input.unsqueeze_dims(&#shape_values);
+                    let #output_name: Tensor<B, #output_rank> = #input.unsqueeze_dims(&#axes);
                 }
             }
             Type::Scalar(scalar) => {
-                let input = &scalar.name;
+                let scalar_name = &scalar.name;
                 quote! {
-                    let #output = Tensor::<B, #new_dims>::from_data([#input.elem::<B::FloatElem>()], &self.device).unsqueeze();
+                    let #output_name = Tensor::<B, #output_rank>::from_data([#scalar_name.elem::<B::FloatElem>()], &self.device).unsqueeze();
                 }
             }
-            _ => panic!("Unsupported input type"),
+            _ => panic!(
+                "UnsqueezeNode received unsupported input type: expected tensor or scalar but got {:?}",
+                self.input
+            ),
         }
     }
 
     fn into_node(self) -> Node<PS> {
         Node::Unsqueeze(self)
     }
-
     fn register_imports(&self, imports: &mut BurnImports) {
         match &self.input {
             Type::Scalar(_) => {
                 imports.register("burn::tensor::ElementConversion");
+            }
+            _ => {}
+        }
+        match &self.axes {
+            UnsqueezeAxes::Runtime(_) => {
+                imports.register("alloc::vec::Vec");
+                imports.register("burn::tensor::cast::ToElement");
             }
             _ => {}
         }
@@ -74,7 +105,7 @@ mod tests {
         graph.register(UnsqueezeNode::new(
             Type::Tensor(TensorType::new_float("tensor1", 3)),
             TensorType::new_float("tensor2", 5),
-            [0, 4].into(),
+            UnsqueezeAxes::Static([0, 4].into()),
         ));
 
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);

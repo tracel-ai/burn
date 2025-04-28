@@ -1,7 +1,6 @@
 use core::cmp::max;
 use core::panic;
 
-use log::debug;
 use protobuf::Enum;
 
 use crate::{
@@ -10,8 +9,10 @@ use crate::{
     util::shape_config,
 };
 
-/// Infer the rank of each output tensor and update them.
+/// Infer the rank of each output tensor and update them based solely on rank inference.
 pub fn rank_inference(node: &mut Node) {
+    log::debug!("Inferring rank for node: {}", node.name);
+
     match node.node_type {
         NodeType::Add => same_as_input_broadcast(node),
         NodeType::ArgMax => argmax_update_outputs(node),
@@ -97,13 +98,19 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::Trilu => same_as_input(node),
         NodeType::Unsqueeze => unsqueeze_update_output(node),
         NodeType::Where => where_update_outputs(node),
-        // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
         _ => temporary_pass_through_stub(node),
     }
+
+    log::debug!(
+        "Rank inference result for {}: {:?}",
+        node.name,
+        node.outputs
+    );
 }
 
+/// Update output type for constant nodes based on attribute values, focusing on rank only.
 fn constant_update_outputs(node: &mut Node) {
-    // Fix the tensor rank of the output when the value is tensor
+    log::debug!("Constant rank inference for node {}", node.name);
 
     let keys = [
         "value",
@@ -117,83 +124,134 @@ fn constant_update_outputs(node: &mut Node) {
     ];
 
     let matched_value = keys.iter().find_map(|&key| node.attrs.get(key).cloned());
+    log::debug!("Constant found attribute: {}", matched_value.is_some());
 
     node.outputs[0].ty = match matched_value {
         Some(value) => match &value {
-            // The value is stored in an attribute
-            AttributeValue::Tensor(tensor) if tensor.rank == 0 => {
-                ArgType::Scalar(tensor.elem_type.clone())
+            AttributeValue::Tensor(tensor) if tensor.shape.is_empty() => {
+                log::debug!("Constant as scalar for {}", node.name);
+                ArgType::Scalar(tensor.elem_type())
             }
-            AttributeValue::Tensor(tensor) => ArgType::Tensor(TensorType {
-                elem_type: tensor.elem_type.clone(),
-                rank: tensor.rank,
-                shape: tensor.shape.clone(),
-            }),
-            AttributeValue::Float32(_) => ArgType::Scalar(ElementType::Float32),
-            AttributeValue::Float32s(value) => ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 1,
-                shape: Some(vec![value.len()]),
-            }),
-            AttributeValue::Int64(_) => ArgType::Scalar(ElementType::Int64),
-            AttributeValue::Int64s(value) => ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
-                rank: 1,
-                shape: Some(vec![value.len()]),
-            }),
+            AttributeValue::Tensor(tensor) => {
+                log::debug!(
+                    "Constant tensor with rank {} for {}",
+                    tensor.shape.len(),
+                    node.name
+                );
+                ArgType::Tensor(TensorType {
+                    elem_type: tensor.elem_type(),
+                    rank: tensor.shape.len(),
+                    static_shape: None,
+                })
+            }
+            AttributeValue::Float32(_) => {
+                log::debug!("Constant Float32 scalar for {}", node.name);
+                ArgType::Scalar(ElementType::Float32)
+            }
+            AttributeValue::Float32s(_) => {
+                log::debug!("Constant Float32s tensor with rank 1 for {}", node.name);
+                ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Float32,
+                    rank: 1,
+                    static_shape: None,
+                })
+            }
+            AttributeValue::Int64(_) => {
+                log::debug!("Constant Int64 scalar for {}", node.name);
+                ArgType::Scalar(ElementType::Int64)
+            }
+            AttributeValue::Int64s(_) => {
+                log::debug!("Constant Int64s tensor with rank 1 for {}", node.name);
+                ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Int64,
+                    rank: 1,
+                    static_shape: None,
+                })
+            }
             ty => panic!("Constant value of {:?} is not supported", ty),
         },
         None => panic!("Constant node must have a value attribute"),
     };
 }
 
+/// Updates the output rank for a ConstantOfShape node based on the rank of its input.
 fn constant_of_shape_update_output(node: &mut Node) {
+    log::debug!("ConstantOfShape rank inference for node {}", node.name);
+
     let value_type = node
         .attrs
         .get("value")
-        .map(|v| v.clone().into_tensor().elem_type)
+        .map(|v| v.clone().into_tensor().elem_type())
         .unwrap_or(ElementType::Float32); // If not given, defaults to 0 as float32
+    log::debug!(
+        "ConstantOfShape value type for {}: {:?}",
+        node.name,
+        value_type
+    );
 
     let rank = match &node.inputs[0].ty {
-        ArgType::Shape(rank) => *rank,
-        ArgType::Tensor(tensor_type) => tensor_type
-            .shape
-            .as_ref()
-            .and_then(|shape| shape.first())
-            .copied()
-            .expect("ConstantOfShape node must have a Tensor with a non-empty shape"),
-        _ => panic!("ConstantOfShape node must have a Tensor or Shape type input"),
+        ArgType::Shape(rank) => {
+            log::debug!(
+                "ConstantOfShape input is Shape with rank {} for {}",
+                rank,
+                node.name
+            );
+            *rank
+        }
+        ArgType::Tensor(tensor_type) => {
+            log::debug!("ConstantOfShape input is Tensor for {}", node.name);
+            let r = tensor_type
+                .static_shape
+                .as_ref()
+                .and_then(|shape| shape.first())
+                .copied()
+                .expect(
+                    "ConstantOfShape node must have a Tensor with a non-empty static shape value",
+                );
+            log::debug!(
+                "ConstantOfShape derived rank from tensor: {} for {}",
+                r,
+                node.name
+            );
+            r
+        }
+        _ => panic!("ConstantOfShape node requires a Tensor or Shape type as input"),
     };
 
-    // Fix the input type to be a shape
+    // Update the input type to be a shape
     node.inputs[0].ty = ArgType::Shape(rank);
+    log::debug!(
+        "ConstantOfShape updated input to Shape({}) for {}",
+        rank,
+        node.name
+    );
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
         elem_type: value_type,
         rank,
-        shape: None,
+        static_shape: None,
     });
+    log::debug!("ConstantOfShape output rank for {}: {}", node.name, rank);
 }
 
-/// Infer the shape of a node's output with an explicit shape attribute
-/// for the Random operations with explicit shape
-///
-/// This includes the `RandomUniform`, `RandomNormal` operators
-///
-/// Also reads & interprets an optional `dtype` attribute
+/// Update output rank for Random operations with explicit shape attribute.
 fn random_update_output(node: &mut Node) {
+    log::debug!("Random rank inference for node {}", node.name);
+
     let dtype = node
         .attrs
         .get("dtype")
         .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
         .unwrap_or(DataType::FLOAT);
+    log::debug!("Random dtype for {}: {:?}", node.name, dtype);
 
-    let mut shape = node
+    let shape = node
         .attrs
         .get("shape")
         .expect("required shape attribute missing")
         .clone()
         .into_i64s();
+    log::debug!("Random shape for {}: {:?}", node.name, shape);
 
     let elem_type = match dtype {
         DataType::FLOAT => ElementType::Float32,
@@ -201,27 +259,26 @@ fn random_update_output(node: &mut Node) {
         _ => panic!("tensor with type {dtype:?} not supported for random output"),
     };
 
+    let rank = shape.len();
+    log::debug!("Random output rank for {}: {}", node.name, rank);
+
     node.outputs[0].ty = ArgType::Tensor(TensorType {
         elem_type,
-        rank: shape.len(),
-        shape: Some(
-            shape
-                .drain(..)
-                .map(usize::try_from)
-                .collect::<Result<Vec<usize>, _>>()
-                .unwrap(),
-        ),
-    })
+        rank,
+        static_shape: None,
+    });
 }
 
-/// Reads & interprets an optional `dtype` attribute
-/// This includes the `RandomUniformLike` and `RandomNormalLike` operators
+/// Update output rank for RandomLike operations based on input rank.
 fn random_like_update_output(node: &mut Node) {
+    log::debug!("RandomLike rank inference for node {}", node.name);
+
     let dtype = node
         .attrs
         .get("dtype")
         .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
         .unwrap_or(DataType::FLOAT);
+    log::debug!("RandomLike dtype for {}: {:?}", node.name, dtype);
 
     let elem_type = match dtype {
         DataType::FLOAT => ElementType::Float32,
@@ -230,57 +287,41 @@ fn random_like_update_output(node: &mut Node) {
         _ => panic!("Tensor with type {dtype:?} not supported for random output"),
     };
 
-    if let ArgType::Tensor(tensor) = &node.inputs[0].clone().ty {
-        if let Some(shape) = tensor.shape.clone() {
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type,
-                rank: shape.len(),
-                shape: Some(shape),
-            })
-        } else {
-            // Handle the edge case that we don't have a shape (None) for the input tensor
-            // but we do have an explicit rank/dim defined in the Operator.
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type,
-                rank: tensor.rank,
-                shape: tensor.shape.clone(),
-            })
-        }
+    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
+        log::debug!("RandomLike input rank for {}: {}", node.name, tensor.rank);
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type,
+            rank: tensor.rank,
+            static_shape: tensor.static_shape.clone(),
+        });
+
+        log::debug!("RandomLike output rank for {}: {}", node.name, tensor.rank);
     } else {
         panic!("Only tensor input is valid");
     }
 }
 
-/// Infer the shape of the output tensor of a Conv2d node
+/// Update output rank for Linear operations (same as input rank).
 fn linear_update_outputs(node: &mut Node) {
-    // Extract the configuration of the linear layer (inputs are known)
-    let node_input = &node.inputs[0];
-    let weight = &node.inputs[1];
+    log::debug!("Linear rank inference for node {}", node.name);
 
-    // Calculate the output shape. Usually we do not use shapes, but since the input shape is
-    // known, we can calculate the output shape.
-    if let ArgType::Tensor(tensor) = node_input.clone().ty {
-        let mut tensor = tensor.clone();
+    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
+        log::debug!("Linear input rank for {}: {}", node.name, tensor.rank);
 
-        // Update the shape of the output tensor if it's known
-        if let Some(mut shape) = tensor.shape.clone() {
-            if let ArgType::Tensor(weight_tensor) = weight.clone().ty {
-                let last = shape.last_mut().unwrap();
-                *last = *weight_tensor.shape.unwrap().first().unwrap();
-            } else {
-                panic!("Weight must be a tensor");
-            }
-            tensor.shape = Some(shape);
-        }
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: tensor.elem_type.clone(),
+            rank: tensor.rank,
+            static_shape: None,
+        });
 
-        // Update the output tensor
-        node.outputs[0].ty = ArgType::Tensor(tensor);
+        log::debug!("Linear output rank for {}: {}", node.name, tensor.rank);
     } else {
         panic!("Only tensor input is valid");
     }
 }
 
-/// Update the output type using "to" attribute
+/// Update output type for Cast operations, preserving rank.
 fn cast_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
         panic!("Cast: multiple inputs are not supported");
@@ -288,7 +329,6 @@ fn cast_update_outputs(node: &mut Node) {
     let input = &mut node.inputs[0];
     let output = &mut node.outputs[0];
 
-    // Extract cast type and update the output tensor
     let elem_type = match node.attrs.get("to") {
         Some(value) => match &value {
             AttributeValue::Int64(type_id) => match DataType::from_i32(*type_id as i32).unwrap() {
@@ -301,7 +341,7 @@ fn cast_update_outputs(node: &mut Node) {
             },
             _ => panic!("'to' attribute must be an Int64"),
         },
-        None => panic!("Constant node must have a value attribute"),
+        None => panic!("Cast node must have a 'to' attribute"),
     };
 
     match input.ty.clone() {
@@ -315,65 +355,97 @@ fn cast_update_outputs(node: &mut Node) {
                 output.ty = ArgType::Tensor(TensorType {
                     elem_type,
                     rank: tensor.rank,
-                    shape: tensor.shape.clone(),
+                    static_shape: None,
                 });
             }
         }
-        ArgType::Scalar(_scalar) => {
-            output.ty = ArgType::Scalar(elem_type);
-        }
+        ArgType::Scalar(_) => output.ty = ArgType::Scalar(elem_type),
         _ => panic!("Cast: only scalar and tensor inputs are valid"),
     }
-
-    log::debug!(
-        "Cast: input type: {:?}, output type: {:?}",
-        input.ty,
-        output.ty
-    );
 }
 
+/// Update output rank for Concat (same as first tensor input).
 fn concat_update_outputs(node: &mut Node) {
+    log::debug!("Concat rank inference for node {}", node.name);
+
     let tensor = node
         .inputs
         .iter()
         .find_map(|input| match &input.ty {
-            ArgType::Tensor(tensor) => Some(tensor),
+            ArgType::Tensor(tensor) => Some(tensor.clone()),
             _ => None,
         })
         .unwrap();
 
-    node.outputs[0].ty = ArgType::Tensor(tensor.clone());
+    log::debug!("Concat using input rank for {}: {}", node.name, tensor.rank);
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: tensor.elem_type,
+        rank: tensor.rank,
+        static_shape: None,
+    });
+
+    log::debug!("Concat output rank for {}: {}", node.name, tensor.rank);
 }
 
+/// Update output rank for Reshape based on shape input if constant, otherwise use input rank.
 fn reshape_update_outputs(node: &mut Node) {
+    log::debug!("Reshape rank inference for node {}", node.name);
+
     let shape = if node.inputs.len() == 2 {
+        log::debug!("Reshape node {} has shape as second input", node.name);
         match &node.inputs[1].value {
-            Some(value) => match value {
-                Data::Int64s(shape) => Some(shape.clone()),
+            Some(value) => match &value.data {
+                Data::Int64s(shape) => {
+                    log::debug!("Reshape node {} has constant shape: {:?}", node.name, shape);
+                    Some(shape.clone())
+                }
                 _ => panic!("Reshape: invalid input types"),
             },
-            None => None,
+            None => {
+                log::debug!(
+                    "Reshape node {} has dynamic shape as second input",
+                    node.name
+                );
+                None
+            }
         }
     } else {
-        node.attrs.get("shape").cloned().map(|v| v.into_i64s())
+        log::debug!("Reshape node {} using shape from attributes", node.name);
+        node.attrs.get("shape").cloned().map(|v| {
+            let shape = v.into_i64s();
+            log::debug!("Reshape node {} shape attribute: {:?}", node.name, shape);
+            shape
+        })
     };
 
-    if let Some(shape) = shape {
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: node.inputs[0].ty.elem_type().clone(),
-            rank: shape.len(),
-            shape: None, // shape is calculated at runtime
-        });
-    }
+    let output = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.clone(),
+        _ => panic!("Reshape: invalid output types"),
+    };
+
+    let rank = match &shape {
+        Some(s) => s.len(),
+        None => output.rank,
+    };
+
+    log::debug!("Reshape output rank for node {}: {}", node.name, rank);
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        rank,
+        static_shape: None,
+        ..output
+    });
 }
 
+/// Update output rank for ReduceMean based on axes.
 fn reduce_mean_update_outputs(node: &mut Node) {
-    if node.inputs.len() != 1 {
-        panic!("Mean: multiple inputs are not supported");
-    }
+    log::debug!("ReduceMean rank inference for node {}", node.name);
 
-    let node_input = &mut node.inputs[0];
-    let tensor = match node_input.clone().ty {
+    if node.inputs.len() != 1 {
+        panic!("ReduceMean: multiple inputs are not supported");
+    }
+    let tensor = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -387,42 +459,47 @@ fn reduce_mean_update_outputs(node: &mut Node) {
         None => false,
     };
 
-    if dim_only {
-        node.outputs[0].ty = ArgType::Tensor(tensor);
-    } else {
-        // NOTE: ReduceMean w/o keepdims reduces to a scalar value, but Burn doesn't have
-        // 0-dim tensor so we can't track or perform other ops on that value if we call
-        // `.into_scalar()` on the result of `tensor.max()`
-        // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
-        // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
-        node.outputs[0].ty = ArgType::Tensor(TensorType { rank: 1, ..tensor });
-    }
+    let output_rank = if dim_only { tensor.rank } else { 1 };
+    log::debug!("ReduceMean output rank for {}: {}", node.name, output_rank);
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: tensor.elem_type.clone(),
+        rank: output_rank,
+        static_shape: None,
+    });
 }
 
+/// Update output rank for ArgMax (same as input rank).
 fn argmax_update_outputs(node: &mut Node) {
-    if node.inputs.len() != 1 {
-        panic!("Mean: multiple inputs are not supported");
-    }
+    log::debug!("ArgMax rank inference for node {}", node.name);
 
-    let node_input = &mut node.inputs[0];
-    let tensor = match node_input.clone().ty {
+    if node.inputs.len() != 1 {
+        panic!("ArgMax: multiple inputs are not supported");
+    }
+    let tensor = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
 
+    log::debug!("ArgMax input rank for {}: {}", node.name, tensor.rank);
+
     // Note: argmax in burn does not support keepdims=false
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        rank: tensor.rank,
-        shape: tensor.shape.clone(),
         elem_type: ElementType::Int64,
+        rank: tensor.rank,
+        static_shape: None,
     });
+
+    log::debug!("ArgMax output rank for {}: {}", node.name, tensor.rank);
 }
 
-/// Update the output tensor dimension
+/// Update output rank for Squeeze based on axes.
 fn squeeze_update_output(node: &mut Node) {
+    log::debug!("Squeeze rank inference for node {}", node.name);
+
     let axes = if node.inputs.len() == 2 {
         match &node.inputs[1].value {
-            Some(value) => match value {
+            Some(value) => match &value.data {
                 Data::Int64s(axes) => Some(axes.clone()),
                 _ => panic!("Squeeze: invalid input types"),
             },
@@ -432,73 +509,95 @@ fn squeeze_update_output(node: &mut Node) {
         node.attrs.get("axes").cloned().map(|v| v.into_i64s())
     };
 
-    if axes.is_none() {
-        panic!("Squeeze must specify an axis");
-    }
+    let axes = axes.unwrap_or_else(|| panic!("Squeeze must specify an axis"));
+    log::debug!("Squeeze axes for {}: {:?}", node.name, axes);
 
     let input_rank = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
         _ => panic!("Squeeze: invalid input type"),
     };
+    log::debug!("Squeeze input rank for {}: {}", node.name, input_rank);
 
-    let new_rank = input_rank - axes.unwrap().len();
-
-    let output_elem = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
-        _ => panic!("Squeeze: invalid output type"),
-    };
+    let output_rank = input_rank - axes.len();
+    log::debug!("Squeeze output rank for {}: {}", node.name, output_rank);
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        rank: new_rank,
-        shape: None, // shape is tracked and calculated at runtime
-        elem_type: output_elem,
+        elem_type: node.inputs[0].ty.elem_type().clone(),
+        rank: output_rank,
+        static_shape: None,
     });
 }
 
-/// Updates the output type for operations that take more than one Tensor/Scalar of the a type
-/// and returns the same type while supporting broadcasting
-///
-/// This is mostly the elementwise math operations, i.e. add, sub, mul, max etc.
+/// Update output rank for broadcasting operations (e.g., Add, Sub) to max input rank.
 fn same_as_input_broadcast(node: &mut Node) {
-    if node.inputs.iter().all(|input| input.ty.is_scalar()) {
-        // If all inputs are scalar, the output is a scalar as well
-        node.outputs[0].ty = node.inputs[0].ty.clone();
+    log::debug!("Broadcasting operation for node {}", node.name);
+
+    let max_rank = node.inputs.iter().fold(0, |acc, input| match &input.ty {
+        ArgType::Tensor(tensor) => acc.max(tensor.rank),
+        ArgType::Scalar(_) => acc,
+        _ => panic!("Unsupported input type for broadcasting operation"),
+    });
+
+    log::debug!("Max rank for broadcasting node {}: {}", node.name, max_rank);
+
+    if max_rank == 0 {
+        node.outputs[0].ty = ArgType::Scalar(node.inputs[0].ty.elem_type().clone());
+        log::debug!("Scalar result for node {}", node.name);
     } else {
-        // else, if any input is a Tensor, use it's datatype,
-        // or the input consists solely from Scalars and Shapes,
-        // which should result in another Shape
-        node.outputs[0].ty = node
+        let elem_type = node
             .inputs
             .iter()
-            .find(|input| input.ty.is_tensor())
-            .map(|input| input.ty.clone())
-            .unwrap_or_else(|| ArgType::Shape(0)); //Shape dim will be set by broadcast calculation
+            .find_map(|input| match &input.ty {
+                ArgType::Tensor(tensor) => Some(tensor.elem_type.clone()),
+                _ => None,
+            })
+            .unwrap_or_else(|| node.inputs[0].ty.elem_type().clone());
 
-        set_broadcasting_output_shape(node);
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type,
+            rank: max_rank,
+            static_shape: None,
+            // Removed call to set_broadcasting_output_shape
+        });
+        log::debug!(
+            "Tensor result for node {} with rank {}",
+            node.name,
+            max_rank
+        );
     }
 }
 
+/// Update output rank for Unsqueeze based on axes.
 /// Update the output tensor dimension based on the "axes" attribute or the second input
 fn unsqueeze_update_output(node: &mut Node) {
+    log::debug!("Unsqueeze rank inference for node {}", node.name);
+
     let axes = if node.inputs.len() == 2 {
         match &node.inputs[1].value {
-            Some(value) => match value {
-                Data::Int64s(axes) => Some(axes.clone()),
+            Some(value) => match &value.data {
+                Data::Int64s(a) => Some(a.clone()),
                 _ => panic!("Unsqueeze: invalid input types"),
             },
             None => None,
         }
     } else {
-        node.attrs.get("axes").cloned().map(|v| v.into_i64s())
+        let axes = node.attrs.get("axes").cloned().map(|v| {
+            let axes = v.into_i64s();
+            log::debug!(
+                "Unsqueeze axes from attribute for {}: {:?}",
+                node.name,
+                axes
+            );
+            axes
+        });
+        axes
     };
-
-    if axes.is_none() {
-        return;
-    }
 
     let input_rank = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
-        ArgType::Scalar(_) => 0, // treat scalar as 0-dim tensor
+        ArgType::Scalar(_) => {
+            0 // treat scalar as 0-dim tensor
+        }
         _ => panic!("Unsqueeze: invalid input type"),
     };
 
@@ -508,124 +607,194 @@ fn unsqueeze_update_output(node: &mut Node) {
         _ => panic!("Unsqueeze: invalid output type"),
     };
 
-    if let Some(axes) = axes {
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            rank: input_rank + axes.len(),
-            shape: None, // shape is tracked and calculated at runtime
-            elem_type: output_elem,
-        });
-    }
+    let output_rank = if let Some(axes) = axes {
+        input_rank + axes.len()
+    } else if let ArgType::Tensor(tensor) = &node.inputs[1].ty {
+        if let Some(static_shape) = &tensor.static_shape {
+            input_rank + *static_shape.first().expect("Empty shape")
+        } else {
+            panic!("Unsqueeze: should have static shape")
+        }
+    } else {
+        panic!("Unsqueeze: missing axes information")
+    };
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        rank: output_rank,
+        static_shape: None, // shape is tracked and calculated at runtime
+        elem_type: output_elem,
+    });
+
+    log::debug!("Unsqueeze output rank for {}: {}", node.name, output_rank);
 }
 
+/// Preserve input rank for operations like Relu, Sigmoid, etc.
 fn same_as_input(node: &mut Node) {
+    log::debug!("Copying input type to output for node {}", node.name);
+
+    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
+        log::debug!("Input rank for {}: {}", node.name, tensor.rank);
+    } else if let ArgType::Scalar(_) = &node.inputs[0].ty {
+        log::debug!("Input is scalar for {}", node.name);
+    }
+
     node.outputs[0].ty = node.inputs[0].ty.clone();
+    log::debug!("Output type is same as input for {}", node.name);
 }
 
+/// Update output rank for TopK (same as input rank).
 fn top_k_update_output(node: &mut Node) {
+    log::debug!("TopK rank inference for node {}", node.name);
+
     let rank = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
         _ => panic!("TopK: invalid input type"),
     };
-
-    let output_values_elem = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
-        _ => panic!("TopK: invalid output type"),
-    };
-
-    let output_indices_elem = match &node.outputs[1].ty {
-        ArgType::Tensor(_) => ElementType::Int64,
-        _ => panic!("TopK: invalid output type"),
-    };
+    log::debug!("TopK input rank for {}: {}", node.name, rank);
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: node.inputs[0].ty.elem_type().clone(),
         rank,
-        shape: None, // shape is tracked and calculated at runtime
-        elem_type: output_values_elem,
+        static_shape: None,
     });
-
     node.outputs[1].ty = ArgType::Tensor(TensorType {
+        elem_type: ElementType::Int64,
         rank,
-        shape: None, // shape is tracked and calculated at runtime
-        elem_type: output_indices_elem,
+        static_shape: None,
     });
+
+    log::debug!(
+        "TopK output rank for {}: {} (both outputs)",
+        node.name,
+        rank
+    );
 }
 
-/// Temporary pass-through stub for dimension inference so that we can export the IR model.
+/// Temporary stub preserves input type for unhandled operations.
 fn temporary_pass_through_stub(node: &mut Node) {
-    log::warn!("Must implement dimension inference for {:?}", node);
-    log::warn!("Temporarily setting the output type to the input type.");
+    log::warn!(
+        "Must implement rank inference for node type {:?} (name: {})",
+        node.node_type,
+        node.name
+    );
+
+    if let Some(input_rank) = node.inputs.first().map(|input| match &input.ty {
+        ArgType::Tensor(tensor) => tensor.rank,
+        ArgType::Scalar(_) => 0,
+        _ => 0,
+    }) {
+        log::debug!(
+            "Passing through input rank {} for unhandled node {}",
+            input_rank,
+            node.name
+        );
+    }
+
     node.outputs[0].ty = node.inputs[0].ty.clone();
+    log::debug!(
+        "Using pass-through inference for unhandled node type {:?} ({})",
+        node.node_type,
+        node.name
+    );
 }
 
-/// Sets the output for binary operators resulting in a boolean output,
-/// i.e., comparison operators like Equal, Greater, Less, etc.
-///
-/// Support for broadcasting is assumed
+/// Update output type for comparison operations (e.g., Equal, Greater) to max input rank.
 fn elementwise_comparison_outputs(node: &mut Node) {
-    let input1_type = &node.inputs[0].ty;
-    let input2_type = &node.inputs[1].ty;
+    log::debug!("Elementwise comparison for node {}", node.name);
 
-    match (input1_type, input2_type) {
-        (ArgType::Tensor(tensor), _) | (_, ArgType::Tensor(tensor)) => {
-            // if one of the inputs is a tensor, the output is a tensor of bool
-            assert_ne!(
-                tensor.rank, 0,
-                "Got a rank 0 Tensor, that should have been a Scalar!"
-            );
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Bool,
-                ..tensor.clone()
-            });
-            set_broadcasting_output_shape(node);
-        }
-        (ArgType::Scalar(_), ArgType::Scalar(_)) => {
-            // if both inputs are scalars, the result is a scalar bool
-            node.outputs[0].ty = ArgType::Scalar(ElementType::Bool);
-        }
-        _ => {
-            panic!("Invalid input types for comparison op: {input1_type:?}, {input2_type:?}")
-        }
+    let max_rank = node.inputs.iter().fold(0, |acc, input| match &input.ty {
+        ArgType::Tensor(tensor) => acc.max(tensor.rank),
+        ArgType::Scalar(_) => acc,
+        _ => panic!("Invalid input type for comparison op"),
+    });
+
+    log::debug!("Max rank for comparison node {}: {}", node.name, max_rank);
+
+    if max_rank == 0 {
+        node.outputs[0].ty = ArgType::Scalar(ElementType::Bool);
+        log::debug!("Scalar boolean result for node {}", node.name);
+    } else {
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: ElementType::Bool,
+            rank: max_rank,
+            static_shape: None,
+        });
+        log::debug!(
+            "Tensor boolean result for node {} with rank {}",
+            node.name,
+            max_rank
+        );
     }
 }
 
+/// Updates the output rank and shape for the Expand operation based on the provided shape input.
+/// If the shape is a constant, the rank and static shape of the output are set accordingly.
+/// If the shape is dynamic, the rank is inferred from the static shape of the shape input.
 fn expand_update_outputs(node: &mut Node) {
     let shape = if node.inputs.len() == 2 {
         match &node.inputs[1].value {
-            Some(value) => match value {
+            Some(value) => match &value.data {
                 Data::Int64s(shape) => Some(shape.clone()),
-                _ => panic!("Expand: invalid input types"),
+                _ => panic!("Expand operation encountered invalid input types"),
             },
             None => None,
         }
     } else {
-        panic!("Expand: invalid number of inputs");
+        panic!("Expand operation requires exactly two inputs");
     };
 
     let output = match &node.outputs[0].ty {
         ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Expand: invalid output types"),
+        _ => panic!("Expand operation encountered invalid output types"),
     };
 
     if let Some(shape) = shape {
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             rank: shape.len(),
-            shape: None, // shape is calculated at runtime
+            static_shape: Some(shape.into_iter().map(|dim| dim as usize).collect()),
+            ..output
+        });
+    } else {
+        // When the shape cannot be determined statically (i.e., the second argument 'shape' is passed dynamically),
+        // infer the rank from the static shape of the input tensor.
+        let output_rank = match &node.inputs[1].ty {
+            ArgType::Tensor(tensor) => tensor
+                .static_shape
+                .as_ref()
+                .expect("Shape input must have a static shape defined")
+                .first()
+                .copied()
+                .expect("Static shape must contain at least one element"),
+            ArgType::Shape(rank) => *rank,
+            _ => panic!("Shape input must be of tensor or shape type",),
+        };
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            rank: output_rank,
+            static_shape: None, // The exact shape cannot be determined statically
             ..output
         });
     }
 }
 
+/// Update output type for Shape operation (rank 1).
 fn shape_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
         panic!("Shape: multiple inputs are not supported: {:?}", node);
     }
-
     let (start, end) = shape_config(node);
     let dim = end - start;
+    log::debug!(
+        "Shape operation for node {}: start={}, end={}, dim={}",
+        node.name,
+        start,
+        end,
+        dim
+    );
     node.outputs[0].ty = ArgType::Shape(dim);
 }
 
-/// Infers the shape of a Flatten node and replaces the shape of the output tensor.
+/// Update output type for Flatten operation (rank 2).
 fn flatten_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
         panic!("Flatten: multiple inputs are not supported");
@@ -646,91 +815,165 @@ fn flatten_update_outputs(node: &mut Node) {
     });
 }
 
-/// Infers the shape of a Conv1d node and replaces the shape of the output tensor.
+/// Update output rank for Conv1d (same as input).
 fn conv1d_update_outputs(node: &mut Node) {
-    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
-        node.outputs[0].ty = ArgType::Tensor(tensor);
+    log::debug!("Conv1d rank inference for node {}", node.name);
+
+    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
+        log::debug!("Conv1d input rank for {}: {}", node.name, tensor.rank);
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: tensor.elem_type.clone(),
+            rank: tensor.rank,
+            static_shape: None,
+        });
+
+        log::debug!("Conv1d output rank for {}: {}", node.name, tensor.rank);
     } else {
         panic!("Only tensor input is valid");
     }
 }
 
-/// Infers the shape of a Conv2d node and replaces the shape of the output tensor.
+/// Update output rank for Conv2d (same as input).
 fn conv2d_update_outputs(node: &mut Node) {
-    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
-        node.outputs[0].ty = ArgType::Tensor(tensor);
+    log::debug!("Conv2d rank inference for node {}", node.name);
+
+    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
+        log::debug!("Conv2d input rank for {}: {}", node.name, tensor.rank);
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: tensor.elem_type.clone(),
+            rank: tensor.rank,
+            static_shape: None,
+        });
+
+        log::debug!("Conv2d output rank for {}: {}", node.name, tensor.rank);
     } else {
         panic!("Only tensor input is valid");
     }
 }
 
-/// Infers the shape of a ConvTranspose1d node and replaces the shape of the output tensor.
+/// Update output rank for ConvTranspose1d (same as input).
 fn conv_transpose1d_update_outputs(node: &mut Node) {
-    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
-        node.outputs[0].ty = ArgType::Tensor(tensor);
+    log::debug!("ConvTranspose1d rank inference for node {}", node.name);
+
+    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
+        log::debug!(
+            "ConvTranspose1d input rank for {}: {}",
+            node.name,
+            tensor.rank
+        );
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: tensor.elem_type.clone(),
+            rank: tensor.rank,
+            static_shape: None,
+        });
+
+        log::debug!(
+            "ConvTranspose1d output rank for {}: {}",
+            node.name,
+            tensor.rank
+        );
     } else {
         panic!("Only tensor input is valid");
     }
 }
 
-/// Infers the shape of a ConvTranspose2d node and replaces the shape of the output tensor.
+/// Update output rank for ConvTranspose2d (same as input).
 fn conv_transpose2d_update_outputs(node: &mut Node) {
-    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
-    if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
-        node.outputs[0].ty = ArgType::Tensor(tensor);
+    log::debug!("ConvTranspose2d rank inference for node {}", node.name);
+
+    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
+        log::debug!(
+            "ConvTranspose2d input rank for {}: {}",
+            node.name,
+            tensor.rank
+        );
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: tensor.elem_type.clone(),
+            rank: tensor.rank,
+            static_shape: None,
+        });
+
+        log::debug!(
+            "ConvTranspose2d output rank for {}: {}",
+            node.name,
+            tensor.rank
+        );
     } else {
         panic!("Only tensor input is valid");
     }
 }
 
+/// Update output rank for MatMul based on input ranks.
 fn matmul_update_outputs(node: &mut Node) {
-    // NOTE: matmul only supported for float tensors
-    match (node.inputs[0].ty.clone(), node.inputs[1].ty.clone()) {
-        (ArgType::Tensor(a), ArgType::Tensor(b)) => {
-            // With broadcasting support, output dim has to be computed based on the inputs
-            let mut out_rank = max(a.rank, b.rank);
+    log::debug!("MatMul rank inference for node {}", node.name);
 
-            // Matrix-vector or vector-matrix product
+    match (&node.inputs[0].ty, &node.inputs[1].ty) {
+        (ArgType::Tensor(a), ArgType::Tensor(b)) => {
+            log::debug!(
+                "MatMul input ranks for {}: a.rank={}, b.rank={}",
+                node.name,
+                a.rank,
+                b.rank
+            );
+
+            let mut out_rank = max(a.rank, b.rank);
             if (a.rank >= 2 && b.rank == 1) || (a.rank == 1 && b.rank >= 2) {
                 out_rank -= 1;
+                log::debug!(
+                    "MatMul special case for node {}: reducing output rank",
+                    node.name
+                );
             }
 
             node.outputs[0].ty = ArgType::Tensor(TensorType {
                 elem_type: a.elem_type.clone(),
                 rank: out_rank,
-                shape: a.shape.clone(),
+                static_shape: None,
             });
+
+            log::debug!("MatMul output rank for {}: {}", node.name, out_rank);
         }
-        _ => panic!("Only tensor input is valid"),
+        _ => panic!("Only tensor inputs are valid"),
     }
 }
 
+/// Update output rank for Range (always rank 1).
 fn range_update_outputs(node: &mut Node) {
+    log::debug!("Range rank inference for node {}", node.name);
+
     if node.inputs.len() != 3 {
         panic!("Range: expected 3 inputs, found {}", node.inputs.len());
     }
+    log::debug!(
+        "Range operation always produces rank 1 tensor for {}",
+        node.name
+    );
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
         elem_type: ElementType::Int64,
         rank: 1,
-        shape: None,
+        static_shape: None,
     });
+
+    log::debug!("Range output rank for {}: 1", node.name);
 }
 
-/// Infers the shape of a ReduceMax node and replaces the shape of the output tensor.
+/// Update output rank for ReduceMax based on axes.
 fn reduce_max_update_outputs(node: &mut Node) {
+    log::debug!("ReduceMax rank inference for node {}", node.name);
+
     if node.inputs.len() != 1 {
         panic!("ReduceMax: multiple inputs are not supported");
     }
-
-    let node_input = &mut node.inputs[0];
-    let tensor = match node_input.clone().ty {
+    let tensor = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
+    log::debug!("ReduceMax input rank for {}: {}", node.name, tensor.rank);
 
     let dim_only = match node.attrs.get("axes") {
         Some(value) => match &value {
@@ -741,27 +984,29 @@ fn reduce_max_update_outputs(node: &mut Node) {
         None => false,
     };
 
-    if dim_only {
-        node.outputs[0].ty = ArgType::Tensor(tensor);
-    } else {
-        // NOTE: ReduceMax w/o keepdims reduces to a scalar value, but Burn doesn't have
-        // 0-dim tensor so we can't track or perform other ops on that value if we call
-        // `.into_scalar()` on the result of `tensor.max()`
-        // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
-        // Instead, we return a tensor of rank 1 (the result of `tensor.max()`)
-        node.outputs[0].ty = ArgType::Tensor(TensorType { rank: 1, ..tensor });
-    }
+    let output_rank = if dim_only { tensor.rank } else { 1 };
+    log::debug!("ReduceMax output rank for {}: {}", node.name, output_rank);
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: tensor.elem_type.clone(),
+        rank: output_rank,
+        static_shape: None,
+    });
 }
 
+/// Update output rank for ReduceMin based on axes.
 fn reduce_min_update_outputs(node: &mut Node) {
+    log::debug!("ReduceMin rank inference for node {}", node.name);
+
     if node.inputs.len() != 1 {
         panic!("ReduceMin: multiple inputs are not supported");
     }
-    let node_input = &mut node.inputs[0];
-    let tensor = match node_input.clone().ty {
+    let tensor = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
+    log::debug!("ReduceMin input rank for {}: {}", node.name, tensor.rank);
+
     let dim_only = match node.attrs.get("axes") {
         Some(value) => match &value {
             AttributeValue::Int64(_) => true,
@@ -770,23 +1015,29 @@ fn reduce_min_update_outputs(node: &mut Node) {
         },
         None => false,
     };
-    if dim_only {
-        node.outputs[0].ty = ArgType::Tensor(tensor);
-    } else {
-        node.outputs[0].ty = ArgType::Tensor(TensorType { rank: 1, ..tensor });
-    }
+
+    let output_rank = if dim_only { tensor.rank } else { 1 };
+    log::debug!("ReduceMin output rank for {}: {}", node.name, output_rank);
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: tensor.elem_type.clone(),
+        rank: output_rank,
+        static_shape: None,
+    });
 }
 
-/// Infers the shape of a ReduceProd node and replaces the shape of the output tensor.
+/// Update output rank for ReduceProd based on axes.
 fn reduce_prod_update_outputs(node: &mut Node) {
+    log::debug!("ReduceProd rank inference for node {}", node.name);
+
     if node.inputs.len() != 1 {
         panic!("ReduceProd: multiple inputs are not supported");
     }
-    let node_input = &mut node.inputs[0];
-    let tensor = match node_input.clone().ty {
+    let tensor = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
+    log::debug!("ReduceProd input rank for {}: {}", node.name, tensor.rank);
 
     let dim_only = match node.attrs.get("axes") {
         Some(value) => match &value {
@@ -797,20 +1048,25 @@ fn reduce_prod_update_outputs(node: &mut Node) {
         None => false,
     };
 
-    if dim_only {
-        node.outputs[0].ty = ArgType::Tensor(tensor);
-    } else {
-        node.outputs[0].ty = ArgType::Tensor(TensorType { rank: 1, ..tensor });
-    }
+    let output_rank = if dim_only { tensor.rank } else { 1 };
+    log::debug!("ReduceProd output rank for {}: {}", node.name, output_rank);
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: tensor.elem_type.clone(),
+        rank: output_rank,
+        static_shape: None,
+    });
 }
 
-/// Infers the shape of a ReduceSum node and replaces the shape of the output tensor.
+/// Update output rank for ReduceSum based on axes.
 fn reduce_sum_update_outputs(node: &mut Node) {
-    let node_input = &mut node.inputs[0];
-    let tensor = match node_input.clone().ty {
+    log::debug!("ReduceSum rank inference for node {}", node.name);
+
+    let tensor = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
+    log::debug!("ReduceSum input rank for {}: {}", node.name, tensor.rank);
 
     let dim_only = match node.attrs.get("axes") {
         Some(value) => match &value {
@@ -819,30 +1075,29 @@ fn reduce_sum_update_outputs(node: &mut Node) {
             _ => false,
         },
         None => false,
-    };
-
-    let dim_only = match node.inputs.get(1).and_then(|arg| arg.value.as_ref()) {
-        Some(value) => match &value {
+    } || match node.inputs.get(1).and_then(|arg| arg.value.as_ref()) {
+        Some(value) => match &value.data {
             Data::Int64(_) => true,
             Data::Int64s(ints) => ints.len() == 1,
             _ => false,
         },
-        None => dim_only,
+        None => false,
     };
 
-    if dim_only {
-        node.outputs[0].ty = ArgType::Tensor(tensor);
-    } else {
-        // NOTE: ReduceSum w/o keepdims reduces to a scalar value, but Burn doesn't have
-        // 0-dim tensor so we can't track or perform other ops on that value if we call
-        // `.into_scalar()` on the result of `tensor.sum()`
-        // node.outputs[0].ty = ArgType::Scalar(tensor.elem_type);
-        // Instead, we return a tensor of rank 1 (the result of `tensor.sum()`)
-        node.outputs[0].ty = ArgType::Tensor(TensorType { rank: 1, ..tensor });
-    }
+    let output_rank = if dim_only { tensor.rank } else { 1 };
+    log::debug!("ReduceSum output rank for {}: {}", node.name, output_rank);
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: tensor.elem_type.clone(),
+        rank: output_rank,
+        static_shape: None,
+    });
 }
 
+/// Update output rank for Where to max input rank.
 fn where_update_outputs(node: &mut Node) {
+    log::debug!("Where rank inference for node {}", node.name);
+
     let condition = &node.inputs[0].ty;
     let x = &node.inputs[1].ty;
     let y = &node.inputs[2].ty;
@@ -858,20 +1113,38 @@ fn where_update_outputs(node: &mut Node) {
         "Where x and y have different element types!"
     );
 
+    log::debug!(
+        "Where input ranks for {}: condition={}, x={}, y={}",
+        node.name,
+        condition.rank(),
+        x.rank(),
+        y.rank()
+    );
+
     let output_rank = max(condition.rank(), max(x.rank(), y.rank()));
+    log::debug!("Where output rank for {}: {}", node.name, output_rank);
+
     if output_rank == 0 {
         node.outputs[0].ty = ArgType::Scalar(elem_type);
+        log::debug!("Where result for {} is scalar", node.name);
     } else {
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type,
             rank: output_rank,
-            ..Default::default()
+            static_shape: None,
         });
-        set_broadcasting_output_shape(node);
+        log::debug!(
+            "Where result for {} is tensor with rank {}",
+            node.name,
+            output_rank
+        );
     }
 }
 
+/// Update output rank for Gather based on input and indices ranks.
 fn gather_update_outputs(node: &mut Node) {
+    log::debug!("Gather rank inference for node {}", node.name);
+
     if node.inputs.len() != 2 {
         panic!("Gather requires two inputs: data and indices");
     }
@@ -881,214 +1154,114 @@ fn gather_update_outputs(node: &mut Node) {
         ArgType::Scalar(_) => 0,
         _ => panic!("Only tensor indices is valid, got {:?}", node.inputs[1].ty),
     };
+    log::debug!("Gather indices rank for {}: {}", node.name, indices_rank);
 
     match &node.inputs[0].ty {
         ArgType::Tensor(input_tensor) => {
+            log::debug!(
+                "Gather input tensor rank for {}: {}",
+                node.name,
+                input_tensor.rank
+            );
             // Output of rank q+(r-1), where q is rank of indices tensor and r is rank of input
             let output_rank = indices_rank + input_tensor.rank - 1;
+            log::debug!("Gather output rank for {}: {}", node.name, output_rank);
+
             if output_rank == 0 {
                 node.outputs[0].ty = ArgType::Scalar(input_tensor.elem_type.clone());
+                log::debug!("Gather result for {} is scalar", node.name);
             } else {
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
                     elem_type: input_tensor.elem_type.clone(),
                     rank: output_rank,
-                    shape: None,
+                    static_shape: None,
                 });
+                log::debug!(
+                    "Gather result for {} is tensor with rank {}",
+                    node.name,
+                    output_rank
+                );
             }
         }
         ArgType::Shape(_) => {
+            log::debug!("Gather input is shape for {}", node.name);
             let shape_rank = 1;
             // Output of rank q+(r-1), where q is rank of indices tensor and r is rank of input
             let output_rank = indices_rank + shape_rank - 1;
+            log::debug!(
+                "Gather output rank for {} with shape input: {}",
+                node.name,
+                output_rank
+            );
+
             if output_rank == 0 {
                 node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
+                log::debug!("Gather result for {} is scalar (from shape)", node.name);
             } else {
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
                     elem_type: ElementType::Int64,
                     rank: output_rank,
-                    shape: None,
+                    static_shape: None,
                 });
+                log::debug!(
+                    "Gather result for {} is tensor with rank {} (from shape)",
+                    node.name,
+                    output_rank
+                );
             }
         }
         ty => panic!("Only tensor/shape input is valid but received: {:?}", ty),
     }
 }
 
+/// Update output rank for Split (same as input).
 fn split_update_outputs(node: &mut Node) {
-    let input_arg = &node.inputs[0];
-    let input_tensor = match &input_arg.ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
+    log::debug!("Split rank inference for node {}", node.name);
+
+    let tensor = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor,
         _ => panic!("Split: Input must be a tensor"),
     };
+    log::debug!("Split input rank for {}: {}", node.name, tensor.rank);
+    log::debug!(
+        "Split will generate {} outputs for {}",
+        node.outputs.len(),
+        node.name
+    );
 
-    let input_dims = match &input_tensor.shape {
-        Some(shape) => shape.to_vec(),
-        None => panic!("Split: Input tensor shape is not defined"),
-    };
-
-    let axis = match node.attrs.get("axis") {
-        Some(value) => match &value {
-            AttributeValue::Int64(_) => value.clone().into_i64(),
-            _ => panic!("Only int allowed for axis attribute"),
-        },
-        None => 0,
-    };
-    let rank = input_dims.len() as i64;
-
-    let axis = if axis < 0 { axis + rank } else { axis };
-
-    if axis < 0 || axis >= rank {
-        panic!(
-            "Split: Axis {} is out of bounds for tensor of rank {}",
-            axis, rank
-        );
-    }
-
-    let axis = axis as usize;
-
-    let split_sizes = if let Some(split_arg) = node.inputs.get(2) {
-        // `split` input is provided
-        if let Some(Data::Int64s(sizes)) = &split_arg.value {
-            let sizes: Vec<usize> = sizes.iter().map(|&s| s as usize).collect();
-            let total_size: usize = sizes.iter().sum();
-            if total_size != input_dims[axis] {
-                // can't index into input_dims because it's &usize
-                panic!(
-                    "Split: Sum of split sizes ({}) does not match tensor size along axis {} ({})",
-                    total_size, axis, input_dims[axis]
-                );
-            }
-            sizes
-        } else {
-            panic!("Split: 'split' input must be a tensor of int64 values");
-        }
-    } else {
-        // `split` input is not provided; use `num_outputs` attribute instead
-        let tensor_size = input_dims[axis];
-        let num_outputs = node.outputs.len();
-
-        if num_outputs == 0 {
-            panic!("Split: Number of outputs must be greater than zero");
-        }
-
-        let split_size = tensor_size / num_outputs;
-        let remainder = tensor_size % num_outputs;
-
-        let mut sizes = vec![split_size; num_outputs];
-
-        // According to ONNX spec, the last chunk will be smaller if not evenly divisible
-        for size in sizes.iter_mut().take(remainder) {
-            *size += 1;
-        }
-
-        sizes
-    };
-
-    // Update dimensions for each output
     for (i, output_arg) in node.outputs.iter_mut().enumerate() {
-        let mut output_dims = input_dims.clone();
-        output_dims[axis] = split_sizes[i];
-
         output_arg.ty = ArgType::Tensor(TensorType {
-            elem_type: input_tensor.elem_type.clone(),
-            rank: output_dims.len(),
-            shape: None,
+            elem_type: tensor.elem_type.clone(),
+            rank: tensor.rank,
+            static_shape: None,
         });
+        log::debug!("Split output {} rank for {}: {}", i, node.name, tensor.rank);
     }
 }
 
-/// If all input shapes are known,
-/// calculates the rank and shape of the output tensor for Operators supporting
-/// [broadcasting](https://github.com/onnx/onnx/blob/main/docs/Broadcasting.md)
-fn set_broadcasting_output_shape(node: &mut Node) {
-    let mut reverse_out_shape: Vec<usize> = vec![1];
-    for (idx, input_type) in node.inputs.iter().enumerate() {
-        match &input_type.ty {
-            ArgType::Tensor(t) => {
-                if let Some(shape) = &t.shape {
-                    for (rev_idx, dimension) in shape.iter().rev().enumerate() {
-                        if let Some(current_out_dim) = reverse_out_shape.get_mut(rev_idx) {
-                            if *dimension == 1 {
-                                // dimension already has a value, this tensor can be broadcast
-                                continue;
-                            }
-                            if current_out_dim != dimension && *current_out_dim != 1 {
-                                panic!(
-                                    "Invalid shape for broadcasting - the dimension from the {rev_idx}. to last position has conflicting values {current_out_dim} and {dimension} from different inputs"
-                                );
-                            }
-                            *current_out_dim = *dimension;
-                        } else {
-                            reverse_out_shape.push(*dimension);
-                        }
-                    }
-                } else {
-                    debug!("Input {idx} has no known shape, cannot predict broadcast result shape");
-                    return;
-                }
-            }
-            ArgType::Scalar(_) => {
-                // reverse_out_shape already starts with [1]
-            }
-            ArgType::Shape(s) => {
-                // Shape is treated like a 1-D Tensor
-                let current_out_dim = &mut reverse_out_shape[0];
-                if *current_out_dim != 1 && *current_out_dim != *s {
-                    panic!(
-                        "Invalid shape for broadcasting - the last position has conflicting values {current_out_dim} and {} from different inputs",
-                        s
-                    );
-                }
-                *current_out_dim = *s;
-            }
-        }
-    }
-
-    // If we get to this point without returning, reverse_out_shape will be final
-    let mut out_shape = reverse_out_shape;
-    out_shape.reverse(); //unreverse it
-
-    match &mut node.outputs[0].ty {
-        ArgType::Tensor(t) => {
-            t.rank = out_shape.len();
-            t.shape = Some(out_shape);
-        }
-        ArgType::Scalar(_) => {
-            if out_shape.len() > 1 || out_shape[0] > 1 {
-                panic!("Output is a Scalar, but broadcasting results in tensor shape {out_shape:?}")
-            }
-        }
-        ArgType::Shape(s) => {
-            if out_shape.len() > 1 {
-                panic!(
-                    "Output is a Shape, but broadcasting results in higher-rank tensor shape {out_shape:?}"
-                )
-            }
-            *s = out_shape[0];
-        }
-    }
-}
-
+/// Update output rank for OneHot (input rank + 1).
 fn one_hot_output_shape(node: &mut Node) {
+    log::debug!("OneHot rank inference for node {}", node.name);
+
     let input_rank = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
         _ => panic!("OneHot: invalid input type"),
     };
-    let new_rank = input_rank + 1;
+    log::debug!("OneHot input rank for {}: {}", node.name, input_rank);
 
-    let output_elem = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
-        _ => panic!("OneHot: invalid output type"),
-    };
+    let output_rank = input_rank + 1;
+    log::debug!("OneHot output rank for {}: {}", node.name, output_rank);
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        rank: new_rank,
-        shape: None,
-        elem_type: output_elem,
+        elem_type: node.outputs[0].ty.elem_type().clone(),
+        rank: output_rank,
+        static_shape: None,
     });
 }
 
 fn gemm_output_shape(node: &mut Node) {
+    log::debug!("Gemm rank inference for node {}", node.name);
+
     let a_rank = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
         _ => panic!("Input A should be a tensor!"),
@@ -1098,9 +1271,19 @@ fn gemm_output_shape(node: &mut Node) {
         _ => panic!("Input B should be a tensor!"),
     };
 
+    log::debug!(
+        "Gemm input ranks for {}: a_rank={}, b_rank={}",
+        node.name,
+        a_rank,
+        b_rank
+    );
+
+    let output_rank = max(a_rank, b_rank);
+    log::debug!("Gemm output rank for {}: {}", node.name, output_rank);
+
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        rank: max(a_rank, b_rank),
-        shape: None,
+        rank: output_rank,
+        static_shape: None,
         elem_type: match &node.inputs[0].ty {
             ArgType::Tensor(t) => t.elem_type.clone(),
             _ => panic!("Unexpected type for input A"),

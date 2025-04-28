@@ -1,8 +1,8 @@
 use crate::{
     CubeRuntime, IntElement,
     element::CubeElement,
-    kernel::conv::permute_nchw_to_nhwc,
-    ops::{max_vectorization, numeric::empty_device, permute},
+    kernel::into_contiguous,
+    ops::{max_line_size, numeric::empty_device, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_tensor::Shape;
@@ -97,11 +97,11 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime, E: CubeElement, I
 ) -> CubeTensor<R> {
     let [batches, channels, height, width] = x.shape.dims();
 
-    let grad = permute_nchw_to_nhwc::<R, E>(grad);
-    let indices = permute_nchw_to_nhwc::<R, I>(indices);
+    let grad = into_contiguous(permute_nchw_to_nhwc(grad));
+    let indices = into_contiguous(permute_nchw_to_nhwc(indices));
 
     let line_size = if grad.strides[3] == indices.strides[3] {
-        max_vectorization(&grad)
+        max_line_size(&grad)
     } else {
         1
     };
@@ -133,5 +133,5 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime, E: CubeElement, I
         )
     };
 
-    permute(output, &[0, 3, 1, 2])
+    permute_nhwc_to_nchw(output)
 }

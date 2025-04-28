@@ -40,3 +40,5 @@ pub mod reduce;
 pub(crate) use clamp::*;
 pub(crate) use comparison::*;
 pub use index::*;
+
+pub(crate) mod utils;

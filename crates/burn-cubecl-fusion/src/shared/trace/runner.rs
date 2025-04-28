@@ -197,50 +197,45 @@ fn vectorization_default<'a, R: Runtime>(
         if let Some((s, o, mr, dims)) = swapped.iter().find(|(_s, o, _mr, _dims)| o.id == tensor.id)
         {
             let val = vectorization_swapped(handle, s, o, *mr, dims);
-            multi_reads_vectorization_update(vectorizations, o.id, s.id, val);
+            multi_reads_vectorization_update(vectorizations, o.id, val);
         } else {
             let val = vectorization_input(handle, tensor);
             vectorizations.insert(tensor.id, val);
         }
     }
 
+    for (reshaped, original, multi_reads) in reshaped {
+        let val = vectorization_reshape(reshaped, original, multi_reads);
+        multi_reads_vectorization_update(vectorizations, original.id, val);
+    }
+
     for tensor in outputs {
         let val = vectorization_output(tensor);
         vectorizations.insert(tensor.id, val);
-    }
-
-    for (reshaped, original, multi_reads) in reshaped {
-        let val = vectorization_reshape(reshaped, original, multi_reads);
-        multi_reads_vectorization_update(vectorizations, original.id, reshaped.id, val);
     }
 }
 
 fn multi_reads_vectorization_update(
     vectorizations: &mut BTreeMap<TensorId, Vect>,
     original: TensorId,
-    view: TensorId,
     vect: Vect,
 ) {
     if let Some(ori_vect) = vectorizations.get(&original).cloned() {
         match ori_vect {
             Vect::Broadcasted => {
                 // keep the original as is.
-                vectorizations.insert(view, vect.limit_to_one());
             }
             Vect::Aligned(ori) => match vect {
                 Vect::Broadcasted => {
                     vectorizations.insert(original, Vect::Aligned(1));
-                    vectorizations.insert(view, vect.limit_to_one());
                 }
                 Vect::Aligned(new) => {
                     let val = if new != ori { 1 } else { new };
                     vectorizations.insert(original, Vect::Aligned(val));
-                    vectorizations.insert(view, Vect::Aligned(val));
                 }
             },
         };
     } else {
         vectorizations.insert(original, vect);
-        vectorizations.insert(view, vect);
     }
 }

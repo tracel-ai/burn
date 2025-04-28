@@ -79,7 +79,7 @@
 //!   - `webgpu`: Makes available the `wgpu` backend with the WebGPU Shading Language (WGSL) compiler
 //!   - `vulkan`: Makes available the `wgpu` backend with the alternative SPIR-V compiler
 //!   - `cuda`: Makes available the CUDA backend
-//!   - `hip`: Makes available the HIP backend
+//!   - `rocm`: Makes available the ROCm backend
 //!   - `candle`: Makes available the Candle backend
 //!   - `tch`: Makes available the LibTorch backend
 //!   - `ndarray`: Makes available the NdArray backend

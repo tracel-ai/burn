@@ -27,13 +27,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
                 let start = start.to_tokens();
                 let end = end.to_tokens();
 
-                quote! { Some((#start, #end))}
+                quote! { #start..#end}
             }
-            None => quote! { None },
+            None => quote! { .. },
         });
 
         quote! {
-            let #output = #input.slice([#(#ranges),*]);
+            let #output = #input.slice(burn::tensor::s![#(#ranges),*]);
         }
     }
     fn into_node(self) -> Node<PS> {
@@ -84,7 +84,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.slice([Some((0, 1)), Some((0, 1)), Some((0, 1)), Some((0, 1))]);
+                    let tensor2 = tensor1.slice(burn::tensor::s![0..1, 0..1, 0..1, 0..1]);
                     tensor2
                 }
             }

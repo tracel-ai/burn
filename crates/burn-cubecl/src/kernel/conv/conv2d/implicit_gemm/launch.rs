@@ -21,7 +21,7 @@ use cubecl::linalg::{
 
 use crate::{
     CubeElement, CubeRuntime, FloatElement,
-    ops::{numeric::empty_device_strided, permute},
+    ops::{numeric::empty_device_strided, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 
@@ -116,8 +116,8 @@ where
         width,
     );
 
-    let input = permute(input, &[0, 2, 3, 1]);
-    let weight = permute(weight, &[0, 2, 3, 1]);
+    let input = permute_nchw_to_nhwc(input);
+    let weight = permute_nchw_to_nhwc(weight);
 
     let out_shape = Shape::new([batch_size, out_h, out_w, out_channels]);
     let out =
@@ -138,5 +138,5 @@ where
         },
     )?;
 
-    Ok(permute(out, &[0, 3, 1, 2]))
+    Ok(permute_nhwc_to_nchw(out))
 }

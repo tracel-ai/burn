@@ -4,8 +4,8 @@ use super::pool2d::{
 use crate::{
     CubeRuntime,
     element::CubeElement,
-    kernel::conv::permute_nchw_to_nhwc,
-    ops::{max_vectorization, numeric::empty_device, permute},
+    kernel::into_contiguous,
+    ops::{max_line_size, numeric::empty_device, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_tensor::{Shape, ops::conv::calculate_pool_output_size};
@@ -121,9 +121,9 @@ pub(crate) fn max_pool2d<R: CubeRuntime, E: CubeElement>(
         x.shape.dims[3],
     );
 
-    let x = permute_nchw_to_nhwc::<R, E>(x);
+    let x = into_contiguous(permute_nchw_to_nhwc(x));
 
-    let line_size = max_vectorization(&x);
+    let line_size = max_line_size(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
     let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), shape_out);
@@ -151,7 +151,7 @@ pub(crate) fn max_pool2d<R: CubeRuntime, E: CubeElement>(
         (),
     );
 
-    permute(output, &[0, 3, 1, 2])
+    permute_nhwc_to_nchw(output)
 }
 
 pub(crate) fn max_pool2d_with_indices<R: CubeRuntime, E: CubeElement, I: CubeElement>(
@@ -178,8 +178,8 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime, E: CubeElement, I: CubeEle
         x.shape.dims[3],
     );
 
-    let x = permute_nchw_to_nhwc::<R, E>(x);
-    let line_size = max_vectorization(&x);
+    let x = into_contiguous(permute_nchw_to_nhwc(x));
+    let line_size = max_line_size(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
     let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), shape_out.clone());
@@ -208,7 +208,7 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime, E: CubeElement, I: CubeEle
         (),
     );
 
-    let output = permute(output, &[0, 3, 1, 2]);
-    let indices = permute(indices, &[0, 3, 1, 2]);
+    let output = permute_nhwc_to_nchw(output);
+    let indices = permute_nhwc_to_nchw(indices);
     (output, indices)
 }

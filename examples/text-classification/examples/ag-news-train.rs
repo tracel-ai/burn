@@ -8,11 +8,13 @@ use burn::{
 
 use text_classification::{AgNewsDataset, training::ExperimentConfig};
 
-#[cfg(not(feature = "f16"))]
-#[allow(dead_code)]
+#[cfg(not(any(feature = "f16", feature = "flex32")))]
+#[allow(unused)]
 type ElemType = f32;
 #[cfg(feature = "f16")]
 type ElemType = burn::tensor::f16;
+#[cfg(feature = "flex32")]
+type ElemType = burn::tensor::flex32;
 
 pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
     let config = ExperimentConfig::new(
@@ -134,13 +136,13 @@ mod cuda {
     }
 }
 
-#[cfg(feature = "hip")]
-mod hip {
+#[cfg(feature = "rocm")]
+mod rocm {
     use crate::{ElemType, launch};
-    use burn::backend::{Autodiff, Hip};
+    use burn::backend::{Autodiff, Rocm};
 
     pub fn run() {
-        launch::<Autodiff<Hip<ElemType, i32>>>(vec![Default::default()]);
+        launch::<Autodiff<Rocm<ElemType, i32>>>(vec![Default::default()]);
     }
 }
 
@@ -160,8 +162,8 @@ fn main() {
     wgpu::run();
     #[cfg(feature = "cuda")]
     cuda::run();
-    #[cfg(feature = "hip")]
-    hip::run();
+    #[cfg(feature = "rocm")]
+    rocm::run();
     #[cfg(feature = "remote")]
     remote::run();
     #[cfg(feature = "vulkan")]
