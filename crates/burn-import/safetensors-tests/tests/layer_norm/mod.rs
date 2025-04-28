@@ -34,7 +34,7 @@ mod tests {
 
     use super::*;
 
-    fn layer_norm(record: NetRecord<Backend>, precision: usize) {
+    fn layer_norm(record: NetRecord<Backend>) {
         let device = Default::default();
 
         let model = Net::<Backend>::init(&device).load_record(record);
@@ -68,7 +68,7 @@ mod tests {
         let record = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/layer_norm/layer_norm.safetensors".into(), &device)
             .expect("Should decode state successfully");
-        layer_norm(record, 3);
+        layer_norm(record);
     }
 
     #[test]
@@ -77,6 +77,6 @@ mod tests {
         let record = SafeTensorsFileRecorder::<HalfPrecisionSettings>::default()
             .load("tests/layer_norm/layer_norm.safetensors".into(), &device)
             .expect("Should decode state successfully");
-        layer_norm(record, 3);
+        layer_norm(record);
     }
 }

@@ -33,7 +33,7 @@ mod tests {
 
     use super::*;
 
-    fn group_norm(record: NetRecord<Backend>, precision: usize) {
+    fn group_norm(record: NetRecord<Backend>) {
         let device = Default::default();
 
         let model = Net::<Backend>::init(&device).load_record(record);
@@ -76,7 +76,7 @@ mod tests {
             .load("tests/group_norm/group_norm.safetensors".into(), &device)
             .expect("Should decode state successfully");
 
-        group_norm(record, 3);
+        group_norm(record);
     }
 
     #[test]
@@ -86,6 +86,6 @@ mod tests {
             .load("tests/group_norm/group_norm.safetensors".into(), &device)
             .expect("Should decode state successfully");
 
-        group_norm(record, 3);
+        group_norm(record);
     }
 }
