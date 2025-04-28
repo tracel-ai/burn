@@ -544,7 +544,6 @@ mod tests {
             .assert_within_range(-0.00001..0.00001);
     }
 
-
     #[test]
     fn initializer_orthogonal_correct() {
         TB::seed(0);
@@ -557,8 +556,13 @@ mod tests {
             .init([size, size], &Default::default())
             .into_value();
         let eye = Tensor::<TB, 2>::eye(size, &Default::default());
-        let diff: f32 = (eye - q.clone().transpose().matmul(q.clone()).round()).sum().into_scalar();
-        assert!(-0.00001 < diff && diff < 0.00001, "Expected Q.T @ Q to be close to identiy matrix.");
+        let diff: f32 = (eye - q.clone().transpose().matmul(q.clone()).round())
+            .sum()
+            .into_scalar();
+        assert!(
+            -0.00001 < diff && diff < 0.00001,
+            "Expected Q.T @ Q to be close to identiy matrix."
+        );
     }
 
     #[test]
