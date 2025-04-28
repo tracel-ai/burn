@@ -281,7 +281,7 @@ make_element!(
         flex32::from_elem(sample)
     },
     cmp |a: &flex32, b: &flex32| a.total_cmp(b),
-    dtype DType::F32,
+    dtype DType::Flex32,
     min flex32::from_f32(half::f16::MIN.to_f32_const()),
     max flex32::from_f32(half::f16::MAX.to_f32_const())
 );
@@ -304,6 +304,7 @@ make_element!(
 pub enum DType {
     F64,
     F32,
+    Flex32,
     F16,
     BF16,
     I64,
@@ -324,6 +325,7 @@ impl DType {
         match self {
             DType::F64 => core::mem::size_of::<f64>(),
             DType::F32 => core::mem::size_of::<f32>(),
+            DType::Flex32 => core::mem::size_of::<f32>(),
             DType::F16 => core::mem::size_of::<f16>(),
             DType::BF16 => core::mem::size_of::<bf16>(),
             DType::I64 => core::mem::size_of::<i64>(),
@@ -359,6 +361,7 @@ impl DType {
         match self {
             DType::F64 => "f64",
             DType::F32 => "f32",
+            DType::Flex32 => "flex32",
             DType::F16 => "f16",
             DType::BF16 => "bf16",
             DType::I64 => "i64",

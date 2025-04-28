@@ -1,5 +1,6 @@
 use crate::{
-    CubeRuntime, FloatElement, kernel::into_contiguous, ops::numeric::empty_device,
+    CubeRuntime, FloatElement,
+    ops::{numeric::empty_device_strided, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_tensor::{
@@ -20,18 +21,22 @@ pub fn interpolate<R: CubeRuntime, E: FloatElement>(
     output_size: [usize; 2],
     options: InterpolateOptions,
 ) -> CubeTensor<R> {
-    let input = into_contiguous(input);
     let [batch_size, channels, _, _] = input.shape.dims();
     let [out_height, out_width] = output_size;
 
-    let shape_out = Shape::new([batch_size, channels, out_height, out_width]);
-    let output = empty_device::<R, E>(input.client.clone(), input.device.clone(), shape_out);
+    let input = permute_nchw_to_nhwc(input);
 
-    match options.mode {
+    let shape_out = Shape::new([batch_size, out_height, out_width, channels]);
+    let output =
+        empty_device_strided::<R, E>(input.client.clone(), input.device.clone(), shape_out);
+
+    let output = match options.mode {
         InterpolateMode::Nearest => interpolate_nearest_launch::<R, E>(input, output),
         InterpolateMode::Bilinear => interpolate_bilinear_launch::<R, E>(input, output),
         InterpolateMode::Bicubic => interpolate_bicubic_launch::<R, E>(input, output),
-    }
+    };
+
+    permute_nhwc_to_nchw(output)
 }
 
 /// Backward interpolate operation
@@ -43,19 +48,14 @@ pub fn interpolate_backward<R: CubeRuntime, E: FloatElement>(
     _output_size: [usize; 2],
     options: InterpolateOptions,
 ) -> CubeTensor<R> {
-    let out_grad = into_contiguous(out_grad);
-    let output_shape = input.shape.clone();
-    let num_elems = input.shape.num_elements();
-    let buffer = input.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = CubeTensor::new_contiguous(
-        input.client.clone(),
-        input.device.clone(),
-        output_shape,
-        buffer,
-        input.dtype,
-    );
+    let input = permute_nchw_to_nhwc(input);
+    let out_grad = permute_nchw_to_nhwc(out_grad);
 
-    match options.mode {
+    let output_shape = input.shape.clone();
+    let output =
+        empty_device_strided::<R, E>(input.client.clone(), input.device.clone(), output_shape);
+
+    let output = match options.mode {
         InterpolateMode::Nearest => interpolate_nearest_backward_launch::<R, E>(out_grad, output),
         InterpolateMode::Bilinear => {
             panic!("bilinear interpolation backward is not supported by JIT backend")
@@ -63,5 +63,7 @@ pub fn interpolate_backward<R: CubeRuntime, E: FloatElement>(
         InterpolateMode::Bicubic => {
             panic!("bicubic interpolation backward is not supported by JIT backend")
         }
-    }
+    };
+
+    permute_nhwc_to_nchw(output)
 }

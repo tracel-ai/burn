@@ -42,11 +42,11 @@ pub use burn_candle as candle;
 #[cfg(feature = "candle")]
 pub use burn_candle::Candle;
 
-#[cfg(feature = "hip")]
-pub use burn_hip as hip;
+#[cfg(feature = "rocm")]
+pub use burn_rocm as rocm;
 
-#[cfg(feature = "hip")]
-pub use burn_hip::Hip;
+#[cfg(feature = "rocm")]
+pub use burn_rocm::Rocm;
 
 #[cfg(feature = "tch")]
 pub use burn_tch as libtorch;
@@ -56,3 +56,6 @@ pub use burn_tch::LibTorch;
 
 #[cfg(feature = "router")]
 pub use burn_router::Router;
+
+#[cfg(feature = "router")]
+pub use burn_router as router;

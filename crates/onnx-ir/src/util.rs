@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, Node};
+use crate::protos::OperatorSetIdProto;
 
 pub fn shape_config(curr: &Node) -> (usize, usize) {
     if curr.inputs.len() != 1 {
@@ -38,33 +39,45 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
     (start_dim as usize, end_dim as usize)
 }
 
-/// Infer convolution kernel shape from weight
-pub fn infer_conv_kernel_shape(w: &ArgType) -> Vec<i64> {
-    if let ArgType::Tensor(tensor) = w {
-        // Weight [out_channels, in_channels, kernel size...]
-        let shape = &tensor.shape.as_ref().unwrap()[2..];
-        shape.iter().map(|x| *x as i64).collect()
-    } else {
-        panic!("Cannot infer kernel shape");
+/// Check whether the provided operator set version is supported.
+///
+/// # Arguments
+///
+/// * `opset` - The operator set to check
+/// * `min_version` - The minimum supported version
+///
+/// # Returns
+///
+/// * `bool` - True if the opset version is supported, false otherwise
+///
+/// # Panics
+///
+/// * If the domain is not the empty ONNX domain
+pub fn check_opset_version(opset: &OperatorSetIdProto, min_version: i64) -> bool {
+    // For now, only empty domain (standard ONNX operators) is supported
+    if !opset.domain.is_empty() {
+        panic!("Only the standard ONNX domain is supported");
     }
+
+    // Return true if the opset version is greater than or equal to min_version
+    opset.version >= min_version
 }
 
-#[cfg(test)]
-mod tests {
-
-    use crate::ir::{ElementType, TensorType};
-
-    use super::*;
-
-    #[test]
-    fn test_infer_conv_kernel_shape() {
-        let tensor = TensorType {
-            elem_type: ElementType::Float32,
-            rank: 4,
-            shape: Some(vec![16, 64, 3, 3]),
-        };
-        let shape = infer_conv_kernel_shape(&ArgType::Tensor(tensor));
-
-        assert_eq!(shape, vec![3, 3])
+/// Verify that all operator sets in a model are supported.
+///
+/// # Arguments
+///
+/// * `opsets` - The operator sets to check
+/// * `min_version` - The minimum supported version
+///
+/// # Returns
+///
+/// * `bool` - True if all opset versions are supported, false otherwise
+pub fn verify_opsets(opsets: &[OperatorSetIdProto], min_version: i64) -> bool {
+    for opset in opsets {
+        if !check_opset_version(opset, min_version) {
+            return false;
+        }
     }
+    true
 }

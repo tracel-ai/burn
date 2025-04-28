@@ -229,7 +229,7 @@ fn register_scalars<'h, R: Runtime>(
 
     for (precision, _pos) in scalars {
         match precision {
-            FusePrecision::F32 => {
+            FusePrecision::F32 | FusePrecision::Flex32 => {
                 inputs
                     .scalars
                     .push(GlobalScalar::F32(context.scalar_f32[index_f32]));

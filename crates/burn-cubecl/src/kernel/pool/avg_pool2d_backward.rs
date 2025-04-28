@@ -1,7 +1,7 @@
 use crate::{
     CubeRuntime,
     element::CubeElement,
-    ops::{max_vectorization, numeric::empty_device, permute},
+    ops::{max_line_size, numeric::empty_device, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_tensor::Shape;
@@ -127,10 +127,10 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
 ) -> CubeTensor<R> {
     let [batches, channels, height, width] = x.shape.dims();
 
-    let grad = permute(grad, &[0, 2, 3, 1]);
+    let grad = permute_nchw_to_nhwc(grad);
 
     let line_size = if x.strides[3] == grad.strides[3] {
-        max_vectorization(&x)
+        max_line_size(&x)
     } else {
         1
     };
@@ -164,5 +164,5 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
         )
     };
 
-    permute(output, &[0, 3, 1, 2])
+    permute_nhwc_to_nchw(output)
 }

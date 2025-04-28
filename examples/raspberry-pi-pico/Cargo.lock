@@ -234,7 +234,7 @@ dependencies = [
  "burn-candle",
  "burn-core",
  "burn-cuda",
- "burn-hip",
+ "burn-rocm",
  "burn-ndarray",
  "burn-router",
  "burn-wgpu",
@@ -346,7 +346,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "burn-hip"
+name = "burn-rocm"
 version = "0.17.0"
 dependencies = [
  "burn-cubecl",

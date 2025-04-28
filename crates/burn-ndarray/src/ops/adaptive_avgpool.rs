@@ -4,6 +4,7 @@ use burn_tensor::{ElementConversion, TensorMetadata};
 use ndarray::Array4;
 
 #[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
 use num_traits::Float;
 
 pub(crate) fn adaptive_avg_pool2d<E: FloatNdArrayElement>(

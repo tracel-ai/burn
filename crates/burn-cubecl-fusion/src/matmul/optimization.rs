@@ -262,6 +262,9 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmul {
     ) -> Result<(), FusedMatmulError> {
         match self.out.precision() {
             FusePrecision::F32 => self.matmul_fused::<R, f32>(client, inputs, outputs, &configs[0]),
+            FusePrecision::Flex32 => {
+                self.matmul_fused::<R, flex32>(client, inputs, outputs, &configs[0])
+            }
             FusePrecision::F16 => self.matmul_fused::<R, f16>(client, inputs, outputs, &configs[0]),
             FusePrecision::BF16 => {
                 self.matmul_fused::<R, bf16>(client, inputs, outputs, &configs[0])
@@ -395,7 +398,8 @@ fn matmul_launch_kernel<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
     plane_size: u32,
 ) -> Result<(), MatmulLaunchError> {
     if <A::TileMatmul as TileMatmulFamily>::requires_tensor_cores()
-        && TypeId::of::<EG>() == TypeId::of::<f32>()
+        && TypeId::of::<EG::ES>() == TypeId::of::<f32>()
+        && tf32::is_supported(client)
     {
         select_kernel_virtual::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
             client, input, output, problem, plane_size,

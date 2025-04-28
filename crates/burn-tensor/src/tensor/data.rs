@@ -239,7 +239,7 @@ impl TensorData {
                         .iter()
                         .map(|e: &f16| e.elem::<E>()),
                 ),
-                DType::F32 => Box::new(
+                DType::F32 | DType::Flex32 => Box::new(
                     bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
                         .map(|e: &f32| e.elem::<E>()),
@@ -359,7 +359,7 @@ impl TensorData {
         {
             match self.dtype {
                 DType::F64 => self.convert_inplace_dtype::<f64>(dtype),
-                DType::F32 => self.convert_inplace_dtype::<f32>(dtype),
+                DType::F32 | DType::Flex32 => self.convert_inplace_dtype::<f32>(dtype),
                 DType::F16 => self.convert_inplace_dtype::<f16>(dtype),
                 DType::BF16 => self.convert_inplace_dtype::<bf16>(dtype),
                 DType::I64 => self.convert_inplace_dtype::<i64>(dtype),
@@ -375,7 +375,7 @@ impl TensorData {
         } else {
             match self.dtype {
                 DType::F64 => self.convert_clone_dtype::<f64>(dtype),
-                DType::F32 => self.convert_clone_dtype::<f32>(dtype),
+                DType::F32 | DType::Flex32 => self.convert_clone_dtype::<f32>(dtype),
                 DType::F16 => self.convert_clone_dtype::<f16>(dtype),
                 DType::BF16 => self.convert_clone_dtype::<bf16>(dtype),
                 DType::I64 => self.convert_clone_dtype::<i64>(dtype),
@@ -395,7 +395,7 @@ impl TensorData {
     fn convert_inplace_dtype<Current: Element + AnyBitPattern>(self, dtype: DType) -> Self {
         match dtype {
             DType::F64 => self.convert_inplace::<Current, f64>(),
-            DType::F32 => self.convert_inplace::<Current, f32>(),
+            DType::F32 | DType::Flex32 => self.convert_inplace::<Current, f32>(),
             DType::F16 => self.convert_inplace::<Current, f16>(),
             DType::BF16 => self.convert_inplace::<Current, bf16>(),
             DType::I64 => self.convert_inplace::<Current, i64>(),
@@ -427,7 +427,7 @@ impl TensorData {
     fn convert_clone_dtype<Current: Element + CheckedBitPattern>(self, dtype: DType) -> Self {
         match dtype {
             DType::F64 => self.convert_clone::<Current, f64>(),
-            DType::F32 => self.convert_clone::<Current, f32>(),
+            DType::F32 | DType::Flex32 => self.convert_clone::<Current, f32>(),
             DType::F16 => self.convert_clone::<Current, f16>(),
             DType::BF16 => self.convert_clone::<Current, bf16>(),
             DType::I64 => self.convert_clone::<Current, i64>(),
@@ -524,7 +524,7 @@ impl TensorData {
 
         match self.dtype {
             DType::F64 => self.assert_eq_elem::<f64>(other),
-            DType::F32 => self.assert_eq_elem::<f32>(other),
+            DType::F32 | DType::Flex32 => self.assert_eq_elem::<f32>(other),
             DType::F16 => self.assert_eq_elem::<f16>(other),
             DType::BF16 => self.assert_eq_elem::<bf16>(other),
             DType::I64 => self.assert_eq_elem::<i64>(other),
@@ -801,7 +801,7 @@ impl core::fmt::Display for TensorData {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let fmt = match self.dtype {
             DType::F64 => format!("{:?}", self.as_slice::<f64>().unwrap()),
-            DType::F32 => format!("{:?}", self.as_slice::<f32>().unwrap()),
+            DType::F32 | DType::Flex32 => format!("{:?}", self.as_slice::<f32>().unwrap()),
             DType::F16 => format!("{:?}", self.as_slice::<f16>().unwrap()),
             DType::BF16 => format!("{:?}", self.as_slice::<bf16>().unwrap()),
             DType::I64 => format!("{:?}", self.as_slice::<i64>().unwrap()),
