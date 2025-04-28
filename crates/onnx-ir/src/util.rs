@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, Node};
+use crate::protos::OperatorSetIdProto;
 
 pub fn shape_config(curr: &Node) -> (usize, usize) {
     if curr.inputs.len() != 1 {
@@ -36,4 +37,47 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
     }
 
     (start_dim as usize, end_dim as usize)
+}
+
+/// Check whether the provided operator set version is supported.
+///
+/// # Arguments
+///
+/// * `opset` - The operator set to check
+/// * `min_version` - The minimum supported version
+///
+/// # Returns
+///
+/// * `bool` - True if the opset version is supported, false otherwise
+///
+/// # Panics
+///
+/// * If the domain is not the empty ONNX domain
+pub fn check_opset_version(opset: &OperatorSetIdProto, min_version: i64) -> bool {
+    // For now, only empty domain (standard ONNX operators) is supported
+    if !opset.domain.is_empty() {
+        panic!("Only the standard ONNX domain is supported");
+    }
+
+    // Return true if the opset version is greater than or equal to min_version
+    opset.version >= min_version
+}
+
+/// Verify that all operator sets in a model are supported.
+///
+/// # Arguments
+///
+/// * `opsets` - The operator sets to check
+/// * `min_version` - The minimum supported version
+///
+/// # Returns
+///
+/// * `bool` - True if all opset versions are supported, false otherwise
+pub fn verify_opsets(opsets: &[OperatorSetIdProto], min_version: i64) -> bool {
+    for opset in opsets {
+        if !check_opset_version(opset, min_version) {
+            return false;
+        }
+    }
+    true
 }
