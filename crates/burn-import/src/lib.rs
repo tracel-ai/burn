@@ -34,5 +34,9 @@ pub mod pytorch;
 #[cfg(feature = "safetensors")]
 pub mod safetensors;
 
+// Enabled when the `pytorch` or `safetensors` feature is enabled.
+#[cfg(any(feature = "pytorch", feature = "safetensors"))]
+mod common;
+
 mod formatter;
 pub use formatter::*;

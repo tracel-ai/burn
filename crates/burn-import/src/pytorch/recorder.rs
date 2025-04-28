@@ -11,11 +11,10 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use super::reader::from_file;
 
-/// A recorder that loads PyTorch files (`.pt`) into Burn modules.
+/// Recorder for loading PyTorch (`.pt`) files into Burn modules.
 ///
-/// LoadArgs can be used to remap keys or file path.
-/// See [LoadArgs](struct.LoadArgs.html) for more information.
-///
+/// Load arguments ([`LoadArgs`]) can be used to specify the file path and
+/// remap parameter keys during loading.
 #[derive(new, Debug, Default, Clone)]
 pub struct PyTorchFileRecorder<PS: PrecisionSettings> {
     _settings: PhantomData<PS>,
@@ -57,56 +56,54 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for PyTorchFileRecorder<PS> 
     }
 }
 
-/// Arguments for loading a PyTorch file.
-///
-/// # Fields
-///
-/// * `file` - The path to the file to load.
-/// * `key_remap` - A vector of tuples containing a regular expression and a replacement string.
-///   See [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace)
-///   for more information.
+/// Arguments for loading PyTorch model weights.
 ///
 /// # Notes
 ///
-/// Use [Netron](https://github.com/lutzroeder/netron) to inspect the keys of the PyTorch file (.pt extension).
-///
+/// Parameter keys within a PyTorch file (`.pt` extension) can be inspected using
+/// tools like [Netron](https://github.com/lutzroeder/netron).
 ///
 /// # Examples
 ///
-/// ```text
+/// ```rust,ignore
 /// use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
-/// use burn::record::FullPrecisionSettings;
-/// use burn::record::Recorder;
+/// use burn::record::{FullPrecisionSettings, Recorder};
 ///
+/// // Create load arguments, specifying the file and a key remapping rule.
 /// let args = LoadArgs::new("tests/key_remap/key_remap.pt".into())
-///    .with_key_remap("conv\\.(.*)", "$1"); // // Remove "conv" prefix, e.g. "conv.conv1" -> "conv1"
+///    // Remove "conv." prefix, e.g., "conv.weight" -> "weight"
+///    .with_key_remap("conv\\.(.*)", "$1");
 ///
+/// // Load the record using the default recorder.
 /// let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-///   .load(args)
+///   .load(args, &burn::backend::NdArray::default().device()) // Provide a device
 ///   .expect("Should decode state successfully");
 /// ```
 #[derive(Debug, Clone)]
 pub struct LoadArgs {
-    /// The path to the file to load.
+    /// The path to the PyTorch file (`.pt`).
     pub file: PathBuf,
 
-    /// A list of key remappings.
+    /// A list of key remapping rules applied to the state dictionary keys.
+    /// Each rule consists of a regular expression and a replacement string.
+    /// See [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace)
+    /// for more details.
     pub key_remap: Vec<(Regex, String)>,
 
-    /// Top-level key to load state_dict from the file.
-    /// Sometimes the state_dict is nested under a top-level key in a dict.
+    /// Optional top-level key under which the state dictionary is nested within the file.
+    /// If `None`, the root object is assumed to be the state dictionary.
     pub top_level_key: Option<String>,
 
-    /// Whether to print debug information.
+    /// If `true`, prints debug information during the loading process.
     pub debug: bool,
 }
 
 impl LoadArgs {
-    /// Creates a new `LoadArgs` instance.
+    /// Creates new load arguments with the given file path.
     ///
     /// # Arguments
     ///
-    /// * `file` - The path to the file to load.
+    /// * `file` - The path to the PyTorch file to load.
     pub fn new(file: PathBuf) -> Self {
         Self {
             file,
@@ -116,35 +113,37 @@ impl LoadArgs {
         }
     }
 
-    /// Sets key remapping.
+    /// Adds a key remapping rule.
+    ///
+    /// Keys from the PyTorch state dictionary are modified if they match the pattern.
     ///
     /// # Arguments
     ///
-    /// * `pattern` - The Regex pattern to be replaced.
-    /// * `replacement` - The pattern to replace with.
+    /// * `pattern` - The regular expression pattern to match against state dictionary keys.
+    /// * `replacement` - The replacement string. Capture groups can be used (e.g., `$1`).
     ///
-    /// See [Regex](https://docs.rs/regex/1.5.4/regex/#syntax) for the pattern syntax and
-    /// [Replacement](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace) for the
-    /// replacement syntax.
+    /// See the [regex crate documentation](https://docs.rs/regex/latest/regex/) for pattern syntax
+    /// and [replacement string syntax](https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax).
     pub fn with_key_remap(mut self, pattern: &str, replacement: &str) -> Self {
-        let regex = Regex::new(pattern).expect("Valid regex");
-
+        let regex = Regex::new(pattern).expect("Invalid regex pattern provided");
         self.key_remap.push((regex, replacement.into()));
         self
     }
 
-    /// Sets the top-level key to load state_dict from the file.
-    /// Sometimes the state_dict is nested under a top-level key in a dict.
+    /// Specifies a top-level key in the file under which the state dictionary is nested.
+    ///
+    /// Some PyTorch files store the state dictionary within a larger structure (e.g., a dictionary).
+    /// Use this method if the weights are not at the root level of the file.
     ///
     /// # Arguments
     ///
-    /// * `key` - The top-level key to load state_dict from the file.
+    /// * `key` - The top-level key to access the state dictionary.
     pub fn with_top_level_key(mut self, key: &str) -> Self {
         self.top_level_key = Some(key.into());
         self
     }
 
-    /// Sets printing debug information on.
+    /// Enables printing of debug information during loading.
     pub fn with_debug_print(mut self) -> Self {
         self.debug = true;
         self
