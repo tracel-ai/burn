@@ -95,7 +95,7 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
         graph.register(SliceNode::new(
             Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 3)), // Output rank changes
+            Type::Tensor(TensorType::new_float("tensor2", 4)), // Output rank changes
             vec![Some((0, 1)), None, None, None],
         ));
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
@@ -122,7 +122,7 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 3> {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.slice(s![0..1, .., .., ..]); // Use s! directly
                     tensor2
                 }
