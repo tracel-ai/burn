@@ -3,8 +3,8 @@ use core::mem;
 use burn_tensor::{
     DType, Element, Shape, TensorData, TensorMetadata,
     quantization::{
-        QParams, QTensorPrimitive, QuantLevel, QuantMode, QuantScheme,
-        QuantizationStrategy, QuantInputType, SymmetricQuantization,
+        QParams, QTensorPrimitive, QuantInputType, QuantLevel, QuantMode, QuantScheme,
+        QuantizationStrategy, SymmetricQuantization,
     },
 };
 

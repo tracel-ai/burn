@@ -1,8 +1,6 @@
 #![allow(missing_docs)] // cube derive macros
 
-use burn_tensor::quantization::{
-    QuantLevel, QuantMode, QuantScheme, QuantInputType,
-};
+use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
 use cubecl::prelude::*;
 
 /// Quantization parameters.

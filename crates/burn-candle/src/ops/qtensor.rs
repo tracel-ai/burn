@@ -4,7 +4,7 @@ use burn_tensor::{
     DType, Device, Shape, TensorData,
     backend::Backend,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
-    quantization::{QuantizationParametersPrimitive, QuantScheme},
+    quantization::{QuantScheme, QuantizationParametersPrimitive},
 };
 
 use crate::{

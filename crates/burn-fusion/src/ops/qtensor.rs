@@ -7,7 +7,7 @@ use burn_ir::{
 use burn_tensor::{
     DType, Device, Element, Shape, TensorData, TensorMetadata,
     ops::{FloatElem, FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
-    quantization::{QuantizationParametersPrimitive, QuantScheme},
+    quantization::{QuantScheme, QuantizationParametersPrimitive},
 };
 
 use crate::{

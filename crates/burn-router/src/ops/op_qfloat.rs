@@ -3,7 +3,7 @@ use core::ops::Range;
 use burn_tensor::{
     Device, Shape, TensorData,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
-    quantization::{QuantizationParametersPrimitive, QuantScheme},
+    quantization::{QuantScheme, QuantizationParametersPrimitive},
 };
 
 use crate::{BackendRouter, RunnerChannel};

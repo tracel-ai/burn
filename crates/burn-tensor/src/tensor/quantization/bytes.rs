@@ -4,8 +4,8 @@ use crate::{Bytes, Element};
 use alloc::vec::Vec;
 
 use super::{
-    QParams, QuantLevel, QuantMode, QuantScheme, QuantizationStrategy,
-    QuantInputType, SymmetricQuantization, pack_i8s_to_u32s, unpack_u32s_to_i8s,
+    QParams, QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantizationStrategy,
+    SymmetricQuantization, pack_i8s_to_u32s, unpack_u32s_to_i8s,
 };
 
 /// Quantized data bytes representation.

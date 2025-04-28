@@ -3,7 +3,7 @@ use core::cmp::Ordering;
 use crate::{
     Distribution,
     cast::ToElement,
-    quantization::{QuantScheme, QuantInputType},
+    quantization::{QuantInputType, QuantScheme},
 };
 #[cfg(feature = "cubecl")]
 use cubecl::flex32;

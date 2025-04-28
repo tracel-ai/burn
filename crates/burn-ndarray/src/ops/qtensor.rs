@@ -5,8 +5,8 @@ use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParams, QuantLevel, QuantMode, QuantizationParametersPrimitive,
-        QuantScheme, QuantizationStrategy, QuantInputType, QuantizedBytes,
+        QParams, QuantInputType, QuantLevel, QuantMode, QuantScheme,
+        QuantizationParametersPrimitive, QuantizationStrategy, QuantizedBytes,
         SymmetricQuantization,
     },
 };

@@ -1,6 +1,6 @@
 use crate::Tensor;
 use crate::check::TensorCheck;
-use crate::quantization::{QuantizationParameters, QuantScheme};
+use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};

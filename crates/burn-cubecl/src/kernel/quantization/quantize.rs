@@ -1,9 +1,7 @@
 use crate::tensor::CubeTensor;
 use crate::{CubeElement, CubeRuntime, IntElement};
 use burn_tensor::Shape;
-use burn_tensor::quantization::{
-    QuantLevel, QuantMode, QuantScheme, QuantInputType,
-};
+use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 
@@ -104,7 +102,7 @@ fn create_quantized_output<R: CubeRuntime>(
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
             acc_precision: _,
-            output: _,
+            propagation: _,
         } => core::mem::size_of::<f32>(),
     };
 
@@ -153,7 +151,7 @@ where
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
             acc_precision: _,
-            output: _,
+            propagation: _,
         } => {
             let ndims = tensor.shape.num_dims();
             let dummy_array = vec![1; ndims];

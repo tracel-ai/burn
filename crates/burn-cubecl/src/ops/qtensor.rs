@@ -4,8 +4,8 @@ use burn_tensor::{
     DType, Device, Shape, TensorData, TensorPrimitive,
     ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QTensorPrimitive, QuantLevel, QuantMode, QuantPropagation,
-        QuantizationParametersPrimitive, QuantScheme, QuantInputType,
+        QTensorPrimitive, QuantInputType, QuantLevel, QuantMode, QuantPropagation, QuantScheme,
+        QuantizationParametersPrimitive,
     },
 };
 use cubecl::{

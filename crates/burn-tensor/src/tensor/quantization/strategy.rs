@@ -4,8 +4,7 @@ use num_traits::{Float, PrimInt, Signed};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    QuantAccPrecision, QuantLevel, QuantMode, QuantPropagation,
-    QuantScheme, QuantInputType,
+    QuantAccPrecision, QuantInputType, QuantLevel, QuantMode, QuantPropagation, QuantScheme,
 };
 
 /// Quantization strategy.
