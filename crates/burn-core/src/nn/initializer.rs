@@ -579,7 +579,7 @@ mod tests {
         let dims = t.dims();
         assert_eq!(
             shape, dims,
-            "Expected the shape of the input tensor to match the shape of the ouput. ({:?}, {:?})",
+            "Expected the shape of the input tensor to match the shape of the output. ({:?}, {:?})",
             shape, dims
         );
 
@@ -591,7 +591,7 @@ mod tests {
         let dims = t.dims();
         assert_eq!(
             shape, dims,
-            "Expected the shape of the input tensor to match the shape of the ouput. ({:?}, {:?})",
+            "Expected the shape of the input tensor to match the shape of the output. ({:?}, {:?})",
             shape, dims
         );
     }
