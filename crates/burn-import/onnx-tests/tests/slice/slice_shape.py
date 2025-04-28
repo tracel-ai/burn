@@ -38,7 +38,7 @@ def main():
 
     output_filename = "slice_shape.onnx"
 
-    # Create sample input tensor with dimensions [2, 3, 4, 5]
+    # Create sample input tensor with dimensions [1, 2, 3, 1]
     sample_input = torch.randn(1, 2, 3, 1, device=device)
 
     # Export model to ONNX format
