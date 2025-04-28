@@ -3,6 +3,7 @@ use crate::shared::DYN_ELEM_ID;
 use super::io::*;
 use super::ir::*;
 use cubecl::prelude::*;
+use cubecl::unexpanded;
 
 #[cube]
 /// Fuse element-wise operations at the given write position.

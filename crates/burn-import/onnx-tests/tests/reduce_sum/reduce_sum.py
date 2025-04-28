@@ -31,8 +31,7 @@ def main():
     device = torch.device("cpu")
     test_input = torch.tensor([[[[1.0, 4.0, 9.0, 25.0]]]], device=device)
 
-    torch.onnx.export(model, test_input, "reduce_sum_opset11.onnx", verbose=False, opset_version=11)
-    torch.onnx.export(model, test_input, "reduce_sum_opset13.onnx", verbose=False, opset_version=13)
+    torch.onnx.export(model, test_input, "reduce_sum.onnx", verbose=False, opset_version=16)
 
     print("Finished exporting model")
 

@@ -24,8 +24,7 @@ include_models!(
     avg_pool2d,
     batch_norm,
     cast,
-    clip_opset16,
-    clip_opset7,
+    clip,
     concat,
     constant_f32,
     constant_f64,
@@ -42,54 +41,53 @@ include_models!(
     cos,
     cosh,
     div,
-    dropout_opset16,
-    dropout_opset7,
+    dropout,
     equal,
     erf,
     exp,
     expand,
-    expand_tensor,
     expand_shape,
+    expand_tensor,
     flatten,
     flatten_2d,
     floor,
     gather_1d_idx,
     gather_2d_idx,
+    gather_elements,
     gather_scalar,
     gather_scalar_out,
     gather_shape,
-    gather_elements,
     gelu,
     gemm,
-    gemm_non_unit_alpha_beta,
     gemm_no_c,
+    gemm_non_unit_alpha_beta,
     global_avr_pool,
     graph_multiple_output_tracking,
     greater,
-    greater_scalar,
     greater_or_equal,
     greater_or_equal_scalar,
+    greater_scalar,
     hard_sigmoid,
     layer_norm,
     leaky_relu,
     less,
-    less_scalar,
     less_or_equal,
     less_or_equal_scalar,
+    less_scalar,
     linear,
     log,
     log_softmax,
     mask_where,
+    mask_where_all_scalar,
     mask_where_broadcast,
     mask_where_scalar_x,
     mask_where_scalar_y,
-    mask_where_all_scalar,
     matmul,
     max,
     maxpool1d,
     maxpool2d,
-    min,
     mean,
+    min,
     mul,
     neg,
     not,
@@ -108,16 +106,15 @@ include_models!(
     reduce_mean,
     reduce_min,
     reduce_prod,
-    reduce_sum_opset11,
-    reduce_sum_opset13,
+    reduce_sum,
     relu,
     reshape,
-    resize_with_sizes,
     resize_1d_linear_scale,
     resize_1d_nearest_scale,
     resize_2d_bicubic_scale,
     resize_2d_bilinear_scale,
     resize_2d_nearest_scale,
+    resize_with_sizes,
     shape,
     sigmoid,
     sign,
@@ -125,10 +122,10 @@ include_models!(
     sinh,
     slice,
     softmax,
+    split,
     sqrt,
+    squeeze,
     squeeze_multiple,
-    squeeze_opset13,
-    squeeze_opset16,
     sub,
     sub_int,
     sum,
@@ -136,14 +133,12 @@ include_models!(
     tan,
     tanh,
     tile,
-    top_k_opset_1,
-    trilu_upper,
-    trilu_lower,
+    topk,
     transpose,
-    unsqueeze,
-    unsqueeze_opset11,
-    unsqueeze_opset16,
-    split
+    trilu_lower,
+    trilu_upper,
+    unsqueeze_like,
+    unsqueeze_runtime_axes
 );
 
 #[cfg(test)]
@@ -152,9 +147,7 @@ mod tests {
 
     use super::*;
 
-    use burn::tensor::{
-        Bool, Int, Shape, Tensor, TensorData, Tolerance, cast::ToElement, ops::FloatElem,
-    };
+    use burn::tensor::{Bool, Int, Shape, Tensor, TensorData, Tolerance, ops::FloatElem};
 
     use float_cmp::ApproxEq;
 
@@ -434,27 +427,8 @@ mod tests {
     }
 
     #[test]
-    fn dropout_opset16() {
-        let model: dropout_opset16::Model<Backend> = dropout_opset16::Model::default();
-
-        // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15], &Default::default());
-
-        let output = model.forward(input);
-
-        let expected_shape = Shape::from([2, 4, 10, 15]);
-        assert_eq!(output.shape(), expected_shape);
-
-        let output_sum = output.sum().into_scalar();
-
-        let expected_sum = 1200.0; // from pytorch
-
-        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
-    }
-
-    #[test]
-    fn dropout_opset7() {
-        let model: dropout_opset7::Model<Backend> = dropout_opset7::Model::default();
+    fn dropout() {
+        let model: dropout::Model<Backend> = dropout::Model::default();
 
         // Run the model with ones as input for easier testing
         let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15], &Default::default());
@@ -965,25 +939,9 @@ mod tests {
     }
 
     #[test]
-    fn reduce_sum_opset11() {
+    fn reduce_sum() {
         let device = Default::default();
-        let model: reduce_sum_opset11::Model<Backend> = reduce_sum_opset11::Model::new(&device);
-
-        // Run the model
-        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
-        let (output_scalar, output_tensor, output_value) = model.forward(input.clone());
-        let expected_scalar = TensorData::from([39f32]);
-        let expected = TensorData::from([[[[39f32]]]]);
-
-        output_scalar.to_data().assert_eq(&expected_scalar, true);
-        output_tensor.to_data().assert_eq(&input.to_data(), true);
-        output_value.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn reduce_sum_opset13() {
-        let device = Default::default();
-        let model: reduce_sum_opset13::Model<Backend> = reduce_sum_opset13::Model::new(&device);
+        let model: reduce_sum::Model<Backend> = reduce_sum::Model::new(&device);
 
         // Run the model
         let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
@@ -1462,50 +1420,15 @@ mod tests {
     }
 
     #[test]
-    fn clip_opset16() {
+    fn clip() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
-        let model: clip_opset16::Model<Backend> = clip_opset16::Model::new(&device);
+        let model: clip::Model<Backend> = clip::Model::new(&device);
 
         // Run the model
         let input = Tensor::<Backend, 1>::from_floats(
             [
                 0.88226926,
-                0.91500396,
-                0.38286376,
-                0.95930564,
-                0.390_448_2,
-                0.60089535,
-            ],
-            &device,
-        );
-        let (output1, output2, output3) = model.forward(input);
-        let expected1 = TensorData::from([
-            0.88226926f32,
-            0.91500396,
-            0.38286376,
-            0.95930564,
-            0.390_448_2,
-            0.60089535,
-        ]);
-        let expected2 = TensorData::from([0.7f32, 0.7, 0.5, 0.7, 0.5, 0.60089535]);
-        let expected3 = TensorData::from([0.8f32, 0.8, 0.38286376, 0.8, 0.390_448_2, 0.60089535]);
-
-        output1.to_data().assert_eq(&expected1, true);
-        output2.to_data().assert_eq(&expected2, true);
-        output3.to_data().assert_eq(&expected3, true);
-    }
-
-    #[test]
-    fn clip_opset7() {
-        // Initialize the model without weights (because the exported file does not contain them)
-        let device = Default::default();
-        let model: clip_opset7::Model<Backend> = clip_opset7::Model::new(&device);
-
-        // Run the model
-        let input = Tensor::<Backend, 1>::from_floats(
-            [
-                0.88226926f32,
                 0.91500396,
                 0.38286376,
                 0.95930564,
@@ -2084,9 +2007,10 @@ mod tests {
     }
 
     #[test]
-    fn unsqueeze() {
+    fn unsqueeze_runtime_axes() {
         let device = Default::default();
-        let model: unsqueeze::Model<Backend> = unsqueeze::Model::new(&device);
+        let model: unsqueeze_runtime_axes::Model<Backend> =
+            unsqueeze_runtime_axes::Model::new(&device);
         let input_shape = Shape::from([3, 4, 5]);
         let expected_shape = Shape::from([1, 3, 1, 4, 5, 1]);
         let input = Tensor::ones(input_shape, &device);
@@ -2100,21 +2024,9 @@ mod tests {
     }
 
     #[test]
-    fn unsqueeze_opset16() {
+    fn unsqueeze_like() {
         let device = Default::default();
-        let model = unsqueeze_opset16::Model::<Backend>::new(&device);
-        let input_shape = Shape::from([3, 4, 5]);
-        let expected_shape = Shape::from([3, 4, 5, 1]);
-        let input = Tensor::ones(input_shape, &device);
-        let output = model.forward(input, 1.0);
-        assert_eq!(expected_shape, output.0.shape());
-        assert_eq!(Shape::from([1]), output.1.shape());
-    }
-
-    #[test]
-    fn unsqueeze_opset11() {
-        let device = Default::default();
-        let model = unsqueeze_opset11::Model::<Backend>::new(&device);
+        let model = unsqueeze_like::Model::<Backend>::new(&device);
         let input_shape = Shape::from([3, 4, 5]);
         let expected_shape = Shape::from([3, 4, 5, 1]);
         let input = Tensor::ones(input_shape, &device);
@@ -2269,20 +2181,9 @@ mod tests {
     }
 
     #[test]
-    fn squeeze_opset16() {
+    fn squeeze() {
         let device = Default::default();
-        let model = squeeze_opset16::Model::<Backend>::new(&device);
-        let input_shape = Shape::from([3, 4, 1, 5]);
-        let expected_shape = Shape::from([3, 4, 5]);
-        let input = Tensor::ones(input_shape, &device);
-        let output = model.forward(input);
-        assert_eq!(expected_shape, output.shape());
-    }
-
-    #[test]
-    fn squeeze_opset13() {
-        let device = Default::default();
-        let model = squeeze_opset13::Model::<Backend>::new(&device);
+        let model = squeeze::Model::<Backend>::new(&device);
         let input_shape = Shape::from([3, 4, 1, 5]);
         let expected_shape = Shape::from([3, 4, 5]);
         let input = Tensor::ones(input_shape, &device);
@@ -2440,22 +2341,29 @@ mod tests {
     }
 
     #[test]
-    fn top_k_opset_1() {
+    fn topk() {
         // Initialize the model
         let device = Default::default();
-        let model = top_k_opset_1::Model::<Backend>::new(&device);
+        let model = topk::Model::<Backend>::new(&device);
 
         // Run the model
         let input = Tensor::<Backend, 2>::from_floats(
-            [[1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0, 4.0]],
+            [
+                [0.33669037, 0.12880941, 0.23446237, 0.23033303, -1.12285638],
+                [-0.18632829, 2.20820141, -0.63799703, 0.46165723, 0.26735088],
+                [0.53490466, 0.80935723, 1.11029029, -1.68979895, -0.98895991],
+            ],
             &device,
         );
         let (values_tensor, indices_tensor) = model.forward(input);
 
         // expected results
-        let expected_values_tensor =
-            TensorData::from([[4.0, 3.0, 2.to_f32()], [4.0, 3.0, 2.to_f32()]]);
-        let expected_indices_tensor = TensorData::from([[3i64, 2, 1], [3, 2, 1]]);
+        let expected_values_tensor = TensorData::from([
+            [0.33669037f32, 0.23446237],
+            [2.208_201_4, 0.46165723],
+            [1.110_290_3, 0.809_357_2],
+        ]);
+        let expected_indices_tensor = TensorData::from([[0i64, 2], [1, 3], [2, 1]]);
 
         values_tensor
             .to_data()
