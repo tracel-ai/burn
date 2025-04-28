@@ -196,8 +196,51 @@ fn normal_draw<B: Backend, const D: usize, S: Into<Shape>>(
     Tensor::<B, D>::random(shape, distribution, device)
 }
 
+fn qr_decomposition<B: Backend>(
+    a: Tensor<B, 2>,
+    device: &B::Device,
+) -> (Tensor<B, 2>, Tensor<B, 2>) {
+    // Calculate the QR decomposition using Gram-Schmidt-process: https://en.wikipedia.org/wiki/Gram%E2%80%93Schmidt_process
+
+    let [m, n] = a.clone().dims();
+    let mut q = Tensor::<B, 2>::zeros([m, n], device);
+    let mut r = Tensor::<B, 2>::zeros([n, n], device);
+
+    for j in 0..n {
+        let mut v: Tensor<B, 1> = a.clone().slice(burn::prelude::s![.., j..=j]).squeeze(1);
+
+        for i in 0..j {
+            let q_i: Tensor<B, 1> = q.clone().slice(burn::prelude::s![.., i..=i]).squeeze(1);
+            let r_ij = q_i.clone().mul(v.clone()).sum();
+
+            r = r
+                .clone()
+                .slice_assign([i..i + 1, j..j + 1], r_ij.clone().unsqueeze());
+            v = v - q_i.mul(r_ij);
+        }
+
+        let r_jj = v
+            .clone()
+            .powf(Tensor::from_floats([2.0], device))
+            .sum()
+            .sqrt();
+        r = r
+            .clone()
+            .slice_assign([j..j + 1, j..j + 1], r_jj.clone().unsqueeze());
+
+        let q_j = v / r_jj;
+        q = q
+            .clone()
+            .slice_assign([0..n, j..j + 1], q_j.unsqueeze_dim(1));
+    }
+
+    (q, r)
+}
+
 #[cfg(test)]
 mod tests {
+    use core::default;
+
     use super::*;
 
     use crate::tensor::{ElementConversion, TensorData};
@@ -231,6 +274,28 @@ mod tests {
                 "Expected mean to be between {expected_mean} += 0.1, but got {actual_mean}"
             );
         }
+    }
+
+    #[test]
+    fn test_qr_decomposition() {
+        TB::seed(0);
+
+        // test values follow the example from https://pytorch.org/docs/stable/generated/torch.linalg.qr.html#torch.linalg.qr
+        let a = Tensor::<TB, 2>::from_floats(
+            [
+                [12., -51., 4.], 
+                [6., 167., -68.], 
+                [-4., 24., -41.]
+            ],
+            &Default::default(),
+        );
+        let qr = qr_decomposition(a.clone(), &Default::default());
+
+        // Q @ R should reconstruct input `a` 
+        let q_matmul_r = qr.0.clone().matmul(qr.1.clone());
+
+        // assert that the difference between input (`a`) and Q @ R is (almost) zero
+        (a.round() - q_matmul_r.clone().round()).sum().into_data().assert_within_range(-0.00001..0.00001);
     }
 
     #[test]
