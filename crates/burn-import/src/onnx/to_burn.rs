@@ -13,9 +13,62 @@ use log::warn;
 
 use crate::{
     burn::{
-        graph::BurnGraph, node::{
-            argmax::ArgMaxNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode, binary::BinaryNode, bitshift::BitShiftNode, bitwiseand::BitwiseAndNode, bitwisenot::BitwiseNotNode, bitwiseor::BitwiseOrNode, bitwisexor::BitwiseXorNode, clip::ClipNode, concat::ConcatNode, constant::{ConstantNode, ConstantValue}, constant_of_shape::ConstantOfShapeNode, conv1d::Conv1dNode, conv2d::Conv2dNode, conv3d::Conv3dNode, conv_transpose_1d::ConvTranspose1dNode, conv_transpose_2d::ConvTranspose2dNode, conv_transpose_3d::ConvTranspose3dNode, dropout::DropoutNode, expand::ExpandNode, floor::FloorNode, gather::GatherNode, gather_elements::GatherElementsNode, gemm::GemmNode, global_avg_pool::GlobalAvgPoolNode, layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode, max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, one_hot::OneHotNode, pad::PadNode, prelu::PReluNode, random_normal::RandomNormalNode, random_normal_like::RandomNormalLikeNode, random_uniform::RandomUniformNode, random_uniform_like::RandomUniformLikeNode, range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode, split::SplitNode, squeeze::SqueezeNode, sum::SumNode, tile::TileNode, top_k::TopKNode, trilu::TriluNode, unary::UnaryNode, unsqueeze::UnsqueezeNode
-        }, ScalarKind, ScalarType, ShapeType, TensorKind, TensorType, Type
+        ScalarKind, ScalarType, ShapeType, TensorKind, TensorType, Type,
+        graph::BurnGraph,
+        node::{
+            argmax::ArgMaxNode,
+            avg_pool1d::AvgPool1dNode,
+            avg_pool2d::AvgPool2dNode,
+            batch_norm::BatchNormNode,
+            binary::BinaryNode,
+            bitshift::BitShiftNode,
+            bitwiseand::BitwiseAndNode,
+            bitwisenot::BitwiseNotNode,
+            bitwiseor::BitwiseOrNode,
+            bitwisexor::BitwiseXorNode,
+            clip::ClipNode,
+            concat::ConcatNode,
+            constant::{ConstantNode, ConstantValue},
+            constant_of_shape::ConstantOfShapeNode,
+            conv_transpose_1d::ConvTranspose1dNode,
+            conv_transpose_2d::ConvTranspose2dNode,
+            conv_transpose_3d::ConvTranspose3dNode,
+            conv1d::Conv1dNode,
+            conv2d::Conv2dNode,
+            conv3d::Conv3dNode,
+            dropout::DropoutNode,
+            expand::ExpandNode,
+            floor::FloorNode,
+            gather::GatherNode,
+            gather_elements::GatherElementsNode,
+            gemm::GemmNode,
+            global_avg_pool::GlobalAvgPoolNode,
+            layer_norm::LayerNormNode,
+            linear::LinearNode,
+            mask_where::WhereNode,
+            matmul::MatmulNode,
+            max_pool1d::MaxPool1dNode,
+            max_pool2d::MaxPool2dNode,
+            one_hot::OneHotNode,
+            pad::PadNode,
+            prelu::PReluNode,
+            random_normal::RandomNormalNode,
+            random_normal_like::RandomNormalLikeNode,
+            random_uniform::RandomUniformNode,
+            random_uniform_like::RandomUniformLikeNode,
+            range::RangeNode,
+            reshape::ReshapeNode,
+            resize::ResizeNode,
+            slice::SliceNode,
+            split::SplitNode,
+            squeeze::SqueezeNode,
+            sum::SumNode,
+            tile::TileNode,
+            top_k::TopKNode,
+            trilu::TriluNode,
+            unary::UnaryNode,
+            unsqueeze::UnsqueezeNode,
+        },
     },
     format_tokens,
     logger::init_log,
@@ -606,7 +659,7 @@ impl ParsedOnnxGraph {
             .get("shift")
             .map(|val| val.clone().into_i64())
             .unwrap_or(0);
-        
+
         BitShiftNode::new(input, output, shift)
     }
 
@@ -623,7 +676,7 @@ impl ParsedOnnxGraph {
 
         BitwiseOrNode::new(inputs, output)
     }
-    
+
     fn bitwise_xor_conversion(node: Node) -> BitwiseXorNode {
         let inputs = node.inputs.iter().map(TensorType::from).collect();
         let output = TensorType::from(node.outputs.first().unwrap());
