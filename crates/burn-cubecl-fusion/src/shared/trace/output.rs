@@ -1,10 +1,11 @@
+use burn_common::tensor::is_contiguous;
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use burn_tensor::DType;
 use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::Elem};
 
 use crate::{
-    CubeFusionHandle, elem_dtype, is_contiguous,
+    CubeFusionHandle, elem_dtype,
     shared::ir::{Arg, FuseOp, LayoutInfo},
     strides_dyn_rank,
 };
