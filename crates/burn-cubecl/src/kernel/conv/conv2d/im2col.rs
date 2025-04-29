@@ -323,10 +323,10 @@ pub fn conv2d_im2col_1x1<R: CubeRuntime, E: FloatElement>(
     let input = reshape_input::<R, E>(input); // [(NHW), C] : [M, K]
 
     // Efficient permutation that takes the stride required for TMA into account
-    let weight = if weight.strides[1] != 1 {
+    let weight = if weight.strides[3] != 1 {
         // Remove kernel dims so padded dim is channels
         weight.shape.dims = vec![out_channels, in_channels]; // [N, K]
-        weight.strides = vec![weight.strides[0], weight.strides[1]];
+        weight.strides = vec![weight.strides[0], weight.strides[3]];
         // Pitched contiguous to skip running another kernel for TMA
         let contiguous = into_contiguous_pitched::<R, E>(&input.client, &weight.as_handle_ref());
         from_handle(&client, &device, contiguous)
