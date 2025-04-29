@@ -13,10 +13,11 @@ pub enum GridSparsity {
 }
 
 /// Enum to specify index cardinal layout.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GridIndexing {
     /// Dimensions are in the same order as the cardinality of the inputs.
     /// Equivalent to "ij" indexing in NumPy and PyTorch.
+    #[default]
     Matrix,
 
     /// The first two dimensions are swapped.
