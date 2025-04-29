@@ -190,6 +190,8 @@ macro_rules! execute_with_float_dtype {
 }
 
 mod utils {
+    use burn_common::tensor::is_contiguous;
+
     use super::*;
 
     impl<E> NdArrayTensor<E>
@@ -219,40 +221,15 @@ mod utils {
 
         pub(crate) fn is_contiguous(&self) -> bool {
             let shape = self.array.shape();
-            let strides = self.array.strides();
+            let mut strides = Vec::with_capacity(self.array.strides().len());
 
-            if shape.is_empty() {
-                return true;
-            }
-
-            if shape.len() == 1 {
-                return strides[0] == 1;
-            }
-
-            let mut prev_stride = 1;
-            let mut current_num_elems_shape = 1;
-
-            for (i, (stride, shape)) in strides.iter().zip(shape).rev().enumerate() {
-                let stride = if *stride <= 0 {
+            for &stride in self.array.strides() {
+                if stride <= 0 {
                     return false;
-                } else {
-                    *stride as usize
-                };
-                if i > 0 {
-                    if current_num_elems_shape != stride {
-                        return false;
-                    }
-
-                    if prev_stride > stride {
-                        return false;
-                    }
                 }
-
-                current_num_elems_shape *= shape;
-                prev_stride = stride;
+                strides.push(stride as usize);
             }
-
-            true
+            is_contiguous(shape, &strides)
         }
     }
 }

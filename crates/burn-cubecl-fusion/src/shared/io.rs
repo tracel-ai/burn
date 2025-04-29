@@ -1,5 +1,9 @@
 use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
-use cubecl::{intrinsic, prelude::*, unexpanded};
+use cubecl::{
+    intrinsic,
+    ir::{ExpandElement, Variable},
+    prelude::*,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -598,20 +602,12 @@ pub(crate) fn reverse_index(#[comptime] rank: u32, iter: u32) -> comptime_type!(
 }
 
 /// Generic way to construct any [`CubePrimitive`] from an int. Used for fusion.
-fn from_const_int<C: CubePrimitive>(_value: u32) -> C {
-    unexpanded!()
-}
-
-mod from_const_int {
-    use cubecl::ir::{ExpandElement, Scope, Variable};
-
-    use cubecl::prelude::ExpandElementTyped;
-
-    use super::CubePrimitive;
-
-    pub fn expand<C: CubePrimitive>(scope: &mut Scope, value: u32) -> ExpandElementTyped<C> {
+#[allow(unused_variables)]
+#[cube]
+fn from_const_int<C: CubePrimitive>(#[comptime] value: u32) -> C {
+    intrinsic!(|scope| {
         let constant: ExpandElement = value.into();
         let constant_c = constant.as_const().unwrap().cast_to(C::as_elem(scope));
         ExpandElement::Plain(Variable::constant(constant_c)).into()
-    }
+    })
 }
