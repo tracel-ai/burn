@@ -1321,6 +1321,40 @@ fn gemm_output_shape(node: &mut Node) {
     });
 }
 
+#[derive(Debug)]
+pub enum RankInferenceError {
+    MismatchedRanks,
+    NonTensorInput,
+    EmptyInputs,
+}
+
+pub fn concat_update_outputs_safe(node: &mut Node) -> Result<(), RankInferenceError> {
+    if node.inputs.is_empty() {
+        return Err(RankInferenceError::EmptyInputs);
+    }
+
+    let first_rank = match node.inputs[0].ty {
+        ArgType::Tensor(ref tensor) => tensor.rank,
+        _ => return Err(RankInferenceError::NonTensorInput),
+    };
+
+    // Check that all inputs are tensors with the same rank
+    for input in &node.inputs {
+        match input.ty {
+            ArgType::Tensor(ref tensor) if tensor.rank == first_rank => {}
+            ArgType::Tensor(_) => return Err(RankInferenceError::MismatchedRanks),
+            _ => return Err(RankInferenceError::NonTensorInput),
+        }
+    }
+
+    // Update output rank
+    if let ArgType::Tensor(ref mut tensor) = node.outputs[0].ty {
+        tensor.rank = first_rank;
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
