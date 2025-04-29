@@ -47,7 +47,7 @@ You can now train your freshly created model with the command:
 cargo run --release
 ```
 
-When running your project with the commande above, you should see the training progression through a
+When running your project with the command above, you should see the training progression through a
 basic CLI dashboard:
 
 <img title="a title" alt="Alt text" src="./training-output.png">
