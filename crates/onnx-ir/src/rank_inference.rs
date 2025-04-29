@@ -1325,7 +1325,6 @@ fn gemm_output_shape(node: &mut Node) {
 mod tests {
     use super::*;
     use crate::ir::{Argument, TensorType};
-    use std::panic::AssertUnwindSafe;
 
     #[test]
     fn test_concat_rank_inference() {
@@ -1384,25 +1383,28 @@ mod tests {
         if let ArgType::Tensor(ref mut tensor) = node_mismatched.inputs[1].ty {
             tensor.rank = 3;
         }
-        let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            concat_update_outputs(&mut node_mismatched);
-        }));
+        let result = std::panic::catch_unwind(|| {
+            let node = &mut node_mismatched;
+            concat_update_outputs(node);
+        });
         assert!(result.is_err());
 
         // Test non-tensor input
         let mut node_non_tensor = node.clone();
         node_non_tensor.inputs[1].ty = ArgType::Scalar(ElementType::Float32);
-        let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            concat_update_outputs(&mut node_non_tensor);
-        }));
+        let result = std::panic::catch_unwind(|| {
+            let node = &mut node_non_tensor;
+            concat_update_outputs(node);
+        });
         assert!(result.is_err());
 
         // Test empty inputs
         let mut node_empty = node.clone();
         node_empty.inputs.clear();
-        let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            concat_update_outputs(&mut node_empty);
-        }));
+        let result = std::panic::catch_unwind(|| {
+            let node = &mut node_empty;
+            concat_update_outputs(node);
+        });
         assert!(result.is_err());
     }
 }
