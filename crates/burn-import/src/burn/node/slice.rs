@@ -95,7 +95,7 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
         graph.register(SliceNode::new(
             Type::Tensor(TensorType::new_float("tensor1", 4)),
-            Type::Tensor(TensorType::new_float("tensor2", 4)), // Output rank changes
+            Type::Tensor(TensorType::new_float("tensor2", 4)),
             vec![Some((0, 1)), None, None, None],
         ));
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
