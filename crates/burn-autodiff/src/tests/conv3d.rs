@@ -510,18 +510,19 @@ mod tests {
             let weight_grad_actual = weight.grad(&grads).unwrap();
             let bias_grad_actual = bias.grad(&grads).unwrap();
 
+            let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(2e-3);
             expected_grads
                 .bias
                 .to_data()
-                .assert_approx_eq::<FT>(&bias_grad_actual.to_data(), Tolerance::default());
+                .assert_approx_eq::<FT>(&bias_grad_actual.to_data(), tolerance);
             expected_grads
                 .x
                 .to_data()
-                .assert_approx_eq::<FT>(&x_grad_actual.to_data(), Tolerance::default());
+                .assert_approx_eq::<FT>(&x_grad_actual.to_data(), tolerance);
             expected_grads
                 .weight
                 .to_data()
-                .assert_approx_eq::<FT>(&weight_grad_actual.to_data(), Tolerance::default());
+                .assert_approx_eq::<FT>(&weight_grad_actual.to_data(), tolerance);
         }
     }
 }

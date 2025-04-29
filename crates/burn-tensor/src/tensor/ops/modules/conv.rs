@@ -34,6 +34,23 @@ pub fn calculate_conv_output_size(
     (size_in + 2 * padding - dilation * (kernel_size - 1) - 1) / stride + 1
 }
 
+/// Calculate the expected output sizes when doing a convolution operation.
+pub fn calculate_conv_output_sizes(
+    kernel_size: &[usize],
+    stride: &[usize],
+    padding: &[usize],
+    dilation: &[usize],
+    size_in: &[usize],
+) -> Vec<usize> {
+    size_in
+        .iter()
+        .enumerate()
+        .map(|(i, size_in)| {
+            calculate_conv_output_size(kernel_size[i], stride[i], padding[i], dilation[i], *size_in)
+        })
+        .collect()
+}
+
 /// Calculate the expected output size when doing a transposed convolution operation.
 pub fn calculate_conv_transpose_output_size(
     kernel_size: usize,

@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_cubecl::{
-        kernel::{conv::nchw_to_nhwc, into_contiguous},
+        kernel::{conv::layout_swap::nchw_to_nhwc, into_contiguous},
         tests::into_data_sync,
     };
     use burn_tensor::{Distribution, Tensor, backend::Backend, module};
