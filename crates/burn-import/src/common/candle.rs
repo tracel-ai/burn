@@ -1,12 +1,6 @@
 use core::ops::Deref;
 use std::collections::HashMap;
 
-// #[cfg(feature = "safetensors")]
-// use super::super::pytorch::adapter::PyTorchAdapter as Adapter;
-
-// #[cfg(not(feature = "safetensors"))]
-// use burn::record::serde::adapter::DefaultAdapter as Adapter;
-
 use burn::record::serde::{
     data::{NestedValue, Serializable},
     error,
