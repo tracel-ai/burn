@@ -62,7 +62,7 @@ mod tests {
     };
 
     #[test]
-    fn test_codegen_bitshift() {
+    fn test_codegen_bitshift_left() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(BitShiftNode::new(
@@ -101,6 +101,54 @@ mod tests {
 
                 pub fn forward(&self, input1: Tensor<B, 4>, input2: Tensor<B, 4>) -> Tensor<B, 4> {
                     let output = input1 << input2;
+                    output
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_bitshift_right() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(BitShiftNode::new(
+            vec![
+                TensorType::new_float("input1", 4),
+                TensorType::new_float("input2", 4),
+            ],
+            TensorType::new_float("output", 4),
+            "right".to_string(),
+        ));
+
+        graph.register_input_output(
+            vec!["input1".to_string(), "input2".to_string()],
+            vec!["output".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model<B> {
+                pub fn new(device: B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device),
+                    }
+                }
+
+                pub fn forward(&self, input1: Tensor<B, 4>, input2: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let output = input1 >> input2;
                     output
                 }
             }
