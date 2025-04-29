@@ -1326,10 +1326,16 @@ mod tests {
     use super::*;
     use crate::ir::{Argument, TensorType};
 
+    fn run_concat_test(mut node: Node) -> Result<(), Box<dyn std::any::Any + Send + 'static>> {
+        std::panic::catch_unwind(|| {
+            concat_update_outputs(&mut node);
+        })
+    }
+
     #[test]
     fn test_concat_rank_inference() {
         // Create a test node with valid tensor inputs
-        let mut node = Node {
+        let node = Node {
             name: "test_concat".to_string(),
             node_type: NodeType::Concat,
             inputs: vec![
@@ -1368,9 +1374,10 @@ mod tests {
         };
 
         // Test successful case
-        concat_update_outputs(&mut node);
+        let mut success_node = node.clone();
+        concat_update_outputs(&mut success_node);
         assert_eq!(
-            node.outputs[0].ty,
+            success_node.outputs[0].ty,
             ArgType::Tensor(TensorType {
                 elem_type: ElementType::Float32,
                 rank: 4,
@@ -1383,28 +1390,16 @@ mod tests {
         if let ArgType::Tensor(ref mut tensor) = node_mismatched.inputs[1].ty {
             tensor.rank = 3;
         }
-        let result = std::panic::catch_unwind(|| {
-            let node = &mut node_mismatched;
-            concat_update_outputs(node);
-        });
-        assert!(result.is_err());
+        assert!(run_concat_test(node_mismatched).is_err());
 
         // Test non-tensor input
         let mut node_non_tensor = node.clone();
         node_non_tensor.inputs[1].ty = ArgType::Scalar(ElementType::Float32);
-        let result = std::panic::catch_unwind(|| {
-            let node = &mut node_non_tensor;
-            concat_update_outputs(node);
-        });
-        assert!(result.is_err());
+        assert!(run_concat_test(node_non_tensor).is_err());
 
         // Test empty inputs
         let mut node_empty = node.clone();
         node_empty.inputs.clear();
-        let result = std::panic::catch_unwind(|| {
-            let node = &mut node_empty;
-            concat_update_outputs(node);
-        });
-        assert!(result.is_err());
+        assert!(run_concat_test(node_empty).is_err());
     }
 }
