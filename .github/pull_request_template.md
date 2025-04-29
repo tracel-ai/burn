@@ -2,7 +2,7 @@
 
 ### Checklist
 
-- [ ] Confirmed that `run-checks all` script has been executed.
+- [ ] Confirmed that `cargo run-checks` command has been executed.
 - [ ] Made sure the book is up to date with changes in this PR.
 
 ### Related Issues/PRs
