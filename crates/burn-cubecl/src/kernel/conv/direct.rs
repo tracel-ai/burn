@@ -87,14 +87,21 @@ fn direct_conv2d_kernel<E: Numeric>(
         kernel_shape,
         kernel_strides,
         conv_params: args.conv_params,
-        in_offs,
-        in_bounds: true,
-        weight_offs,
         in_c_per_group,
         stride_oc,
     };
 
-    kernel_loop(input, weight, &mut sum, loop_params, 0u32, has_padding);
+    kernel_loop(
+        input,
+        weight,
+        &mut sum,
+        in_offs,
+        true,
+        weight_offs,
+        &loop_params,
+        0u32,
+        has_padding,
+    );
 
     output[out_pos] = sum;
 }
@@ -108,9 +115,6 @@ struct LoopParams {
     kernel_strides: Sequence<u32>,
     conv_params: Sequence<ConvParam>,
 
-    in_offs: u32,
-    in_bounds: bool,
-    weight_offs: u32,
     in_c_per_group: u32,
     stride_oc: u32,
 }
@@ -120,7 +124,10 @@ fn kernel_loop<E: Numeric>(
     input: &Tensor<Line<E>>,
     weight: &Tensor<Line<E>>,
     sum: &mut Line<E>,
-    params: LoopParams,
+    in_offs: u32,
+    in_bounds: bool,
+    weight_offs: u32,
+    params: &LoopParams,
     #[comptime] kernel_dim: u32,
     #[comptime] has_padding: bool,
 ) {
@@ -132,34 +139,28 @@ fn kernel_loop<E: Numeric>(
         let k_stride = *params.kernel_strides.index(kernel_dim);
 
         for pos in 0..*params.kernel_shape.index(kernel_dim) {
-            let mut params = comptime![params.clone()];
-
             let in_pos = (out_idx * conv.stride + pos * conv.dilation) as i32 - conv.padding;
-            params.in_offs += in_pos as u32 * stride;
-            params.weight_offs += pos * k_stride;
+            let in_offs = in_offs + in_pos as u32 * stride;
+            let weight_offs = weight_offs + pos * k_stride;
+            let mut in_bounds = in_bounds;
+
             if has_padding {
-                params.in_bounds &= in_pos >= 0 && (in_pos as u32) < shape;
+                in_bounds &= in_pos >= 0 && (in_pos as u32) < shape;
             }
 
             kernel_loop(
                 input,
                 weight,
                 sum,
+                in_offs,
+                in_bounds,
+                weight_offs,
                 params,
                 comptime![kernel_dim + 1],
                 has_padding,
             );
         }
     } else {
-        let LoopParams {
-            in_offs,
-            in_bounds,
-            weight_offs,
-            in_c_per_group,
-            stride_oc,
-            ..
-        } = params;
-
         kernel_loop_inner(
             input,
             weight,
@@ -167,8 +168,8 @@ fn kernel_loop<E: Numeric>(
             in_offs,
             in_bounds,
             weight_offs,
-            in_c_per_group,
-            stride_oc,
+            params.in_c_per_group,
+            params.stride_oc,
         );
     }
 }
