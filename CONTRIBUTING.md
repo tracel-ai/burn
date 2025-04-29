@@ -50,6 +50,13 @@ will ensure that your changes are in line with our project's standards and guide
 the validation checks by opening a terminal, navigating to your local project directory, and typing
 `cargo run-checks`.
 
+> [!TIP]
+> Want more detailed macro error diagnostics? This is especially useful for debugging tensor-related tests:
+>
+> ```bash
+> RUSTC_BOOTSTRAP=1 RUSTFLAGS="-Zmacro-backtrace" cargo run-checks
+> ```
+
 Note that under the hood `run-checks` runs the `cargo xtask validate` command which is powered by
 the [tracel-xtask crate](https://github.com/tracel-ai/xtask). It is recommended to get familiar with
 it as it provides a wide variety of commands to help you work with the code base.
