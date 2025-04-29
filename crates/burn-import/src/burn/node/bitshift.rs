@@ -6,9 +6,9 @@ use quote::quote;
 
 #[derive(Debug, Clone, new)]
 pub struct BitShiftNode {
-    pub input: TensorType,
+    pub inputs: Vec<TensorType>,
     pub output: TensorType,
-    pub shift: i64, // Should be elem Type
+    pub direction: String,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
@@ -17,16 +17,31 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
     }
 
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+        self.inputs
+            .iter()
+            .map(|t| Type::Tensor(t.clone()))
+            .collect()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
+        let inputs: Vec<TokenStream> = self
+            .inputs
+            .iter()
+            .map(|t| scope.tensor_use_owned(t, node_position))
+            .collect();
         let output = &self.output.name;
-        let shift = self.shift;
+        let direction = &self.direction;
+        let shift_op = match direction.to_lowercase().as_str() {
+            "left" => "<<",
+            "right" => ">>",
+            _ => panic!("Invalid bit shift direction"),
+        };
+
+        let input_0 = &inputs[0];
+        let input_1 = &inputs[1];
 
         quote! {
-            let #output = #input << #shift;
+            let #output = #input_0 #shift_op #input_1;
         }
     }
 
@@ -51,12 +66,18 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(BitShiftNode::new(
-            TensorType::new_float("tensor1", 4),
-            TensorType::new_float("tensor2", 4),
-            2,
+            vec![
+                TensorType::new_float("input1", 4),
+                TensorType::new_float("input2", 4),
+            ],
+            TensorType::new_float("output", 4),
+            "left".to_string(),
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+        graph.register_input_output(
+            vec!["input1".to_string(), "input2".to_string()],
+            vec!["output".to_string()],
+        );
 
         let expected = quote! {
             use burn::{
@@ -78,9 +99,9 @@ mod tests {
                     }
                 }
 
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1 << 2;
-                    tensor2
+                pub fn forward(&self, input1: Tensor<B, 4>, input2: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let output = input1 << input2;
+                    output
                 }
             }
         };

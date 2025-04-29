@@ -652,15 +652,15 @@ impl ParsedOnnxGraph {
     }
 
     fn bitshift_conversion(node: Node) -> BitShiftNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
+        let inputs = node.inputs.iter().map(TensorType::from).collect();
         let output = TensorType::from(node.outputs.first().unwrap());
-        let shift = node
+        let direction = node
             .attrs
-            .get("shift")
-            .map(|val| val.clone().into_i64())
-            .unwrap_or(0);
+            .get("direction")
+            .map(|val| val.clone().into_string())
+            .unwrap_or("left".to_string());
 
-        BitShiftNode::new(input, output, shift)
+        BitShiftNode::new(inputs, output, direction)
     }
 
     fn bitwise_and_conversion(node: Node) -> BitwiseAndNode {
