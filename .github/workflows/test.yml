@@ -125,7 +125,6 @@ jobs:
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
-          enable-cache: true
       # --------------------------------------------------------------------------------
       - name: Documentation Build
         run: cargo xtask doc build
