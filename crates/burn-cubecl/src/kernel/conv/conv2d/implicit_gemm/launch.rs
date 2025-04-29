@@ -5,7 +5,10 @@ use burn_tensor::{
 use cubecl::linalg::{
     convolution::{
         ConvLaunchError, ConvolutionArgs,
-        algorithm::{Algorithm, simple::SimpleConvAlgorithm, simple_tma::SimpleTmaConvAlgorithm},
+        algorithm::{
+            Algorithm, multi_stage_tma::MultiStageTmaConvAlgorithm, simple::SimpleConvAlgorithm,
+            simple_tma::SimpleTmaConvAlgorithm,
+        },
         args::ConvInputsLaunch,
         launch_conv2d_nhwc,
     },
@@ -17,9 +20,7 @@ use cubecl::linalg::{
 };
 
 use crate::{
-    CubeElement, CubeRuntime, FloatElement,
-    ops::{numeric::empty_device_strided, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
-    tensor::CubeTensor,
+    CubeElement, CubeRuntime, FloatElement, ops::numeric::empty_device_strided, tensor::CubeTensor,
 };
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -55,6 +56,24 @@ pub fn conv2d_gemm_tma<R: CubeRuntime, F: FloatElement>(
 }
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
+/// components. Uses [`CmmaLargeMAlgorithm`] for the stage size
+///
+/// * `input` - The input feature map
+/// * `weight` - The weights (filter) applied to each kernel
+/// * `bias` - The bias added to each channel
+/// * `options` - The options to use for the convolution
+pub fn conv2d_gemm_tma_multi_stage<R: CubeRuntime, F: FloatElement>(
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
+    options: ConvOptions<2>,
+) -> Result<CubeTensor<R>, ConvLaunchError> {
+    conv2d_gemm_with_algo::<R, F, MultiStageTmaConvAlgorithm<Accelerated>>(
+        input, weight, bias, options,
+    )
+}
+
+/// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
 /// components, using the specified algorithm.
 ///
 /// * `input` - The input feature map
@@ -77,8 +96,8 @@ where
         return Err(ConvLaunchError::Groups(options.groups));
     }
 
-    let [batch_size, _, height, width] = input.shape.dims();
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
+    let [batch_size, height, width, _] = input.shape.dims();
+    let [out_channels, kernel_h, kernel_w, _] = weight.shape.dims();
 
     let out_h = calculate_conv_output_size(
         kernel_h,
@@ -94,9 +113,6 @@ where
         options.dilation[1],
         width,
     );
-
-    let input = permute_nchw_to_nhwc(input);
-    let weight = permute_nchw_to_nhwc(weight);
 
     let out_shape = Shape::new([batch_size, out_h, out_w, out_channels]);
     let out =
@@ -117,5 +133,5 @@ where
         },
     )?;
 
-    Ok(permute_nhwc_to_nchw(out))
+    Ok(out)
 }
