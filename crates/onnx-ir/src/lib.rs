@@ -1,6 +1,7 @@
 mod coalesce;
 mod from_onnx;
 pub mod ir;
+pub mod node;
 mod node_remap;
 mod proto_conversion;
 mod protos;

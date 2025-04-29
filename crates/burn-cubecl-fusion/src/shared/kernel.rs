@@ -110,7 +110,7 @@ pub fn init_locals(
                 #[unroll]
                 #[allow(clippy::clone_on_copy)]
                 for i in 0..config.rank {
-                    let reverse = comptime![reverse_index(config.rank, comptime![i.clone()])];
+                    let reverse = reverse_index(config.rank, i);
                     let swap = comptime![swap_dims_transform(comptime![&reverse], dims)];
                     let shape = layout.tensor.shape(comptime![swap.clone()]);
 
@@ -132,25 +132,20 @@ pub fn init_locals(
                 #[unroll]
                 #[allow(clippy::clone_on_copy)]
                 for i in 0..config.rank {
-                    let reverse = comptime![reverse_index(config.rank, comptime![i.clone()])];
-                    let reverse_u32_comptime = comptime!(unwrap_const_u32(reverse));
-                    let arg = comptime![Arg::ScalarShape(start + reverse_u32_comptime)];
+                    let reverse = reverse_index(config.rank, i);
+                    let arg = comptime![Arg::ScalarShape(start + reverse)];
                     let shape = read_scalar_shape(inputs, comptime![arg.clone()]);
 
-                    ref_shape[comptime![reverse_u32_comptime]] = shape;
-                    ref_strides[comptime![reverse_u32_comptime]] = stride_curr;
+                    ref_shape[comptime![reverse]] = shape;
+                    ref_strides[comptime![reverse]] = stride_curr;
 
-                    stride_curr *= ref_shape[comptime![reverse_u32_comptime]];
+                    stride_curr *= ref_shape[comptime![reverse]];
                 }
 
                 LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), 1u32)
             }
         },
     }
-}
-
-fn unwrap_const_u32(elem: ExpandElementTyped<u32>) -> u32 {
-    elem.constant().map(|cons| cons.as_u32()).unwrap()
 }
 
 #[cube]

@@ -2,115 +2,120 @@ use burn_tensor::{
     Shape,
     ops::{ConvOptions, conv::calculate_conv_output_size},
 };
-use cubecl::{calculate_cube_count_elemwise, linalg::convolution::ConvLaunchError, prelude::*};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    linalg::{convolution::ConvLaunchError, tensor::StridedLayout},
+    prelude::*,
+    tensor_line_size_parallel,
+};
+use cubecl_std::{CubeOption, CubeOptionExpand, FastDivmod};
 
 use crate::{
     CubeRuntime, FloatElement,
-    kernel::into_contiguous,
-    ops::{
-        numeric::{empty_device, zeros_device},
-        reshape,
+    kernel::{
+        into_contiguous_aligned,
+        utils::{shape_divmod, strided_layout},
     },
+    ops::{max_line_size, numeric::empty_device_strided},
     tensor::CubeTensor,
 };
 
 #[derive(CubeLaunch, CubeType)]
 struct Conv2dArgs {
-    conv_stride_0: u32,
-    conv_stride_1: u32,
-    dilation_0: u32,
-    dilation_1: u32,
-    padding_0: u32,
-    padding_1: u32,
+    stride_y: u32,
+    stride_x: u32,
+    dilation_y: u32,
+    dilation_x: u32,
+    padding_y: i32,
+    padding_x: i32,
     channels_per_group: u32,
 }
 
-#[cube(launch)]
-fn direct_conv2d_kernel<F: Float>(
-    input: &Tensor<F>,
-    weight: &Tensor<F>,
-    bias: &Tensor<F>,
-    output: &mut Tensor<F>,
+#[cube(launch_unchecked)]
+fn direct_conv2d_kernel<E: Numeric>(
+    input: &Tensor<Line<E>>,
+    weight: &Tensor<Line<E>>,
+    bias: CubeOption<Tensor<Line<E>>>,
+    output: &mut Tensor<Line<E>>,
     args: &Conv2dArgs,
-    #[comptime] kernel_size_1_unroll: Option<u32>,
+    shape_out: Sequence<FastDivmod>,
+    layout_out: StridedLayout,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
     }
 
-    let in_channels = weight.shape(1);
+    let out_pos = layout_out.index(output, ABSOLUTE_POS);
 
-    let kernel_size_0 = weight.shape(2);
-    let kernel_size_1 = kernel_size_1_unroll.unwrap_or_else(|| weight.shape(3));
-    let unroll_1 = kernel_size_1_unroll.is_some();
+    let line_size_in = input.line_size();
+    let line_size_out = output.line_size();
+    let pos = ABSOLUTE_POS * line_size_out;
 
-    let b = ABSOLUTE_POS / output.stride(0) % output.shape(0);
-    let oc = ABSOLUTE_POS / output.stride(1) % output.shape(1);
-    let oh = ABSOLUTE_POS / output.stride(2) % output.shape(2);
-    let ow = ABSOLUTE_POS / output.stride(3) % output.shape(3);
+    let in_h = input.shape(1) as i32;
+    let in_w = input.shape(2) as i32;
+    let in_c_per_group = weight.shape(3);
 
-    let g = oc / args.channels_per_group;
-    let ic_start = in_channels * g;
-    let ic_end = ic_start + in_channels;
-    let mut sum = bias[oc];
+    let kernel_h = weight.shape(1);
+    let kernel_w = weight.shape(2);
 
-    let ih_base = oh * args.conv_stride_0;
-    let iw_base = ow * args.conv_stride_1;
+    let (rem, out_c) = shape_out.index(3).div_mod(pos);
+    let (rem, out_x) = shape_out.index(2).div_mod(rem);
+    let (b, out_y) = shape_out.index(1).div_mod(rem);
 
-    let weight_stride_1 = weight.stride(1);
-    let weight_stride_2 = weight.stride(2);
-    let weight_stride_3 = weight.stride(3);
+    let g = out_c / args.channels_per_group;
+    let ic_start = in_c_per_group * g;
 
-    let input_stride_1 = input.stride(1);
-    let input_stride_2 = input.stride(2);
-    let input_stride_3 = input.stride(3);
-    let input_shape_2 = input.shape(2);
-    let input_shape_3 = input.shape(3);
+    let mut sum = match bias {
+        CubeOption::Some(bias) => bias[out_c / line_size_out],
+        CubeOption::None => Line::empty(line_size_out).fill(E::from_int(0)),
+    };
 
-    let border_top = args.padding_0;
-    let border_left = args.padding_1;
-    let border_bottom = input_shape_2 + args.padding_0;
-    let border_right = input_shape_3 + args.padding_1;
+    let in_offs = b * input.stride(0) + ic_start;
 
-    let index_input_0 = b * input.stride(0);
-    let index_weight_0 = oc * weight.stride(0);
+    let stride_y = input.stride(1);
+    let stride_x = input.stride(2);
 
-    for ic in ic_start..ic_end {
-        let index_input_1 = ic * input_stride_1;
-        let index_weight_1 = (ic - ic_start) * weight_stride_1;
+    let stride_oc = weight.stride(0);
+    let stride_kh = weight.stride(1);
+    let stride_kw = weight.stride(2);
 
-        for kh in 0..kernel_size_0 {
-            #[unroll(unroll_1)]
-            for kw in 0..kernel_size_1 {
-                let ih = kh * args.dilation_0 + ih_base;
-                let iw = kw * args.dilation_1 + iw_base;
+    let weight_offs = out_c * stride_oc;
 
-                let within_padding = ih >= border_top
-                    && ih < border_bottom
-                    && iw >= border_left
-                    && iw < border_right;
+    for kernel_y in 0..kernel_h {
+        let in_y = (out_y * args.stride_y + kernel_y * args.dilation_y) as i32 - args.padding_y;
+        let in_offs = in_offs + in_y as u32 * stride_y;
+        let weight_offs = weight_offs + kernel_y * stride_kh;
 
-                if within_padding {
-                    let ih_pad = ih - args.padding_0;
-                    let iw_pad = iw - args.padding_1;
+        for kernel_x in 0..kernel_w {
+            let in_x = (out_x * args.stride_x + kernel_x * args.dilation_x) as i32 - args.padding_x;
 
-                    let index_input = index_input_0
-                        + index_input_1
-                        + ih_pad * input_stride_2
-                        + iw_pad * input_stride_3;
+            if in_y >= 0 && in_y < in_h && in_x >= 0 && in_x < in_w {
+                let in_offs = in_offs + in_x as u32 * stride_x;
+                let weight_offs = weight_offs + kernel_x * stride_kw;
 
-                    let index_weight = index_weight_0
-                        + index_weight_1
-                        + kh * weight_stride_2
-                        + kw * weight_stride_3;
+                for in_c in range_stepped(0, in_c_per_group, line_size_in) {
+                    let in_pos = in_offs + in_c;
+                    let mut weight_pos = weight_offs + in_c;
 
-                    sum += input[index_input] * weight[index_weight];
+                    let val = input[in_pos / line_size_in];
+
+                    #[unroll]
+                    for v in 0..line_size_out {
+                        let weight = weight[weight_pos / line_size_in];
+                        let val = val * weight;
+
+                        #[unroll]
+                        for i in 0..line_size_in {
+                            sum[v] += val[i];
+                        }
+                        weight_pos += stride_oc;
+                    }
                 }
             }
         }
     }
 
-    output[ABSOLUTE_POS] = sum;
+    output[out_pos] = sum;
 }
 
 /// Perform a 2D convolution using the direct convolution algorithm.
@@ -121,17 +126,22 @@ fn direct_conv2d_kernel<F: Float>(
 /// * `options` - The options to use for the convolution
 ///
 pub fn conv2d_direct<R: CubeRuntime, E: FloatElement>(
-    input: CubeTensor<R>,
-    weight: CubeTensor<R>,
+    mut input: CubeTensor<R>,
+    mut weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    let [batch_size, _, in_height, in_width] = input.shape.dims();
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
+    let [batch_size, in_height, in_width, _] = input.shape.dims();
+    let [out_channels, kernel_h, kernel_w, _] = weight.shape.dims();
     let channels_per_group = out_channels / options.groups;
 
-    // Limit loop unrolling factor to 8 or smaller
-    let kernel_w_unroll = (kernel_w <= 8).then_some(kernel_w as u32);
+    // We only care about the channels here, everything else can be permuted
+    if input.strides[3] != 1 {
+        input = into_contiguous_aligned(input);
+    }
+    if weight.strides[3] != 1 {
+        weight = into_contiguous_aligned(weight);
+    }
 
     let out_h = calculate_conv_output_size(
         kernel_h,
@@ -148,50 +158,53 @@ pub fn conv2d_direct<R: CubeRuntime, E: FloatElement>(
         in_width,
     );
 
-    let input = into_contiguous(input);
-    let weight = into_contiguous(weight);
+    let shape_out = Shape::new([batch_size, out_h, out_w, out_channels]);
+    let output =
+        empty_device_strided::<R, E>(input.client.clone(), input.device.clone(), shape_out);
 
-    let shape_out = Shape::new([batch_size, out_channels, out_h, out_w]);
-    let output = empty_device::<R, E>(
-        input.client.clone(),
-        input.device.clone(),
-        shape_out.clone(),
+    // Need custom line size calculation here to account for the groups division. Need to vectorize
+    // over `channels_per_group` instead.
+    let mut grouped_out_shape = output.shape.dims.clone();
+    grouped_out_shape[3] = channels_per_group;
+    let line_size_out = tensor_line_size_parallel(
+        R::supported_line_sizes().iter().copied(),
+        &grouped_out_shape,
+        &output.strides,
+        3,
     );
+    // Use channels_per_group instead of in_channels to avoid issues here
+    let line_size_in = max_line_size(&weight);
 
-    let bias = match bias {
-        Some(bias) => {
-            let shape = Shape::from([bias.shape.dims[0], 1, 1, 1]);
-            reshape(bias, shape)
-        }
-        None => {
-            let shape = Shape::from([output.shape.dims[0], 1, 1, 1]);
-            zeros_device::<R, E>(input.client.clone(), input.device.clone(), shape)
-        }
-    };
+    let shape_out = shape_divmod(&output);
+    let layout_out = strided_layout(&output);
+    let bias = bias.as_ref().map(|b| b.as_tensor_arg::<E>(line_size_out));
 
-    let num_elems_output = output.shape.num_elements();
+    let num_elems_output = output.shape.num_elements() / line_size_out as usize;
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems_output, cube_dim);
 
-    direct_conv2d_kernel::launch::<E, R>(
-        &input.client,
-        cube_count,
-        cube_dim,
-        input.as_tensor_arg::<E>(1),
-        weight.as_tensor_arg::<E>(1),
-        bias.as_tensor_arg::<E>(1),
-        output.as_tensor_arg::<E>(1),
-        Conv2dArgsLaunch::new(
-            ScalarArg::new(options.stride[0] as u32),
-            ScalarArg::new(options.stride[1] as u32),
-            ScalarArg::new(options.dilation[0] as u32),
-            ScalarArg::new(options.dilation[1] as u32),
-            ScalarArg::new(options.padding[0] as u32),
-            ScalarArg::new(options.padding[1] as u32),
-            ScalarArg::new(channels_per_group as u32),
-        ),
-        kernel_w_unroll,
-    );
+    unsafe {
+        direct_conv2d_kernel::launch_unchecked::<E, R>(
+            &input.client,
+            cube_count,
+            cube_dim,
+            input.as_tensor_arg::<E>(line_size_in),
+            weight.as_tensor_arg::<E>(line_size_in),
+            bias.into(),
+            output.as_tensor_arg::<E>(line_size_out),
+            Conv2dArgsLaunch::new(
+                ScalarArg::new(options.stride[0] as u32),
+                ScalarArg::new(options.stride[1] as u32),
+                ScalarArg::new(options.dilation[0] as u32),
+                ScalarArg::new(options.dilation[1] as u32),
+                ScalarArg::new(options.padding[0] as i32),
+                ScalarArg::new(options.padding[1] as i32),
+                ScalarArg::new(channels_per_group as u32),
+            ),
+            shape_out,
+            layout_out,
+        )
+    };
 
     Ok(output)
 }
