@@ -25,7 +25,7 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<1>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv::<R, F, 1>(x, weight, bias, options, ConvStrategy::Direct).unwrap()
+        kernel::conv::conv::<R, F, 1>(x, weight, bias, options, ConvStrategy::default()).unwrap()
     }
 
     fn conv2d(
@@ -34,7 +34,7 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv::<R, F, 2>(x, weight, bias, options, ConvStrategy::Direct).unwrap()
+        kernel::conv::conv::<R, F, 2>(x, weight, bias, options, ConvStrategy::default()).unwrap()
     }
 
     fn deform_conv2d(
