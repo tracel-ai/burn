@@ -45,7 +45,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
     let tunables = TunableSet::new(create_key::<R, E>, matmul_input_gen::<R, E>)
         .with_tunable(matmul_tiling2d::<R, E>)
         .with_tunable(matmul_simple::<R, E>)
-        .with_tunable(matmul_double_buffering::<R, E>)
+        //.with_tunable(matmul_double_buffering::<R, E>) // Sometimes creates invalid configs, re-enable when fixed
         .with_tunable(matmul_naive::<R, E>);
 
     TUNER.execute(
@@ -88,20 +88,21 @@ fn matmul_simple<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_double_buffering<R: CubeRuntime, E: FloatElement>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-    out: CubeTensor<R>,
-) -> Result<(), String> {
-    cubecl::linalg::matmul::launch_ref::<R, E>(
-        &Strategy::DoubleBuffering,
-        &lhs.client,
-        &lhs.as_handle_ref(),
-        &rhs.as_handle_ref(),
-        &out.as_handle_ref(),
-    )
-    .map_err(|err| format!("{err:?}"))
-}
+// Creates invalid configs for some shapes, re-enable once fixed
+// fn matmul_double_buffering<R: CubeRuntime, E: FloatElement>(
+//     lhs: CubeTensor<R>,
+//     rhs: CubeTensor<R>,
+//     out: CubeTensor<R>,
+// ) -> Result<(), String> {
+//     cubecl::linalg::matmul::launch_ref::<R, E>(
+//         &Strategy::DoubleBuffering,
+//         &lhs.client,
+//         &lhs.as_handle_ref(),
+//         &rhs.as_handle_ref(),
+//         &out.as_handle_ref(),
+//     )
+//     .map_err(|err| format!("{err:?}"))
+// }
 
 fn matmul_tiling2d<R: CubeRuntime, E: FloatElement>(
     lhs: CubeTensor<R>,

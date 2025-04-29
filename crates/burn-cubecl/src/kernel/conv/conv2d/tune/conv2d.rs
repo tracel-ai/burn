@@ -60,11 +60,11 @@ pub fn create_conv2d_input<R: CubeRuntime, E: FloatElement>(
     };
 
     let random_bounds: (E, E) = ((-1.0).elem::<E>(), (1.0).elem::<E>());
-    let input_shape = Shape::new([key.batch_size, key.in_channels, key.height, key.width]);
+    let input_shape = Shape::new([key.batch_size, key.height, key.width, key.in_channels]);
     let input = random_uniform(input_shape, device, random_bounds.0, random_bounds.1);
     let c_per_grp = key.in_channels / key.groups;
     let [kernel_h, kernel_w] = key.kernel_size;
-    let weight_shape = Shape::new([key.out_channels, c_per_grp, kernel_h, kernel_w]);
+    let weight_shape = Shape::new([key.out_channels, kernel_h, kernel_w, c_per_grp]);
     let weights = random_uniform(weight_shape, device, random_bounds.0, random_bounds.1);
     let bias_shape = Shape::new([key.out_channels]);
     let bias = key
@@ -80,8 +80,8 @@ fn create_key<R: CubeRuntime, E: FloatElement>(
     bias: &Option<CubeTensor<R>>,
     options: &ConvOptions<2>,
 ) -> CubeAutotuneKey {
-    let [batch_size, in_channels, height, width] = input.shape.dims();
-    let [out_channels, _, kernel_h, kernel_w] = weights.shape.dims();
+    let [batch_size, height, width, in_channels] = input.shape.dims();
+    let [out_channels, kernel_h, kernel_w, _] = weights.shape.dims();
     let ConvOptions {
         stride,
         padding,

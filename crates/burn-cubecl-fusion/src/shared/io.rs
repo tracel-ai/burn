@@ -566,6 +566,7 @@ fn reshaped_index(
     offset
 }
 
+#[allow(unreachable_code)]
 #[cube]
 #[allow(clippy::clone_on_copy)]
 fn reshaped_index_to_original_index<C: CubePrimitive>(
@@ -579,7 +580,7 @@ fn reshaped_index_to_original_index<C: CubePrimitive>(
     #[unroll]
     for r in 0..rank {
         let i = reverse_index(rank, r);
-        let shape = original.shape(comptime![i]);
+        let shape = original.shape(i);
         let stride = original.stride(i);
 
         let coordinate = remaining % shape;
@@ -591,10 +592,10 @@ fn reshaped_index_to_original_index<C: CubePrimitive>(
     offset / original.line_size()
 }
 
-#[allow(unused_variables)]
 #[cube]
+#[allow(unused_variables)]
 pub(crate) fn reverse_index(#[comptime] rank: u32, iter: u32) -> comptime_type!(u32) {
-    intrinsic!(|scope| {
+    intrinsic!(|_| {
         let elem = iter.constant().map(|cons| cons.as_u32()).unwrap();
         rank - elem - 1
     })

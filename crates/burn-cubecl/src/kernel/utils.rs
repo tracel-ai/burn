@@ -19,3 +19,32 @@ pub fn strided_layout<'a, R: CubeRuntime>(tensor: &CubeTensor<R>) -> StridedLayo
         StridedLayoutArgs::strided(&tensor.client, tensor.shape.dims[rank - 1] as u32)
     }
 }
+
+pub fn split_dim<R: CubeRuntime, const N: usize>(
+    mut tensor: CubeTensor<R>,
+    dim: usize,
+    shape: [usize; N],
+) -> CubeTensor<R> {
+    let mut stride = tensor.strides[dim];
+    tensor.shape.dims.remove(dim);
+    tensor.strides.remove(dim);
+
+    for size in shape.into_iter().rev() {
+        tensor.shape.dims.insert(dim, size);
+        tensor.strides.insert(dim, stride);
+        stride *= size;
+    }
+
+    tensor
+}
+
+pub fn merge_dims<R: CubeRuntime>(
+    mut tensor: CubeTensor<R>,
+    dim0: usize,
+    dim1: usize,
+) -> CubeTensor<R> {
+    tensor.shape.dims[dim1] *= tensor.shape.dims[dim0];
+    tensor.shape.dims.remove(dim0);
+    tensor.strides.remove(dim0);
+    tensor
+}
