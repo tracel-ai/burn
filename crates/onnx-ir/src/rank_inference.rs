@@ -21,7 +21,11 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::BatchNormalization => same_as_input(node),
         NodeType::Cast => cast_update_outputs(node),
         NodeType::Clip => same_as_input(node),
-        NodeType::Concat => concat_update_outputs(node),
+        NodeType::Concat => {
+            concat_update_outputs_safe(node).unwrap_or_else(|e| {
+                panic!("Concat rank inference failed: {:?}", e);
+            });
+        }
         NodeType::Constant => constant_update_outputs(node),
         NodeType::ConstantOfShape => constant_of_shape_update_output(node),
         NodeType::Conv1d => conv1d_update_outputs(node),
