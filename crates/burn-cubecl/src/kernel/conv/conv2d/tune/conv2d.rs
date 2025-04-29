@@ -6,7 +6,8 @@ use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId, FloatElement,
     kernel::{
         conv::{
-            conv2d_direct, conv2d_gemm_cyclic, conv2d_gemm_tma, conv2d_im2col, conv2d_im2col_1x1,
+            conv2d_direct, conv2d_gemm_cyclic, conv2d_gemm_tma, conv2d_gemm_tma_multi_stage,
+            conv2d_im2col, conv2d_im2col_1x1,
         },
         prng::random_uniform,
     },
@@ -29,7 +30,8 @@ pub fn conv2d_autotune<R: CubeRuntime, E: FloatElement>(
         .with_tunable(conv2d_im2col_1x1::<R, E>)
         .with_tunable(conv2d_im2col::<R, E>)
         .with_tunable(conv2d_gemm_cyclic::<R, E>)
-        .with_tunable(conv2d_gemm_tma::<R, E>);
+        .with_tunable(conv2d_gemm_tma::<R, E>)
+        .with_tunable(conv2d_gemm_tma_multi_stage::<R, E>);
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&input.client, &input.device),
