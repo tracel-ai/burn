@@ -137,17 +137,17 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
         graph.register(SliceNode::new(
             Type::Shape(ShapeType::new("shape1", 4)),
-            Type::Shape(ShapeType::new("shape2", 2)), // Output rank changes based on slice
-            vec![Some((1, 3))],                       // Only the first range is used for shape
+            Type::Shape(ShapeType::new("shape2", 2)),
+            vec![Some((1, 3))],
         ));
         graph.register_input_output(vec!["shape1".to_string()], vec!["shape2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::s; // Added import
+            use burn::tensor::s;
             use burn::tensor::RangesArg;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor}, // Removed Shape
+                tensor::{backend::Backend, Tensor},
             };
 
             #[derive(Module, Debug)]
@@ -181,8 +181,8 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
         graph.register(SliceNode::new(
             Type::Shape(ShapeType::new("shape1", 4)),
-            Type::Shape(ShapeType::new("shape2", 4)), // Output rank changes based on slice
-            vec![None],                               // Use full range
+            Type::Shape(ShapeType::new("shape2", 4)),
+            vec![None],
         ));
         graph.register_input_output(vec!["shape1".to_string()], vec!["shape2".to_string()]);
 
