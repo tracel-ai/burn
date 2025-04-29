@@ -1437,11 +1437,6 @@ mod tests {
         assert!(matches!(
             concat_update_outputs_safe(&mut node_empty),
             Err(RankInferenceError::EmptyInputs)
-        let result = std::panic::catch_unwind(|| {
-            let mut node = node_empty;
-            concat_update_outputs(&mut node);
-            node
-        });
-        assert!(result.is_err());
+        ));
     }
 }
