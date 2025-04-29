@@ -49,10 +49,10 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(BitwiseNotNode {
-            input: TensorType::new_float("input1", 4),
+            input: TensorType::new_float("input", 4),
             output: TensorType::new_float("output", 4),
         });
-        graph.register_input_output(vec!["input1".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
 
         let expected = quote! {
             use burn::{
@@ -74,8 +74,8 @@ mod tests {
                     }
                 }
 
-                pub fn forward(&self, input1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let output = !input1;
+                pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let output = !input;
                     output
                 }
             }

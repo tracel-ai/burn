@@ -1,0 +1,22 @@
+import torch
+import onnx
+
+def export_bitwise_and():
+    class BitwiseAndModel(torch.nn.Module):
+        def forward(self, x, y):
+            return torch.bitwise_and(x, y)
+
+    model = BitwiseAndModel()
+    x = torch.tensor([1, 2, 3, 4], dtype=torch.int32)
+    y = torch.tensor([4, 3, 2, 1], dtype=torch.int32)
+    torch.onnx.export(
+        model,
+        (x, y),
+        "bitwise_and.onnx",
+        opset_version=18,
+        input_names=["x", "y"],
+        output_names=["output"],
+    )
+
+if __name__ == "__main__":
+    export_bitwise_and()
