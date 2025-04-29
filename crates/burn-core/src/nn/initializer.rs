@@ -561,7 +561,7 @@ mod tests {
             .into_scalar();
         assert!(
             -0.00001 < diff && diff < 0.00001,
-            "Expected Q.T @ Q to be close to identiy matrix."
+            "Expected Q.T @ Q to be close to identity matrix."
         );
     }
 
