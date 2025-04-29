@@ -59,7 +59,7 @@ impl CubeType for Arg {
 }
 
 impl Init for Arg {
-    fn init(self, _context: &mut Scope) -> Self {
+    fn init(self, _context: &mut Scope, _is_mut: bool) -> Self {
         self
     }
 }
