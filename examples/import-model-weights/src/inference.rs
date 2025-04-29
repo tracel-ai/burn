@@ -1,22 +1,37 @@
+//! # MNIST Model Inference Module
+//!
+//! This module provides functionality for performing inference with imported MNIST models.
+//! It includes a generic inference function that:
+//!
+//! 1. Accepts a ModelRecord with pre-loaded weights from any supported format
+//! 2. Loads a test image from the MNIST dataset
+//! 3. Preprocesses the image (reshaping and normalizing)
+//! 4. Runs the model to get a prediction
+//! 5. Verifies prediction accuracy
+//! 6. Reports results to the user
+//!
+//! ## Features
+//!
+//! - Backend-agnostic implementation (`<B: Backend>`)
+//! - Command-line argument support for choosing test images
+//! - Proper input normalization for MNIST dataset
+//! - Helpful output with links to visualize the tested image
+//!
+//! This module is used by all examples in the `bin/` directory to standardize
+//! the inference process regardless of where the model weights originated.
+
+use burn::prelude::*;
+
 use std::env::args;
-use std::path::Path;
 
-use burn::{
-    backend::ndarray::NdArray,
-    data::dataset::{Dataset, vision::MnistDataset},
-    module::Module,
-    record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder},
-    tensor::Tensor,
-};
+use burn::data::dataloader::Dataset;
+use burn::data::dataset::vision::MnistDataset;
 
-use model::Model;
+use crate::model::{Model, ModelRecord};
 
 const IMAGE_INX: usize = 42; // <- Change this to test a different image
 
-// Build output direct that contains converted model weight file path
-const OUT_DIR: &str = concat!(env!("OUT_DIR"), "/model/mnist");
-
-fn main() {
+pub fn infer<B: Backend>(record: ModelRecord<B>) {
     // Get image index argument (first) from command line
 
     let image_index = if let Some(image_index) = args().nth(1) {
@@ -31,16 +46,10 @@ fn main() {
 
     assert!(image_index < 10000, "Image index must be less than 10000");
 
-    type Backend = NdArray<f32>;
     let device = Default::default();
 
-    // Load the model record from converted PyTorch file by the build script
-    let record = NamedMpkFileRecorder::<FullPrecisionSettings>::default()
-        .load(Path::new(OUT_DIR).into(), &device)
-        .expect("Failed to decode state");
-
     // Create a new model and load the state
-    let model: Model<Backend> = Model::init(&device).load_record(record);
+    let model: Model<B> = Model::init(&device).load_record(record);
 
     // Load the MNIST dataset and get an item
     let dataset = MnistDataset::test();
@@ -49,7 +58,7 @@ fn main() {
     // Create a tensor from the image data
     let image_data = item.image.iter().copied().flatten().collect::<Vec<f32>>();
     let mut input =
-        Tensor::<Backend, 1>::from_floats(image_data.as_slice(), &device).reshape([1, 1, 28, 28]);
+        Tensor::<B, 1>::from_floats(image_data.as_slice(), &device).reshape([1, 1, 28, 28]);
 
     // Normalize the input
     input = ((input / 255) - 0.1307) / 0.3081;
@@ -58,7 +67,7 @@ fn main() {
     let output = model.forward(input);
 
     // Get the index of the maximum value
-    let arg_max = output.argmax(1).into_scalar() as u8;
+    let arg_max: u8 = output.argmax(1).into_scalar().elem();
 
     // Check if the index matches the label
     assert!(arg_max == item.label);

@@ -3498,6 +3498,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0263a3d970d5c054ed9312c0057b4f3bde9c0b33836d3637361d4a9e6e7a408"
 
 [[package]]
+name = "import-model-weights"
+version = "0.18.0"
+dependencies = [
+ "burn",
+ "burn-import",
+]
+
+[[package]]
 name = "indexmap"
 version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4060,14 +4068,6 @@ dependencies = [
  "serde",
  "wasm-bindgen",
  "wasm-bindgen-futures",
-]
-
-[[package]]
-name = "model"
-version = "0.7.0"
-dependencies = [
- "burn",
- "burn-import",
 ]
 
 [[package]]
@@ -5430,15 +5430,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pytorch-import"
-version = "0.18.0"
-dependencies = [
- "burn",
- "burn-import",
- "model",
-]
-
-[[package]]
 name = "pytorch-tests"
 version = "0.18.0"
 dependencies = [
@@ -6183,15 +6174,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "safetensors-import"
-version = "0.17.0"
-dependencies = [
- "burn",
- "burn-import",
- "stmodel",
-]
-
-[[package]]
 name = "safetensors-tests"
 version = "0.18.0"
 dependencies = [
@@ -6664,14 +6646,6 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
-name = "stmodel"
-version = "0.6.0"
-dependencies = [
- "burn",
- "burn-import",
-]
 
 [[package]]
 name = "streaming-decompression"

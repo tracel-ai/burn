@@ -121,7 +121,7 @@ this:
    ```rust
    // Convert the PyTorch model to Burn's binary format in
    // build.rs or in a separate executable. Then, include the generated file
-   // in your project. See `examples/pytorch-import` for an example.
+   // in your project. See `examples/import-model-weights` for an example.
 
    use crate::model;
 

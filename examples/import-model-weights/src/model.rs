@@ -1,13 +1,28 @@
-use std::env;
-use std::path::Path;
+//! # MNIST Model Architecture
+//!
+//! This module defines the MNIST digit classification neural network used in the examples.
+//! It implements a convolutional neural network (CNN) with the following structure:
+//!
+//! - 3 convolutional layers with ReLU activations
+//! - Batch normalization layers
+//! - 2 fully connected layers
+//! - Log-softmax output for 10 classes (digits 0-9)
+//!
+//! ## Key Components
+//!
+//! - `Model<B>`: The main model structure with backend-agnostic implementation
+//! - `ModelRecord<B>`: Type alias for serialized model records
+//! - Methods for initializing models and loading weights from records
+//!
+//! The model architecture is compatible with weights imported from PyTorch
+//! and SafeTensors formats, which can be loaded using the appropriate recorder.
 
 use burn::{
     nn::{
-        conv::{Conv2d, Conv2dConfig},
         BatchNorm, BatchNormConfig, Linear, LinearConfig,
+        conv::{Conv2d, Conv2dConfig},
     },
     prelude::*,
-    record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder},
     tensor::activation::{log_softmax, relu},
 };
 
@@ -20,21 +35,6 @@ pub struct Model<B: Backend> {
     fc1: Linear<B>,
     fc2: Linear<B>,
     norm2: BatchNorm<B, 0>,
-    phantom: core::marker::PhantomData<B>,
-}
-
-impl<B: Backend> Default for Model<B> {
-    fn default() -> Self {
-        let device = B::Device::default();
-        let out_dir = env::var_os("OUT_DIR").unwrap();
-        let file_path = Path::new(&out_dir).join("model/mnist");
-
-        let record = NamedMpkFileRecorder::<FullPrecisionSettings>::default()
-            .load(file_path, &device)
-            .expect("Failed to decode state");
-
-        Self::init(&device).load_record(record)
-    }
 }
 
 impl<B: Backend> Model<B> {
@@ -55,7 +55,6 @@ impl<B: Backend> Model<B> {
             fc1,
             fc2,
             norm2,
-            phantom: core::marker::PhantomData,
         }
     }
 
