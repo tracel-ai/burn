@@ -3,10 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::BasicOps;
     use burn_tensor::backend::Backend;
-    use burn_tensor::grid::{
-        GridCompatIndexing, GridSparsity, meshgrid, meshgrid_compat, meshgrid_dense,
-        meshgrid_sparse,
-    };
+    use burn_tensor::grid::{GridIndexing, GridSparsity, MeshGridOptions, meshgrid};
     use burn_tensor::{Int, Shape, Tensor, TensorData};
 
     fn assert_tensors_equal<const N: usize, B: Backend, K>(
@@ -32,10 +29,9 @@ mod tests {
 
         // 3D, Dense, Matrix
         assert_tensors_equal(
-            &meshgrid_compat(
+            &meshgrid(
                 &[x.clone(), y.clone(), z.clone()],
-                GridSparsity::Dense,
-                None,
+                MeshGridOptions::default(),
             ),
             &[
                 x.clone().reshape([4, 1, 1]).expand(grid_shape),
@@ -52,7 +48,7 @@ mod tests {
             ],
         );
         assert_tensors_equal(
-            &meshgrid_dense(&[x.clone(), y.clone(), z.clone()]),
+            &meshgrid(&[x.clone(), y.clone(), z.clone()], GridIndexing::Matrix),
             &[
                 x.clone().reshape([4, 1, 1]).expand(grid_shape),
                 y.clone().reshape([1, 2, 1]).expand(grid_shape),
@@ -62,11 +58,12 @@ mod tests {
 
         // 3D, Sparse, Matrix
         assert_tensors_equal(
-            &meshgrid_compat(
+            &meshgrid(
                 &[x.clone(), y.clone(), z.clone()],
-                GridSparsity::Sparse,
-                // Via the Into promotion:
-                GridCompatIndexing::MatrixIndexing,
+                MeshGridOptions {
+                    sparsity: GridSparsity::Sparse,
+                    indexing: GridIndexing::Matrix,
+                },
             ),
             &[
                 x.clone().reshape([4, 1, 1]),
@@ -82,23 +79,10 @@ mod tests {
                 z.clone().reshape([1, 1, 2]),
             ],
         );
-        assert_tensors_equal(
-            &meshgrid_sparse(&[x.clone(), y.clone(), z.clone()]),
-            &[
-                x.clone().reshape([4, 1, 1]),
-                y.clone().reshape([1, 2, 1]),
-                z.clone().reshape([1, 1, 2]),
-            ],
-        );
 
-        // 3D, sparse=false, Cartesian
+        // 3D, Dense, Cartesian
         assert_tensors_equal(
-            &meshgrid_compat(
-                &[x.clone(), y.clone(), z.clone()],
-                GridSparsity::Dense,
-                // Via the Option type:
-                Some(GridCompatIndexing::CartesianIndexing),
-            ),
+            &meshgrid(&[x.clone(), y.clone(), z.clone()], GridIndexing::Cartesian),
             &[
                 x.clone()
                     .reshape([4, 1, 1])
@@ -115,12 +99,25 @@ mod tests {
             ],
         );
 
-        // 3D, sparse=true, Cartesian
+        // 3D, Sparse, Cartesian
         assert_tensors_equal(
-            &meshgrid_compat(
+            &meshgrid(
                 &[x.clone(), y.clone(), z.clone()],
-                GridSparsity::Sparse,
-                Some(GridCompatIndexing::CartesianIndexing),
+                MeshGridOptions::new(GridSparsity::Sparse, GridIndexing::Cartesian),
+            ),
+            &[
+                x.clone().reshape([4, 1, 1]).swap_dims(0, 1),
+                y.clone().reshape([1, 2, 1]).swap_dims(0, 1),
+                z.clone().reshape([1, 1, 2]).swap_dims(0, 1),
+            ],
+        );
+        assert_tensors_equal(
+            &meshgrid(
+                &[x.clone(), y.clone(), z.clone()],
+                MeshGridOptions {
+                    sparsity: GridSparsity::Sparse,
+                    indexing: GridIndexing::Cartesian,
+                },
             ),
             &[
                 x.clone().reshape([4, 1, 1]).swap_dims(0, 1),

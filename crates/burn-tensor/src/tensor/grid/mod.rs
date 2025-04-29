@@ -12,19 +12,14 @@ pub enum GridSparsity {
     Dense,
 }
 
-/// Legacy compatibility enum for grid indexing modes.
-///
-/// NumPy (and by copying, PyTorch) used an indexing mode which swapped the first two dimensions,
-/// added to simplify some graphics and plotting tasks. As it broke the natural order of the
-/// dimensions, the behavior was flagged, and migration plans are in-flight in both libraries
-/// to make the natural ordering the default.
+/// Enum to specify index cardinal layout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GridCompatIndexing {
+pub enum GridIndexing {
     /// Dimensions are in the same order as the cardinality of the inputs.
     /// Equivalent to "ij" indexing in NumPy and PyTorch.
-    MatrixIndexing,
+    Matrix,
 
     /// The first two dimensions are swapped.
     /// Equivalent to "xy" indexing in NumPy and PyTorch.
-    CartesianIndexing,
+    Cartesian,
 }

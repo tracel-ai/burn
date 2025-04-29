@@ -1,117 +1,43 @@
 use crate::backend::Backend;
-use crate::tensor::grid::{GridCompatIndexing, GridSparsity};
+use crate::tensor::grid::{GridIndexing, GridSparsity};
 use crate::tensor::{BasicOps, Tensor};
 use alloc::vec::Vec;
 
-/// Return a collection of coordinate matrices for coordinate vectors.
-///
-/// Takes N 1D tensors and returns N tensors where each tensor represents the coordinates
-/// in one dimension across an N-dimensional grid.
-///
-/// The generated coordinate tensors can either be `Sparse` or `Dense`:
-/// * In `Sparse` mode, output tensors will have shape 1 everywhere except their cardinal dimension.
-/// * In `Dense` mode, output tensors will be expanded to the full grid shape.
-///
-/// Equivalent to ``meshgrid_compat(tensors, sparsity, GridCompatIndexing::CartesianIndexing)``.
-///
-/// Users who need compatibility with the legacy `"xy"` indexing mode from
-/// NumPy and PyTorch should use `meshgrid_compat`.
-///
-/// See:
-///  - https://numpy.org/doc/stable/reference/generated/numpy.meshgrid.html
-///  - https://pytorch.org/docs/stable/generated/torch.meshgrid.html
-///
-/// # Arguments
-///
-/// * `tensors` - A slice of 1D tensors
-/// * `sparsity` - the sparse mode.
-/// * `indexing` - Optional IndexingMode, defaults to `MatrixIndexing`.
-///
-/// # Returns
-///
-/// A vector of N N-dimensional tensors representing the grid coordinates.
-pub fn meshgrid<B: Backend, const N: usize, K>(
-    tensors: &[Tensor<B, 1, K>; N],
-    sparsity: GridSparsity,
-) -> [Tensor<B, N, K>; N]
-where
-    K: BasicOps<B>,
-{
-    meshgrid_compat(tensors, sparsity, GridCompatIndexing::MatrixIndexing)
+/// Configuration options for `meshgrid`.
+#[derive(new, Debug, Copy, Clone)]
+pub struct MeshGridOptions {
+    /// Sparsity mode.
+    pub sparsity: GridSparsity,
+
+    /// Indexing mode.
+    pub indexing: GridIndexing,
 }
 
-/// Return a dense collection of coordinate matrices for coordinate vectors.
-///
-/// Takes N 1D tensors and returns N dense tensors (populated with the full
-/// cartesian product shape of the inputs) where each tensor represents
-/// the coordinates in one dimension across an N-dimensional grid.
-///
-/// Equivalent to ``meshgrid(tensors, GridSparsity::Dense)``.
-///
-/// Users who need compatibility with the legacy `"xy"` indexing mode from
-/// NumPy and PyTorch should use `meshgrid_compat`.
-///
-/// See:
-///  - https://numpy.org/doc/stable/reference/generated/numpy.meshgrid.html
-///  - https://pytorch.org/docs/stable/generated/torch.meshgrid.html
-///
-/// # Arguments
-///
-/// * `tensors` - A slice of 1D tensors
-/// * `sparsity` - the sparse mode.
-/// * `indexing` - Optional IndexingMode, defaults to `MatrixIndexing`.
-///
-/// # Returns
-///
-/// A vector of N N-dimensional tensors representing the grid coordinates.
-pub fn meshgrid_dense<B: Backend, const N: usize, K>(
-    tensors: &[Tensor<B, 1, K>; N],
-) -> [Tensor<B, N, K>; N]
-where
-    K: BasicOps<B>,
-{
-    meshgrid_compat(
-        tensors,
-        GridSparsity::Dense,
-        GridCompatIndexing::MatrixIndexing,
-    )
+impl Default for MeshGridOptions {
+    fn default() -> Self {
+        Self {
+            sparsity: GridSparsity::Dense,
+            indexing: GridIndexing::Matrix,
+        }
+    }
 }
 
-/// Return a collection of coordinate matrices for coordinate vectors.
-///
-/// Takes N 1D tensors and returns N sparse tensors (each tensor has shape 1
-/// everywhere except its cardinal dimension) where each tensor represents
-/// the coordinates in one dimension across an N-dimensional grid.
-///
-/// Equivalent to ``meshgrid(tensors, GridSparsity::Sparse)``.
-///
-/// Users who need compatibility with the legacy `"xy"` indexing mode from
-/// NumPy and PyTorch should use `meshgrid_compat`.
-///
-/// See:
-///  - https://numpy.org/doc/stable/reference/generated/numpy.meshgrid.html
-///  - https://pytorch.org/docs/stable/generated/torch.meshgrid.html
-///
-/// # Arguments
-///
-/// * `tensors` - A slice of 1D tensors
-/// * `sparsity` - the sparse mode.
-/// * `indexing` - Optional IndexingMode, defaults to `MatrixIndexing`.
-///
-/// # Returns
-///
-/// A vector of N N-dimensional tensors representing the grid coordinates.
-pub fn meshgrid_sparse<B: Backend, const N: usize, K>(
-    tensors: &[Tensor<B, 1, K>; N],
-) -> [Tensor<B, N, K>; N]
-where
-    K: BasicOps<B>,
-{
-    meshgrid_compat(
-        tensors,
-        GridSparsity::Sparse,
-        GridCompatIndexing::MatrixIndexing,
-    )
+impl From<GridSparsity> for MeshGridOptions {
+    fn from(value: GridSparsity) -> Self {
+        Self {
+            sparsity: value,
+            ..Default::default()
+        }
+    }
+}
+
+impl From<GridIndexing> for MeshGridOptions {
+    fn from(value: GridIndexing) -> Self {
+        Self {
+            indexing: value,
+            ..Default::default()
+        }
+    }
 }
 
 /// Return a collection of coordinate matrices for coordinate vectors.
@@ -119,14 +45,13 @@ where
 /// Takes N 1D tensors and returns N tensors where each tensor represents the coordinates
 /// in one dimension across an N-dimensional grid.
 ///
-/// The generated coordinate tensors can either be `Sparse` or `Dense`:
+/// Based upon `options.sparse`, the generated coordinate tensors can either be `Sparse` or `Dense`:
 /// * In `Sparse` mode, output tensors will have shape 1 everywhere except their cardinal dimension.
 /// * In `Dense` mode, output tensors will be expanded to the full grid shape.
 ///
-/// The optional `indexing` argument allows you to choose between two indexing modes:
-/// * `MatrixIndexing` (default): Dimensions are in the same order as the cardinality of the inputs.
-/// * `CartesianIndexing`: The first two dimensions are swapped, giving a backward compatibility
-///   with the legacy Cartesian indexing ("xy") style used by NumPy and PyTorch.
+/// Based upon `options.indexing`, the generated coordinate tensors will use either:
+/// * `Matrix` indexing, where dimensions are in the same order as their cardinality.
+/// * `Cartesian` indexing; where the first two dimensions are swapped.
 ///
 /// See:
 ///  - https://numpy.org/doc/stable/reference/generated/numpy.meshgrid.html
@@ -135,24 +60,21 @@ where
 /// # Arguments
 ///
 /// * `tensors` - A slice of 1D tensors
-/// * `sparsity` - the sparse mode.
-/// * `indexing` - Optional IndexingMode, defaults to `MatrixIndexing`.
+/// * `options` - the options.
 ///
 /// # Returns
 ///
 /// A vector of N N-dimensional tensors representing the grid coordinates.
-pub fn meshgrid_compat<B: Backend, const N: usize, K>(
+pub fn meshgrid<B: Backend, const N: usize, K, O>(
     tensors: &[Tensor<B, 1, K>; N],
-    sparsity: GridSparsity,
-    indexing: impl Into<Option<GridCompatIndexing>>,
+    options: O,
 ) -> [Tensor<B, N, K>; N]
 where
     K: BasicOps<B>,
+    O: Into<MeshGridOptions>,
 {
-    let indexing_mode = indexing
-        .into()
-        .unwrap_or(GridCompatIndexing::MatrixIndexing);
-    let swap_dims = indexing_mode == GridCompatIndexing::CartesianIndexing && N > 1;
+    let options = options.into();
+    let swap_dims = options.indexing == GridIndexing::Cartesian && N > 1;
 
     let grid_shape: [usize; N] = tensors
         .iter()
@@ -171,7 +93,7 @@ where
             // Reshape the tensor to have singleton dimensions in all but the i-th dimension
             let mut tensor = tensor.clone().reshape(coord_tensor_shape);
 
-            if sparsity == GridSparsity::Dense {
+            if options.sparsity == GridSparsity::Dense {
                 tensor = tensor.expand(grid_shape);
             }
 

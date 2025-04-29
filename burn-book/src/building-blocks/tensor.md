@@ -363,9 +363,10 @@ strategies.
 
 ## Grid Functions
 
-| Burn API                        | PyTorch Equivalent                      |
-|---------------------------------|-----------------------------------------|
-| `grid::meshgrid_dense(tensors)` | `torch.meshgrid(tensors, indexing="ij") |
+| Burn API                                           | PyTorch Equivalent                      |
+|----------------------------------------------------|-----------------------------------------|
+| `grid::meshgrid(tensors, GridIndexing::Matrix)`    | `torch.meshgrid(tensors, indexing="ij") |
+| `grid::meshgrid(tensors, GridIndexing::Cartesian)` | `torch.meshgrid(tensors, indexing="xy") |
 
 ## Displaying Tensor Details
 
