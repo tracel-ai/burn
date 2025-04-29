@@ -368,6 +368,7 @@ fn cast_update_outputs(node: &mut Node) {
 fn concat_update_outputs(node: &mut Node) {
     log::debug!("Concat rank inference for node {}", node.name);
 
+    // Find the first tensor input, with better error handling
     let tensor = node
         .inputs
         .iter()
@@ -375,9 +376,38 @@ fn concat_update_outputs(node: &mut Node) {
             ArgType::Tensor(tensor) => Some(tensor.clone()),
             _ => None,
         })
-        .unwrap();
+        .unwrap_or_else(|| {
+            panic!(
+                "Concat node '{}' has no valid tensor inputs. Inputs: {:?}",
+                node.name,
+                node.inputs
+                    .iter()
+                    .map(|i| format!("{:?}", i.ty))
+                    .collect::<Vec<_>>()
+            )
+        });
 
     log::debug!("Concat using input rank for {}: {}", node.name, tensor.rank);
+
+    // Verify all inputs have compatible ranks
+    for (idx, input) in node.inputs.iter().enumerate() {
+        match &input.ty {
+            ArgType::Tensor(t) => {
+                if t.rank != tensor.rank {
+                    panic!(
+                        "Concat node '{}' has mismatched ranks. Expected rank {} but input {} has rank {}",
+                        node.name, tensor.rank, idx, t.rank
+                    );
+                }
+            }
+            _ => {
+                panic!(
+                    "Concat node '{}' has non-tensor input at position {}. Input type: {:?}",
+                    node.name, idx, input.ty
+                );
+            }
+        }
+    }
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
         elem_type: tensor.elem_type,
@@ -1289,4 +1319,90 @@ fn gemm_output_shape(node: &mut Node) {
             _ => panic!("Unexpected type for input A"),
         },
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ir::{Argument, TensorType};
+    use std::panic::AssertUnwindSafe;
+
+    #[test]
+    fn test_concat_rank_inference() {
+        // Create a test node with valid tensor inputs
+        let mut node = Node {
+            name: "test_concat".to_string(),
+            node_type: NodeType::Concat,
+            inputs: vec![
+                Argument {
+                    name: "input1".to_string(),
+                    ty: ArgType::Tensor(TensorType {
+                        elem_type: ElementType::Float32,
+                        rank: 4,
+                        static_shape: None,
+                    }),
+                    value: None,
+                    passed: false,
+                },
+                Argument {
+                    name: "input2".to_string(),
+                    ty: ArgType::Tensor(TensorType {
+                        elem_type: ElementType::Float32,
+                        rank: 4,
+                        static_shape: None,
+                    }),
+                    value: None,
+                    passed: false,
+                },
+            ],
+            outputs: vec![Argument {
+                name: "output".to_string(),
+                ty: ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Float32,
+                    rank: 0,
+                    static_shape: None,
+                }),
+                value: None,
+                passed: false,
+            }],
+            attrs: std::collections::HashMap::new(),
+        };
+
+        // Test successful case
+        concat_update_outputs(&mut node);
+        assert_eq!(
+            node.outputs[0].ty,
+            ArgType::Tensor(TensorType {
+                elem_type: ElementType::Float32,
+                rank: 4,
+                static_shape: None,
+            })
+        );
+
+        // Test mismatched ranks
+        let mut node_mismatched = node.clone();
+        if let ArgType::Tensor(ref mut tensor) = node_mismatched.inputs[1].ty {
+            tensor.rank = 3;
+        }
+        let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            concat_update_outputs(&mut node_mismatched);
+        }));
+        assert!(result.is_err());
+
+        // Test non-tensor input
+        let mut node_non_tensor = node.clone();
+        node_non_tensor.inputs[1].ty = ArgType::Scalar(ElementType::Float32);
+        let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            concat_update_outputs(&mut node_non_tensor);
+        }));
+        assert!(result.is_err());
+
+        // Test empty inputs
+        let mut node_empty = node.clone();
+        node_empty.inputs.clear();
+        let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            concat_update_outputs(&mut node_empty);
+        }));
+        assert!(result.is_err());
+    }
 }
