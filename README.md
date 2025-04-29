@@ -188,10 +188,10 @@ for more details.
 <div align="left">
 <img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/backend-chip.png" height="96px"/>
 
-
 Burn strives to be as fast as possible on as many hardwares as possible, with robust implementations.
 We believe this flexibility is crucial for modern needs where you may train your models in the cloud,
 then deploy on customer hardwares, which vary from user to user.
+
 </div>
 
 <br />
@@ -199,7 +199,7 @@ then deploy on customer hardwares, which vary from user to user.
 **Supported Backends**
 
 | Backend  | Devices                      | Class       |
-| -------  | ---------------------------- | ----------- |
+| -------- | ---------------------------- | ----------- |
 | CUDA     | NVIDIA GPUs                  | First-Party |
 | ROCm     | AMD GPUs                     | First-Party |
 | Metal    | Apple GPUs                   | First-Party |
@@ -426,13 +426,16 @@ Our ONNX support is further described in
 
 <details>
 <summary>
-Importing PyTorch Models 🚚
+Importing PyTorch or SafeTensors Models 🚚
 </summary>
 <br />
 
-Support for loading of PyTorch model weights into Burn’s native model architecture, ensuring
-seamless integration. See
-[Burn Book 🔥 section on importing PyTorch](https://burn.dev/burn-book/import/pytorch-model.html)
+Burn provides seamless support for importing pre-trained models from other frameworks. You can easily load weights from PyTorch or SafeTensors formats directly into Burn's native model architecture without complex conversion workflows.
+
+This capability enables you to leverage existing pre-trained models while benefiting from Burn's performance and deployment advantages. For comprehensive guides, see the:
+
+- [Import pre-trained PyTorch models into Burn](https://burn.dev/burn-book/import/pytorch-model.html)
+- [Load models from SafeTensors format](https://burn.dev/burn-book/import/safetensors-model.html)
 
 </details>
 
@@ -468,7 +471,6 @@ means it can run in bare metal environment such as embedded devices without an o
 
 <br />
 
-
 ### Benchmarks
 
 To evaluate performance across different backends and track improvements over time, we provide a
@@ -476,15 +478,15 @@ dedicated benchmarking suite.
 
 Run and compare benchmarks using [burn-bench](https://github.com/tracel-ai/burn-bench).
 
-
-> ⚠️ **Warning**  
-> When using one of the `wgpu` backends, you may encounter compilation errors related to recursive type evaluation. This is due to complex type nesting within the `wgpu` dependency chain.  
+> ⚠️ **Warning**
+> When using one of the `wgpu` backends, you may encounter compilation errors related to recursive type evaluation. This is due to complex type nesting within the `wgpu` dependency chain.
 > To resolve this issue, add the following line at the top of your `main.rs` or `lib.rs` file:
+>
 > ```rust
 > #![recursion_limit = "256"]
 > ```
+>
 > The default recursion limit (128) is often just below the required depth (typically 130-150) due to deeply nested associated types and trait bounds.
-
 
 ## Getting Started
 
