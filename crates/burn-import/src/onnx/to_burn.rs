@@ -76,9 +76,8 @@ use super::op_configuration::{
     gather_config, gemm_config, hard_sigmoid_config, layer_norm_config, leaky_relu_config,
     linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, one_hot_config,
     pad_config, reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
-    reduce_sum_config, reshape_config, resize_config, shape_config, slice_config, softmax_config,
-    split_config, squeeze_config, tile_config, top_k_config, transpose_config, trilu_config,
-    unsqueeze_config,
+    reduce_sum_config, reshape_config, resize_config, shape_config, softmax_config, split_config,
+    squeeze_config, tile_config, top_k_config, transpose_config, trilu_config, unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -86,6 +85,7 @@ use onnx_ir::{
         ArgType, Argument as OnnxArgument, Data, ElementType, Node, NodeType, OnnxGraph,
         TensorType as OnnxTensorType,
     },
+    node::slice::slice_config,
     parse_onnx,
 };
 
@@ -879,8 +879,8 @@ impl ParsedOnnxGraph {
     }
 
     fn slice_conversion(node: Node) -> SliceNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let ranges = slice_config(&node);
 
         SliceNode::new(input, output, ranges)
