@@ -7,9 +7,11 @@ pub use crate::node::gemm::gemm_config;
 pub use crate::node::hard_sigmoid::hard_sigmoid_config;
 pub use crate::node::leaky_relu::leaky_relu_config;
 pub use crate::node::one_hot::one_hot_config;
-pub use crate::node::reduce::{
-    reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config, reduce_sum_config,
-};
+pub use crate::node::reduce_max::reduce_max_config;
+pub use crate::node::reduce_mean::reduce_mean_config;
+pub use crate::node::reduce_min::reduce_min_config;
+pub use crate::node::reduce_prod::reduce_prod_config;
+pub use crate::node::reduce_sum::reduce_sum_config;
 pub use crate::node::reshape::reshape_config;
 pub use crate::node::resize::resize_config;
 pub use crate::node::shape::shape_config;
