@@ -190,8 +190,8 @@ impl CubeType for FusedReduceState {
     type ExpandType = FusedReduceStateExpand;
 }
 
-impl Init for FusedReduceStateExpand {
-    fn init(self, _context: &mut Scope, _is_mut: bool) -> Self {
+impl IntoMut for FusedReduceStateExpand {
+    fn into_mut(self, _context: &mut Scope) -> Self {
         self
     }
 }
