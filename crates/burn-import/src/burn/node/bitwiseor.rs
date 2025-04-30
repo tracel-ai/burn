@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorType, Type};
+use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -18,7 +18,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseOrNode {
     fn input_types(&self) -> Vec<Type> {
         self.inputs
             .iter()
-            .map(|t| Type::Tensor(t.clone()))
+            .map(|t| {
+                if t.kind != TensorKind::Int {
+                    panic!("BitwiseOrNode only supports Int TensorType inputs");
+                }
+                Type::Tensor(t.clone())
+            })
             .collect()
     }
 
@@ -36,6 +41,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseOrNode {
     }
 
     fn into_node(self) -> Node<PS> {
+        if self.output.kind != TensorKind::Int {
+            panic!("BitwiseOrNode only supports Int TensorType outputs");
+        }
         Node::BitwiseOr(self)
     }
 }

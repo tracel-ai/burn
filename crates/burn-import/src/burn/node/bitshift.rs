@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorType, Type};
+use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -19,7 +19,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
     fn input_types(&self) -> Vec<Type> {
         self.inputs
             .iter()
-            .map(|t| Type::Tensor(t.clone()))
+            .map(|t| {
+                if t.kind != TensorKind::Int {
+                    panic!("BitShiftNode only supports Int TensorType inputs");
+                }
+                Type::Tensor(t.clone())
+            })
             .collect()
     }
 
@@ -46,6 +51,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
     }
 
     fn into_node(self) -> Node<PS> {
+        if self.output.kind != TensorKind::Int {
+            panic!("BitShiftNode only supports Int TensorType outputs");
+        }
         Node::BitShift(self)
     }
 }
@@ -67,10 +75,10 @@ mod tests {
 
         graph.register(BitShiftNode::new(
             vec![
-                TensorType::new_float("input1", 4),
-                TensorType::new_float("input2", 4),
+                TensorType::new_int("input1", 4),
+                TensorType::new_int("input2", 4),
             ],
-            TensorType::new_float("output", 4),
+            TensorType::new_int("output", 4),
             "left".to_string(),
         ));
 
@@ -99,8 +107,8 @@ mod tests {
                     }
                 }
 
-                pub fn forward(&self, input1: Tensor<B, 4>, input2: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let output = input1 << input2;
+               1: Tensor<B, 4>, input2 pub fn forward(&self, input1: Tensor<B, 4>, input2: Tensor<B, 4>) -> Tensor<B, 4> {
+          1    input2;
                     output
                 }
             }
@@ -115,11 +123,11 @@ mod tests {
 
         graph.register(BitShiftNode::new(
             vec![
-                TensorType::new_float("input1", 4),
-                TensorType::new_float("input2", 4),
+                TensorType::new_int("input1", 4),
+                TensorType::new_int("input2", 4),
             ],
-            TensorType::new_float("output", 4),
-            "right".to_string(),
+            TensorType::new_int("output", 4),
+            "left".to_string(),
         ));
 
         graph.register_input_output(
@@ -147,8 +155,8 @@ mod tests {
                     }
                 }
 
-                pub fn forward(&self, input1: Tensor<B, 4>, input2: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let output = input1 >> input2;
+               1: Tensor<B, 4>, input2 pub fn forward(&self, input1: Tensor<B, 4>, input2: Tensor<B, 4>) -> Tensor<B, 4> {
+          1    input2;
                     output
                 }
             }
