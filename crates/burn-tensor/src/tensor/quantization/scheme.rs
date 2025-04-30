@@ -1,5 +1,3 @@
-#![allow(missing_docs)] // cube derive macros
-
 use serde::{Deserialize, Serialize};
 
 use crate::{Tensor, TensorPrimitive, backend::Backend};
@@ -8,13 +6,18 @@ use super::{
     Calibration, CalibrationRange, QuantizationParameters, QuantizationParametersPrimitive,
 };
 
-/// Quantization scheme.
+/// Describes a quantization scheme/configuration.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct QuantScheme {
+    /// Granularity level of quantization (e.g., per-tensor).
     pub level: QuantLevel,
+    /// Quantization mode (e.g., symmetric).
     pub mode: QuantMode,
+    /// Data type used for storing quantized values (e.g., QInt8).
     pub q_type: QuantInputType,
+    /// Precision used for accumulating intermediate values (e.g., during matmul).
     pub acc_precision: QuantAccPrecision,
+    /// Whether to propagate quantization to outputs or return unquantized results.
     pub propagation: QuantPropagation,
 }
 
@@ -31,47 +34,51 @@ impl Default for QuantScheme {
 }
 
 impl QuantScheme {
+    /// Set the quantization level.
     pub fn set_level(mut self, level: QuantLevel) -> Self {
         self.level = level;
         self
     }
 
+    /// Set the quantization mode.
     pub fn set_mode(mut self, mode: QuantMode) -> Self {
         self.mode = mode;
         self
     }
 
+    /// Set the data type used for quantized values.
     pub fn set_q_type(mut self, q_type: QuantInputType) -> Self {
         self.q_type = q_type;
         self
     }
 
+    /// Set the accumulation precision used during computations.
     pub fn set_acc_precision(mut self, acc_precision: QuantAccPrecision) -> Self {
         self.acc_precision = acc_precision;
         self
     }
 
+    /// Set whether quantization is propagated through operations.
     pub fn set_propagation(mut self, propagation: QuantPropagation) -> Self {
         self.propagation = propagation;
         self
     }
 }
-
-/// Quantization level.
+/// Level or granularity of quantization.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum QuantLevel {
     /// Quantize the whole tensor using a single tensor.
     Tensor,
 }
 
-/// Quantization data type.
+/// Data type used to represent quantized values.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum QuantInputType {
     /// 8-bit signed integer.
     QInt8,
 }
 
-/// Quantization mode.
+/// Strategy used to quantize values.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum QuantMode {
     /// Symmetric or scale quantization.
@@ -82,7 +89,9 @@ pub enum QuantMode {
 /// while executing algorithms such as matmul.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum QuantAccPrecision {
+    /// Full precision accumulation (f32).
     Full,
+    /// Half precision accumulation (f16).
     Half,
 }
 
