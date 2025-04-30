@@ -4474,6 +4474,7 @@ dependencies = [
 name = "onnx-ir"
 version = "0.18.0"
 dependencies = [
+ "burn",
  "bytemuck",
  "half",
  "log",
