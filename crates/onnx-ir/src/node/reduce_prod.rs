@@ -1,4 +1,4 @@
-use crate::ir::{ArgType, Node};
+use crate::ir::{ArgType, AttributeValue, Node, TensorType};
 
 /// Create a ReduceProdConfig from the attributes of the node
 pub fn reduce_prod_config(node: &Node) -> Option<usize> {
@@ -44,6 +44,38 @@ pub fn reduce_prod_config(node: &Node) -> Option<usize> {
         }
         Some(dim as usize)
     }
+}
+
+/// Update output rank for ReduceProd based on axes.
+pub fn reduce_prod_update_outputs(node: &mut Node) {
+    log::debug!("ReduceProd rank inference for node {}", node.name);
+
+    if node.inputs.len() != 1 {
+        panic!("ReduceProd: multiple inputs are not supported");
+    }
+    let tensor = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+    log::debug!("ReduceProd input rank for {}: {}", node.name, tensor.rank);
+
+    let dim_only = match node.attrs.get("axes") {
+        Some(value) => match &value {
+            AttributeValue::Int64(_) => true,
+            AttributeValue::Int64s(ints) => ints.len() == 1,
+            _ => false,
+        },
+        None => false,
+    };
+
+    let output_rank = if dim_only { tensor.rank } else { 1 };
+    log::debug!("ReduceProd output rank for {}: {}", node.name, output_rank);
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: tensor.elem_type.clone(),
+        rank: output_rank,
+        static_shape: None,
+    });
 }
 
 #[cfg(test)]

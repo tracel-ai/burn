@@ -5,9 +5,14 @@ use protobuf::Enum;
 
 use crate::{
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
-    node::slice::slice_update_output_rank,
+    node::{
+        one_hot::one_hot_output_shape, reduce_max::reduce_max_update_outputs,
+        reduce_mean::reduce_mean_update_outputs, reduce_min::reduce_min_update_outputs,
+        reduce_prod::reduce_prod_update_outputs, reduce_sum::reduce_sum_update_outputs,
+        shape::shape_update_outputs, slice::slice_update_output_rank,
+        squeeze::squeeze_update_output,
+    },
     protos::tensor_proto::DataType,
-    util::shape_config,
 };
 
 /// Infer the rank of each output tensor and update them based solely on rank inference.
@@ -439,37 +444,6 @@ fn reshape_update_outputs(node: &mut Node) {
     });
 }
 
-/// Update output rank for ReduceMean based on axes.
-fn reduce_mean_update_outputs(node: &mut Node) {
-    log::debug!("ReduceMean rank inference for node {}", node.name);
-
-    if node.inputs.len() != 1 {
-        panic!("ReduceMean: multiple inputs are not supported");
-    }
-    let tensor = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
-    };
-
-    let dim_only = match node.attrs.get("axes") {
-        Some(value) => match &value {
-            AttributeValue::Int64(_) => true,
-            AttributeValue::Int64s(ints) => ints.len() == 1,
-            _ => false,
-        },
-        None => false,
-    };
-
-    let output_rank = if dim_only { tensor.rank } else { 1 };
-    log::debug!("ReduceMean output rank for {}: {}", node.name, output_rank);
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: tensor.elem_type.clone(),
-        rank: output_rank,
-        static_shape: None,
-    });
-}
-
 /// Update output rank for ArgMax (same as input rank).
 fn argmax_update_outputs(node: &mut Node) {
     log::debug!("ArgMax rank inference for node {}", node.name);
@@ -492,42 +466,6 @@ fn argmax_update_outputs(node: &mut Node) {
     });
 
     log::debug!("ArgMax output rank for {}: {}", node.name, tensor.rank);
-}
-
-/// Update output rank for Squeeze based on axes.
-fn squeeze_update_output(node: &mut Node) {
-    log::debug!("Squeeze rank inference for node {}", node.name);
-
-    let axes = if node.inputs.len() == 2 {
-        match &node.inputs[1].value {
-            Some(value) => match &value.data {
-                Data::Int64s(axes) => Some(axes.clone()),
-                _ => panic!("Squeeze: invalid input types"),
-            },
-            None => None,
-        }
-    } else {
-        node.attrs.get("axes").cloned().map(|v| v.into_i64s())
-    };
-
-    let axes = axes.unwrap_or_else(|| panic!("Squeeze must specify an axis"));
-    log::debug!("Squeeze axes for {}: {:?}", node.name, axes);
-
-    let input_rank = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.rank,
-        ty => panic!("Squeeze: invalid input type: {:?}", ty),
-    };
-
-    log::debug!("Squeeze input rank for {}: {}", node.name, input_rank);
-
-    let output_rank = input_rank - axes.len();
-    log::debug!("Squeeze output rank for {}: {}", node.name, output_rank);
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: node.inputs[0].ty.elem_type().clone(),
-        rank: output_rank,
-        static_shape: None,
-    });
 }
 
 /// Update output rank for broadcasting operations (e.g., Add, Sub) to max input rank.
@@ -779,23 +717,6 @@ fn expand_update_outputs(node: &mut Node) {
     }
 }
 
-/// Update output type for Shape operation (rank 1).
-fn shape_update_outputs(node: &mut Node) {
-    if node.inputs.len() != 1 {
-        panic!("Shape: multiple inputs are not supported: {:?}", node);
-    }
-    let (start, end) = shape_config(node);
-    let dim = end - start;
-    log::debug!(
-        "Shape operation for node {}: start={}, end={}, dim={}",
-        node.name,
-        start,
-        end,
-        dim
-    );
-    node.outputs[0].ty = ArgType::Shape(dim);
-}
-
 /// Update output type for Flatten operation (rank 2).
 fn flatten_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
@@ -870,138 +791,6 @@ fn range_update_outputs(node: &mut Node) {
     });
 
     log::debug!("Range output rank for {}: 1", node.name);
-}
-
-/// Update output rank for ReduceMax based on axes.
-fn reduce_max_update_outputs(node: &mut Node) {
-    log::debug!("ReduceMax rank inference for node {}", node.name);
-
-    if node.inputs.len() != 1 {
-        panic!("ReduceMax: multiple inputs are not supported");
-    }
-    let tensor = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
-    };
-    log::debug!("ReduceMax input rank for {}: {}", node.name, tensor.rank);
-
-    let dim_only = match node.attrs.get("axes") {
-        Some(value) => match &value {
-            AttributeValue::Int64(_) => true,
-            AttributeValue::Int64s(ints) => ints.len() == 1,
-            _ => false,
-        },
-        None => false,
-    };
-
-    let output_rank = if dim_only { tensor.rank } else { 1 };
-    log::debug!("ReduceMax output rank for {}: {}", node.name, output_rank);
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: tensor.elem_type.clone(),
-        rank: output_rank,
-        static_shape: None,
-    });
-}
-
-/// Update output rank for ReduceMin based on axes.
-fn reduce_min_update_outputs(node: &mut Node) {
-    log::debug!("ReduceMin rank inference for node {}", node.name);
-
-    if node.inputs.len() != 1 {
-        panic!("ReduceMin: multiple inputs are not supported");
-    }
-    let tensor = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
-    };
-    log::debug!("ReduceMin input rank for {}: {}", node.name, tensor.rank);
-
-    let dim_only = match node.attrs.get("axes") {
-        Some(value) => match &value {
-            AttributeValue::Int64(_) => true,
-            AttributeValue::Int64s(ints) => ints.len() == 1,
-            _ => false,
-        },
-        None => false,
-    };
-
-    let output_rank = if dim_only { tensor.rank } else { 1 };
-    log::debug!("ReduceMin output rank for {}: {}", node.name, output_rank);
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: tensor.elem_type.clone(),
-        rank: output_rank,
-        static_shape: None,
-    });
-}
-
-/// Update output rank for ReduceProd based on axes.
-fn reduce_prod_update_outputs(node: &mut Node) {
-    log::debug!("ReduceProd rank inference for node {}", node.name);
-
-    if node.inputs.len() != 1 {
-        panic!("ReduceProd: multiple inputs are not supported");
-    }
-    let tensor = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
-    };
-    log::debug!("ReduceProd input rank for {}: {}", node.name, tensor.rank);
-
-    let dim_only = match node.attrs.get("axes") {
-        Some(value) => match &value {
-            AttributeValue::Int64(_) => true,
-            AttributeValue::Int64s(ints) => ints.len() == 1,
-            _ => false,
-        },
-        None => false,
-    };
-
-    let output_rank = if dim_only { tensor.rank } else { 1 };
-    log::debug!("ReduceProd output rank for {}: {}", node.name, output_rank);
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: tensor.elem_type.clone(),
-        rank: output_rank,
-        static_shape: None,
-    });
-}
-
-/// Update output rank for ReduceSum based on axes.
-fn reduce_sum_update_outputs(node: &mut Node) {
-    log::debug!("ReduceSum rank inference for node {}", node.name);
-
-    let tensor = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
-    };
-    log::debug!("ReduceSum input rank for {}: {}", node.name, tensor.rank);
-
-    let dim_only = match node.attrs.get("axes") {
-        Some(value) => match &value {
-            AttributeValue::Int64(_) => true,
-            AttributeValue::Int64s(ints) => ints.len() == 1,
-            _ => false,
-        },
-        None => false,
-    } || match node.inputs.get(1).and_then(|arg| arg.value.as_ref()) {
-        Some(value) => match &value.data {
-            Data::Int64(_) => true,
-            Data::Int64s(ints) => ints.len() == 1,
-            _ => false,
-        },
-        None => false,
-    };
-
-    let output_rank = if dim_only { tensor.rank } else { 1 };
-    log::debug!("ReduceSum output rank for {}: {}", node.name, output_rank);
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: tensor.elem_type.clone(),
-        rank: output_rank,
-        static_shape: None,
-    });
 }
 
 /// Update output rank for Where to max input rank.
@@ -1147,26 +936,6 @@ fn split_update_outputs(node: &mut Node) {
         });
         log::debug!("Split output {} rank for {}: {}", i, node.name, tensor.rank);
     }
-}
-
-/// Update output rank for OneHot (input rank + 1).
-fn one_hot_output_shape(node: &mut Node) {
-    log::debug!("OneHot rank inference for node {}", node.name);
-
-    let input_rank = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.rank,
-        _ => panic!("OneHot: invalid input type"),
-    };
-    log::debug!("OneHot input rank for {}: {}", node.name, input_rank);
-
-    let output_rank = input_rank + 1;
-    log::debug!("OneHot output rank for {}: {}", node.name, output_rank);
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: node.outputs[0].ty.elem_type().clone(),
-        rank: output_rank,
-        static_shape: None,
-    });
 }
 
 fn gemm_output_shape(node: &mut Node) {

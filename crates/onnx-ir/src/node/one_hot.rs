@@ -1,4 +1,4 @@
-use crate::ir::Node;
+use crate::ir::{ArgType, Node, TensorType};
 
 pub fn one_hot_config(curr: &Node) -> (usize, [f32; 2], i64) {
     let depth = curr.inputs[1]
@@ -22,6 +22,26 @@ pub fn one_hot_config(curr: &Node) -> (usize, [f32; 2], i64) {
         .unwrap_or(-1);
 
     (depth as usize, values.try_into().unwrap(), axis)
+}
+
+/// Update output rank for OneHot (input rank + 1).
+pub fn one_hot_output_shape(node: &mut Node) {
+    log::debug!("OneHot rank inference for node {}", node.name);
+
+    let input_rank = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.rank,
+        _ => panic!("OneHot: invalid input type"),
+    };
+    log::debug!("OneHot input rank for {}: {}", node.name, input_rank);
+
+    let output_rank = input_rank + 1;
+    log::debug!("OneHot output rank for {}: {}", node.name, output_rank);
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: node.outputs[0].ty.elem_type().clone(),
+        rank: output_rank,
+        static_shape: None,
+    });
 }
 
 #[cfg(test)]

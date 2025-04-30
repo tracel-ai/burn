@@ -38,6 +38,23 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
     (start_dim as usize, end_dim as usize)
 }
 
+/// Update output type for Shape operation (rank 1).
+pub fn shape_update_outputs(node: &mut Node) {
+    if node.inputs.len() != 1 {
+        panic!("Shape: multiple inputs are not supported: {:?}", node);
+    }
+    let (start, end) = shape_config(node);
+    let dim = end - start;
+    log::debug!(
+        "Shape operation for node {}: start={}, end={}, dim={}",
+        node.name,
+        start,
+        end,
+        dim
+    );
+    node.outputs[0].ty = ArgType::Shape(dim);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

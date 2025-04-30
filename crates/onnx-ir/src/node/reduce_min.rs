@@ -1,4 +1,4 @@
-use crate::ir::{ArgType, Node};
+use crate::ir::{ArgType, AttributeValue, Node, TensorType};
 
 /// Create a ReduceMinConfig from the attributes of the node
 pub fn reduce_min_config(node: &Node) -> Option<usize> {
@@ -41,6 +41,38 @@ pub fn reduce_min_config(node: &Node) -> Option<usize> {
         }
         Some(dim as usize)
     }
+}
+
+/// Update output rank for ReduceMin based on axes.
+pub fn reduce_min_update_outputs(node: &mut Node) {
+    log::debug!("ReduceMin rank inference for node {}", node.name);
+
+    if node.inputs.len() != 1 {
+        panic!("ReduceMin: multiple inputs are not supported");
+    }
+    let tensor = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+    log::debug!("ReduceMin input rank for {}: {}", node.name, tensor.rank);
+
+    let dim_only = match node.attrs.get("axes") {
+        Some(value) => match &value {
+            AttributeValue::Int64(_) => true,
+            AttributeValue::Int64s(ints) => ints.len() == 1,
+            _ => false,
+        },
+        None => false,
+    };
+
+    let output_rank = if dim_only { tensor.rank } else { 1 };
+    log::debug!("ReduceMin output rank for {}: {}", node.name, output_rank);
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: tensor.elem_type.clone(),
+        rank: output_rank,
+        static_shape: None,
+    });
 }
 
 #[cfg(test)]
