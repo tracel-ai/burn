@@ -23,6 +23,9 @@ pub mod backend;
 /// The container module.
 pub mod container;
 
+/// The grid module.
+pub mod grid;
+
 /// The loss module.
 pub mod loss;
 
