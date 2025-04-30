@@ -308,7 +308,7 @@ mod tests {
     #[test]
     fn test_conv1d_update_outputs() {
         let mut node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 1, false);
-        
+
         // Before calling, check that input and output ranks exist
         if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
             assert_eq!(tensor.rank, 3);

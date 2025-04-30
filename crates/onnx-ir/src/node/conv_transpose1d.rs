@@ -1,4 +1,4 @@
-use crate::ir::{AttributeValue, Node};
+use crate::ir::{ArgType, AttributeValue, Node, TensorType};
 
 // Reuse PaddingConfig1d from conv1d module
 pub use super::conv1d::PaddingConfig1d;
@@ -103,6 +103,33 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
         padding_out: output_padding[0] as usize,
         groups: group,
         bias,
+    }
+}
+
+/// Update output rank for ConvTranspose1d (same as input).
+pub fn conv_transpose1d_update_outputs(node: &mut Node) {
+    log::debug!("ConvTranspose1d rank inference for node {}", node.name);
+
+    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
+        log::debug!(
+            "ConvTranspose1d input rank for {}: {}",
+            node.name,
+            tensor.rank
+        );
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: tensor.elem_type.clone(),
+            rank: tensor.rank,
+            static_shape: None,
+        });
+
+        log::debug!(
+            "ConvTranspose1d output rank for {}: {}",
+            node.name,
+            tensor.rank
+        );
+    } else {
+        panic!("Only tensor input is valid");
     }
 }
 
@@ -235,5 +262,29 @@ mod tests {
     fn test_conv_transpose1d_config_asymmetric_padding() {
         let node = create_test_node(vec![4], vec![1], vec![1, 2], vec![1], 1, vec![0], false);
         let _ = conv_transpose1d_config(&node);
+    }
+
+    #[test]
+    fn test_conv_transpose1d_update_outputs() {
+        let mut node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 1, vec![0], false);
+
+        // Before calling, check that input and output ranks exist
+        if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
+            assert_eq!(tensor.rank, 3);
+        } else {
+            panic!("Expected tensor input");
+        }
+
+        // Run the function
+        conv_transpose1d_update_outputs(&mut node);
+
+        // After calling, output should have same rank as input
+        if let ArgType::Tensor(tensor) = &node.outputs[0].ty {
+            assert_eq!(tensor.rank, 3);
+            assert_eq!(tensor.elem_type, ElementType::Float32);
+            assert!(tensor.static_shape.is_none());
+        } else {
+            panic!("Expected tensor output");
+        }
     }
 }

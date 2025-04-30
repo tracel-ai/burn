@@ -6,7 +6,7 @@ use protobuf::Enum;
 use crate::{
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
     node::{
-        conv1d::conv1d_update_outputs,
+        conv_transpose1d::conv_transpose1d_update_outputs, conv1d::conv1d_update_outputs,
         slice::slice_update_output_rank,
     },
     protos::tensor_proto::DataType,
@@ -834,33 +834,6 @@ fn conv2d_update_outputs(node: &mut Node) {
         });
 
         log::debug!("Conv2d output rank for {}: {}", node.name, tensor.rank);
-    } else {
-        panic!("Only tensor input is valid");
-    }
-}
-
-/// Update output rank for ConvTranspose1d (same as input).
-fn conv_transpose1d_update_outputs(node: &mut Node) {
-    log::debug!("ConvTranspose1d rank inference for node {}", node.name);
-
-    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
-        log::debug!(
-            "ConvTranspose1d input rank for {}: {}",
-            node.name,
-            tensor.rank
-        );
-
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: tensor.elem_type.clone(),
-            rank: tensor.rank,
-            static_shape: None,
-        });
-
-        log::debug!(
-            "ConvTranspose1d output rank for {}: {}",
-            node.name,
-            tensor.rank
-        );
     } else {
         panic!("Only tensor input is valid");
     }
