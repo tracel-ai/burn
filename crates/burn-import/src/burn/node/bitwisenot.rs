@@ -63,6 +63,7 @@ mod tests {
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
 
         let expected = quote! {
+            use burn::tensor::Int;
             use burn::{
                 module::Module,
                 tensor::{backend::Backend, Tensor}
@@ -75,14 +76,16 @@ mod tests {
             }
 
             impl<B: Backend> Model<B> {
-                pub fn new(device: B::Device) -> Self {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
                     Self {
                         phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device),
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
 
-                pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, input: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
                     let output = !input;
                     output
                 }

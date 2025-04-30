@@ -65,10 +65,10 @@ mod tests {
 
         graph.register(BitwiseAndNode {
             inputs: vec![
-                TensorType::new_float("input1", 1),
-                TensorType::new_float("input2", 1),
+                TensorType::new_int("input1", 1),
+                TensorType::new_int("input2", 1),
             ],
-            output: TensorType::new_float("output", 1),
+            output: TensorType::new_int("output", 1),
         });
         graph.register_input_output(
             vec!["input1".to_string(), "input2".to_string()],
@@ -76,25 +76,29 @@ mod tests {
         );
 
         let expected = quote! {
+            use burn::tensor::Int;
             use burn::{
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
 
-            #[derive(Debug, Clone)]
+            #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model<B> {
-                pub fn new(device: B::Device) -> Self {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
                     Self {
                         phantom: core::marker::PhantomData,
-                        device: burn::module::Ignored(device),
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
-                pub fn forward(&self, input1: Tensor<B, 1>, input2: Tensor<B, 1>) -> Tensor<B, 1> {
+
+                #[allow(clippy::let_and_return, clippy_approx_constant)]
+                pub fn forward(&self, input1: Tensor<B, 1, Int>, input2: Tensor<B, 1, Int>) -> Tensor<B, 1, Int> {
                     let output = input1 & input2;
                     output
                 }
