@@ -23,7 +23,8 @@ include_models!(
     avg_pool1d,
     avg_pool2d,
     batch_norm,
-    bitshift,
+    bitshift_left,
+    bitshift_right,
     bitwise_and,
     bitwise_or,
     bitwise_not,
@@ -349,6 +350,20 @@ mod tests {
         output_mm.to_data().assert_eq(&expected_mm, true);
         output_vm.to_data().assert_eq(&expected_vm, true);
         output_mv.to_data().assert_eq(&expected_mv, true);
+    }
+
+    #[test]
+    fn bitshift_left_tensors() {
+        // Initialize the model with weights (loaded from the exported file)
+        let device = Default::default()
+        let model: bitshift::Model<Backend> = bitshift::Model::new(&device, "left".to_string());
+        // Run the model
+        let input1 = Tensor::<Backend, 4, Int>::from_ints([[[[1, 2, 3, 4]]]], &device);
+        let input2 = Tensor::<Backend, 4, Int>::from_ints([[[[1, 2, 3, 4]]]], &device);
+        let output = model.forward(input1, input2);
+        let expected = TensorData::from([[[[2i64, 8, 24, 64]]]]);
+
+        output.to_data().assert_eq(&expected, true);
     }
 
     #[test]
