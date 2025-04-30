@@ -54,9 +54,7 @@ pub fn max_pool1d_config(curr: &Node) -> MaxPool1dConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{
-        ArgType, Argument, AttributeValue, ElementType, NodeType, TensorType,
-    };
+    use crate::ir::{ArgType, Argument, AttributeValue, ElementType, NodeType, TensorType};
     use std::collections::HashMap;
 
     fn create_test_node(
