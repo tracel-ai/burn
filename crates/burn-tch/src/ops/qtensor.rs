@@ -248,32 +248,6 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         (values, indices)
     }
 
-    fn q_narrow(
-        tensor: QuantizedTensor<Self>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> QuantizedTensor<Self> {
-        TchQTensor {
-            qtensor: TchOps::narrow(tensor.qtensor, dim, start, length),
-            scheme: tensor.scheme,
-        }
-    }
-
-    fn q_chunk(
-        tensor: QuantizedTensor<Self>,
-        chunks: usize,
-        dim: usize,
-    ) -> Vec<QuantizedTensor<Self>> {
-        TchOps::chunk(tensor.qtensor, chunks, dim)
-            .into_iter()
-            .map(|x| TchQTensor {
-                qtensor: x,
-                scheme: tensor.scheme,
-            })
-            .collect()
-    }
-
     fn q_expand(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
         // NOTE: with per-channel quantization (future), the channel axis could be impacted by this op
         TchQTensor {
