@@ -70,14 +70,14 @@ use crate::{
 };
 
 use super::op_configuration::{
-    argmax_config, avg_pool2d_config, batch_norm_config, clip_config,
-    concat_config, conv_transpose2d_config, conv_transpose3d_config,
-    conv2d_config, conv3d_config, dropout_config, expand_config, flatten_config,
-    gather_config, gemm_config, hard_sigmoid_config, layer_norm_config, leaky_relu_config,
-    linear_config, log_softmax_config, max_pool2d_config, one_hot_config,
-    pad_config, reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
-    reduce_sum_config, reshape_config, resize_config, shape_config, softmax_config, split_config,
-    squeeze_config, tile_config, top_k_config, transpose_config, trilu_config, unsqueeze_config,
+    argmax_config, avg_pool2d_config, batch_norm_config, clip_config, concat_config,
+    conv_transpose2d_config, conv_transpose3d_config, conv2d_config, conv3d_config, dropout_config,
+    expand_config, flatten_config, gather_config, gemm_config, hard_sigmoid_config,
+    layer_norm_config, leaky_relu_config, linear_config, log_softmax_config, max_pool2d_config,
+    one_hot_config, pad_config, reduce_max_config, reduce_mean_config, reduce_min_config,
+    reduce_prod_config, reduce_sum_config, reshape_config, resize_config, shape_config,
+    softmax_config, split_config, squeeze_config, tile_config, top_k_config, transpose_config,
+    trilu_config, unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -86,11 +86,8 @@ use onnx_ir::{
         TensorType as OnnxTensorType,
     },
     node::{
-        slice::slice_config,
-        conv1d::conv1d_config,
-        avg_pool1d::avg_pool1d_config,
-        max_pool1d::max_pool1d_config,
-        conv_transpose1d::conv_transpose1d_config,
+        avg_pool1d::avg_pool1d_config, conv_transpose1d::conv_transpose1d_config,
+        conv1d::conv1d_config, max_pool1d::max_pool1d_config, slice::slice_config,
     },
     parse_onnx,
 };
@@ -1028,21 +1025,23 @@ impl ParsedOnnxGraph {
     fn conv1d_conversion<PS: PrecisionSettings>(node: Node) -> Conv1dNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        
+
         // Get configuration from onnx-ir
         let onnx_config = conv1d_config(&node);
-        
+
         // Convert onnx-ir padding to burn padding
         let burn_padding = match onnx_config.padding {
             onnx_ir::node::conv1d::PaddingConfig1d::Valid => burn::nn::PaddingConfig1d::Valid,
-            onnx_ir::node::conv1d::PaddingConfig1d::Explicit(size) => burn::nn::PaddingConfig1d::Explicit(size),
+            onnx_ir::node::conv1d::PaddingConfig1d::Explicit(size) => {
+                burn::nn::PaddingConfig1d::Explicit(size)
+            }
         };
-        
+
         // Convert to burn Conv1dConfig
         let config = burn::nn::conv::Conv1dConfig::new(
-            onnx_config.channels_in, 
-            onnx_config.channels_out, 
-            onnx_config.kernel_size
+            onnx_config.channels_in,
+            onnx_config.channels_out,
+            onnx_config.kernel_size,
         )
         .with_stride(onnx_config.stride)
         .with_dilation(onnx_config.dilation)
@@ -1096,16 +1095,18 @@ impl ParsedOnnxGraph {
     fn max_pool1d_conversion(node: Node) -> MaxPool1dNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        
+
         // Get configuration from onnx-ir
         let onnx_config = max_pool1d_config(&node);
-        
+
         // Convert onnx-ir padding to burn padding
         let burn_padding = match onnx_config.padding {
             onnx_ir::node::conv1d::PaddingConfig1d::Valid => burn::nn::PaddingConfig1d::Valid,
-            onnx_ir::node::conv1d::PaddingConfig1d::Explicit(size) => burn::nn::PaddingConfig1d::Explicit(size),
+            onnx_ir::node::conv1d::PaddingConfig1d::Explicit(size) => {
+                burn::nn::PaddingConfig1d::Explicit(size)
+            }
         };
-        
+
         // Convert to burn MaxPool1dConfig
         let config = burn::nn::pool::MaxPool1dConfig::new(onnx_config.kernel_size)
             .with_stride(onnx_config.stride)
@@ -1154,14 +1155,14 @@ impl ParsedOnnxGraph {
     fn conv_transpose1d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose1dNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        
+
         // Get configuration from onnx-ir
         let onnx_config = conv_transpose1d_config(&node);
-        
+
         // Convert to burn ConvTranspose1dConfig
         let config = burn::nn::conv::ConvTranspose1dConfig::new(
-            [onnx_config.channels_in, onnx_config.channels_out], 
-            onnx_config.kernel_size
+            [onnx_config.channels_in, onnx_config.channels_out],
+            onnx_config.kernel_size,
         )
         .with_stride(onnx_config.stride)
         .with_padding(onnx_config.padding)
@@ -1214,16 +1215,18 @@ impl ParsedOnnxGraph {
     fn avg_pool_1d_conversion(node: Node) -> AvgPool1dNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        
+
         // Get configuration from onnx-ir
         let onnx_config = avg_pool1d_config(&node);
-        
+
         // Convert onnx-ir padding to burn padding
         let burn_padding = match onnx_config.padding {
             onnx_ir::node::conv1d::PaddingConfig1d::Valid => burn::nn::PaddingConfig1d::Valid,
-            onnx_ir::node::conv1d::PaddingConfig1d::Explicit(size) => burn::nn::PaddingConfig1d::Explicit(size),
+            onnx_ir::node::conv1d::PaddingConfig1d::Explicit(size) => {
+                burn::nn::PaddingConfig1d::Explicit(size)
+            }
         };
-        
+
         // Convert to burn AvgPool1dConfig
         let config = burn::nn::pool::AvgPool1dConfig::new(onnx_config.kernel_size)
             .with_stride(onnx_config.stride)

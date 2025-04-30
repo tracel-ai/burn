@@ -4,10 +4,7 @@
 use burn::nn::{
     BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig2d,
     PaddingConfig3d,
-    conv::{
-        Conv2dConfig, Conv3dConfig, ConvTranspose2dConfig,
-        ConvTranspose3dConfig,
-    },
+    conv::{Conv2dConfig, Conv3dConfig, ConvTranspose2dConfig, ConvTranspose3dConfig},
     pool::{AvgPool2dConfig, MaxPool2dConfig},
 };
 
