@@ -75,10 +75,10 @@ mod tests {
 
         graph.register(BitShiftNode::new(
             vec![
-                TensorType::new_int("input1", 4),
-                TensorType::new_int("input2", 4),
+                TensorType::new_int("input1", 1),
+                TensorType::new_int("input2", 1),
             ],
-            TensorType::new_int("output", 4),
+            TensorType::new_int("output", 1),
             "left".to_string(),
         ));
 
@@ -107,8 +107,8 @@ mod tests {
                     }
                 }
 
-               1: Tensor<B, 4>, input2 pub fn forward(&self, input1: Tensor<B, 4>, input2: Tensor<B, 4>) -> Tensor<B, 4> {
-          1    input2;
+                pub fn forward(&self, input1: Tensor<B, 1>, input2: Tensor<B, 1>) -> Tensor<B, 1> {
+                    let output = input1 << input2;
                     output
                 }
             }
@@ -123,10 +123,10 @@ mod tests {
 
         graph.register(BitShiftNode::new(
             vec![
-                TensorType::new_int("input1", 4),
-                TensorType::new_int("input2", 4),
+                TensorType::new_int("input1", 1),
+                TensorType::new_int("input2", 1),
             ],
-            TensorType::new_int("output", 4),
+            TensorType::new_int("output", 1),
             "left".to_string(),
         ));
 
@@ -155,8 +155,8 @@ mod tests {
                     }
                 }
 
-               1: Tensor<B, 4>, input2 pub fn forward(&self, input1: Tensor<B, 4>, input2: Tensor<B, 4>) -> Tensor<B, 4> {
-          1    input2;
+                pub fn forward(&self, input1: Tensor<B, 1>, input2: Tensor<B, 1>) -> Tensor<B, 1s> {
+                    let output = input1 >> input2;
                     output
                 }
             }

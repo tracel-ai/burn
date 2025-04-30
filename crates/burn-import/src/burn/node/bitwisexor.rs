@@ -65,10 +65,10 @@ mod tests {
 
         graph.register(BitwiseXorNode {
             inputs: vec![
-                TensorType::new_float("input1", 4),
-                TensorType::new_float("input2", 4),
+                TensorType::new_int("input1", 2),
+                TensorType::new_int("input2", 2),
             ],
-            output: TensorType::new_float("output", 4),
+            output: TensorType::new_int("output", 2),
         });
         graph.register_input_output(
             vec!["input1".to_string(), "input2".to_string()],
@@ -95,8 +95,8 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input1: Tensor<B, 4>, input2: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let output = input1 | input2;
+                pub fn forward(&self, input1: Tensor<B, 2>, input2: Tensor<B, 2>) -> Tensor<B, 2> {
+                    let output = input1 ^ input2;
                     output
                 }
             }

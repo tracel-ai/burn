@@ -361,7 +361,7 @@ mod tests {
         let input1 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
         let input2 = Tensor::<Backend, 1, Int>::from_ints([1, 1, 2, 2], &device);
         let output = model.forward(input1, input2);
-        let expected = TensorData::from([[[[2i64, 4, 12, 16]]]]);
+        let expected = TensorData::from([2i64, 4, 12, 16]);
 
         output.to_data().assert_eq(&expected, true);
     }
@@ -375,7 +375,7 @@ mod tests {
         let input1 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
         let input2 = Tensor::<Backend, 1, Int>::from_ints([1, 1, 2, 2], &device);
         let output = model.forward(input1, input2);
-        let expected = TensorData::from([[[[0i64, 1, 0, 1]]]]);
+        let expected = TensorData::from([0i64, 1, 0, 1]);
 
         output.to_data().assert_eq(&expected, true);
     }
@@ -389,7 +389,7 @@ mod tests {
         let input1 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
         let input2 = Tensor::<Backend, 1, Int>::from_ints([1, 1, 2, 2], &device);
         let output = model.forward(input1, input2);
-        let expected = TensorData::from([[[[1i64, 0, 2, 0]]]]);
+        let expected = TensorData::from([1i64, 0, 2, 0]);
 
         output.to_data().assert_eq(&expected, true);
     }
@@ -401,10 +401,10 @@ mod tests {
         let model: bitwise_or::Model<Backend> = bitwise_or::Model::new(&device);
 
         // Run the model
-        let input1 = Tensor::<Backend, 2, Int>::from_ints([1, 2, 3, 4], &device);
-        let input2 = Tensor::<Backend, 2, Int>::from_ints([1, 1, 2, 2], &device);
+        let input1 = Tensor::<Backend, 2, Int>::from_ints([[1, 2, 3, 4]], &device);
+        let input2 = Tensor::<Backend, 2, Int>::from_ints([[1, 1, 2, 2]], &device);
         let output = model.forward(input1, input2);
-        let expected = TensorData::from([[[[1i64, 3, 3, 6]]]]);
+        let expected = TensorData::from([[1i64, 3, 3, 6]]);
 
         output.to_data().assert_eq(&expected, true);
     }
@@ -415,9 +415,9 @@ mod tests {
         let model: bitwise_not::Model<Backend> = bitwise_not::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2, Int>::from_ints([1, 2, 3, 4], &device);
+        let input = Tensor::<Backend, 2, Int>::from_ints([[1, 2, 3, 4]], &device);
         let output = model.forward(input);
-        let expected = TensorData::from([-2i64, -3, -4, -5]);
+        let expected = TensorData::from([[-2i64, -3, -4, -5]]);
 
         output.to_data().assert_eq(&expected, true);
     }
@@ -428,10 +428,10 @@ mod tests {
         let model: bitwise_xor::Model<Backend> = bitwise_xor::Model::new(&device);
 
         // Run the model
-        let input1 = Tensor::<Backend, 2, Int>::from_ints([1, 2, 3, 4], &device);
-        let input2 = Tensor::<Backend, 2, Int>::from_ints([1, 1, 2, 2], &device);
+        let input1 = Tensor::<Backend, 2, Int>::from_ints([[1, 2, 3, 4]], &device);
+        let input2 = Tensor::<Backend, 2, Int>::from_ints([[1, 1, 2, 2]], &device);
         let output = model.forward(input1, input2);
-        let expected = TensorData::from([0i64, 2, 1, 6]);
+        let expected = TensorData::from([[0i64, 2, 1, 6]]);
 
         output.to_data().assert_eq(&expected, true);
     }

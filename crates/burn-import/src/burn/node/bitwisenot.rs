@@ -57,8 +57,8 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(BitwiseNotNode {
-            input: TensorType::new_float("input", 4),
-            output: TensorType::new_float("output", 4),
+            input: TensorType::new_int("input", 2),
+            output: TensorType::new_int("output", 2),
         });
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
 

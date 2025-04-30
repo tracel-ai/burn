@@ -65,10 +65,10 @@ mod tests {
 
         graph.register(BitwiseAndNode {
             inputs: vec![
-                TensorType::new_float("input1", 4),
-                TensorType::new_float("input2", 4),
+                TensorType::new_float("input1", 1),
+                TensorType::new_float("input2", 1),
             ],
-            output: TensorType::new_float("output", 4),
+            output: TensorType::new_float("output", 1),
         });
         graph.register_input_output(
             vec!["input1".to_string(), "input2".to_string()],
@@ -94,7 +94,7 @@ mod tests {
                         device: burn::module::Ignored(device),
                     }
                 }
-                pub fn forward(&self, input1: Tensor<B, 4>, input2: Tensor<B, 4>) -> Tensor<B, 4> {
+                pub fn forward(&self, input1: Tensor<B, 1>, input2: Tensor<B, 1>) -> Tensor<B, 1> {
                     let output = input1 & input2;
                     output
                 }
