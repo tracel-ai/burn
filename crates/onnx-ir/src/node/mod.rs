@@ -1,3 +1,12 @@
+//! Node module contains implementations of ONNX operations.
+//!
+//! Each submodule implements a specific ONNX operation, providing:
+//! - Operation configuration and parameters
+//! - Rank inference functionality
+//!
+//! This modular structure allows for clean separation of operation implementations
+//! and facilitates easier maintenance and extension of the ONNX operation set.
+
 pub mod argmax;
 pub mod avg_pool1d;
 pub mod avg_pool2d;
