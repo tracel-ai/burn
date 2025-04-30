@@ -69,7 +69,7 @@ mod tests {
                 tensor::{backend::Backend, Tensor}
             };
 
-            #[derive(Debug, Clone)]
+            #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,

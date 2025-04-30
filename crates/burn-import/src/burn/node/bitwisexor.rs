@@ -76,6 +76,7 @@ mod tests {
         );
 
         let expected = quote! {
+            use burn::tensor::Int;
             use burn::{
                 module::Module,
                 tensor::{backend::Backend, Tensor},

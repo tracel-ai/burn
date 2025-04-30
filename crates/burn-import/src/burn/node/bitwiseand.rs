@@ -97,7 +97,7 @@ mod tests {
                     }
                 }
 
-                #[allow(clippy::let_and_return, clippy_approx_constant)]
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input1: Tensor<B, 1, Int>, input2: Tensor<B, 1, Int>) -> Tensor<B, 1, Int> {
                     let output = input1 & input2;
                     output
