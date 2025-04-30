@@ -5,7 +5,10 @@ use protobuf::Enum;
 
 use crate::{
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
-    node::slice::slice_update_output_rank,
+    node::{
+        conv1d::conv1d_update_outputs,
+        slice::slice_update_output_rank,
+    },
     protos::tensor_proto::DataType,
     util::shape_config,
 };
@@ -815,25 +818,6 @@ fn flatten_update_outputs(node: &mut Node) {
         rank: 2,
         ..tensor.clone()
     });
-}
-
-/// Update output rank for Conv1d (same as input).
-fn conv1d_update_outputs(node: &mut Node) {
-    log::debug!("Conv1d rank inference for node {}", node.name);
-
-    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
-        log::debug!("Conv1d input rank for {}: {}", node.name, tensor.rank);
-
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: tensor.elem_type.clone(),
-            rank: tensor.rank,
-            static_shape: None,
-        });
-
-        log::debug!("Conv1d output rank for {}: {}", node.name, tensor.rank);
-    } else {
-        panic!("Only tensor input is valid");
-    }
 }
 
 /// Update output rank for Conv2d (same as input).
