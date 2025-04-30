@@ -4372,7 +4372,7 @@ where
 {
     type Output = Self;
 
-    fn add(self, rhs: Tensor<B, D, K>) -> Self {
+    fn add(self, rhs: Tensor<B, D, K>) -> Self::Output {
         Self::add(self, rhs)
     }
 }
@@ -4385,7 +4385,7 @@ where
 {
     type Output = Self;
 
-    fn add(self, other: E) -> Self {
+    fn add(self, other: E) -> Self::Output {
         Tensor::add_scalar(self, other)
     }
 }
@@ -4416,20 +4416,20 @@ where
 {
     type Output = Self;
 
-    fn sub(self, rhs: Tensor<B, D, K>) -> Self {
+    fn sub(self, rhs: Tensor<B, D, K>) -> Self::Output {
         Tensor::sub(self, rhs)
     }
 }
 
 // Tensor - scalar
-impl<E, const D: usize, B: Backend, K: Numeric<B>> core::ops::Sub<E> for Tensor<B, D, K>
+impl<E: ElementConversion, const D: usize, B: Backend, K: Numeric<B>> core::ops::Sub<E>
+    for Tensor<B, D, K>
 where
-    E: ElementConversion,
     K::Elem: Element,
 {
     type Output = Self;
 
-    fn sub(self, other: E) -> Self {
+    fn sub(self, other: E) -> Self::Output {
         Tensor::sub_scalar(self, other)
     }
 }
@@ -4454,26 +4454,26 @@ macro_rules! impl_tensor_scalar_sub {
 impl_tensor_scalar_sub!(f32, f64, i32, i64, u32, u64);
 
 // Tensor / tensor
-impl<B: Backend, const D: usize, K: Numeric<B>> core::ops::Div<Tensor<B, D, K>> for Tensor<B, D, K>
+impl<B: Backend, const D: usize, K: Numeric<B>> core::ops::Div<Self> for Tensor<B, D, K>
 where
     K::Elem: Element,
 {
     type Output = Self;
 
-    fn div(self, rhs: Tensor<B, D, K>) -> Self {
+    fn div(self, rhs: Self) -> Self::Output {
         Tensor::div(self, rhs)
     }
 }
 
 // Tensor / scalar
-impl<E, const D: usize, B: Backend, K: Numeric<B>> core::ops::Div<E> for Tensor<B, D, K>
+impl<E: ElementConversion, const D: usize, B: Backend, K: Numeric<B>> core::ops::Div<E>
+    for Tensor<B, D, K>
 where
-    E: ElementConversion,
     K::Elem: Element,
 {
     type Output = Self;
 
-    fn div(self, other: E) -> Self {
+    fn div(self, other: E) -> Self::Output {
         Tensor::div_scalar(self, other)
     }
 }
@@ -4489,7 +4489,7 @@ macro_rules! impl_tensor_scalar_div {
                 type Output = Tensor<B, D, K>;
 
                 fn div(self, tensor: Tensor<B, D, K>) -> Self::Output {
-                    let data = TensorData::new(vec![self], [1]);
+                    let data = TensorData::new(alloc::vec![self], [1]);
                     let numerator = Tensor::<B, D, K>::from_data(data, &tensor.device()).unsqueeze();
                     Tensor::div(numerator, tensor)
                 }
@@ -4501,12 +4501,13 @@ macro_rules! impl_tensor_scalar_div {
 impl_tensor_scalar_div!(f32, f64, i32, i64, u32, u64);
 
 // Tensor % tensor.
-impl<const D: usize, B: Backend, K: Numeric<B>> core::ops::Rem<Tensor<B, D, K>> for Tensor<B, D, K>
+impl<const D: usize, B: Backend, K: Numeric<B>> core::ops::Rem<Self> for Tensor<B, D, K>
 where
     K::Elem: Element,
 {
     type Output = Self;
-    fn rem(self, rhs: Tensor<B, D, K>) -> Self::Output {
+
+    fn rem(self, rhs: Self) -> Self::Output {
         Tensor::remainder(self, rhs)
     }
 }
@@ -4519,19 +4520,19 @@ where
 {
     type Output = Self;
 
-    fn rem(self, other: E) -> Self {
+    fn rem(self, other: E) -> Self::Output {
         Tensor::remainder_scalar(self, other)
     }
 }
 
 // Tensor * tensor.
-impl<B: Backend, const D: usize, K: Numeric<B>> core::ops::Mul<Tensor<B, D, K>> for Tensor<B, D, K>
+impl<B: Backend, const D: usize, K: Numeric<B>> core::ops::Mul<Self> for Tensor<B, D, K>
 where
     K::Elem: Element,
 {
     type Output = Self;
 
-    fn mul(self, rhs: Tensor<B, D, K>) -> Self {
+    fn mul(self, rhs: Self) -> Self::Output {
         Tensor::mul(self, rhs)
     }
 }
@@ -4544,7 +4545,7 @@ where
 {
     type Output = Self;
 
-    fn mul(self, other: E) -> Self {
+    fn mul(self, other: E) -> Self::Output {
         Tensor::mul_scalar(self, other)
     }
 }
@@ -4576,7 +4577,7 @@ where
 {
     type Output = Self;
 
-    fn neg(self) -> Self {
+    fn neg(self) -> Self::Output {
         Tensor::neg(self)
     }
 }
