@@ -70,14 +70,8 @@ use crate::{
 };
 
 use super::op_configuration::{
-    argmax_config, avg_pool2d_config, batch_norm_config, clip_config, concat_config,
-    conv_transpose2d_config, conv_transpose3d_config, conv2d_config, conv3d_config, dropout_config,
-    expand_config, flatten_config, gather_config, gemm_config, hard_sigmoid_config,
-    layer_norm_config, leaky_relu_config, linear_config, log_softmax_config, max_pool2d_config,
-    one_hot_config, pad_config, reduce_max_config, reduce_mean_config, reduce_min_config,
-    reduce_prod_config, reduce_sum_config, reshape_config, resize_config, shape_config,
-    softmax_config, split_config, squeeze_config, tile_config, top_k_config, transpose_config,
-    trilu_config, unsqueeze_config,
+    expand_config, pad_config, split_config, tile_config, top_k_config, trilu_config,
+    unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -86,10 +80,22 @@ use onnx_ir::{
         TensorType as OnnxTensorType,
     },
     node::{
-        avg_pool1d::avg_pool1d_config, conv_transpose1d::conv_transpose1d_config,
-        conv1d::conv1d_config, max_pool1d::max_pool1d_config, slice::slice_config,
+        argmax::argmax_config, avg_pool1d::avg_pool1d_config, avg_pool2d::avg_pool2d_config,
+        batch_norm::batch_norm_config, concat::concat_config,
+        conv_transpose1d::conv_transpose1d_config, conv_transpose2d::conv_transpose2d_config,
+        conv_transpose3d::conv_transpose3d_config, conv1d::conv1d_config, conv2d::conv2d_config,
+        conv3d::conv3d_config, dropout::dropout_config, flatten::flatten_config,
+        gather::gather_config, layer_norm::layer_norm_config, linear::linear_config,
+        log_softmax::log_softmax_config, max_pool1d::max_pool1d_config,
+        max_pool2d::max_pool2d_config, slice::slice_config, softmax::softmax_config,
+    },
+    op_configuration::{
+        clip_config, gemm_config, hard_sigmoid_config, leaky_relu_config, one_hot_config,
+        reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
+        reduce_sum_config, reshape_config, resize_config, squeeze_config, transpose_config,
     },
     parse_onnx,
+    util::shape_config,
 };
 
 pub use crate::burn::graph::RecordType;
