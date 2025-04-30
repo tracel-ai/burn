@@ -1,4 +1,4 @@
-use crate::ir::{ArgType, Node, TensorType};
+use crate::ir::Node;
 use std::fmt;
 
 /// Padding configuration for 1D operations such as convolution
@@ -122,25 +122,6 @@ pub fn padding_config_1d(pads: &[i64]) -> PaddingConfig1d {
     } else {
         // Unaccounted for padding configuration
         panic!("Padding configuration ({:?}) not supported", pads);
-    }
-}
-
-/// Update output rank for Conv1d (same as input).
-pub fn conv1d_update_outputs(node: &mut Node) {
-    log::debug!("Conv1d rank inference for node {}", node.name);
-
-    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
-        log::debug!("Conv1d input rank for {}: {}", node.name, tensor.rank);
-
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: tensor.elem_type.clone(),
-            rank: tensor.rank,
-            static_shape: None,
-        });
-
-        log::debug!("Conv1d output rank for {}: {}", node.name, tensor.rank);
-    } else {
-        panic!("Only tensor input is valid");
     }
 }
 
@@ -303,29 +284,5 @@ mod tests {
     fn test_conv1d_config_negative_padding() {
         let node = create_test_node(vec![4], vec![1], vec![-1, -1], vec![1], 1, false);
         let _ = conv1d_config(&node);
-    }
-
-    #[test]
-    fn test_conv1d_update_outputs() {
-        let mut node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 1, false);
-
-        // Before calling, check that input and output ranks exist
-        if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
-            assert_eq!(tensor.rank, 3);
-        } else {
-            panic!("Expected tensor input");
-        }
-
-        // Run the function
-        conv1d_update_outputs(&mut node);
-
-        // After calling, output should have same rank as input
-        if let ArgType::Tensor(tensor) = &node.outputs[0].ty {
-            assert_eq!(tensor.rank, 3);
-            assert_eq!(tensor.elem_type, ElementType::Float32);
-            assert!(tensor.static_shape.is_none());
-        } else {
-            panic!("Expected tensor output");
-        }
     }
 }

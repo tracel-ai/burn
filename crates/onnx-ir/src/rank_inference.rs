@@ -5,10 +5,7 @@ use protobuf::Enum;
 
 use crate::{
     ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
-    node::{
-        conv_transpose1d::conv_transpose1d_update_outputs, conv1d::conv1d_update_outputs,
-        slice::slice_update_output_rank,
-    },
+    node::slice::slice_update_output_rank,
     protos::tensor_proto::DataType,
     util::shape_config,
 };
@@ -28,8 +25,8 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::Concat => concat_update_outputs(node),
         NodeType::Constant => constant_update_outputs(node),
         NodeType::ConstantOfShape => constant_of_shape_update_output(node),
-        NodeType::Conv1d => conv1d_update_outputs(node),
-        NodeType::Conv2d => conv2d_update_outputs(node),
+        NodeType::Conv1d => same_as_input(node),
+        NodeType::Conv2d => same_as_input(node),
         NodeType::Cos => same_as_input(node),
         NodeType::Cosh => same_as_input(node),
         NodeType::Div => same_as_input_broadcast(node),
@@ -48,8 +45,8 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::GreaterOrEqual => elementwise_comparison_outputs(node),
         NodeType::HardSigmoid => same_as_input(node),
         NodeType::GlobalAveragePool => same_as_input(node),
-        NodeType::ConvTranspose1d => conv_transpose1d_update_outputs(node),
-        NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node),
+        NodeType::ConvTranspose1d => same_as_input(node),
+        NodeType::ConvTranspose2d => same_as_input(node),
         NodeType::LayerNormalization => same_as_input(node),
         NodeType::LeakyRelu => same_as_input(node),
         NodeType::Less => elementwise_comparison_outputs(node),
@@ -818,52 +815,6 @@ fn flatten_update_outputs(node: &mut Node) {
         rank: 2,
         ..tensor.clone()
     });
-}
-
-/// Update output rank for Conv2d (same as input).
-fn conv2d_update_outputs(node: &mut Node) {
-    log::debug!("Conv2d rank inference for node {}", node.name);
-
-    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
-        log::debug!("Conv2d input rank for {}: {}", node.name, tensor.rank);
-
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: tensor.elem_type.clone(),
-            rank: tensor.rank,
-            static_shape: None,
-        });
-
-        log::debug!("Conv2d output rank for {}: {}", node.name, tensor.rank);
-    } else {
-        panic!("Only tensor input is valid");
-    }
-}
-
-/// Update output rank for ConvTranspose2d (same as input).
-fn conv_transpose2d_update_outputs(node: &mut Node) {
-    log::debug!("ConvTranspose2d rank inference for node {}", node.name);
-
-    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
-        log::debug!(
-            "ConvTranspose2d input rank for {}: {}",
-            node.name,
-            tensor.rank
-        );
-
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: tensor.elem_type.clone(),
-            rank: tensor.rank,
-            static_shape: None,
-        });
-
-        log::debug!(
-            "ConvTranspose2d output rank for {}: {}",
-            node.name,
-            tensor.rank
-        );
-    } else {
-        panic!("Only tensor input is valid");
-    }
 }
 
 /// Update output rank for MatMul based on input ranks.
