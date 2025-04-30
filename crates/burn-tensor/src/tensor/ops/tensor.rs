@@ -5,7 +5,6 @@ use crate::tensor::cast::ToElement;
 use crate::{Distribution, ElementConversion, Float, TensorData, backend::Backend, tensor::Shape};
 use crate::{FloatDType, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
-use core::future::Future;
 use core::ops::Range;
 
 use crate::{argsort, sort, sort_with_indices};
@@ -90,8 +89,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn float_into_data(tensor: FloatTensor<B>)
-    -> impl Future<Output = TensorData> + 'static + Send;
+    fn float_into_data(tensor: FloatTensor<B>) -> impl Future<Output = TensorData> + Send;
 
     /// Gets the device of the tensor.
     ///

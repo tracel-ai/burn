@@ -545,6 +545,7 @@ name = "burn-candle"
 version = "0.18.0"
 dependencies = [
  "burn-autodiff",
+ "burn-common",
  "burn-tch",
  "burn-tensor",
  "candle-core",
