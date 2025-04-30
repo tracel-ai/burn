@@ -1,5 +1,24 @@
-use crate::ir::Node;
+use crate::ir::{ArgType, Node, TensorType};
 use burn::nn::LinearConfig;
+
+/// Update output rank for Linear operations (same as input rank).
+pub fn linear_update_outputs(node: &mut Node) {
+    log::debug!("Linear rank inference for node {}", node.name);
+
+    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
+        log::debug!("Linear input rank for {}: {}", node.name, tensor.rank);
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: tensor.elem_type.clone(),
+            rank: tensor.rank,
+            static_shape: None,
+        });
+
+        log::debug!("Linear output rank for {}: {}", node.name, tensor.rank);
+    } else {
+        panic!("Only tensor input is valid");
+    }
+}
 
 /// Create a LinearConfig from the attributes of the node
 pub fn linear_config(node: &Node) -> LinearConfig {

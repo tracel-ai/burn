@@ -1,4 +1,28 @@
-use crate::ir::{ArgType, Node};
+use crate::ir::{ArgType, Node, TensorType};
+
+/// Update output rank for Concat (same as first tensor input).
+pub fn concat_update_outputs(node: &mut Node) {
+    log::debug!("Concat rank inference for node {}", node.name);
+
+    let tensor = node
+        .inputs
+        .iter()
+        .find_map(|input| match &input.ty {
+            ArgType::Tensor(tensor) => Some(tensor.clone()),
+            _ => None,
+        })
+        .unwrap();
+
+    log::debug!("Concat using input rank for {}: {}", node.name, tensor.rank);
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: tensor.elem_type,
+        rank: tensor.rank,
+        static_shape: None,
+    });
+
+    log::debug!("Concat output rank for {}: {}", node.name, tensor.rank);
+}
 
 /// Create concat config from the attributes of the node
 pub fn concat_config(node: &Node) -> usize {

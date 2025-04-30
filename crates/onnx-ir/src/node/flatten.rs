@@ -1,4 +1,25 @@
-use crate::ir::{ArgType, Node};
+use crate::ir::{ArgType, Node, TensorType};
+
+/// Update output type for Flatten operation (rank 2).
+pub fn flatten_update_outputs(node: &mut Node) {
+    if node.inputs.len() != 1 {
+        panic!("Flatten: multiple inputs are not supported");
+    }
+    let tensor = node
+        .inputs
+        .iter()
+        .find_map(|input| match &input.ty {
+            ArgType::Tensor(tensor) => Some(tensor),
+            _ => None,
+        })
+        .unwrap();
+
+    // Flatten to a 2D tensor
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        rank: 2,
+        ..tensor.clone()
+    });
+}
 
 /// Create a FlattenConfig from the attributes of the node
 pub fn flatten_config(curr: &Node) -> usize {

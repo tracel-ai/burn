@@ -1,4 +1,77 @@
-use crate::ir::{ArgType, Node};
+use crate::ir::{ArgType, ElementType, Node, TensorType};
+
+/// Update output rank for Gather based on input and indices ranks.
+pub fn gather_update_outputs(node: &mut Node) {
+    log::debug!("Gather rank inference for node {}", node.name);
+
+    if node.inputs.len() != 2 {
+        panic!("Gather requires two inputs: data and indices");
+    }
+
+    let indices_rank = match &node.inputs[1].ty {
+        ArgType::Tensor(tensor) => tensor.rank,
+        ArgType::Scalar(_) => 0,
+        _ => panic!("Only tensor indices is valid, got {:?}", node.inputs[1].ty),
+    };
+    log::debug!("Gather indices rank for {}: {}", node.name, indices_rank);
+
+    match &node.inputs[0].ty {
+        ArgType::Tensor(input_tensor) => {
+            log::debug!(
+                "Gather input tensor rank for {}: {}",
+                node.name,
+                input_tensor.rank
+            );
+            // Output of rank q+(r-1), where q is rank of indices tensor and r is rank of input
+            let output_rank = indices_rank + input_tensor.rank - 1;
+            log::debug!("Gather output rank for {}: {}", node.name, output_rank);
+
+            if output_rank == 0 {
+                node.outputs[0].ty = ArgType::Scalar(input_tensor.elem_type.clone());
+                log::debug!("Gather result for {} is scalar", node.name);
+            } else {
+                node.outputs[0].ty = ArgType::Tensor(TensorType {
+                    elem_type: input_tensor.elem_type.clone(),
+                    rank: output_rank,
+                    static_shape: None,
+                });
+                log::debug!(
+                    "Gather result for {} is tensor with rank {}",
+                    node.name,
+                    output_rank
+                );
+            }
+        }
+        ArgType::Shape(_) => {
+            log::debug!("Gather input is shape for {}", node.name);
+            let shape_rank = 1;
+            // Output of rank q+(r-1), where q is rank of indices tensor and r is rank of input
+            let output_rank = indices_rank + shape_rank - 1;
+            log::debug!(
+                "Gather output rank for {} with shape input: {}",
+                node.name,
+                output_rank
+            );
+
+            if output_rank == 0 {
+                node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
+                log::debug!("Gather result for {} is scalar (from shape)", node.name);
+            } else {
+                node.outputs[0].ty = ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Int64,
+                    rank: output_rank,
+                    static_shape: None,
+                });
+                log::debug!(
+                    "Gather result for {} is tensor with rank {} (from shape)",
+                    node.name,
+                    output_rank
+                );
+            }
+        }
+        ty => panic!("Only tensor/shape input is valid but received: {:?}", ty),
+    }
+}
 
 /// Create a GatherConfig from the attributes of the node
 pub fn gather_config(curr: &Node) -> usize {

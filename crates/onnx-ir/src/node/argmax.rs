@@ -1,4 +1,4 @@
-use crate::ir::{ArgType, Node};
+use crate::ir::{ArgType, ElementType, Node, TensorType};
 
 /// Create argmax config from the attributes of the node
 pub fn argmax_config(node: &Node) -> usize {
@@ -50,6 +50,30 @@ pub fn argmax_config(node: &Node) -> usize {
     }
 
     axis as usize
+}
+
+/// Update output rank for ArgMax (same as input rank).
+pub fn argmax_update_outputs(node: &mut Node) {
+    log::debug!("ArgMax rank inference for node {}", node.name);
+
+    if node.inputs.len() != 1 {
+        panic!("ArgMax: multiple inputs are not supported");
+    }
+    let tensor = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    log::debug!("ArgMax input rank for {}: {}", node.name, tensor.rank);
+
+    // Note: argmax in burn does not support keepdims=false
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: ElementType::Int64,
+        rank: tensor.rank,
+        static_shape: None,
+    });
+
+    log::debug!("ArgMax output rank for {}: {}", node.name, tensor.rank);
 }
 
 #[cfg(test)]

@@ -1,4 +1,54 @@
-use crate::ir::{Node, TensorData};
+use crate::ir::{ArgType, Data, Node, TensorData, TensorType};
+
+/// Update output rank for Reshape based on shape input if constant, otherwise use input rank.
+pub fn reshape_update_outputs(node: &mut Node) {
+    log::debug!("Reshape rank inference for node {}", node.name);
+
+    let shape = if node.inputs.len() == 2 {
+        log::debug!("Reshape node {} has shape as second input", node.name);
+        match &node.inputs[1].value {
+            Some(value) => match &value.data {
+                Data::Int64s(shape) => {
+                    log::debug!("Reshape node {} has constant shape: {:?}", node.name, shape);
+                    Some(shape.clone())
+                }
+                _ => panic!("Reshape: invalid input types"),
+            },
+            None => {
+                log::debug!(
+                    "Reshape node {} has dynamic shape as second input",
+                    node.name
+                );
+                None
+            }
+        }
+    } else {
+        log::debug!("Reshape node {} using shape from attributes", node.name);
+        node.attrs.get("shape").cloned().map(|v| {
+            let shape = v.into_i64s();
+            log::debug!("Reshape node {} shape attribute: {:?}", node.name, shape);
+            shape
+        })
+    };
+
+    let output = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.clone(),
+        _ => panic!("Reshape: invalid output types"),
+    };
+
+    let rank = match &shape {
+        Some(s) => s.len(),
+        None => output.rank,
+    };
+
+    log::debug!("Reshape output rank for node {}: {}", node.name, rank);
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        rank,
+        static_shape: None,
+        ..output
+    });
+}
 
 pub fn reshape_config(node: &Node) -> Vec<i64> {
     let mut allowzero = 0;

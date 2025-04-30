@@ -1,4 +1,38 @@
-use crate::ir::Node;
+use crate::ir::{ArgType, Node, TensorType};
+use core::cmp::max;
+
+/// Update output shape for Gemm operation based on input ranks.
+pub fn gemm_output_shape(node: &mut Node) {
+    log::debug!("Gemm rank inference for node {}", node.name);
+
+    let a_rank = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.rank,
+        _ => panic!("Input A should be a tensor!"),
+    };
+    let b_rank = match &node.inputs[1].ty {
+        ArgType::Tensor(tensor) => tensor.rank,
+        _ => panic!("Input B should be a tensor!"),
+    };
+
+    log::debug!(
+        "Gemm input ranks for {}: a_rank={}, b_rank={}",
+        node.name,
+        a_rank,
+        b_rank
+    );
+
+    let output_rank = max(a_rank, b_rank);
+    log::debug!("Gemm output rank for {}: {}", node.name, output_rank);
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        rank: output_rank,
+        static_shape: None,
+        elem_type: match &node.inputs[0].ty {
+            ArgType::Tensor(t) => t.elem_type.clone(),
+            _ => panic!("Unexpected type for input A"),
+        },
+    });
+}
 
 pub fn gemm_config(curr: &Node) -> (f32, f32, i64, i64) {
     let alpha = curr
