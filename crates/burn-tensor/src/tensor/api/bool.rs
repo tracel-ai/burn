@@ -1,5 +1,5 @@
 use crate::{Bool, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend};
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 use crate::try_read_sync;
 
