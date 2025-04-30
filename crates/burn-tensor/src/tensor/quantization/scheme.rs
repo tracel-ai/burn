@@ -87,7 +87,7 @@ pub enum QuantAccPrecision {
 }
 
 /// Specify if the output of an operation is quantized using the scheme of the input
-/// or returned dequantized.
+/// or returned unquantized.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum QuantPropagation {
     /// The output is quantized using the scheme of the input.

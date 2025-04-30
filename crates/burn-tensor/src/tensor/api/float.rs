@@ -208,6 +208,7 @@ where
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
                 Self::new(B::q_matmul(lhs, rhs))
             }
+            // TODO: accept hybrid lhs / rhs inputs for matmul
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => Self::new(
                 TensorPrimitive::Float(B::float_matmul(B::dequantize(lhs), rhs)),
             ),

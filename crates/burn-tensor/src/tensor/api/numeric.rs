@@ -3839,9 +3839,7 @@ impl<B: Backend> Numeric<B> for Float {
             (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
                 TensorPrimitive::Float(B::float_add(lhs, rhs))
             }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
-                TensorPrimitive::QFloat(B::q_add(lhs, rhs))
-            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_add(lhs, rhs),
             _ => panic!("Primitive type mismatch for lhs and rhs"),
         }
     }
@@ -3850,9 +3848,7 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::Float(lhs) => {
                 TensorPrimitive::Float(B::float_add_scalar(lhs, rhs.elem()))
             }
-            TensorPrimitive::QFloat(lhs) => {
-                TensorPrimitive::QFloat(B::q_add_scalar(lhs, rhs.elem()))
-            }
+            TensorPrimitive::QFloat(lhs) => B::q_add_scalar(lhs, rhs.elem()),
         }
     }
     fn sub(lhs: Self::Primitive, rhs: Self::Primitive) -> <Float as TensorKind<B>>::Primitive {
@@ -3860,9 +3856,7 @@ impl<B: Backend> Numeric<B> for Float {
             (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
                 TensorPrimitive::Float(B::float_sub(lhs, rhs))
             }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
-                TensorPrimitive::QFloat(B::q_sub(lhs, rhs))
-            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_sub(lhs, rhs),
             _ => panic!("Primitive type mismatch for lhs and rhs"),
         }
     }
@@ -3871,9 +3865,7 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::Float(lhs) => {
                 TensorPrimitive::Float(B::float_sub_scalar(lhs, rhs.elem()))
             }
-            TensorPrimitive::QFloat(lhs) => {
-                TensorPrimitive::QFloat(B::q_sub_scalar(lhs, rhs.elem()))
-            }
+            TensorPrimitive::QFloat(lhs) => B::q_sub_scalar(lhs, rhs.elem()),
         }
     }
     fn div(lhs: Self::Primitive, rhs: Self::Primitive) -> <Float as TensorKind<B>>::Primitive {
@@ -3881,9 +3873,7 @@ impl<B: Backend> Numeric<B> for Float {
             (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
                 TensorPrimitive::Float(B::float_div(lhs, rhs))
             }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
-                TensorPrimitive::QFloat(B::q_div(lhs, rhs))
-            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_div(lhs, rhs),
             _ => panic!("Primitive type mismatch for lhs and rhs"),
         }
     }
@@ -3892,43 +3882,24 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::Float(lhs) => {
                 TensorPrimitive::Float(B::float_div_scalar(lhs, rhs.elem()))
             }
-            TensorPrimitive::QFloat(lhs) => {
-                TensorPrimitive::QFloat(B::q_div_scalar(lhs, rhs.elem()))
-            }
+            TensorPrimitive::QFloat(lhs) => B::q_div_scalar(lhs, rhs.elem()),
         }
     }
     fn remainder(
         lhs: Self::Primitive,
         rhs: Self::Primitive,
     ) -> <Float as TensorKind<B>>::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_remainder(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
-                TensorPrimitive::QFloat(B::q_remainder(lhs, rhs))
-            }
-            _ => panic!("Primitive type mismatch for lhs and rhs"),
-        }
+        TensorPrimitive::Float(B::float_remainder(lhs.tensor(), rhs.tensor()))
     }
     fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        match lhs {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(B::float_remainder_scalar(lhs, rhs.elem()))
-            }
-            TensorPrimitive::QFloat(lhs) => {
-                TensorPrimitive::QFloat(B::q_remainder_scalar(lhs, rhs.elem()))
-            }
-        }
+        TensorPrimitive::Float(B::float_remainder_scalar(lhs.tensor(), rhs.elem()))
     }
     fn mul(lhs: Self::Primitive, rhs: Self::Primitive) -> <Float as TensorKind<B>>::Primitive {
         match (lhs, rhs) {
             (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
                 TensorPrimitive::Float(B::float_mul(lhs, rhs))
             }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
-                TensorPrimitive::QFloat(B::q_mul(lhs, rhs))
-            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_mul(lhs, rhs),
             _ => panic!("Primitive type mismatch for lhs and rhs"),
         }
     }
@@ -3937,15 +3908,13 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::Float(lhs) => {
                 TensorPrimitive::Float(B::float_mul_scalar(lhs, rhs.elem()))
             }
-            TensorPrimitive::QFloat(lhs) => {
-                TensorPrimitive::QFloat(B::q_mul_scalar(lhs, rhs.elem()))
-            }
+            TensorPrimitive::QFloat(lhs) => B::q_mul_scalar(lhs, rhs.elem()),
         }
     }
     fn neg(tensor: Self::Primitive) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_neg(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_neg(tensor)),
+            TensorPrimitive::QFloat(tensor) => B::q_neg(tensor),
         }
     }
     fn zeros(shape: Shape, device: &B::Device) -> Self::Primitive {
@@ -3966,21 +3935,21 @@ impl<B: Backend> Numeric<B> for Float {
     fn sum(tensor: Self::Primitive) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_sum(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_sum(tensor)),
+            TensorPrimitive::QFloat(tensor) => B::q_sum(tensor),
         }
     }
 
     fn sum_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_sum_dim(tensor, dim)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_sum_dim(tensor, dim)),
+            TensorPrimitive::QFloat(tensor) => B::q_sum_dim(tensor, dim),
         }
     }
 
     fn prod(tensor: Self::Primitive) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_prod(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_prod(tensor)),
+            TensorPrimitive::QFloat(tensor) => B::q_prod(tensor),
         }
     }
 
@@ -3989,14 +3958,14 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_prod_dim(tensor, dim))
             }
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_prod_dim(tensor, dim)),
+            TensorPrimitive::QFloat(tensor) => B::q_prod_dim(tensor, dim),
         }
     }
 
     fn mean(tensor: Self::Primitive) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_mean(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_mean(tensor)),
+            TensorPrimitive::QFloat(tensor) => B::q_mean(tensor),
         }
     }
 
@@ -4005,7 +3974,7 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_mean_dim(tensor, dim))
             }
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_mean_dim(tensor, dim)),
+            TensorPrimitive::QFloat(tensor) => B::q_mean_dim(tensor, dim),
         }
     }
 
@@ -4052,15 +4021,7 @@ impl<B: Backend> Numeric<B> for Float {
         mask: B::BoolTensorPrimitive,
         source: Self::Primitive,
     ) -> Self::Primitive {
-        match (tensor, source) {
-            (TensorPrimitive::Float(tensor), TensorPrimitive::Float(source)) => {
-                TensorPrimitive::Float(B::float_mask_where(tensor, mask, source))
-            }
-            (TensorPrimitive::QFloat(tensor), TensorPrimitive::QFloat(source)) => {
-                TensorPrimitive::QFloat(B::q_mask_where(tensor, mask, source))
-            }
-            _ => panic!("Primitive type mismatch for tensor and source"),
-        }
+        TensorPrimitive::Float(B::float_mask_where(tensor.tensor(), mask, source.tensor()))
     }
 
     fn mask_fill(
@@ -4068,14 +4029,7 @@ impl<B: Backend> Numeric<B> for Float {
         mask: B::BoolTensorPrimitive,
         value: Self::Elem,
     ) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_mask_fill(tensor, mask, value))
-            }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_mask_fill(tensor, mask, value))
-            }
-        }
+        TensorPrimitive::Float(B::float_mask_fill(tensor.tensor(), mask, value))
     }
 
     fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
@@ -4095,20 +4049,13 @@ impl<B: Backend> Numeric<B> for Float {
         indices: Tensor<B, 1, Int>,
         values: Self::Primitive,
     ) -> Self::Primitive {
-        match (tensor, values) {
-            (TensorPrimitive::Float(tensor), TensorPrimitive::Float(values)) => {
-                TensorPrimitive::Float(B::float_select_assign(
-                    tensor,
-                    dim,
-                    indices.primitive,
-                    values,
-                ))
-            }
-            (TensorPrimitive::QFloat(tensor), TensorPrimitive::QFloat(values)) => {
-                TensorPrimitive::QFloat(B::q_select_assign(tensor, dim, indices.primitive, values))
-            }
-            _ => panic!("Primitive type mismatch for tensor and values"),
-        }
+        // Select assign is ambiguous for QFloat
+        TensorPrimitive::Float(B::float_select_assign(
+            tensor.tensor(),
+            dim,
+            indices.primitive,
+            values.tensor(),
+        ))
     }
 
     fn gather(
@@ -4132,15 +4079,12 @@ impl<B: Backend> Numeric<B> for Float {
         indices: B::IntTensorPrimitive,
         values: Self::Primitive,
     ) -> Self::Primitive {
-        match (tensor, values) {
-            (TensorPrimitive::Float(tensor), TensorPrimitive::Float(values)) => {
-                TensorPrimitive::Float(B::float_scatter(dim, tensor, indices, values))
-            }
-            (TensorPrimitive::QFloat(tensor), TensorPrimitive::QFloat(values)) => {
-                TensorPrimitive::QFloat(B::q_scatter(dim, tensor, indices, values))
-            }
-            _ => panic!("Primitive type mismatch for tensor and values"),
-        }
+        TensorPrimitive::Float(B::float_scatter(
+            dim,
+            tensor.tensor(),
+            indices,
+            values.tensor(),
+        ))
     }
 
     fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
@@ -4222,9 +4166,7 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_clamp(tensor, min, max))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_clamp(tensor, min, max))
-            }
+            TensorPrimitive::QFloat(tensor) => B::q_clamp(tensor, min, max),
         }
     }
 
@@ -4233,7 +4175,7 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_clamp_min(tensor, min))
             }
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_clamp_min(tensor, min)),
+            TensorPrimitive::QFloat(tensor) => B::q_clamp_min(tensor, min),
         }
     }
 
@@ -4242,7 +4184,7 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_clamp_max(tensor, max))
             }
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_clamp_max(tensor, max)),
+            TensorPrimitive::QFloat(tensor) => B::q_clamp_max(tensor, max),
         }
     }
 
@@ -4258,9 +4200,7 @@ impl<B: Backend> Numeric<B> for Float {
             (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
                 TensorPrimitive::Float(B::float_powf(lhs, rhs))
             }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
-                TensorPrimitive::QFloat(B::q_powf(lhs, rhs))
-            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_powf(lhs, rhs),
             _ => panic!("Primitive type mismatch for lhs and rhs"),
         }
     }
@@ -4270,9 +4210,7 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::Float(lhs) => {
                 TensorPrimitive::Float(B::float_powf_scalar(lhs, rhs.elem()))
             }
-            TensorPrimitive::QFloat(lhs) => {
-                TensorPrimitive::QFloat(B::q_powf_scalar(lhs, rhs.elem()))
-            }
+            TensorPrimitive::QFloat(lhs) => B::q_powf_scalar(lhs, rhs.elem()),
         }
     }
 
@@ -4281,9 +4219,7 @@ impl<B: Backend> Numeric<B> for Float {
             (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
                 TensorPrimitive::Float(B::float_powf(lhs, rhs))
             }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
-                TensorPrimitive::QFloat(B::q_powf(lhs, rhs))
-            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_powf(lhs, rhs),
             _ => panic!("Primitive type mismatch for lhs and rhs"),
         }
     }
@@ -4293,9 +4229,7 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::Float(lhs) => {
                 TensorPrimitive::Float(B::float_powf_scalar(lhs, rhs.elem()))
             }
-            TensorPrimitive::QFloat(lhs) => {
-                TensorPrimitive::QFloat(B::q_powf_scalar(lhs, rhs.elem()))
-            }
+            TensorPrimitive::QFloat(lhs) => B::q_powf_scalar(lhs, rhs.elem()),
         }
     }
 
