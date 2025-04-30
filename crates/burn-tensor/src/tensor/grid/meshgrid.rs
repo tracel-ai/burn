@@ -1,44 +1,7 @@
 use crate::backend::Backend;
-use crate::tensor::grid::{GridIndexing, GridSparsity};
+use crate::tensor::grid::{GridIndexing, GridOptions, GridSparsity};
 use crate::tensor::{BasicOps, Tensor};
 use alloc::vec::Vec;
-
-/// Configuration options for `meshgrid`.
-#[derive(new, Debug, Copy, Clone)]
-pub struct MeshGridOptions {
-    /// Sparsity mode.
-    pub sparsity: GridSparsity,
-
-    /// Indexing mode.
-    pub indexing: GridIndexing,
-}
-
-impl Default for MeshGridOptions {
-    fn default() -> Self {
-        Self {
-            sparsity: GridSparsity::Dense,
-            indexing: GridIndexing::Matrix,
-        }
-    }
-}
-
-impl From<GridSparsity> for MeshGridOptions {
-    fn from(value: GridSparsity) -> Self {
-        Self {
-            sparsity: value,
-            ..Default::default()
-        }
-    }
-}
-
-impl From<GridIndexing> for MeshGridOptions {
-    fn from(value: GridIndexing) -> Self {
-        Self {
-            indexing: value,
-            ..Default::default()
-        }
-    }
-}
 
 /// Return a collection of coordinate matrices for coordinate vectors.
 ///
@@ -71,7 +34,7 @@ pub fn meshgrid<B: Backend, const N: usize, K, O>(
 ) -> [Tensor<B, N, K>; N]
 where
     K: BasicOps<B>,
-    O: Into<MeshGridOptions>,
+    O: Into<GridOptions>,
 {
     let options = options.into();
     let swap_dims = options.indexing == GridIndexing::Cartesian && N > 1;

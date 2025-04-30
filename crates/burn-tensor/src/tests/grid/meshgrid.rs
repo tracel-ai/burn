@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::BasicOps;
     use burn_tensor::backend::Backend;
-    use burn_tensor::grid::{GridIndexing, GridSparsity, MeshGridOptions, meshgrid};
+    use burn_tensor::grid::{GridIndexing, GridOptions, GridSparsity, meshgrid};
     use burn_tensor::{Int, Shape, Tensor, TensorData};
 
     fn assert_tensors_equal<const N: usize, B: Backend, K>(
@@ -29,10 +29,7 @@ mod tests {
 
         // 3D, Dense, Matrix
         assert_tensors_equal(
-            &meshgrid(
-                &[x.clone(), y.clone(), z.clone()],
-                MeshGridOptions::default(),
-            ),
+            &meshgrid(&[x.clone(), y.clone(), z.clone()], GridOptions::default()),
             &[
                 x.clone().reshape([4, 1, 1]).expand(grid_shape),
                 y.clone().reshape([1, 2, 1]).expand(grid_shape),
@@ -60,9 +57,9 @@ mod tests {
         assert_tensors_equal(
             &meshgrid(
                 &[x.clone(), y.clone(), z.clone()],
-                MeshGridOptions {
-                    sparsity: GridSparsity::Sparse,
+                GridOptions {
                     indexing: GridIndexing::Matrix,
+                    sparsity: GridSparsity::Sparse,
                 },
             ),
             &[
@@ -103,7 +100,7 @@ mod tests {
         assert_tensors_equal(
             &meshgrid(
                 &[x.clone(), y.clone(), z.clone()],
-                MeshGridOptions::new(GridSparsity::Sparse, GridIndexing::Cartesian),
+                GridOptions::new(GridIndexing::Cartesian, GridSparsity::Sparse),
             ),
             &[
                 x.clone().reshape([4, 1, 1]).swap_dims(0, 1),
@@ -114,9 +111,9 @@ mod tests {
         assert_tensors_equal(
             &meshgrid(
                 &[x.clone(), y.clone(), z.clone()],
-                MeshGridOptions {
-                    sparsity: GridSparsity::Sparse,
+                GridOptions {
                     indexing: GridIndexing::Cartesian,
+                    sparsity: GridSparsity::Sparse,
                 },
             ),
             &[
