@@ -1,5 +1,11 @@
 pub mod avg_pool1d;
+pub mod avg_pool2d;
 pub mod conv1d;
+pub mod conv2d;
+pub mod conv3d;
 pub mod conv_transpose1d;
+pub mod conv_transpose2d;
+pub mod conv_transpose3d;
 pub mod max_pool1d;
+pub mod max_pool2d;
 pub mod slice;

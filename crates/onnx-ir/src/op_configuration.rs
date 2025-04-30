@@ -1,328 +1,9 @@
 // TODO Move op_configuration.rs from burn-import to onnx-ir #3091
 // See https://github.com/tracel-ai/burn/issues/3091
 
-use burn::nn::{
-    BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig2d,
-    PaddingConfig3d,
-    conv::{Conv2dConfig, Conv3dConfig, ConvTranspose2dConfig, ConvTranspose3dConfig},
-    pool::{AvgPool2dConfig, MaxPool2dConfig},
-};
+use burn::nn::{BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig};
 
-use crate::ir::{ArgType, AttributeValue, Data, ElementType, Node, TensorData};
-
-// use burn_import::burn::node::{
-//     expand::ExpandShape, pad::PadConfig, split::SplitConfig, tile::TileConfig, top_k::TopKConfig,
-//     trilu::TriluConfig, unsqueeze::UnsqueezeAxes,
-// };
-
-// Conv1dConfig implementation moved to onnx-ir::node::conv1d
-
-/// Create a Conv2dConfig from the attributes of the node
-pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
-    let mut kernel_shape = Vec::new(); // TODO default inferred from weight tensor per spec
-    let mut strides = vec![1, 1];
-    let mut pads = vec![0, 0, 0, 0];
-    let mut dilations = vec![1, 1];
-    let mut group: usize = 1;
-
-    let weight_shape = curr.inputs[1]
-        .value
-        .as_ref()
-        .expect("Conv2d: weight tensor must be present")
-        .shape
-        .clone();
-
-    // check if the bias is present
-    let bias = curr.inputs.len() == 3;
-
-    for (key, value) in curr.attrs.iter() {
-        match key.as_str() {
-            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
-            "strides" => strides = value.clone().into_i64s(),
-            "pads" => pads = value.clone().into_i64s(),
-            "dilations" => dilations = value.clone().into_i64s(),
-            "group" => group = value.clone().into_i64() as usize,
-            _ => {}
-        }
-    }
-
-    // the channels are inverted in the weight tensor
-    let channels_in = weight_shape[1] * group;
-    let channels_out = weight_shape[0];
-
-    let padding = padding_config_2d(&pads);
-
-    Conv2dConfig::new(
-        [channels_in, channels_out],
-        [kernel_shape[0] as usize, kernel_shape[1] as usize],
-    )
-    .with_stride([strides[0] as usize, strides[1] as usize])
-    .with_dilation([dilations[0] as usize, dilations[1] as usize])
-    .with_groups(group)
-    .with_bias(bias)
-    .with_padding(padding)
-}
-
-/// Create a Conv3dConfig from the attributes of the node
-pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
-    let mut kernel_shape = Vec::new(); // TODO default inferred from weight tensor per spec
-    let mut strides = vec![1, 1, 1];
-    let mut pads = vec![0, 0, 0, 0, 0, 0];
-    let mut dilations = vec![1, 1, 1];
-    let mut group: usize = 1;
-
-    let weight_shape = curr.inputs[1]
-        .value
-        .as_ref()
-        .expect("Conv3d: weight tensor must be present")
-        .shape
-        .clone();
-
-    // check if the bias is present
-    let bias = curr.inputs.len() == 3;
-
-    for (key, value) in curr.attrs.iter() {
-        match key.as_str() {
-            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
-            "strides" => strides = value.clone().into_i64s(),
-            "pads" => pads = value.clone().into_i64s(),
-            "dilations" => dilations = value.clone().into_i64s(),
-            "group" => group = value.clone().into_i64() as usize,
-            _ => {}
-        }
-    }
-
-    // the channels are inverted in the weight tensor
-    let channels_in = weight_shape[1] * group;
-    let channels_out = weight_shape[0];
-
-    let padding = padding_config_3d(&pads);
-
-    Conv3dConfig::new(
-        [channels_in, channels_out],
-        [
-            kernel_shape[0] as usize,
-            kernel_shape[1] as usize,
-            kernel_shape[2] as usize,
-        ],
-    )
-    .with_stride([
-        strides[0] as usize,
-        strides[1] as usize,
-        strides[2] as usize,
-    ])
-    .with_dilation([
-        dilations[0] as usize,
-        dilations[1] as usize,
-        dilations[2] as usize,
-    ])
-    .with_groups(group)
-    .with_bias(bias)
-    .with_padding(padding)
-}
-
-// MaxPool1dConfig implementation moved to onnx-ir::node::max_pool1d
-
-/// Create a MaxPool2dConfig from the attributes of the node
-pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
-    let mut kernel_shape = Vec::new();
-    let mut strides = vec![1, 1];
-    let mut pads = vec![0, 0, 0, 0];
-    let mut dilations = vec![1, 1];
-
-    for (key, value) in curr.attrs.iter() {
-        match key.as_str() {
-            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
-            "strides" => strides = value.clone().into_i64s(),
-            "pads" => pads = value.clone().into_i64s(),
-            "dilations" => dilations = value.clone().into_i64s(),
-            _ => {}
-        }
-    }
-
-    let padding = padding_config_2d(&pads);
-
-    MaxPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
-        .with_strides([strides[0] as usize, strides[1] as usize])
-        .with_padding(padding)
-        .with_dilation([dilations[0] as usize, dilations[1] as usize])
-}
-
-// ConvTranspose1dConfig implementation moved to onnx-ir::node::conv_transpose1d
-
-pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
-    let mut attrs = curr.attrs.clone();
-    let kernel_shape = attrs
-        .remove("kernel_shape")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_default();
-    let stride = attrs
-        .remove("strides")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![1, 1]);
-    let pads = attrs
-        .remove("pads")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0, 0, 0, 0]);
-    let dilations = attrs
-        .remove("dilations")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![1, 1]);
-    let group = attrs
-        .remove("group")
-        .map(AttributeValue::into_i64)
-        .unwrap_or(1) as usize;
-    let output_padding = attrs
-        .remove("output_padding")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0, 0]);
-
-    // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
-    if !attrs.is_empty() {
-        panic!("Not all attributes are used: {attrs:?}");
-    }
-    // Check the pads are symmetric.
-    let [left, top, right, bottom] = [pads[0], pads[1], pads[2], pads[3]];
-    if left < 0 || top < 0 || right < 0 || bottom < 0 {
-        panic!("Negative pad values are not supported");
-    } else if (left != right) || (top != bottom) {
-        panic!("Asymmetric padding is not supported");
-    }
-
-    let weight_shape = curr.inputs[1]
-        .value
-        .as_ref()
-        .expect("ConvTranspose2d: weight tensor must be present")
-        .shape
-        .clone();
-
-    // check if the bias is present
-    let bias = curr.inputs.len() == 3;
-
-    // the channels are inverted in the weight tensor
-    let channels: [usize; 2] = [weight_shape[1] * group, weight_shape[0]];
-
-    ConvTranspose2dConfig::new(
-        channels,
-        [kernel_shape[0] as usize, kernel_shape[1] as usize],
-    )
-    .with_stride([stride[0] as usize, stride[1] as usize])
-    .with_padding([pads[0] as usize, pads[1] as usize])
-    .with_dilation([dilations[0] as usize, dilations[1] as usize])
-    .with_padding_out([output_padding[0] as usize, output_padding[1] as usize])
-    .with_groups(group)
-    .with_bias(bias)
-}
-
-pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
-    let mut attrs = curr.attrs.clone();
-    let kernel_shape = attrs
-        .remove("kernel_shape")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_default();
-    let stride = attrs
-        .remove("strides")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![1, 1, 1]);
-    let pads = attrs
-        .remove("pads")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0, 0, 0, 0, 0, 0]);
-    let dilations = attrs
-        .remove("dilations")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![1, 1, 1]);
-    let group = attrs
-        .remove("group")
-        .map(AttributeValue::into_i64)
-        .unwrap_or(1) as usize;
-    let output_padding = attrs
-        .remove("output_padding")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0, 0, 0]);
-
-    // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
-    if !attrs.is_empty() {
-        panic!("Not all attributes are used: {attrs:?}");
-    }
-    // Check the pads are symmetric.
-    let [left, top, front, right, bottom, back] =
-        [pads[0], pads[1], pads[2], pads[3], pads[4], pads[5]];
-
-    if left < 0 || top < 0 || front < 0 || right < 0 || bottom < 0 || back < 0 {
-        panic!("Negative pad values are not supported");
-    } else if (left != right) || (top != bottom) || (front != back) {
-        panic!("Asymmetric padding is not supported");
-    }
-
-    let weight_shape = curr.inputs[1]
-        .value
-        .as_ref()
-        .expect("ConvTranspose3d: weight tensor must be present")
-        .shape
-        .clone();
-
-    // check if the bias is present
-    let bias = curr.inputs.len() == 3;
-
-    // the channels are inverted in the weight tensor
-    let channels: [usize; 2] = [weight_shape[1] * group, weight_shape[0]];
-
-    ConvTranspose3dConfig::new(
-        channels,
-        [
-            kernel_shape[0] as usize,
-            kernel_shape[1] as usize,
-            kernel_shape[2] as usize,
-        ],
-    )
-    .with_stride([stride[0] as usize, stride[1] as usize, stride[2] as usize])
-    .with_padding([pads[0] as usize, pads[1] as usize, pads[2] as usize])
-    .with_dilation([
-        dilations[0] as usize,
-        dilations[1] as usize,
-        dilations[2] as usize,
-    ])
-    .with_padding_out([
-        output_padding[0] as usize,
-        output_padding[1] as usize,
-        output_padding[2] as usize,
-    ])
-    .with_groups(group)
-    .with_bias(bias)
-}
-
-// AvgPool1dConfig implementation moved to onnx-ir::node::avg_pool1d
-/// Create a AvgPool2dConfig from the attributes of the node
-pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
-    let mut kernel_shape = Vec::new();
-    let mut strides = vec![1, 1];
-    let mut pads = vec![0, 0, 0, 0];
-    let mut count_include_pad: i64 = 0;
-    let mut ceil_mode: i64 = 0;
-
-    for (key, value) in curr.attrs.iter() {
-        match key.as_str() {
-            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
-            "strides" => strides = value.clone().into_i64s(),
-            "pads" => pads = value.clone().into_i64s(),
-            "count_include_pad" => count_include_pad = value.clone().into_i64(),
-            "ceil_mode" => ceil_mode = value.clone().into_i64(),
-            _ => {}
-        }
-    }
-
-    if ceil_mode == 1 {
-        panic!("ceil_mode is not supported");
-    }
-
-    let padding = padding_config_2d(&pads);
-
-    AvgPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
-        .with_strides([strides[0] as usize, strides[1] as usize])
-        .with_padding(padding)
-        .with_count_include_pad(count_include_pad == 1)
-}
+use crate::ir::{ArgType, Data, Node, TensorData};
 
 // pub fn expand_config(node: &Node) -> ExpandShape {
 //     match &node.inputs[1].ty {
@@ -384,9 +65,8 @@ pub fn flatten_config(curr: &Node) -> usize {
 
     // extract the attributes
     for (key, value) in curr.attrs.iter() {
-        match key.as_str() {
-            "axis" => axis = value.clone().into_i64(),
-            _ => {}
+        if key.as_str() == "axis" {
+            axis = value.clone().into_i64()
         }
     }
 
@@ -417,9 +97,8 @@ pub fn gather_config(curr: &Node) -> usize {
 
     // extract the attributes
     for (key, value) in curr.attrs.iter() {
-        match key.as_str() {
-            "axis" => dim = value.clone().into_i64(),
-            _ => {}
+        if key.as_str() == "axis" {
+            dim = value.clone().into_i64()
         }
     }
 
@@ -510,9 +189,8 @@ pub fn log_softmax_config(node: &Node) -> usize {
 
     // extract the attributes
     for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "axis" => axis = value.clone().into_i64(),
-            _ => {}
+        if key.as_str() == "axis" {
+            axis = value.clone().into_i64()
         }
     }
 
@@ -545,9 +223,8 @@ pub fn softmax_config(node: &Node) -> usize {
 
     // extract the attributes
     for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "axis" => axis = value.clone().into_i64(),
-            _ => {}
+        if key.as_str() == "axis" {
+            axis = value.clone().into_i64()
         }
     }
 
@@ -624,9 +301,8 @@ pub fn concat_config(node: &Node) -> usize {
 
     // extract the attributes
     for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "axis" => axis = value.clone().into_i64(),
-            _ => {}
+        if key.as_str() == "axis" {
+            axis = value.clone().into_i64()
         }
     }
 
@@ -913,93 +589,13 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
 //     PadConfig::new(pads, constant_value)
 // }
 
-// padding_config_1d moved to onnx-ir::node::conv1d
-
-/// Calculate the padding configuration for a 2D operations such as Convolution and Pooling.
-///
-/// # Arguments
-///
-/// * `pads` - The padding values
-///
-/// # Panics
-///
-/// * If the padding is negative
-/// * If the padding is not symmetric
-///
-/// # Returns
-///
-/// * The padding configuration
-///
-/// # Remarks
-///
-/// This function is used when the padding is specified as a list of integers,
-/// and not used when the padding is specified as a string, e.g. "SAME_UPPER".
-fn padding_config_2d(pads: &[i64]) -> PaddingConfig2d {
-    let [left, top, right, bottom] = [pads[0], pads[1], pads[2], pads[3]];
-
-    if left < 0 || top < 0 || right < 0 || bottom < 0 {
-        panic!("Negative pad values are not supported");
-    } else if (left != right) || (top != bottom) {
-        panic!("Asymmetric padding is not supported");
-    } else if left == 0 && top == 0 && right == 0 && bottom == 0 {
-        // i.e [0, 0, 0, 0]
-        PaddingConfig2d::Valid
-    } else if left == right && top == bottom {
-        // i.e [2, 3, 2, 3]
-        PaddingConfig2d::Explicit(left as usize, top as usize)
-    } else {
-        // Unaccounted for padding configuration
-        panic!("Padding configuration ({:?}) not supported", pads);
-    }
-}
-
-/// Calculate the padding configuration for a 3D operations such as Convolution and Pooling.
-///
-/// # Arguments
-///
-/// * `pads` - The padding values
-///
-/// # Panics
-///
-/// * If the padding is negative
-/// * If the padding is not symmetric
-///
-/// # Returns
-///
-/// * The padding configuration
-///
-/// # Remarks
-///
-/// This function is used when the padding is specified as a list of integers,
-/// and not used when the padding is specified as a string, e.g. "SAME_UPPER".
-fn padding_config_3d(pads: &[i64]) -> PaddingConfig3d {
-    let [left, top, front, right, bottom, back] =
-        [pads[0], pads[1], pads[2], pads[3], pads[4], pads[5]];
-
-    if left < 0 || top < 0 || front < 0 || right < 0 || bottom < 0 || back < 0 {
-        panic!("Negative pad values are not supported");
-    } else if (left != right) || (top != bottom) || (front != back) {
-        panic!("Asymmetric padding is not supported");
-    } else if left == 0 && top == 0 && front == 0 && right == 0 && bottom == 0 && back == 0 {
-        // i.e [0, 0, 0, 0]
-        PaddingConfig3d::Valid
-    } else if left == right && top == bottom && front == back {
-        // i.e [2, 3, 2, 3]
-        PaddingConfig3d::Explicit(left as usize, top as usize, front as usize)
-    } else {
-        // Unaccounted for padding configuration
-        panic!("Padding configuration ({:?}) not supported", pads);
-    }
-}
-
 // Create a LeakyReluConfig from the alpha attribute of the node
 pub fn leaky_relu_config(node: &Node) -> f64 {
     let mut alpha = 0.01;
 
     for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "alpha" => alpha = value.clone().into_f32() as f64,
-            _ => {}
+        if key.as_str() == "alpha" {
+            alpha = value.clone().into_f32() as f64
         }
     }
 
@@ -1026,9 +622,8 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
     let mut allowzero = 0;
 
     for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "allowzero" => allowzero = value.clone().into_i64(),
-            _ => {}
+        if key.as_str() == "allowzero" {
+            allowzero = value.clone().into_i64()
         }
     }
 
