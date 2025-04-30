@@ -2,6 +2,7 @@ use alloc::vec::Vec;
 
 use crate::{alloc::borrow::ToOwned, cast::ToElement};
 
+use crate::TensorPrimitive;
 use crate::{
     BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
     TensorKind,
@@ -10,7 +11,6 @@ use crate::{
     check::TensorCheck,
     ops::{Device, IntTensor},
 };
-use crate::{TensorData, TensorPrimitive};
 
 /// Default RTOL value for `is_close` and `all_close`.
 pub const DEFAULT_RTOL: f64 = 1e-5;
@@ -4478,27 +4478,23 @@ where
     }
 }
 
-// Scalar / tensor
+// Scalar / tensor (float only)
 macro_rules! impl_tensor_scalar_div {
     ($($t:ty),*) => {
         $(
-            impl<const D: usize, B: Backend, K: Numeric<B>> core::ops::Div<Tensor<B, D, K>> for $t
-            where
-                K::Elem: Element,
+            impl<const D: usize, B: Backend> core::ops::Div<Tensor<B, D>> for $t
             {
-                type Output = Tensor<B, D, K>;
+                type Output = Tensor<B, D>;
 
-                fn div(self, tensor: Tensor<B, D, K>) -> Self::Output {
-                    let data = TensorData::new(alloc::vec![self], [1]);
-                    let numerator = Tensor::<B, D, K>::from_data(data, &tensor.device()).unsqueeze();
-                    Tensor::div(numerator, tensor)
+                fn div(self, tensor: Tensor<B, D>) -> Self::Output {
+                    tensor.recip().mul_scalar(self)
                 }
             }
         )*
     }
 }
 
-impl_tensor_scalar_div!(f32, f64, i32, i64, u32, u64);
+impl_tensor_scalar_div!(f32, f64);
 
 // Tensor % tensor.
 impl<const D: usize, B: Backend, K: Numeric<B>> core::ops::Rem<Self> for Tensor<B, D, K>
