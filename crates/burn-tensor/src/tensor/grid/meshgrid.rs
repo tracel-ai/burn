@@ -38,6 +38,7 @@ where
 {
     let options = options.into();
     let swap_dims = options.indexing == GridIndexing::Cartesian && N > 1;
+    let dense = options.sparsity == GridSparsity::Dense;
 
     let grid_shape: [usize; N] = tensors
         .iter()
@@ -46,7 +47,7 @@ where
         .try_into()
         .unwrap();
 
-    let result = tensors
+    tensors
         .iter()
         .enumerate()
         .map(|(i, tensor)| {
@@ -56,18 +57,16 @@ where
             // Reshape the tensor to have singleton dimensions in all but the i-th dimension
             let mut tensor = tensor.clone().reshape(coord_tensor_shape);
 
-            if options.sparsity == GridSparsity::Dense {
+            if dense {
                 tensor = tensor.expand(grid_shape);
             }
-
             if swap_dims {
-                // Swap the first two dimensions for "xy" / CartesianIndexing
                 tensor = tensor.swap_dims(0, 1);
             }
 
             tensor
         })
-        .collect::<Vec<_>>();
-
-    result.try_into().unwrap()
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap()
 }
