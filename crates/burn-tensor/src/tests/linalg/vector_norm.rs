@@ -43,6 +43,19 @@ mod tests {
     }
 
     #[test]
+    fn test_l1_norm() {
+        let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
+
+        linalg::l1_norm(x.clone(), 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[4.0, 6.0]]).into_data(), true);
+
+        linalg::l1_norm(x.clone(), 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[3.0], [7.0]]).into_data(), true);
+    }
+
+    #[test]
     fn test_l2_norm() {
         let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
 
