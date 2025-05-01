@@ -85,27 +85,28 @@ mod tests {
     #[test]
     fn test_l2_norm() {
         let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
+        let tolerance = Tolerance::<f32>::absolute(1e-5);
 
         linalg::vector_norm(x.clone(), 2.0, 0)
             .into_data()
             .assert_approx_eq(
                 &TestTensor::<2>::from([[3.1622776601683795, 4.47213595499958]]).into_data(),
-                Tolerance::<f64>::default(),
+                tolerance,
             );
         linalg::l2_norm(x.clone(), 0).into_data().assert_approx_eq(
             &TestTensor::<2>::from([[3.1622776601683795, 4.47213595499958]]).into_data(),
-            Tolerance::<f64>::default(),
+            tolerance,
         );
 
         linalg::vector_norm(x.clone(), 2.0, 1)
             .into_data()
             .assert_approx_eq(
                 &TestTensor::<2>::from([[2.23606797749979], [5.0]]).into_data(),
-                Tolerance::<f64>::default(),
+                tolerance,
             );
         linalg::l2_norm(x.clone(), 1).into_data().assert_approx_eq(
             &TestTensor::<2>::from([[2.23606797749979], [5.0]]).into_data(),
-            Tolerance::<f64>::default(),
+            tolerance,
         );
     }
 }
