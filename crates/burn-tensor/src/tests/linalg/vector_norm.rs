@@ -89,22 +89,22 @@ mod tests {
         linalg::vector_norm(x.clone(), 2.0, 0)
             .into_data()
             .assert_approx_eq(
-                &TestTensor::<2>::from([[3.1622777, 4.4721359]]).into_data(),
+                &TestTensor::<2>::from([[3.1622776601683795, 4.47213595499958]]).into_data(),
                 Tolerance::<f64>::default(),
             );
         linalg::l2_norm(x.clone(), 0).into_data().assert_approx_eq(
-            &TestTensor::<2>::from([[3.1622777, 4.4721359]]).into_data(),
+            &TestTensor::<2>::from([[3.1622776601683795, 4.47213595499958]]).into_data(),
             Tolerance::<f64>::default(),
         );
 
         linalg::vector_norm(x.clone(), 2.0, 1)
             .into_data()
             .assert_approx_eq(
-                &TestTensor::<2>::from([[2.2360679], [5.0]]).into_data(),
+                &TestTensor::<2>::from([[2.23606797749979], [5.0]]).into_data(),
                 Tolerance::<f64>::default(),
             );
         linalg::l2_norm(x.clone(), 1).into_data().assert_approx_eq(
-            &TestTensor::<2>::from([[2.2360679], [5.0]]).into_data(),
+            &TestTensor::<2>::from([[2.23606797749979], [5.0]]).into_data(),
             Tolerance::<f64>::default(),
         );
     }
