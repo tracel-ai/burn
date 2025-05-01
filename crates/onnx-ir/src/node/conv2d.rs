@@ -22,46 +22,24 @@ pub struct Conv2dConfig {
 
 impl Conv2dConfig {
     /// Create a new Conv2dConfig
-    pub fn new(channels: [usize; 2], kernel_size: [usize; 2]) -> Self {
+    pub fn new(
+        channels: [usize; 2],
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: PaddingConfig2d,
+        dilation: [usize; 2],
+        groups: usize,
+        bias: bool,
+    ) -> Self {
         Self {
             channels,
             kernel_size,
-            stride: [1, 1],
-            padding: PaddingConfig2d::Valid,
-            dilation: [1, 1],
-            groups: 1,
-            bias: true,
+            stride,
+            padding,
+            dilation,
+            groups,
+            bias,
         }
-    }
-
-    /// Set the stride
-    pub fn with_stride(mut self, stride: [usize; 2]) -> Self {
-        self.stride = stride;
-        self
-    }
-
-    /// Set the padding configuration
-    pub fn with_padding(mut self, padding: PaddingConfig2d) -> Self {
-        self.padding = padding;
-        self
-    }
-
-    /// Set the dilation
-    pub fn with_dilation(mut self, dilation: [usize; 2]) -> Self {
-        self.dilation = dilation;
-        self
-    }
-
-    /// Set the number of groups
-    pub fn with_groups(mut self, groups: usize) -> Self {
-        self.groups = groups;
-        self
-    }
-
-    /// Set whether bias is used
-    pub fn with_bias(mut self, bias: bool) -> Self {
-        self.bias = bias;
-        self
     }
 }
 
@@ -103,12 +81,12 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
     Conv2dConfig::new(
         [channels_in, channels_out],
         [kernel_shape[0] as usize, kernel_shape[1] as usize],
+        [strides[0] as usize, strides[1] as usize],
+        padding,
+        [dilations[0] as usize, dilations[1] as usize],
+        group,
+        bias,
     )
-    .with_stride([strides[0] as usize, strides[1] as usize])
-    .with_dilation([dilations[0] as usize, dilations[1] as usize])
-    .with_groups(group)
-    .with_bias(bias)
-    .with_padding(padding)
 }
 
 #[cfg(test)]

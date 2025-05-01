@@ -172,7 +172,11 @@ mod tests {
             TensorData::from([2f32]),
             TensorData::from([2f32]),
             TensorData::from([2f32]),
-            BatchNormConfig::new(128),
+            BatchNormConfig::new(
+                128,     // num_features
+                0.00001, // epsilon
+                0.1      // momentum
+            ),
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);

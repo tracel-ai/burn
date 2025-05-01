@@ -150,7 +150,16 @@ mod tests {
             TensorType::new_float("output", 5),
             TensorData::from([2f32]),
             None,
-            ConvTranspose3dConfig::new([3, 3], [3, 3, 3]).with_padding([0, 0, 0]),
+            ConvTranspose3dConfig::new(
+                [3, 3],    // kernel_size
+                [1, 1, 1], // stride
+                [0, 0, 0], // dilation
+                [0, 0, 0], // padding
+                [0, 0, 0], // output_padding
+                [0, 0, 0], // output_padding additional
+                1,         // groups
+                true,      // bias
+            ),
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
@@ -173,11 +182,11 @@ mod tests {
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
                 pub fn new(device: &B::Device) -> Self {
-                    let conv_transpose_3d = ConvTranspose3dConfig::new([3, 3], [3, 3, 3])
-                        .with_stride([1, 1, 1])
+                    let conv_transpose_3d = ConvTranspose3dConfig::new([3, 3], [1, 1, 1])
+                        .with_stride([0, 0, 0])
                         .with_padding([0, 0, 0])
                         .with_padding_out([0, 0, 0])
-                        .with_dilation([1, 1, 1])
+                        .with_dilation([0, 0, 0])
                         .with_groups(1)
                         .with_bias(true)
                         .init(device);

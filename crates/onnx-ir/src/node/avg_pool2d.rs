@@ -16,31 +16,18 @@ pub struct AvgPool2dConfig {
 
 impl AvgPool2dConfig {
     /// Create a new AvgPool2dConfig
-    pub fn new(kernel_size: [usize; 2]) -> Self {
+    pub fn new(
+        kernel_size: [usize; 2],
+        strides: [usize; 2],
+        padding: PaddingConfig2d,
+        count_include_pad: bool,
+    ) -> Self {
         Self {
             kernel_size,
-            strides: [1, 1],
-            padding: PaddingConfig2d::Valid,
-            count_include_pad: true,
+            strides,
+            padding,
+            count_include_pad,
         }
-    }
-
-    /// Set the strides
-    pub fn with_strides(mut self, strides: [usize; 2]) -> Self {
-        self.strides = strides;
-        self
-    }
-
-    /// Set the padding configuration
-    pub fn with_padding(mut self, padding: PaddingConfig2d) -> Self {
-        self.padding = padding;
-        self
-    }
-
-    /// Set whether to include padding in the average calculation
-    pub fn with_count_include_pad(mut self, count_include_pad: bool) -> Self {
-        self.count_include_pad = count_include_pad;
-        self
     }
 }
 
@@ -69,10 +56,12 @@ pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
 
     let padding = padding_config_2d(&pads);
 
-    AvgPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
-        .with_strides([strides[0] as usize, strides[1] as usize])
-        .with_padding(padding)
-        .with_count_include_pad(count_include_pad == 1)
+    AvgPool2dConfig::new(
+        [kernel_shape[0] as usize, kernel_shape[1] as usize],
+        [strides[0] as usize, strides[1] as usize],
+        padding,
+        count_include_pad == 1,
+    )
 }
 
 #[cfg(test)]

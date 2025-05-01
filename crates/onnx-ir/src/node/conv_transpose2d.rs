@@ -23,53 +23,27 @@ pub struct ConvTranspose2dConfig {
 
 impl ConvTranspose2dConfig {
     /// Create a new configuration for a ConvTranspose2d.
-    pub fn new(channels: [usize; 2], kernel_size: [usize; 2]) -> Self {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        channels: [usize; 2],
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        dilation: [usize; 2],
+        padding: [usize; 2],
+        padding_out: [usize; 2],
+        groups: usize,
+        bias: bool,
+    ) -> Self {
         Self {
             channels,
             kernel_size,
-            stride: [1, 1],
-            dilation: [1, 1],
-            padding: [0, 0],
-            padding_out: [0, 0],
-            groups: 1,
-            bias: true,
+            stride,
+            dilation,
+            padding,
+            padding_out,
+            groups,
+            bias,
         }
-    }
-
-    /// Set the stride.
-    pub fn with_stride(mut self, stride: [usize; 2]) -> Self {
-        self.stride = stride;
-        self
-    }
-
-    /// Set the dilation.
-    pub fn with_dilation(mut self, dilation: [usize; 2]) -> Self {
-        self.dilation = dilation;
-        self
-    }
-
-    /// Set the padding.
-    pub fn with_padding(mut self, padding: [usize; 2]) -> Self {
-        self.padding = padding;
-        self
-    }
-
-    /// Set the output padding.
-    pub fn with_padding_out(mut self, padding_out: [usize; 2]) -> Self {
-        self.padding_out = padding_out;
-        self
-    }
-
-    /// Set the groups.
-    pub fn with_groups(mut self, groups: usize) -> Self {
-        self.groups = groups;
-        self
-    }
-
-    /// Set whether to use bias.
-    pub fn with_bias(mut self, bias: bool) -> Self {
-        self.bias = bias;
-        self
     }
 }
 
@@ -129,13 +103,13 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     ConvTranspose2dConfig::new(
         channels,
         [kernel_shape[0] as usize, kernel_shape[1] as usize],
+        [stride[0] as usize, stride[1] as usize],
+        [dilations[0] as usize, dilations[1] as usize],
+        [pads[0] as usize, pads[1] as usize],
+        [output_padding[0] as usize, output_padding[1] as usize],
+        group,
+        bias,
     )
-    .with_stride([stride[0] as usize, stride[1] as usize])
-    .with_padding([pads[0] as usize, pads[1] as usize])
-    .with_dilation([dilations[0] as usize, dilations[1] as usize])
-    .with_padding_out([output_padding[0] as usize, output_padding[1] as usize])
-    .with_groups(group)
-    .with_bias(bias)
 }
 
 #[cfg(test)]

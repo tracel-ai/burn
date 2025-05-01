@@ -23,84 +23,91 @@ pub struct ConvTranspose1dConfig {
     pub padding_out: usize,
 }
 
+impl ConvTranspose1dConfig {
+    /// Create a new ConvTranspose1dConfig from the attributes of the node
+    pub fn new(curr: &Node) -> Self {
+        let mut attrs = curr.attrs.clone();
+
+        // Extract kernel_shape, default to an empty vector if not present
+        let kernel_shape = attrs
+            .remove("kernel_shape")
+            .map(AttributeValue::into_i64s)
+            .unwrap_or_default();
+
+        // Extract strides, default to 1 if not present
+        let stride = attrs
+            .remove("strides")
+            .map(AttributeValue::into_i64s)
+            .unwrap_or_else(|| vec![1]);
+
+        // Extract padding, default to 0 if not present
+        let pads = attrs
+            .remove("pads")
+            .map(AttributeValue::into_i64s)
+            .unwrap_or_else(|| vec![0, 0]);
+
+        // Extract dilations, default to 1 if not present
+        let dilations = attrs
+            .remove("dilations")
+            .map(AttributeValue::into_i64s)
+            .unwrap_or_else(|| vec![1]);
+
+        // Extract group attribute, default to 1
+        let group = attrs
+            .remove("group")
+            .map(AttributeValue::into_i64)
+            .unwrap_or(1) as usize;
+
+        // Extract output_padding, default to 0 if not present
+        let output_padding = attrs
+            .remove("output_padding")
+            .map(AttributeValue::into_i64s)
+            .unwrap_or_else(|| vec![0]);
+
+        // Ensure no unused attributes remain
+        if !attrs.is_empty() {
+            panic!("Not all attributes are used: {attrs:?}");
+        }
+
+        // Check the pads are symmetric
+        if pads.len() != 2 || pads[0] != pads[1] {
+            panic!(
+                "Asymmetric padding is not supported for ConvTranspose1d: {:?}",
+                pads
+            );
+        }
+
+        let weight_shape = curr.inputs[1]
+            .value
+            .as_ref()
+            .expect("ConvTranspose1d: weight tensor must be present")
+            .shape
+            .clone();
+
+        // Check if bias is present (third input)
+        let bias = curr.inputs.len() == 3;
+
+        // Extract channels from the weight tensor shape [out_channels, in_channels]
+        let channels_in = weight_shape[1] * group;
+        let channels_out = weight_shape[0];
+
+        Self {
+            channels_in,
+            channels_out,
+            kernel_size: kernel_shape[0] as usize,
+            stride: stride[0] as usize,
+            padding: pads[0] as usize,
+            dilation: dilations[0] as usize,
+            padding_out: output_padding[0] as usize,
+            groups: group,
+            bias,
+        }
+    }
+}
+
 /// Create a ConvTranspose1dConfig from the attributes of the node
 pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
-    let mut attrs = curr.attrs.clone();
-
-    // Extract kernel_shape, default to an empty vector if not present
-    let kernel_shape = attrs
-        .remove("kernel_shape")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_default();
-
-    // Extract strides, default to 1 if not present
-    let stride = attrs
-        .remove("strides")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![1]);
-
-    // Extract padding, default to 0 if not present
-    let pads = attrs
-        .remove("pads")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0, 0]);
-
-    // Extract dilations, default to 1 if not present
-    let dilations = attrs
-        .remove("dilations")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![1]);
-
-    // Extract group attribute, default to 1
-    let group = attrs
-        .remove("group")
-        .map(AttributeValue::into_i64)
-        .unwrap_or(1) as usize;
-
-    // Extract output_padding, default to 0 if not present
-    let output_padding = attrs
-        .remove("output_padding")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0]);
-
-    // Ensure no unused attributes remain
-    if !attrs.is_empty() {
-        panic!("Not all attributes are used: {attrs:?}");
-    }
-
-    // Check the pads are symmetric
-    if pads.len() != 2 || pads[0] != pads[1] {
-        panic!(
-            "Asymmetric padding is not supported for ConvTranspose1d: {:?}",
-            pads
-        );
-    }
-
-    let weight_shape = curr.inputs[1]
-        .value
-        .as_ref()
-        .expect("ConvTranspose1d: weight tensor must be present")
-        .shape
-        .clone();
-
-    // Check if bias is present (third input)
-    let bias = curr.inputs.len() == 3;
-
-    // Extract channels from the weight tensor shape [out_channels, in_channels]
-    let channels_in = weight_shape[1] * group;
-    let channels_out = weight_shape[0];
-
-    ConvTranspose1dConfig {
-        channels_in,
-        channels_out,
-        kernel_size: kernel_shape[0] as usize,
-        stride: stride[0] as usize,
-        padding: pads[0] as usize,
-        dilation: dilations[0] as usize,
-        padding_out: output_padding[0] as usize,
-        groups: group,
-        bias,
-    }
+    ConvTranspose1dConfig::new(curr)
 }
 
 #[cfg(test)]

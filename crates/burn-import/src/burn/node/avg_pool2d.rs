@@ -109,9 +109,12 @@ mod tests {
             "avg_pool2d",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            AvgPool2dConfig::new([3, 3])
-                .with_strides([1, 1])
-                .with_padding(PaddingConfig2d::Valid),
+            AvgPool2dConfig::new(
+                [3, 3],  // kernel_size
+                [1, 1],  // strides
+                PaddingConfig2d::Valid,  // padding
+                true,    // count_include_pad
+            ),
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);

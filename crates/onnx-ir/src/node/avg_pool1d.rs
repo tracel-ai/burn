@@ -17,31 +17,18 @@ pub struct AvgPool1dConfig {
 
 impl AvgPool1dConfig {
     /// Create a new AvgPool1dConfig
-    pub fn new(kernel_size: usize) -> Self {
+    pub fn new(
+        kernel_size: usize,
+        stride: usize,
+        padding: PaddingConfig1d,
+        count_include_pad: bool,
+    ) -> Self {
         Self {
             kernel_size,
-            stride: 1,
-            padding: PaddingConfig1d::Valid,
-            count_include_pad: true,
+            stride,
+            padding,
+            count_include_pad,
         }
-    }
-
-    /// Set the stride
-    pub fn with_stride(mut self, stride: usize) -> Self {
-        self.stride = stride;
-        self
-    }
-
-    /// Set the padding configuration
-    pub fn with_padding(mut self, padding: PaddingConfig1d) -> Self {
-        self.padding = padding;
-        self
-    }
-
-    /// Set whether to include padding in the average calculation
-    pub fn with_count_include_pad(mut self, count_include_pad: bool) -> Self {
-        self.count_include_pad = count_include_pad;
-        self
     }
 }
 

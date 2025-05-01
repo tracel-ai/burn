@@ -149,7 +149,16 @@ mod tests {
             TensorType::new_float("output", 4),
             TensorData::from([2f32]),
             None,
-            Conv1dConfig::new(3, 3, 3).with_padding(PaddingConfig1d::Valid),
+            Conv1dConfig::new(
+                3,                    // channels_in
+                3,                    // channels_out
+                3,                    // kernel_size
+                1,                    // stride
+                PaddingConfig1d::Valid, // padding
+                1,                    // dilation
+                1,                    // groups
+                true                  // bias
+            ),
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);

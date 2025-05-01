@@ -148,7 +148,15 @@ mod tests {
             TensorType::new_float("output", 4),
             TensorData::from([2f32]),
             None,
-            Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
+            Conv2dConfig::new(
+                [3, 3],   // kernel_size
+                [3, 3],   // stride
+                [1, 1],   // dilation 
+                PaddingConfig2d::Valid, // padding
+                [1, 1],   // output_padding
+                1,        // groups
+                true      // bias
+            ),
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);

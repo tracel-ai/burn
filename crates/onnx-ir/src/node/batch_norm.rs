@@ -13,24 +13,12 @@ pub struct BatchNormConfig {
 
 impl BatchNormConfig {
     /// Create a new BatchNormConfig
-    pub fn new(num_features: usize) -> Self {
+    pub fn new(num_features: usize, epsilon: f64, momentum: f64) -> Self {
         Self {
             num_features,
-            epsilon: 1e-5,
-            momentum: 0.1,
+            epsilon,
+            momentum,
         }
-    }
-
-    /// Set the epsilon value
-    pub fn with_epsilon(mut self, epsilon: f64) -> Self {
-        self.epsilon = epsilon;
-        self
-    }
-
-    /// Set the momentum value
-    pub fn with_momentum(mut self, momentum: f64) -> Self {
-        self.momentum = momentum;
-        self
     }
 }
 
@@ -56,9 +44,7 @@ pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
         }
     }
 
-    BatchNormConfig::new(num_features)
-        .with_epsilon(epsilon as f64)
-        .with_momentum(momentum as f64)
+    BatchNormConfig::new(num_features, epsilon as f64, momentum as f64)
 }
 
 #[cfg(test)]

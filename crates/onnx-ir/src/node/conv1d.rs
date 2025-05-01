@@ -25,47 +25,27 @@ pub struct Conv1dConfig {
 
 impl Conv1dConfig {
     /// Create a new Conv1dConfig
-    pub fn new(channels_in: usize, channels_out: usize, kernel_size: usize) -> Self {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        channels_in: usize,
+        channels_out: usize,
+        kernel_size: usize,
+        stride: usize,
+        padding: PaddingConfig1d,
+        dilation: usize,
+        groups: usize,
+        bias: bool,
+    ) -> Self {
         Self {
             channels_in,
             channels_out,
             kernel_size,
-            stride: 1,
-            padding: PaddingConfig1d::Valid,
-            dilation: 1,
-            groups: 1,
-            bias: true,
+            stride,
+            padding,
+            dilation,
+            groups,
+            bias,
         }
-    }
-
-    /// Set the stride
-    pub fn with_stride(mut self, stride: usize) -> Self {
-        self.stride = stride;
-        self
-    }
-
-    /// Set the padding configuration
-    pub fn with_padding(mut self, padding: PaddingConfig1d) -> Self {
-        self.padding = padding;
-        self
-    }
-
-    /// Set the dilation
-    pub fn with_dilation(mut self, dilation: usize) -> Self {
-        self.dilation = dilation;
-        self
-    }
-
-    /// Set the number of groups
-    pub fn with_groups(mut self, groups: usize) -> Self {
-        self.groups = groups;
-        self
-    }
-
-    /// Set whether bias is used
-    pub fn with_bias(mut self, bias: bool) -> Self {
-        self.bias = bias;
-        self
     }
 }
 

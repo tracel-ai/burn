@@ -2,7 +2,16 @@
 // These should be deprecated and eventually removed in favor of using
 // direct imports from the node modules
 
+pub use crate::node::avg_pool1d::avg_pool1d_config;
+pub use crate::node::avg_pool2d::avg_pool2d_config;
+pub use crate::node::batch_norm::batch_norm_config;
 pub use crate::node::clip::clip_config;
+pub use crate::node::conv1d::conv1d_config;
+pub use crate::node::conv2d::conv2d_config;
+pub use crate::node::conv3d::conv3d_config;
+pub use crate::node::conv_transpose1d::conv_transpose1d_config;
+pub use crate::node::conv_transpose2d::conv_transpose2d_config;
+pub use crate::node::conv_transpose3d::conv_transpose3d_config;
 pub use crate::node::gemm::gemm_config;
 pub use crate::node::hard_sigmoid::hard_sigmoid_config;
 pub use crate::node::leaky_relu::leaky_relu_config;
