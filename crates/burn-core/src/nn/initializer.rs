@@ -555,6 +555,7 @@ mod tests {
             .init([size, size], &Default::default())
             .into_value();
         let eye = Tensor::<TB, 2>::eye(size, &Default::default());
+
         // Q.T @ Q should be close to identity matrix
         q.clone()
             .transpose()
