@@ -182,15 +182,15 @@ mod tests {
 
     #[test]
     fn test_padding_config_2d_explicit() {
-        let pads = vec![2, 2, 3, 3];
+        let pads = vec![2, 2, 2, 2];
         let config = padding_config_2d(&pads);
-        assert!(matches!(config, PaddingConfig2d::Explicit(2, 3)));
+        assert!(matches!(config, PaddingConfig2d::Explicit(2, 2)));
     }
 
     #[test]
     #[should_panic(expected = "Asymmetric padding is not supported")]
     fn test_padding_config_2d_asymmetric() {
-        let pads = vec![1, 2, 3, 3];
+        let pads = vec![2, 3, 2, 2];
         let _ = padding_config_2d(&pads);
     }
 
@@ -210,7 +210,7 @@ mod tests {
 
     #[test]
     fn test_padding_config_3d_explicit() {
-        let pads = vec![2, 2, 3, 3, 1, 1];
+        let pads = vec![2, 3, 1, 2, 3, 1];
         let config = padding_config_3d(&pads);
         assert!(matches!(config, PaddingConfig3d::Explicit(2, 3, 1)));
     }
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Asymmetric padding is not supported")]
     fn test_padding_config_3d_asymmetric() {
-        let pads = vec![1, 2, 3, 3, 1, 1];
+        let pads = vec![2, 3, 1, 3, 3, 1];
         let _ = padding_config_3d(&pads);
     }
 
