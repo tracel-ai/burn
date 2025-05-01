@@ -1,6 +1,7 @@
 #[burn_tensor_testgen::testgen(vector_norm)]
 mod tests {
     use super::*;
+    use burn_tensor::Tolerance;
     use burn_tensor::backend::Backend;
     use burn_tensor::linalg;
 
@@ -87,24 +88,24 @@ mod tests {
 
         linalg::vector_norm(x.clone(), 2.0, 0)
             .into_data()
-            .assert_eq(
+            .assert_approx_eq(
                 &TestTensor::<2>::from([[3.1622777, 4.4721359]]).into_data(),
-                false,
+                Tolerance::<f64>::default(),
             );
-        linalg::l2_norm(x.clone(), 0).into_data().assert_eq(
+        linalg::l2_norm(x.clone(), 0).into_data().assert_approx_eq(
             &TestTensor::<2>::from([[3.1622777, 4.4721359]]).into_data(),
-            false,
+            Tolerance::<f64>::default(),
         );
 
         linalg::vector_norm(x.clone(), 2.0, 1)
             .into_data()
-            .assert_eq(
+            .assert_approx_eq(
                 &TestTensor::<2>::from([[2.2360679], [5.0]]).into_data(),
-                false,
+                Tolerance::<f64>::default(),
             );
-        linalg::l2_norm(x.clone(), 1).into_data().assert_eq(
+        linalg::l2_norm(x.clone(), 1).into_data().assert_approx_eq(
             &TestTensor::<2>::from([[2.2360679], [5.0]]).into_data(),
-            false,
+            Tolerance::<f64>::default(),
         );
     }
 }
