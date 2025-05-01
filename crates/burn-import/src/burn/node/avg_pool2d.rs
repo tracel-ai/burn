@@ -110,10 +110,10 @@ mod tests {
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
             AvgPool2dConfig::new(
-                [3, 3],  // kernel_size
-                [1, 1],  // strides
-                PaddingConfig2d::Valid,  // padding
-                true,    // count_include_pad
+                [3, 3],                 // kernel_size
+                [1, 1],                 // strides
+                PaddingConfig2d::Valid, // padding
+                true,                   // count_include_pad
             ),
         ));
 

@@ -175,7 +175,7 @@ mod tests {
             BatchNormConfig::new(
                 128,     // num_features
                 0.00001, // epsilon
-                0.1      // momentum
+                0.1,     // momentum
             ),
         ));
 

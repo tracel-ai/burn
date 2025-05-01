@@ -150,14 +150,14 @@ mod tests {
             TensorData::from([2f32]),
             None,
             Conv1dConfig::new(
-                3,                    // channels_in
-                3,                    // channels_out
-                3,                    // kernel_size
-                1,                    // stride
+                3,                      // channels_in
+                3,                      // channels_out
+                3,                      // kernel_size
+                1,                      // stride
                 PaddingConfig1d::Valid, // padding
-                1,                    // dilation
-                1,                    // groups
-                true                  // bias
+                1,                      // dilation
+                1,                      // groups
+                true,                   // bias
             ),
         ));
 
