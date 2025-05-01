@@ -3,7 +3,7 @@ use crate::tensor::Shape;
 use crate::config::Config;
 use crate::module::{Param, ParamId};
 use crate::tensor::backend::Backend;
-use crate::tensor::{Distribution, Tensor};
+use crate::tensor::{Distribution, Tensor, s};
 
 use crate as burn;
 
@@ -248,10 +248,10 @@ fn qr_decomposition<B: Backend>(
     let mut r = Tensor::<B, 2>::zeros([n, n], device);
 
     for j in 0..n {
-        let mut v: Tensor<B, 1> = a.clone().slice(burn::prelude::s![.., j..=j]).squeeze(1);
+        let mut v: Tensor<B, 1> = a.clone().slice(s![.., j..=j]).squeeze(1);
 
         for i in 0..j {
-            let q_i: Tensor<B, 1> = q.clone().slice(burn::prelude::s![.., i..=i]).squeeze(1);
+            let q_i: Tensor<B, 1> = q.clone().slice(s![.., i..=i]).squeeze(1);
             let r_ij = q_i.clone().mul(v.clone()).sum();
 
             r = r
