@@ -1463,6 +1463,13 @@ impl From<&OnnxArgument> for TensorType {
                 rank,
                 ..
             }) => TensorType::new_bool(arg.name.clone(), *rank),
+            ArgType::Scalar(ElementType::Float16 | ElementType::Float32 | ElementType::Float64) => {
+                TensorType::new_float(arg.name.clone(), 0)
+            }
+            ArgType::Scalar(ElementType::Int32 | ElementType::Int64) => {
+                TensorType::new_int(arg.name.clone(), 0)
+            }
+            ArgType::Scalar(ElementType::Bool) => TensorType::new_bool(arg.name.clone(), 0),
             _ => panic!("Can't transform {:?} to tensor.", arg.ty),
         }
     }
