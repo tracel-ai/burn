@@ -27,6 +27,17 @@ def export_bitshift(dir: str = "LEFT"):
         output_names=["output"],
     )
 
+    # Scalar version
+    shift_scalar = 1  # Scalar shift value
+    torch.onnx.export(
+        model,
+        (x, shift_scalar),
+        f"bitshift_{dir.lower()}_scalar.onnx",
+        opset_version=18,
+        input_names=["x", "shift"],
+        output_names=["output"],
+    )
+
 if __name__ == "__main__":
     for direction in ["LEFT", "RIGHT"]:
         export_bitshift(direction)

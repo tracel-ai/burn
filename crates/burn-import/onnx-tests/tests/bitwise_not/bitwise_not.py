@@ -2,16 +2,7 @@
 
 # used to generate model: onnx-tests/tests/bitwise_not/bitwise_not.onnx
 
-import torch
-import torch.nn as nn
 import onnx
-
-class BitwiseNotModel(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        return torch.bitwise_not(x)
 
 def build_model():
     return onnx.helper.make_model(

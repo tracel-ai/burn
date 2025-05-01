@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# used to generate model: onnx-tests/tests/bitwise_and/bitwise_and.onnx
+
 import torch
 import onnx
 
@@ -13,6 +16,17 @@ def export_bitwise_and():
         model,
         (x, y),
         "bitwise_and.onnx",
+        opset_version=18,
+        input_names=["x", "y"],
+        output_names=["output"],
+    )
+
+    # Scalar version
+    and_scalar = 2  # Scalar shift value
+    torch.onnx.export(
+        model,
+        (x, and_scalar),
+        f"bitwise_and_scalar.onnx",
         opset_version=18,
         input_names=["x", "y"],
         output_names=["output"],
