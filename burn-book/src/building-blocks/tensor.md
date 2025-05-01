@@ -371,9 +371,9 @@ strategies.
 
 ## Linalg Functions
 
-| Burn API                               | PyTorch Equivalent             |
-|----------------------------------------|--------------------------------|
-| `linalg::vector_grid(tensors, p, dim)` | `torch.linalg(tensor, p, dim)  |
+| Burn API                               | PyTorch Equivalent                        |
+|----------------------------------------|-------------------------------------------|
+| `linalg::vector_norm(tensors, p, dim)` | `torch.linalg.vector_norm(tensor, p, dim) |
 
 ## Displaying Tensor Details
 
