@@ -60,6 +60,7 @@ pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
         axis: usize,
         inst: &ReduceInstruction,
         dtype_out: &DType,
+        dtype_acc: &DType,
     ) -> CubeFusionHandle<R>;
 }
 
@@ -247,12 +248,14 @@ impl<R: Runtime> ReduceOptimization<R> {
             let input_handle = context
                 .handles
                 .get_handle(&input.id, &TensorStatus::ReadOnly);
+            let acc = self.reduce.acc.into_elem().into();
             let out_handle = self.fallback.run(
                 input_handle,
                 &input.shape,
                 self.reduce.op.axis,
                 &self.reduce.inst,
                 &self.reduce.op.out.dtype,
+                &acc,
             );
 
             (out_handle, out)
