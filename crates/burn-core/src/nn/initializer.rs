@@ -538,10 +538,9 @@ mod tests {
         let q_matmul_r = qr.0.clone().matmul(qr.1.clone());
 
         // assert that the difference between input (`a`) and Q @ R is (almost) zero
-        (a.round() - q_matmul_r.clone().round())
-            .sum()
+        q_matmul_r
             .into_data()
-            .assert_within_range(-0.00001..0.00001);
+            .assert_approx_eq::<FT>(&a.into_data(), Tolerance::rel_abs(1e-5, 1e-5));
     }
 
     #[test]
