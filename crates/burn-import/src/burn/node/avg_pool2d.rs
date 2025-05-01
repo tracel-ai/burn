@@ -1,7 +1,8 @@
+use onnx_ir::node::avg_pool2d::AvgPool2dConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use burn::{nn::pool::AvgPool2dConfig, record::PrecisionSettings};
+use burn::record::PrecisionSettings;
 
 use super::{Node, NodeCodegen};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
@@ -97,7 +98,8 @@ mod tests {
         graph::BurnGraph,
         node::{avg_pool2d::AvgPool2dNode, test::assert_tokens},
     };
-    use burn::{nn::PaddingConfig2d, nn::pool::AvgPool2dConfig, record::FullPrecisionSettings};
+    use burn::record::FullPrecisionSettings;
+    use onnx_ir::node::padding::PaddingConfig2d;
 
     #[test]
     fn test_codegen() {

@@ -1,5 +1,18 @@
 use crate::ir::{Data, Node};
-use burn::nn::DropoutConfig;
+
+/// Configuration for Dropout operations
+#[derive(Debug, Clone)]
+pub struct DropoutConfig {
+    /// Probability of dropping out a unit
+    pub prob: f64,
+}
+
+impl DropoutConfig {
+    /// Create a new DropoutConfig
+    pub fn new(prob: f64) -> Self {
+        Self { prob }
+    }
+}
 
 /// Create a DropoutConfig from an attribute and state of the node
 pub fn dropout_config(node: &Node) -> DropoutConfig {

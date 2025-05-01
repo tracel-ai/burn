@@ -1,5 +1,32 @@
 use crate::ir::{ArgType, Node, TensorType};
-use burn::nn::LinearConfig;
+
+/// Configuration for Linear operations
+#[derive(Debug, Clone)]
+pub struct LinearConfig {
+    /// Input dimension (features)
+    pub d_input: usize,
+    /// Output dimension (features)
+    pub d_output: usize,
+    /// Whether bias is used
+    pub bias: bool,
+}
+
+impl LinearConfig {
+    /// Create a new LinearConfig
+    pub fn new(d_input: usize, d_output: usize) -> Self {
+        Self {
+            d_input,
+            d_output,
+            bias: true,
+        }
+    }
+
+    /// Set whether bias is used
+    pub fn with_bias(mut self, bias: bool) -> Self {
+        self.bias = bias;
+        self
+    }
+}
 
 /// Update output rank for Linear operations (same as input rank).
 pub fn linear_update_outputs(node: &mut Node) {

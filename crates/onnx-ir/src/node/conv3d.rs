@@ -1,6 +1,69 @@
 use crate::ir::Node;
-use burn::nn::PaddingConfig3d;
-use burn::nn::conv::Conv3dConfig;
+use crate::node::padding::{PaddingConfig3d, padding_config_3d};
+
+/// Configuration for Conv3d operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Conv3dConfig {
+    /// Input and output channels [in, out].
+    pub channels: [usize; 2],
+    /// Size of the kernel.
+    pub kernel_size: [usize; 3],
+    /// Stride of the convolutional kernel.
+    pub stride: [usize; 3],
+    /// Dilation of the convolutional kernel.
+    pub dilation: [usize; 3],
+    /// Groups.
+    pub groups: usize,
+    /// Use bias.
+    pub bias: bool,
+    /// Padding.
+    pub padding: PaddingConfig3d,
+}
+
+impl Conv3dConfig {
+    /// Create a new configuration for a Conv3d.
+    pub fn new(channels: [usize; 2], kernel_size: [usize; 3]) -> Self {
+        Self {
+            channels,
+            kernel_size,
+            stride: [1, 1, 1],
+            dilation: [1, 1, 1],
+            groups: 1,
+            bias: true,
+            padding: PaddingConfig3d::Valid,
+        }
+    }
+
+    /// Set the stride.
+    pub fn with_stride(mut self, stride: [usize; 3]) -> Self {
+        self.stride = stride;
+        self
+    }
+
+    /// Set the dilation.
+    pub fn with_dilation(mut self, dilation: [usize; 3]) -> Self {
+        self.dilation = dilation;
+        self
+    }
+
+    /// Set the groups.
+    pub fn with_groups(mut self, groups: usize) -> Self {
+        self.groups = groups;
+        self
+    }
+
+    /// Set whether to use bias.
+    pub fn with_bias(mut self, bias: bool) -> Self {
+        self.bias = bias;
+        self
+    }
+
+    /// Set the padding.
+    pub fn with_padding(mut self, padding: PaddingConfig3d) -> Self {
+        self.padding = padding;
+        self
+    }
+}
 
 /// Create a Conv3dConfig from the attributes of the node
 pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
@@ -58,45 +121,6 @@ pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
     .with_groups(group)
     .with_bias(bias)
     .with_padding(padding)
-}
-
-/// Calculate the padding configuration for a 3D operations such as Convolution and Pooling.
-///
-/// # Arguments
-///
-/// * `pads` - The padding values
-///
-/// # Panics
-///
-/// * If the padding is negative
-/// * If the padding is not symmetric
-///
-/// # Returns
-///
-/// * The padding configuration
-///
-/// # Remarks
-///
-/// This function is used when the padding is specified as a list of integers,
-/// and not used when the padding is specified as a string, e.g. "SAME_UPPER".
-fn padding_config_3d(pads: &[i64]) -> PaddingConfig3d {
-    let [left, top, front, right, bottom, back] =
-        [pads[0], pads[1], pads[2], pads[3], pads[4], pads[5]];
-
-    if left < 0 || top < 0 || front < 0 || right < 0 || bottom < 0 || back < 0 {
-        panic!("Negative pad values are not supported");
-    } else if (left != right) || (top != bottom) || (front != back) {
-        panic!("Asymmetric padding is not supported");
-    } else if left == 0 && top == 0 && front == 0 && right == 0 && bottom == 0 && back == 0 {
-        // i.e [0, 0, 0, 0]
-        PaddingConfig3d::Valid
-    } else if left == right && top == bottom && front == back {
-        // i.e [2, 3, 2, 3]
-        PaddingConfig3d::Explicit(left as usize, top as usize, front as usize)
-    } else {
-        // Unaccounted for padding configuration
-        panic!("Padding configuration ({:?}) not supported", pads);
-    }
 }
 
 #[cfg(test)]

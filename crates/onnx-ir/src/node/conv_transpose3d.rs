@@ -1,5 +1,77 @@
 use crate::ir::{AttributeValue, Node};
-use burn::nn::conv::ConvTranspose3dConfig;
+
+/// Configuration for ConvTranspose3d operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConvTranspose3dConfig {
+    /// Input and output channels [in, out].
+    pub channels: [usize; 2],
+    /// Size of the kernel.
+    pub kernel_size: [usize; 3],
+    /// Stride of the convolutional kernel.
+    pub stride: [usize; 3],
+    /// Dilation of the convolutional kernel.
+    pub dilation: [usize; 3],
+    /// Padding.
+    pub padding: [usize; 3],
+    /// Output padding.
+    pub padding_out: [usize; 3],
+    /// Groups.
+    pub groups: usize,
+    /// Use bias.
+    pub bias: bool,
+}
+
+impl ConvTranspose3dConfig {
+    /// Create a new configuration for a ConvTranspose3d.
+    pub fn new(channels: [usize; 2], kernel_size: [usize; 3]) -> Self {
+        Self {
+            channels,
+            kernel_size,
+            stride: [1, 1, 1],
+            dilation: [1, 1, 1],
+            padding: [0, 0, 0],
+            padding_out: [0, 0, 0],
+            groups: 1,
+            bias: true,
+        }
+    }
+
+    /// Set the stride.
+    pub fn with_stride(mut self, stride: [usize; 3]) -> Self {
+        self.stride = stride;
+        self
+    }
+
+    /// Set the dilation.
+    pub fn with_dilation(mut self, dilation: [usize; 3]) -> Self {
+        self.dilation = dilation;
+        self
+    }
+
+    /// Set the padding.
+    pub fn with_padding(mut self, padding: [usize; 3]) -> Self {
+        self.padding = padding;
+        self
+    }
+
+    /// Set the output padding.
+    pub fn with_padding_out(mut self, padding_out: [usize; 3]) -> Self {
+        self.padding_out = padding_out;
+        self
+    }
+
+    /// Set the groups.
+    pub fn with_groups(mut self, groups: usize) -> Self {
+        self.groups = groups;
+        self
+    }
+
+    /// Set whether to use bias.
+    pub fn with_bias(mut self, bias: bool) -> Self {
+        self.bias = bias;
+        self
+    }
+}
 
 /// Create a ConvTranspose3dConfig from the attributes of the node
 pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {

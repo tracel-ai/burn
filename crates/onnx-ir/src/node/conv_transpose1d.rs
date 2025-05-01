@@ -1,8 +1,5 @@
 use crate::ir::{AttributeValue, Node};
 
-// Reuse PaddingConfig1d from conv1d module
-pub use super::conv1d::PaddingConfig1d;
-
 /// Configuration for ConvTranspose1d operations extracted from ONNX nodes
 #[derive(Debug, Clone)]
 pub struct ConvTranspose1dConfig {

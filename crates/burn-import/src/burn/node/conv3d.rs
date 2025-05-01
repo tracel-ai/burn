@@ -2,10 +2,11 @@ use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
-    nn::conv::{Conv3dConfig, Conv3dRecord},
+    nn::conv::Conv3dRecord,
     record::{PrecisionSettings, Record},
     tensor::{Tensor, TensorData},
 };
+use onnx_ir::node::conv3d::Conv3dConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
@@ -134,7 +135,8 @@ mod tests {
         graph::BurnGraph,
         node::{conv3d::Conv3dNode, test::assert_tokens},
     };
-    use burn::{nn::PaddingConfig3d, nn::conv::Conv3dConfig, record::FullPrecisionSettings};
+    use burn::record::FullPrecisionSettings;
+    use onnx_ir::node::padding::PaddingConfig3d;
 
     #[test]
     fn test_codegen() {

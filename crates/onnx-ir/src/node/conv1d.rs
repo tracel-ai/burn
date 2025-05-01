@@ -1,23 +1,6 @@
 use crate::ir::Node;
-use std::fmt;
 
-/// Padding configuration for 1D operations such as convolution
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PaddingConfig1d {
-    /// No padding (valid padding)
-    Valid,
-    /// Explicit padding with a specific size
-    Explicit(usize),
-}
-
-impl fmt::Display for PaddingConfig1d {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            PaddingConfig1d::Valid => write!(f, "Valid"),
-            PaddingConfig1d::Explicit(size) => write!(f, "Explicit({})", size),
-        }
-    }
-}
+use super::padding::{PaddingConfig1d, padding_config_1d};
 
 /// Configuration for Conv1d operations extracted from ONNX nodes
 #[derive(Debug, Clone)]
@@ -38,6 +21,52 @@ pub struct Conv1dConfig {
     pub bias: bool,
     /// Padding configuration
     pub padding: PaddingConfig1d,
+}
+
+impl Conv1dConfig {
+    /// Create a new Conv1dConfig
+    pub fn new(channels_in: usize, channels_out: usize, kernel_size: usize) -> Self {
+        Self {
+            channels_in,
+            channels_out,
+            kernel_size,
+            stride: 1,
+            padding: PaddingConfig1d::Valid,
+            dilation: 1,
+            groups: 1,
+            bias: true,
+        }
+    }
+
+    /// Set the stride
+    pub fn with_stride(mut self, stride: usize) -> Self {
+        self.stride = stride;
+        self
+    }
+
+    /// Set the padding configuration
+    pub fn with_padding(mut self, padding: PaddingConfig1d) -> Self {
+        self.padding = padding;
+        self
+    }
+
+    /// Set the dilation
+    pub fn with_dilation(mut self, dilation: usize) -> Self {
+        self.dilation = dilation;
+        self
+    }
+
+    /// Set the number of groups
+    pub fn with_groups(mut self, groups: usize) -> Self {
+        self.groups = groups;
+        self
+    }
+
+    /// Set whether bias is used
+    pub fn with_bias(mut self, bias: bool) -> Self {
+        self.bias = bias;
+        self
+    }
 }
 
 /// Create a Conv1dConfig from the attributes of the node
@@ -84,44 +113,6 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
         groups: group,
         bias,
         padding,
-    }
-}
-
-/// Calculate the padding configuration for a 1D operations such as Convolution and Pooling.
-///
-/// # Arguments
-///
-/// * `pads` - The padding values
-///
-/// # Panics
-///
-/// * If the padding is negative
-/// * If the padding is not symmetric
-///
-/// # Returns
-///
-/// * The padding configuration
-///
-/// # Remarks
-///
-/// This function is used when the padding is specified as a list of integers,
-/// and not used when the padding is specified as a string, e.g. "SAME_UPPER".
-pub fn padding_config_1d(pads: &[i64]) -> PaddingConfig1d {
-    let [left, right] = [pads[0], pads[1]];
-
-    if left < 0 || right < 0 {
-        panic!("Negative pad values are not supported");
-    } else if left != right {
-        panic!("Asymmetric padding is not supported");
-    } else if left == 0 && right == 0 {
-        // i.e. [0, 0]
-        PaddingConfig1d::Valid
-    } else if left == right {
-        // i.e. [2, 2]
-        PaddingConfig1d::Explicit(left as usize)
-    } else {
-        // Unaccounted for padding configuration
-        panic!("Padding configuration ({:?}) not supported", pads);
     }
 }
 

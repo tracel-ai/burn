@@ -1,7 +1,6 @@
-use crate::ir::Node;
+use crate::{ir::Node, node::padding::padding_config_1d};
 
-// Reuse PaddingConfig1d from conv1d module
-pub use super::conv1d::PaddingConfig1d;
+use super::padding::PaddingConfig1d;
 
 /// Configuration for AvgPool1d operations extracted from ONNX nodes
 #[derive(Debug, Clone)]
@@ -14,6 +13,36 @@ pub struct AvgPool1dConfig {
     pub padding: PaddingConfig1d,
     /// Whether to include padding in the average calculation
     pub count_include_pad: bool,
+}
+
+impl AvgPool1dConfig {
+    /// Create a new AvgPool1dConfig
+    pub fn new(kernel_size: usize) -> Self {
+        Self {
+            kernel_size,
+            stride: 1,
+            padding: PaddingConfig1d::Valid,
+            count_include_pad: true,
+        }
+    }
+
+    /// Set the stride
+    pub fn with_stride(mut self, stride: usize) -> Self {
+        self.stride = stride;
+        self
+    }
+
+    /// Set the padding configuration
+    pub fn with_padding(mut self, padding: PaddingConfig1d) -> Self {
+        self.padding = padding;
+        self
+    }
+
+    /// Set whether to include padding in the average calculation
+    pub fn with_count_include_pad(mut self, count_include_pad: bool) -> Self {
+        self.count_include_pad = count_include_pad;
+        self
+    }
 }
 
 /// Create an AvgPool1dConfig from the attributes of the node
@@ -46,7 +75,7 @@ pub fn avg_pool1d_config(curr: &Node) -> AvgPool1dConfig {
         panic!("ceil_mode is not supported");
     }
 
-    let padding = super::conv1d::padding_config_1d(&pads);
+    let padding = padding_config_1d(&pads);
 
     AvgPool1dConfig {
         kernel_size: kernel_shape[0] as usize,

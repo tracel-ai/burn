@@ -1,7 +1,6 @@
-use crate::ir::Node;
+use crate::{ir::Node, node::padding::padding_config_1d};
 
-// Reuse PaddingConfig1d from conv1d module
-pub use super::conv1d::PaddingConfig1d;
+use super::padding::PaddingConfig1d;
 
 /// Configuration for MaxPool1d operations extracted from ONNX nodes
 #[derive(Debug, Clone)]
@@ -14,6 +13,36 @@ pub struct MaxPool1dConfig {
     pub dilation: usize,
     /// Padding configuration
     pub padding: PaddingConfig1d,
+}
+
+impl MaxPool1dConfig {
+    /// Create a new MaxPool1dConfig
+    pub fn new(kernel_size: usize) -> Self {
+        Self {
+            kernel_size,
+            stride: 1,
+            padding: PaddingConfig1d::Valid,
+            dilation: 1,
+        }
+    }
+
+    /// Set the stride
+    pub fn with_stride(mut self, stride: usize) -> Self {
+        self.stride = stride;
+        self
+    }
+
+    /// Set the padding configuration
+    pub fn with_padding(mut self, padding: PaddingConfig1d) -> Self {
+        self.padding = padding;
+        self
+    }
+
+    /// Set the dilation
+    pub fn with_dilation(mut self, dilation: usize) -> Self {
+        self.dilation = dilation;
+        self
+    }
 }
 
 /// Create a MaxPool1dConfig from the attributes of the node
@@ -41,7 +70,7 @@ pub fn max_pool1d_config(curr: &Node) -> MaxPool1dConfig {
     assert_eq!(dilation.len(), 1, "MaxPool1d: dilation must have length 1");
     assert_eq!(stride.len(), 1, "MaxPool1d: stride must have length 1");
 
-    let padding = super::conv1d::padding_config_1d(&pads);
+    let padding = padding_config_1d(&pads);
 
     MaxPool1dConfig {
         kernel_size: kernel_shape[0] as usize,
@@ -54,7 +83,10 @@ pub fn max_pool1d_config(curr: &Node) -> MaxPool1dConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, AttributeValue, ElementType, NodeType, TensorType};
+    use crate::{
+        ir::{ArgType, Argument, AttributeValue, ElementType, NodeType, TensorType},
+        node::padding::PaddingConfig1d,
+    };
     use std::collections::HashMap;
 
     fn create_test_node(

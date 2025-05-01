@@ -2,10 +2,11 @@ use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
-    nn::conv::{ConvTranspose2dConfig, ConvTranspose2dRecord},
+    nn::conv::ConvTranspose2dRecord,
     record::{PrecisionSettings, Record},
     tensor::{Tensor, TensorData},
 };
+use onnx_ir::node::conv_transpose2d::ConvTranspose2dConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
@@ -137,7 +138,7 @@ mod tests {
         graph::BurnGraph,
         node::{conv_transpose_2d::ConvTranspose2dNode, test::assert_tokens},
     };
-    use burn::{nn::conv::ConvTranspose2dConfig, record::FullPrecisionSettings};
+    use burn::record::FullPrecisionSettings;
 
     #[test]
     fn test_codegen() {

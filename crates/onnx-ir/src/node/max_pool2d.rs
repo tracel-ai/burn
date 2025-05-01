@@ -1,6 +1,48 @@
 use crate::ir::Node;
-use burn::nn::PaddingConfig2d;
-use burn::nn::pool::MaxPool2dConfig;
+use crate::node::padding::{PaddingConfig2d, padding_config_2d};
+
+/// Configuration for MaxPool2d operations
+#[derive(Debug, Clone)]
+pub struct MaxPool2dConfig {
+    /// Kernel size [height, width]
+    pub kernel_size: [usize; 2],
+    /// Stride [height, width]
+    pub strides: [usize; 2],
+    /// Padding configuration
+    pub padding: PaddingConfig2d,
+    /// Dilation [height, width]
+    pub dilation: [usize; 2],
+}
+
+impl MaxPool2dConfig {
+    /// Create a new MaxPool2dConfig
+    pub fn new(kernel_size: [usize; 2]) -> Self {
+        Self {
+            kernel_size,
+            strides: [1, 1],
+            padding: PaddingConfig2d::Valid,
+            dilation: [1, 1],
+        }
+    }
+
+    /// Set the strides
+    pub fn with_strides(mut self, strides: [usize; 2]) -> Self {
+        self.strides = strides;
+        self
+    }
+
+    /// Set the padding configuration
+    pub fn with_padding(mut self, padding: PaddingConfig2d) -> Self {
+        self.padding = padding;
+        self
+    }
+
+    /// Set the dilation
+    pub fn with_dilation(mut self, dilation: [usize; 2]) -> Self {
+        self.dilation = dilation;
+        self
+    }
+}
 
 /// Create a MaxPool2dConfig from the attributes of the node
 pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
@@ -25,44 +67,6 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
         .with_strides([strides[0] as usize, strides[1] as usize])
         .with_padding(padding)
         .with_dilation([dilations[0] as usize, dilations[1] as usize])
-}
-
-/// Calculate the padding configuration for a 2D operations such as Convolution and Pooling.
-///
-/// # Arguments
-///
-/// * `pads` - The padding values
-///
-/// # Panics
-///
-/// * If the padding is negative
-/// * If the padding is not symmetric
-///
-/// # Returns
-///
-/// * The padding configuration
-///
-/// # Remarks
-///
-/// This function is used when the padding is specified as a list of integers,
-/// and not used when the padding is specified as a string, e.g. "SAME_UPPER".
-fn padding_config_2d(pads: &[i64]) -> PaddingConfig2d {
-    let [left, top, right, bottom] = [pads[0], pads[1], pads[2], pads[3]];
-
-    if left < 0 || top < 0 || right < 0 || bottom < 0 {
-        panic!("Negative pad values are not supported");
-    } else if (left != right) || (top != bottom) {
-        panic!("Asymmetric padding is not supported");
-    } else if left == 0 && top == 0 && right == 0 && bottom == 0 {
-        // i.e [0, 0, 0, 0]
-        PaddingConfig2d::Valid
-    } else if left == right && top == bottom {
-        // i.e [2, 3, 2, 3]
-        PaddingConfig2d::Explicit(left as usize, top as usize)
-    } else {
-        // Unaccounted for padding configuration
-        panic!("Padding configuration ({:?}) not supported", pads);
-    }
 }
 
 #[cfg(test)]

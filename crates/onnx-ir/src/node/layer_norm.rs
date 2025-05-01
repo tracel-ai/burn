@@ -1,5 +1,29 @@
 use crate::ir::Node;
-use burn::nn::LayerNormConfig;
+
+/// Configuration for LayerNorm operations
+#[derive(Debug, Clone)]
+pub struct LayerNormConfig {
+    /// Number of features/model dimension
+    pub d_model: usize,
+    /// Small constant added for numerical stability
+    pub epsilon: f64,
+}
+
+impl LayerNormConfig {
+    /// Create a new LayerNormConfig
+    pub fn new(d_model: usize) -> Self {
+        Self {
+            d_model,
+            epsilon: 1e-5,
+        }
+    }
+
+    /// Set the epsilon value
+    pub fn with_epsilon(mut self, epsilon: f64) -> Self {
+        self.epsilon = epsilon;
+        self
+    }
+}
 
 /// Create a LayerNormConfig from the attributes of the node
 pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {

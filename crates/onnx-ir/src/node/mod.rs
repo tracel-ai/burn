@@ -37,6 +37,7 @@ pub mod matmul;
 pub mod max_pool1d;
 pub mod max_pool2d;
 pub mod one_hot;
+pub mod padding;
 pub mod random;
 pub mod random_like;
 pub mod range;

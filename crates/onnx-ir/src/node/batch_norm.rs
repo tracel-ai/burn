@@ -1,5 +1,38 @@
 use crate::ir::Node;
-use burn::nn::BatchNormConfig;
+
+/// Configuration for BatchNorm operations
+#[derive(Debug, Clone)]
+pub struct BatchNormConfig {
+    /// Number of features (channels)
+    pub num_features: usize,
+    /// Small constant added for numerical stability
+    pub epsilon: f64,
+    /// Momentum for running statistics
+    pub momentum: f64,
+}
+
+impl BatchNormConfig {
+    /// Create a new BatchNormConfig
+    pub fn new(num_features: usize) -> Self {
+        Self {
+            num_features,
+            epsilon: 1e-5,
+            momentum: 0.1,
+        }
+    }
+
+    /// Set the epsilon value
+    pub fn with_epsilon(mut self, epsilon: f64) -> Self {
+        self.epsilon = epsilon;
+        self
+    }
+
+    /// Set the momentum value
+    pub fn with_momentum(mut self, momentum: f64) -> Self {
+        self.momentum = momentum;
+        self
+    }
+}
 
 /// Create a BatchNormConfig from the attributes of the node
 pub fn batch_norm_config(node: &Node) -> BatchNormConfig {

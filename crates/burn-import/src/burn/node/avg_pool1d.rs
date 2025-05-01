@@ -1,7 +1,8 @@
+use onnx_ir::node::avg_pool1d::AvgPool1dConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use burn::{nn::pool::AvgPool1dConfig, record::PrecisionSettings};
+use burn::record::PrecisionSettings;
 
 use super::{Node, NodeCodegen};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
@@ -93,7 +94,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AvgPool1dNode {
 mod tests {
     use super::*;
     use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
-    use burn::{nn::PaddingConfig1d, record::FullPrecisionSettings};
+    use burn::record::FullPrecisionSettings;
+    use onnx_ir::node::padding::PaddingConfig1d;
 
     #[test]
     fn test_codegen() {

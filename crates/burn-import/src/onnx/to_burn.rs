@@ -1033,27 +1033,7 @@ impl ParsedOnnxGraph {
         let output = TensorType::from(node.outputs.first().unwrap());
 
         // Get configuration from onnx-ir
-        let onnx_config = conv1d_config(&node);
-
-        // Convert onnx-ir padding to burn padding
-        let burn_padding = match onnx_config.padding {
-            onnx_ir::node::conv1d::PaddingConfig1d::Valid => burn::nn::PaddingConfig1d::Valid,
-            onnx_ir::node::conv1d::PaddingConfig1d::Explicit(size) => {
-                burn::nn::PaddingConfig1d::Explicit(size)
-            }
-        };
-
-        // Convert to burn Conv1dConfig
-        let config = burn::nn::conv::Conv1dConfig::new(
-            onnx_config.channels_in,
-            onnx_config.channels_out,
-            onnx_config.kernel_size,
-        )
-        .with_stride(onnx_config.stride)
-        .with_dilation(onnx_config.dilation)
-        .with_groups(onnx_config.groups)
-        .with_bias(onnx_config.bias)
-        .with_padding(burn_padding);
+        let config = conv1d_config(&node);
 
         let bias = node.inputs.len() == 3;
         let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
@@ -1103,21 +1083,7 @@ impl ParsedOnnxGraph {
         let output = TensorType::from(node.outputs.first().unwrap());
 
         // Get configuration from onnx-ir
-        let onnx_config = max_pool1d_config(&node);
-
-        // Convert onnx-ir padding to burn padding
-        let burn_padding = match onnx_config.padding {
-            onnx_ir::node::conv1d::PaddingConfig1d::Valid => burn::nn::PaddingConfig1d::Valid,
-            onnx_ir::node::conv1d::PaddingConfig1d::Explicit(size) => {
-                burn::nn::PaddingConfig1d::Explicit(size)
-            }
-        };
-
-        // Convert to burn MaxPool1dConfig
-        let config = burn::nn::pool::MaxPool1dConfig::new(onnx_config.kernel_size)
-            .with_stride(onnx_config.stride)
-            .with_padding(burn_padding)
-            .with_dilation(onnx_config.dilation);
+        let config = max_pool1d_config(&node);
 
         let name = &node.name;
         MaxPool1dNode::new(name, input, output, config)
@@ -1223,21 +1189,7 @@ impl ParsedOnnxGraph {
         let output = TensorType::from(node.outputs.first().unwrap());
 
         // Get configuration from onnx-ir
-        let onnx_config = avg_pool1d_config(&node);
-
-        // Convert onnx-ir padding to burn padding
-        let burn_padding = match onnx_config.padding {
-            onnx_ir::node::conv1d::PaddingConfig1d::Valid => burn::nn::PaddingConfig1d::Valid,
-            onnx_ir::node::conv1d::PaddingConfig1d::Explicit(size) => {
-                burn::nn::PaddingConfig1d::Explicit(size)
-            }
-        };
-
-        // Convert to burn AvgPool1dConfig
-        let config = burn::nn::pool::AvgPool1dConfig::new(onnx_config.kernel_size)
-            .with_stride(onnx_config.stride)
-            .with_padding(burn_padding)
-            .with_count_include_pad(onnx_config.count_include_pad);
+        let config = avg_pool1d_config(&node);
 
         let name = &node.name;
         AvgPool1dNode::new(name, input, output, config)

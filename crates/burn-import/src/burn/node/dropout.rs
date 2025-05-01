@@ -1,7 +1,8 @@
+use onnx_ir::node::dropout::DropoutConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use burn::{nn::DropoutConfig, record::PrecisionSettings};
+use burn::record::PrecisionSettings;
 
 use super::{Node, NodeCodegen};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
@@ -83,7 +84,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for DropoutNode {
 mod tests {
     use super::*;
     use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
-    use burn::{nn::DropoutConfig, record::FullPrecisionSettings};
+    use burn::record::FullPrecisionSettings;
 
     #[test]
     fn test_codegen() {

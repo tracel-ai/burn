@@ -308,10 +308,8 @@ pub(crate) mod tests {
         graph::BurnGraph,
         node::{NodeCodegen, conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens},
     };
-    use burn::{
-        nn::PaddingConfig2d, nn::conv::Conv2dConfig, record::FullPrecisionSettings,
-        tensor::TensorData,
-    };
+    use burn::{record::FullPrecisionSettings, tensor::TensorData};
+    use onnx_ir::node::{conv2d::Conv2dConfig, padding::PaddingConfig2d};
     use proc_macro2::TokenStream;
     use quote::quote;
 

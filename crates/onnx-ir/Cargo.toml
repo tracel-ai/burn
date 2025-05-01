@@ -14,14 +14,6 @@ version.workspace = true
 
 
 [dependencies]
-
-# REMOVE burn specific crates
-burn = { path = "../burn", version = "0.18.0", default-features = false, features = [
-    "std",
-] }
-# burn-import = { path = "../burn-import", version = "0.18.0" }
-
-
 bytemuck = { workspace = true }
 half = { workspace = true }
 log = { workspace = true }
