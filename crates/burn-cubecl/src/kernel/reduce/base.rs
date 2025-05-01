@@ -36,7 +36,8 @@ pub fn sum<Run: CubeRuntime, E: CubeElement>(
             Ok(output)
         }
         SumStrategy::Chained(strategy) => {
-            reduce::<Run, E, E>(tensor, strategy, ReduceFnConfig::Sum)
+            // reduce::<Run, E, E, f32>(tensor, strategy, ReduceFnConfig::Sum)
+            reduce::<Run, E, E, >(tensor, strategy, ReduceFnConfig::Sum)
         }
         #[cfg(feature = "autotune")]
         SumStrategy::Autotune => Ok(autotune_sum::<Run, E>(&client, tensor)),
@@ -71,7 +72,7 @@ impl Default for SumStrategy {
 ///
 /// If there is no error, the output is a tensor with decreasing strides
 /// where the shape of reduced dim is set to 1 but all shape are similar to the input.
-pub fn reduce<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
+pub fn reduce<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: CubeElement>(
     mut tensor: CubeTensor<Run>,
     strategy: ReduceStrategy,
     config: ReduceFnConfig,
@@ -80,7 +81,7 @@ pub fn reduce<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
     // and going in increasing order lead to the fastest calculation.
     let sorted_axis = argsort(&tensor.shape.dims);
     for axis in sorted_axis {
-        tensor = reduce_dim::<Run, In, Out>(tensor, axis, strategy, config)?;
+        tensor = reduce_dim::<Run, In, Out, Acc>(tensor, axis, strategy, config)?;
     }
     // reshape to scalar tensor
     tensor.shape = Shape::new([1]);
@@ -101,7 +102,7 @@ fn argsort(shape: &[usize]) -> Vec<usize> {
 ///
 /// If there is no error, the output is a tensor with decreasing strides
 /// where the shape of reduced dim is set to 1 but all shape are similar to the input.
-pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
+pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: CubeElement>(
     input: CubeTensor<Run>,
     dim: usize,
     strategy: ReduceStrategy,
@@ -115,7 +116,7 @@ pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
         },
     )?;
     let result = match strategy {
-        ReduceStrategy::Unspecified => cubecl::reduce::reduce::<Run, In, Out, ReduceFn>(
+        ReduceStrategy::Unspecified => cubecl::reduce::reduce::<Run, In, Out, Acc, ReduceFn>(
             &client,
             input.as_handle_ref(),
             output.as_handle_ref(),
@@ -123,14 +124,16 @@ pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
             None,
             config,
         ),
-        ReduceStrategy::Specific(strategy) => cubecl::reduce::reduce::<Run, In, Out, ReduceFn>(
-            &client,
-            input.as_handle_ref(),
-            output.as_handle_ref(),
-            dim,
-            Some(strategy),
-            config,
-        ),
+        ReduceStrategy::Specific(strategy) => {
+            cubecl::reduce::reduce::<Run, In, Out, Acc, ReduceFn>(
+                &client,
+                input.as_handle_ref(),
+                output.as_handle_ref(),
+                dim,
+                Some(strategy),
+                config,
+            )
+        }
         #[cfg(feature = "autotune")]
         ReduceStrategy::Autotune => {
             autotune_reduce::<Run, In, Out, ReduceFn>(&client, input, output.clone(), dim, config);

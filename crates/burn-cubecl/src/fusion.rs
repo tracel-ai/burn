@@ -101,18 +101,26 @@ impl<R: CubeRuntime> ReduceFallbackFn<R> for FallbackReduce {
         d_o: &DType,
     ) -> CubeFusionHandle<R> {
         let d_i = input.dtype;
-        let config = match inst {
-            ReduceInstruction::ArgMax => ReduceFnConfig::ArgMax,
-            ReduceInstruction::ArgMin => ReduceFnConfig::ArgMin,
-            ReduceInstruction::Mean => ReduceFnConfig::Mean,
-            ReduceInstruction::Prod => ReduceFnConfig::Prod,
-            ReduceInstruction::Sum => ReduceFnConfig::Sum,
-            ReduceInstruction::Min => ReduceFnConfig::Min,
-            ReduceInstruction::Max => ReduceFnConfig::Max,
-            ReduceInstruction::MaxAbs => ReduceFnConfig::MaxAbs,
+        let (config, accumulate_same_precision) = match inst {
+            ReduceInstruction::ArgMax => (ReduceFnConfig::ArgMax, true),
+            ReduceInstruction::ArgMin => (ReduceFnConfig::ArgMin, true),
+            ReduceInstruction::Mean => (ReduceFnConfig::Mean, false),
+            ReduceInstruction::Prod => (ReduceFnConfig::Prod, false),
+            ReduceInstruction::Sum => (ReduceFnConfig::Sum, false),
+            ReduceInstruction::Min => (ReduceFnConfig::Min, true),
+            ReduceInstruction::Max => (ReduceFnConfig::Max, true),
+            ReduceInstruction::MaxAbs => (ReduceFnConfig::MaxAbs, true),
         };
 
-        reduce_dtype::<R>(input, shape, axis, &d_i, d_o, config)
+        reduce_dtype::<R>(
+            input,
+            shape,
+            axis,
+            &d_i,
+            d_o,
+            config,
+            accumulate_same_precision,
+        )
     }
 }
 
@@ -156,43 +164,56 @@ fn reduce_dtype<R: CubeRuntime>(
     dtype_input: &DType,
     dtype_output: &DType,
     config: ReduceFnConfig,
+    accumulate_same_precision: bool,
 ) -> CubeFusionHandle<R> {
-    match dtype_input {
-        DType::F64 => {
-            reduce_dtype_output::<R, f64>(input_handle, shape, axis, dtype_output, config)
+    match (dtype_input, accumulate_same_precision) {
+        (DType::F64, _) => {
+            reduce_dtype_output::<R, f64, f64>(input_handle, shape, axis, dtype_output, config)
         }
-        DType::F32 | DType::Flex32 => {
-            reduce_dtype_output::<R, f32>(input_handle, shape, axis, dtype_output, config)
+        (DType::F32, _) | (DType::Flex32, _) => {
+            reduce_dtype_output::<R, f32, f32>(input_handle, shape, axis, dtype_output, config)
         }
-        DType::F16 => {
-            reduce_dtype_output::<R, f16>(input_handle, shape, axis, dtype_output, config)
+        (DType::F16, true) => {
+            reduce_dtype_output::<R, f16, f16>(input_handle, shape, axis, dtype_output, config)
         }
-        DType::BF16 => {
-            reduce_dtype_output::<R, bf16>(input_handle, shape, axis, dtype_output, config)
+        (DType::F16, false) => {
+            reduce_dtype_output::<R, f16, f32>(input_handle, shape, axis, dtype_output, config)
         }
-        DType::I64 => {
-            reduce_dtype_output::<R, i64>(input_handle, shape, axis, dtype_output, config)
+        (DType::BF16, true) => {
+            reduce_dtype_output::<R, bf16, f16>(input_handle, shape, axis, dtype_output, config)
         }
-        DType::I32 => {
-            reduce_dtype_output::<R, i32>(input_handle, shape, axis, dtype_output, config)
+        (DType::BF16, false) => {
+            reduce_dtype_output::<R, bf16, f32>(input_handle, shape, axis, dtype_output, config)
         }
-        DType::I16 => {
-            reduce_dtype_output::<R, i16>(input_handle, shape, axis, dtype_output, config)
+        (DType::I64, _) => {
+            reduce_dtype_output::<R, i64, i64>(input_handle, shape, axis, dtype_output, config)
         }
-        DType::U64 => {
-            reduce_dtype_output::<R, u64>(input_handle, shape, axis, dtype_output, config)
+        (DType::I32, _) => {
+            reduce_dtype_output::<R, i32, i32>(input_handle, shape, axis, dtype_output, config)
         }
-        DType::U32 => {
-            reduce_dtype_output::<R, u32>(input_handle, shape, axis, dtype_output, config)
+        (DType::I16, true) => {
+            reduce_dtype_output::<R, i16, i16>(input_handle, shape, axis, dtype_output, config)
         }
-        DType::U16 => {
-            reduce_dtype_output::<R, u16>(input_handle, shape, axis, dtype_output, config)
+        (DType::I16, false) => {
+            reduce_dtype_output::<R, i16, i32>(input_handle, shape, axis, dtype_output, config)
+        }
+        (DType::U64, _) => {
+            reduce_dtype_output::<R, u64, u64>(input_handle, shape, axis, dtype_output, config)
+        }
+        (DType::U32, _) => {
+            reduce_dtype_output::<R, u32, u32>(input_handle, shape, axis, dtype_output, config)
+        }
+        (DType::U16, true) => {
+            reduce_dtype_output::<R, u16, u16>(input_handle, shape, axis, dtype_output, config)
+        }
+        (DType::U16, false) => {
+            reduce_dtype_output::<R, u16, u32>(input_handle, shape, axis, dtype_output, config)
         }
         _ => todo!("Not yet supported"),
     }
 }
 
-fn reduce_dtype_output<R: CubeRuntime, In: CubeElement>(
+fn reduce_dtype_output<R: CubeRuntime, In: CubeElement, Acc: CubeElement>(
     input_handle: CubeFusionHandle<R>,
     shape: &[usize],
     axis: usize,
@@ -200,21 +221,21 @@ fn reduce_dtype_output<R: CubeRuntime, In: CubeElement>(
     config: ReduceFnConfig,
 ) -> CubeFusionHandle<R> {
     match dtype_output {
-        DType::F64 => reduce::<R, In, f64>(input_handle, shape, axis, config),
-        DType::F32 | DType::Flex32 => reduce::<R, In, f32>(input_handle, shape, axis, config),
-        DType::F16 => reduce::<R, In, f16>(input_handle, shape, axis, config),
-        DType::BF16 => reduce::<R, In, bf16>(input_handle, shape, axis, config),
-        DType::I64 => reduce::<R, In, i64>(input_handle, shape, axis, config),
-        DType::I32 => reduce::<R, In, i32>(input_handle, shape, axis, config),
-        DType::I16 => reduce::<R, In, i16>(input_handle, shape, axis, config),
-        DType::U64 => reduce::<R, In, u64>(input_handle, shape, axis, config),
-        DType::U32 => reduce::<R, In, u32>(input_handle, shape, axis, config),
-        DType::U16 => reduce::<R, In, u16>(input_handle, shape, axis, config),
+        DType::F64 => reduce::<R, In, f64, Acc>(input_handle, shape, axis, config),
+        DType::F32 | DType::Flex32 => reduce::<R, In, f32, Acc>(input_handle, shape, axis, config),
+        DType::F16 => reduce::<R, In, f16, Acc>(input_handle, shape, axis, config),
+        DType::BF16 => reduce::<R, In, bf16, Acc>(input_handle, shape, axis, config),
+        DType::I64 => reduce::<R, In, i64, Acc>(input_handle, shape, axis, config),
+        DType::I32 => reduce::<R, In, i32, Acc>(input_handle, shape, axis, config),
+        DType::I16 => reduce::<R, In, i16, Acc>(input_handle, shape, axis, config),
+        DType::U64 => reduce::<R, In, u64, Acc>(input_handle, shape, axis, config),
+        DType::U32 => reduce::<R, In, u32, Acc>(input_handle, shape, axis, config),
+        DType::U16 => reduce::<R, In, u16, Acc>(input_handle, shape, axis, config),
         _ => todo!("Not yet supported"),
     }
 }
 
-fn reduce<R: CubeRuntime, In: CubeElement, Out: CubeElement>(
+fn reduce<R: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: CubeElement>(
     input_handle: CubeFusionHandle<R>,
     shape: &[usize],
     axis: usize,
@@ -226,7 +247,7 @@ fn reduce<R: CubeRuntime, In: CubeElement, Out: CubeElement>(
             dims: shape.to_vec(),
         },
     );
-    let out_tensor = crate::kernel::reduce::reduce_dim::<R, In, Out>(
+    let out_tensor = crate::kernel::reduce::reduce_dim::<R, In, Out, Acc>(
         input_tensor,
         axis,
         crate::kernel::reduce::ReduceStrategy::default(),
