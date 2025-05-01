@@ -7,7 +7,7 @@ use crate::tensor::{BasicOps, Tensor};
 /// The vector norm is defined as:
 ///
 /// - `p = f64::INFINITY`: The max absolute value.
-/// - `p = -f64::INFINITY`: The min absolute value.
+/// - `p = f64::NEG_INFINITY`: The min absolute value.
 /// - `p = 0.0`: The count of non-zero elements.
 /// - Otherwise, ``sum(abs(x)^p)^(1/p)``
 ///

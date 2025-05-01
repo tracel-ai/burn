@@ -14,11 +14,17 @@ mod tests {
         linalg::vector_norm(x.clone(), -f64::INFINITY, 0)
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[1., 2.]]).into_data(), true);
+        linalg::vector_norm(x.clone(), f64::NEG_INFINITY, 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1., 2.]]).into_data(), true);
 
         linalg::vector_norm(x.clone(), f64::INFINITY, 1)
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[2.], [4.]]).into_data(), true);
         linalg::vector_norm(x.clone(), -f64::INFINITY, 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1.], [3.]]).into_data(), true);
+        linalg::vector_norm(x.clone(), f64::NEG_INFINITY, 1)
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[1.], [3.]]).into_data(), true);
     }
