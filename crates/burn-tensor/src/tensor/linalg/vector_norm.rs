@@ -9,6 +9,7 @@ use crate::tensor::{BasicOps, Tensor};
 /// - `p = f64::INFINITY`: The max absolute value.
 /// - `p = f64::NEG_INFINITY`: The min absolute value.
 /// - `p = 0.0`: The count of non-zero elements.
+/// - `p = 1.0`: The sum of absolute values.
 /// - Otherwise, ``sum(abs(x)^p)^(1/p)``
 ///
 /// See:
@@ -47,6 +48,25 @@ where
     }
 }
 
+/// Computes the L0 norm of a tensor along a specified dimension.
+///
+/// This is a convenience function that wraps `vector_norm` with `p = 0.0`.
+///
+/// # Arguments
+///
+/// * `x` - The input tensor.
+/// * `dim` - The dimension to compute the norm over.
+///
+/// # Returns
+///
+/// The L0 norm of the input tensor.
+pub fn l0_norm<B: Backend, const D: usize, K>(x: Tensor<B, D, K>, dim: usize) -> Tensor<B, D, K>
+where
+    K: BasicOps<B> + Numeric<B>,
+{
+    vector_norm(x, 0.0, dim)
+}
+
 /// Computes the L1 norm of a tensor along a specified dimension.
 ///
 /// This is a convenience function that wraps `vector_norm` with `p = 1.0`.
@@ -83,4 +103,45 @@ where
     K: BasicOps<B> + Numeric<B>,
 {
     vector_norm(x, 2.0, dim)
+}
+
+/// Computes the L:INFINITY norm of a tensor along a specified dimension.
+///
+/// This is a convenience function that wraps `vector_norm` with `p = f64::INFINITY`.
+///
+/// # Arguments
+///
+/// * `x` - The input tensor.
+/// * `dim` - The dimension to compute the norm over.
+///
+/// # Returns
+///
+/// The L:INFINITY norm of the input tensor.
+pub fn linf_norm<B: Backend, const D: usize, K>(x: Tensor<B, D, K>, dim: usize) -> Tensor<B, D, K>
+where
+    K: BasicOps<B> + Numeric<B>,
+{
+    vector_norm(x, f64::INFINITY, dim)
+}
+
+/// Computes the L:NEG_INFINITY norm of a tensor along a specified dimension.
+///
+/// This is a convenience function that wraps `vector_norm` with `p = f64::NEG_INFINITY`.
+///
+/// # Arguments
+///
+/// * `x` - The input tensor.
+/// * `dim` - The dimension to compute the norm over.
+///
+/// # Returns
+///
+/// The L:NEG_INFINITY norm of the input tensor.
+pub fn lneg_inf_norm<B: Backend, const D: usize, K>(
+    x: Tensor<B, D, K>,
+    dim: usize,
+) -> Tensor<B, D, K>
+where
+    K: BasicOps<B> + Numeric<B>,
+{
+    vector_norm(x, f64::NEG_INFINITY, dim)
 }
