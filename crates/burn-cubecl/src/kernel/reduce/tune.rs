@@ -34,7 +34,7 @@ pub fn autotune_reduce<
 
     let tunables = TunableSet::new(
         create_key::<Run, Acc, Rd>,
-        reduce_input_gen::<Run, In, Out, Acc, Rd>,
+        reduce_input_gen::<Run, In, Out, Rd>,
     )
     .with_tunable(reduce::<Run, In, Out, Acc, Rd>)
     .with_tunable(reduce_shared::<Run, In, Out, Acc, Rd>)
@@ -80,7 +80,6 @@ mod reduce_ops {
         Run: CubeRuntime,
         In: CubeElement,
         Out: CubeElement,
-        Acc: CubeElement,
         Rd: ReduceFamily,
     >(
         _key: &ReduceAutotuneKey,
