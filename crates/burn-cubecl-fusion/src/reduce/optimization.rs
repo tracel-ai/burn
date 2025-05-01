@@ -90,7 +90,7 @@ impl FusedReduce {
         Self {
             input: self.input.clone(),
             output: self.output.clone(),
-            acc: self.acc.clone(),
+            acc: self.acc,
             axis: self.axis,
             op: self.op.clone(),
             strategy,
