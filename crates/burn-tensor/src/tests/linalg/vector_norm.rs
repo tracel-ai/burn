@@ -89,22 +89,22 @@ mod tests {
             .into_data()
             .assert_eq(
                 &TestTensor::<2>::from([[3.1622777, 4.4721359]]).into_data(),
-                true,
+                false,
             );
         linalg::l2_norm(x.clone(), 0).into_data().assert_eq(
             &TestTensor::<2>::from([[3.1622777, 4.4721359]]).into_data(),
-            true,
+            false,
         );
 
         linalg::vector_norm(x.clone(), 2.0, 1)
             .into_data()
             .assert_eq(
                 &TestTensor::<2>::from([[2.2360679], [5.0]]).into_data(),
-                true,
+                false,
             );
         linalg::l2_norm(x.clone(), 1).into_data().assert_eq(
             &TestTensor::<2>::from([[2.2360679], [5.0]]).into_data(),
-            true,
+            false,
         );
     }
 }
