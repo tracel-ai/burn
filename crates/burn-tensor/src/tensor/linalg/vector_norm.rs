@@ -14,7 +14,7 @@ use crate::tensor::{BasicOps, Tensor};
 ///
 /// See:
 /// - https://pytorch.org/docs/stable/generated/torch.linalg.vector_norm.html
-/// - https://numpy.org/devdocs/reference/generated/numpy.linalg.vector_norm.html
+/// - https://numpy.org/doc/stable/reference/generated/numpy.linalg.vector_norm.html
 ///
 /// # Arguments
 ///
@@ -36,13 +36,10 @@ where
     match p {
         f64::INFINITY => x.max_abs_dim(dim),
         f64::NEG_INFINITY => x.abs().min_dim(dim),
-        0.0 => {
-            // Count non-zero elements
-            // TODO: Bool should have sum() support.
-            x.zeros_like()
-                .mask_fill(x.not_equal_elem(0.0), 1.0)
-                .sum_dim(dim)
-        }
+        0.0 => x
+            .zeros_like()
+            .mask_fill(x.not_equal_elem(0.0), 1.0)
+            .sum_dim(dim),
         1.0 => x.abs().sum_dim(dim),
         _ => x.abs().powf_scalar(p).sum_dim(dim).powf_scalar(1.0 / p),
     }
