@@ -369,6 +369,12 @@ strategies.
 | `grid::meshgrid(tensors, GridIndexing::Matrix)`    | `torch.meshgrid(tensors, indexing="ij") |
 | `grid::meshgrid(tensors, GridIndexing::Cartesian)` | `torch.meshgrid(tensors, indexing="xy") |
 
+## Linalg Functions
+
+| Burn API                               | PyTorch Equivalent             |
+|----------------------------------------|--------------------------------|
+| `linalg::vector_grid(tensors, p, dim)` | `torch.linalg(tensor, p, dim)  |
+
 ## Displaying Tensor Details
 
 Burn provides flexible options for displaying tensor information, allowing you to control the level
