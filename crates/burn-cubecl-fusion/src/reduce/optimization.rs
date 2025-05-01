@@ -11,11 +11,12 @@ use cubecl::{
     client::ComputeClient,
     reduce::{LineMode, ReduceConfig, ReduceError},
 };
+use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
 use crate::CubeFusionHandle;
 use crate::elemwise::optimization::ElemwiseRunner;
-use crate::shared::ir::RefLayout;
+use crate::shared::ir::{FusePrecision, RefLayout};
 use crate::shared::trace::{TraceError, TraceRunner};
 use crate::shared::trace::{TuneOutput, Vectorization};
 use crate::shared::{
@@ -77,6 +78,7 @@ pub struct ReduceOptimizationState {
 pub struct FusedReduce {
     input: Arg,
     output: Arg,
+    pub(crate) acc: FusePrecision,
     pub(crate) axis: usize,
     pub(crate) op: ReduceDimOpIr,
     strategy: ReduceStrategy,
@@ -88,6 +90,7 @@ impl FusedReduce {
         Self {
             input: self.input.clone(),
             output: self.output.clone(),
+            acc: self.acc.clone(),
             axis: self.axis,
             op: self.op.clone(),
             strategy,
@@ -348,11 +351,12 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
             input: &self.input,
             output: &self.output,
         };
-        launch_reduce_input_output_inst::<R>(
+        launch_reduce_mixed_precision::<R>(
             kwargs,
             self.inst,
             self.op.input.dtype,
             self.op.out.dtype,
+            DType::from(self.acc.into_elem()),
         );
 
         Ok(())
@@ -372,11 +376,12 @@ struct ReduceKwArgs<'a, 'b, Run: Runtime> {
     output: &'a Arg,
 }
 
-fn launch_reduce_input_output_inst<Run: Runtime>(
+fn launch_reduce_mixed_precision<Run: Runtime>(
     kwargs: ReduceKwArgs<'_, '_, Run>,
     instruction: ReduceInstruction,
     dtype_input: DType,
     dtype_output: DType,
+    dtype_acc: DType,
 ) {
     let config = match instruction {
         ReduceInstruction::ArgMax => ReduceFnConfig::ArgMax,
@@ -388,54 +393,100 @@ fn launch_reduce_input_output_inst<Run: Runtime>(
         ReduceInstruction::Min => ReduceFnConfig::Min,
         ReduceInstruction::MaxAbs => ReduceFnConfig::MaxAbs,
     };
-    launch_reduce_input_output::<Run, ReduceFn>(kwargs, dtype_input, dtype_output, config)
+    launch_reduce_with_family::<Run, ReduceFn>(kwargs, dtype_input, dtype_output, dtype_acc, config)
 }
 
-fn launch_reduce_input_output<Run: Runtime, Rd: ReduceFamily>(
+fn launch_reduce_with_family<Run: Runtime, Rd: ReduceFamily>(
     kwargs: ReduceKwArgs<'_, '_, Run>,
     dtype_input: DType,
     dtype_output: DType,
+    dtype_acc: DType,
     config: Rd::Config,
 ) {
     match dtype_input {
-        DType::F64 => launch_reduce_output::<Run, f64, f64, Rd>(kwargs, dtype_output, config),
+        DType::F64 => {
+            launch_reduce_output_acc::<Run, f64, Rd>(kwargs, dtype_output, dtype_acc, config)
+        }
         DType::F32 | DType::Flex32 => {
-            launch_reduce_output::<Run, f32, f32, Rd>(kwargs, dtype_output, config)
+            launch_reduce_output_acc::<Run, f32, Rd>(kwargs, dtype_output, dtype_acc, config)
         }
-        DType::F16 => launch_reduce_output::<Run, half::f16, f32, Rd>(kwargs, dtype_output, config),
+        DType::F16 => {
+            launch_reduce_output_acc::<Run, f16, Rd>(kwargs, dtype_output, dtype_acc, config)
+        }
         DType::BF16 => {
-            launch_reduce_output::<Run, half::bf16, f32, Rd>(kwargs, dtype_output, config)
+            launch_reduce_output_acc::<Run, bf16, Rd>(kwargs, dtype_output, dtype_acc, config)
         }
-        DType::I64 => launch_reduce_output::<Run, i64, i64, Rd>(kwargs, dtype_output, config),
-        DType::I32 => launch_reduce_output::<Run, i32, i32, Rd>(kwargs, dtype_output, config),
-        DType::I16 => launch_reduce_output::<Run, i16, i32, Rd>(kwargs, dtype_output, config),
-        DType::I8 => launch_reduce_output::<Run, i8, i32, Rd>(kwargs, dtype_output, config),
-        DType::U64 => launch_reduce_output::<Run, u64, u64, Rd>(kwargs, dtype_output, config),
-        DType::U32 => launch_reduce_output::<Run, u32, u32, Rd>(kwargs, dtype_output, config),
-        DType::U16 => launch_reduce_output::<Run, u16, u32, Rd>(kwargs, dtype_output, config),
-        DType::U8 => launch_reduce_output::<Run, u8, u32, Rd>(kwargs, dtype_output, config),
+        DType::I64 => {
+            launch_reduce_output_acc::<Run, i64, Rd>(kwargs, dtype_output, dtype_acc, config)
+        }
+        DType::I32 => {
+            launch_reduce_output_acc::<Run, i32, Rd>(kwargs, dtype_output, dtype_acc, config)
+        }
+        DType::I16 => {
+            launch_reduce_output_acc::<Run, i16, Rd>(kwargs, dtype_output, dtype_acc, config)
+        }
+        DType::I8 => {
+            launch_reduce_output_acc::<Run, i8, Rd>(kwargs, dtype_output, dtype_acc, config)
+        }
+        DType::U64 => {
+            launch_reduce_output_acc::<Run, u64, Rd>(kwargs, dtype_output, dtype_acc, config)
+        }
+        DType::U32 => {
+            launch_reduce_output_acc::<Run, u32, Rd>(kwargs, dtype_output, dtype_acc, config)
+        }
+        DType::U16 => {
+            launch_reduce_output_acc::<Run, u16, Rd>(kwargs, dtype_output, dtype_acc, config)
+        }
+        DType::U8 => {
+            launch_reduce_output_acc::<Run, u8, Rd>(kwargs, dtype_output, dtype_acc, config)
+        }
         _ => panic!("Unsupported"),
     }
 }
 
-fn launch_reduce_output<Run: Runtime, In: Numeric, Acc: Numeric, Rd: ReduceFamily>(
+fn launch_reduce_output_acc<Run: Runtime, In: Numeric, Rd: ReduceFamily>(
     kwargs: ReduceKwArgs<'_, '_, Run>,
-    dtype: DType,
+    dtype_output: DType,
+    dtype_acc: DType,
     config: Rd::Config,
 ) {
-    match dtype {
-        DType::F64 => launch_reduce::<Run, In, Acc, f64, Rd>(kwargs, config),
-        DType::F32 | DType::Flex32 => launch_reduce::<Run, In, Acc, f32, Rd>(kwargs, config),
-        DType::F16 => launch_reduce::<Run, In, Acc, half::f16, Rd>(kwargs, config),
-        DType::BF16 => launch_reduce::<Run, In, Acc, half::bf16, Rd>(kwargs, config),
-        DType::I64 => launch_reduce::<Run, In, Acc, i64, Rd>(kwargs, config),
-        DType::I32 => launch_reduce::<Run, In, Acc, i32, Rd>(kwargs, config),
-        DType::I16 => launch_reduce::<Run, In, Acc, i16, Rd>(kwargs, config),
-        DType::I8 => launch_reduce::<Run, In, Acc, i8, Rd>(kwargs, config),
-        DType::U64 => launch_reduce::<Run, In, Acc, u64, Rd>(kwargs, config),
-        DType::U32 => launch_reduce::<Run, In, Acc, u32, Rd>(kwargs, config),
-        DType::U16 => launch_reduce::<Run, In, Acc, u16, Rd>(kwargs, config),
-        DType::U8 => launch_reduce::<Run, In, Acc, u8, Rd>(kwargs, config),
+    match dtype_output {
+        DType::F64 => launch_reduce_acc::<Run, In, f64, Rd>(kwargs, dtype_acc, config),
+        DType::F32 | DType::Flex32 => {
+            launch_reduce_acc::<Run, In, f32, Rd>(kwargs, dtype_acc, config)
+        }
+        DType::F16 => launch_reduce_acc::<Run, In, f16, Rd>(kwargs, dtype_acc, config),
+        DType::BF16 => launch_reduce_acc::<Run, In, bf16, Rd>(kwargs, dtype_acc, config),
+        DType::I64 => launch_reduce_acc::<Run, In, i64, Rd>(kwargs, dtype_acc, config),
+        DType::I32 => launch_reduce_acc::<Run, In, i32, Rd>(kwargs, dtype_acc, config),
+        DType::I16 => launch_reduce_acc::<Run, In, i16, Rd>(kwargs, dtype_acc, config),
+        DType::I8 => launch_reduce_acc::<Run, In, i8, Rd>(kwargs, dtype_acc, config),
+        DType::U64 => launch_reduce_acc::<Run, In, u64, Rd>(kwargs, dtype_acc, config),
+        DType::U32 => launch_reduce_acc::<Run, In, u32, Rd>(kwargs, dtype_acc, config),
+        DType::U16 => launch_reduce_acc::<Run, In, u16, Rd>(kwargs, dtype_acc, config),
+        DType::U8 => launch_reduce_acc::<Run, In, u8, Rd>(kwargs, dtype_acc, config),
+        _ => panic!("Unsupported"),
+    }
+}
+
+fn launch_reduce_acc<Run: Runtime, In: Numeric, Out: Numeric, Rd: ReduceFamily>(
+    kwargs: ReduceKwArgs<'_, '_, Run>,
+    dtype_acc: DType,
+    config: Rd::Config,
+) {
+    match dtype_acc {
+        DType::F64 => launch_reduce::<Run, In, Out, f64, Rd>(kwargs, config),
+        DType::F32 | DType::Flex32 => launch_reduce::<Run, In, Out, f32, Rd>(kwargs, config),
+        DType::F16 => launch_reduce::<Run, In, Out, f16, Rd>(kwargs, config),
+        DType::BF16 => launch_reduce::<Run, In, Out, bf16, Rd>(kwargs, config),
+        DType::I64 => launch_reduce::<Run, In, Out, i64, Rd>(kwargs, config),
+        DType::I32 => launch_reduce::<Run, In, Out, i32, Rd>(kwargs, config),
+        DType::I16 => launch_reduce::<Run, In, Out, i16, Rd>(kwargs, config),
+        DType::I8 => launch_reduce::<Run, In, Out, i8, Rd>(kwargs, config),
+        DType::U64 => launch_reduce::<Run, In, Out, u64, Rd>(kwargs, config),
+        DType::U32 => launch_reduce::<Run, In, Out, u32, Rd>(kwargs, config),
+        DType::U16 => launch_reduce::<Run, In, Out, u16, Rd>(kwargs, config),
+        DType::U8 => launch_reduce::<Run, In, Out, u8, Rd>(kwargs, config),
         _ => panic!("Unsupported"),
     }
 }

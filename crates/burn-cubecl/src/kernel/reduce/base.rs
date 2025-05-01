@@ -1,7 +1,7 @@
 #[cfg(feature = "autotune")]
 use super::{autotune_reduce, autotune_sum};
 use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
-use burn_tensor::Shape;
+use burn_tensor::{DType, Shape};
 pub use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
 use cubecl::reduce::{
     instructions::{ReduceFn, ReduceFnConfig},
@@ -35,10 +35,18 @@ pub fn sum<Run: CubeRuntime, E: CubeElement>(
 
             Ok(output)
         }
-        SumStrategy::Chained(strategy) => {
-            // reduce::<Run, E, E, f32>(tensor, strategy, ReduceFnConfig::Sum)
-            reduce::<Run, E, E, >(tensor, strategy, ReduceFnConfig::Sum)
-        }
+        SumStrategy::Chained(strategy) => match E::dtype() {
+            DType::F16 | DType::BF16 => {
+                reduce::<Run, E, E, f32>(tensor, strategy, ReduceFnConfig::Sum)
+            }
+            DType::I8 | DType::I16 => {
+                reduce::<Run, E, E, i32>(tensor, strategy, ReduceFnConfig::Sum)
+            }
+            DType::U8 | DType::U16 => {
+                reduce::<Run, E, E, u32>(tensor, strategy, ReduceFnConfig::Sum)
+            }
+            _ => reduce::<Run, E, E, E>(tensor, strategy, ReduceFnConfig::Sum),
+        },
         #[cfg(feature = "autotune")]
         SumStrategy::Autotune => Ok(autotune_sum::<Run, E>(&client, tensor)),
     }
@@ -116,7 +124,7 @@ pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: Cube
         },
     )?;
     let result = match strategy {
-        ReduceStrategy::Unspecified => cubecl::reduce::reduce::<Run, In, Out, Acc, ReduceFn>(
+        ReduceStrategy::Unspecified => cubecl::reduce::reduce::<Run, (In, Acc), Out, ReduceFn>(
             &client,
             input.as_handle_ref(),
             output.as_handle_ref(),
@@ -125,7 +133,7 @@ pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: Cube
             config,
         ),
         ReduceStrategy::Specific(strategy) => {
-            cubecl::reduce::reduce::<Run, In, Out, Acc, ReduceFn>(
+            cubecl::reduce::reduce::<Run, (In, Acc), Out, ReduceFn>(
                 &client,
                 input.as_handle_ref(),
                 output.as_handle_ref(),
@@ -136,7 +144,13 @@ pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: Cube
         }
         #[cfg(feature = "autotune")]
         ReduceStrategy::Autotune => {
-            autotune_reduce::<Run, In, Out, ReduceFn>(&client, input, output.clone(), dim, config);
+            autotune_reduce::<Run, In, Out, Acc, ReduceFn>(
+                &client,
+                input,
+                output.clone(),
+                dim,
+                config,
+            );
             Ok(())
         }
     };

@@ -19,6 +19,7 @@ pub fn autotune_reduce<
     Run: CubeRuntime,
     In: CubeElement,
     Out: CubeElement,
+    Acc: CubeElement,
     Rd: cubecl::reduce::ReduceFamily,
 >(
     client: &ComputeClient<Run::Server, Run::Channel>,
@@ -31,11 +32,14 @@ pub fn autotune_reduce<
 
     static TUNER: LocalTuner<ReduceAutotuneKey, CubeTuneId> = local_tuner!("reduce-dim");
 
-    let tunables = TunableSet::new(create_key::<Run, Rd>, reduce_input_gen::<Run, In, Out, Rd>)
-        .with_tunable(reduce::<Run, In, Out, Rd>)
-        .with_tunable(reduce_shared::<Run, In, Out, Rd>)
-        .with_tunable(reduce_plane::<Run, In, Out, Rd>)
-        .with_tunable(reduce_shared_plane::<Run, In, Out, Rd>);
+    let tunables = TunableSet::new(
+        create_key::<Run, Acc, Rd>,
+        reduce_input_gen::<Run, In, Out, Acc, Rd>,
+    )
+    .with_tunable(reduce::<Run, In, Out, Acc, Rd>)
+    .with_tunable(reduce_shared::<Run, In, Out, Acc, Rd>)
+    .with_tunable(reduce_plane::<Run, In, Out, Acc, Rd>)
+    .with_tunable(reduce_shared_plane::<Run, In, Out, Acc, Rd>);
 
     TUNER.execute(
         &CubeTuneId::new::<Run>(&input.client, &input.device),
@@ -45,7 +49,7 @@ pub fn autotune_reduce<
     );
 }
 
-pub(crate) fn create_key<Run: CubeRuntime, Rd: ReduceFamily>(
+pub(crate) fn create_key<Run: CubeRuntime, Acc: CubeElement, Rd: ReduceFamily>(
     input: &CubeTensor<Run>,
     output: &CubeTensor<Run>,
     axis: &usize,
@@ -53,10 +57,12 @@ pub(crate) fn create_key<Run: CubeRuntime, Rd: ReduceFamily>(
 ) -> ReduceAutotuneKey {
     let elem_input = input.dtype.into();
     let elem_output = output.dtype.into();
+    let elem_acc = Acc::dtype().into();
 
     ReduceAutotuneKey::generate(
         elem_input,
         elem_output,
+        elem_acc,
         &input.shape.dims,
         input.strides[*axis] == 1,
         *axis,
@@ -74,6 +80,7 @@ mod reduce_ops {
         Run: CubeRuntime,
         In: CubeElement,
         Out: CubeElement,
+        Acc: CubeElement,
         Rd: ReduceFamily,
     >(
         _key: &ReduceAutotuneKey,
@@ -98,6 +105,7 @@ mod reduce_ops {
         Run: CubeRuntime,
         In: CubeElement,
         Out: CubeElement,
+        Acc: CubeElement,
         Rd: cubecl::reduce::ReduceFamily,
     >(
         input: CubeTensor<Run>,
@@ -105,7 +113,7 @@ mod reduce_ops {
         axis: usize,
         config: Rd::Config,
     ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, In, Out, Rd>(
+        cubecl::reduce::reduce::<Run, (In, Acc), Out, Rd>(
             &input.client,
             input.as_handle_ref(),
             output.as_handle_ref(),
@@ -123,6 +131,7 @@ mod reduce_ops {
         Run: CubeRuntime,
         In: CubeElement,
         Out: CubeElement,
+        Acc: CubeElement,
         Rd: cubecl::reduce::ReduceFamily,
     >(
         input: CubeTensor<Run>,
@@ -130,7 +139,7 @@ mod reduce_ops {
         axis: usize,
         config: Rd::Config,
     ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, In, Out, Rd>(
+        cubecl::reduce::reduce::<Run, (In, Acc), Out, Rd>(
             &input.client,
             input.as_handle_ref(),
             output.as_handle_ref(),
@@ -148,6 +157,7 @@ mod reduce_ops {
         Run: CubeRuntime,
         In: CubeElement,
         Out: CubeElement,
+        Acc: CubeElement,
         Rd: cubecl::reduce::ReduceFamily,
     >(
         input: CubeTensor<Run>,
@@ -155,7 +165,7 @@ mod reduce_ops {
         axis: usize,
         config: Rd::Config,
     ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, In, Out, Rd>(
+        cubecl::reduce::reduce::<Run, (In, Acc), Out, Rd>(
             &input.client,
             input.as_handle_ref(),
             output.as_handle_ref(),
@@ -173,6 +183,7 @@ mod reduce_ops {
         Run: CubeRuntime,
         In: CubeElement,
         Out: CubeElement,
+        Acc: CubeElement,
         Rd: cubecl::reduce::ReduceFamily,
     >(
         input: CubeTensor<Run>,
@@ -180,7 +191,7 @@ mod reduce_ops {
         axis: usize,
         config: Rd::Config,
     ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, In, Out, Rd>(
+        cubecl::reduce::reduce::<Run, (In, Acc), Out, Rd>(
             &input.client,
             input.as_handle_ref(),
             output.as_handle_ref(),
@@ -276,7 +287,7 @@ mod sum_ops {
     pub(crate) fn sum_chained<Run: CubeRuntime, E: CubeElement>(
         input: CubeTensor<Run>,
     ) -> Result<CubeTensor<Run>, String> {
-        crate::kernel::reduce::reduce::<Run, E, E>(
+        crate::kernel::reduce::reduce::<Run, E, E, E>(
             input,
             crate::kernel::reduce::ReduceStrategy::Autotune,
             cubecl::reduce::instructions::ReduceFnConfig::Sum,
