@@ -3,7 +3,6 @@ mod from_onnx;
 pub mod ir;
 pub mod node;
 mod node_remap;
-pub mod op_configuration;
 mod proto_conversion;
 mod protos;
 mod rank_inference;
