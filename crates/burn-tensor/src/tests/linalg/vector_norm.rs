@@ -109,4 +109,23 @@ mod tests {
             tolerance,
         );
     }
+
+    #[test]
+    fn test_normalize() {
+        let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
+
+        linalg::vector_normalize(x.clone(), 1.0, 0, 0.25)
+            .into_data()
+            .assert_eq(
+                &TestTensor::<2>::from([[1. / 4., 2. / 6.], [3. / 4., 4. / 6.]]).into_data(),
+                true,
+            );
+
+        linalg::vector_normalize(x.clone(), 1.0, 0, 5.)
+            .into_data()
+            .assert_eq(
+                &TestTensor::<2>::from([[1. / 5., 2. / 6.], [3. / 5., 4. / 6.]]).into_data(),
+                true,
+            );
+    }
 }

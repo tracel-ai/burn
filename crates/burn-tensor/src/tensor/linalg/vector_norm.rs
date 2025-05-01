@@ -45,6 +45,32 @@ where
     }
 }
 
+/// Normalize a tensor versus its `vector_norm`.
+///
+/// Equivalent to ``x.clone() / vector_norm(x, p, dim).clamp_min(eps)``.
+///
+/// # Arguments
+///
+/// * `x` - The input tensor.
+/// * `p` - The exponent of the vector norm.
+/// * `dim` - The dimension to compute the norm over.
+/// * `eps` - The epsilon for the norm.
+///
+/// # Returns
+///
+/// The normalized tensor.
+pub fn vector_normalize<B: Backend, const D: usize, K>(
+    x: Tensor<B, D, K>,
+    p: f64,
+    dim: usize,
+    eps: f64,
+) -> Tensor<B, D, K>
+where
+    K: BasicOps<B> + Numeric<B>,
+{
+    x.clone() / vector_norm(x, p, dim).clamp_min(eps)
+}
+
 /// Computes the L0 norm of a tensor along a specified dimension.
 ///
 /// This is a convenience function that wraps `vector_norm` with `p = 0.0`.
