@@ -35,17 +35,19 @@ mod tests {
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[2.], [1.]]).into_data(), true);
     }
-    
+
     #[test]
     fn test_l2_norm() {
         let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
 
-        linalg::l2_norm(x.clone(), 0)
-            .into_data()
-            .assert_eq(&TestTensor::<2>::from([[3.1622777, 4.4721359]]).into_data(), true);
-        
-        linalg::l2_norm(x.clone(), 1)
-            .into_data()
-            .assert_eq(&TestTensor::<2>::from([[2.2360679], [5.0]]).into_data(), true);
+        linalg::l2_norm(x.clone(), 0).into_data().assert_eq(
+            &TestTensor::<2>::from([[3.1622777, 4.4721359]]).into_data(),
+            true,
+        );
+
+        linalg::l2_norm(x.clone(), 1).into_data().assert_eq(
+            &TestTensor::<2>::from([[2.2360679], [5.0]]).into_data(),
+            true,
+        );
     }
 }
