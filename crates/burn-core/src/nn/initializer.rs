@@ -3,7 +3,7 @@ use crate::tensor::Shape;
 use crate::config::Config;
 use crate::module::{Param, ParamId};
 use crate::tensor::backend::Backend;
-use crate::tensor::{Distribution, Tensor};
+use crate::tensor::{Distribution, Tensor, s};
 
 use crate as burn;
 
@@ -65,6 +65,13 @@ pub enum Initializer {
     /// described in [Understanding the difficulty of training deep feedforward neural networks
     /// ](https://proceedings.mlr.press/v9/glorot10a/glorot10a.pdf)
     XavierNormal {
+        /// The gain to use in initialization formula
+        gain: f64,
+    },
+    /// Fills tensor with values according to the (semi) orthogonal initialization
+    /// described in [Exact solutions to the nonlinear dynamics of learning in deep linear neural networks`
+    ///  - Saxe, A. et al. (2013)](https://arxiv.org/abs/1312.6120)
+    Orthogonal {
         /// The gain to use in initialization formula
         gain: f64,
     },
@@ -146,6 +153,40 @@ impl Initializer {
                 let std = *gain * self.xavier_std(fan_in, fan_out);
                 normal_draw(shape, 0.0, std, device)
             }
+            Initializer::Orthogonal { gain } => {
+                // following the implementation in pytorch:
+                // https://github.com/pytorch/pytorch/blob/v2.7.0/torch/nn/init.py#L574
+
+                assert!(
+                    D >= 2,
+                    "Expected D (in Tensor<B, D>) to be greater or equal 2; (D >= 2)"
+                );
+
+                let rows: usize = shape.dims::<D>()[0];
+                let cols: usize = shape.num_elements() / rows;
+
+                let mut t: Tensor<B, 2> = normal_draw([rows, cols], 0.0, 1.0, device);
+
+                if rows < cols {
+                    t = t.transpose();
+                }
+
+                let (q, r) = qr_decomposition(t, device);
+                let [r_rows, r_cols] = r.clone().dims();
+
+                let diag_r = Tensor::<B, 2>::ones([1, r_rows], device)
+                    .matmul(Tensor::<B, 2>::eye(r_cols, device).mul(r.clone()));
+
+                let ph = diag_r.clone().sign();
+
+                let mut q = q.mul(ph);
+
+                if rows < cols {
+                    q = q.transpose();
+                }
+
+                q.reshape(shape).mul_scalar(*gain)
+            }
         }
     }
 
@@ -194,6 +235,51 @@ fn normal_draw<B: Backend, const D: usize, S: Into<Shape>>(
 ) -> Tensor<B, D> {
     let distribution = Distribution::Normal(mean, std);
     Tensor::<B, D>::random(shape, distribution, device)
+}
+
+fn qr_decomposition<B: Backend>(
+    a: Tensor<B, 2>,
+    device: &B::Device,
+) -> (Tensor<B, 2>, Tensor<B, 2>) {
+    // Calculate the QR decomposition using Gram-Schmidt-process: https://en.wikipedia.org/wiki/Gram%E2%80%93Schmidt_process
+
+    let [m, n] = a.clone().dims();
+    let mut q = Tensor::<B, 2>::zeros([m, n], device);
+    let mut r = Tensor::<B, 2>::zeros([n, n], device);
+
+    for j in 0..n {
+        let mut v: Tensor<B, 1> = a.clone().slice(s![.., j..=j]).squeeze(1);
+
+        for i in 0..j {
+            let q_i: Tensor<B, 1> = q.clone().slice(s![.., i..=i]).squeeze(1);
+            let r_ij = q_i.clone().mul(v.clone()).sum();
+
+            r = r
+                .clone()
+                .slice_assign([i..i + 1, j..j + 1], r_ij.clone().unsqueeze());
+
+            v = v - q_i.mul(r_ij);
+        }
+
+        // norm of v
+        let r_jj = v
+            .clone()
+            .powf(Tensor::from_floats([2.0], device))
+            .sum()
+            .sqrt();
+
+        r = r
+            .clone()
+            .slice_assign([j..j + 1, j..j + 1], r_jj.clone().unsqueeze());
+
+        let q_j = v / r_jj;
+
+        q = q
+            .clone()
+            .slice_assign([0..m, j..j + 1], q_j.unsqueeze_dim(1));
+    }
+
+    (q, r)
 }
 
 #[cfg(test)]
@@ -434,6 +520,91 @@ mod tests {
         let (fan_in, fan_out) = (5, 6);
         let _: Tensor<TB, 2> = Initializer::XavierUniform { gain }
             .init([fan_out, fan_in], &Default::default())
+            .into_value();
+    }
+
+    #[test]
+    fn test_qr_decomposition() {
+        TB::seed(0);
+
+        // test values follow the example from https://pytorch.org/docs/stable/generated/torch.linalg.qr.html#torch.linalg.qr
+        let a = Tensor::<TB, 2>::from_floats(
+            [[12., -51., 4.], [6., 167., -68.], [-4., 24., -41.]],
+            &Default::default(),
+        );
+        let qr = qr_decomposition(a.clone(), &Default::default());
+
+        // Q @ R should reconstruct input `a`
+        let q_matmul_r = qr.0.clone().matmul(qr.1.clone());
+
+        // assert that the difference between input (`a`) and Q @ R is (almost) zero
+        q_matmul_r
+            .into_data()
+            .assert_approx_eq::<FT>(&a.into_data(), Tolerance::rel_abs(1e-5, 1e-5));
+    }
+
+    #[test]
+    fn initializer_orthogonal_correct() {
+        TB::seed(0);
+
+        let gain = 1.;
+
+        // test 2D tensor
+        let size = 10;
+        let q: Tensor<TB, 2> = Initializer::Orthogonal { gain }
+            .init([size, size], &Default::default())
+            .into_value();
+        let eye = Tensor::<TB, 2>::eye(size, &Default::default());
+
+        // Q.T @ Q should be close to identity matrix
+        q.clone()
+            .transpose()
+            .matmul(q)
+            .into_data()
+            .assert_approx_eq::<FT>(&eye.into_data(), Tolerance::rel_abs(1e-5, 1e-5));
+    }
+
+    #[test]
+    fn initializer_orthogonal_init() {
+        TB::seed(0);
+
+        let gain = 1.;
+
+        // test 2D tensor
+        let shape = [25, 30];
+        let t: Tensor<TB, 2> = Initializer::Orthogonal { gain }
+            .init(shape, &Default::default())
+            .into_value();
+        let dims = t.dims();
+        assert_eq!(
+            shape, dims,
+            "Expected the shape of the input tensor to match the shape of the output. ({:?}, {:?})",
+            shape, dims
+        );
+
+        // test 3D tensor
+        let shape = [24, 6, 85];
+        let t: Tensor<TB, 3> = Initializer::Orthogonal { gain }
+            .init(shape, &Default::default())
+            .into_value();
+        let dims = t.dims();
+        assert_eq!(
+            shape, dims,
+            "Expected the shape of the input tensor to match the shape of the output. ({:?}, {:?})",
+            shape, dims
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn initializer_orthogonal_init_1d() {
+        TB::seed(0);
+        let gain = 1.;
+
+        // test 1D tensor
+        let shape = [3];
+        let _: Tensor<TB, 1> = Initializer::Orthogonal { gain }
+            .init(shape, &Default::default())
             .into_value();
     }
 }

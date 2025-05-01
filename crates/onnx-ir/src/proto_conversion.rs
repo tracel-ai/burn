@@ -221,7 +221,7 @@ impl TryFrom<ValueInfoProto> for Argument {
                 }
             });
 
-            // TODO DT use infered shape information
+            // TODO DT use inferred shape information
 
             let static_shape = if has_unknown_dim {
                 None
