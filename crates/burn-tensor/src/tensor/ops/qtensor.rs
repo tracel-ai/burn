@@ -89,8 +89,29 @@ macro_rules! dequant_op_flow {
     }};
 }
 
-/// Quantized Tensor API for basic operations, see [tensor](crate::Tensor)
-/// for documentation on each function.
+/// Operations on quantized tensors.
+///
+/// # Return Type Semantics
+///
+/// The return type of each operation indicates how quantization is handled:
+///
+/// ## [`QuantizedTensor<B>`]
+/// If the method returns a `QuantizedTensor<B>`, the operation is expected to preserve the quantized
+/// representation. Implementations should avoid dequantizing when possible to maintain performance.
+/// For example, shape or layout changes such as expand or transpose preserve quantization.
+///
+/// *Note: while this currently doesn't affect the quantized tensor parameters (only per-tensor is
+/// supported at the time of writing), other quantization levels (e.g., per-block) may require re-ordering
+/// the quantization parameters to match the new layout.*
+///
+///
+/// ## [`TensorPrimitive<B>`]
+/// If the method returns a `TensorPrimitive<B>` enum, the return type should align with propagation
+/// strategy specified in the quantization scheme. The output should remain quantized ([`TensorPrimitive::QFloat`])
+/// returned in floating-point form ([`TensorPrimitive::Float`]).
+///
+/// This distinction allows for fine-grained control over mixed-precision flows while still operating
+/// through a unified API.
 pub trait QTensorOps<B: Backend> {
     /// Creates a new tensor from the data structure.
     ///
