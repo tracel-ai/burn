@@ -219,7 +219,7 @@ where
                 // more sense to re-quantize the input back. Better usability.
                 //
                 // This might change in the future (dequantize on read in fusion?).
-                Self::new(B::q_matmul(B::quantize_dynamic(lhs, &rhs.scheme()), rhs))
+                Self::new(B::q_matmul(B::quantize_dynamic(lhs, rhs.scheme()), rhs))
             }
             (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
                 Self::new(TensorPrimitive::Float(B::float_matmul(lhs, rhs)))
