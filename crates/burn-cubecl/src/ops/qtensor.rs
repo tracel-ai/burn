@@ -31,13 +31,25 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
     device: &R::Device,
 ) -> CubeTensor<R> {
     let client = R::client(device);
-    let buffer = client.create(data);
+    let shape: Shape = shape.into();
+    let (data, shapes, elem_sizes) = match scheme {
+        // Just to ensure we get and error if more modes are added and unhandled
+        QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
+            let data = vec![&data[..shape.num_elements()], &data[shape.num_elements()..]];
+            let shapes = vec![shape.dims.as_slice(), &[1]];
+            let elem_sizes = vec![size_of::<i8>(), size_of::<f32>()];
+            (data, shapes, elem_sizes)
+        }
+    };
 
-    CubeTensor::new_contiguous(
+    let (handle, strides) = client.create_tensors(data, shapes, elem_sizes).remove(0);
+
+    CubeTensor::new(
         client,
+        handle,
+        shape,
         device.clone(),
-        shape.into(),
-        buffer,
+        strides,
         DType::QFloat(scheme),
     )
 }
@@ -72,7 +84,7 @@ where
         scheme: &QuantizationScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        kernel::quantization::quantize::<R, F, I>(tensor, scheme, qparams.scale)
+        kernel::quantization::quantize::<R, F>(tensor, scheme, qparams.scale)
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {

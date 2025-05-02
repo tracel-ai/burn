@@ -1,7 +1,10 @@
 use super::init_matmul_output;
 use crate::{CubeRuntime, FloatElement, tensor::CubeTensor};
-use burn_tensor::DType;
-use cubecl::linalg::matmul::{components::Quantized, kernels::MatmulLaunchError};
+use burn_tensor::{DType, quantization::QTensorPrimitive};
+use cubecl::{
+    linalg::matmul::{components::Quantized, kernels::MatmulLaunchError},
+    prelude::TensorHandleRef,
+};
 
 #[cfg(feature = "autotune")]
 use super::matmul_autotune;
@@ -43,7 +46,9 @@ pub fn matmul<R: CubeRuntime, E: FloatElement>(
                 &Default::default(),
                 client,
                 &lhs.as_handle_ref(),
+                &None,
                 &rhs.as_handle_ref(),
+                &None,
                 &out.as_handle_ref(),
             )?;
 
@@ -68,11 +73,23 @@ pub fn q_matmul<R: CubeRuntime>(
     lhs.dtype = DType::I8;
     rhs.dtype = DType::I8;
 
+    let mut lhs_scales = lhs.handle.clone().offset_start(lhs.handle.size());
+    lhs_scales.offset_end = None;
+    let mut rhs_scales = rhs.handle.clone().offset_start(rhs.handle.size());
+    rhs_scales.offset_end = None;
+
+    let lhs_scales =
+        unsafe { TensorHandleRef::from_raw_parts(&lhs_scales, &[1], &[1], size_of::<f32>()) };
+    let rhs_scales =
+        unsafe { TensorHandleRef::from_raw_parts(&rhs_scales, &[1], &[1], size_of::<f32>()) };
+
     cubecl::linalg::matmul::launch_ref::<R, (i8, half::f16, half::f16, half::f16, Quantized)>(
         &Default::default(),
         client,
         &lhs.as_handle_ref(),
+        &Some(lhs_scales),
         &rhs.as_handle_ref(),
+        &Some(rhs_scales),
         &out.as_handle_ref(),
     )?;
 

@@ -11,8 +11,6 @@ mod tests {
         let tensor_2 = QTensor::<TestBackend, 2>::int8([[12.7], [4.0], [5.0], [1.0]]);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
-        let expected =
-            TensorData::from([[18.0, 28.0, 40.0], [14.0, 23.0, 25.0], [14.0, 22.0, 30.0]]);
 
         let expected = TensorData::from([[42.05]]);
         tensor_3
