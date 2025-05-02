@@ -319,19 +319,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         super::base::swap_dims(tensor, dim1, dim2)
     }
 
-    fn int_narrow(
-        tensor: IntTensor<Self>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> IntTensor<Self> {
-        super::base::narrow(tensor, dim, start, length)
-    }
-
-    fn int_chunk(tensor: IntTensor<Self>, chunks: usize, dim: usize) -> Vec<IntTensor<Self>> {
-        super::base::chunk(tensor, chunks, dim)
-    }
-
     fn int_random(
         shape: Shape,
         distribution: Distribution,

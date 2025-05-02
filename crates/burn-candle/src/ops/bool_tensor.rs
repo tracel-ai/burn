@@ -92,19 +92,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         super::base::swap_dims(tensor, dim1, dim2)
     }
 
-    fn bool_narrow(
-        tensor: BoolTensor<Self>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> BoolTensor<Self> {
-        super::base::narrow(tensor, dim, start, length)
-    }
-
-    fn bool_chunk(tensor: BoolTensor<Self>, chunks: usize, dim: usize) -> Vec<BoolTensor<Self>> {
-        super::base::chunk(tensor, chunks, dim)
-    }
-
     fn bool_permute(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
         super::base::permute(tensor, axes)
     }

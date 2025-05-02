@@ -2,8 +2,16 @@
 
 ### Checklist
 
-- [ ] Confirmed that `run-checks all` script has been executed.
+- [ ] Confirmed that `cargo run-checks` command has been executed.
 - [ ] Made sure the book is up to date with changes in this PR.
+
+
+> [!TIP]
+> Want more detailed macro error diagnostics? This is especially useful for debugging tensor-related tests:
+>
+> ```bash
+> RUSTC_BOOTSTRAP=1 RUSTFLAGS="-Zmacro-backtrace" cargo run-checks
+> ```
 
 ### Related Issues/PRs
 

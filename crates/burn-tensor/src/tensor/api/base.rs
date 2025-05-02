@@ -14,7 +14,6 @@ use serde::{Deserialize, Deserializer};
 
 use serde::{Serialize, Serializer};
 
-use crate::tensor::api::narrow::narrow;
 use crate::{
     Bool, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check, ops::Device,
 };
@@ -1272,7 +1271,23 @@ where
     pub fn narrow(self, dim: usize, start: usize, length: usize) -> Self {
         check!(TensorCheck::dim_ops::<D>("narrow", dim));
         check!(TensorCheck::narrow(&self, dim, start, length));
-        Self::new(narrow::<B, K>(self.primitive, dim, start, length))
+        let dims = self.dims();
+
+        let ranges: [Range<usize>; D] = dims
+            .iter()
+            .enumerate()
+            .map(|(i, d)| {
+                if i == dim {
+                    start..(start + length)
+                } else {
+                    0..*d
+                }
+            })
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+
+        Self::slice(self, ranges)
     }
 
     /// Attempts to split the tensor into a specified number of chunks along a given dimension.
@@ -1317,10 +1332,32 @@ where
     /// ```
     pub fn chunk(self, chunks: usize, dim: usize) -> Vec<Self> {
         check!(TensorCheck::dim_ops::<D>("chunk", dim));
-        K::chunk(self.primitive, chunks, dim)
-            .into_iter()
-            .map(Self::new)
-            .collect()
+        let size = self.shape().dims[dim];
+        if size < chunks {
+            return (0..size)
+                .map(|i| Self::narrow(self.clone(), dim, i, 1))
+                .collect();
+        }
+
+        let mut tensors = Vec::with_capacity(chunks);
+        let mut sum_chunk_size = 0;
+        if size % chunks == 0 {
+            let chunk_size = size / chunks;
+            for _ in 0..chunks {
+                tensors.push(Self::narrow(self.clone(), dim, sum_chunk_size, chunk_size));
+                sum_chunk_size += chunk_size;
+            }
+        } else {
+            let chunk_size = (size / chunks) + 1; // assumes not divisible
+            for _ in 0..chunks - 1 {
+                tensors.push(Self::narrow(self.clone(), dim, sum_chunk_size, chunk_size));
+                sum_chunk_size += chunk_size;
+            }
+            let remainder = size % chunk_size;
+            tensors.push(Self::narrow(self.clone(), dim, sum_chunk_size, remainder));
+        }
+
+        tensors
     }
 
     /// Splits the tensor into chunks of a specified size along a given dimension.
@@ -1359,10 +1396,17 @@ where
             split_size,
             dim
         ));
-        K::split(self.primitive, split_size, dim)
-            .into_iter()
-            .map(Self::new)
-            .collect()
+        let size = self.shape().dims[dim];
+        let mut tensors = Vec::new();
+
+        let mut start = 0;
+        while start < size {
+            let length = usize::min(split_size, size - start);
+            tensors.push(Self::narrow(self.clone(), dim, start, length));
+            start += length;
+        }
+
+        tensors
     }
 
     /// Splits the tensor into chunks with the specified sizes along a given dimension.
@@ -1402,10 +1446,18 @@ where
             &split_sizes,
             dim
         ));
-        K::split_with_sizes(self.primitive, split_sizes, dim)
-            .into_iter()
-            .map(Self::new)
-            .collect()
+        let mut tensors = Vec::new();
+
+        let mut start = 0;
+        for length in split_sizes {
+            if length == 0 {
+                continue;
+            }
+            tensors.push(Self::narrow(self.clone(), dim, start, length));
+            start += length;
+        }
+
+        tensors
     }
 
     /// Tests if any element in the `tensor` evaluates to True.
@@ -2260,77 +2312,6 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// which is more high-level and designed for public use.
     fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive;
 
-    /// Attempts to split the tensor along the given dimension into chunks.
-    /// May return less chunks than requested if the tensor size is not divisible by the number of chunks.
-    ///
-    /// When the given dimension is evenly divisible by the number of chunks, the chunks will be of equal size.
-    /// Otherwise all chunks will be of equal size except for the last one.
-    ///
-    /// # Panics
-    ///
-    ///  If the dimension is greater than the number of dimensions of the tensor.
-    ///
-    /// # Returns
-    /// A vector of tensors.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// To chunk a tensor, users should prefer the [Tensor::chunk](Tensor::chunk) function,
-    /// which is more high-level and designed for public use.
-    fn chunk(tensor: Self::Primitive, chunks: usize, dim: usize) -> Vec<Self::Primitive>;
-
-    /// Splits the tensor into chunks of a specified size along a given dimension.
-    /// Each chunk is a view of the original tensor.
-    ///
-    /// # Panics
-    ///
-    /// If the dimension to split along is greater than the number of dimensions of the tensor.
-    ///
-    /// # Returns
-    ///
-    /// A vector of tensors.
-    ///
-    /// # Remarks
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// To split a tensor, users should prefer the [Tensor::split](Tensor::split) function,
-    /// which is more high-level and designed for public use.
-    fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive>;
-
-    /// Splits the tensor into chunks with the specified sizes along a given dimension.
-    /// Each chunk is a view of the original tensor.
-    ///
-    /// The sizes of the chunks are specified in the `split_sizes` vector. The sum of the sizes
-    /// in `split_sizes` must equal the size of the tensor along the specified dimension.
-    ///
-    /// # Panics
-    ///
-    /// If the dimension to split along is greater than the number of dimensions of the tensor or
-    /// if the sum of `dim_sizes` does not equal the size of the tensor along `dim`.
-    ///
-    /// # Returns
-    ///
-    /// A vector of tensors.
-    ///
-    /// # Remarks
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// To split a tensor, users should prefer the [Tensor::split_with_sizes](Tensor::split_with_sizes) function,
-    /// which is more high-level and designed for public use.
-    fn split_with_sizes(
-        tensor: Self::Primitive,
-        split_sizes: Vec<usize>,
-        dim: usize,
-    ) -> Vec<Self::Primitive>;
-
     /// Equates the given tensors.
     ///
     /// # Arguments
@@ -2523,15 +2504,11 @@ impl<B: Backend> BasicOps<B> for Float {
         ranges: &[Range<usize>],
         value: Self::Primitive,
     ) -> Self::Primitive {
-        match (tensor, value) {
-            (TensorPrimitive::Float(tensor), TensorPrimitive::Float(value)) => {
-                TensorPrimitive::Float(B::float_slice_assign(tensor, ranges, value))
-            }
-            (TensorPrimitive::QFloat(tensor), TensorPrimitive::QFloat(value)) => {
-                TensorPrimitive::QFloat(B::q_slice_assign(tensor, ranges, value))
-            }
-            _ => panic!("Primitive type mismatch for tensor and value"),
-        }
+        TensorPrimitive::Float(B::float_slice_assign(
+            tensor.tensor(),
+            ranges,
+            value.tensor(),
+        ))
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {
@@ -2654,49 +2631,6 @@ impl<B: Backend> BasicOps<B> for Float {
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_flip(tensor, axes)),
         }
     }
-
-    fn chunk(tensor: Self::Primitive, chunks: usize, dim: usize) -> Vec<Self::Primitive> {
-        match tensor {
-            TensorPrimitive::Float(tensor) => B::float_chunk(tensor, chunks, dim)
-                .into_iter()
-                .map(TensorPrimitive::Float)
-                .collect(),
-            TensorPrimitive::QFloat(tensor) => B::q_chunk(tensor, chunks, dim)
-                .into_iter()
-                .map(TensorPrimitive::QFloat)
-                .collect(),
-        }
-    }
-
-    fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive> {
-        match tensor {
-            TensorPrimitive::Float(tensor) => B::float_split(tensor, split_size, dim)
-                .into_iter()
-                .map(TensorPrimitive::Float)
-                .collect(),
-            TensorPrimitive::QFloat(tensor) => B::q_split(tensor, split_size, dim)
-                .into_iter()
-                .map(TensorPrimitive::QFloat)
-                .collect(),
-        }
-    }
-
-    fn split_with_sizes(
-        tensor: Self::Primitive,
-        split_sizes: Vec<usize>,
-        dim: usize,
-    ) -> Vec<Self::Primitive> {
-        match tensor {
-            TensorPrimitive::Float(tensor) => B::float_split_with_sizes(tensor, split_sizes, dim)
-                .into_iter()
-                .map(TensorPrimitive::Float)
-                .collect(),
-            TensorPrimitive::QFloat(tensor) => B::q_split_with_sizes(tensor, split_sizes, dim)
-                .into_iter()
-                .map(TensorPrimitive::QFloat)
-                .collect(),
-        }
-    }
 }
 
 impl<B: Backend> BasicOps<B> for Int {
@@ -2801,22 +2735,6 @@ impl<B: Backend> BasicOps<B> for Int {
     fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
         B::int_flip(tensor, axes)
     }
-
-    fn chunk(tensor: Self::Primitive, chunks: usize, dim: usize) -> Vec<Self::Primitive> {
-        B::int_chunk(tensor, chunks, dim)
-    }
-
-    fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive> {
-        B::int_split(tensor, split_size, dim)
-    }
-
-    fn split_with_sizes(
-        tensor: Self::Primitive,
-        split_sizes: Vec<usize>,
-        dim: usize,
-    ) -> Vec<Self::Primitive> {
-        B::int_split_with_sizes(tensor, split_sizes, dim)
-    }
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
@@ -2920,22 +2838,6 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
         B::bool_flip(tensor, axes)
-    }
-
-    fn chunk(tensor: Self::Primitive, chunks: usize, dim: usize) -> Vec<Self::Primitive> {
-        B::bool_chunk(tensor, chunks, dim)
-    }
-
-    fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive> {
-        B::bool_split(tensor, split_size, dim)
-    }
-
-    fn split_with_sizes(
-        tensor: Self::Primitive,
-        split_sizes: Vec<usize>,
-        dim: usize,
-    ) -> Vec<Self::Primitive> {
-        B::bool_split_with_sizes(tensor, split_sizes, dim)
     }
 }
 

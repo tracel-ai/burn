@@ -1,7 +1,7 @@
 #[cfg(feature = "autotune")]
 use super::{autotune_reduce, autotune_sum};
 use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
-use burn_tensor::Shape;
+use burn_tensor::{DType, Shape};
 pub use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
 use cubecl::reduce::{
     instructions::{ReduceFn, ReduceFnConfig},
@@ -35,9 +35,18 @@ pub fn sum<Run: CubeRuntime, E: CubeElement>(
 
             Ok(output)
         }
-        SumStrategy::Chained(strategy) => {
-            reduce::<Run, E, E>(tensor, strategy, ReduceFnConfig::Sum)
-        }
+        SumStrategy::Chained(strategy) => match E::dtype() {
+            DType::F16 | DType::BF16 => {
+                reduce::<Run, E, E, f32>(tensor, strategy, ReduceFnConfig::Sum)
+            }
+            DType::I8 | DType::I16 => {
+                reduce::<Run, E, E, i32>(tensor, strategy, ReduceFnConfig::Sum)
+            }
+            DType::U8 | DType::U16 => {
+                reduce::<Run, E, E, u32>(tensor, strategy, ReduceFnConfig::Sum)
+            }
+            _ => reduce::<Run, E, E, E>(tensor, strategy, ReduceFnConfig::Sum),
+        },
         #[cfg(feature = "autotune")]
         SumStrategy::Autotune => Ok(autotune_sum::<Run, E>(&client, tensor)),
     }
@@ -71,7 +80,7 @@ impl Default for SumStrategy {
 ///
 /// If there is no error, the output is a tensor with decreasing strides
 /// where the shape of reduced dim is set to 1 but all shape are similar to the input.
-pub fn reduce<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
+pub fn reduce<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: CubeElement>(
     mut tensor: CubeTensor<Run>,
     strategy: ReduceStrategy,
     config: ReduceFnConfig,
@@ -80,7 +89,7 @@ pub fn reduce<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
     // and going in increasing order lead to the fastest calculation.
     let sorted_axis = argsort(&tensor.shape.dims);
     for axis in sorted_axis {
-        tensor = reduce_dim::<Run, In, Out>(tensor, axis, strategy, config)?;
+        tensor = reduce_dim::<Run, In, Out, Acc>(tensor, axis, strategy, config)?;
     }
     // reshape to scalar tensor
     tensor.shape = Shape::new([1]);
@@ -101,7 +110,7 @@ fn argsort(shape: &[usize]) -> Vec<usize> {
 ///
 /// If there is no error, the output is a tensor with decreasing strides
 /// where the shape of reduced dim is set to 1 but all shape are similar to the input.
-pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
+pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: CubeElement>(
     input: CubeTensor<Run>,
     dim: usize,
     strategy: ReduceStrategy,
@@ -115,7 +124,7 @@ pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
         },
     )?;
     let result = match strategy {
-        ReduceStrategy::Unspecified => cubecl::reduce::reduce::<Run, In, Out, ReduceFn>(
+        ReduceStrategy::Unspecified => cubecl::reduce::reduce::<Run, (In, Acc), Out, ReduceFn>(
             &client,
             input.as_handle_ref(),
             output.as_handle_ref(),
@@ -123,17 +132,25 @@ pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
             None,
             config,
         ),
-        ReduceStrategy::Specific(strategy) => cubecl::reduce::reduce::<Run, In, Out, ReduceFn>(
-            &client,
-            input.as_handle_ref(),
-            output.as_handle_ref(),
-            dim,
-            Some(strategy),
-            config,
-        ),
+        ReduceStrategy::Specific(strategy) => {
+            cubecl::reduce::reduce::<Run, (In, Acc), Out, ReduceFn>(
+                &client,
+                input.as_handle_ref(),
+                output.as_handle_ref(),
+                dim,
+                Some(strategy),
+                config,
+            )
+        }
         #[cfg(feature = "autotune")]
         ReduceStrategy::Autotune => {
-            autotune_reduce::<Run, In, Out, ReduceFn>(&client, input, output.clone(), dim, config);
+            autotune_reduce::<Run, In, Out, Acc, ReduceFn>(
+                &client,
+                input,
+                output.clone(),
+                dim,
+                config,
+            );
             Ok(())
         }
     };

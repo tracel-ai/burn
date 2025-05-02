@@ -340,26 +340,6 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
         TchOps::swap_dims(tensor, dim1, dim2)
     }
 
-    fn int_narrow(tensor: TchTensor, dim: usize, start: usize, length: usize) -> TchTensor {
-        TchOps::narrow(tensor, dim, start, length)
-    }
-
-    fn int_chunk(tensor: TchTensor, chunks: usize, dim: usize) -> Vec<TchTensor> {
-        TchOps::chunk(tensor, chunks, dim)
-    }
-
-    fn int_split(tensor: TchTensor, split_size: usize, dim: usize) -> Vec<TchTensor> {
-        TchOps::split(tensor, split_size, dim)
-    }
-
-    fn int_split_with_sizes(
-        tensor: TchTensor,
-        split_sizes: Vec<usize>,
-        dim: usize,
-    ) -> Vec<TchTensor> {
-        TchOps::split_with_sizes(tensor, split_sizes, dim)
-    }
-
     fn int_random(shape: Shape, distribution: Distribution, device: &LibTorchDevice) -> TchTensor {
         match distribution {
             Distribution::Default => {

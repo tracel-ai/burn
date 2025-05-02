@@ -12,9 +12,14 @@ There are a few commands you will want to run prior to any commit for a non-draf
 2. `cargo clippy --fix` will run [Clippy](https://github.com/rust-lang/rust-clippy) and fix any
    coding issues it can. Clippy necessitates to be in a clean Git state, but this can be
    circumvented by adding the `--allow-dirty` flag.
-3. `cargo xtask check all` is a script located in the project root that builds and tests the
-   project. It is required to run successfully prior to merging a PR. Fair warning, running these
-   tests can take a while[^linux_mem_note].
+3. `cargo run-checks` is a command used to test the project. It is required to run successfully
+   prior to merging a PR. Fair warning, running these tests can take a while[^linux_mem_note].
+
+   > Want more detailed macro error diagnostics? This is especially useful for debugging tensor-related tests:
+   >
+   > ```bash
+   > RUSTC_BOOTSTRAP=1 RUSTFLAGS="-Zmacro-backtrace" cargo run-checks
+   > ```
 
 ## Updating the burn semver version
 
@@ -34,14 +39,16 @@ Alternatively, if you want to install mdbook directly, run the following command
 cargo install mdbook
 ```
 
-Also instead of running `cargo xtask check all`, you can run `cargo xtask check typos` to
-only check for misspellings. This will install [typo](https://crates.io/crates/typos-cli), and if
-any are encountered you should be able to run `typo -w /path/to/book` to fix them.
+Also instead of running `cargo run-checks`, you can run `cargo xtask check typos` to only check
+for misspellings. This will install [typo](https://crates.io/crates/typos-cli), and if any are
+encountered you should be able to run `typo -w /path/to/book` to fix them.
 
-[^linux_mem_note]: If your system is running into issues with memory and you are on linux, you may want to switch
+[^linux_mem_note]:
+    If your system is running into issues with memory and you are on linux, you may want to switch
     to a [virtual console](https://wiki.archlinux.org/title/Linux_console#Virtual_consoles) to run
     the tests. To do this, press `ctrl+alt+f3` to switch to a virtual console (and log in), and
     either `ctrl+alt+f1` or `ctrl+alt+f2` to switch back to your graphical session.
 
-[^update_note]: You might also want to install [cargo-update](https://github.com/nabijaczleweli/cargo-update) to
+[^update_note]:
+    You might also want to install [cargo-update](https://github.com/nabijaczleweli/cargo-update) to
     easily keep your tools up to date, though it is in no way required.

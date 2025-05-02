@@ -80,31 +80,6 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_swap_dims(tensor, dim1, dim2)
     }
 
-    fn bool_narrow(
-        tensor: BoolTensor<B>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> BoolTensor<B> {
-        B::bool_narrow(tensor, dim, start, length)
-    }
-
-    fn bool_chunk(tensor: BoolTensor<B>, chunks: usize, dim: usize) -> Vec<BoolTensor<B>> {
-        B::bool_chunk(tensor, chunks, dim)
-    }
-
-    fn bool_split(tensor: BoolTensor<B>, split_size: usize, dim: usize) -> Vec<BoolTensor<B>> {
-        B::bool_split(tensor, split_size, dim)
-    }
-
-    fn bool_split_with_sizes(
-        tensor: BoolTensor<B>,
-        split_sizes: Vec<usize>,
-        dim: usize,
-    ) -> Vec<BoolTensor<B>> {
-        B::bool_split_with_sizes(tensor, split_sizes, dim)
-    }
-
     fn bool_permute(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
         B::bool_permute(tensor, axes)
     }
@@ -115,10 +90,6 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
 
     async fn bool_argwhere(tensor: BoolTensor<B>) -> IntTensor<B> {
         B::bool_argwhere(tensor).await
-    }
-
-    async fn bool_nonzero(tensor: BoolTensor<B>) -> Vec<IntTensor<B>> {
-        B::bool_nonzero(tensor).await
     }
 
     fn bool_expand(tensor: BoolTensor<B>, shape: Shape) -> BoolTensor<B> {
