@@ -25,9 +25,9 @@ See the image online, click the link below:
 https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row=15
 ```
 
-### SafeTensors
+### Safetensors
 
-Imports weights from a SafeTensors file.
+Imports weights from a Safetensors file.
 
 ```bash
 cargo run --bin safetensors -- <image_index>
@@ -37,7 +37,7 @@ Example:
 ```bash
 cargo run --bin safetensors -- 42
 
-Loading SafeTensors model weights from file: weights/mnist.safetensors
+Loading Safetensors model weights from file: weights/mnist.safetensors
 Image index: 42
 Success!
 Predicted: 4
@@ -48,7 +48,7 @@ https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row=42
 
 ### Convert
 
-Converts between different weight formats (PyTorch or SafeTensors) to Burn's native MessagePack format.
+Converts between different weight formats (PyTorch or Safetensors) to Burn's native MessagePack format.
 
 ```bash
 cargo run --bin convert -- <format> <output_directory>
@@ -67,11 +67,11 @@ Saving model record to '/tmp/burn-convert/mnist.mpk'...
 Model record successfully saved to '/tmp/burn-convert/mnist.mpk'.
 ```
 
-Example with SafeTensors:
+Example with Safetensors:
 ```bash
 cargo run --bin convert -- safetensors /tmp/burn-convert
 
-Loading SafeTensors weights from 'weights/mnist.safetensors'...
+Loading Safetensors weights from 'weights/mnist.safetensors'...
 Saving model record to '/tmp/burn-convert/mnist.mpk'...
 Model record successfully saved to '/tmp/burn-convert/mnist.mpk'.
 ```
@@ -105,19 +105,19 @@ https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row=35
 
 - `src/bin/`: Contains all example binaries
   - `pytorch.rs`: Example for importing PyTorch weights
-  - `safetensors.rs`: Example for importing SafeTensors weights
+  - `safetensors.rs`: Example for importing Safetensors weights
   - `convert.rs`: Example for converting between weight formats
   - `namedmpk.rs`: Example for using named MessagePack files
 - `src/model.rs`: Defines the model architecture
 - `src/inference.rs`: Contains the inference logic
 - `weights/`: Contains pre-trained model weights
   - `mnist.pt`: PyTorch model weights
-  - `mnist.safetensors`: SafeTensors model weights
+  - `mnist.safetensors`: Safetensors model weights
 
 ## Workflow
 
 A typical workflow using these examples:
 
-1. Start with pre-trained weights in either PyTorch or SafeTensors format
+1. Start with pre-trained weights in either PyTorch or Safetensors format
 2. Use the `convert` example to convert to Burn's native format
 3. Load and use the converted model with the `namedmpk` example

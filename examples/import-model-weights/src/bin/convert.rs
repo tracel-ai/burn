@@ -1,6 +1,6 @@
 //! # Model Weight Converter
 //!
-//! This tool converts model weights from PyTorch or SafeTensors format into
+//! This tool converts model weights from PyTorch or Safetensors format into
 //! Burn's native Named MessagePack format (.mpk).
 //!
 //! ## Usage
@@ -19,13 +19,13 @@
 //! # Convert from PyTorch format
 //! cargo run --bin convert -- pytorch /tmp/burn-convert
 //!
-//! # Convert from SafeTensors format
+//! # Convert from Safetensors format
 //! cargo run --bin convert -- safetensors /tmp/burn-convert
 //! ```
 //!
 //! ## Features
 //!
-//! - Supports PyTorch (.pt) and SafeTensors (.safetensors) input formats
+//! - Supports PyTorch (.pt) and Safetensors (.safetensors) input formats
 //! - Converts to Burn's native MPK format for efficient loading
 //! - Preserves full precision of the original weights
 //! - Creates a file named `mnist.mpk` in the specified output directory
@@ -85,14 +85,14 @@ pub fn main() {
         }
         "safetensors" => {
             println!(
-                "Loading SafeTensors weights from '{}'...",
+                "Loading Safetensors weights from '{}'...",
                 SAFETENSORS_WEIGHTS_PATH
             );
             SafetensorsFileRecorder::<FullPrecisionSettings>::default()
                 .load(SAFETENSORS_WEIGHTS_PATH.into(), &device)
                 .unwrap_or_else(|err| {
                     eprintln!(
-                        "Error: Failed to load SafeTensors model weights from '{}': {}",
+                        "Error: Failed to load Safetensors model weights from '{}': {}",
                         SAFETENSORS_WEIGHTS_PATH, err
                     );
                     process::exit(1);

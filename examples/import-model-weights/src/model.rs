@@ -15,7 +15,7 @@
 //! - Methods for initializing models and loading weights from records
 //!
 //! The model architecture is compatible with weights imported from PyTorch
-//! and SafeTensors formats, which can be loaded using the appropriate recorder.
+//! and Safetensors formats, which can be loaded using the appropriate recorder.
 
 use burn::{
     nn::{

@@ -5,7 +5,7 @@
 //! examples for:
 //!
 //! - Loading PyTorch `.pt` weights directly
-//! - Loading SafeTensors `.safetensors` weights directly
+//! - Loading Safetensors `.safetensors` weights directly
 //! - Converting between formats
 //! - Using Burn's native named MessagePack format
 //!
@@ -17,7 +17,7 @@
 //! ## Example Binaries
 //!
 //! - `pytorch`: Demo for importing PyTorch weights
-//! - `safetensors`: Demo for importing SafeTensors weights
+//! - `safetensors`: Demo for importing Safetensors weights
 //! - `convert`: Tool for converting between weight formats
 //! - `namedmpk`: Demo for using Burn's native format
 //!
