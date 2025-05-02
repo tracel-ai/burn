@@ -1,17 +1,13 @@
 use std::str::FromStr;
 
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorType, ToTokens, Type};
-use burn::config::Config;
+use crate::{
+    burn::{Scope, TensorType, ToTokens, Type},
+    onnx::op_configuration::PadConfig,
+};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
-
-#[derive(Config, Debug)]
-pub struct PadConfig {
-    pub pads: Vec<usize>,
-    pub constant_value: f32,
-}
 
 #[derive(Debug, Clone, new)]
 pub struct PadNode {

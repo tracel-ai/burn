@@ -1,12 +1,32 @@
-// TODO Move op_configuration.rs from burn-import to onnx-ir #3091
-// See https://github.com/tracel-ai/burn/issues/3091
+//! This file contains the configuration structs and functions for various ONNX operations.
 
-use crate::burn::node::{
-    expand::ExpandShape, pad::PadConfig, split::SplitConfig, tile::TileConfig, top_k::TopKConfig,
-    trilu::TriluConfig, unsqueeze::UnsqueezeAxes,
-};
-use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node, TensorData};
+// use crate::burn::Type;
+use onnx_ir::ir::{ArgType, Argument, AttributeValue, Data, ElementType, Node, TensorData};
 
+use crate::burn::Type;
+
+/// Configuration for the Pad operation.
+#[derive(Debug, Clone, new)]
+pub struct PadConfig {
+    /// The paddings to be applied to each dimension.
+    pub pads: Vec<usize>,
+    /// The constant value to fill the padded areas with.
+    pub constant_value: f32,
+}
+
+/// Shape information for the Expand operation.
+#[derive(Debug, Clone)]
+pub enum ExpandShape {
+    /// Static shape information known at compile time.
+    Static(Vec<i64>),
+    /// Runtime shape that will be determined during execution.
+    Runtime(Argument),
+}
+
+/// Creates an ExpandShape configuration from the given Node.
+///
+/// Extracts shape information from the node's second input to determine
+/// whether to use static or runtime shape expansion.
 pub fn expand_config(node: &Node) -> ExpandShape {
     match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {
@@ -29,7 +49,7 @@ pub fn expand_config(node: &Node) -> ExpandShape {
         }) => ExpandShape::Static(shape.clone()),
         None => {
             // we were unable to statically determine the input value, so we'll need to fetch it at runtime
-            ExpandShape::Runtime(crate::burn::Type::from(&node.inputs[1]))
+            ExpandShape::Runtime(node.inputs[1].clone())
         }
         _ => panic!(
             "Shape data type must be int64, is {:?}",
@@ -38,7 +58,34 @@ pub fn expand_config(node: &Node) -> ExpandShape {
     }
 }
 
-/// Create a TileConfig from the attributes of the node
+/// Configuration for the Split operation.
+#[derive(Clone, Debug, new)]
+pub struct SplitConfig {
+    /// The axis along which to split the input tensor.
+    pub axis: usize,
+    /// The uniform size of each split when splitting evenly.
+    pub split_size: Option<usize>,
+    /// Custom sizes for each split when splitting unevenly.
+    pub split_sizes: Option<Vec<usize>>,
+}
+
+/// Configuration for the Tile operation.
+#[derive(Debug, Clone, new)]
+pub struct TileConfig {
+    /// The number of times to repeat each dimension.
+    pub repeats: Vec<usize>,
+}
+
+/// Axes specification for the Unsqueeze operation.
+#[derive(Debug, Clone, new)]
+pub enum UnsqueezeAxes {
+    /// Static axes known at compile time.
+    Static(Vec<i64>),
+    /// Runtime axes that will be determined during execution.
+    Runtime(Type),
+}
+
+/// Creates a TileConfig from the node attributes and inputs.
 pub fn tile_config(node: &Node) -> TileConfig {
     let repeat = node
         .inputs
@@ -58,9 +105,18 @@ pub fn tile_config(node: &Node) -> TileConfig {
     TileConfig::new(repeat)
 }
 
-/// Create a TopKConfig from the attributes of the node.
+/// Configuration for the TopK operation.
+#[derive(Debug, Clone, new)]
+pub struct TopKConfig {
+    /// The axis along which to perform the top-k selection.
+    pub axis: usize,
+    /// The number of top elements to select.
+    pub k: usize,
+}
+
+/// Creates a TopKConfig from the node attributes and inputs.
 pub fn top_k_config(node: &Node) -> TopKConfig {
-    // extract the shape of the input data tensor
+    // Extract the shape of the input data tensor
     let data_tensor = match node.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
@@ -86,7 +142,7 @@ pub fn top_k_config(node: &Node) -> TopKConfig {
         None => -1,
     };
 
-    // if axis is negative, it is counted from the end
+    // If axis is negative, it is counted from the end
     if axis < 0 {
         axis += data_tensor.rank as i64;
     }
@@ -106,7 +162,16 @@ pub fn top_k_config(node: &Node) -> TopKConfig {
     TopKConfig::new(axis as usize, k as usize)
 }
 
-/// Create a TriluConfig from the attributes of the node
+/// Configuration for the Trilu operation.
+#[derive(Debug, Clone, new)]
+pub struct TriluConfig {
+    /// Whether to return the upper triangular matrix.
+    pub upper: bool,
+    /// The diagonal offset.
+    pub diagonal: i64,
+}
+
+/// Creates a TriluConfig from the node attributes and inputs.
 pub fn trilu_config(node: &Node) -> TriluConfig {
     let mut upper = true;
     let mut diagonal = 0;
@@ -129,7 +194,7 @@ pub fn trilu_config(node: &Node) -> TriluConfig {
     TriluConfig::new(upper, diagonal)
 }
 
-/// Create a PadConfig from the attributes of the node
+/// Creates a PadConfig from the node attributes and inputs.
 pub fn pad_config(node: &Node) -> PadConfig {
     fn get_pads_input(node: &Node) -> Vec<i64> {
         match &node.inputs[1].value {
@@ -150,7 +215,7 @@ pub fn pad_config(node: &Node) -> PadConfig {
             _ => panic!("Pad: Only tensor input is valid"),
         };
 
-        //TODO : handle more possible attributes
+        // TODO: Handle more possible attributes
         let mut pads: Vec<usize> = get_pads_input(node)
             .into_iter()
             .map(|x| x as usize)
@@ -215,7 +280,7 @@ pub fn pad_config(node: &Node) -> PadConfig {
         vec![left, right, top, bottom]
     }
     fn get_constant_value(node: &Node) -> f32 {
-        // TODO: support int, boolean
+        // TODO: Support int, boolean
         let mut constant_value = node.inputs
                 .get(2)
                 .and_then(|input| match &input.value.as_ref().expect("Value input must be present").data {
@@ -250,8 +315,10 @@ pub fn pad_config(node: &Node) -> PadConfig {
     PadConfig::new(pads, constant_value)
 }
 
-//Note this function should only execute if the second input is a constant
-//if it wasn't and the output shape was known, unsqueeze has been remapped to reshape
+/// Creates UnsqueezeAxes configuration from the node attributes.
+///
+/// Note: This function should only execute if the second input is a constant.
+/// If it wasn't and the output shape was known, unsqueeze has been remapped to reshape.
 pub fn unsqueeze_config(node: &Node) -> UnsqueezeAxes {
     // Check if axes attribute exists
     for (key, value) in node.attrs.iter() {
@@ -285,6 +352,7 @@ pub fn unsqueeze_config(node: &Node) -> UnsqueezeAxes {
     }
 }
 
+/// Creates a SplitConfig from the node attributes and inputs.
 pub fn split_config(node: &Node) -> SplitConfig {
     // Initialize the axis to split along (default is 0 as per ONNX specification)
     let mut axis: i64 = 0;

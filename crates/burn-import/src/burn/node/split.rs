@@ -1,16 +1,9 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
-use burn::config::Config;
+use crate::onnx::op_configuration::SplitConfig;
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
-
-#[derive(Config, Debug)]
-pub struct SplitConfig {
-    pub axis: usize,
-    pub split_size: Option<usize>,
-    pub split_sizes: Option<Vec<usize>>,
-}
 
 #[derive(Debug, Clone, new)]
 pub struct SplitNode {

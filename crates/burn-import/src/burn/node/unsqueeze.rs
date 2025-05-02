@@ -1,5 +1,8 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, Scope, TensorType, ToTokens, Type};
+use crate::{
+    burn::{BurnImports, Scope, TensorType, ToTokens, Type},
+    onnx::op_configuration::UnsqueezeAxes,
+};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -9,12 +12,6 @@ pub struct UnsqueezeNode {
     pub input: Type,
     pub output: TensorType,
     pub axes: UnsqueezeAxes,
-}
-
-#[derive(Debug, Clone)]
-pub enum UnsqueezeAxes {
-    Static(Vec<i64>),
-    Runtime(Type),
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {

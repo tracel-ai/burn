@@ -1,15 +1,11 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorType, ToTokens, Type};
-use burn::config::Config;
+use crate::{
+    burn::{Scope, TensorType, ToTokens, Type},
+    onnx::op_configuration::TriluConfig,
+};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
-
-#[derive(Config, Debug)]
-pub struct TriluConfig {
-    pub upper: bool,
-    pub diagonal: i64,
-}
 
 #[derive(Debug, Clone, new)]
 pub struct TriluNode {
