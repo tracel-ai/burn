@@ -104,26 +104,6 @@ impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
         TchOps::swap_dims(tensor, dim1, dim2)
     }
 
-    fn bool_narrow(tensor: TchTensor, dim: usize, start: usize, length: usize) -> TchTensor {
-        TchOps::narrow(tensor, dim, start, length)
-    }
-
-    fn bool_chunk(tensor: TchTensor, chunks: usize, dim: usize) -> Vec<TchTensor> {
-        TchOps::chunk(tensor, chunks, dim)
-    }
-
-    fn bool_split(tensor: TchTensor, split_size: usize, dim: usize) -> Vec<TchTensor> {
-        TchOps::split(tensor, split_size, dim)
-    }
-
-    fn bool_split_with_sizes(
-        tensor: TchTensor,
-        split_sizes: Vec<usize>,
-        dim: usize,
-    ) -> Vec<TchTensor> {
-        TchOps::split_with_sizes(tensor, split_sizes, dim)
-    }
-
     fn bool_permute(tensor: TchTensor, axes: &[usize]) -> TchTensor {
         TchOps::permute(tensor, axes)
     }
@@ -134,17 +114,6 @@ impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
 
     async fn bool_argwhere(tensor: TchTensor) -> TchTensor {
         TchTensor::new(tensor.tensor.argwhere())
-    }
-
-    async fn bool_nonzero(tensor: TchTensor) -> Vec<TchTensor> {
-        tensor
-            .tensor
-            .nonzero_numpy()
-            .into_iter()
-            // As opposed to tch, the resulting vector should be empty for zero tensors
-            .filter_map(|t| if t.numel() > 0 { Some(t) } else { None })
-            .map(TchTensor::new)
-            .collect()
     }
 
     fn bool_expand(tensor: TchTensor, shape: Shape) -> TchTensor {

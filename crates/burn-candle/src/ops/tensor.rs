@@ -431,19 +431,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.recip().unwrap())
     }
 
-    fn float_narrow(
-        tensor: FloatTensor<Self>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> FloatTensor<Self> {
-        super::base::narrow(tensor, dim, start, length)
-    }
-
-    fn float_chunk(tensor: FloatTensor<Self>, chunks: usize, dim: usize) -> Vec<FloatTensor<Self>> {
-        super::base::chunk(tensor, chunks, dim)
-    }
-
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         //broadcast_pow is in main but not yet published
         //note: probably replace once pow once 0.3.3 is out

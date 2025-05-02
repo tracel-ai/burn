@@ -1,5 +1,5 @@
 use crate::{Bool, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend};
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 use crate::try_read_sync;
 
@@ -67,10 +67,18 @@ where
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension.
     pub async fn nonzero_async(self) -> Vec<Tensor<B, 1, Int>> {
-        B::bool_nonzero(self.primitive)
-            .await
+        let indices = self.argwhere();
+
+        if indices.shape().num_elements() == 0 {
+            // Return empty vec when all elements are zero
+            return vec![];
+        }
+
+        let dims = indices.shape().dims;
+        indices
+            .chunk(dims[1], 1)
             .into_iter()
-            .map(Tensor::new)
+            .map(|t| t.reshape(Shape::new([dims[0]])))
             .collect()
     }
 
