@@ -125,9 +125,12 @@ mod tests {
                 UnfoldOptions::new(self.stride, self.padding, self.dilation),
             );
 
+            let tolerance = Tolerance::rel_abs(1e-5, 1e-5)
+                .set_half_precision_relative(2e-3)
+                .set_half_precision_absolute(2e-3);
             output
                 .into_data()
-                .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::default());
+                .assert_approx_eq::<FT>(&expected.into_data(), tolerance);
         }
     }
 }

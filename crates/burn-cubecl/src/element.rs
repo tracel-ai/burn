@@ -2,6 +2,7 @@ use cubecl::{
     CubeElement as CubeElem, flex32,
     linalg::matmul::components::MatmulPrecision,
     prelude::{Float, Int, Numeric},
+    reduce::ReducePrecision,
 };
 
 /// The base element trait for the jit backend.
@@ -16,7 +17,10 @@ pub trait FloatElement:
 }
 
 /// The int element type for the jit backend.
-pub trait IntElement: CubeElement + Int {}
+pub trait IntElement:
+    CubeElement + Int + ReducePrecision<EI: CubeElement, EA: CubeElement>
+{
+}
 
 /// The element type for booleans for the jit backend.
 pub trait BoolElement: CubeElement + Int {

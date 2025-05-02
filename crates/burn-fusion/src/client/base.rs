@@ -37,7 +37,7 @@ where
         self,
         tensor: TensorIr,
         stream: StreamId,
-    ) -> impl Future<Output = TensorData> + Send + 'static
+    ) -> impl Future<Output = TensorData> + Send
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by an int tensor.
@@ -45,7 +45,7 @@ where
         self,
         tensor: TensorIr,
         stream: StreamId,
-    ) -> impl Future<Output = TensorData> + Send + 'static
+    ) -> impl Future<Output = TensorData> + Send
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by a bool tensor.
@@ -53,7 +53,7 @@ where
         self,
         tensor: TensorIr,
         stream: StreamId,
-    ) -> impl Future<Output = TensorData> + Send + 'static
+    ) -> impl Future<Output = TensorData> + Send
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by a quantized tensor.
@@ -61,7 +61,7 @@ where
         self,
         tensor: TensorIr,
         streams: StreamId,
-    ) -> impl Future<Output = TensorData> + Send + 'static
+    ) -> impl Future<Output = TensorData> + Send
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Resolve the given float tensor to a primitive tensor.

@@ -37,7 +37,7 @@ pub trait TransactionOps<B: Backend> {
     /// [result](TransactionPrimitiveResult).
     fn tr_execute(
         transaction: TransactionPrimitive<B>,
-    ) -> impl Future<Output = TransactionPrimitiveResult> + 'static + Send {
+    ) -> impl Future<Output = TransactionPrimitiveResult> + Send {
         async move {
             let mut floats = Vec::new();
             let mut qfloats = Vec::new();

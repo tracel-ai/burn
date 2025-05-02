@@ -317,10 +317,7 @@ where
         client: ComputeClient<R::Server, R::Channel>,
         device: R::Device,
     ) -> Self {
-        let bytes = burn_common::reader::try_read_sync(
-            self.client.read_one_async(self.handle.clone().binding()),
-        )
-        .expect("Can only change client synchronously");
+        let bytes = self.client.read_one(self.handle.clone().binding());
         let handle = client.create(&bytes);
 
         Self {

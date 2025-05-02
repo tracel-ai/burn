@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use core::{future::Future, ops::Range};
+use core::ops::Range;
 
 use crate::{
     Device, Shape, TensorData, TensorMetadata,
@@ -119,8 +119,7 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn q_into_data(tensor: QuantizedTensor<B>)
-    -> impl Future<Output = TensorData> + 'static + Send;
+    fn q_into_data(tensor: QuantizedTensor<B>) -> impl Future<Output = TensorData> + Send;
 
     /// Detaches a tensor from the computation graph.
     fn q_detach(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
@@ -1236,112 +1235,6 @@ pub trait QTensorOps<B: Backend> {
         let index = B::q_argmax(B::q_abs(tensor.clone()), dim);
 
         B::q_gather(dim, tensor, index)
-    }
-
-    /// Returns a new tensor with the given dimension narrowed to the given range.
-    ///
-    /// # Arguments
-    ///
-    /// * `dim` - The dimension along which the tensor will be narrowed.
-    /// * `start` - The starting point of the given range.
-    /// * `length` - The ending point of the given range.
-    /// # Panics
-    ///
-    /// - If the dimension is greater than the number of dimensions of the tensor.
-    /// - If the given range exceeds the number of elements on the given dimension.
-    ///
-    /// # Returns
-    ///
-    /// A new tensor with the given dimension narrowed to the given range.
-    fn q_narrow(
-        tensor: QuantizedTensor<B>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> QuantizedTensor<B> {
-        dequant_op_quant!(
-            ty Self,
-            float_op |tensor| B::float_narrow(tensor, dim, start, length),
-            tensor
-        )
-    }
-
-    /// Split the tensor along the given dimension into chunks.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    /// * `chunks` - The number of chunks to be produced.
-    /// * `times` - The dimension along which the tensor will be split.
-    ///
-    /// # Returns
-    ///
-    /// A vector of tensors.
-    fn q_chunk(tensor: QuantizedTensor<B>, chunks: usize, dim: usize) -> Vec<QuantizedTensor<B>> {
-        let scheme = *tensor.scheme();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_chunk(tensor_f, chunks, dim);
-
-        out_f
-            .into_iter()
-            .map(|tensor| Self::quantize_dynamic(tensor, &scheme))
-            .collect()
-    }
-
-    /// Split the tensor along the given dimension into chunks of `split_size`.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    /// * `split_size` - The size of a single chunk.
-    /// * `times` - The dimension along which the tensor will be split.
-    ///
-    /// # Returns
-    ///
-    /// A vector of tensors.
-    fn q_split(
-        tensor: QuantizedTensor<B>,
-        split_size: usize,
-        dim: usize,
-    ) -> Vec<QuantizedTensor<B>> {
-        let scheme = *tensor.scheme();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_split(tensor_f, split_size, dim);
-
-        out_f
-            .into_iter()
-            .map(|tensor| Self::quantize_dynamic(tensor, &scheme))
-            .collect()
-    }
-
-    /// Split the tensor along the given dimension into chunks with sizes in
-    /// `dim` according to `split_sizes`.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    /// * `split_sizes` - Vector of sizes for each chunk.
-    /// * `times` - The dimension along which the tensor will be split.
-    ///
-    /// # Returns
-    ///
-    /// A vector of tensors.
-    fn q_split_with_sizes(
-        tensor: QuantizedTensor<B>,
-        split_sizes: Vec<usize>,
-        dim: usize,
-    ) -> Vec<QuantizedTensor<B>> {
-        let scheme = *tensor.scheme();
-
-        let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_split_with_sizes(tensor_f, split_sizes, dim);
-
-        out_f
-            .into_iter()
-            .map(|tensor| Self::quantize_dynamic(tensor, &scheme))
-            .collect()
     }
 
     /// Tests if any element in the `tensor` evaluates to True.

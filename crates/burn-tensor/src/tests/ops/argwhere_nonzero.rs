@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use alloc::vec::Vec;
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{Shape, Tensor, TensorData};
 
     #[test]
     fn test_argwhere_1d() {
@@ -98,5 +98,13 @@ mod tests {
         let output = tensor.nonzero();
 
         assert_eq!(output.len(), 0);
+    }
+
+    #[test]
+    fn test_argwhere_empty() {
+        let tensor = TestTensorBool::<1>::from([false, false, false, false, false]);
+        let output = tensor.argwhere();
+
+        assert_eq!(output.shape(), Shape::new([0, 1]));
     }
 }

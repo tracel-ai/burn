@@ -54,7 +54,7 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
     };
     let ndims = tensor.shape.num_dims();
 
-    let line_size = if tensor.strides[ndims - 1] == 1 {
+    let line_size = if tensor.strides[ndims - 1] == 1 && value.strides[ndims - 1] == 1 {
         let last = indices.get(ndims - 1).cloned().unwrap_or(Range {
             start: 0,
             end: tensor.shape.dims[ndims - 1],
@@ -65,7 +65,10 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
             .iter()
             .filter(|it| {
                 let it = **it as usize;
-                shape % it == 0 && strides_compatible(&tensor.strides, it) && offset % it == 0
+                shape % it == 0
+                    && strides_compatible(&tensor.strides, it)
+                    && strides_compatible(&value.strides, it)
+                    && offset % it == 0
             })
             .max()
             .unwrap_or(&1)

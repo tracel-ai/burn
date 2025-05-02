@@ -7,6 +7,7 @@ use cubecl::{calculate_cube_count_elemwise, linalg::convolution::ConvLaunchError
 use crate::{
     CubeElement, CubeRuntime, FloatElement,
     kernel::{
+        conv::batches_per_run,
         into_contiguous,
         matmul::{MatmulStrategy, matmul},
         slice,
@@ -14,8 +15,6 @@ use crate::{
     ops::{numeric::empty_device, reshape, swap_dims},
     tensor::CubeTensor,
 };
-
-use super::batches_per_run;
 
 /// Perform a 2D convolution transposition using the GEMM (col2im) algorithm.
 ///
@@ -60,7 +59,7 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime, E: FloatElement>(
     );
     let im_channels = im_ch_per_group * groups;
 
-    let batches_per_run = batches_per_run(batch_size, input_h, input_w)?;
+    let batches_per_run = batches_per_run(batch_size, input_h * input_w)?;
     let col_shape_0 = im_ch_per_group * kernel_h * kernel_w;
 
     let weight = reshape(

@@ -3,12 +3,8 @@ use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
 use crate::tensor::cast::ToElement;
 use crate::{Distribution, ElementConversion, Float, TensorData, backend::Backend, tensor::Shape};
-use crate::{
-    FloatDType, TensorMetadata, TensorPrimitive, tensor::api::chunk, tensor::api::narrow,
-    tensor::api::split, tensor::api::split_with_sizes,
-};
+use crate::{FloatDType, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
-use core::future::Future;
 use core::ops::Range;
 
 use crate::{argsort, sort, sort_with_indices};
@@ -93,8 +89,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn float_into_data(tensor: FloatTensor<B>)
-    -> impl Future<Output = TensorData> + 'static + Send;
+    fn float_into_data(tensor: FloatTensor<B>) -> impl Future<Output = TensorData> + Send;
 
     /// Gets the device of the tensor.
     ///
@@ -1194,89 +1189,6 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the maximum elements of `tensor` along `dim`.
     fn float_max_abs_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
         B::float_max_dim(B::float_abs(tensor), dim)
-    }
-
-    /// Returns a new tensor with the given dimension narrowed to the given range.
-    ///
-    /// # Arguments
-    ///
-    /// * `dim` - The dimension along which the tensor will be narrowed.
-    /// * `start` - The starting point of the given range.
-    /// * `length` - The ending point of the given range.
-    /// # Panics
-    ///
-    /// - If the dimension is greater than the number of dimensions of the tensor.
-    /// - If the given range exceeds the number of elements on the given dimension.
-    ///
-    /// # Returns
-    ///
-    /// A new tensor with the given dimension narrowed to the given range.
-    fn float_narrow(
-        tensor: FloatTensor<B>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> FloatTensor<B> {
-        narrow::<B, Float>(TensorPrimitive::Float(tensor), dim, start, length).tensor()
-    }
-
-    /// Split the tensor along the given dimension into chunks.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    /// * `chunks` - The number of chunks to be produced
-    /// * `times` - The dimension along which the tensor will be split.
-    ///
-    /// # Returns
-    ///
-    /// A vector of tensors
-    fn float_chunk(tensor: FloatTensor<B>, chunks: usize, dim: usize) -> Vec<FloatTensor<B>> {
-        chunk::<B, Float>(TensorPrimitive::Float(tensor), chunks, dim)
-            .into_iter()
-            .map(|t| t.tensor())
-            .collect()
-    }
-
-    /// Split the tensor along the given dimension into chunks of `split_size`.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    /// * `split_size` - The size of a single chunk.
-    /// * `times` - The dimension along which the tensor will be split.
-    ///
-    /// # Returns
-    ///
-    /// A vector of tensors.
-    fn float_split(tensor: FloatTensor<B>, split_size: usize, dim: usize) -> Vec<FloatTensor<B>> {
-        split::<B, Float>(TensorPrimitive::Float(tensor), split_size, dim)
-            .into_iter()
-            .map(|t| t.tensor())
-            .collect()
-    }
-
-    /// Split the tensor along the given dimension into chunks with sizes in
-    /// `dim` according to `split_sizes`.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    /// * `split_sizes` - Vector of sizes for each chunk.
-    /// * `times` - The dimension along which the tensor will be split.
-    ///
-    /// # Returns
-    ///
-    /// A vector of tensors.
-    fn float_split_with_sizes(
-        tensor: FloatTensor<B>,
-        split_sizes: Vec<usize>,
-        dim: usize,
-    ) -> Vec<FloatTensor<B>> {
-        split_with_sizes::<B, Float>(TensorPrimitive::Float(tensor), split_sizes, dim)
-            .into_iter()
-            .map(|t| t.tensor())
-            .collect()
     }
 
     /// Tests if any element in the float `tensor` evaluates to True.

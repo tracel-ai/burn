@@ -2,10 +2,8 @@ use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use crate::cast::ToElement;
-use crate::tensor::api::{chunk, narrow, split, split_with_sizes};
 use crate::{Distribution, ElementConversion, Int, TensorData, backend::Backend, tensor::Shape};
 use alloc::vec::Vec;
-use core::future::Future;
 use core::ops::Range;
 
 use crate::{TensorMetadata, argsort, sort, sort_with_indices};
@@ -34,7 +32,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn int_into_data(tensor: IntTensor<B>) -> impl Future<Output = TensorData> + 'static + Send;
+    fn int_into_data(tensor: IntTensor<B>) -> impl Future<Output = TensorData> + Send;
 
     /// Creates a tensor from the data structure.
     ///
@@ -944,75 +942,6 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The tensor with the elements reversed.
     fn int_flip(tensor: IntTensor<B>, axes: &[usize]) -> IntTensor<B>;
-
-    /// Returns a new tensor with the given dimension narrowed to the given range.
-    ///
-    /// # Arguments
-    ///
-    /// * `dim` - The dimension along which the tensor will be narrowed.
-    /// * `start` - The starting point of the given range.
-    /// * `length` - The ending point of the given range.
-    /// # Panics
-    ///
-    /// - If the dimension is greater than the number of dimensions of the tensor.
-    /// - If the given range exceeds the number of elements on the given dimension.
-    ///
-    /// # Returns
-    ///
-    /// A new tensor with the given dimension narrowed to the given range.
-    fn int_narrow(tensor: IntTensor<B>, dim: usize, start: usize, length: usize) -> IntTensor<B> {
-        narrow::<B, Int>(tensor, dim, start, length)
-    }
-
-    /// Split the tensor along the given dimension into chunks.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    /// * `chunks` - The number of chunks to be produced.
-    /// * `times` - The dimension along which the tensor will be split.
-    ///
-    /// # Returns
-    ///
-    /// A vector of tensors
-    fn int_chunk(tensor: IntTensor<B>, chunks: usize, dim: usize) -> Vec<IntTensor<B>> {
-        chunk::<B, Int>(tensor, chunks, dim)
-    }
-
-    /// Split the tensor along the given dimension into chunks of `split_size`.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    /// * `split_size` - The size of a single chunk.
-    /// * `times` - The dimension along which the tensor will be split.
-    ///
-    /// # Returns
-    ///
-    /// A vector of tensors.
-    fn int_split(tensor: IntTensor<B>, split_size: usize, dim: usize) -> Vec<IntTensor<B>> {
-        split::<B, Int>(tensor, split_size, dim)
-    }
-
-    /// Split the tensor along the given dimension into chunks with sizes in
-    /// `dim` according to `split_sizes`.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    /// * `split_sizes` - Vector of sizes for each chunk.
-    /// * `times` - The dimension along which the tensor will be split.
-    ///
-    /// # Returns
-    ///
-    /// A vector of tensors.
-    fn int_split_with_sizes(
-        tensor: IntTensor<B>,
-        split_sizes: Vec<usize>,
-        dim: usize,
-    ) -> Vec<IntTensor<B>> {
-        split_with_sizes::<B, Int>(tensor, split_sizes, dim)
-    }
 
     /// Creates a new int tensor with random values.
     ///
