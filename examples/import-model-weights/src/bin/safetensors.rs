@@ -30,7 +30,7 @@
 use burn::backend::NdArray;
 use burn::record::{FullPrecisionSettings, Recorder};
 
-use burn_import::safetensors::SafeTensorsFileRecorder;
+use burn_import::safetensors::SafetensorsFileRecorder;
 
 use import_model_weights::{ModelRecord, infer};
 
@@ -44,7 +44,7 @@ pub fn main() {
         WEIGHTS_FILE
     );
     // Load SafeTensors weights exported from PyTorch into a model record.
-    let record: ModelRecord<B> = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+    let record: ModelRecord<B> = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
         .load(WEIGHTS_FILE.into(), &Default::default())
         .expect("Failed to load SafeTensors model weights");
 

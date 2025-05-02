@@ -30,14 +30,14 @@ mod tests {
         record::{FullPrecisionSettings, Recorder},
         tensor::Tolerance,
     };
-    use burn_import::safetensors::SafeTensorsFileRecorder;
+    use burn_import::safetensors::SafetensorsFileRecorder;
 
     use super::*;
 
     #[test]
     fn batch_norm2d() {
         let device = Default::default();
-        let record = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+        let record = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/batch_norm/batch_norm2d.safetensors".into(), &device)
             .expect("Should decode state successfully");
 

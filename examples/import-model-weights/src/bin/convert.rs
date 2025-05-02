@@ -39,7 +39,7 @@ use burn::{
     record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder},
 };
 use burn_import::pytorch::PyTorchFileRecorder;
-use burn_import::safetensors::SafeTensorsFileRecorder;
+use burn_import::safetensors::SafetensorsFileRecorder;
 use import_model_weights::ModelRecord;
 
 // Path constants
@@ -88,7 +88,7 @@ pub fn main() {
                 "Loading SafeTensors weights from '{}'...",
                 SAFETENSORS_WEIGHTS_PATH
             );
-            SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+            SafetensorsFileRecorder::<FullPrecisionSettings>::default()
                 .load(SAFETENSORS_WEIGHTS_PATH.into(), &device)
                 .unwrap_or_else(|err| {
                     eprintln!(

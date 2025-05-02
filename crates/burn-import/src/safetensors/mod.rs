@@ -1,3 +1,3 @@
 mod reader;
 mod recorder;
-pub use recorder::{AdapterType, LoadArgs, SafeTensorsFileRecorder};
+pub use recorder::{AdapterType, LoadArgs, SafetensorsFileRecorder};

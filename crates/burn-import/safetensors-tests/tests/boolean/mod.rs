@@ -29,7 +29,7 @@ mod tests {
         record::{FullPrecisionSettings, Recorder},
         tensor::TensorData,
     };
-    use burn_import::safetensors::SafeTensorsFileRecorder;
+    use burn_import::safetensors::SafetensorsFileRecorder;
 
     use super::*;
 
@@ -40,7 +40,7 @@ mod tests {
     // Error skipping: Msg("unsupported storage type BoolStorage")
     fn boolean() {
         let device = Default::default();
-        let record = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+        let record = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/boolean/boolean.safetensors".into(), &device)
             .expect("Should decode state successfully");
 

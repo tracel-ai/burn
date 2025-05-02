@@ -38,7 +38,7 @@ mod tests {
         record::{FullPrecisionSettings, Recorder},
         tensor::Tolerance,
     };
-    use burn_import::safetensors::{LoadArgs, SafeTensorsFileRecorder};
+    use burn_import::safetensors::{LoadArgs, SafetensorsFileRecorder};
 
     use super::*;
 
@@ -49,7 +49,7 @@ mod tests {
             LoadArgs::new("tests/non_contiguous_indexes/non_contiguous_indexes.safetensors".into())
                 .with_debug_print();
 
-        let record = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+        let record = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
             .load(load_args, &device)
             .expect("Should decode state successfully");
 

@@ -30,7 +30,7 @@ mod tests {
         record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder},
         tensor::Tolerance,
     };
-    use burn_import::safetensors::SafeTensorsFileRecorder;
+    use burn_import::safetensors::SafetensorsFileRecorder;
 
     use super::*;
 
@@ -65,7 +65,7 @@ mod tests {
     #[test]
     fn layer_norm_full() {
         let device = Default::default();
-        let record = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+        let record = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/layer_norm/layer_norm.safetensors".into(), &device)
             .expect("Should decode state successfully");
         layer_norm(record);
@@ -74,7 +74,7 @@ mod tests {
     #[test]
     fn layer_norm_half() {
         let device = Default::default();
-        let record = SafeTensorsFileRecorder::<HalfPrecisionSettings>::default()
+        let record = SafetensorsFileRecorder::<HalfPrecisionSettings>::default()
             .load("tests/layer_norm/layer_norm.safetensors".into(), &device)
             .expect("Should decode state successfully");
         layer_norm(record);

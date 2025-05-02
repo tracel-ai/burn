@@ -15,11 +15,11 @@ use super::reader::from_file;
 ///
 /// This recorder uses [LoadArgs] to configure loading behavior, such as key remapping.
 #[derive(new, Debug, Default, Clone)]
-pub struct SafeTensorsFileRecorder<PS: PrecisionSettings> {
+pub struct SafetensorsFileRecorder<PS: PrecisionSettings> {
     _settings: PhantomData<PS>,
 }
 
-impl<PS: PrecisionSettings, B: Backend> Recorder<B> for SafeTensorsFileRecorder<PS> {
+impl<PS: PrecisionSettings, B: Backend> Recorder<B> for SafetensorsFileRecorder<PS> {
     type Settings = PS;
     type RecordArgs = PathBuf;
     type RecordOutput = ();

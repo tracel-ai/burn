@@ -66,14 +66,14 @@ mod tests {
         record::{FullPrecisionSettings, Recorder},
         tensor::Tolerance,
     };
-    use burn_import::safetensors::SafeTensorsFileRecorder;
+    use burn_import::safetensors::SafetensorsFileRecorder;
 
     use super::*;
 
     #[test]
     fn depthwise_false() {
         let device = Default::default();
-        let record = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+        let record = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
             .load(
                 "tests/enum_module/enum_depthwise_false.safetensors".into(),
                 &device,
@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn depthwise_true() {
         let device = Default::default();
-        let record = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+        let record = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
             .load(
                 "tests/enum_module/enum_depthwise_true.safetensors".into(),
                 &device,

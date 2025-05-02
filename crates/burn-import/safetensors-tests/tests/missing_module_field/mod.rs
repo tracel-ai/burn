@@ -10,7 +10,7 @@ mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
 
     use burn::record::{FullPrecisionSettings, Recorder};
-    use burn_import::safetensors::SafeTensorsFileRecorder;
+    use burn_import::safetensors::SafetensorsFileRecorder;
 
     use super::*;
 
@@ -21,7 +21,7 @@ mod tests {
     fn should_fail_if_struct_field_is_missing() {
         let device = Default::default();
         let _record: NetRecord<Backend> =
-            SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+            SafetensorsFileRecorder::<FullPrecisionSettings>::default()
                 .load(
                     "tests/missing_module_field/missing_module_field.safetensors".into(),
                     &device,

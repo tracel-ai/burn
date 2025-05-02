@@ -101,7 +101,7 @@ mod tests {
         record::{FullPrecisionSettings, Recorder},
         tensor::Tolerance,
     };
-    use burn_import::safetensors::{LoadArgs, SafeTensorsFileRecorder};
+    use burn_import::safetensors::{LoadArgs, SafetensorsFileRecorder};
 
     use super::*;
 
@@ -117,7 +117,7 @@ mod tests {
                 // Map *.block.1.* -> *.bn.*
                 .with_key_remap("(.+)\\.block\\.1\\.(.+)", "$1.bn.$2");
 
-        let record = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+        let record = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
             .load(load_args, &device)
             .expect("Should decode state successfully");
 
@@ -138,7 +138,7 @@ mod tests {
                 // Map layer.[i].* -> layer.blocks.[i].*
                 .with_key_remap("layer\\.([0-9])\\.(.+)", "layer.blocks.$1.$2");
 
-        let record = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+        let record = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
             .load(load_args, &device)
             .expect("Should decode state successfully");
 
