@@ -1,19 +1,19 @@
-# SafeTensors Model
+# Safetensors Model
 
 ## Introduction
 
-Burn supports importing model weights from the SafeTensors format, a secure and efficient
+Burn supports importing model weights from the Safetensors format, a secure and efficient
 alternative to pickle-based formats. Whether you've trained your model in PyTorch or you want to use
-a pre-trained model that provides weights in SafeTensors format, you can easily import them into
+a pre-trained model that provides weights in Safetensors format, you can easily import them into
 Burn.
 
-This guide demonstrates the complete workflow for exporting models to SafeTensors format and
+This guide demonstrates the complete workflow for exporting models to Safetensors format and
 importing them into Burn.
 
-## Exporting Models to SafeTensors Format
+## Exporting Models to Safetensors Format
 
-To export a PyTorch model to SafeTensors format, you'll need the `safetensors` Python library. This
-library provides a simple API for saving model weights in the SafeTensors format.
+To export a PyTorch model to Safetensors format, you'll need the `safetensors` Python library. This
+library provides a simple API for saving model weights in the Safetensors format.
 
 ### Example: Exporting a PyTorch Model
 
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     # Extract model weights dictionary
     model_weights = model.state_dict()
 
-    # Save to SafeTensors format
+    # Save to Safetensors format
     save_file(model_weights, "conv2d.safetensors")
 ```
 
@@ -53,12 +53,12 @@ You can verify your exported model by viewing the `.safetensors` file in
 [Netron](https://github.com/lutzroeder/netron), a neural network visualization tool. A correctly
 exported file will display a flat structure of tensors, similar to a PyTorch `.pt` weights file.
 
-## Importing SafeTensors Models into Burn
+## Importing Safetensors Models into Burn
 
-Importing a SafeTensors model into Burn involves two main steps:
+Importing a Safetensors model into Burn involves two main steps:
 
 1. Defining the model architecture in Burn
-2. Loading the weights from the SafeTensors file
+2. Loading the weights from the Safetensors file
 
 ### Step 1: Define the Model in Burn
 
@@ -101,21 +101,21 @@ You have two options for loading the weights:
 
 #### Option A: Load Dynamically at Runtime
 
-This approach loads the SafeTensors file directly at runtime, requiring the `burn-import`
+This approach loads the Safetensors file directly at runtime, requiring the `burn-import`
 dependency:
 
 ```rust
 use crate::model;
 use burn::record::{FullPrecisionSettings, Recorder};
-use burn_import::safetensors::SafeTensorsFileRecorder;
+use burn_import::safetensors::SafetensorsFileRecorder;
 
 type Backend = burn_ndarray::NdArray<f32>;
 
 fn main() {
     let device = Default::default();
 
-    // Load weights from SafeTensors file
-    let record = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+    // Load weights from Safetensors file
+    let record = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
         .load("./conv2d.safetensors".into(), &device)
         .expect("Should decode state successfully");
 
@@ -126,7 +126,7 @@ fn main() {
 
 #### Option B: Pre-convert to Burn's Binary Format
 
-This approach converts the SafeTensors file to Burn's optimized binary format during build time,
+This approach converts the Safetensors file to Burn's optimized binary format during build time,
 removing the runtime dependency on `burn-import`:
 
 ```rust
@@ -134,15 +134,15 @@ removing the runtime dependency on `burn-import`:
 
 use crate::model;
 use burn::record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder};
-use burn_import::safetensors::SafeTensorsFileRecorder;
+use burn_import::safetensors::SafetensorsFileRecorder;
 
 type Backend = burn_ndarray::NdArray<f32>;
 
 fn convert_model() {
     let device = Default::default();
 
-    // Load from SafeTensors
-    let recorder = SafeTensorsFileRecorder::<FullPrecisionSettings>::default();
+    // Load from Safetensors
+    let recorder = SafetensorsFileRecorder::<FullPrecisionSettings>::default();
     let record = recorder
         .load("./conv2d.safetensors".into(), &device)
         .expect("Should decode state successfully");
@@ -174,12 +174,12 @@ fn load_model() -> Net<Backend> {
 
 ### Framework-Specific Adapters
 
-When importing SafeTensors models, you can specify an adapter type to handle framework-specific
+When importing Safetensors models, you can specify an adapter type to handle framework-specific
 tensor transformations. This is crucial when importing models from different ML frameworks, as
 tensor layouts and naming conventions can vary:
 
 ```rust
-use burn_import::safetensors::{AdapterType, LoadArgs, SafeTensorsFileRecorder};
+use burn_import::safetensors::{AdapterType, LoadArgs, SafetensorsFileRecorder};
 use burn::record::{FullPrecisionSettings, Recorder};
 
 let device = Default::default();
@@ -189,7 +189,7 @@ let load_args = LoadArgs::new("model.safetensors".into())
     .with_adapter_type(AdapterType::PyTorch); // Default adapter
 
 // Load with the specified adapter
-let record = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+let record = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
     .load(load_args, &device)
     .expect("Should decode state successfully");
 ```
@@ -206,11 +206,11 @@ let record = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
 
 ### Key Remapping for Different Model Architectures
 
-If your Burn model structure doesn't match the parameter names in the SafeTensors file, you can
+If your Burn model structure doesn't match the parameter names in the Safetensors file, you can
 remap keys using regular expressions:
 
 ```rust
-use burn_import::safetensors::{LoadArgs, SafeTensorsFileRecorder};
+use burn_import::safetensors::{LoadArgs, SafetensorsFileRecorder};
 use burn::record::{FullPrecisionSettings, Recorder};
 
 let device = Default::default();
@@ -220,7 +220,7 @@ let load_args = LoadArgs::new("model.safetensors".into())
     // Remove "conv" prefix, e.g. "conv.conv1" -> "conv1"
     .with_key_remap("conv\\.(.*)", "$1");
 
-let record = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+let record = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
     .load(load_args, &device)
     .expect("Should decode state successfully");
 
@@ -233,7 +233,7 @@ To help with troubleshooting import issues, you can enable debugging to print th
 remapped keys:
 
 ```rust
-use burn_import::safetensors::{LoadArgs, SafeTensorsFileRecorder};
+use burn_import::safetensors::{LoadArgs, SafetensorsFileRecorder};
 use burn::record::{FullPrecisionSettings, Recorder};
 
 let device = Default::default();
@@ -243,14 +243,14 @@ let load_args = LoadArgs::new("model.safetensors".into())
     .with_key_remap("conv\\.(.*)", "$1")
     .with_debug_print();  // Print original and remapped keys
 
-let record = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+let record = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
     .load(load_args, &device)
     .expect("Should decode state successfully");
 ```
 
 ### Automatic Handling of Non-Contiguous Indices
 
-The SafeTensorsFileRecorder automatically handles non-contiguous indices in model layer names. For
+The SafetensorsFileRecorder automatically handles non-contiguous indices in model layer names. For
 example, if the source model contains indices with gaps:
 
 ```
@@ -283,6 +283,6 @@ You can selectively load weights into a partial model, which is useful for:
 
 ### Support for Enum Modules
 
-The SafeTensorsFileRecorder supports models containing enum modules with new-type variants. The enum
+The SafetensorsFileRecorder supports models containing enum modules with new-type variants. The enum
 variant is automatically selected based on the enum variant type, allowing for flexible model
 architectures.
