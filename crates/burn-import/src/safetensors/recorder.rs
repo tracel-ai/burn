@@ -11,7 +11,7 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use super::reader::from_file;
 
-/// Recorder for loading HuggingFace SafeTensors files (`.safetensors`) into Burn modules.
+/// Recorder for loading HuggingFace Safetensors files (`.safetensors`) into Burn modules.
 ///
 /// This recorder uses [LoadArgs] to configure loading behavior, such as key remapping.
 #[derive(new, Debug, Default, Clone)]
@@ -30,14 +30,14 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for SafetensorsFileRecorder<
         _item: I,
         _file: Self::RecordArgs,
     ) -> Result<(), RecorderError> {
-        unimplemented!("save_item not implemented for SafeTensorsFileRecorder")
+        unimplemented!("save_item not implemented for SafetensorsFileRecorder")
     }
 
     fn load_item<I: DeserializeOwned>(
         &self,
         _file: &mut Self::LoadArgs,
     ) -> Result<I, RecorderError> {
-        unimplemented!("load_item not implemented for SafeTensorsFileRecorder")
+        unimplemented!("load_item not implemented for SafetensorsFileRecorder")
     }
 
     fn load<R: Record<B>>(
@@ -55,12 +55,12 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for SafetensorsFileRecorder<
     }
 }
 
-/// Arguments for loading a SafeTensors file using [SafeTensorsFileRecorder].
+/// Arguments for loading a Safetensors file using [SafetensorsFileRecorder].
 ///
 /// # Example
 ///
 /// ```rust,ignore
-/// use burn_import::safetensors::{AdapterType, LoadArgs, SafeTensorsFileRecorder}};
+/// use burn_import::safetensors::{AdapterType, LoadArgs, SafetensorsFileRecorder}};
 /// use burn::record::{FullPrecisionSettings, Recorder};
 /// use std::path::PathBuf;
 ///
@@ -79,13 +79,13 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for SafetensorsFileRecorder<
 ///    .with_adapter_type(AdapterType::PyTorch) // Specify if adaptation is needed
 ///    .with_debug_print(); // Enable debug output
 ///
-/// let record: MyModelRecord<MyBackend> = SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+/// let record: MyModelRecord<MyBackend> = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
 ///    .load(args, &device)
 ///    .expect("Should decode state successfully");
 /// ```
 #[derive(Debug, Clone)]
 pub struct LoadArgs {
-    /// The path to the SafeTensors file to load.
+    /// The path to the Safetensors file to load.
     pub file: PathBuf,
 
     /// A list of key remapping rules applied sequentially. Each tuple contains a
@@ -127,7 +127,7 @@ impl LoadArgs {
     ///
     /// # Arguments
     ///
-    /// * `file` - The path to the SafeTensors file.
+    /// * `file` - The path to the Safetensors file.
     pub fn new(file: PathBuf) -> Self {
         Self {
             file,
