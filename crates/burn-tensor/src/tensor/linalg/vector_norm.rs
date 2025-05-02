@@ -76,14 +76,11 @@ impl From<f64> for Norm {
 /// # Returns
 ///
 /// The vector norm of the input tensor.
-pub fn vector_norm<B: Backend, const D: usize, K>(
-    x: Tensor<B, D, K>,
+pub fn vector_norm<B: Backend, const D: usize>(
+    x: Tensor<B, D>,
     norm: impl Into<Norm>,
     dim: usize,
-) -> Tensor<B, D, K>
-where
-    K: BasicOps<B> + Numeric<B>,
-{
+) -> Tensor<B, D> {
     let norm = norm.into();
     match norm {
         Norm::L0 => l0_norm(x, dim),
@@ -109,15 +106,12 @@ where
 /// # Returns
 ///
 /// The normalized tensor.
-pub fn vector_normalize<B: Backend, const D: usize, K>(
-    x: Tensor<B, D, K>,
+pub fn vector_normalize<B: Backend, const D: usize>(
+    x: Tensor<B, D>,
     norm: impl Into<Norm>,
     dim: usize,
     eps: f64,
-) -> Tensor<B, D, K>
-where
-    K: BasicOps<B> + Numeric<B>,
-{
+) -> Tensor<B, D> {
     x.clone() / vector_norm(x, norm, dim).clamp_min(eps)
 }
 
@@ -169,12 +163,10 @@ where
 /// # Returns
 ///
 /// The L2 norm of the input tensor.
-pub fn l2_norm<B: Backend, const D: usize, K>(x: Tensor<B, D, K>, dim: usize) -> Tensor<B, D, K>
+pub fn l2_norm<B: Backend, const D: usize>(x: Tensor<B, D>, dim: usize) -> Tensor<B, D>
 where
-    K: BasicOps<B> + Numeric<B>,
 {
-    // TODO: work out the numerical traits so we can use .sqrt() here:
-    x.abs().powi_scalar(2).sum_dim(dim).powf_scalar(0.5)
+    x.abs().powi_scalar(2).sum_dim(dim).sqrt()
 }
 
 /// Computes the general ``L(p)`` norm of a tensor along a specified dimension.
@@ -188,14 +180,7 @@ where
 /// # Returns
 ///
 /// The ``L(p)`` norm of the input tensor.
-pub fn lp_norm<B: Backend, const D: usize, K>(
-    x: Tensor<B, D, K>,
-    p: f64,
-    dim: usize,
-) -> Tensor<B, D, K>
-where
-    K: BasicOps<B> + Numeric<B>,
-{
+pub fn lp_norm<B: Backend, const D: usize>(x: Tensor<B, D>, p: f64, dim: usize) -> Tensor<B, D> {
     x.abs().powf_scalar(p).sum_dim(dim).powf_scalar(1. / p)
 }
 
