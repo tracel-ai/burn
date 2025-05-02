@@ -66,9 +66,6 @@ where
         AdapterType::NoAdapter => {
             D::deserialize(Deserializer::<DefaultAdapter>::new(nested_value, true))?
         }
-        AdapterType::TensorFlow => {
-            todo!("TensorFlow adapter deserialization is not yet implemented.")
-        }
     };
 
     Ok(value)

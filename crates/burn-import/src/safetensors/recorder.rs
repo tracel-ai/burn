@@ -112,9 +112,6 @@ pub enum AdapterType {
     #[default]
     PyTorch,
 
-    /// Adapts tensors assuming they originated from TensorFlow.
-    TensorFlow,
-
     /// Loads tensors directly without any specific adaptation.
     NoAdapter,
 }

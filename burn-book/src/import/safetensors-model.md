@@ -200,7 +200,6 @@ let record = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **PyTorch** (default) | Automatically applies PyTorch-specific transformations:<br>- Transposes weights for linear layers<br>- Renames normalization parameters (weight→gamma, bias→beta) |
 | **NoAdapter**         | Loads tensors directly without any transformations<br>- Useful when importing from frameworks that already match Burn's tensor layout                             |
-| **TensorFlow**        | Reserved for future implementation                                                                                                                                |
 
 ## Troubleshooting and Advanced Features
 
