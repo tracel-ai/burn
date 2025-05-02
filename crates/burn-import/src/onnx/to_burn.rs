@@ -75,14 +75,15 @@ use crate::{
 };
 
 use super::op_configuration::{
-    argmax_config, avg_pool1d_config, avg_pool2d_config, batch_norm_config, clip_config,
-    concat_config, conv_transpose1d_config, conv_transpose2d_config, conv_transpose3d_config,
+    argmax_config, avg_pool1d_config, avg_pool2d_config, batch_norm_config, bitshift_config,
+    clip_config, concat_config, conv_transpose1d_config, conv_transpose2d_config, conv_transpose3d_config,
     conv1d_config, conv2d_config, conv3d_config, dropout_config, expand_config, flatten_config,
     gather_config, gemm_config, hard_sigmoid_config, layer_norm_config, leaky_relu_config,
     linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, one_hot_config,
     pad_config, reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
-    reduce_sum_config, reshape_config, resize_config, shape_config, softmax_config, split_config,
-    squeeze_config, tile_config, top_k_config, transpose_config, trilu_config, unsqueeze_config,
+    reduce_sum_config, reshape_config, resize_config, shape_config, softmax_config,
+    split_config, squeeze_config, tile_config, top_k_config, transpose_config, trilu_config,
+    unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -654,11 +655,7 @@ impl ParsedOnnxGraph {
     fn bitshift_conversion(node: Node) -> BitShiftNode {
         let inputs = node.inputs.iter().map(TensorType::from).collect();
         let output = TensorType::from(node.outputs.first().unwrap());
-        let direction = node
-            .attrs
-            .get("direction")
-            .map(|val| val.clone().into_string())
-            .unwrap_or("left".to_string());
+        let direction = bitshift_config(&node);
 
         BitShiftNode::new(inputs, output, direction)
     }
@@ -1463,13 +1460,6 @@ impl From<&OnnxArgument> for TensorType {
                 rank,
                 ..
             }) => TensorType::new_bool(arg.name.clone(), *rank),
-            ArgType::Scalar(ElementType::Float16 | ElementType::Float32 | ElementType::Float64) => {
-                TensorType::new_float(arg.name.clone(), 0)
-            }
-            ArgType::Scalar(ElementType::Int32 | ElementType::Int64) => {
-                TensorType::new_int(arg.name.clone(), 0)
-            }
-            ArgType::Scalar(ElementType::Bool) => TensorType::new_bool(arg.name.clone(), 0),
             _ => panic!("Can't transform {:?} to tensor.", arg.ty),
         }
     }

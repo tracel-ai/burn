@@ -7,6 +7,9 @@ import onnx
 def export_bitwise_and():
     class BitwiseAndModel(torch.nn.Module):
         def forward(self, x, y):
+            if isinstance(y, int):
+                # If y is a scalar, convert it to a tensor
+                y = torch.tensor([y], dtype=x.dtype)
             return torch.bitwise_and(x, y)
 
     model = BitwiseAndModel()

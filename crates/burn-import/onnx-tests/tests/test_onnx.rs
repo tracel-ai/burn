@@ -403,8 +403,7 @@ mod tests {
     fn bitshift_right_scalar_tensor() {
         // Initialize the model with weights (loaded from the exported file)
         let device = Default::default();
-        let model: bitshift_right_scalar::Model<Backend> =
-            bitshift_right_scalar::Model::new(&device);
+        let model: bitshift_right_scalar::Model<Backend> = bitshift_right_scalar::Model::new(&device);
         // Run the model
         let input1 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
         let scalar = 2;
