@@ -1685,6 +1685,7 @@ dependencies = [
  "cubecl-core",
  "cubecl-runtime",
  "cubecl-std",
+ "half",
  "num-traits",
  "serde",
 ]
@@ -1722,6 +1723,7 @@ dependencies = [
  "half",
  "hashbrown 0.14.5",
  "rspirv",
+ "rspirv-ext",
 ]
 
 [[package]]
@@ -4105,7 +4107,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "rustc-hash 1.1.0",
- "spirv",
+ "spirv 0.3.0+sdk-1.3.268.0",
  "strum 0.26.3",
  "thiserror 2.0.12",
  "unicode-ident",
@@ -5962,12 +5964,20 @@ dependencies = [
 
 [[package]]
 name = "rspirv"
-version = "0.12.0+sdk-1.3.268.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69cf3a93856b6e5946537278df0d3075596371b1950ccff012f02b0f7eafec8d"
+version = "0.12.0+sdk-1.4.309.0"
+source = "git+https://github.com/gfx-rs/rspirv.git?rev=267882d4e77a7457a1d87e3c8189f0d44e19e169#267882d4e77a7457a1d87e3c8189f0d44e19e169"
 dependencies = [
  "rustc-hash 1.1.0",
- "spirv",
+ "spirv 0.3.0+sdk-1.4.309.0",
+]
+
+[[package]]
+name = "rspirv-ext"
+version = "0.1.0"
+source = "git+https://github.com/wingertge/rspirv-ext.git?rev=991bf4b5d979554cc903ca6519fbb238beec21c7#991bf4b5d979554cc903ca6519fbb238beec21c7"
+dependencies = [
+ "bitflags 2.9.0",
+ "rspirv",
 ]
 
 [[package]]
@@ -6569,6 +6579,14 @@ name = "spirv"
 version = "0.3.0+sdk-1.3.268.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eda41003dc44290527a59b13432d4a0379379fa074b70174882adfbdfd917844"
+dependencies = [
+ "bitflags 2.9.0",
+]
+
+[[package]]
+name = "spirv"
+version = "0.3.0+sdk-1.4.309.0"
+source = "git+https://github.com/gfx-rs/rspirv.git?rev=267882d4e77a7457a1d87e3c8189f0d44e19e169#267882d4e77a7457a1d87e3c8189f0d44e19e169"
 dependencies = [
  "bitflags 2.9.0",
 ]
