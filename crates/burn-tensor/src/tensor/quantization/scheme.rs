@@ -147,8 +147,7 @@ impl QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
-                acc_precision: _,
-                propagation: _,
+                ..
             } => {
                 // Quantized range `[a, b]`
                 let b = i8::MAX as i32;
