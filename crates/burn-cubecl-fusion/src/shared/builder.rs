@@ -386,8 +386,6 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
-                // TODO: add check MaskFill, MaskWhere
-
                 self.builder.register(|build| {
                     let cond = build.input(&desc.mask)?;
                     let lhs = build.scalar(&desc.value, desc.out.dtype);
