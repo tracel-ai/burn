@@ -295,8 +295,9 @@ mod tests {
                 ),
             );
 
+            let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(2e-3);
             y.to_data()
-                .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
+                .assert_approx_eq::<FT>(&output.into_data(), tolerance);
         }
     }
 }

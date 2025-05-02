@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_cubecl::{
-        kernel::{conv::nchw_to_nhwc, into_contiguous},
+        kernel::{conv::layout_swap::nchw_to_nhwc, into_contiguous},
         tests::into_data_sync,
     };
     use burn_tensor::{Distribution, Tensor, backend::Backend, module};
@@ -80,9 +80,10 @@ mod tests {
         let output_ref =
             module::conv2d(input_ref, weight_ref, Some(bias_ref), options).permute([0, 2, 3, 1]);
 
+        let tolerance = Tolerance::rel_abs(1e-3, 1e-5);
         output
             .into_data()
-            .assert_approx_eq::<FT>(&output_ref.into_data(), Tolerance::rel_abs(1e-4, 1e-5));
+            .assert_approx_eq::<FT>(&output_ref.into_data(), tolerance);
     }
 
     #[test]

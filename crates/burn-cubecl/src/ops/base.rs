@@ -75,14 +75,28 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
     tensor
 }
 
-/// Permute a tensor's dimensions from NCHW to NHWC
+/// Permute a tensor's dimensions from NCHW to NHWC, or the N-dimensional equivalent
 pub fn permute_nchw_to_nhwc<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
-    permute(tensor, &[0, 2, 3, 1])
+    let rank = tensor.shape.num_dims();
+    let c_dim = 1;
+
+    let mut dims = vec![0];
+    dims.extend(2..rank);
+    dims.push(c_dim);
+
+    permute(tensor, &dims)
 }
 
-/// Permute a tensor's dimensions from NHWC to NCHW
+/// Permute a tensor's dimensions from NHWC to NCHW, or the N-dimensional equivalent
 pub fn permute_nhwc_to_nchw<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
-    permute(tensor, &[0, 3, 1, 2])
+    let rank = tensor.shape.num_dims();
+    let c_dim = rank - 1;
+
+    let mut dims = vec![0];
+    dims.push(c_dim);
+    dims.extend(1..c_dim);
+
+    permute(tensor, &dims)
 }
 
 pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape) -> CubeTensor<R> {
