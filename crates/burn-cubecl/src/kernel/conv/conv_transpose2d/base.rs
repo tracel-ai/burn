@@ -3,7 +3,9 @@ use cubecl::linalg::convolution::ConvLaunchError;
 
 use crate::{CubeRuntime, FloatElement, IntElement, tensor::CubeTensor};
 
-use super::{conv_transpose2d_autotune, conv_transpose2d_col2im, conv_transpose2d_direct};
+#[cfg(feature = "autotune")]
+use super::conv_transpose2d_autotune;
+use super::{conv_transpose2d_col2im, conv_transpose2d_direct};
 
 /// The strategy to be used when launching a conv_transpose kernel.
 pub enum ConvTranspose2dStrategy {

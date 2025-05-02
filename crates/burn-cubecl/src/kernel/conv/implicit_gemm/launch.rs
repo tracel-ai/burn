@@ -43,6 +43,7 @@ pub fn conv_gemm_cyclic<R: CubeRuntime, F: FloatElement, const N: usize>(
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
+#[allow(unused)]
 pub fn conv_gemm_tma<R: CubeRuntime, F: FloatElement, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
@@ -61,6 +62,7 @@ pub fn conv_gemm_tma<R: CubeRuntime, F: FloatElement, const N: usize>(
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
+#[allow(unused)]
 pub fn conv_gemm_tma_multi_stage<R: CubeRuntime, F: FloatElement, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
