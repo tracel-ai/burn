@@ -2,13 +2,20 @@
 
 ## Introduction
 
-Burn supports importing model weights from PyTorch, whether you've trained your model in PyTorch or want to use a pre-trained model. Burn supports importing PyTorch model weights with `.pt` and `.safetensors` file extensions. Compared to ONNX models, these files only contain the weights of the model, so you will need to reconstruct the model architecture in Burn.
+Burn supports importing model weights from PyTorch, whether you've trained your model in PyTorch or
+want to use a pre-trained model. Burn supports importing PyTorch model weights with `.pt` and
+`.safetensors` file extensions. Compared to ONNX models, these files only contain the weights of the
+model, so you will need to reconstruct the model architecture in Burn.
 
-This guide demonstrates the complete workflow for exporting models from PyTorch and importing them into Burn. You can also refer to this [Transitioning From PyTorch to Burn](https://dev.to/laggui/transitioning-from-pytorch-to-burn-45m) tutorial for importing a more complex model.
+This guide demonstrates the complete workflow for exporting models from PyTorch and importing them
+into Burn. You can also refer to this
+[Transitioning From PyTorch to Burn](https://dev.to/laggui/transitioning-from-pytorch-to-burn-45m)
+tutorial for importing a more complex model.
 
 ## Exporting Models to PyTorch Format
 
-To export a PyTorch model correctly, you need to save only the model weights (state_dict) using the `torch.save` function, not the entire model.
+To export a PyTorch model correctly, you need to save only the model weights (state_dict) using the
+`torch.save` function, not the entire model.
 
 ### Example: Exporting a PyTorch Model
 
@@ -30,18 +37,19 @@ class Net(nn.Module):
 if __name__ == "__main__":
     # Set seed for reproducibility
     torch.manual_seed(42)
-    
+
     # Initialize model and ensure it's on CPU
     model = Net().to(torch.device("cpu"))
-    
+
     # Extract model weights dictionary
     model_weights = model.state_dict()
-    
+
     # Save only the weights, not the entire model
     torch.save(model_weights, "conv2d.pt")
 ```
 
-If you accidentally save the entire model instead of just the weights, you may encounter errors during import like:
+If you accidentally save the entire model instead of just the weights, you may encounter errors
+during import like:
 
 ```
 Failed to decode foobar: DeserializeError("Serde error: other error:
@@ -51,7 +59,10 @@ Please verify the source data and ensure the field name is correct")
 
 ### Verifying the Export
 
-You can verify your exported model by viewing the `.pt` file in [Netron](https://github.com/lutzroeder/netron), a neural network visualization tool. A properly exported weights file will show a flat structure of tensors, while an incorrectly exported file will display nested blocks representing the entire model architecture.
+You can verify your exported model by viewing the `.pt` file in
+[Netron](https://github.com/lutzroeder/netron), a neural network visualization tool. A properly
+exported weights file will show a flat structure of tensors, while an incorrectly exported file will
+display nested blocks representing the entire model architecture.
 
 When viewing the exported model in Netron, you should see something like this:
 
@@ -116,7 +127,7 @@ type Backend = burn_ndarray::NdArray<f32>;
 
 fn main() {
     let device = Default::default();
-    
+
     // Load weights from PyTorch file
     let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
         .load("./conv2d.pt".into(), &device)
@@ -129,7 +140,8 @@ fn main() {
 
 #### Option B: Pre-convert to Burn's Binary Format
 
-This approach converts the PyTorch file to Burn's optimized binary format during build time, removing the runtime dependency on `burn-import`:
+This approach converts the PyTorch file to Burn's optimized binary format during build time,
+removing the runtime dependency on `burn-import`:
 
 ```rust
 // This code would go in build.rs or a separate tool
@@ -142,7 +154,7 @@ type Backend = burn_ndarray::NdArray<f32>;
 
 fn convert_model() {
     let device = Default::default();
-    
+
     // Load from PyTorch
     let recorder = PyTorchFileRecorder::<FullPrecisionSettings>::default();
     let record = recorder
@@ -169,11 +181,14 @@ fn load_model() -> Net<Backend> {
 }
 ```
 
-> **Note**: For examples of pre-converting models, see the `examples/import-model-weights` directory in the Burn repository.
+> **Note**: For examples of pre-converting models, see the `examples/import-model-weights` directory
+> in the Burn repository.
 
 ## Extract Configuration
 
-In some cases, models may require additional configuration settings, which are often included in a `.pt` file during export. The `config_from_file` function from the `burn-import` cargo package allows for the extraction of these configurations directly from the `.pt` file.
+In some cases, models may require additional configuration settings, which are often included in a
+`.pt` file during export. The `config_from_file` function from the `burn-import` cargo package
+allows for the extraction of these configurations directly from the `.pt` file.
 
 ```rust
 use std::collections::HashMap;
@@ -211,7 +226,8 @@ fn main() {
 
 ### Key Remapping for Different Model Architectures
 
-If your Burn model structure doesn't match the parameter names in the PyTorch file, you can remap keys using regular expressions:
+If your Burn model structure doesn't match the parameter names in the PyTorch file, you can remap
+keys using regular expressions:
 
 ```rust
 let device = Default::default();
@@ -228,7 +244,8 @@ let model = Net::<Backend>::init(&device).load_record(record);
 
 ### Debugging with Key Inspection
 
-To help with troubleshooting import issues, you can enable debugging to print the original and remapped keys:
+To help with troubleshooting import issues, you can enable debugging to print the original and
+remapped keys:
 
 ```rust
 let device = Default::default();
@@ -268,7 +285,8 @@ Dtype: F32
 
 ### Automatic Handling of Non-Contiguous Indices
 
-The PyTorchFileRecorder automatically handles non-contiguous indices in model layer names. For example, if the source model contains indices with gaps:
+The PyTorchFileRecorder automatically handles non-contiguous indices in model layer names. For
+example, if the source model contains indices with gaps:
 
 ```
 "model.ax.0.weight",
@@ -308,7 +326,10 @@ You can selectively load weights into a partial model, which is useful for:
 
 ### Specifying the Top-Level Key for state_dict
 
-Sometimes the [`state_dict`](https://pytorch.org/tutorials/beginner/saving_loading_models.html#what-is-a-state-dict) is nested under a top-level key along with other metadata. In this case, you can specify the top-level key in `LoadArgs`:
+Sometimes the
+[`state_dict`](https://pytorch.org/tutorials/beginner/saving_loading_models.html#what-is-a-state-dict)
+is nested under a top-level key along with other metadata. In this case, you can specify the
+top-level key in `LoadArgs`:
 
 ```rust
 let device = Default::default();
@@ -322,7 +343,9 @@ let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
 
 ### Support for Enum Modules
 
-The PyTorchFileRecorder supports models containing enum modules with new-type variants. The enum variant is automatically selected based on the enum variant type, allowing for flexible model architectures.
+The PyTorchFileRecorder supports models containing enum modules with new-type variants. The enum
+variant is automatically selected based on the enum variant type, allowing for flexible model
+architectures.
 
 ## Current Known Issues
 
