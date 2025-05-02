@@ -572,10 +572,7 @@ impl FuseOptimizationBuilder {
     }
 
     fn input_is_quantized(&self, input: &TensorIr) -> bool {
-        if let DType::QFloat(_scheme) = input.dtype {
-            return true;
-        }
-        false
+        matches!(input.dtype, DType::QFloat(_scheme))
     }
 
     fn output_is_compatible(&mut self, out: &TensorIr) -> bool {
