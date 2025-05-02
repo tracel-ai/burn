@@ -130,7 +130,7 @@ where
     K: BasicOps<B> + Numeric<B>,
 {
     x.zeros_like()
-        .mask_fill(x.not_equal_elem(0.0), 1.0)
+        .mask_fill(x.not_equal_elem(0.0), 1)
         .sum_dim(dim)
 }
 
@@ -201,7 +201,19 @@ pub fn max_abs_norm<B: Backend, const D: usize, K>(
 where
     K: BasicOps<B> + Numeric<B>,
 {
-    x.max_abs_dim(dim)
+    let mut x = x.abs();
+    let last = x.dims().len() - 1;
+    if last != dim {
+        x = x.swap_dims(last, dim);
+    }
+    // TODO: https://github.com/tracel-ai/burn/issues/3139
+    // There's a bug that breaks max_dim() for Int tensors
+    // when the last dimension is not the one to be reduced.
+    x = x.max_dim(last);
+    if last != dim {
+        x = x.swap_dims(last, dim);
+    }
+    x
 }
 
 /// Computes the L:NEG_INFINITY norm of a tensor along a specified dimension.
@@ -221,5 +233,17 @@ pub fn min_abs_norm<B: Backend, const D: usize, K>(
 where
     K: BasicOps<B> + Numeric<B>,
 {
-    x.abs().min_dim(dim)
+    let mut x = x.abs();
+    let last = x.dims().len() - 1;
+    if last != dim {
+        x = x.swap_dims(last, dim);
+    }
+    // TODO: https://github.com/tracel-ai/burn/issues/3139
+    // There's a bug that breaks min_dim() for Int tensors
+    // when the last dimension is not the one to be reduced.
+    x = x.min_dim(last);
+    if last != dim {
+        x = x.swap_dims(last, dim);
+    }
+    x
 }

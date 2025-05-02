@@ -6,7 +6,7 @@ mod tests {
     use burn_tensor::linalg;
 
     #[test]
-    fn test_pos_inf() {
+    fn test_max_min_abs() {
         let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
 
         linalg::vector_norm(x.clone(), linalg::Norm::LInf, 0)
@@ -42,10 +42,27 @@ mod tests {
         linalg::min_abs_norm(x.clone(), 1)
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[1.], [3.]]).into_data(), true);
+
+        // Test with integer tensor
+        let z = x.clone().int();
+
+        linalg::max_abs_norm(z.clone(), 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[3., 4.]]).int().into_data(), true);
+        linalg::max_abs_norm(z.clone(), 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[2], [4]]).int().into_data(), true);
+
+        linalg::min_abs_norm(z.clone(), 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1, 2]]).int().into_data(), true);
+        linalg::min_abs_norm(z.clone(), 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1], [3]]).int().into_data(), true);
     }
 
     #[test]
-    fn test_zero() {
+    fn test_l0_norm() {
         let x = TestTensor::<2>::from([[1.0, -2.0, 0.], [0.0, 0., 4.]]);
 
         linalg::vector_norm(x.clone(), linalg::Norm::L0, 0)
@@ -61,6 +78,16 @@ mod tests {
         linalg::l0_norm(x.clone(), 1)
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[2.], [1.]]).into_data(), true);
+
+        // Test with integer tensor
+        let z = TestTensor::<2>::from([[1, -2, 0], [0, 0, 4]]).int();
+
+        linalg::l0_norm(z.clone(), 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1, 1, 1]]).int().into_data(), true);
+        linalg::l0_norm(z.clone(), 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[2], [1]]).int().into_data(), true);
     }
 
     #[test]
