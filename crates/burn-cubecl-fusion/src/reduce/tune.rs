@@ -56,9 +56,11 @@ pub(crate) fn create_key<R: Runtime>(
 
     let input = context.tensors.get(&opt.reduce.op.input.id).unwrap();
     let out = context.tensors.get(&opt.reduce.op.out.id).unwrap();
+    let acc = opt.reduce.acc.into_elem();
     let key = ReduceAutotuneKey::generate(
         input.dtype.into(),
         out.dtype.into(),
+        acc,
         &input.shape,
         opt.reduce.axis == input.shape.len() - 1,
         opt.reduce.axis,

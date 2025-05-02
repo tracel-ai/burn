@@ -1,5 +1,6 @@
 mod activation;
 mod clone_invariance;
+mod grid;
 mod module;
 mod ops;
 mod primitive;
@@ -153,6 +154,9 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_log_sigmoid!();
         burn_tensor::testgen_silu!();
         burn_tensor::testgen_tanh_activation!();
+
+        // test grid
+        burn_tensor::testgen_meshgrid!();
 
         // test module
         burn_tensor::testgen_module_conv1d!();

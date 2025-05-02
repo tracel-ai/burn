@@ -1992,7 +1992,7 @@ where
     ///   println!("{tensor}");
     ///   // [[12.0, 3.0, 6.0], [5.0, -2.0, 3.0]]
     ///   let tensor = tensor.topk(1, 1);
-    ///   println!("{tensor}");   
+    ///   println!("{tensor}");
     ///   // [[12.0], [6.0]]
     /// }
     /// ```
@@ -4299,139 +4299,205 @@ impl<B: Backend> Numeric<B> for Float {
     }
 }
 
-impl<B, const D: usize, K> core::ops::Add<Self> for Tensor<B, D, K>
+// Tensor + tensor
+impl<B: Backend, const D: usize, K: Numeric<B>> core::ops::Add<Self> for Tensor<B, D, K>
 where
-    B: Backend,
-    K: Numeric<B>,
     K::Elem: Element,
 {
     type Output = Self;
 
-    fn add(self, rhs: Tensor<B, D, K>) -> Self {
+    fn add(self, rhs: Tensor<B, D, K>) -> Self::Output {
         Self::add(self, rhs)
     }
 }
 
-impl<E, const D: usize, B, K> core::ops::Add<E> for Tensor<B, D, K>
+// Tensor + scalar
+impl<E: ElementConversion, const D: usize, B: Backend, K: Numeric<B>> core::ops::Add<E>
+    for Tensor<B, D, K>
 where
-    E: ElementConversion,
-    B: Backend,
-    K: Numeric<B>,
     K::Elem: Element,
 {
     type Output = Self;
 
-    fn add(self, other: E) -> Self {
+    fn add(self, other: E) -> Self::Output {
         Tensor::add_scalar(self, other)
     }
 }
 
-impl<B, const D: usize, K> core::ops::Sub<Tensor<B, D, K>> for Tensor<B, D, K>
+// Scalar + tensor
+macro_rules! impl_tensor_scalar_add {
+    ($($t:ty),*) => {
+        $(
+            impl<const D: usize, B: Backend, K: Numeric<B>> core::ops::Add<Tensor<B, D, K>> for $t
+            where
+                K::Elem: Element,
+            {
+                type Output = Tensor<B, D, K>;
+
+                fn add(self, tensor: Tensor<B, D, K>) -> Self::Output {
+                    Tensor::add_scalar(tensor, self)
+                }
+            }
+        )*
+    }
+}
+impl_tensor_scalar_add!(f32, f64, i32, i64, u32, u64);
+
+// Tensor - tensor
+impl<B: Backend, const D: usize, K: Numeric<B>> core::ops::Sub<Self> for Tensor<B, D, K>
 where
-    B: Backend,
-    K: Numeric<B>,
     K::Elem: Element,
 {
     type Output = Self;
 
-    fn sub(self, rhs: Tensor<B, D, K>) -> Self {
+    fn sub(self, rhs: Tensor<B, D, K>) -> Self::Output {
         Tensor::sub(self, rhs)
     }
 }
 
-impl<E, const D: usize, B, K> core::ops::Sub<E> for Tensor<B, D, K>
+// Tensor - scalar
+impl<E: ElementConversion, const D: usize, B: Backend, K: Numeric<B>> core::ops::Sub<E>
+    for Tensor<B, D, K>
 where
-    E: ElementConversion,
-    B: Backend,
-    K: Numeric<B>,
     K::Elem: Element,
 {
     type Output = Self;
 
-    fn sub(self, other: E) -> Self {
+    fn sub(self, other: E) -> Self::Output {
         Tensor::sub_scalar(self, other)
     }
 }
 
-impl<B, const D: usize, K> core::ops::Div<Tensor<B, D, K>> for Tensor<B, D, K>
+// Scalar - tensor
+macro_rules! impl_tensor_scalar_sub {
+    ($($t:ty),*) => {
+        $(
+            impl<const D: usize, B: Backend, K: Numeric<B>> core::ops::Sub<Tensor<B, D, K>> for $t
+            where
+                K::Elem: Element,
+            {
+                type Output = Tensor<B, D, K>;
+
+                fn sub(self, tensor: Tensor<B, D, K>) -> Self::Output {
+                    Tensor::add_scalar(Tensor::neg(tensor), self)
+                }
+            }
+        )*
+    }
+}
+impl_tensor_scalar_sub!(f32, f64, i32, i64, u32, u64);
+
+// Tensor / tensor
+impl<B: Backend, const D: usize, K: Numeric<B>> core::ops::Div<Self> for Tensor<B, D, K>
 where
-    B: Backend,
-    K: Numeric<B>,
     K::Elem: Element,
 {
     type Output = Self;
 
-    fn div(self, rhs: Tensor<B, D, K>) -> Self {
+    fn div(self, rhs: Self) -> Self::Output {
         Tensor::div(self, rhs)
     }
 }
 
-impl<E, const D: usize, B, K> core::ops::Div<E> for Tensor<B, D, K>
+// Tensor / scalar
+impl<E: ElementConversion, const D: usize, B: Backend, K: Numeric<B>> core::ops::Div<E>
+    for Tensor<B, D, K>
 where
-    E: ElementConversion,
-    B: Backend,
-    K: Numeric<B>,
     K::Elem: Element,
 {
     type Output = Self;
 
-    fn div(self, other: E) -> Self {
+    fn div(self, other: E) -> Self::Output {
         Tensor::div_scalar(self, other)
     }
 }
 
-impl<const D: usize, B, K> core::ops::Rem<Tensor<B, D, K>> for Tensor<B, D, K>
+// Scalar / tensor (float only)
+macro_rules! impl_tensor_scalar_div {
+    ($($t:ty),*) => {
+        $(
+            impl<const D: usize, B: Backend> core::ops::Div<Tensor<B, D>> for $t
+            {
+                type Output = Tensor<B, D>;
+
+                fn div(self, tensor: Tensor<B, D>) -> Self::Output {
+                    tensor.recip().mul_scalar(self)
+                }
+            }
+        )*
+    }
+}
+
+impl_tensor_scalar_div!(f32, f64);
+
+// Tensor % tensor.
+impl<const D: usize, B: Backend, K: Numeric<B>> core::ops::Rem<Self> for Tensor<B, D, K>
 where
-    B: Backend,
-    K: Numeric<B>,
     K::Elem: Element,
 {
     type Output = Self;
-    fn rem(self, rhs: Tensor<B, D, K>) -> Self::Output {
+
+    fn rem(self, rhs: Self) -> Self::Output {
         Tensor::remainder(self, rhs)
     }
 }
 
-impl<E, const D: usize, B, K> core::ops::Rem<E> for Tensor<B, D, K>
+// Tensor % scalar.
+impl<E: ElementConversion, const D: usize, B: Backend, K: Numeric<B>> core::ops::Rem<E>
+    for Tensor<B, D, K>
 where
-    E: ElementConversion,
-    B: Backend,
-    K: Numeric<B>,
     K::Elem: Element,
 {
     type Output = Self;
 
-    fn rem(self, other: E) -> Self {
+    fn rem(self, other: E) -> Self::Output {
         Tensor::remainder_scalar(self, other)
     }
 }
 
-impl<B, const D: usize, K> core::ops::Mul<Tensor<B, D, K>> for Tensor<B, D, K>
+// Tensor * tensor.
+impl<B: Backend, const D: usize, K: Numeric<B>> core::ops::Mul<Self> for Tensor<B, D, K>
 where
-    B: Backend,
-    K: Numeric<B>,
     K::Elem: Element,
 {
     type Output = Self;
 
-    fn mul(self, rhs: Tensor<B, D, K>) -> Self {
+    fn mul(self, rhs: Self) -> Self::Output {
         Tensor::mul(self, rhs)
     }
 }
 
-impl<E, const D: usize, B, K> core::ops::Mul<E> for Tensor<B, D, K>
+// Tensor * scalar.
+impl<E: ElementConversion, const D: usize, B: Backend, K: Numeric<B>> core::ops::Mul<E>
+    for Tensor<B, D, K>
 where
-    E: ElementConversion,
-    B: Backend,
-    K: Numeric<B>,
     K::Elem: Element,
 {
     type Output = Self;
 
-    fn mul(self, other: E) -> Self {
+    fn mul(self, other: E) -> Self::Output {
         Tensor::mul_scalar(self, other)
     }
 }
+
+macro_rules! impl_tensor_scalar_mul {
+    ($($t:ty),*) => {
+        $(
+            impl<const D: usize, B: Backend, K: Numeric<B>> core::ops::Mul<Tensor<B, D, K>> for $t
+            where
+                K::Elem: Element,
+            {
+                type Output = Tensor<B, D, K>;
+
+                fn mul(self, other: Tensor<B, D, K>) -> Self::Output {
+                    Tensor::mul_scalar(other, self)
+                }
+            }
+        )*
+    }
+}
+
+impl_tensor_scalar_mul!(f32, f64, i32, i64, u32, u64);
 
 impl<B, const D: usize, K> core::ops::Neg for Tensor<B, D, K>
 where
@@ -4441,7 +4507,7 @@ where
 {
     type Output = Self;
 
-    fn neg(self) -> Self {
+    fn neg(self) -> Self::Output {
         Tensor::neg(self)
     }
 }
