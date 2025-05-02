@@ -1,6 +1,6 @@
-use crate::Numeric;
 use crate::backend::Backend;
 use crate::tensor::{BasicOps, Tensor};
+use crate::{ElementConversion, Numeric};
 
 /// Specifies the type of norm to compute.
 #[derive(Debug, Clone, Copy)]
@@ -106,11 +106,11 @@ pub fn vector_norm<B: Backend, const D: usize>(
 /// # Returns
 ///
 /// The normalized tensor.
-pub fn vector_normalize<B: Backend, const D: usize>(
+pub fn vector_normalize<B: Backend, const D: usize, E: ElementConversion>(
     x: Tensor<B, D>,
     norm: impl Into<Norm>,
     dim: usize,
-    eps: f64,
+    eps: E,
 ) -> Tensor<B, D> {
     x.clone() / vector_norm(x, norm, dim).clamp_min(eps)
 }
