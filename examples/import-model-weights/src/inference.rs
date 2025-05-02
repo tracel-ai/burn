@@ -1,25 +1,3 @@
-//! # MNIST Model Inference Module
-//!
-//! This module provides functionality for performing inference with imported MNIST models.
-//! It includes a generic inference function that:
-//!
-//! 1. Accepts a ModelRecord with pre-loaded weights from any supported format
-//! 2. Loads a test image from the MNIST dataset
-//! 3. Preprocesses the image (reshaping and normalizing)
-//! 4. Runs the model to get a prediction
-//! 5. Verifies prediction accuracy
-//! 6. Reports results to the user
-//!
-//! ## Features
-//!
-//! - Backend-agnostic implementation (`<B: Backend>`)
-//! - Command-line argument support for choosing test images
-//! - Proper input normalization for MNIST dataset
-//! - Helpful output with links to visualize the tested image
-//!
-//! This module is used by all examples in the `bin/` directory to standardize
-//! the inference process regardless of where the model weights originated.
-
 use burn::prelude::*;
 
 use std::env::args;

@@ -1,37 +1,3 @@
-//! # Model Weight Converter
-//!
-//! This tool converts model weights from PyTorch or Safetensors format into
-//! Burn's native Named MessagePack format (.mpk).
-//!
-//! ## Usage
-//!
-//! ```shell
-//! cargo run --bin convert -- <pytorch|safetensors> <output_directory>
-//! ```
-//!
-//! Where:
-//! - `<pytorch|safetensors>`: The source format to convert from
-//! - `<output_directory>`: Directory where the converted .mpk file will be saved
-//!
-//! ## Examples
-//!
-//! ```shell
-//! # Convert from PyTorch format
-//! cargo run --bin convert -- pytorch /tmp/burn-convert
-//!
-//! # Convert from Safetensors format
-//! cargo run --bin convert -- safetensors /tmp/burn-convert
-//! ```
-//!
-//! ## Features
-//!
-//! - Supports PyTorch (.pt) and Safetensors (.safetensors) input formats
-//! - Converts to Burn's native MPK format for efficient loading
-//! - Preserves full precision of the original weights
-//! - Creates a file named `mnist.mpk` in the specified output directory
-//!
-//! This tool is useful in the model deployment pipeline, allowing models trained
-//! in popular frameworks to be used within Burn applications.
 use std::{env, path::Path, process};
 
 use burn::{

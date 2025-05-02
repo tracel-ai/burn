@@ -1,30 +1,3 @@
-//! # Named MessagePack Model Weight Example
-//!
-//! This example demonstrates loading model weights from Burn's native Named MessagePack format
-//! and using them for inference. It allows you to:
-//!
-//! 1. Load a model from a previously converted .mpk file
-//! 2. Run inference on a specified MNIST test image
-//! 3. Verify the prediction matches the expected label
-//!
-//! ## Usage
-//!
-//! ```shell
-//! cargo run --bin namedmpk -- <image_index> <model_path>
-//! ```
-//!
-//! Where:
-//! - `<image_index>`: The index of the MNIST test image to classify (0-9999)
-//! - `<model_path>`: Path to the model file (without .mpk extension)
-//!
-//! ## Example
-//!
-//! ```shell
-//! cargo run --bin namedmpk -- 35 /tmp/burn-convert/mnist
-//! ```
-//!
-//! This example is typically used after converting a model with the `convert` binary.
-
 use std::env;
 use std::path::Path;
 

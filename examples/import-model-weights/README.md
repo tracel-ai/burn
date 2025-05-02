@@ -101,19 +101,6 @@ See the image online, click the link below:
 https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row=35
 ```
 
-## Project Structure
-
-- `src/bin/`: Contains all example binaries
-  - `pytorch.rs`: Example for importing PyTorch weights
-  - `safetensors.rs`: Example for importing Safetensors weights
-  - `convert.rs`: Example for converting between weight formats
-  - `namedmpk.rs`: Example for using named MessagePack files
-- `src/model.rs`: Defines the model architecture
-- `src/inference.rs`: Contains the inference logic
-- `weights/`: Contains pre-trained model weights
-  - `mnist.pt`: PyTorch model weights
-  - `mnist.safetensors`: Safetensors model weights
-
 ## Workflow
 
 A typical workflow using these examples:
