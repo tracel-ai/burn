@@ -2,15 +2,66 @@ use crate::Numeric;
 use crate::backend::Backend;
 use crate::tensor::{BasicOps, Tensor};
 
+/// Specifies the type of norm to compute.
+#[derive(Debug, Clone, Copy)]
+pub enum Norm {
+    /// L0 norm (count of non-zero elements)
+    L0,
+
+    /// L1 norm (sum of absolute values)
+    L1,
+
+    /// L2 norm (Euclidean norm)
+    L2,
+
+    /// L:INFINITY norm (maximum absolute value)
+    LInf,
+
+    /// L:NEG_INFINITY norm (minimum absolute value)
+    LNegInf,
+
+    /// Lp norm (generalized norm)
+    Lp(f64),
+}
+
+impl From<i32> for Norm {
+    fn from(value: i32) -> Self {
+        match value {
+            0 => Norm::L0,
+            1 => Norm::L1,
+            2 => Norm::L2,
+            _ => Norm::Lp(value as f64),
+        }
+    }
+}
+
+impl From<f32> for Norm {
+    fn from(value: f32) -> Self {
+        match value {
+            0.0 => Norm::L0,
+            1.0 => Norm::L1,
+            2.0 => Norm::L2,
+            f32::INFINITY => Norm::LInf,
+            f32::NEG_INFINITY => Norm::LNegInf,
+            _ => Norm::Lp(value as f64),
+        }
+    }
+}
+
+impl From<f64> for Norm {
+    fn from(value: f64) -> Self {
+        match value {
+            0.0 => Norm::L0,
+            1.0 => Norm::L1,
+            2.0 => Norm::L2,
+            f64::INFINITY => Norm::LInf,
+            f64::NEG_INFINITY => Norm::LNegInf,
+            _ => Norm::Lp(value),
+        }
+    }
+}
+
 /// Computes the vector norm of a tensor along a specified dimension.
-///
-/// The vector norm is defined as:
-///
-/// - `p = f64::INFINITY`: The max absolute value.
-/// - `p = f64::NEG_INFINITY`: The min absolute value.
-/// - `p = 0.0`: The count of non-zero elements.
-/// - `p = 1.0`: The sum of absolute values.
-/// - Otherwise, ``sum(abs(x)^p)^(1/p)``
 ///
 /// See:
 /// - https://pytorch.org/docs/stable/generated/torch.linalg.vector_norm.html
@@ -19,7 +70,7 @@ use crate::tensor::{BasicOps, Tensor};
 /// # Arguments
 ///
 /// * `x` - The input tensor.
-/// * `p` - The exponent of the vector norm.
+/// * `norm` - The selected norm.
 /// * `dim` - The dimension to compute the norm over.
 ///
 /// # Returns
@@ -27,32 +78,31 @@ use crate::tensor::{BasicOps, Tensor};
 /// The vector norm of the input tensor.
 pub fn vector_norm<B: Backend, const D: usize, K>(
     x: Tensor<B, D, K>,
-    p: f64,
+    norm: impl Into<Norm>,
     dim: usize,
 ) -> Tensor<B, D, K>
 where
     K: BasicOps<B> + Numeric<B>,
 {
-    match p {
-        f64::INFINITY => x.max_abs_dim(dim),
-        f64::NEG_INFINITY => x.abs().min_dim(dim),
-        0.0 => x
-            .zeros_like()
-            .mask_fill(x.not_equal_elem(0.0), 1.0)
-            .sum_dim(dim),
-        1.0 => x.abs().sum_dim(dim),
-        _ => x.abs().powf_scalar(p).sum_dim(dim).powf_scalar(1.0 / p),
+    let norm = norm.into();
+    match norm {
+        Norm::L0 => l0_norm(x, dim),
+        Norm::L1 => l1_norm(x, dim),
+        Norm::L2 => l2_norm(x, dim),
+        Norm::LInf => max_abs_norm(x, dim),
+        Norm::LNegInf => min_abs_norm(x, dim),
+        Norm::Lp(p) => lp_norm(x, p, dim),
     }
 }
 
 /// Normalize a tensor versus its `vector_norm`.
 ///
-/// Equivalent to ``x.clone() / vector_norm(x, p, dim).clamp_min(eps)``.
+/// Equivalent to ``x.clone() / vector_norm(x, norm, dim).clamp_min(eps)``.
 ///
 /// # Arguments
 ///
 /// * `x` - The input tensor.
-/// * `p` - The exponent of the vector norm.
+/// * `norm` - The selected norm.
 /// * `dim` - The dimension to compute the norm over.
 /// * `eps` - The epsilon for the norm.
 ///
@@ -61,19 +111,17 @@ where
 /// The normalized tensor.
 pub fn vector_normalize<B: Backend, const D: usize, K>(
     x: Tensor<B, D, K>,
-    p: f64,
+    norm: impl Into<Norm>,
     dim: usize,
     eps: f64,
 ) -> Tensor<B, D, K>
 where
     K: BasicOps<B> + Numeric<B>,
 {
-    x.clone() / vector_norm(x, p, dim).clamp_min(eps)
+    x.clone() / vector_norm(x, norm, dim).clamp_min(eps)
 }
 
 /// Computes the L0 norm of a tensor along a specified dimension.
-///
-/// This is a convenience function that wraps `vector_norm` with `p = 0.0`.
 ///
 /// # Arguments
 ///
@@ -87,7 +135,9 @@ pub fn l0_norm<B: Backend, const D: usize, K>(x: Tensor<B, D, K>, dim: usize) ->
 where
     K: BasicOps<B> + Numeric<B>,
 {
-    vector_norm(x, 0.0, dim)
+    x.zeros_like()
+        .mask_fill(x.not_equal_elem(0.0), 1.0)
+        .sum_dim(dim)
 }
 
 /// Computes the L1 norm of a tensor along a specified dimension.
@@ -106,12 +156,10 @@ pub fn l1_norm<B: Backend, const D: usize, K>(x: Tensor<B, D, K>, dim: usize) ->
 where
     K: BasicOps<B> + Numeric<B>,
 {
-    vector_norm(x, 1.0, dim)
+    x.abs().sum_dim(dim)
 }
 
 /// Computes the L2 norm of a tensor along a specified dimension.
-///
-/// This is a convenience function that wraps `vector_norm` with `p = 2.0`.
 ///
 /// # Arguments
 ///
@@ -125,12 +173,33 @@ pub fn l2_norm<B: Backend, const D: usize, K>(x: Tensor<B, D, K>, dim: usize) ->
 where
     K: BasicOps<B> + Numeric<B>,
 {
-    vector_norm(x, 2.0, dim)
+    // TODO: work out the numerical traits so we can use .sqrt() here:
+    x.abs().powi_scalar(2).sum_dim(dim).powf_scalar(0.5)
+}
+
+/// Computes the general ``L(p)`` norm of a tensor along a specified dimension.
+///
+/// # Arguments
+///
+/// * `x` - The input tensor.
+/// * `p` - The exponent of the Lp norm.
+/// * `dim` - The dimension to compute the norm over.
+///
+/// # Returns
+///
+/// The ``L(p)`` norm of the input tensor.
+pub fn lp_norm<B: Backend, const D: usize, K>(
+    x: Tensor<B, D, K>,
+    p: f64,
+    dim: usize,
+) -> Tensor<B, D, K>
+where
+    K: BasicOps<B> + Numeric<B>,
+{
+    x.abs().powf_scalar(p).sum_dim(dim).powf_scalar(1. / p)
 }
 
 /// Computes the L:INFINITY norm of a tensor along a specified dimension.
-///
-/// This is a convenience function that wraps `vector_norm` with `p = f64::INFINITY`.
 ///
 /// # Arguments
 ///
@@ -140,16 +209,17 @@ where
 /// # Returns
 ///
 /// The L:INFINITY norm of the input tensor.
-pub fn linf_norm<B: Backend, const D: usize, K>(x: Tensor<B, D, K>, dim: usize) -> Tensor<B, D, K>
+pub fn max_abs_norm<B: Backend, const D: usize, K>(
+    x: Tensor<B, D, K>,
+    dim: usize,
+) -> Tensor<B, D, K>
 where
     K: BasicOps<B> + Numeric<B>,
 {
-    vector_norm(x, f64::INFINITY, dim)
+    x.max_abs_dim(dim)
 }
 
 /// Computes the L:NEG_INFINITY norm of a tensor along a specified dimension.
-///
-/// This is a convenience function that wraps `vector_norm` with `p = f64::NEG_INFINITY`.
 ///
 /// # Arguments
 ///
@@ -159,12 +229,12 @@ where
 /// # Returns
 ///
 /// The L:NEG_INFINITY norm of the input tensor.
-pub fn lneg_inf_norm<B: Backend, const D: usize, K>(
+pub fn min_abs_norm<B: Backend, const D: usize, K>(
     x: Tensor<B, D, K>,
     dim: usize,
 ) -> Tensor<B, D, K>
 where
     K: BasicOps<B> + Numeric<B>,
 {
-    vector_norm(x, f64::NEG_INFINITY, dim)
+    x.abs().min_dim(dim)
 }

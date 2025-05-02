@@ -9,10 +9,10 @@ mod tests {
     fn test_pos_inf() {
         let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
 
-        linalg::vector_norm(x.clone(), f64::INFINITY, 0)
+        linalg::vector_norm(x.clone(), linalg::Norm::LInf, 0)
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[3., 4.]]).into_data(), true);
-        linalg::linf_norm(x.clone(), 0)
+        linalg::max_abs_norm(x.clone(), 0)
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[3., 4.]]).into_data(), true);
 
@@ -22,14 +22,14 @@ mod tests {
         linalg::vector_norm(x.clone(), f64::NEG_INFINITY, 0)
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[1., 2.]]).into_data(), true);
-        linalg::lneg_inf_norm(x.clone(), 0)
+        linalg::min_abs_norm(x.clone(), 0)
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[1., 2.]]).into_data(), true);
 
         linalg::vector_norm(x.clone(), f64::INFINITY, 1)
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[2.], [4.]]).into_data(), true);
-        linalg::linf_norm(x.clone(), 1)
+        linalg::max_abs_norm(x.clone(), 1)
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[2.], [4.]]).into_data(), true);
 
@@ -39,7 +39,7 @@ mod tests {
         linalg::vector_norm(x.clone(), f64::NEG_INFINITY, 1)
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[1.], [3.]]).into_data(), true);
-        linalg::lneg_inf_norm(x.clone(), 1)
+        linalg::min_abs_norm(x.clone(), 1)
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[1.], [3.]]).into_data(), true);
     }
@@ -48,7 +48,7 @@ mod tests {
     fn test_zero() {
         let x = TestTensor::<2>::from([[1.0, -2.0, 0.], [0.0, 0., 4.]]);
 
-        linalg::vector_norm(x.clone(), 0.0, 0)
+        linalg::vector_norm(x.clone(), linalg::Norm::L0, 0)
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[1., 1., 1.]]).into_data(), true);
         linalg::l0_norm(x.clone(), 0)
@@ -67,7 +67,7 @@ mod tests {
     fn test_l1_norm() {
         let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
 
-        linalg::vector_norm(x.clone(), 1.0, 0)
+        linalg::vector_norm(x.clone(), linalg::Norm::L1, 0)
             .into_data()
             .assert_eq(&TestTensor::<2>::from([[4.0, 6.0]]).into_data(), true);
         linalg::l1_norm(x.clone(), 0)
@@ -83,11 +83,30 @@ mod tests {
     }
 
     #[test]
+    fn test_lp_norm() {
+        let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
+        let tolerance = Tolerance::<f32>::absolute(1e-5);
+
+        linalg::vector_norm(x.clone(), 3, 0)
+            .into_data()
+            .assert_approx_eq(
+                &TestTensor::<2>::from([[3.0365891, 4.1601677]]).into_data(),
+                tolerance,
+            );
+        linalg::lp_norm(x.clone(), 3., 0)
+            .into_data()
+            .assert_approx_eq(
+                &TestTensor::<2>::from([[3.0365891, 4.1601677]]).into_data(),
+                tolerance,
+            );
+    }
+
+    #[test]
     fn test_l2_norm() {
         let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
         let tolerance = Tolerance::<f32>::absolute(1e-5);
 
-        linalg::vector_norm(x.clone(), 2.0, 0)
+        linalg::vector_norm(x.clone(), linalg::Norm::L2, 0)
             .into_data()
             .assert_approx_eq(
                 &TestTensor::<2>::from([[3.1622776601683795, 4.47213595499958]]).into_data(),
