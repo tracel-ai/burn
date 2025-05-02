@@ -1078,11 +1078,6 @@ fn conv_transpose3d_weight_grad_groups<B: Backend>(
             kernel_size_3_tmp,
         ] = weight_grad_tmp.shape().dims();
 
-        println!(
-            "data: {}",
-            crate::try_read_sync(B::float_into_data(weight_grad_tmp.clone())).unwrap()
-        );
-
         if kernel_size_1_tmp != kernel_size_1
             || kernel_size_2_tmp != kernel_size_2
             || kernel_size_3_tmp != kernel_size_3
@@ -1098,10 +1093,6 @@ fn conv_transpose3d_weight_grad_groups<B: Backend>(
                 ],
             );
         }
-        println!(
-            "after slice: {}",
-            crate::try_read_sync(B::float_into_data(weight_grad_tmp.clone())).unwrap()
-        );
         weight_grad = B::float_slice_assign(
             weight_grad,
             &[
@@ -1112,10 +1103,6 @@ fn conv_transpose3d_weight_grad_groups<B: Backend>(
                 0..kernel_size_3,
             ],
             weight_grad_tmp,
-        );
-        println!(
-            "after slice_assign: {}",
-            crate::try_read_sync(B::float_into_data(weight_grad.clone())).unwrap()
         );
     }
 
