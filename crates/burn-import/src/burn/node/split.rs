@@ -1,7 +1,7 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
-use crate::onnx::op_configuration::SplitConfig;
 use burn::record::PrecisionSettings;
+use onnx_ir::node::split::SplitConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 

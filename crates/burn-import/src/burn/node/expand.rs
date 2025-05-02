@@ -1,9 +1,7 @@
 use super::{Node, NodeCodegen};
-use crate::{
-    burn::{Scope, TensorType, ToTokens, Type},
-    onnx::op_configuration::ExpandShape,
-};
+use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
+use onnx_ir::node::expand::ExpandShape;
 use proc_macro2::TokenStream;
 use quote::quote;
 

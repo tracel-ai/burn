@@ -1,11 +1,9 @@
 use std::str::FromStr;
 
 use super::{Node, NodeCodegen};
-use crate::{
-    burn::{Scope, TensorType, ToTokens, Type},
-    onnx::op_configuration::PadConfig,
-};
+use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
+use onnx_ir::node::pad::PadConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 

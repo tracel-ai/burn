@@ -1,9 +1,7 @@
 use super::{Node, NodeCodegen};
-use crate::{
-    burn::{Scope, TensorType, ToTokens, Type},
-    onnx::op_configuration::TriluConfig,
-};
+use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
+use onnx_ir::node::trilu::TriluConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 

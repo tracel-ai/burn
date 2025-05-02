@@ -69,10 +69,6 @@ use crate::{
     logger::init_log,
 };
 
-use super::op_configuration::{
-    expand_config, pad_config, split_config, tile_config, top_k_config, trilu_config,
-    unsqueeze_config,
-};
 use onnx_ir::{
     convert_constant_value,
     ir::{
@@ -84,15 +80,17 @@ use onnx_ir::{
         batch_norm::batch_norm_config, clip::clip_config, concat::concat_config,
         conv_transpose1d::conv_transpose1d_config, conv_transpose2d::conv_transpose2d_config,
         conv_transpose3d::conv_transpose3d_config, conv1d::conv1d_config, conv2d::conv2d_config,
-        conv3d::conv3d_config, dropout::dropout_config, flatten::flatten_config,
-        gather::gather_config, gemm::gemm_config, hard_sigmoid::hard_sigmoid_config,
-        layer_norm::layer_norm_config, leaky_relu::leaky_relu_config, linear::linear_config,
-        log_softmax::log_softmax_config, max_pool1d::max_pool1d_config,
-        max_pool2d::max_pool2d_config, one_hot::one_hot_config, reduce_max::reduce_max_config,
-        reduce_mean::reduce_mean_config, reduce_min::reduce_min_config,
-        reduce_prod::reduce_prod_config, reduce_sum::reduce_sum_config, reshape::reshape_config,
-        resize::resize_config, slice::slice_config, softmax::softmax_config,
-        squeeze::squeeze_config, transpose::transpose_config,
+        conv3d::conv3d_config, dropout::dropout_config, expand::expand_config,
+        flatten::flatten_config, gather::gather_config, gemm::gemm_config,
+        hard_sigmoid::hard_sigmoid_config, layer_norm::layer_norm_config,
+        leaky_relu::leaky_relu_config, linear::linear_config, log_softmax::log_softmax_config,
+        max_pool1d::max_pool1d_config, max_pool2d::max_pool2d_config, one_hot::one_hot_config,
+        pad::pad_config, reduce_max::reduce_max_config, reduce_mean::reduce_mean_config,
+        reduce_min::reduce_min_config, reduce_prod::reduce_prod_config,
+        reduce_sum::reduce_sum_config, reshape::reshape_config, resize::resize_config,
+        slice::slice_config, softmax::softmax_config, split::split_config, squeeze::squeeze_config,
+        tile::tile_config, topk::top_k_config, transpose::transpose_config, trilu::trilu_config,
+        unsqueeze::unsqueeze_config,
     },
     parse_onnx,
     util::shape_config,

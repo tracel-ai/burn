@@ -1,9 +1,7 @@
 use super::{Node, NodeCodegen};
-use crate::{
-    burn::{Scope, TensorType, Type},
-    onnx::op_configuration::TopKConfig,
-};
+use crate::burn::{Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
+use onnx_ir::node::topk::TopKConfig;
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
 
