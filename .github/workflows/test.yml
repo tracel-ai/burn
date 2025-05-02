@@ -156,6 +156,8 @@ jobs:
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
+          # Disable cache on linux-std (stable) runner which currently always runs out of disk space with tests + coverage
+          enable-cache: ${{ matrix.rust != 'stable' }}
       # --------------------------------------------------------------------------------
       - name: Setup Linux runner
         uses: tracel-ai/github-actions/setup-linux@v1

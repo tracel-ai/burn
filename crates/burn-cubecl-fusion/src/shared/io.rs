@@ -1,8 +1,8 @@
 use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
 use cubecl::{
+    intrinsic,
     ir::{ExpandElement, Variable},
     prelude::*,
-    unexpanded,
 };
 use serde::{Deserialize, Serialize};
 
@@ -554,7 +554,7 @@ fn reshaped_index(
     #[unroll]
     for r in 0..rank {
         let i = reverse_index(rank, r);
-        let arg = comptime![shape.index(i.clone())];
+        let arg = comptime![shape.index(i)];
         let shape_i = read_scalar_shape(inputs, comptime![arg.clone()]);
         let ogwl = index / locals.ref_strides[i];
 
@@ -566,6 +566,7 @@ fn reshaped_index(
     offset
 }
 
+#[allow(unreachable_code)]
 #[cube]
 #[allow(clippy::clone_on_copy)]
 fn reshaped_index_to_original_index<C: CubePrimitive>(
@@ -579,7 +580,7 @@ fn reshaped_index_to_original_index<C: CubePrimitive>(
     #[unroll]
     for r in 0..rank {
         let i = reverse_index(rank, r);
-        let shape = original.shape(comptime![i.clone()]);
+        let shape = original.shape(i);
         let stride = original.stride(i);
 
         let coordinate = remaining % shape;
@@ -591,42 +592,22 @@ fn reshaped_index_to_original_index<C: CubePrimitive>(
     offset / original.line_size()
 }
 
-pub(crate) fn reverse_index(_rank: u32, _iter: u32) -> u32 {
-    unexpanded!()
-}
-
-pub(crate) mod reverse_index {
-    use super::*;
-
-    pub(crate) fn expand(
-        _scope: &mut Scope,
-        rank: u32,
-        elem: ExpandElementTyped<u32>,
-    ) -> ExpandElementTyped<u32> {
-        let elem = elem.constant().map(|cons| cons.as_u32()).unwrap();
-        let result = rank - elem - 1;
-        let scalar: Variable = result.into();
-        let expand: ExpandElement = ExpandElement::Plain(scalar);
-
-        expand.into()
-    }
+#[cube]
+#[allow(unused_variables)]
+pub(crate) fn reverse_index(#[comptime] rank: u32, iter: u32) -> comptime_type!(u32) {
+    intrinsic!(|_| {
+        let elem = iter.constant().map(|cons| cons.as_u32()).unwrap();
+        rank - elem - 1
+    })
 }
 
 /// Generic way to construct any [`CubePrimitive`] from an int. Used for fusion.
-fn from_const_int<C: CubePrimitive>(_value: u32) -> C {
-    unexpanded!()
-}
-
-mod from_const_int {
-    use cubecl::ir::{ExpandElement, Scope, Variable};
-
-    use cubecl::prelude::ExpandElementTyped;
-
-    use super::CubePrimitive;
-
-    pub fn expand<C: CubePrimitive>(scope: &mut Scope, value: u32) -> ExpandElementTyped<C> {
+#[allow(unused_variables)]
+#[cube]
+fn from_const_int<C: CubePrimitive>(#[comptime] value: u32) -> C {
+    intrinsic!(|scope| {
         let constant: ExpandElement = value.into();
         let constant_c = constant.as_const().unwrap().cast_to(C::as_elem(scope));
         ExpandElement::Plain(Variable::constant(constant_c)).into()
-    }
+    })
 }

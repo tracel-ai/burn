@@ -348,8 +348,8 @@ impl CubeType for FusedMatmulState {
     type ExpandType = FusedMatmulStateExpand;
 }
 
-impl Init for FusedMatmulStateExpand {
-    fn init(self, _context: &mut Scope) -> Self {
+impl IntoMut for FusedMatmulStateExpand {
+    fn into_mut(self, _context: &mut Scope) -> Self {
         self
     }
 }

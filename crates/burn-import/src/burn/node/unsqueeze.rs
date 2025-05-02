@@ -70,6 +70,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
     fn into_node(self) -> Node<PS> {
         Node::Unsqueeze(self)
     }
+
     fn register_imports(&self, imports: &mut BurnImports) {
         match &self.input {
             Type::Scalar(_) => {

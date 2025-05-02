@@ -58,8 +58,8 @@ impl CubeType for Arg {
     type ExpandType = Self;
 }
 
-impl Init for Arg {
-    fn init(self, _context: &mut Scope) -> Self {
+impl IntoMut for Arg {
+    fn into_mut(self, _context: &mut Scope) -> Self {
         self
     }
 }

@@ -15,6 +15,7 @@ use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{Distribution, ElementConversion, Shape, TensorData, ops::IntTensorOps};
 use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
+use cubecl::reduce::ReducePrecision;
 use cubecl::reduce::instructions::ReduceFnConfig;
 use std::ops::Range;
 
@@ -209,55 +210,78 @@ where
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Sum).unwrap()
+        reduce::reduce_dim::<R, I, I, <I as ReducePrecision>::EA>(
+            tensor,
+            dim,
+            Default::default(),
+            ReduceFnConfig::Sum,
+        )
+        .unwrap()
     }
 
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce::<R, I, I>(tensor, Default::default(), ReduceFnConfig::Prod).unwrap()
+        reduce::reduce::<R, I, I, <I as ReducePrecision>::EA>(
+            tensor,
+            Default::default(),
+            ReduceFnConfig::Prod,
+        )
+        .unwrap()
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Prod)
-            .unwrap()
+        reduce::reduce_dim::<R, I, I, <I as ReducePrecision>::EA>(
+            tensor,
+            dim,
+            Default::default(),
+            ReduceFnConfig::Prod,
+        )
+        .unwrap()
     }
 
     fn int_max(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce::<R, I, I>(tensor, Default::default(), ReduceFnConfig::Max).unwrap()
+        reduce::reduce::<R, I, I, I>(tensor, Default::default(), ReduceFnConfig::Max).unwrap()
     }
 
     fn int_max_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Max).unwrap()
+        reduce::reduce_dim::<R, I, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Max)
+            .unwrap()
     }
 
     fn int_max_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce::<R, I, I>(tensor, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
+        reduce::reduce::<R, I, I, I>(tensor, Default::default(), ReduceFnConfig::MaxAbs).unwrap()
     }
 
     fn int_max_abs_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::MaxAbs)
+        reduce::reduce_dim::<R, I, I, I>(tensor, dim, Default::default(), ReduceFnConfig::MaxAbs)
             .unwrap()
     }
 
     fn int_min(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce::<R, I, I>(tensor, Default::default(), ReduceFnConfig::Min).unwrap()
+        reduce::reduce::<R, I, I, I>(tensor, Default::default(), ReduceFnConfig::Min).unwrap()
     }
 
     fn int_min_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Min).unwrap()
-    }
-
-    fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Mean)
+        reduce::reduce_dim::<R, I, I, I>(tensor, dim, Default::default(), ReduceFnConfig::Min)
             .unwrap()
     }
 
+    fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        reduce::reduce_dim::<R, I, I, <I as ReducePrecision>::EA>(
+            tensor,
+            dim,
+            Default::default(),
+            ReduceFnConfig::Mean,
+        )
+        .unwrap()
+    }
+
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::ArgMax)
+        reduce::reduce_dim::<R, I, I, I>(tensor, dim, Default::default(), ReduceFnConfig::ArgMax)
             .unwrap()
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::reduce_dim::<R, I, I>(tensor, dim, Default::default(), ReduceFnConfig::ArgMin)
+        reduce::reduce_dim::<R, I, I, I>(tensor, dim, Default::default(), ReduceFnConfig::ArgMin)
             .unwrap()
     }
 

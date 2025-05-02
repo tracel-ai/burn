@@ -44,8 +44,8 @@ impl CubeType for QuantizationScheme {
 impl CubeDebug for QuantizationScheme {}
 
 #[cfg(feature = "cubecl")]
-impl cubecl::frontend::Init for QuantizationScheme {
-    fn init(self, _scope: &mut cubecl::ir::Scope) -> Self {
+impl cubecl::frontend::IntoMut for QuantizationScheme {
+    fn into_mut(self, _scope: &mut cubecl::ir::Scope) -> Self {
         self
     }
 }
