@@ -101,9 +101,22 @@ impl<R: Runtime> ReduceBuilder<R> {
             self.status = OptimizationStatus::Closed;
         }
 
+        let acc = match inst {
+            ReduceInstruction::Mean | ReduceInstruction::Prod | ReduceInstruction::Sum => {
+                match input.precision() {
+                    FusePrecision::F16 | FusePrecision::BF16 => FusePrecision::F32,
+                    FusePrecision::I16 | FusePrecision::I8 => FusePrecision::I32,
+                    FusePrecision::U16 | FusePrecision::U8 => FusePrecision::U32,
+                    _ => input.precision(),
+                }
+            }
+            _ => input.precision(),
+        };
+
         self.reduce = Some(FusedReduce::new(
             input,
             output,
+            acc,
             axis,
             op.clone(),
             ReduceStrategy {

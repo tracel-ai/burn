@@ -1685,6 +1685,7 @@ dependencies = [
  "cubecl-core",
  "cubecl-runtime",
  "cubecl-std",
+ "half",
  "num-traits",
  "serde",
 ]
