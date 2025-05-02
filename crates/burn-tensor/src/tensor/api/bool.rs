@@ -67,7 +67,7 @@ where
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension.
     pub async fn nonzero_async(self) -> Vec<Tensor<B, 1, Int>> {
-        let indices = self.argwhere();
+        let indices = self.argwhere_async().await;
 
         if indices.shape().num_elements() == 0 {
             // Return empty vec when all elements are zero

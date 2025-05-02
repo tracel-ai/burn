@@ -2224,9 +2224,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
     /// which is more high-level and designed for public use.
-    fn into_data_async(
-        tensor: Self::Primitive,
-    ) -> impl Future<Output = TensorData> + 'static + Send;
+    fn into_data_async(tensor: Self::Primitive) -> impl Future<Output = TensorData> + Send;
 
     /// Read the data from the tensor using a transaction.
     ///

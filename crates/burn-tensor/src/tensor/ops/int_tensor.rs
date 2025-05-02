@@ -4,7 +4,6 @@ use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use crate::cast::ToElement;
 use crate::{Distribution, ElementConversion, Int, TensorData, backend::Backend, tensor::Shape};
 use alloc::vec::Vec;
-use core::future::Future;
 use core::ops::Range;
 
 use crate::{TensorMetadata, argsort, sort, sort_with_indices};
@@ -33,7 +32,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn int_into_data(tensor: IntTensor<B>) -> impl Future<Output = TensorData> + 'static + Send;
+    fn int_into_data(tensor: IntTensor<B>) -> impl Future<Output = TensorData> + Send;
 
     /// Creates a tensor from the data structure.
     ///

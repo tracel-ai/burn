@@ -12,12 +12,11 @@ pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) ->
 
 pub(crate) async fn into_data<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
-
     let bytes = tensor
         .client
         .read_async(vec![tensor.handle.binding()])
-        .await
-        .remove(0);
+        .await;
+    let bytes = &bytes[0];
     let actual_len = tensor.shape.num_elements() * size_of::<E>();
     TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
 }
