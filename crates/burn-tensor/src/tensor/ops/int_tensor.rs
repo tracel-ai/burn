@@ -797,6 +797,7 @@ pub trait IntTensorOps<B: Backend> {
     fn int_max_dim_with_indices(tensor: IntTensor<B>, dim: usize) -> (IntTensor<B>, IntTensor<B>) {
         let index = B::int_argmax(tensor.clone(), dim);
         let values = B::int_gather(dim, tensor, index.clone());
+
         (values, index)
     }
 
@@ -874,6 +875,7 @@ pub trait IntTensorOps<B: Backend> {
     fn int_min_dim_with_indices(tensor: IntTensor<B>, dim: usize) -> (IntTensor<B>, IntTensor<B>) {
         let indices = B::int_argmin(tensor.clone(), dim);
         let values = B::int_gather(dim, tensor, indices.clone());
+
         (values, indices)
     }
 
