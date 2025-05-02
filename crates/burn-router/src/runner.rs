@@ -1,11 +1,10 @@
 use alloc::{sync::Arc, vec::Vec};
-use burn_common::stub::Mutex;
+use burn_common::{future::DynFut, stub::Mutex};
 use burn_ir::{
     BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer, IntOperationIr,
     ModuleOperationIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
 };
 use burn_tensor::{DType, ElementConversion, FloatDType, Shape, TensorData, backend::Backend};
-use core::future::Future;
 
 use super::{RouterTensor, RunnerClient};
 use crate::{
@@ -1226,7 +1225,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
         }
     }
 
-    fn read_tensor(&self, tensor: TensorIr) -> impl Future<Output = TensorData> + Send {
+    fn read_tensor(&self, tensor: TensorIr) -> DynFut<TensorData> {
         let mut ctx = self.context.lock().unwrap();
 
         enum Output<B: Backend> {
@@ -1250,12 +1249,10 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
             unimplemented!()
         };
 
-        async move {
-            match tensor {
-                Output::Float(val) => B::float_into_data(val).await,
-                Output::Int(val) => B::int_into_data(val).await,
-                Output::Bool(val) => B::bool_into_data(val).await,
-            }
+        match tensor {
+            Output::Float(val) => Box::pin(B::float_into_data(val)),
+            Output::Int(val) => Box::pin(B::int_into_data(val)),
+            Output::Bool(val) => Box::pin(B::bool_into_data(val)),
         }
     }
 
@@ -1282,12 +1279,9 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
         self.context.lock().unwrap().drop_tensor_handle(*id)
     }
 
-    fn sync(&self) -> impl Future<Output = ()> + Send {
+    fn sync(&self) {
         let device = self.device.clone();
-
-        async move {
-            B::sync(&device);
-        }
+        B::sync(&device);
     }
 
     fn seed(&self, seed: u64) {

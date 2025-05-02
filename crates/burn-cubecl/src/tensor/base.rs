@@ -318,10 +318,11 @@ where
         device: R::Device,
     ) -> Self {
         let bytes = burn_common::reader::try_read_sync(
-            self.client.read_one_async(self.handle.clone().binding()),
+            self.client.read_async(vec![self.handle.clone().binding()]),
         )
         .expect("Can only change client synchronously");
-        let handle = client.create(&bytes);
+
+        let handle = client.create(&bytes[0]);
 
         Self {
             client,

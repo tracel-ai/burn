@@ -36,8 +36,7 @@ impl<B: BackendIr> Processor<B> {
                         runner.register_orphan(&id);
                     }
                     ProcessorTask::Sync(id, callback) => {
-                        let fut = runner.sync();
-                        burn_common::future::block_on(fut);
+                        runner.sync();
                         callback
                             .send(TaskResponse {
                                 content: TaskResponseContent::SyncBackend,
@@ -60,8 +59,7 @@ impl<B: BackendIr> Processor<B> {
                     }
                     ProcessorTask::Close => {
                         let device = runner.device();
-                        let fut = runner.sync();
-                        burn_common::future::block_on(fut);
+                        runner.sync();
                         core::mem::drop(runner);
                         B::sync(&device);
                         return;

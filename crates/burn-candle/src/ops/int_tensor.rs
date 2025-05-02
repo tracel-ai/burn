@@ -1,3 +1,4 @@
+use burn_common::future::DynFut;
 use burn_tensor::{
     Bool, Device, Distribution, ElementConversion, Shape, TensorData,
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},

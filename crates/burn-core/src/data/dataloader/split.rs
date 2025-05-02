@@ -58,6 +58,8 @@ mod tests {
 
         let batcher = Arc::new(TestBatcher::new());
         let dataset = Arc::new(FakeDataset::<String>::new(11));
+
+        #[allow(clippy::arc_with_non_send_sync)]
         let dataloader = Arc::new(BatchDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),
             dataset.clone(),
