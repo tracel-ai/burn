@@ -19,11 +19,17 @@ macro_rules! include_models {
 // Note: The following models have been moved to their own modules:
 // - add, add_int -> tests/add/mod.rs
 // - argmax -> tests/argmax/mod.rs
+// - avg_pool1d, avg_pool2d -> tests/avg_pool/mod.rs
+// - batch_norm -> tests/batch_norm/mod.rs
+// - cast -> tests/cast/mod.rs
+// - clip -> tests/clip/mod.rs
 // - concat -> tests/concat/mod.rs
 // - constant_f32, constant_f64, constant_i32, constant_i64 -> tests/constant/mod.rs
 // - constant_of_shape, constant_of_shape_full_like -> tests/constant_of_shape/mod.rs
 // - conv1d, conv2d, conv3d -> tests/conv/mod.rs
 // - conv_transpose1d, conv_transpose2d, conv_transpose3d -> tests/conv_transpose/mod.rs
+// - cos -> tests/cos/mod.rs
+// - cosh -> tests/cosh/mod.rs
 // - div -> tests/div/mod.rs
 // - dropout -> tests/dropout/mod.rs
 // - erf -> tests/erf/mod.rs
@@ -32,22 +38,18 @@ macro_rules! include_models {
 // - log_softmax -> tests/log_softmax/mod.rs
 // - matmul -> tests/matmul/mod.rs
 // - max -> tests/max/mod.rs
+// - maxpool1d, maxpool2d -> tests/maxpool/mod.rs
 // - mean -> tests/mean/mod.rs
 // - min -> tests/min/mod.rs
 // - mul -> tests/mul/mod.rs
+// - sin -> tests/sin/mod.rs
+// - sinh -> tests/sinh/mod.rs
 // - slice, slice_shape -> tests/slice/mod.rs
 // - softmax -> tests/softmax/mod.rs
 // - sqrt -> tests/sqrt/mod.rs
 // - sub, sub_int -> tests/sub/mod.rs
 // - sum, sum_int -> tests/sum/mod.rs
 include_models!(
-    avg_pool1d,
-    avg_pool2d,
-    batch_norm,
-    cast,
-    clip,
-    cos,
-    cosh,
     equal,
     exp,
     expand,
@@ -79,8 +81,6 @@ include_models!(
     mask_where_broadcast,
     mask_where_scalar_x,
     mask_where_scalar_y,
-    maxpool1d,
-    maxpool2d,
     neg,
     not,
     one_hot,
@@ -110,8 +110,6 @@ include_models!(
     shape,
     sigmoid,
     sign,
-    sin,
-    sinh,
     split,
     squeeze,
     squeeze_multiple,
@@ -191,162 +189,9 @@ mod tests {
 
     // max test moved to tests/max/mod.rs
 
-    #[test]
-    fn maxpool1d() {
-        let device = Default::default();
+    // maxpool1d and maxpool2d tests moved to tests/maxpool/mod.rs
 
-        let model: maxpool1d::Model<Backend> = maxpool1d::Model::new(&device);
-        let input = Tensor::<Backend, 3>::from_floats(
-            [[
-                [1.927, 1.487, 0.901, -2.106, 0.678],
-                [-1.235, -0.043, -1.605, -0.752, -0.687],
-                [-0.493, 0.241, -1.111, 0.092, -2.317],
-                [-0.217, -1.385, -0.396, 0.803, -0.622],
-                [-0.592, -0.063, -0.829, 0.331, -1.558],
-            ]],
-            &device,
-        );
-        let output = model.forward(input);
-        let expected = TensorData::from([[
-            [1.927f32, 1.927, 0.901],
-            [-0.043, -0.043, -0.687],
-            [0.241, 0.241, 0.092],
-            [-0.217, 0.803, 0.803],
-            [-0.063, 0.331, 0.331],
-        ]]);
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn maxpool2d() {
-        // Initialize the model without weights (because the exported file does not contain them)
-        let device = Default::default();
-        let model: maxpool2d::Model<Backend> = maxpool2d::Model::new(&device);
-
-        // Run the model
-        let input = Tensor::<Backend, 4>::from_floats(
-            [[[
-                [1.927, 1.487, 0.901, -2.106, 0.678],
-                [-1.235, -0.043, -1.605, -0.752, -0.687],
-                [-0.493, 0.241, -1.111, 0.092, -2.317],
-                [-0.217, -1.385, -0.396, 0.803, -0.622],
-                [-0.592, -0.063, -0.829, 0.331, -1.558],
-            ]]],
-            &device,
-        );
-        let output = model.forward(input);
-        let expected = TensorData::from([[[
-            [0.901f32, 1.927, 1.487, 0.901],
-            [0.901, 1.927, 1.487, 0.901],
-            [-0.396, 0.803, 0.241, -0.396],
-        ]]]);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn avg_pool1d() {
-        // Initialize the model without weights (because the exported file does not contain them)
-        let device = Default::default();
-        let model: avg_pool1d::Model<Backend> = avg_pool1d::Model::new(&device);
-
-        // Run the model
-        let input = Tensor::<Backend, 3>::from_floats(
-            [[
-                [-1.526, -0.750, -0.654, -1.609, -0.100],
-                [-0.609, -0.980, -1.609, -0.712, 1.171],
-                [1.767, -0.095, 0.139, -1.579, -0.321],
-                [-0.299, 1.879, 0.336, 0.275, 1.716],
-                [-0.056, 0.911, -1.392, 2.689, -0.111],
-            ]],
-            &device,
-        );
-        let (output1, output2, output3) = model.forward(input.clone(), input.clone(), input);
-        let expected1 = TensorData::from([[[-1.135f32], [-0.978], [0.058], [0.548], [0.538]]]);
-        let expected2 = TensorData::from([[
-            [-0.569f32, -1.135, -0.591],
-            [-0.397, -0.978, -0.288],
-            [0.418, 0.058, -0.440],
-            [0.395, 0.548, 0.582],
-            [0.214, 0.538, 0.296],
-        ]]);
-        let expected3 = TensorData::from([[
-            [-1.138f32, -1.135, -0.788],
-            [-0.794, -0.978, -0.383],
-            [0.836, 0.058, -0.587],
-            [0.790, 0.548, 0.776],
-            [0.427, 0.538, 0.395],
-        ]]);
-
-        let expected_shape1 = Shape::from([1, 5, 1]);
-        let expected_shape2 = Shape::from([1, 5, 3]);
-        let expected_shape3 = Shape::from([1, 5, 3]);
-
-        assert_eq!(output1.shape(), expected_shape1);
-        assert_eq!(output2.shape(), expected_shape2);
-        assert_eq!(output3.shape(), expected_shape3);
-
-        let tolerance = Tolerance::rel_abs(1e-4, 1e-3);
-        output1
-            .to_data()
-            .assert_approx_eq::<FT>(&expected1, tolerance);
-        output2
-            .to_data()
-            .assert_approx_eq::<FT>(&expected2, tolerance);
-        output3
-            .to_data()
-            .assert_approx_eq::<FT>(&expected3, tolerance);
-    }
-
-    #[test]
-    fn avg_pool2d() {
-        // Initialize the model without weights (because the exported file does not contain them)
-        let device = Default::default();
-        let model: avg_pool2d::Model<Backend> = avg_pool2d::Model::new(&device);
-
-        // Run the model
-        let input = Tensor::<Backend, 4>::from_floats(
-            [[[
-                [-0.077, 0.360, -0.782, 0.072, 0.665],
-                [-0.287, 1.621, -1.597, -0.052, 0.611],
-                [0.760, -0.034, -0.345, 0.494, -0.078],
-                [-1.805, -0.476, 0.205, 0.338, 1.353],
-                [0.374, 0.013, 0.774, -0.109, -0.271],
-            ]]],
-            &device,
-        );
-        let (output1, output2, output3) = model.forward(input.clone(), input.clone(), input);
-        let expected1 = TensorData::from([[[[0.008f32, -0.131, -0.208, 0.425]]]]);
-        let expected2 = TensorData::from([[[
-            [-0.045f32, 0.202, -0.050, -0.295, 0.162, 0.160],
-            [-0.176, 0.008, -0.131, -0.208, 0.425, 0.319],
-            [-0.084, -0.146, 0.017, 0.170, 0.216, 0.125],
-        ]]]);
-        let expected3 = TensorData::from([[[
-            [-0.182f32, 0.404, -0.100, -0.590, 0.324, 0.638],
-            [-0.352, 0.008, -0.131, -0.208, 0.425, 0.638],
-            [-0.224, -0.195, 0.023, 0.226, 0.288, 0.335],
-        ]]]);
-
-        let expected_shape1 = Shape::from([1, 1, 1, 4]);
-        let expected_shape2 = Shape::from([1, 1, 3, 6]);
-        let expected_shape3 = Shape::from([1, 1, 3, 6]);
-
-        assert_eq!(output1.shape(), expected_shape1);
-        assert_eq!(output2.shape(), expected_shape2);
-        assert_eq!(output3.shape(), expected_shape3);
-
-        let tolerance = Tolerance::rel_abs(1e-4, 1e-3);
-        output1
-            .to_data()
-            .assert_approx_eq::<FT>(&expected1, tolerance);
-        output2
-            .to_data()
-            .assert_approx_eq::<FT>(&expected2, tolerance);
-        output3
-            .to_data()
-            .assert_approx_eq::<FT>(&expected3, tolerance);
-    }
+    // avg_pool1d and avg_pool2d tests moved to tests/avg_pool/mod.rs
 
     #[test]
     fn reduce_max() {
@@ -653,21 +498,7 @@ mod tests {
         assert_eq!(expected_shape, output.shape());
     }
 
-    #[test]
-    fn batch_norm() {
-        let model: batch_norm::Model<Backend> = batch_norm::Model::default();
-
-        // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 3>::ones([1, 20, 1], &Default::default());
-        let output = model.forward(input);
-
-        let expected_shape = Shape::from([1, 5, 2, 2]);
-        assert_eq!(output.shape(), expected_shape);
-
-        let output_sum = output.sum().into_scalar();
-        let expected_sum = 19.999_802; // from pytorch
-        assert!(expected_sum.approx_eq(output_sum, (1.0e-8, 2)));
-    }
+    // batch_norm test moved to tests/batch_norm/mod.rs
 
     #[test]
     fn layer_norm() {
@@ -824,35 +655,9 @@ mod tests {
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
-    #[test]
-    fn sin() {
-        let device = Default::default();
-        let model: sin::Model<Backend> = sin::Model::new(&device);
+    // sin test moved to tests/sin/mod.rs
 
-        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
-
-        let output = model.forward(input);
-        let expected = TensorData::from([[[[0.8415f32, -0.7568, 0.4121, -0.1324]]]]);
-
-        output
-            .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
-    }
-
-    #[test]
-    fn sinh() {
-        let device = Default::default();
-        let model: sinh::Model<Backend> = sinh::Model::new(&device);
-
-        let input = Tensor::<Backend, 4>::from_floats([[[[-4.0, 0.5, 1.0, 9.0]]]], &device);
-
-        let output = model.forward(input);
-        let expected = TensorData::from([[[[-27.2899, 0.5211, 1.1752, 4051.5419]]]]);
-
-        output
-            .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
-    }
+    // sinh test moved to tests/sinh/mod.rs
 
     #[test]
     fn transpose() {
@@ -900,40 +705,7 @@ mod tests {
         assert_eq!(scalar_out, expected_scalar);
     }
 
-    #[test]
-    fn clip() {
-        // Initialize the model without weights (because the exported file does not contain them)
-        let device = Default::default();
-        let model: clip::Model<Backend> = clip::Model::new(&device);
-
-        // Run the model
-        let input = Tensor::<Backend, 1>::from_floats(
-            [
-                0.88226926,
-                0.91500396,
-                0.38286376,
-                0.95930564,
-                0.390_448_2,
-                0.60089535,
-            ],
-            &device,
-        );
-        let (output1, output2, output3) = model.forward(input);
-        let expected1 = TensorData::from([
-            0.88226926f32,
-            0.91500396,
-            0.38286376,
-            0.95930564,
-            0.390_448_2,
-            0.60089535,
-        ]);
-        let expected2 = TensorData::from([0.7f32, 0.7, 0.5, 0.7, 0.5, 0.60089535]);
-        let expected3 = TensorData::from([0.8f32, 0.8, 0.38286376, 0.8, 0.390_448_2, 0.60089535]);
-
-        output1.to_data().assert_eq(&expected1, true);
-        output2.to_data().assert_eq(&expected2, true);
-        output3.to_data().assert_eq(&expected3, true);
-    }
+    // clip test moved to tests/clip/mod.rs
 
     #[test]
     fn linear() {
@@ -1037,35 +809,9 @@ mod tests {
 
     // conv_transpose1d, conv_transpose2d, conv_transpose3d tests moved to tests/conv_transpose/mod.rs
 
-    #[test]
-    fn cos() {
-        let device = Default::default();
-        let model: cos::Model<Backend> = cos::Model::new(&device);
+    // cos test moved to tests/cos/mod.rs
 
-        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
-
-        let output = model.forward(input);
-        let expected = TensorData::from([[[[0.5403f32, -0.6536, -0.9111, 0.9912]]]]);
-
-        output
-            .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
-    }
-
-    #[test]
-    fn cosh() {
-        let device = Default::default();
-        let model: cosh::Model<Backend> = cosh::Model::new(&device);
-
-        let input = Tensor::<Backend, 4>::from_floats([[[[-4.0, 0.5, 1.0, 9.0]]]], &device);
-
-        let output = model.forward(input);
-        let expected = TensorData::from([[[[27.3082, 1.1276, 1.5431, 4051.5420]]]]);
-
-        output
-            .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
-    }
+    // cosh test moved to tests/cosh/mod.rs
 
     #[test]
     #[allow(clippy::approx_constant)]
@@ -1452,59 +1198,7 @@ mod tests {
         assert_eq!(Shape::from([1]), output.1.shape());
     }
 
-    #[test]
-    fn cast() {
-        let device = Default::default();
-        let model: cast::Model<Backend> = cast::Model::new(&device);
-
-        let input_bool =
-            Tensor::<Backend, 2, Bool>::from_bool(TensorData::from([[true], [true]]), &device);
-        let input_int = Tensor::<Backend, 2, Int>::from_ints([[1], [1]], &device);
-        let input_float = Tensor::<Backend, 2>::from_floats([[1f32], [1.]], &device);
-        let input_scalar = 1f32;
-
-        let (
-            output1,
-            output2,
-            output3,
-            output4,
-            output5,
-            output6,
-            output7,
-            output8,
-            output9,
-            output_scalar,
-        ) = model.forward(
-            input_bool.clone(),
-            input_int.clone(),
-            input_float.clone(),
-            input_scalar,
-        );
-        let expected_bool = input_bool.to_data();
-        let expected_int = input_int.to_data();
-        let expected_float = input_float.to_data();
-        let expected_scalar = 1;
-
-        output1.to_data().assert_eq(&expected_bool, true);
-        output2.to_data().assert_eq(&expected_int, true);
-        output3
-            .to_data()
-            .assert_approx_eq::<FT>(&expected_float, Tolerance::default());
-
-        output4.to_data().assert_eq(&expected_bool, true);
-        output5.to_data().assert_eq(&expected_int, true);
-        output6
-            .to_data()
-            .assert_approx_eq::<FT>(&expected_float, Tolerance::default());
-
-        output7.to_data().assert_eq(&expected_bool, true);
-        output8.to_data().assert_eq(&expected_int, true);
-        output9
-            .to_data()
-            .assert_approx_eq::<FT>(&expected_float, Tolerance::default());
-
-        assert_eq!(output_scalar, expected_scalar);
-    }
+    // cast test moved to tests/cast/mod.rs
 
     #[test]
     fn mask_where() {
