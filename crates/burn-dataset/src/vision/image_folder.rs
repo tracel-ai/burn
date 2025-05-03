@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use std::io::Write;
 
 const SUPPORTED_FILES: [&str; 4] = ["bmp", "jpg", "jpeg", "png"];
 const BBOX_MIN_NUM_VALUES: usize = 4;
@@ -690,6 +691,28 @@ impl ImageFolderDataset {
             .enumerate()
             .map(|(idx, cls)| (cls.to_string(), idx))
             .collect();
+
+        // Save labels.txt in the artifact directory
+        let artifact_dir = "/tmp/burn-dataset";
+        let labels_path = std::path::Path::new(&artifact_dir).join("labels.txt");
+        
+        // Create parent directories if they don't exist
+        if let Some(parent) = labels_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| ImageLoaderError::IOError(e.to_string()))?;
+        }
+
+        // Write labels to file
+        let mut labels_file = std::fs::File::create(&labels_path)
+            .map_err(|e| ImageLoaderError::IOError(e.to_string()))?;
+        
+        // Sort classes by index to ensure consistent ordering
+        let mut sorted_classes: Vec<_> = classes_map.iter().collect();
+        sorted_classes.sort_by_key(|(_, idx)| *idx);
+        
+        for (class_name, _) in sorted_classes {
+            writeln!(labels_file, "{}", class_name)
+                .map_err(|e| ImageLoaderError::IOError(e.to_string()))?;
+        }
 
         let mapper = PathToImageDatasetItem {
             classes: classes_map,
