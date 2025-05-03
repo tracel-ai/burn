@@ -16,9 +16,11 @@ macro_rules! include_models {
 }
 
 // ATTENTION: Modify this macro to include all models in the `model` directory.
+// Note: The following models have been moved to their own modules:
+// - add, add_int -> tests/add/mod.rs
+// - sub, sub_int -> tests/sub/mod.rs
+// - sum, sum_int -> tests/sum/mod.rs
 include_models!(
-    add,
-    add_int,
     argmax,
     avg_pool1d,
     avg_pool2d,
@@ -127,10 +129,6 @@ include_models!(
     sqrt,
     squeeze,
     squeeze_multiple,
-    sub,
-    sub_int,
-    sum,
-    sum_int,
     tan,
     tanh,
     tile,
@@ -155,95 +153,11 @@ mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
     type FT = FloatElem<Backend>;
 
-    #[test]
-    fn add_scalar_to_tensor_and_tensor_to_tensor() {
-        // Initialize the model with weights (loaded from the exported file)
-        let model: add::Model<Backend> = add::Model::default();
+    // add tests moved to tests/add/mod.rs
 
-        let device = Default::default();
-        // Run the model
-        let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]], &device);
-        let scalar = 2f64;
-        let output = model.forward(input, scalar);
-        let expected = TensorData::from([[[[9f32, 10., 11., 12.]]]]);
+    // sub tests moved to tests/sub/mod.rs
 
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn add_scalar_to_int_tensor_and_int_tensor_to_int_tensor() {
-        // Initialize the model with weights (loaded from the exported file)
-        let model: add_int::Model<Backend> = add_int::Model::default();
-
-        let device = Default::default();
-        // Run the model
-        let input = Tensor::<Backend, 4, Int>::from_ints([[[[1, 2, 3, 4]]]], &device);
-        let scalar = 2;
-        let output = model.forward(input, scalar);
-        let expected = TensorData::from([[[[9i64, 11, 13, 15]]]]);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn sub_scalar_from_tensor_and_tensor_from_tensor() {
-        // Initialize the model with weights (loaded from the exported file)
-        let model: sub::Model<Backend> = sub::Model::default();
-
-        let device = Default::default();
-        // Run the model
-        let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]], &device);
-        let scalar = 3.0f64;
-        let output = model.forward(input, scalar);
-        let expected = TensorData::from([[[[-12f32, -13., -14., -15.]]]]);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn sub_scalar_from_int_tensor_and_int_tensor_from_tensor() {
-        // Initialize the model with weights (loaded from the exported file)
-        let model: sub_int::Model<Backend> = sub_int::Model::default();
-
-        let device = Default::default();
-        // Run the model
-        let input = Tensor::<Backend, 4, Int>::from_ints([[[[1, 2, 3, 4]]]], &device);
-        let scalar = 3;
-        let output = model.forward(input, scalar);
-        let expected = TensorData::from([[[[-12i64, -12, -12, -12]]]]);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn sum_tensor_and_tensor() {
-        let device = Default::default();
-        let model: sum::Model<Backend> = sum::Model::default();
-
-        let input1 = Tensor::<Backend, 1>::from_floats([1., 2., 3., 4.], &device);
-        let input2 = Tensor::<Backend, 1>::from_floats([1., 2., 3., 4.], &device);
-        let input3 = Tensor::<Backend, 1>::from_floats([1., 2., 3., 4.], &device);
-
-        let output = model.forward(input1, input2, input3);
-        let expected = TensorData::from([3f32, 6., 9., 12.]);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn sum_int_tensor_and_int_tensor() {
-        let device = Default::default();
-        let model: sum_int::Model<Backend> = sum_int::Model::default();
-
-        let input1 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
-        let input2 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
-        let input3 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
-
-        let output = model.forward(input1, input2, input3);
-        let expected = TensorData::from([3i64, 6, 9, 12]);
-
-        output.to_data().assert_eq(&expected, true);
-    }
+    // sum tests moved to tests/sum/mod.rs
 
     #[test]
     fn mean_tensor_and_tensor() {
