@@ -18,6 +18,7 @@ macro_rules! include_models {
 // ATTENTION: Modify this macro to include all models in the `model` directory.
 // Note: The following models have been moved to their own modules:
 // - add, add_int -> tests/add/mod.rs
+// - argmax -> tests/argmax/mod.rs
 // - concat -> tests/concat/mod.rs
 // - constant_f32, constant_f64, constant_i32, constant_i64 -> tests/constant/mod.rs
 // - constant_of_shape, constant_of_shape_full_like -> tests/constant_of_shape/mod.rs
@@ -27,13 +28,19 @@ macro_rules! include_models {
 // - dropout -> tests/dropout/mod.rs
 // - erf -> tests/erf/mod.rs
 // - gather_1d_idx, gather_2d_idx, gather_elements, gather_scalar, gather_scalar_out, gather_shape -> tests/gather/mod.rs
+// - global_avr_pool -> tests/global_avr_pool/mod.rs
+// - log_softmax -> tests/log_softmax/mod.rs
 // - matmul -> tests/matmul/mod.rs
+// - max -> tests/max/mod.rs
 // - mean -> tests/mean/mod.rs
+// - min -> tests/min/mod.rs
 // - mul -> tests/mul/mod.rs
+// - slice, slice_shape -> tests/slice/mod.rs
+// - softmax -> tests/softmax/mod.rs
+// - sqrt -> tests/sqrt/mod.rs
 // - sub, sub_int -> tests/sub/mod.rs
 // - sum, sum_int -> tests/sum/mod.rs
 include_models!(
-    argmax,
     avg_pool1d,
     avg_pool2d,
     batch_norm,
@@ -53,7 +60,6 @@ include_models!(
     gemm,
     gemm_no_c,
     gemm_non_unit_alpha_beta,
-    global_avr_pool,
     graph_multiple_output_tracking,
     greater,
     greater_or_equal,
@@ -68,16 +74,13 @@ include_models!(
     less_scalar,
     linear,
     log,
-    log_softmax,
     mask_where,
     mask_where_all_scalar,
     mask_where_broadcast,
     mask_where_scalar_x,
     mask_where_scalar_y,
-    max,
     maxpool1d,
     maxpool2d,
-    min,
     neg,
     not,
     one_hot,
@@ -109,11 +112,7 @@ include_models!(
     sign,
     sin,
     sinh,
-    slice,
-    slice_shape,
-    softmax,
     split,
-    sqrt,
     squeeze,
     squeeze_multiple,
     tan,
@@ -176,174 +175,21 @@ mod tests {
         // We don't actually care about the output here, the compiler will tell us if we passed
     }
 
-    #[test]
-    fn argmax() {
-        // Initialize the model with weights (loaded from the exported file)
-        let model: argmax::Model<Backend> = argmax::Model::default();
+    // argmax test moved to tests/argmax/mod.rs
 
-        let device = Default::default();
-        // Run the model
-        let input = Tensor::<Backend, 2>::from_floats([[1., 2., 3.], [4., 5., 6.]], &device);
-        let output = model.forward(input);
-        let expected = TensorData::from([[2i64], [2]]);
+    // globalavrpool_1d_2d test moved to tests/global_avr_pool/mod.rs
 
-        output.to_data().assert_eq(&expected, true);
-    }
+    // slice tests moved to tests/slice/mod.rs
 
-    #[test]
-    fn globalavrpool_1d_2d() {
-        // The model contains 1d and 2d global average pooling nodes
-        let model: global_avr_pool::Model<Backend> = global_avr_pool::Model::default();
+    // softmax test moved to tests/softmax/mod.rs
 
-        let device = Default::default();
-        // Run the model with ones as input for easier testing
-        let input_1d = Tensor::<Backend, 3>::ones([2, 4, 10], &device);
-        let input_2d = Tensor::<Backend, 4>::ones([3, 10, 3, 15], &device);
+    // log_softmax test moved to tests/log_softmax/mod.rs
 
-        let (output_1d, output_2d) = model.forward(input_1d, input_2d);
+    // sqrt test moved to tests/sqrt/mod.rs
 
-        let expected_shape_1d = Shape::from([2, 4, 1]);
-        let expected_shape_2d = Shape::from([3, 10, 1, 1]);
-        assert_eq!(output_1d.shape(), expected_shape_1d);
-        assert_eq!(output_2d.shape(), expected_shape_2d);
+    // min test moved to tests/min/mod.rs
 
-        let output_sum_1d = output_1d.sum().into_scalar();
-        let output_sum_2d = output_2d.sum().into_scalar();
-
-        let expected_sum_1d = 8.0; // from pytorch
-        let expected_sum_2d = 30.0; // from pytorch
-
-        assert!(expected_sum_1d.approx_eq(output_sum_1d, (1.0e-4, 2)));
-        assert!(expected_sum_2d.approx_eq(output_sum_2d, (1.0e-4, 2)));
-    }
-
-    #[test]
-    fn slice() {
-        let model: slice::Model<Backend> = slice::Model::default();
-        let device = Default::default();
-
-        let input = Tensor::<Backend, 2>::from_floats(
-            [
-                [1., 2., 3., 4., 5., 6., 7., 8., 9., 10.],
-                [11., 12., 13., 14., 15., 16., 17., 18., 19., 20.],
-                [21., 22., 23., 24., 25., 26., 27., 28., 29., 30.],
-                [31., 32., 33., 34., 35., 36., 37., 38., 39., 40.],
-                [41., 42., 43., 44., 45., 46., 47., 48., 49., 50.],
-            ],
-            &device,
-        );
-        let output = model.forward(input);
-        let expected = TensorData::from([
-            [1f32, 2., 3., 4., 5.],
-            [11f32, 12., 13., 14., 15.],
-            [21., 22., 23., 24., 25.],
-        ]);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn slice_shape() {
-        let model: slice_shape::Model<Backend> = slice_shape::Model::default();
-        let device = Default::default();
-
-        let input = Tensor::<Backend, 4>::zeros([1, 2, 3, 1], &device);
-
-        // Slice Start == 1, End == 3
-        let output = model.forward(input);
-
-        assert_eq!(output, [2, 3]);
-    }
-
-    #[test]
-    fn softmax() {
-        // Initialize the model without weights (because the exported file does not contain them)
-        let device = Default::default();
-        let model: softmax::Model<Backend> = softmax::Model::new(&device);
-
-        // Run the model
-        let input = Tensor::<Backend, 2>::from_floats(
-            [
-                [0.33669037, 0.128_809_4, 0.23446237],
-                [0.23033303, -1.122_856_4, -0.18632829],
-            ],
-            &device,
-        );
-        let output = model.forward(input);
-        let expected = TensorData::from([
-            [0.36830685f32, 0.29917702, 0.33251613],
-            [0.521_469_2, 0.13475533, 0.343_775_5],
-        ]);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn log_softmax() {
-        // Initialize the model without weights (because the exported file does not contain them)
-        let device = Default::default();
-        let model: log_softmax::Model<Backend> = log_softmax::Model::new(&device);
-
-        // Run the model
-        let input = Tensor::<Backend, 2>::from_floats(
-            [
-                [0.33669037, 0.128_809_4, 0.23446237],
-                [0.23033303, -1.122_856_4, -0.18632829],
-            ],
-            &device,
-        );
-        let output = model.forward(input);
-        let expected = TensorData::from([
-            [-0.998_838_9f32, -1.206_719_9, -1.101_067],
-            [-0.651_105_1, -2.004_294_6, -1.067_766_4],
-        ]);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn sqrt() {
-        let device = Default::default();
-        let model: sqrt::Model<Backend> = sqrt::Model::new(&device);
-
-        let input1 = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
-        let input2 = 36f64;
-
-        let (output1, output2) = model.forward(input1, input2);
-        let expected1 = TensorData::from([[[[1.0f32, 2.0, 3.0, 5.0]]]]);
-        let expected2 = 6.0;
-
-        output1.to_data().assert_eq(&expected1, true);
-        assert_eq!(output2, expected2);
-    }
-
-    #[test]
-    fn min() {
-        let device = Default::default();
-
-        let model: min::Model<Backend> = min::Model::new(&device);
-        let input1 = Tensor::<Backend, 2>::from_floats([[-1.0, 42.0, 0.0, 42.0]], &device);
-        let input2 = Tensor::<Backend, 2>::from_floats([[2.0, 4.0, 42.0, 25.0]], &device);
-
-        let output = model.forward(input1, input2);
-        let expected = TensorData::from([[-1.0f32, 4.0, 0.0, 25.0]]);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn max() {
-        let device = Default::default();
-
-        let model: max::Model<Backend> = max::Model::new(&device);
-        let input1 = Tensor::<Backend, 2>::from_floats([[1.0, 42.0, 9.0, 42.0]], &device);
-        let input2 = Tensor::<Backend, 2>::from_floats([[42.0, 4.0, 42.0, 25.0]], &device);
-
-        let output = model.forward(input1, input2);
-        let expected = TensorData::from([[42.0f32, 42.0, 42.0, 42.0]]);
-
-        output.to_data().assert_eq(&expected, true);
-    }
+    // max test moved to tests/max/mod.rs
 
     #[test]
     fn maxpool1d() {
