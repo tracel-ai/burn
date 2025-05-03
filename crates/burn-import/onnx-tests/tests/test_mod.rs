@@ -7,9 +7,15 @@ mod node_tests;
 
 // Import individual node modules
 pub mod add;
+pub mod concat;
 pub mod constant;
 pub mod constant_of_shape;
+pub mod conv;
+pub mod conv_transpose;
 pub mod div;
+pub mod dropout;
+pub mod erf;
+pub mod gather;
 pub mod matmul;
 pub mod mean;
 pub mod mul;

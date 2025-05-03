@@ -18,9 +18,15 @@ macro_rules! include_models {
 // ATTENTION: Modify this macro to include all models in the `model` directory.
 // Note: The following models have been moved to their own modules:
 // - add, add_int -> tests/add/mod.rs
+// - concat -> tests/concat/mod.rs
 // - constant_f32, constant_f64, constant_i32, constant_i64 -> tests/constant/mod.rs
 // - constant_of_shape, constant_of_shape_full_like -> tests/constant_of_shape/mod.rs
+// - conv1d, conv2d, conv3d -> tests/conv/mod.rs
+// - conv_transpose1d, conv_transpose2d, conv_transpose3d -> tests/conv_transpose/mod.rs
 // - div -> tests/div/mod.rs
+// - dropout -> tests/dropout/mod.rs
+// - erf -> tests/erf/mod.rs
+// - gather_1d_idx, gather_2d_idx, gather_elements, gather_scalar, gather_scalar_out, gather_shape -> tests/gather/mod.rs
 // - matmul -> tests/matmul/mod.rs
 // - mean -> tests/mean/mod.rs
 // - mul -> tests/mul/mod.rs
@@ -33,18 +39,9 @@ include_models!(
     batch_norm,
     cast,
     clip,
-    concat,
-    conv1d,
-    conv2d,
-    conv3d,
-    conv_transpose1d,
-    conv_transpose2d,
-    conv_transpose3d,
     cos,
     cosh,
-    dropout,
     equal,
-    erf,
     exp,
     expand,
     expand_shape,
@@ -52,12 +49,6 @@ include_models!(
     flatten,
     flatten_2d,
     floor,
-    gather_1d_idx,
-    gather_2d_idx,
-    gather_elements,
-    gather_scalar,
-    gather_scalar_out,
-    gather_shape,
     gelu,
     gemm,
     gemm_no_c,
@@ -138,7 +129,6 @@ include_models!(
 
 #[cfg(test)]
 mod tests {
-    use core::f64::consts;
 
     use super::*;
 
@@ -163,205 +153,19 @@ mod tests {
 
     // matmul test moved to tests/matmul/mod.rs
 
-    #[test]
-    fn concat_tensors() {
-        // Initialize the model
-        let device = Default::default();
-        let model: concat::Model<Backend> = concat::Model::new(&device);
+    // concat_tensors test moved to tests/concat/mod.rs
 
-        // Run the model
-        let input = Tensor::<Backend, 4>::zeros([1, 2, 3, 5], &device);
+    // conv1d test moved to tests/conv/mod.rs
 
-        let output = model.forward(input);
+    // conv2d test moved to tests/conv/mod.rs
 
-        let expected = Shape::from([1, 18, 3, 5]);
+    // conv3d test moved to tests/conv/mod.rs
 
-        assert_eq!(output.shape(), expected);
-    }
+    // dropout test moved to tests/dropout/mod.rs
 
-    #[test]
-    fn conv1d() {
-        // Initialize the model with weights (loaded from the exported file)
-        let model: conv1d::Model<Backend> = conv1d::Model::default();
+    // erf test moved to tests/erf/mod.rs
 
-        // Run the model with pi as input for easier testing
-        let input = Tensor::<Backend, 3>::full([6, 4, 10], consts::PI, &Default::default());
-
-        let output = model.forward(input);
-
-        // test the output shape
-        let expected_shape: Shape = Shape::from([6, 2, 7]);
-        assert_eq!(output.shape(), expected_shape);
-
-        // We are using the sum of the output tensor to test the correctness of the conv1d node
-        // because the output tensor is too large to compare with the expected tensor.
-        let output_sum = output.sum().into_scalar();
-        let expected_sum = -54.549_243; // from pytorch
-        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
-    }
-
-    #[test]
-    fn conv2d() {
-        // Initialize the model with weights (loaded from the exported file)
-        let model: conv2d::Model<Backend> = conv2d::Model::default();
-
-        // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15], &Default::default());
-
-        let output = model.forward(input);
-
-        let expected_shape = Shape::from([2, 6, 6, 15]);
-        assert_eq!(output.shape(), expected_shape);
-
-        // We are using the sum of the output tensor to test the correctness of the conv2d node
-        // because the output tensor is too large to compare with the expected tensor.
-        let output_sum = output.sum().into_scalar();
-
-        let expected_sum = -113.869_99; // from pytorch
-
-        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
-    }
-
-    #[test]
-    fn conv3d() {
-        // Initialize the model with weights (loaded from the exported file)
-        let model: conv3d::Model<Backend> = conv3d::Model::default();
-
-        // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 5>::ones([2, 4, 4, 5, 7], &Default::default());
-
-        let output = model.forward(input);
-
-        let expected_shape = Shape::from([2, 6, 3, 5, 5]);
-        assert_eq!(output.shape(), expected_shape);
-
-        // We are using the sum of the output tensor to test the correctness of the conv3d node
-        // because the output tensor is too large to compare with the expected tensor.
-        let output_sum = output.sum().into_scalar();
-
-        let expected_sum = 48.494_262; // from pytorch
-
-        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
-    }
-
-    #[test]
-    fn dropout() {
-        let model: dropout::Model<Backend> = dropout::Model::default();
-
-        // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15], &Default::default());
-
-        let output = model.forward(input);
-
-        let expected_shape = Shape::from([2, 4, 10, 15]);
-        assert_eq!(output.shape(), expected_shape);
-
-        let output_sum = output.sum().into_scalar();
-
-        let expected_sum = 1200.0; // from pytorch
-
-        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
-    }
-
-    #[test]
-    fn erf() {
-        let model: erf::Model<Backend> = erf::Model::default();
-
-        let device = Default::default();
-        let input = Tensor::<Backend, 4>::from_data([[[[1.0, 2.0, 3.0, 4.0]]]], &device);
-        let output = model.forward(input);
-        let expected =
-            Tensor::<Backend, 4>::from_data([[[[0.8427f32, 0.9953, 1.0000, 1.0000]]]], &device);
-
-        output
-            .to_data()
-            .assert_approx_eq::<FT>(&expected.to_data(), Tolerance::rel_abs(1e-4, 1e-4));
-    }
-
-    #[test]
-    fn gather_1d_idx() {
-        let model: gather_1d_idx::Model<Backend> = gather_1d_idx::Model::default();
-
-        let device = Default::default();
-
-        let input = Tensor::<Backend, 2>::from_floats([[1., 2., 3.], [4., 5., 6.]], &device);
-        let index = Tensor::<Backend, 1, Int>::from_ints([0, 2], &device);
-        let expected = TensorData::from([[1f32, 3.], [4., 6.]]);
-        let output = model.forward(input, index);
-
-        assert_eq!(output.to_data(), expected);
-    }
-
-    #[test]
-    fn gather_2d_idx() {
-        let model: gather_2d_idx::Model<Backend> = gather_2d_idx::Model::default();
-
-        let device = Default::default();
-
-        let input = Tensor::<Backend, 2>::from_data([[1.0, 1.2], [2.3, 3.4], [4.5, 5.7]], &device);
-        let index = Tensor::<Backend, 2, Int>::from_data([[0, 1], [1, 2]], &device);
-        let expected = TensorData::from([[[1f32, 1.2], [2.3, 3.4]], [[2.3, 3.4], [4.5, 5.7]]]);
-        let output = model.forward(input, index);
-
-        assert_eq!(output.to_data(), expected);
-    }
-
-    #[test]
-    fn gather_shape() {
-        let model: gather_shape::Model<Backend> = gather_shape::Model::default();
-
-        let device = Default::default();
-
-        let input = Tensor::<Backend, 2>::from_floats([[1., 2., 3.], [4., 5., 6.]], &device);
-        // shape(input) = [2, 3]
-        let index = Tensor::<Backend, 1, Int>::from_ints([0], &device);
-        let output = model.forward(input, index);
-        let expected = TensorData::from([2i64]);
-
-        assert_eq!(output.to_data(), expected);
-    }
-
-    #[test]
-    fn gather_scalar() {
-        let model: gather_scalar::Model<Backend> = gather_scalar::Model::default();
-
-        let device = Default::default();
-
-        let input = Tensor::<Backend, 2>::from_floats([[1., 2., 3.], [4., 5., 6.]], &device);
-        let index = 0;
-        let output = model.forward(input, index);
-        let expected = TensorData::from([1f32, 2., 3.]);
-
-        assert_eq!(output.to_data(), expected);
-    }
-
-    #[test]
-    fn gather_scalar_out() {
-        let model: gather_scalar_out::Model<Backend> = gather_scalar_out::Model::default();
-
-        let device = Default::default();
-
-        let input = Tensor::<Backend, 1>::from_floats([1., 2., 3.], &device);
-        let index = 1;
-        let output = model.forward(input, index);
-
-        assert_eq!(output, 2f32);
-    }
-
-    #[test]
-    fn gather_elements() {
-        // Initialize the model with weights (loaded from the exported file)
-        let model: gather_elements::Model<Backend> = gather_elements::Model::default();
-
-        let device = Default::default();
-        // Run the model
-        let input = Tensor::<Backend, 2>::from_floats([[1., 2.], [3., 4.]], &device);
-        let index = Tensor::<Backend, 2, Int>::from_ints([[0, 0], [1, 0]], &device);
-        let output = model.forward(input, index);
-        let expected = TensorData::from([[1f32, 1.], [4., 3.]]);
-
-        assert_eq!(output.to_data(), expected);
-    }
+    // gather_1d_idx, gather_2d_idx, gather_elements, gather_scalar, gather_scalar_out, gather_shape tests moved to tests/gather/mod.rs
 
     #[test]
     fn graph_multiple_output_tracking() {
@@ -1385,71 +1189,7 @@ mod tests {
             .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
-    #[test]
-    fn conv_transpose1d() {
-        // Initialize the model with weights (loaded from the exported file)
-        let model: conv_transpose1d::Model<Backend> = conv_transpose1d::Model::default();
-
-        // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 3>::ones([2, 4, 10], &Default::default());
-
-        let output = model.forward(input);
-
-        let expected_shape = Shape::from([2, 6, 22]);
-        assert_eq!(output.shape(), expected_shape);
-
-        // We are using the sum of the output tensor to test the correctness of the conv_transpose1d node
-        // because the output tensor is too large to compare with the expected tensor.
-        let output_sum = output.sum().into_scalar();
-
-        let expected_sum = 33.810_33; // example result running the corresponding PyTorch model (conv_transpose1d.py)
-
-        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
-    }
-
-    #[test]
-    fn conv_transpose2d() {
-        // Initialize the model with weights (loaded from the exported file)
-        let model: conv_transpose2d::Model<Backend> = conv_transpose2d::Model::default();
-
-        // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15], &Default::default());
-
-        let output = model.forward(input);
-
-        let expected_shape = Shape::from([2, 6, 18, 15]);
-        assert_eq!(output.shape(), expected_shape);
-
-        // We are using the sum of the output tensor to test the correctness of the conv_transpose2d node
-        // because the output tensor is too large to compare with the expected tensor.
-        let output_sum = output.sum().into_scalar();
-
-        let expected_sum = -134.96603; // result running pytorch model (conv_transpose2d.py)
-
-        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
-    }
-
-    #[test]
-    fn conv_transpose3d() {
-        // Initialize the model with weights (loaded from the exported file)
-        let model: conv_transpose3d::Model<Backend> = conv_transpose3d::Model::default();
-
-        // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 5>::ones([2, 4, 4, 5, 7], &Default::default());
-
-        let output = model.forward(input);
-
-        let expected_shape = Shape::from([2, 6, 6, 5, 9]);
-        assert_eq!(output.shape(), expected_shape);
-
-        // We are using the sum of the output tensor to test the correctness of the conv_transpose3d node
-        // because the output tensor is too large to compare with the expected tensor.
-        let output_sum = output.sum().into_scalar();
-
-        let expected_sum = -105.69771; // result running pytorch model (conv_transpose3d.py)
-
-        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
-    }
+    // conv_transpose1d, conv_transpose2d, conv_transpose3d tests moved to tests/conv_transpose/mod.rs
 
     #[test]
     fn cos() {
