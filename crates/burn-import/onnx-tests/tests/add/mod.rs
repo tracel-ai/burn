@@ -6,7 +6,6 @@ include_models!(add, add_int);
 mod tests {
     use super::*;
     use burn::tensor::{Int, Tensor, TensorData};
-    
 
     type Backend = burn_ndarray::NdArray<f32>;
 

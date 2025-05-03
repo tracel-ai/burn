@@ -18,6 +18,12 @@ macro_rules! include_models {
 // ATTENTION: Modify this macro to include all models in the `model` directory.
 // Note: The following models have been moved to their own modules:
 // - add, add_int -> tests/add/mod.rs
+// - constant_f32, constant_f64, constant_i32, constant_i64 -> tests/constant/mod.rs
+// - constant_of_shape, constant_of_shape_full_like -> tests/constant_of_shape/mod.rs
+// - div -> tests/div/mod.rs
+// - matmul -> tests/matmul/mod.rs
+// - mean -> tests/mean/mod.rs
+// - mul -> tests/mul/mod.rs
 // - sub, sub_int -> tests/sub/mod.rs
 // - sum, sum_int -> tests/sum/mod.rs
 include_models!(
@@ -28,12 +34,6 @@ include_models!(
     cast,
     clip,
     concat,
-    constant_f32,
-    constant_f64,
-    constant_i32,
-    constant_i64,
-    constant_of_shape,
-    constant_of_shape_full_like,
     conv1d,
     conv2d,
     conv3d,
@@ -42,7 +42,6 @@ include_models!(
     conv_transpose3d,
     cos,
     cosh,
-    div,
     dropout,
     equal,
     erf,
@@ -84,13 +83,10 @@ include_models!(
     mask_where_broadcast,
     mask_where_scalar_x,
     mask_where_scalar_y,
-    matmul,
     max,
     maxpool1d,
     maxpool2d,
-    mean,
     min,
-    mul,
     neg,
     not,
     one_hot,
@@ -159,106 +155,13 @@ mod tests {
 
     // sum tests moved to tests/sum/mod.rs
 
-    #[test]
-    fn mean_tensor_and_tensor() {
-        let device = Default::default();
-        let model: mean::Model<Backend> = mean::Model::default();
+    // mean_tensor_and_tensor test moved to tests/mean/mod.rs
 
-        let input1 = Tensor::<Backend, 1>::from_floats([1., 2., 3., 4.], &device);
-        let input2 = Tensor::<Backend, 1>::from_floats([2., 2., 4., 0.], &device);
-        let input3 = Tensor::<Backend, 1>::from_floats([3., 2., 5., -4.], &device);
+    // mul_scalar_with_tensor_and_tensor_with_tensor test moved to tests/mul/mod.rs
 
-        let output = model.forward(input1, input2, input3);
-        let expected = TensorData::from([2.0f32, 2., 4., 0.]);
+    // div_tensor_by_scalar_and_tensor_by_tensor test moved to tests/div/mod.rs
 
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn mul_scalar_with_tensor_and_tensor_with_tensor() {
-        // Initialize the model with weights (loaded from the exported file)
-        let model: mul::Model<Backend> = mul::Model::default();
-
-        let device = Default::default();
-        // Run the model
-        let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]], &device);
-        let scalar = 6.0f64;
-        let output = model.forward(input, scalar);
-        let expected = TensorData::from([[[[126f32, 252., 378., 504.]]]]);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn div_tensor_by_scalar_and_tensor_by_tensor() {
-        // Initialize the model without weights (because the exported file does not contain them)
-        let device = Default::default();
-        let model: div::Model<Backend> = div::Model::new(&device);
-
-        // Run the model
-        let input = Tensor::<Backend, 4>::from_floats([[[[3., 6., 6., 9.]]]], &device);
-        let scalar1 = 9.0f64;
-        let scalar2 = 3.0f64;
-        let output = model.forward(input, scalar1, scalar2);
-        let expected = TensorData::from([[[[1f32, 2., 2., 3.]]]]);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn matmul() {
-        // Initialize the model with weights (loaded from the exported file)
-        let model: matmul::Model<Backend> = matmul::Model::default();
-
-        let device = Default::default();
-        let a = Tensor::<Backend, 1, Int>::arange(0..24, &device)
-            .reshape([1, 2, 3, 4])
-            .float();
-        let b = Tensor::<Backend, 1, Int>::arange(0..16, &device)
-            .reshape([1, 2, 4, 2])
-            .float();
-        let c = Tensor::<Backend, 1, Int>::arange(0..96, &device)
-            .reshape([2, 3, 4, 4])
-            .float();
-        let d = Tensor::<Backend, 1, Int>::arange(0..4, &device).float();
-
-        let (output_mm, output_mv, output_vm) = model.forward(a, b, c, d);
-        // matrix-matrix `a @ b`
-        let expected_mm = TensorData::from([[
-            [[28f32, 34.], [76., 98.], [124., 162.]],
-            [[604., 658.], [780., 850.], [956., 1042.]],
-        ]]);
-        // matrix-vector `c @ d` where the lhs vector is expanded and broadcasted to the correct dims
-        let expected_mv = TensorData::from([
-            [
-                [14f32, 38., 62., 86.],
-                [110., 134., 158., 182.],
-                [206., 230., 254., 278.],
-            ],
-            [
-                [302., 326., 350., 374.],
-                [398., 422., 446., 470.],
-                [494., 518., 542., 566.],
-            ],
-        ]);
-        // vector-matrix `d @ c` where the rhs vector is expanded and broadcasted to the correct dims
-        let expected_vm = TensorData::from([
-            [
-                [56f32, 62., 68., 74.],
-                [152., 158., 164., 170.],
-                [248., 254., 260., 266.],
-            ],
-            [
-                [344., 350., 356., 362.],
-                [440., 446., 452., 458.],
-                [536., 542., 548., 554.],
-            ],
-        ]);
-
-        output_mm.to_data().assert_eq(&expected_mm, true);
-        output_vm.to_data().assert_eq(&expected_vm, true);
-        output_mv.to_data().assert_eq(&expected_mv, true);
-    }
+    // matmul test moved to tests/matmul/mod.rs
 
     #[test]
     fn concat_tensors() {
@@ -2172,87 +2075,9 @@ mod tests {
         assert_eq!(expected_shape, output.shape());
     }
 
-    #[test]
-    fn add_constant_f32() {
-        let device = Default::default();
-        let model = constant_f32::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
+    // constant tests moved to tests/constant/mod.rs
 
-        let output = model.forward(input);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn add_constant_f64() {
-        let device = Default::default();
-        let model = constant_f64::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
-
-        let output = model.forward(input);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn add_constant_i32() {
-        let device = Default::default();
-        let model = constant_i32::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
-
-        let output = model.forward(input);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn add_constant_i64() {
-        let device = Default::default();
-        let model = constant_i64::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
-
-        let output = model.forward(input);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn constant_of_shape() {
-        // This tests shape is being passed directly to the model
-        let device = Default::default();
-        let model = constant_of_shape::Model::<Backend>::new(&device);
-        let input_shape = [2, 3, 2];
-        let expected = Tensor::<Backend, 3>::full(input_shape, 1.125, &device).to_data();
-
-        let output = model.forward(input_shape);
-
-        output
-            .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
-    }
-
-    #[test]
-    fn constant_of_shape_full_like() {
-        // This tests shape is being passed from the input tensor
-
-        let device = Default::default();
-        let model = constant_of_shape_full_like::Model::<Backend>::new(&device);
-        let shape = [2, 3, 2];
-        let f_expected = Tensor::<Backend, 3>::full(shape, 3.0, &device);
-        let i_expected = Tensor::<Backend, 3, Int>::full(shape, 5, &device);
-        let b_expected = Tensor::<Backend, 3, Int>::ones(shape, &device).bool();
-
-        let input = Tensor::ones(shape, &device);
-        let (f_output, i_output, b_output) = model.forward(input);
-
-        assert!(f_output.equal(f_expected).all().into_scalar());
-        assert!(i_output.equal(i_expected).all().into_scalar());
-        assert!(b_output.equal(b_expected).all().into_scalar());
-    }
+    // constant_of_shape tests moved to tests/constant_of_shape/mod.rs
 
     #[test]
     fn split() {
