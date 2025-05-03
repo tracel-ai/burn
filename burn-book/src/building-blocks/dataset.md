@@ -151,6 +151,21 @@ available for multi-class and multi-label classification tasks as well as semant
 let dataset = ImageFolderDataset::new_classification("path/to/dataset/root").unwrap();
 ```
 
+When using any of the `ImageFolderDataset` constructors, a `labels.txt` file will be automatically created in the artifact directory (default: `/tmp/burn-dataset`). This file contains the mapping between class indices and their corresponding label names, with one label per line in the order of their indices. This is particularly useful for:
+
+1. Preserving label names and their order without needing the original dataset structure
+2. Reducing errors in interpreting model predictions
+3. Simplifying the mapping of numerical predictions back to labels
+
+For example, if you have a dataset with classes "cat", "dog", and "bird", the `labels.txt` file would look like:
+```
+cat
+dog
+bird
+```
+
+This means that a prediction of index 0 corresponds to "cat", index 1 to "dog", and index 2 to "bird".
+
 ```rust, ignore
 // Create a multi-label image classification dataset from a list of items,
 // where each item is a tuple `(image path, labels)`, and a list of classes
