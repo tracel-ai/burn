@@ -101,7 +101,7 @@ pub trait ActivationOps<B: Backend> {
         let constant_3 = 0.0535161;
         let constant_4 = 0.398942;
 
-        let x3 = B::float_powf_scalar(x.clone(), 3.0);
+        let x3 = B::float_powi_scalar(x.clone(), 3.elem());
 
         let c1 = B::float_mul_scalar(x3.clone(), constant_1.elem());
         let c2 = B::float_mul_scalar(x.clone(), constant_2.elem());
@@ -113,7 +113,7 @@ pub trait ActivationOps<B: Backend> {
 
         let tanh = B::float_tanh(inner1);
 
-        let sech = B::float_powf_scalar(tanh.clone(), 2.0);
+        let sech = B::float_powi_scalar(tanh.clone(), 2.elem());
         let sech = B::float_neg(sech);
         let sech = B::float_add_scalar(sech, 1.elem());
 

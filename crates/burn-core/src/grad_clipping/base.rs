@@ -88,7 +88,7 @@ impl GradientClipping {
     }
 
     fn l2_norm<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, 1> {
-        let squared = tensor.powf_scalar(2.0);
+        let squared = tensor.powi_scalar(2);
         let sum = squared.sum();
         sum.sqrt()
     }

@@ -1555,7 +1555,7 @@ where
     /// fn example<B: Backend>() {
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.powf_scalar(2.0);
+    ///    let tensor = tensor.powi_scalar(2);
     ///    println!("{tensor}");
     ///    // [[1.0, 4.0, 9.0], [25.0, 81.0, 36.0]]
     /// }
@@ -3801,7 +3801,7 @@ impl<B: Backend> Numeric<B> for Int {
     }
 
     fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        B::int_powf_scalar(lhs, rhs.elem())
+        B::int_powi_scalar(lhs, rhs.elem())
     }
 
     fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
@@ -4291,10 +4291,10 @@ impl<B: Backend> Numeric<B> for Float {
     fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(B::float_powf_scalar(lhs, rhs.elem()))
+                TensorPrimitive::Float(B::float_powi_scalar(lhs, rhs.elem()))
             }
             TensorPrimitive::QFloat(lhs) => {
-                TensorPrimitive::QFloat(B::q_powf_scalar(lhs, rhs.elem()))
+                TensorPrimitive::QFloat(B::q_powi_scalar(lhs, rhs.elem()))
             }
         }
     }
