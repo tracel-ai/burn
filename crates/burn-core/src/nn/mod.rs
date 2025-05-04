@@ -21,6 +21,8 @@ pub mod interpolate;
 
 mod dropout;
 mod embedding;
+/// Functional module
+pub mod functional;
 mod gelu;
 mod hard_sigmoid;
 mod initializer;
