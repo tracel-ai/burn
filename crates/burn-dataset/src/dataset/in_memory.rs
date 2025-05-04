@@ -66,7 +66,7 @@ where
 impl<I, L> LabeledDataset<I, L> for LabeledInMemDataset<I, L>
 where
     I: Clone + Send + Sync,
-    L: Clone + Send + Sync + std::fmt::Display,
+    L: Clone + Send + Sync + std::fmt::Display + serde::Serialize,
 {
     fn get_label(&self, index: usize) -> Option<L> {
         self.labels.get(index).cloned()

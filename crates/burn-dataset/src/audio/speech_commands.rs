@@ -97,6 +97,17 @@ pub struct SpeechItem {
     pub label: SpeechCommandClass,
 }
 
+/// Format for saving labels
+#[derive(Debug, Clone, Copy)]
+pub enum LabelFormat {
+    /// Text format with one label per line
+    Txt,
+    /// JSON format with an array of labels
+    Json,
+    /// YAML format with an array of labels
+    Yaml,
+}
+
 /// Speech Commands dataset from Huggingface v0.02.
 /// See [Speech Commands dataset](https://huggingface.co/datasets/speech_commands).
 ///

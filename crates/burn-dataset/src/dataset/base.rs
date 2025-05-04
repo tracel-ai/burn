@@ -24,9 +24,23 @@ pub trait Dataset<I>: Send + Sync {
     }
 }
 
+/// Format for saving labels
+#[derive(Debug, Clone, Copy)]
+pub enum LabelFormat {
+    /// Text format with one label per line
+    Txt,
+    /// JSON format with an array of labels
+    Json,
+    /// YAML format with an array of labels
+    Yaml,
+}
+
 /// The labeled dataset trait defines a dataset that contains labeled data.
 /// It extends the basic Dataset trait with functionality to handle labels.
-pub trait LabeledDataset<I, L>: Dataset<I> {
+pub trait LabeledDataset<I, L>: Dataset<I>
+where
+    L: std::fmt::Display + serde::Serialize,
+{
     /// Gets the label for the item at the given index.
     fn get_label(&self, index: usize) -> Option<L>;
 
@@ -35,13 +49,38 @@ pub trait LabeledDataset<I, L>: Dataset<I> {
         (0..self.len()).filter_map(|i| self.get_label(i)).collect()
     }
 
-    /// Saves the labels to a file.
-    fn save_labels<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()>
-    where
-        L: std::fmt::Display,
-    {
+    /// Saves the labels to a file in the default format (txt).
+    fn save_labels<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
+        self.save_labels_with_format(path, LabelFormat::Txt)
+    }
+
+    /// Saves the labels to a file with the specified format.
+    fn save_labels_with_format<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+        format: LabelFormat,
+    ) -> std::io::Result<()> {
+        use std::io::Write;
         let labels = self.get_labels();
-        write_labels_to_file(path, &labels)
+        let mut file = std::fs::File::create(path)?;
+
+        match format {
+            LabelFormat::Txt => {
+                for label in labels {
+                    writeln!(file, "{}", label)?;
+                }
+            }
+            LabelFormat::Json => {
+                let json = serde_json::to_string_pretty(&labels)?;
+                write!(file, "{}", json)?;
+            }
+            LabelFormat::Yaml => {
+                let yaml = serde_yml::to_string(&labels).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                write!(file, "{}", yaml)?;
+            }
+        }
+
+        Ok(())
     }
 }
 
