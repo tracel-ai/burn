@@ -130,7 +130,7 @@ where
     K: BasicOps<B> + Numeric<B>,
 {
     x.zeros_like()
-        .mask_fill(x.not_equal_elem(0.0), 1)
+        .mask_fill(x.not_equal_elem(0), 1)
         .sum_dim(dim)
 }
 
