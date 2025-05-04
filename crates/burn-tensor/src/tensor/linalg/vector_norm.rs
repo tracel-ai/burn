@@ -163,9 +163,7 @@ where
 /// # Returns
 ///
 /// The L2 norm of the input tensor.
-pub fn l2_norm<B: Backend, const D: usize>(x: Tensor<B, D>, dim: usize) -> Tensor<B, D>
-where
-{
+pub fn l2_norm<B: Backend, const D: usize>(x: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
     x.abs().powi_scalar(2).sum_dim(dim).sqrt()
 }
 
