@@ -1,5 +1,5 @@
 use crate::{
-    Dataset, HuggingfaceDatasetLoader, SqliteDataset,
+    Dataset, HuggingfaceDatasetLoader, LabeledDataset, SqliteDataset,
     transform::{Mapper, MapperDataset},
 };
 
@@ -156,6 +156,12 @@ impl Dataset<SpeechItem> for SpeechCommandsDataset {
 
     fn len(&self) -> usize {
         self.dataset.len()
+    }
+}
+
+impl LabeledDataset<SpeechItem, String> for SpeechCommandsDataset {
+    fn get_label(&self, index: usize) -> Option<String> {
+        self.dataset.get(index).map(|item| item.label.to_string())
     }
 }
 

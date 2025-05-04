@@ -1,5 +1,5 @@
 use crate::transform::{Mapper, MapperDataset};
-use crate::{Dataset, InMemDataset};
+use crate::{Dataset, InMemDataset, LabeledDataset};
 
 use globwalk::{self, DirEntry};
 use image::{self, ColorType};
@@ -733,6 +733,29 @@ impl ImageFolderDataset {
         } else {
             Ok(extension.to_string())
         }
+    }
+}
+
+impl LabeledDataset<ImageDatasetItem, String> for ImageFolderDataset {
+    fn get_label(&self, index: usize) -> Option<String> {
+        self.dataset
+            .get(index)
+            .and_then(|item| match &item.annotation {
+                Annotation::Label(label) => Some(label.to_string()),
+                Annotation::MultiLabel(labels) => Some(
+                    labels
+                        .iter()
+                        .map(|l| l.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                ),
+                Annotation::BoundingBoxes(boxes) => {
+                    let labels: Vec<String> =
+                        boxes.iter().map(|box_| box_.label.to_string()).collect();
+                    Some(labels.join(", "))
+                }
+                Annotation::SegmentationMask(_) => None,
+            })
     }
 }
 

@@ -6,7 +6,7 @@ use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Dataset, InMemDataset,
+    Dataset, InMemDataset, LabeledDataset,
     transform::{Mapper, MapperDataset},
 };
 
@@ -78,6 +78,12 @@ impl Dataset<MnistItem> for MnistDataset {
 
     fn len(&self) -> usize {
         self.dataset.len()
+    }
+}
+
+impl LabeledDataset<MnistItem, String> for MnistDataset {
+    fn get_label(&self, index: usize) -> Option<String> {
+        self.dataset.get(index).map(|item| item.label.to_string())
     }
 }
 

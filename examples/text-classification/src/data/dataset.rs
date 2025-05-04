@@ -5,7 +5,9 @@
 // the TextClassificationDataset trait. These implementations are designed to be used
 // with a machine learning framework for tasks such as training a text classification model.
 
-use burn::data::dataset::{Dataset, SqliteDataset, source::huggingface::HuggingfaceDatasetLoader};
+use burn::data::dataset::{
+    Dataset, LabeledDataset, SqliteDataset, source::huggingface::HuggingfaceDatasetLoader,
+};
 
 // Define a struct for text classification items
 #[derive(new, Clone, Debug)]
@@ -88,6 +90,12 @@ impl TextClassificationDataset for AgNewsDataset {
     }
 }
 
+impl LabeledDataset<TextClassificationItem, String> for AgNewsDataset {
+    fn get_label(&self, index: usize) -> Option<String> {
+        self.get(index).map(|item| Self::class_name(item.label))
+    }
+}
+
 /// Struct for items in the DbPedia dataset
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct DbPediaItem {
@@ -167,5 +175,11 @@ impl TextClassificationDataset for DbPediaDataset {
             _ => panic!("invalid class"),
         }
         .to_string()
+    }
+}
+
+impl LabeledDataset<TextClassificationItem, String> for DbPediaDataset {
+    fn get_label(&self, index: usize) -> Option<String> {
+        self.get(index).map(|item| Self::class_name(item.label))
     }
 }

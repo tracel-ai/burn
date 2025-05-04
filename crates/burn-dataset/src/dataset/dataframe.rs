@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::Dataset;
+use crate::{Dataset, LabeledDataset};
 
 use polars::frame::row::Row;
 use polars::prelude::*;
@@ -246,6 +246,101 @@ where
     let mut extractor = FieldExtractor { fields: Vec::new() };
     let _ = T::deserialize(&mut extractor);
     extractor.fields
+}
+
+/// Dataset implementation for Polars DataFrame with labels
+///
+/// This struct provides a way to access data and labels from a Polars DataFrame
+/// as if it were a Dataset of type I with labels of type L.
+pub struct LabeledDataframeDataset<I, L> {
+    df: DataFrame,
+    len: usize,
+    column_name_mapping: Vec<usize>,
+    label_column: String,
+    phantom: PhantomData<(I, L)>,
+}
+
+impl<I, L> LabeledDataframeDataset<I, L>
+where
+    I: Clone + Send + Sync + DeserializeOwned,
+    L: Clone + Send + Sync + DeserializeOwned + std::fmt::Display,
+{
+    /// Create a new LabeledDataframeDataset from a Polars DataFrame
+    ///
+    /// # Arguments
+    ///
+    /// * `df` - A Polars DataFrame
+    /// * `label_column` - The name of the column containing labels
+    ///
+    /// # Returns
+    ///
+    /// A Result containing the new LabeledDataframeDataset or a DataframeDatasetError
+    pub fn new(df: DataFrame, label_column: &str) -> Result<Self, DataframeDatasetError> {
+        let len = df.height();
+        let field_names = extract_field_names::<I>();
+
+        // Verify that the label column exists
+        if !df.schema().contains(label_column) {
+            return Err(DataframeDatasetError::Other(format!(
+                "Label column '{}' not found in DataFrame",
+                label_column
+            )));
+        }
+
+        let column_name_mapping = field_names
+            .iter()
+            .map(|name| {
+                df.schema()
+                    .try_get_full(name)
+                    .expect("Corresponding column should exist in the DataFrame")
+                    .0
+            })
+            .collect::<Vec<_>>();
+
+        Ok(LabeledDataframeDataset {
+            df,
+            len,
+            column_name_mapping,
+            label_column: label_column.to_string(),
+            phantom: PhantomData,
+        })
+    }
+}
+
+impl<I, L> Dataset<I> for LabeledDataframeDataset<I, L>
+where
+    I: Clone + Send + Sync + DeserializeOwned,
+    L: Clone + Send + Sync + DeserializeOwned + std::fmt::Display,
+{
+    fn get(&self, index: usize) -> Option<I> {
+        let row = self.df.get_row(index).ok()?;
+
+        let mut deserializer = RowDeserializer::new(&row, &self.column_name_mapping);
+        I::deserialize(&mut deserializer).ok()
+    }
+
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+}
+
+impl<I, L> LabeledDataset<I, L> for LabeledDataframeDataset<I, L>
+where
+    I: Clone + Send + Sync + DeserializeOwned,
+    L: Clone + Send + Sync + DeserializeOwned + std::fmt::Display,
+{
+    fn get_label(&self, index: usize) -> Option<L> {
+        let row = self.df.get_row(index).ok()?;
+        let label_idx = self.df.schema().get_full(&self.label_column)?.0;
+
+        let binding = vec![label_idx];
+        let mut deserializer = RowDeserializer::new(&row, &binding);
+        L::deserialize(&mut deserializer).ok()
+    }
 }
 
 #[cfg(test)]

@@ -6,17 +6,35 @@ use std::{
 
 use serde::de::DeserializeOwned;
 
-use crate::Dataset;
+use crate::{Dataset, LabeledDataset};
 
 /// Dataset where all items are stored in ram.
 pub struct InMemDataset<I> {
     items: Vec<I>,
 }
 
+/// Dataset where all items and their labels are stored in ram.
+pub struct LabeledInMemDataset<I, L> {
+    items: Vec<I>,
+    labels: Vec<L>,
+}
+
 impl<I> InMemDataset<I> {
     /// Creates a new in memory dataset from the given items.
     pub fn new(items: Vec<I>) -> Self {
         InMemDataset { items }
+    }
+}
+
+impl<I, L> LabeledInMemDataset<I, L> {
+    /// Creates a new labeled in memory dataset from the given items and labels.
+    pub fn new(items: Vec<I>, labels: Vec<L>) -> Self {
+        assert_eq!(
+            items.len(),
+            labels.len(),
+            "Items and labels must have the same length"
+        );
+        LabeledInMemDataset { items, labels }
     }
 }
 
@@ -29,6 +47,29 @@ where
     }
     fn len(&self) -> usize {
         self.items.len()
+    }
+}
+
+impl<I, L> Dataset<I> for LabeledInMemDataset<I, L>
+where
+    I: Clone + Send + Sync,
+    L: Clone + Send + Sync,
+{
+    fn get(&self, index: usize) -> Option<I> {
+        self.items.get(index).cloned()
+    }
+    fn len(&self) -> usize {
+        self.items.len()
+    }
+}
+
+impl<I, L> LabeledDataset<I, L> for LabeledInMemDataset<I, L>
+where
+    I: Clone + Send + Sync,
+    L: Clone + Send + Sync + std::fmt::Display,
+{
+    fn get_label(&self, index: usize) -> Option<L> {
+        self.labels.get(index).cloned()
     }
 }
 
