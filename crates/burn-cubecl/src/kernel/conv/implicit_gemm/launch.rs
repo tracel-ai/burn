@@ -1,7 +1,4 @@
-use burn_tensor::{
-    Shape,
-    ops::{ConvOptions, conv::calculate_conv_output_size},
-};
+use burn_tensor::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubecl::linalg::{
     convolution::{
         ConvLaunchError, ConvolutionArgs,
@@ -10,7 +7,7 @@ use cubecl::linalg::{
             simple_tma::SimpleTmaConvAlgorithm,
         },
         args::ConvInputsLaunch,
-        launch_conv2d_nhwc,
+        launch_conv,
     },
     matmul::components::{
         MatmulPrecision,
@@ -30,13 +27,13 @@ use crate::{
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-pub fn conv2d_gemm_cyclic<R: CubeRuntime, F: FloatElement>(
+pub fn conv_gemm_cyclic<R: CubeRuntime, F: FloatElement, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
-    options: ConvOptions<2>,
+    options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    conv2d_gemm_with_algo::<R, F, SimpleConvAlgorithm<Accelerated>>(input, weight, bias, options)
+    conv_gemm_with_algo::<R, F, SimpleConvAlgorithm<Accelerated>, N>(input, weight, bias, options)
 }
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -46,13 +43,16 @@ pub fn conv2d_gemm_cyclic<R: CubeRuntime, F: FloatElement>(
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-pub fn conv2d_gemm_tma<R: CubeRuntime, F: FloatElement>(
+#[allow(unused)]
+pub fn conv_gemm_tma<R: CubeRuntime, F: FloatElement, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
-    options: ConvOptions<2>,
+    options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    conv2d_gemm_with_algo::<R, F, SimpleTmaConvAlgorithm<Accelerated>>(input, weight, bias, options)
+    conv_gemm_with_algo::<R, F, SimpleTmaConvAlgorithm<Accelerated>, N>(
+        input, weight, bias, options,
+    )
 }
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -62,13 +62,14 @@ pub fn conv2d_gemm_tma<R: CubeRuntime, F: FloatElement>(
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-pub fn conv2d_gemm_tma_multi_stage<R: CubeRuntime, F: FloatElement>(
+#[allow(unused)]
+pub fn conv_gemm_tma_multi_stage<R: CubeRuntime, F: FloatElement, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
-    options: ConvOptions<2>,
+    options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    conv2d_gemm_with_algo::<R, F, MultiStageTmaConvAlgorithm<Accelerated>>(
+    conv_gemm_with_algo::<R, F, MultiStageTmaConvAlgorithm<Accelerated>, N>(
         input, weight, bias, options,
     )
 }
@@ -80,11 +81,11 @@ pub fn conv2d_gemm_tma_multi_stage<R: CubeRuntime, F: FloatElement>(
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-pub fn conv2d_gemm_with_algo<R: CubeRuntime, SP: MatmulPrecision, Alg: Algorithm>(
+pub fn conv_gemm_with_algo<R: CubeRuntime, SP: MatmulPrecision, Alg: Algorithm, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
-    options: ConvOptions<2>,
+    options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError>
 where
     SP::EI: CubeElement,
@@ -96,40 +97,43 @@ where
         return Err(ConvLaunchError::Groups(options.groups));
     }
 
-    let [batch_size, height, width, _] = input.shape.dims();
-    let [out_channels, kernel_h, kernel_w, _] = weight.shape.dims();
+    let rank = input.shape.num_dims();
+    let batch_size = input.shape.dims[0];
+    let dim_c = rank - 1;
+    let shape = &input.shape.dims[1..dim_c];
 
-    let out_h = calculate_conv_output_size(
-        kernel_h,
-        options.stride[0],
-        options.padding[0],
-        options.dilation[0],
-        height,
-    );
-    let out_w = calculate_conv_output_size(
-        kernel_w,
-        options.stride[1],
-        options.padding[1],
-        options.dilation[1],
-        width,
+    let out_channels = weight.shape.dims[0];
+    let weight_shape = &weight.shape.dims[1..dim_c];
+
+    let mut out_shape = calculate_conv_output_sizes(
+        weight_shape,
+        &options.stride,
+        &options.padding,
+        &options.dilation,
+        shape,
     );
 
-    let out_shape = Shape::new([batch_size, out_h, out_w, out_channels]);
-    let out =
-        empty_device_strided::<R, SP::EO>(input.client.clone(), input.device.clone(), out_shape);
+    out_shape.insert(0, batch_size);
+    out_shape.push(out_channels);
+
+    let out = empty_device_strided::<R, SP::EO>(
+        input.client.clone(),
+        input.device.clone(),
+        out_shape.into(),
+    );
 
     let bias = bias.as_ref().map(|bias| bias.as_handle_ref());
 
-    launch_conv2d_nhwc::<R, SP, Alg>(
+    launch_conv::<R, SP, Alg, N>(
         &input.client,
         &input.as_handle_ref(),
         &weight.as_handle_ref(),
         &bias,
         &out.as_handle_ref(),
         ConvolutionArgs {
-            stride: (options.stride[0], options.stride[1]),
-            padding: (options.padding[0], options.padding[1]),
-            dilation: (options.dilation[0], options.dilation[1]),
+            stride: options.stride,
+            padding: options.padding,
+            dilation: options.dilation,
         },
     )?;
 

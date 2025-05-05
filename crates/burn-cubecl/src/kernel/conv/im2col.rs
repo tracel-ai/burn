@@ -1,9 +1,10 @@
 use burn_tensor::{
     Shape,
-    ops::{ConvOptions, conv::calculate_conv_output_size},
+    ops::{ConvOptions, conv::calculate_conv_output_sizes},
 };
+use core::iter;
 use cubecl::{
-    calculate_cube_count_elemwise,
+    calculate_cube_count_elemwise, intrinsic,
     linalg::{
         convolution::ConvLaunchError,
         tensor::{TensorHandle, into_contiguous_pitched},
@@ -17,7 +18,7 @@ use crate::{
     kernel::{
         AddOp,
         conv::index,
-        into_contiguous, launch_binop,
+        into_contiguous_aligned, launch_binop,
         matmul::{MatmulStrategy, matmul},
         utils::{merge_dims, split_dim},
     },
@@ -29,32 +30,30 @@ use crate::{
     tensor::CubeTensor,
 };
 
-#[derive(CubeLaunch, CubeType)]
-struct Im2ColArgs {
-    stride_h: u32,
-    stride_w: u32,
-    dilation_h: u32,
-    dilation_w: u32,
-    padding_h: u32,
-    padding_w: u32,
+#[derive(CubeLaunch, CubeType, Clone)]
+pub(crate) struct ConvParam {
+    pub stride: u32,
+    pub dilation: u32,
+    pub padding: i32,
 }
 
 #[cube(launch_unchecked)]
 fn im2col_kernel<E: Numeric>(
     image: &Tensor<Line<E>>,
     columns: &mut Tensor<Line<E>>,
-    args: &Im2ColArgs,
+    params: Sequence<ConvParam>,
     shape_pos: FastDivmod,
-    shape_m: Sequence<FastDivmod>,
-    shape_k: Sequence<FastDivmod>,
+    shape_in_c: FastDivmod,
+    shape_out: Sequence<FastDivmod>,
+    shape_kernel: Sequence<FastDivmod>,
     #[comptime] elems_per_thread: u32,
     #[comptime] has_padding: bool,
 ) {
     // position shape: [in_channels, batch_size, out_h, out_w]
     // columns shape: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
 
-    let height = image.shape(1);
-    let width = image.shape(2);
+    let dim_c = image.rank() - 1;
+    let n_spatial = comptime![shape_out.len()];
 
     let line_size = image.line_size();
     let pos = ABSOLUTE_POS * elems_per_thread;
@@ -70,33 +69,35 @@ fn im2col_kernel<E: Numeric>(
         let pos = pos + i * line_size;
         let (pos_m, pos_k) = shape_pos.div_mod(pos);
 
-        let (rem, out_x) = shape_m.index(1).div_mod(pos_m);
-        let (b, out_y) = shape_m.index(0).div_mod(rem);
+        let (b, spatial_pos) = div_mod_seq(pos_m, &shape_out);
 
-        let (rem, in_c) = shape_k.index(1).div_mod(pos_k);
-        let (kernel_y, kernel_x) = shape_k.index(0).div_mod(rem);
+        let (rem, in_c) = shape_in_c.div_mod(pos_k);
+        let (_, kernel_pos) = div_mod_seq(rem, &shape_kernel);
 
         let pos_col = (pos_m * columns.stride(0) + pos_k * columns.stride(1)) / line_size;
-        let image_offs = b * image.stride(0) + in_c * image.stride(3);
 
-        if has_padding {
-            let y =
-                (out_y * args.stride_h + kernel_y * args.dilation_h) as i32 - args.padding_h as i32;
-            let x =
-                (out_x * args.stride_w + kernel_x * args.dilation_w) as i32 - args.padding_w as i32;
+        let mut image_pos = b * image.stride(0) + in_c * image.stride(dim_c);
+        let mut in_bounds = true;
 
-            let pos_image = image_offs + y as u32 * image.stride(1) + x as u32 * image.stride(2);
+        #[unroll]
+        for i in 0..n_spatial {
+            let i = unwrap_const(i);
+            let out_pos = spatial_pos.index(i);
+            let k_pos = kernel_pos.index(i);
+            let params = params.index(i);
+            let in_pos =
+                (out_pos * params.stride + k_pos * params.dilation) as i32 - params.padding;
+            image_pos += in_pos as u32 * image.stride(i + 1);
 
-            if y >= 0 && x >= 0 && y < height as i32 && x < width as i32 {
-                columns[pos_col] = image[pos_image / line_size];
-            } else {
-                columns[pos_col] = Line::empty(line_size).fill(E::from_int(0))
-            };
+            if has_padding {
+                in_bounds &= in_pos >= 0 && (in_pos as u32) < image.shape(i + 1);
+            }
+        }
+
+        if in_bounds {
+            columns[pos_col] = image[image_pos / line_size];
         } else {
-            let y = out_y * args.stride_h + kernel_y * args.dilation_h;
-            let x = out_x * args.stride_w + kernel_x * args.dilation_w;
-            let pos_image = image_offs + y * image.stride(1) + x * image.stride(2);
-            columns[pos_col] = image[pos_image / line_size];
+            columns[pos_col] = Line::empty(line_size).fill(E::from_int(0))
         }
     }
 }
@@ -104,12 +105,11 @@ fn im2col_kernel<E: Numeric>(
 #[cfg(not(test))]
 pub(crate) fn batches_per_run(
     batch_size: usize,
-    out_h: usize,
-    out_w: usize,
+    out_shape: usize,
 ) -> Result<usize, ConvLaunchError> {
     use cubecl::linalg::matmul::kernels::MatmulAvailabilityError;
 
-    let cube_count_per_batch = (out_h * out_w).div_ceil(cubecl::PLANE_DIM_APPROX);
+    let cube_count_per_batch = out_shape.div_ceil(cubecl::PLANE_DIM_APPROX);
     let max_cube_count = u16::MAX as usize;
     let max_simultaneous = (max_cube_count / cube_count_per_batch).min(batch_size);
     if max_simultaneous == 0 {
@@ -130,30 +130,30 @@ pub(crate) fn batches_per_run(
 #[allow(unused)]
 pub(crate) fn batches_per_run(
     batch_size: usize,
-    out_h: usize,
-    out_w: usize,
+    out_shape: usize,
 ) -> Result<usize, ConvLaunchError> {
     Ok(1)
 }
 
-fn im2col<R: CubeRuntime, E: FloatElement>(
+fn im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
     input: CubeTensor<R>,
-    options: ConvOptions<2>,
-    kernel_h: usize,
-    kernel_w: usize,
-    out_h: usize,
-    out_w: usize,
+    options: ConvOptions<N>,
+    kernel_shape: &[usize],
+    out_shape: &[usize],
 ) -> CubeTensor<R> {
     let client = input.client.clone();
-    let input = into_contiguous(input);
+    let input = into_contiguous_aligned(input);
 
-    let [batch_size, _, _, in_channels] = input.shape.dims();
+    let rank = input.shape.num_dims();
+    let batch_size = input.shape.dims[0];
+    let dim_c = rank - 1;
+    let in_channels = input.shape.dims[dim_c];
 
     let line_size = max_line_size(&input);
     let mut elems_per_thread = 16usize.div_ceil(line_size as usize);
 
-    let k = in_channels * kernel_h * kernel_w;
-    let m = batch_size * out_h * out_w;
+    let k = in_channels * kernel_shape.iter().product::<usize>();
+    let m = batch_size * out_shape.iter().product::<usize>();
     let shape_col = Shape::new([m, k]);
     let columns =
         empty_device_strided::<R, E>(input.client.clone(), input.device.clone(), shape_col);
@@ -168,14 +168,27 @@ fn im2col<R: CubeRuntime, E: FloatElement>(
     let cube_count = calculate_cube_count_elemwise(total_units, cube_dim);
 
     let shape_pos = FastDivmodArgs::new(&client, k as u32);
-    let mut shape_m = SequenceArg::new();
-    let mut shape_k = SequenceArg::new();
+    let shape_in_c = FastDivmodArgs::new(&client, in_channels as u32);
+    let mut shape_out = SequenceArg::new();
+    let mut shape_kernel = SequenceArg::new();
 
-    shape_m.push(FastDivmodArgs::new(&client, out_h as u32));
-    shape_m.push(FastDivmodArgs::new(&client, out_w as u32));
+    for shape in out_shape {
+        shape_out.push(FastDivmodArgs::new(&client, *shape as u32));
+    }
 
-    shape_k.push(FastDivmodArgs::new(&client, kernel_w as u32));
-    shape_k.push(FastDivmodArgs::new(&client, in_channels as u32));
+    for shape in kernel_shape {
+        shape_kernel.push(FastDivmodArgs::new(&client, *shape as u32));
+    }
+
+    let mut params = SequenceArg::new();
+
+    for i in 0..N {
+        params.push(ConvParamLaunch::new(
+            ScalarArg::new(options.stride[i] as u32),
+            ScalarArg::new(options.dilation[i] as u32),
+            ScalarArg::new(options.padding[i] as i32),
+        ))
+    }
 
     unsafe {
         im2col_kernel::launch_unchecked::<E, R>(
@@ -184,19 +197,13 @@ fn im2col<R: CubeRuntime, E: FloatElement>(
             cube_dim,
             input.as_handle_ref().as_tensor_arg(line_size),
             columns.as_handle_ref().as_tensor_arg(line_size),
-            Im2ColArgsLaunch::new(
-                ScalarArg::new(options.stride[0] as u32),
-                ScalarArg::new(options.stride[1] as u32),
-                ScalarArg::new(options.dilation[0] as u32),
-                ScalarArg::new(options.dilation[1] as u32),
-                ScalarArg::new(options.padding[0] as u32),
-                ScalarArg::new(options.padding[1] as u32),
-            ),
+            params,
             shape_pos,
-            shape_m,
-            shape_k,
+            shape_in_c,
+            shape_out,
+            shape_kernel,
             elems_per_thread as u32,
-            options.padding != [0, 0],
+            options.padding.iter().any(|it| *it != 0),
         )
     };
 
@@ -210,126 +217,128 @@ fn im2col<R: CubeRuntime, E: FloatElement>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
+pub fn conv_im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
-    options: ConvOptions<2>,
+    options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
     if options.groups != 1 {
         return Err(ConvLaunchError::Groups(options.groups));
     }
 
     if let Ok(out) =
-        conv2d_im2col_1x1::<R, E>(input.clone(), weight.clone(), bias.clone(), options.clone())
+        conv_im2col_1x1::<R, E, N>(input.clone(), weight.clone(), bias.clone(), options.clone())
     {
         return Ok(out);
     }
 
-    let [batch_size, in_height, in_width, _] = input.shape.dims();
-    let [out_channels, kernel_h, kernel_w, _] = weight.shape.dims();
+    let rank = input.shape.num_dims();
+    let dim_c = rank - 1;
 
-    let out_h = calculate_conv_output_size(
-        kernel_h,
-        options.stride[0],
-        options.padding[0],
-        options.dilation[0],
-        in_height,
-    );
-    let out_w = calculate_conv_output_size(
-        kernel_w,
-        options.stride[1],
-        options.padding[1],
-        options.dilation[1],
-        in_width,
+    let batch_size = input.shape.dims[0];
+    let in_shape = &input.shape.dims[1..dim_c];
+    let out_channels = weight.shape.dims[0];
+    let kernel_shape = &weight.shape.dims[1..dim_c];
+
+    let out_shape = calculate_conv_output_sizes(
+        kernel_shape,
+        &options.stride,
+        &options.padding,
+        &options.dilation,
+        in_shape,
     );
 
-    let batches_per_run = batches_per_run(batch_size, out_h, out_w)?;
-    let shape_m = batches_per_run * out_h * out_w;
+    let out_shape_prod = out_shape.iter().product::<usize>();
+    let batches_per_run = batches_per_run(batch_size, out_shape_prod)?;
+    let shape_m = batches_per_run * out_shape_prod;
     let shape_n = out_channels;
     let matmul_shape = Shape::new([shape_m, shape_n]);
 
+    let mut m_split = vec![batch_size];
+    m_split.extend(out_shape.iter().copied());
+
     let mut out = if batches_per_run != batch_size {
         let runs = batch_size / batches_per_run;
-        let out_shape = Shape::new([runs, batches_per_run, out_h, out_w, out_channels]);
-        let out = empty_device::<R, E>(input.client.clone(), input.device.clone(), out_shape);
-        let input = split_dim(input, 0, [runs, batches_per_run]);
+        let shape_out = Shape::new([runs, batches_per_run, out_shape_prod, out_channels]);
+        let out = empty_device::<R, E>(input.client.clone(), input.device.clone(), shape_out);
+        let input = split_dim(input, 0, &[runs, batches_per_run]);
 
         for run in 0..runs {
             let input = index::<R, E>(input.clone(), run);
             let mut out_slice = index::<R, E>(out.clone(), run);
             out_slice.shape.dims = vec![shape_m, shape_n];
-            out_slice.strides = vec![out_slice.strides[2], out_slice.strides[3]];
-            execute::<R, E>(
+            out_slice.strides = vec![out_slice.strides[1], out_slice.strides[2]];
+            execute::<R, E, N>(
                 input,
                 weight.clone(),
                 &mut out_slice,
                 options.clone(),
-                out_h,
-                out_w,
+                &out_shape,
             )?;
         }
-        merge_dims(out, 0, 1)
+        let merged = merge_dims(out, 0, 1);
+        split_dim(merged, 1, &out_shape)
     } else {
         let mut out =
             empty_device::<R, E>(input.client.clone(), input.device.clone(), matmul_shape);
-        execute::<R, E>(input, weight, &mut out, options, out_h, out_w)?;
-        split_dim(out, 0, [batch_size, out_h, out_w]) // [N, H, W, C]    
+        execute::<R, E, N>(input, weight, &mut out, options, &out_shape)?;
+        split_dim(out, 0, &m_split) // [N, H, W, C]
     };
 
     if let Some(bias) = bias {
-        let bias = reshape(bias, Shape::new([1, 1, 1, out_channels]));
+        let mut bias_shape = iter::repeat_n(1, rank - 1).collect::<Vec<_>>();
+        bias_shape.push(out_channels);
+        let bias = reshape(bias, bias_shape.into());
         out = launch_binop::<R, E, AddOp>(out, bias)
     }
 
     Ok(out)
 }
 
-pub fn conv2d_im2col_1x1<R: CubeRuntime, E: FloatElement>(
+pub fn conv_im2col_1x1<R: CubeRuntime, E: FloatElement, const N: usize>(
     input: CubeTensor<R>,
     mut weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
-    options: ConvOptions<2>,
+    options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
     if options.groups != 1 {
         return Err(ConvLaunchError::Groups(options.groups));
     }
 
-    let client = input.client.clone();
-    let device = input.device.clone();
+    let rank = input.shape.num_dims();
+    let dim_c = rank - 1;
 
-    let [batch_size, height, width, _] = input.shape.dims();
-    let [out_channels, kernel_h, kernel_w, in_channels] = weight.shape.dims();
+    let batch_size = input.shape.dims[0];
+    let in_channels = input.shape.dims[dim_c];
+    let in_shape = &input.shape.dims[1..dim_c];
+    let out_channels = weight.shape.dims[0];
+    let kernel_shape = &weight.shape.dims[1..dim_c];
 
-    let out_h = calculate_conv_output_size(
-        kernel_h,
-        options.stride[0],
-        options.padding[0],
-        options.dilation[0],
-        height,
-    );
-    let out_w = calculate_conv_output_size(
-        kernel_w,
-        options.stride[1],
-        options.padding[1],
-        options.dilation[1],
-        width,
+    let out_shape = calculate_conv_output_sizes(
+        kernel_shape,
+        &options.stride,
+        &options.padding,
+        &options.dilation,
+        in_shape,
     );
 
-    if kernel_h != 1 || kernel_w != 1 || height != out_h || width != out_w {
+    let mut split_m = vec![batch_size];
+    split_m.extend(out_shape.iter().copied());
+
+    if kernel_shape.iter().any(|it| *it != 1) || in_shape != out_shape {
         return Err(ConvLaunchError::Unknown);
     }
 
     let input = reshape_input::<R, E>(input); // [(NHW), C] : [M, K]
 
     // Efficient permutation that takes the stride required for TMA into account
-    let weight = if weight.strides[3] != 1 {
+    let weight = if weight.strides[dim_c] != 1 {
         // Remove kernel dims so padded dim is channels
         weight.shape.dims = vec![out_channels, in_channels]; // [N, K]
-        weight.strides = vec![weight.strides[0], weight.strides[3]];
+        weight.strides = vec![weight.strides[0], weight.strides[dim_c]];
         // Pitched contiguous to skip running another kernel for TMA
-        let contiguous = into_contiguous_pitched::<R, E>(&input.client, &weight.as_handle_ref());
-        from_handle(&client, &device, contiguous)
+        into_contiguous_aligned(weight)
     } else {
         // Already compatible, skip initial reshape
         weight.shape.dims = vec![out_channels, in_channels]; // [N, K]
@@ -344,10 +353,12 @@ pub fn conv2d_im2col_1x1<R: CubeRuntime, E: FloatElement>(
     let out = matmul::<R, E>(input, weight, None, MatmulStrategy::default())?; // [M, N]
 
     // Skip reshape to avoid potential `into_contiguous`. We're only splitting dims so it's safe.
-    let mut out = split_dim(out, 0, [batch_size, height, width]); // [N, H, W, C]
+    let mut out = split_dim(out, 0, &split_m); // [N, H, W, C]
 
     if let Some(bias) = bias {
-        let bias = reshape(bias, Shape::new([1, 1, 1, out_channels]));
+        let mut bias_shape = iter::repeat_n(1, rank - 1).collect::<Vec<_>>();
+        bias_shape.push(out_channels);
+        let bias = reshape(bias, bias_shape.into());
         out = launch_binop::<R, E, AddOp>(out, bias)
     }
 
@@ -356,14 +367,19 @@ pub fn conv2d_im2col_1x1<R: CubeRuntime, E: FloatElement>(
 
 /// Reshapes NHWC input to [(N, H, W), C]
 fn reshape_input<R: CubeRuntime, E: CubeElement>(mut input: CubeTensor<R>) -> CubeTensor<R> {
-    let [batch_size, height, width, in_c] = input.shape.dims();
+    let rank = input.shape.num_dims();
+    let dim_c = rank - 1;
+
+    let batch_size = input.shape.dims[0];
+    let in_c: usize = input.shape.dims[dim_c];
+    let in_shape = input.shape.dims[1..dim_c].to_vec();
 
     if !is_spatial_contiguous(&input.shape.dims, &input.strides) {
         let contiguous = into_contiguous_pitched::<R, E>(&input.client, &input.as_handle_ref());
         input = from_handle(&input.client, &input.device, contiguous);
     }
-    input.shape.dims = vec![batch_size * height * width, in_c]; // [M, K]
-    input.strides = vec![input.strides[2], input.strides[3]];
+    input.shape.dims = vec![batch_size * in_shape.iter().product::<usize>(), in_c]; // [M, K]
+    input.strides = vec![input.strides[dim_c - 1], input.strides[dim_c]];
     input
 }
 
@@ -399,17 +415,20 @@ fn from_handle<R: CubeRuntime, E: CubeElement>(
     )
 }
 
-fn execute<R: CubeRuntime, E: FloatElement>(
+fn execute<R: CubeRuntime, E: FloatElement, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     out: &mut CubeTensor<R>,
-    options: ConvOptions<2>,
-    out_h: usize,
-    out_w: usize,
+    options: ConvOptions<N>,
+    out_shape: &[usize],
 ) -> Result<(), ConvLaunchError> {
-    let [out_channels, kernel_h, kernel_w, _] = weight.shape.dims();
+    let rank = weight.shape.num_dims();
+    let dim_c = rank - 1;
 
-    let columns = im2col::<R, E>(input, options.clone(), kernel_h, kernel_w, out_h, out_w);
+    let out_channels = weight.shape.dims[0];
+    let kernel_shape = &weight.shape.dims[1..dim_c];
+
+    let columns = im2col::<R, E, N>(input, options.clone(), kernel_shape, out_shape);
 
     let [_, shape_k] = columns.shape.dims();
     let shape_n = out_channels;
@@ -420,4 +439,28 @@ fn execute<R: CubeRuntime, E: FloatElement>(
     matmul::<R, E>(columns, weight, Some(out.clone()), Default::default())?;
 
     Ok(())
+}
+
+#[cube]
+pub(crate) fn div_mod_seq(pos: u32, shape: &Sequence<FastDivmod>) -> (u32, Sequence<u32>) {
+    let rank = comptime![shape.len()];
+    let mut offs = pos;
+    let mut out = Sequence::new();
+
+    #[unroll]
+    for i in 0..rank {
+        let i = unwrap_const(i);
+        let dim = comptime![rank - i - 1];
+        let (rem, offs_local) = shape.index(dim).div_mod(offs);
+        out.push(offs_local);
+        offs = rem;
+    }
+
+    (offs, out.rev())
+}
+
+#[allow(unused_variables)]
+#[cube]
+fn unwrap_const(v: u32) -> comptime_type!(u32) {
+    intrinsic!(|_| v.constant().expect("Must be constant").as_u32())
 }

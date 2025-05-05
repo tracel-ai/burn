@@ -327,6 +327,7 @@ pub(crate) fn conv3d<E: FloatNdArrayElement>(
         kernel_height,
         kernel_width,
     ] = weight.shape().dims();
+    let out_c_per_group = out_channels / options.groups;
 
     let out_depth = calculate_conv_output_size(
         kernel_depth,
@@ -371,7 +372,7 @@ pub(crate) fn conv3d<E: FloatNdArrayElement>(
                 |(k, mut output)| {
                     let b = k / out_channels;
                     let oc = k % out_channels;
-                    let g = k % options.groups;
+                    let g = oc / out_c_per_group;
 
                     for ic in (in_channels * g)..(in_channels * (g + 1)) {
                         let weight_ic = ic - (g * in_channels);

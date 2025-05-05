@@ -3,7 +3,8 @@ use crate::{
     stream::{MultiStream, StreamId, execution::Operation},
 };
 use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr};
-use std::{future::Future, sync::Arc};
+use burn_tensor::TensorData;
+use std::sync::Arc;
 
 pub struct FusionServer<R: FusionRuntime> {
     streams: MultiStream<R>,
@@ -43,14 +44,13 @@ where
         &mut self,
         tensor: TensorIr,
         id: StreamId,
-    ) -> impl Future<Output = burn_tensor::TensorData> + 'static
+    ) -> impl Future<Output = TensorData> + Send + use<R, B>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
-
         let tensor = self.handles.get_float_tensor::<B>(&tensor);
         B::float_into_data(tensor)
     }
@@ -59,14 +59,13 @@ where
         &mut self,
         tensor: TensorIr,
         id: StreamId,
-    ) -> impl Future<Output = burn_tensor::TensorData> + 'static
+    ) -> impl Future<Output = TensorData> + Send + use<R, B>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
-
         let tensor = self.handles.get_int_tensor::<B>(&tensor);
         B::int_into_data(tensor)
     }
@@ -75,14 +74,13 @@ where
         &mut self,
         tensor: TensorIr,
         id: StreamId,
-    ) -> impl Future<Output = burn_tensor::TensorData> + 'static
+    ) -> impl Future<Output = TensorData> + Send + use<R, B>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
-
         let tensor = self.handles.get_bool_tensor::<B>(&tensor);
         B::bool_into_data(tensor)
     }
@@ -91,14 +89,13 @@ where
         &mut self,
         tensor: TensorIr,
         id: StreamId,
-    ) -> impl Future<Output = burn_tensor::TensorData> + 'static
+    ) -> impl Future<Output = TensorData> + Send + use<R, B>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
-
         let tensor = self.handles.get_quantized_tensor::<B>(&tensor);
         B::q_into_data(tensor)
     }

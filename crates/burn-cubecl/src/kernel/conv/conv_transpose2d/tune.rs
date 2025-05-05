@@ -4,13 +4,11 @@ use cubecl::tune::{LocalTuner, TunableSet, local_tuner};
 use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId, FloatElement,
     kernel::{
-        conv::{conv_transpose2d_col2im, conv_transpose2d_direct},
+        conv::{ConvTranspose2dAutotuneKey, conv_transpose2d_col2im, conv_transpose2d_direct},
         prng::random_uniform,
     },
     tensor::CubeTensor,
 };
-
-use super::ConvTranspose2dAutotuneKey;
 
 /// Executes autotune on conv2d operations
 pub fn conv_transpose2d_autotune<R: CubeRuntime, E: FloatElement>(

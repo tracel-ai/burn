@@ -192,7 +192,7 @@ fn nchw_to_nhwc_kernel<E: Numeric>(
 }
 
 #[cube]
-pub fn swizzle(offset: u32, #[comptime] bank_count: i32) -> u32 {
+fn swizzle(offset: u32, #[comptime] bank_count: i32) -> u32 {
     let num_bits = comptime!(i32::BITS - bank_count.leading_zeros() - 1);
     let bit_mask = (1 << num_bits) - 1;
     let yyy_mask = bit_mask << (num_bits);
