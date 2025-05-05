@@ -5,5 +5,6 @@ mod tune;
 pub mod utils;
 
 pub use base::*;
+#[cfg(feature = "autotune")]
 pub use tune::*;
 pub use utils::*;

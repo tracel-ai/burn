@@ -1,9 +1,5 @@
-use burn_tensor::{DType, ElementConversion, Shape, ops::ConvOptions};
-use cubecl::{
-    AutotuneKey,
-    tune::{LocalTuner, TunableSet, anchor, local_tuner},
-};
-use serde::{Deserialize, Serialize};
+use burn_tensor::{ElementConversion, Shape, ops::ConvOptions};
+use cubecl::tune::{LocalTuner, TunableSet, anchor, local_tuner};
 
 use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId, FloatElement,
@@ -17,24 +13,7 @@ use crate::{
     tensor::CubeTensor,
 };
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
-/// Autotune key representative of matmul versions
-pub struct ConvAutotuneKey {
-    pub kernel_size: Vec<usize>,
-    pub stride: Vec<usize>,
-    pub padding: Vec<usize>,
-    pub dilation: Vec<usize>,
-    pub groups: usize,
-    #[autotune(anchor)]
-    pub in_channels: usize,
-    #[autotune(anchor)]
-    pub out_channels: usize,
-    pub shape: Vec<usize>,
-    #[autotune(anchor)]
-    pub batch_size: usize,
-    pub has_bias: bool,
-    pub dtype: DType,
-}
+use super::ConvAutotuneKey;
 
 /// Executes autotune on conv2d operations
 pub fn conv_autotune<R: CubeRuntime, E: FloatElement, const N: usize>(
