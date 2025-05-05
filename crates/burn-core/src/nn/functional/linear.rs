@@ -16,6 +16,16 @@ use crate::tensor::backend::Backend;
 /// # Returns:
 ///
 /// The transformed tensor, ``[..., d_output]``.
+///
+/// # PyTorch Compatibility:
+///
+/// This function differs from PyTorch's `torch.nn.functional.linear` in that it does not
+/// transpose the weight matrix. In PyTorch, the weight matrix is transposed before
+/// multiplication:
+///
+/// ```math
+/// y = x @ weight^T + [bias]
+/// ```
 pub fn linear<B: Backend, const D: usize>(
     input: Tensor<B, D>,
     weight: Tensor<B, 2>,
@@ -34,33 +44,6 @@ pub fn linear<B: Backend, const D: usize>(
     }
 }
 
-/// PyTorch-compat linear function.
-///
-/// Pytorch's linear function is defined with a transposed weight matrix:
-///
-/// ```math
-/// y = x @ weight^T + [bias]
-/// ```
-///
-/// See: https://pytorch.org/docs/stable/generated/torch.nn.functional.linear.html
-///
-/// # Arguments:
-///
-/// - `input` is the input tensor, ``[..., d_input]``.
-/// - `weight` is the weight tensor, ``[d_output, d_input]``.
-/// - `b` is the bias tensor (optional), ``[d_output]``.
-///
-/// # Returns:
-///
-/// The transformed tensor, ``[..., d_output]``.
-pub fn linear_pytorch<B: Backend, const D: usize>(
-    input: Tensor<B, D>,
-    weight: Tensor<B, 2>,
-    bias: Option<Tensor<B, 1>>,
-) -> Tensor<B, D> {
-    linear(input, weight.transpose(), bias)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -77,14 +60,6 @@ mod tests {
             .into_data()
             .assert_eq(
                 &Tensor::<TestBackend, 1>::from_data([7.0, 10.0], &Default::default()).into_data(),
-                true,
-            );
-
-        // Compat
-        linear(x.clone(), weight.clone(), None)
-            .into_data()
-            .assert_eq(
-                &linear_pytorch(x.clone(), weight.clone().transpose(), None).into_data(),
                 true,
             );
     }
@@ -107,14 +82,6 @@ mod tests {
                     &Default::default(),
                 )
                 .into_data(),
-                true,
-            );
-
-        // Compat
-        linear(x.clone(), weight.clone(), None)
-            .into_data()
-            .assert_eq(
-                &linear_pytorch(x.clone(), weight.clone().transpose(), None).into_data(),
                 true,
             );
     }
@@ -141,14 +108,6 @@ mod tests {
                     &Default::default(),
                 )
                 .into_data(),
-                true,
-            );
-
-        // Compat
-        linear(x.clone(), weight.clone(), bias.clone())
-            .into_data()
-            .assert_eq(
-                &linear_pytorch(x.clone(), weight.clone().transpose(), bias.clone()).into_data(),
                 true,
             );
     }

@@ -19,10 +19,11 @@ pub mod transformer;
 /// Interpolate module
 pub mod interpolate;
 
-mod dropout;
-mod embedding;
 /// Functional module
 pub mod functional;
+
+mod dropout;
+mod embedding;
 mod gelu;
 mod hard_sigmoid;
 mod initializer;
