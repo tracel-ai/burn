@@ -31,7 +31,6 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for PyTorchFileRecorder<PS> 
         _item: I,
         _file: Self::RecordArgs,
     ) -> Result<(), RecorderError> {
-        // Saving items is not supported for PyTorch files via this recorder.
         unimplemented!("Save operations are not supported by PyTorchFileRecorder.")
     }
 
@@ -39,7 +38,6 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for PyTorchFileRecorder<PS> 
         &self,
         _file: &mut Self::LoadArgs,
     ) -> Result<I, RecorderError> {
-        // Loading individual items directly is not the intended use case; use `load` instead.
         unimplemented!("load_item is not implemented for PyTorchFileRecorder; use load instead.")
     }
 
