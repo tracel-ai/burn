@@ -3,19 +3,23 @@ use std::sync::Arc;
 use burn_fusion::stream::Context;
 use burn_ir::{ReduceDimOpIr, TensorStatus};
 use burn_tensor::DType;
+use cubecl::ir::Elem;
 use cubecl::prelude::*;
 use cubecl::reduce::instructions::{ReduceFn, ReduceFnConfig};
-use cubecl::reduce::{BoundChecksInner, ReduceFamily, ReduceParams, ReduceStrategy, reduce_kernel};
+use cubecl::reduce::{
+    BoundChecksInner, ReduceFamily, ReduceParams, ReduceStrategy, get_reduce_count,
+    get_reduce_index, init_tensors, reduce_kernel_inner,
+};
 use cubecl::{
     CubeCount, CubeDim, Runtime,
     client::ComputeClient,
     reduce::{LineMode, ReduceConfig, ReduceError},
 };
-use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
 use crate::CubeFusionHandle;
 use crate::elemwise::optimization::ElemwiseRunner;
+use crate::reduce::args::FusedReduceArgs;
 use crate::shared::ir::{FusePrecision, RefLayout};
 use crate::shared::trace::{TraceError, TraceRunner};
 use crate::shared::trace::{TuneOutput, Vectorization};
@@ -24,7 +28,9 @@ use crate::shared::{
     trace::FuseTrace,
 };
 
-use super::args::{FusedReduceArgs, FusedReduceInputLaunch, FusedReduceOutputLaunch};
+use super::args::{
+    FusedReduceInput, FusedReduceInputLaunch, FusedReduceOutput, FusedReduceOutputLaunch,
+};
 use super::tune::fused_reduce_autotune;
 
 pub struct ReduceOptimization<R: Runtime> {
@@ -37,7 +43,7 @@ pub struct ReduceOptimization<R: Runtime> {
     pub(crate) reduce: FusedReduce,
     pub(crate) reduce_plane: FusedReduce,
     pub(crate) reduce_shared_plane: FusedReduce,
-    fallback: Arc<dyn ReduceFallbackFn<R>>,
+    fallback: Option<Box<dyn ReduceFallbackFn<R>>>,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
@@ -53,15 +59,7 @@ pub enum ReduceInstruction {
 }
 
 pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
-    fn run(
-        &self,
-        input_handle: CubeFusionHandle<R>,
-        shape: &[usize],
-        axis: usize,
-        inst: &ReduceInstruction,
-        dtype_out: &DType,
-        dtype_acc: &DType,
-    ) -> CubeFusionHandle<R>;
+    fn run(&self, context: &mut Context<'_, CubeFusionHandle<R>>);
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -117,7 +115,6 @@ impl<R: Runtime> ReduceOptimization<R> {
         device: R::Device,
         len: usize,
         reduce: FusedReduce,
-        fallback: Arc<dyn ReduceFallbackFn<R>>,
     ) -> Self {
         let reduce_plane = reduce.with_strategy(ReduceStrategy {
             use_planes: true,
@@ -137,11 +134,17 @@ impl<R: Runtime> ReduceOptimization<R> {
             reduce,
             reduce_plane,
             reduce_shared_plane,
-            fallback,
+            fallback: None,
         }
     }
     /// Execute the optimization.
-    pub fn execute<BT: CubeElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
+    pub fn execute<BT: CubeElement, Fallback: FnOnce(usize) -> Box<dyn ReduceFallbackFn<R>>>(
+        &mut self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+        fallback: Fallback,
+    ) {
+        self.fallback = Some(fallback(self.trace_read_fallback.len()));
+
         #[cfg(feature = "autotune")]
         fused_reduce_autotune::<R, BT>(self, context);
 
@@ -167,11 +170,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         }
     }
 
-    pub fn from_state(
-        device: &R::Device,
-        state: ReduceOptimizationState,
-        fallback: Arc<dyn ReduceFallbackFn<R>>,
-    ) -> Self {
+    pub fn from_state(device: &R::Device, state: ReduceOptimizationState) -> Self {
         let client = R::client(device);
 
         Self {
@@ -181,10 +180,10 @@ impl<R: Runtime> ReduceOptimization<R> {
             reduce: state.reduce,
             reduce_plane: state.reduce_plane,
             reduce_shared_plane: state.reduce_shared_plane,
-            fallback,
             len: state.len,
             client,
             device: device.clone(),
+            fallback: None,
         }
     }
 
@@ -237,43 +236,36 @@ impl<R: Runtime> ReduceOptimization<R> {
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
 
-        let (out_tensor, out_desc) = {
-            let input = context
-                .tensors
-                .get(&self.reduce.op.input.id)
-                .unwrap()
-                .clone();
-            let out = context.tensors.get(&self.reduce.op.out.id).unwrap().clone();
+        self.fallback.as_ref().unwrap().run(context);
 
-            let input_handle = context
-                .handles
-                .get_handle(&input.id, &TensorStatus::ReadOnly);
-            let acc = self.reduce.acc.into_elem().into();
-            let out_handle = self.fallback.run(
-                input_handle,
-                &input.shape,
-                self.reduce.op.axis,
-                &self.reduce.inst,
-                &self.reduce.op.out.dtype,
-                &acc,
-            );
-
-            (out_handle, out)
-        };
         #[cfg(feature = "autotune-checks")]
-        if let TuneOutput::Checked { handles } = &mut output_read {
+        let mut output_checks = TuneOutput::<R>::Checked {
+            handles: Default::default(),
+        };
+
+        #[cfg(feature = "autotune-checks")]
+        if let TuneOutput::Checked { handles } = &mut output_checks {
+            let out_desc = context.tensors.get(&self.reduce.op.out.id).unwrap();
+            let handle_out = context
+                .handles
+                .get_handle(&out_desc.id, &TensorStatus::ReadOnly);
+
             handles.insert(
                 self.reduce.op.out.id,
-                (out_desc.shape.clone(), out_tensor.clone()),
+                (out_desc.shape.clone(), handle_out.clone()),
             );
         }
-        context.handles.register_handle(out_desc.id, out_tensor);
+
         let output_write = self
             .trace_write_fallback
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
 
-        output_read.merge(output_write)
+        #[cfg(feature = "autotune-checks")]
+        return output_read.merge(output_write).merge(output_checks);
+
+        #[cfg(not(feature = "autotune-checks"))]
+        return output_read.merge(output_write);
     }
     /// Returns the number of output buffers added by fusion.
     pub fn num_ops_fused(&self) -> usize {
@@ -396,107 +388,15 @@ fn launch_reduce_mixed_precision<Run: Runtime>(
         ReduceInstruction::Min => ReduceFnConfig::Min,
         ReduceInstruction::MaxAbs => ReduceFnConfig::MaxAbs,
     };
-    launch_reduce_with_family::<Run, ReduceFn>(kwargs, dtype_input, dtype_output, dtype_acc, config)
+    launch_reduce::<Run, ReduceFn>(kwargs, config, dtype_input, dtype_output, dtype_acc)
 }
 
-fn launch_reduce_with_family<Run: Runtime, Rd: ReduceFamily>(
+fn launch_reduce<Run: Runtime, Rd: ReduceFamily>(
     kwargs: ReduceKwArgs<'_, '_, Run>,
+    config: Rd::Config,
     dtype_input: DType,
     dtype_output: DType,
     dtype_acc: DType,
-    config: Rd::Config,
-) {
-    match dtype_input {
-        DType::F64 => {
-            launch_reduce_output_acc::<Run, f64, Rd>(kwargs, dtype_output, dtype_acc, config)
-        }
-        DType::F32 | DType::Flex32 => {
-            launch_reduce_output_acc::<Run, f32, Rd>(kwargs, dtype_output, dtype_acc, config)
-        }
-        DType::F16 => {
-            launch_reduce_output_acc::<Run, f16, Rd>(kwargs, dtype_output, dtype_acc, config)
-        }
-        DType::BF16 => {
-            launch_reduce_output_acc::<Run, bf16, Rd>(kwargs, dtype_output, dtype_acc, config)
-        }
-        DType::I64 => {
-            launch_reduce_output_acc::<Run, i64, Rd>(kwargs, dtype_output, dtype_acc, config)
-        }
-        DType::I32 => {
-            launch_reduce_output_acc::<Run, i32, Rd>(kwargs, dtype_output, dtype_acc, config)
-        }
-        DType::I16 => {
-            launch_reduce_output_acc::<Run, i16, Rd>(kwargs, dtype_output, dtype_acc, config)
-        }
-        DType::I8 => {
-            launch_reduce_output_acc::<Run, i8, Rd>(kwargs, dtype_output, dtype_acc, config)
-        }
-        DType::U64 => {
-            launch_reduce_output_acc::<Run, u64, Rd>(kwargs, dtype_output, dtype_acc, config)
-        }
-        DType::U32 => {
-            launch_reduce_output_acc::<Run, u32, Rd>(kwargs, dtype_output, dtype_acc, config)
-        }
-        DType::U16 => {
-            launch_reduce_output_acc::<Run, u16, Rd>(kwargs, dtype_output, dtype_acc, config)
-        }
-        DType::U8 => {
-            launch_reduce_output_acc::<Run, u8, Rd>(kwargs, dtype_output, dtype_acc, config)
-        }
-        _ => panic!("Unsupported"),
-    }
-}
-
-fn launch_reduce_output_acc<Run: Runtime, In: Numeric, Rd: ReduceFamily>(
-    kwargs: ReduceKwArgs<'_, '_, Run>,
-    dtype_output: DType,
-    dtype_acc: DType,
-    config: Rd::Config,
-) {
-    match dtype_output {
-        DType::F64 => launch_reduce_acc::<Run, In, f64, Rd>(kwargs, dtype_acc, config),
-        DType::F32 | DType::Flex32 => {
-            launch_reduce_acc::<Run, In, f32, Rd>(kwargs, dtype_acc, config)
-        }
-        DType::F16 => launch_reduce_acc::<Run, In, f16, Rd>(kwargs, dtype_acc, config),
-        DType::BF16 => launch_reduce_acc::<Run, In, bf16, Rd>(kwargs, dtype_acc, config),
-        DType::I64 => launch_reduce_acc::<Run, In, i64, Rd>(kwargs, dtype_acc, config),
-        DType::I32 => launch_reduce_acc::<Run, In, i32, Rd>(kwargs, dtype_acc, config),
-        DType::I16 => launch_reduce_acc::<Run, In, i16, Rd>(kwargs, dtype_acc, config),
-        DType::I8 => launch_reduce_acc::<Run, In, i8, Rd>(kwargs, dtype_acc, config),
-        DType::U64 => launch_reduce_acc::<Run, In, u64, Rd>(kwargs, dtype_acc, config),
-        DType::U32 => launch_reduce_acc::<Run, In, u32, Rd>(kwargs, dtype_acc, config),
-        DType::U16 => launch_reduce_acc::<Run, In, u16, Rd>(kwargs, dtype_acc, config),
-        DType::U8 => launch_reduce_acc::<Run, In, u8, Rd>(kwargs, dtype_acc, config),
-        _ => panic!("Unsupported"),
-    }
-}
-
-fn launch_reduce_acc<Run: Runtime, In: Numeric, Out: Numeric, Rd: ReduceFamily>(
-    kwargs: ReduceKwArgs<'_, '_, Run>,
-    dtype_acc: DType,
-    config: Rd::Config,
-) {
-    match dtype_acc {
-        DType::F64 => launch_reduce::<Run, In, Out, f64, Rd>(kwargs, config),
-        DType::F32 | DType::Flex32 => launch_reduce::<Run, In, Out, f32, Rd>(kwargs, config),
-        DType::F16 => launch_reduce::<Run, In, Out, f16, Rd>(kwargs, config),
-        DType::BF16 => launch_reduce::<Run, In, Out, bf16, Rd>(kwargs, config),
-        DType::I64 => launch_reduce::<Run, In, Out, i64, Rd>(kwargs, config),
-        DType::I32 => launch_reduce::<Run, In, Out, i32, Rd>(kwargs, config),
-        DType::I16 => launch_reduce::<Run, In, Out, i16, Rd>(kwargs, config),
-        DType::I8 => launch_reduce::<Run, In, Out, i8, Rd>(kwargs, config),
-        DType::U64 => launch_reduce::<Run, In, Out, u64, Rd>(kwargs, config),
-        DType::U32 => launch_reduce::<Run, In, Out, u32, Rd>(kwargs, config),
-        DType::U16 => launch_reduce::<Run, In, Out, u16, Rd>(kwargs, config),
-        DType::U8 => launch_reduce::<Run, In, Out, u8, Rd>(kwargs, config),
-        _ => panic!("Unsupported"),
-    }
-}
-
-fn launch_reduce<Run: Runtime, In: Numeric, Acc: Numeric, Out: Numeric, Rd: ReduceFamily>(
-    kwargs: ReduceKwArgs<'_, '_, Run>,
-    config: Rd::Config,
 ) {
     let settings = ReduceParams {
         shared: kwargs.strategy.shared.then(|| {
@@ -515,7 +415,7 @@ fn launch_reduce<Run: Runtime, In: Numeric, Acc: Numeric, Out: Numeric, Rd: Redu
     };
 
     unsafe {
-        reduce_kernel::launch_unchecked::<In, Out, Acc, Rd, FusedReduceArgs, Run>(
+        reduce_kernel::launch_unchecked::<Rd, Run>(
             kwargs.client,
             kwargs.config_reduce.cube_count,
             kwargs.config_reduce.cube_dim,
@@ -524,6 +424,48 @@ fn launch_reduce<Run: Runtime, In: Numeric, Acc: Numeric, Out: Numeric, Rd: Redu
             ScalarArg::new(kwargs.axis),
             settings,
             config,
+            dtype_input.into(),
+            dtype_output.into(),
+            dtype_acc.into(),
         );
     }
+}
+
+const INPUT: u8 = 0;
+const OUTPUT: u8 = 0;
+const ACC: u8 = 0;
+
+#[cube(launch_unchecked)]
+pub fn reduce_kernel<R: ReduceFamily>(
+    input: &FusedReduceInput,
+    output: &mut FusedReduceOutput,
+    axis_reduce: u32,
+    #[comptime] params: ReduceParams,
+    #[comptime] config: R::Config,
+    #[comptime] elem_in: Elem,
+    #[comptime] elem_out: Elem,
+    #[comptime] elem_acc: Elem,
+) {
+    set_polyfill::<NumericExpand<INPUT>>(elem_in);
+    set_polyfill::<NumericExpand<OUTPUT>>(elem_out);
+    set_polyfill::<NumericExpand<ACC>>(elem_acc);
+
+    let (input, mut output) =
+        init_tensors::<FusedReduceArgs, NumericExpand<INPUT>, NumericExpand<OUTPUT>>(input, output);
+    let reduce_index = get_reduce_index(params);
+
+    if comptime![params.bound_checks]
+        && reduce_index >= get_reduce_count(output.len() * params.line_size_output, params)
+    {
+        terminate!();
+    }
+
+    reduce_kernel_inner::<(NumericExpand<INPUT>, NumericExpand<ACC>), NumericExpand<OUTPUT>, R>(
+        &input,
+        &mut output,
+        axis_reduce,
+        reduce_index,
+        params,
+        config,
+    )
 }

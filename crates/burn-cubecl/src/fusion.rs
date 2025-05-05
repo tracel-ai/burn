@@ -1,5 +1,4 @@
 use crate::BoolElement;
-use crate::element::CubeElement;
 use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, kernel, tensor::CubeTensor};
 
 use burn_cubecl_fusion::CubeFusionHandle;
@@ -8,18 +7,16 @@ use burn_cubecl_fusion::matmul::MatmulFallbackFn;
 use burn_cubecl_fusion::matmul::builder::MatmulBuilder;
 use burn_cubecl_fusion::matmul::optimization::MatmulOptimization;
 use burn_cubecl_fusion::reduce::builder::ReduceBuilder;
-use burn_cubecl_fusion::reduce::optimization::{
-    ReduceFallbackFn, ReduceInstruction, ReduceOptimization,
-};
+use burn_cubecl_fusion::reduce::optimization::{ReduceFallbackFn, ReduceOptimization};
 use burn_cubecl_fusion::{
     CubeOptimization, CubeOptimizationState, elemwise::builder::ElementWiseBuilder,
 };
+use burn_fusion::stream::Operation;
 use burn_fusion::{FusionBackend, FusionRuntime, client::MutexFusionClient};
 use burn_ir::{BackendIr, TensorHandle};
 use burn_tensor::{DType, Shape};
 use core::marker::PhantomData;
 use cubecl::flex32;
-use cubecl::reduce::instructions::ReduceFnConfig;
 use half::{bf16, f16};
 use std::sync::Arc;
 
@@ -28,11 +25,23 @@ where
     R: CubeRuntime,
     BT: BoolElement,
 {
-    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, CubeFusionHandle<R>>) {
+    fn execute(
+        &mut self,
+        context: &mut burn_fusion::stream::Context<
+            '_,
+            <FusionCubeRuntime<R, BT> as FusionRuntime>::FusionHandle,
+        >,
+        operations: &[Box<dyn Operation<FusionCubeRuntime<R, BT>>>],
+    ) {
         match self {
             Self::ElementWise(op) => op.execute::<BT>(context),
             Self::Matmul(op) => op.execute::<BT>(context),
-            Self::Reduce(op) => op.execute::<BT>(context),
+            Self::Reduce(op) => op.execute::<BT, _>(context, |index| {
+                let operation = operations.get(index).unwrap();
+                let ptr = core::ptr::from_ref(operation);
+
+                Box::new(FallbackReduce { operation: ptr })
+            }),
         }
     }
 
@@ -62,17 +71,17 @@ where
                 state,
                 Arc::new(FallbackMatmul),
             )),
-            CubeOptimizationState::Reduce(state) => Self::Reduce(ReduceOptimization::from_state(
-                device,
-                state,
-                Arc::new(FallbackReduce),
-            )),
+            CubeOptimizationState::Reduce(state) => {
+                Self::Reduce(ReduceOptimization::from_state(device, state))
+            }
         }
     }
 }
 
 struct FallbackMatmul;
-struct FallbackReduce;
+struct FallbackReduce<O> {
+    operation: *const O,
+}
 
 impl<R: CubeRuntime> MatmulFallbackFn<R> for FallbackMatmul {
     fn run(
@@ -91,42 +100,18 @@ impl<R: CubeRuntime> MatmulFallbackFn<R> for FallbackMatmul {
     }
 }
 
-impl<R: CubeRuntime> ReduceFallbackFn<R> for FallbackReduce {
-    fn run(
-        &self,
-        input: CubeFusionHandle<R>,
-        shape: &[usize],
-        axis: usize,
-        inst: &ReduceInstruction,
-        d_o: &DType,
-        d_a: &DType,
-    ) -> CubeFusionHandle<R> {
-        let d_i = input.dtype;
+unsafe impl<O> Send for FallbackReduce<O> {}
+unsafe impl<O> Sync for FallbackReduce<O> {}
 
-        let config = match inst {
-            ReduceInstruction::ArgMax => ReduceFnConfig::ArgMax,
-            ReduceInstruction::ArgMin => ReduceFnConfig::ArgMin,
-            ReduceInstruction::Mean => ReduceFnConfig::Mean,
-            ReduceInstruction::Prod => ReduceFnConfig::Prod,
-            ReduceInstruction::Sum => ReduceFnConfig::Sum,
-            ReduceInstruction::Max => ReduceFnConfig::Max,
-            ReduceInstruction::Min => ReduceFnConfig::Min,
-            ReduceInstruction::MaxAbs => ReduceFnConfig::MaxAbs,
-        };
-
-        match d_a {
-            DType::F64 => reduce_dtype::<R, f64>(input, shape, axis, &d_i, d_o, config),
-            DType::F32 => reduce_dtype::<R, f32>(input, shape, axis, &d_i, d_o, config),
-            DType::F16 => reduce_dtype::<R, f16>(input, shape, axis, &d_i, d_o, config),
-            DType::I64 => reduce_dtype::<R, i64>(input, shape, axis, &d_i, d_o, config),
-            DType::I32 => reduce_dtype::<R, i32>(input, shape, axis, &d_i, d_o, config),
-            DType::I16 => reduce_dtype::<R, i16>(input, shape, axis, &d_i, d_o, config),
-            DType::I8 => reduce_dtype::<R, i8>(input, shape, axis, &d_i, d_o, config),
-            DType::U64 => reduce_dtype::<R, u64>(input, shape, axis, &d_i, d_o, config),
-            DType::U32 => reduce_dtype::<R, u32>(input, shape, axis, &d_i, d_o, config),
-            DType::U16 => reduce_dtype::<R, u16>(input, shape, axis, &d_i, d_o, config),
-            DType::U8 => reduce_dtype::<R, u8>(input, shape, axis, &d_i, d_o, config),
-            _ => todo!("Not yet supported"),
+impl<R: CubeRuntime, BT: BoolElement> ReduceFallbackFn<R>
+    for FallbackReduce<Box<dyn Operation<FusionCubeRuntime<R, BT>>>>
+{
+    fn run(&self, context: &mut burn_fusion::stream::Context<'_, CubeFusionHandle<R>>) {
+        unsafe {
+            self.operation
+                .as_ref()
+                .unwrap()
+                .execute(&mut context.handles);
         }
     }
 }
@@ -152,106 +137,6 @@ fn run_fallback_matmul<R: CubeRuntime, EG: FloatElement>(
         rhs_tensor,
         None,
         crate::kernel::matmul::MatmulStrategy::default(),
-    )
-    .unwrap();
-
-    CubeFusionHandle {
-        client: out_tensor.client,
-        handle: out_tensor.handle,
-        device: out_tensor.device,
-        dtype: out_tensor.dtype,
-        strides: out_tensor.strides,
-    }
-}
-
-fn reduce_dtype<R: CubeRuntime, Acc: CubeElement>(
-    input_handle: CubeFusionHandle<R>,
-    shape: &[usize],
-    axis: usize,
-    dtype_input: &DType,
-    dtype_output: &DType,
-    config: ReduceFnConfig,
-) -> CubeFusionHandle<R> {
-    match dtype_input {
-        DType::F64 => {
-            reduce_dtype_output::<R, f64, Acc>(input_handle, shape, axis, dtype_output, config)
-        }
-        DType::F32 | DType::Flex32 => {
-            reduce_dtype_output::<R, f32, Acc>(input_handle, shape, axis, dtype_output, config)
-        }
-        DType::F16 => {
-            reduce_dtype_output::<R, f16, Acc>(input_handle, shape, axis, dtype_output, config)
-        }
-        DType::BF16 => {
-            reduce_dtype_output::<R, bf16, Acc>(input_handle, shape, axis, dtype_output, config)
-        }
-        DType::I64 => {
-            reduce_dtype_output::<R, i64, Acc>(input_handle, shape, axis, dtype_output, config)
-        }
-        DType::I32 => {
-            reduce_dtype_output::<R, i32, Acc>(input_handle, shape, axis, dtype_output, config)
-        }
-        DType::I16 => {
-            reduce_dtype_output::<R, i16, Acc>(input_handle, shape, axis, dtype_output, config)
-        }
-        DType::I8 => {
-            reduce_dtype_output::<R, i8, Acc>(input_handle, shape, axis, dtype_output, config)
-        }
-        DType::U64 => {
-            reduce_dtype_output::<R, u64, Acc>(input_handle, shape, axis, dtype_output, config)
-        }
-        DType::U32 => {
-            reduce_dtype_output::<R, u32, Acc>(input_handle, shape, axis, dtype_output, config)
-        }
-        DType::U16 => {
-            reduce_dtype_output::<R, u16, Acc>(input_handle, shape, axis, dtype_output, config)
-        }
-        DType::U8 => {
-            reduce_dtype_output::<R, u8, Acc>(input_handle, shape, axis, dtype_output, config)
-        }
-        _ => todo!("Not yet supported"),
-    }
-}
-
-fn reduce_dtype_output<R: CubeRuntime, In: CubeElement, Acc: CubeElement>(
-    input_handle: CubeFusionHandle<R>,
-    shape: &[usize],
-    axis: usize,
-    dtype_output: &DType,
-    config: ReduceFnConfig,
-) -> CubeFusionHandle<R> {
-    match dtype_output {
-        DType::F64 => reduce::<R, In, f64, Acc>(input_handle, shape, axis, config),
-        DType::F32 | DType::Flex32 => reduce::<R, In, f32, Acc>(input_handle, shape, axis, config),
-        DType::F16 => reduce::<R, In, f16, Acc>(input_handle, shape, axis, config),
-        DType::BF16 => reduce::<R, In, bf16, Acc>(input_handle, shape, axis, config),
-        DType::I64 => reduce::<R, In, i64, Acc>(input_handle, shape, axis, config),
-        DType::I32 => reduce::<R, In, i32, Acc>(input_handle, shape, axis, config),
-        DType::I16 => reduce::<R, In, i16, Acc>(input_handle, shape, axis, config),
-        DType::U64 => reduce::<R, In, u64, Acc>(input_handle, shape, axis, config),
-        DType::U32 => reduce::<R, In, u32, Acc>(input_handle, shape, axis, config),
-        DType::U16 => reduce::<R, In, u16, Acc>(input_handle, shape, axis, config),
-        _ => todo!("Not yet supported"),
-    }
-}
-
-fn reduce<R: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: CubeElement>(
-    input_handle: CubeFusionHandle<R>,
-    shape: &[usize],
-    axis: usize,
-    config: ReduceFnConfig,
-) -> CubeFusionHandle<R> {
-    let input_tensor = into_tensor(
-        input_handle,
-        Shape {
-            dims: shape.to_vec(),
-        },
-    );
-    let out_tensor = crate::kernel::reduce::reduce_dim::<R, In, Out, Acc>(
-        input_tensor,
-        axis,
-        crate::kernel::reduce::ReduceStrategy::default(),
-        config,
     )
     .unwrap();
 
@@ -328,7 +213,6 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
             Box::new(ReduceBuilder::<R>::new(
                 device.clone(),
                 BT::as_elem_native_unchecked().into(),
-                Arc::new(FallbackReduce),
             )),
         ]
     }

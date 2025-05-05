@@ -150,6 +150,16 @@ pub enum TensorView {
 }
 
 impl FuseTrace {
+    pub fn len(&self) -> usize {
+        let mut len = 0;
+        for b in self.blocks.iter() {
+            len += b.ops.len();
+        }
+        len
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     /// Run a trace with the given [runner](TraceRunner).
     pub fn run<R: Runtime, BT: CubeElement, Runner: TraceRunner<R>>(
         &self,
