@@ -1,6 +1,6 @@
 # Importing Models
 
-The Burn project provides robust support for importing models from various machine learning frameworks, allowing you to leverage pre-trained models and weights in your Burn applications. These import capabilities are designed with efficiency, security, and compatibility in mind.
+Burn supports importing models from other frameworks and file formats, enabling you to use pre-trained weights in your Burn applications.
 
 ## Supported Formats
 
