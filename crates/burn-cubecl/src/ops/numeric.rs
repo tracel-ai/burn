@@ -1,5 +1,5 @@
 use crate::kernel::{
-    AddOp, BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
+    AddOp, BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowfOp, RemainderOp, SubOp,
     launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int,
 };
 use crate::{CubeRuntime, FloatElement, IntElement};
@@ -185,7 +185,7 @@ pub fn pow<R: CubeRuntime, E: FloatElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    launch_binop::<R, E, PowOp<E>>(lhs, rhs)
+    launch_binop::<R, E, PowfOp<E>>(lhs, rhs)
 }
 
 /// Bitwise and two tensors

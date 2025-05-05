@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 
 use burn_tensor::{
     Device, Distribution, ElementConversion, FloatDType, Shape, TensorData,
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
+    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor},
 };
 use candle_core::{Tensor, backend::BackendStorage, shape};
 use half::{bf16, f16};
@@ -331,6 +331,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.powf(value.elem::<f64>()).unwrap())
     }
 
+    fn float_powi_scalar(tensor: FloatTensor<Self>, value: i32) -> FloatTensor<Self> {
+        CandleTensor::new(tensor.tensor.powf(value.elem::<f64>()).unwrap())
+    }
+
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.sqrt().unwrap())
     }
@@ -432,17 +436,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        //broadcast_pow is in main but not yet published
-        //note: probably replace once pow once 0.3.3 is out
-        //see: https://github.com/huggingface/candle/pull/1583/files#diff-6319fa1e16dadc4c7b4e25698139703d93b70f30a1f8e2ac0999978e39efaa81R2594
+        CandleTensor::new(lhs.tensor.broadcast_pow(&rhs.tensor).unwrap())
+    }
 
-        CandleTensor::new(
-            rhs.tensor
-                .broadcast_mul(&lhs.tensor.log().unwrap())
-                .unwrap()
-                .exp()
-                .unwrap(),
-        )
+    fn float_powi(lhs: FloatTensor<Self>, rhs: IntTensor<Self>) -> FloatTensor<Self> {
+        CandleTensor::new(lhs.tensor.broadcast_pow(&rhs.tensor).unwrap())
     }
 
     fn float_permute(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {

@@ -1,5 +1,6 @@
 use alloc::{vec, vec::Vec};
 use burn_tensor::backend::Backend;
+use burn_tensor::cast::ToElement;
 use core::ops::Range;
 
 use burn_ir::{
@@ -978,13 +979,32 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs,
+            rhs: rhs.to_f32(),
             out: out.to_ir_out(),
         };
 
         client.register(OperationIr::Float(
             dtype,
             FloatOperationIr::PowfScalar(desc),
+        ));
+
+        out
+    }
+
+    fn float_powi_scalar(lhs: FloatTensor<Self>, rhs: i32) -> FloatTensor<Self> {
+        let client = lhs.client.clone();
+        let dtype = lhs.dtype;
+        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
+            rhs,
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::Float(
+            dtype,
+            FloatOperationIr::PowiScalar(desc),
         ));
 
         out
@@ -1369,7 +1389,26 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         client.register(OperationIr::NumericFloat(
             dtype,
-            NumericOperationIr::Powf(desc),
+            NumericOperationIr::Pow(desc),
+        ));
+
+        out
+    }
+
+    fn float_powi(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        let client = lhs.client.clone();
+        let dtype = lhs.dtype;
+        let out = client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
+
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::NumericFloat(
+            dtype,
+            NumericOperationIr::Pow(desc),
         ));
 
         out

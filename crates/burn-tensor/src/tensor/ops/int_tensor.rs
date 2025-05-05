@@ -445,7 +445,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
-    fn int_powi_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B> {
+    fn int_powi_scalar(lhs: IntTensor<B>, rhs: i32) -> IntTensor<B> {
         B::float_into_int(B::float_powi_scalar(B::int_into_float(lhs), rhs))
     }
 

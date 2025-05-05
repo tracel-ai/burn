@@ -570,7 +570,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::IntRandom(_) => unreachable!(),
-                NumericOperationIr::Powf(desc) => {
+                NumericOperationIr::Pow(desc) => {
                     binary_float_ops!(handles, desc, B::float_powf)
                 }
             },
@@ -853,6 +853,9 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 FloatOperationIr::PowfScalar(desc) => {
                     scalar_float_ops!(handles, desc, B::float_powf_scalar)
+                }
+                FloatOperationIr::PowiScalar(desc) => {
+                    scalar_float_ops!(handles, desc, B::float_powi_scalar)
                 }
                 FloatOperationIr::Sqrt(desc) => {
                     unary_float_ops!(handles, desc, B::float_sqrt)

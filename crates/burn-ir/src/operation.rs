@@ -96,6 +96,8 @@ pub enum FloatOperationIr {
     Erf(UnaryOpIr),
     /// Operation corresponding to [powf_scalar](burn_tensor::ops::FloatTensorOps::float_powf_scalar).
     PowfScalar(ScalarOpIr<f32>),
+    /// Operation corresponding to [powi_scalar](burn_tensor::ops::FloatTensorOps::float_powi_scalar).
+    PowiScalar(ScalarOpIr<i32>),
     /// Operation corresponding to [sqrt](burn_tensor::ops::FloatTensorOps::float_sqrt).
     Sqrt(UnaryOpIr),
     /// Operation corresponding to [cos](burn_tensor::ops::FloatTensorOps::float_cos).
@@ -521,7 +523,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [powf](burn_tensor::ops::FloatTensorOps::float_powf).
     /// Int => [powf](burn_tensor::ops::IntTensorOps::int_powf).
-    Powf(BinaryOpIr),
+    Pow(BinaryOpIr),
 }
 
 /// Operation intermediate representation specific to an int tensor.
@@ -1567,7 +1569,7 @@ impl<E: Element> NumericOperationIr<E> {
             NumericOperationIr::IntRandom(repr) => {
                 vec![&repr.out]
             }
-            NumericOperationIr::Powf(repr) => {
+            NumericOperationIr::Pow(repr) => {
                 vec![&repr.lhs, &repr.rhs, &repr.out]
             }
         }
@@ -1587,6 +1589,7 @@ impl FloatOperationIr {
             FloatOperationIr::Erf(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::Recip(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::PowfScalar(repr) => vec![&repr.lhs, &repr.out],
+            FloatOperationIr::PowiScalar(repr) => vec![&repr.lhs, &repr.out],
             FloatOperationIr::Sqrt(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::Cos(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::Sin(repr) => vec![&repr.input, &repr.out],
@@ -1874,7 +1877,7 @@ impl<E> core::hash::Hash for NumericOperationIr<E> {
             NumericOperationIr::MaxAbsDim(repr) => repr.hash(state),
             NumericOperationIr::Clamp(repr) => repr.hash(state),
             NumericOperationIr::IntRandom(repr) => repr.hash(state),
-            NumericOperationIr::Powf(repr) => repr.hash(state),
+            NumericOperationIr::Pow(repr) => repr.hash(state),
         }
     }
 }

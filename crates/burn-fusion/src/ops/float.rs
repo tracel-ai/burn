@@ -1,5 +1,5 @@
 use crate::{
-    Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops,
+    Fusion, FusionBackend, binary_float_cmp_ops, binary_float_int_ops, binary_float_ops,
     client::FusionClient,
     get_client,
     ops::binary::check_binary_op_types,
@@ -10,6 +10,7 @@ use crate::{
 use burn_ir::*;
 use burn_tensor::{
     Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
+    cast::ToElement,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor, binary_ops_shape},
 };
 use std::{marker::PhantomData, ops::Range};
@@ -1437,12 +1438,33 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs,
+            rhs: rhs.to_f32(),
             out: out.to_ir_out(),
         };
         out.client.register(
             vec![stream],
             OperationIr::Float(dtype, FloatOperationIr::PowfScalar(desc.clone())),
+            PowfOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn float_powi_scalar(lhs: FloatTensor<Self>, rhs: i32) -> FloatTensor<Self> {
+        scalar_float_ops!(PowfOps, B::float_powi_scalar, i32);
+
+        let stream = lhs.stream;
+        let dtype = lhs.dtype;
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone(), dtype);
+
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
+            rhs,
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationIr::Float(dtype, FloatOperationIr::PowiScalar(desc.clone())),
             PowfOps::<B>::new(desc),
         );
 
@@ -1974,7 +1996,31 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationIr::NumericFloat(dtype, NumericOperationIr::Powf(desc.clone())),
+            OperationIr::NumericFloat(dtype, NumericOperationIr::Pow(desc.clone())),
+            PowOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn float_powi(lhs: FloatTensor<Self>, rhs: IntTensor<Self>) -> FloatTensor<Self> {
+        binary_float_int_ops!(PowOps, B::float_powi);
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+        let dtype = lhs.dtype;
+
+        let out = lhs
+            .client
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
+
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            OperationIr::NumericFloat(dtype, NumericOperationIr::Pow(desc.clone())),
             PowOps::<B>::new(desc),
         );
 

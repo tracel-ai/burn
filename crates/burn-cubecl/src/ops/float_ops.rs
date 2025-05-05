@@ -514,6 +514,30 @@ where
         )
     }
 
+    fn float_powi_scalar(lhs: FloatTensor<Self>, rhs: i32) -> FloatTensor<Self> {
+        struct Powi;
+
+        #[cube]
+        impl<F: Float> FloatUnaryOp<F> for Powi {
+            type Options = F;
+
+            fn execute(input: Line<F>, options: &Self::Options) -> Line<F> {
+                Line::powf(input, Line::new(*options))
+            }
+        }
+
+        impl FloatUnaryOpFamily for Powi {
+            type Options<F: Float> = F;
+            type Unary<F: Float> = Self;
+        }
+
+        execute_with_dtype!(
+            float(lhs.dtype),
+            F,
+            launch_unary_float::<R, F, Powi, _>(lhs, |_| ScalarArg::new(rhs.elem::<F>()))
+        )
+    }
+
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Sqrt)
     }
@@ -607,6 +631,10 @@ where
     }
 
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_dtype!(float(lhs.dtype), E, numeric::pow::<R, E>(lhs, rhs))
+    }
+
+    fn float_powi(lhs: FloatTensor<Self>, rhs: IntTensor<Self>) -> FloatTensor<Self> {
         execute_with_dtype!(float(lhs.dtype), E, numeric::pow::<R, E>(lhs, rhs))
     }
 

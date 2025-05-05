@@ -350,6 +350,13 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
         )
     }
 
+    fn float_powi_scalar(tensor: TchTensor, value: i32) -> TchTensor {
+        tensor.unary_ops(
+            |mut tensor| tensor.f_pow_(value as i64).unwrap(),
+            |tensor| tensor.pow_tensor_scalar(value as i64),
+        )
+    }
+
     fn float_sqrt(tensor: TchTensor) -> TchTensor {
         tensor.unary_ops(|mut tensor| tensor.sqrt_(), |tensor| tensor.sqrt())
     }
@@ -412,6 +419,10 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
     }
 
     fn float_powf(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        TchOps::powf(lhs, rhs)
+    }
+
+    fn float_powi(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
         TchOps::powf(lhs, rhs)
     }
 

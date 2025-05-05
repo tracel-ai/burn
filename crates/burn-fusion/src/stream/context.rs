@@ -524,7 +524,7 @@ impl RelativeOps for ModuleOperationIr {
 }
 
 impl RelativeOpsScalar<f32> for FloatOperationIr {
-    fn to_relative<F>(&self, converter: &mut OperationConverter, local_elem: F) -> Self
+    fn to_relative<F>(&self, converter: &mut OperationConverter, _local_elem: F) -> Self
     where
         F: Fn(&mut OperationConverter, &f32) -> f32,
     {
@@ -547,7 +547,12 @@ impl RelativeOpsScalar<f32> for FloatOperationIr {
             }),
             FloatOperationIr::PowfScalar(desc) => FloatOperationIr::PowfScalar(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
-                rhs: local_elem(converter, &desc.rhs.elem()),
+                rhs: desc.rhs,
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::PowiScalar(desc) => FloatOperationIr::PowiScalar(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs,
                 out: desc.out.to_relative(converter),
             }),
             FloatOperationIr::Sqrt(desc) => FloatOperationIr::Sqrt(UnaryOpIr {
@@ -993,7 +998,7 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
                 out: desc.out.to_relative(converter),
                 distribution: desc.distribution,
             }),
-            NumericOperationIr::Powf(desc) => NumericOperationIr::Powf(BinaryOpIr {
+            NumericOperationIr::Pow(desc) => NumericOperationIr::Pow(BinaryOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),

@@ -9,7 +9,7 @@ use crate::{
     },
 };
 
-use super::{BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, QuantizedTensor};
+use super::{BoolTensor, FloatElem, FloatTensor, IntTensor, QuantizedTensor};
 
 /// Automatically applies dequantization -> float operation -> quantization.
 #[macro_export]
@@ -866,7 +866,7 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
-    fn q_powi_scalar(lhs: QuantizedTensor<B>, rhs: IntElem<B>) -> QuantizedTensor<B> {
+    fn q_powi_scalar(lhs: QuantizedTensor<B>, rhs: i32) -> QuantizedTensor<B> {
         dequant_op_quant!(
             ty Self,
             float_op |tensor| B::float_powi_scalar(tensor, rhs),

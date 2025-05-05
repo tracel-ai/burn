@@ -10,7 +10,7 @@ use super::{
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
 use crate::tensor::{Tensor, backend::AutodiffBackend};
-use burn_tensor::{ElementConversion, backend::Backend, ops::Device};
+use burn_tensor::{backend::Backend, ops::Device};
 
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
@@ -155,7 +155,7 @@ impl AdaptiveMomentum {
             AdaptiveMomentumState::new(1, moment_1, moment_2)
         };
 
-        let time = (state.time as i32).elem();
+        let time = state.time as i32;
         let moment_1_corrected = state
             .moment_1
             .clone()

@@ -1560,8 +1560,8 @@ where
     ///    // [[1.0, 4.0, 9.0], [25.0, 81.0, 36.0]]
     /// }
     /// ```
-    pub fn powf_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::powf_scalar::<E>(self.primitive, other))
+    pub fn powf_scalar(self, other: f32) -> Self {
+        Self::new(K::powf_scalar(self.primitive, other))
     }
 
     /// Applies element wise power operation with a integer Tensor
@@ -1614,8 +1614,8 @@ where
     ///    // [[2.25, 4., 9.], [25., 81., 36.]]
     /// }
     /// ```
-    pub fn powi_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::powi_scalar::<E>(self.primitive, other))
+    pub fn powi_scalar(self, other: i32) -> Self {
+        Self::new(K::powi_scalar(self.primitive, other))
     }
 
     /// Checks element wise if the tensor is close to another tensor.
@@ -3458,14 +3458,14 @@ where
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
     /// * `power` - The power to apply to the tensor.
-    fn powf_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
+    fn powf_scalar(lhs: Self::Primitive, rhs: f32) -> Self::Primitive;
 
     /// Element-wise power of a tensor to a scalar int
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
     /// * `power` - The power to apply to the tensor.
-    fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
+    fn powi_scalar(lhs: Self::Primitive, rhs: i32) -> Self::Primitive;
 
     /// Create a random tensor.
     ///
@@ -3789,19 +3789,16 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_powf(lhs, B::int_into_float(rhs))
     }
 
-    fn powf_scalar<E: ElementConversion>(
-        lhs: Self::Primitive,
-        rhs: E,
-    ) -> <Int as TensorKind<B>>::Primitive {
-        B::int_powf_scalar(lhs, rhs.elem())
+    fn powf_scalar(lhs: Self::Primitive, rhs: f32) -> <Int as TensorKind<B>>::Primitive {
+        B::int_powf_scalar(lhs, rhs)
     }
 
     fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         B::int_powi(lhs, rhs)
     }
 
-    fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        B::int_powi_scalar(lhs, rhs.elem())
+    fn powi_scalar(lhs: Self::Primitive, rhs: i32) -> Self::Primitive {
+        B::int_powi_scalar(lhs, rhs)
     }
 
     fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
@@ -4265,7 +4262,7 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn powf_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+    fn powf_scalar(lhs: Self::Primitive, rhs: f32) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
                 TensorPrimitive::Float(B::float_powf_scalar(lhs, rhs.elem()))
@@ -4288,7 +4285,7 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+    fn powi_scalar(lhs: Self::Primitive, rhs: i32) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
                 TensorPrimitive::Float(B::float_powi_scalar(lhs, rhs.elem()))

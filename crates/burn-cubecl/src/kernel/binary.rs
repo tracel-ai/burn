@@ -33,7 +33,7 @@ pub(crate) struct OrOp;
 ///
 /// Because of this we won't benefit from the cubecl rust compilation speed improvement from using
 /// the family pattern for [PowOp], but at least we don't duplicate code.
-pub(crate) struct PowOp<F: Float> {
+pub(crate) struct PowfOp<F: Float> {
     _f: PhantomData<F>,
 }
 
@@ -57,7 +57,7 @@ impl BinaryOpFamily for RemainderOp {
     type BinaryOp<C: Numeric> = Self;
 }
 
-impl<F: Float> BinaryOpFamily for PowOp<F> {
+impl<F: Float> BinaryOpFamily for PowfOp<F> {
     type BinaryOp<C: Numeric> = Self;
 }
 
@@ -105,7 +105,7 @@ impl<N: Numeric> BinaryOp<N> for RemainderOp {
 }
 
 #[cube]
-impl<N: Numeric, F: Float> BinaryOp<N> for PowOp<F> {
+impl<N: Numeric, F: Float> BinaryOp<N> for PowfOp<F> {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         let lhs = Line::<F>::cast_from(lhs);
         let rhs = Line::<F>::cast_from(rhs);

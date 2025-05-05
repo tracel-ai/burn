@@ -1,7 +1,7 @@
 // Language
 use alloc::vec::Vec;
 use burn_tensor::cast::ToElement;
-use burn_tensor::ops::FloatTensor;
+use burn_tensor::ops::{FloatTensor, IntTensor};
 use core::ops::Range;
 
 // Current crate
@@ -346,20 +346,24 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
 
     fn float_powf_scalar(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+            // Happens often and is faster.
             let array = if value == 2.0 {
-                // Happens often and is faster.
                 tensor.array.mapv_into(|a| a * a).into_shared()
-            } else if value.floor() == value {
-                // Is faster then powf
-                tensor
-                    .array
-                    .mapv_into(|a| a.powi_elem(value as i32))
-                    .into_shared()
             } else {
-                // Default
                 tensor.array.mapv_into(|a| a.powf_elem(value)).into_shared()
             };
+            NdArrayTensor::new(array)
+        })
+    }
 
+    fn float_powi_scalar(tensor: FloatTensor<Self>, value: i32) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+            // Happens often and is faster.
+            let array = if value == 2 {
+                tensor.array.mapv_into(|a| a * a).into_shared()
+            } else {
+                tensor.array.mapv_into(|a| a.powi_elem(value)).into_shared()
+            };
             NdArrayTensor::new(array)
         })
     }
@@ -523,6 +527,17 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
             rhs,
             |a: &E, b: &E| a.powf(*b)
         ))
+    }
+
+    fn float_powi(lhs: FloatTensor<Self>, rhs: IntTensor<Self>) -> FloatTensor<Self> {
+        match (lhs, rhs) {
+            (crate::NdArrayTensorFloat::F64(lhs), rhs) => crate::NdArrayTensorFloat::F64(
+                NdArrayMathOps::elementwise_op(lhs, rhs, |a: &f64, b: &I| a.powi(b.to_i32())),
+            ),
+            (crate::NdArrayTensorFloat::F32(lhs), rhs) => crate::NdArrayTensorFloat::F32(
+                NdArrayMathOps::elementwise_op(lhs, rhs, |a: &f32, b: &I| a.powi(b.to_i32())),
+            ),
+        }
     }
 
     fn float_permute(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
