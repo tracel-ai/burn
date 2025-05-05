@@ -430,9 +430,9 @@ Importing PyTorch or Safetensors Models 🚚
 </summary>
 <br />
 
-Burn provides seamless support for importing pre-trained models from other frameworks. You can easily load weights from PyTorch or Safetensors formats directly into Burn's native model architecture without complex conversion workflows.
+You can load weights from PyTorch or Safetensors formats directly into your Burn-defined models. This makes it easy to reuse existing models while benefiting from Burn's performance and deployment features.
 
-This capability enables you to leverage existing pre-trained models while benefiting from Burn's performance and deployment advantages. For comprehensive guides, see the:
+Learn more:
 
 - [Import pre-trained PyTorch models into Burn](https://burn.dev/burn-book/import/pytorch-model.html)
 - [Load models from Safetensors format](https://burn.dev/burn-book/import/safetensors-model.html)
