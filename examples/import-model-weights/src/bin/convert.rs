@@ -41,12 +41,11 @@ pub fn main() {
             println!("Loading PyTorch weights from '{}'...", PYTORCH_WEIGHTS_PATH);
             PyTorchFileRecorder::<FullPrecisionSettings>::default()
                 .load(PYTORCH_WEIGHTS_PATH.into(), &device)
-                .unwrap_or_else(|err| {
-                    eprintln!(
-                        "Error: Failed to load PyTorch model weights from '{}': {}",
-                        PYTORCH_WEIGHTS_PATH, err
-                    );
-                    process::exit(1);
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Failed to load PyTorch model weights from '{}'",
+                        PYTORCH_WEIGHTS_PATH
+                    )
                 })
         }
         "safetensors" => {
@@ -56,12 +55,11 @@ pub fn main() {
             );
             SafetensorsFileRecorder::<FullPrecisionSettings>::default()
                 .load(SAFETENSORS_WEIGHTS_PATH.into(), &device)
-                .unwrap_or_else(|err| {
-                    eprintln!(
-                        "Error: Failed to load Safetensors model weights from '{}': {}",
-                        SAFETENSORS_WEIGHTS_PATH, err
-                    );
-                    process::exit(1);
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Failed to load Safetensors model weights from '{}'",
+                        SAFETENSORS_WEIGHTS_PATH
+                    )
                 })
         }
         _ => {
@@ -87,13 +85,11 @@ pub fn main() {
     // Save the loaded record to the specified file path
     recorder
         .record(model_record, output_file_path.clone())
-        .unwrap_or_else(|err| {
-            eprintln!(
-                "Error: Failed to save model record to '{}.mpk': {}",
-                output_file_path.display(),
-                err
-            );
-            process::exit(1);
+        .unwrap_or_else(|_| {
+            panic!(
+                "Failed to save model record to '{}.mpk'",
+                output_file_path.display()
+            )
         });
 
     println!(
