@@ -289,32 +289,26 @@ The PyTorchFileRecorder automatically handles non-contiguous indices in model la
 example, if the source model contains indices with gaps:
 
 ```
-"model.ax.0.weight",
-"model.ax.0.bias",
-"model.ax.2.weight",
-"model.ax.2.bias",
-"model.ax.4.weight",
-"model.ax.4.bias",
-"model.ax.6.weight",
-"model.ax.6.bias",
-"model.ax.8.weight",
-"model.ax.8.bias",
+"model.layers.0.weight"
+"model.layers.0.bias"
+"model.layers.2.weight"  // Note the gap (no index 1)
+"model.layers.2.bias"
+"model.layers.4.weight"
+"model.layers.4.bias"
 ```
+
 
 The recorder will automatically reindex these to be contiguous while preserving their order:
 
 ```
-"model.ax.0.weight",
-"model.ax.0.bias",
-"model.ax.1.weight",
-"model.ax.1.bias",
-"model.ax.2.weight",
-"model.ax.2.bias",
-"model.ax.3.weight",
-"model.ax.3.bias",
-"model.ax.4.weight",
-"model.ax.4.bias",
+"model.layers.0.weight"
+"model.layers.0.bias"
+"model.layers.1.weight"  // Reindexed from 2
+"model.layers.1.bias"
+"model.layers.2.weight"  // Reindexed from 4
+"model.layers.2.bias"
 ```
+
 
 ### Partial Model Loading
 
