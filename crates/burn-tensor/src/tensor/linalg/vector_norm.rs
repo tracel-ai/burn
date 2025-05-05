@@ -63,6 +63,8 @@ impl From<f64> for Norm {
 
 /// Computes the vector norm of a tensor along a specified dimension.
 ///
+/// Generic dispatch wrapper over specialized / optimized norms.
+///
 /// See:
 /// - https://pytorch.org/docs/stable/generated/torch.linalg.vector_norm.html
 /// - https://numpy.org/doc/stable/reference/generated/numpy.linalg.vector_norm.html
