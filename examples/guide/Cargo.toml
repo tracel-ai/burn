@@ -15,3 +15,4 @@ burn = {path = "../../crates/burn", features = ["webgpu", "train", "vision"]}
 # Serialization
 log = {workspace = true}
 serde = {workspace = true, features = ["std", "derive"]}
+serde_json = {workspace = true, features = ["std"]}

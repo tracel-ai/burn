@@ -121,6 +121,8 @@ burn-autodiff = { path = "../burn-autodiff", version = "0.18.0" }
 burn-dataset = { path = "../burn-dataset", version = "0.18.0", features = [
     "fake",
 ] }
+syn = { version = "2.0", features = ["full", "extra-traits"] }
+quote = "1.0"
 
 [package.metadata.docs.rs]
 features = ["doc"]

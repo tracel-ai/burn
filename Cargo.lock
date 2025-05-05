@@ -592,12 +592,14 @@ dependencies = [
  "log",
  "num-traits",
  "portable-atomic-util",
+ "quote",
  "rand 0.9.1",
  "regex",
  "rmp-serde",
  "serde",
  "serde_json",
  "spin 0.10.0",
+ "syn 2.0.101",
  "thiserror 2.0.12",
  "uuid",
 ]
@@ -698,6 +700,7 @@ dependencies = [
  "derive-new 0.7.0",
  "proc-macro2",
  "quote",
+ "serde_json",
  "syn 2.0.101",
 ]
 
@@ -785,6 +788,7 @@ dependencies = [
  "burn",
  "burn-ndarray",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3025,6 +3029,7 @@ dependencies = [
  "burn",
  "log",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

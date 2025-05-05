@@ -18,3 +18,4 @@ proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { workspace = true }
 derive-new = { workspace = true }
+serde_json = { workspace = true, features = ["std"] }

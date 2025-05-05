@@ -149,96 +149,171 @@ impl ConfigStructAnalyzer {
 
 impl ConfigAnalyzer for ConfigStructAnalyzer {
     fn gen_new_fn(&self) -> TokenStream {
-        let mut body = quote! {};
-        let mut names = Vec::new();
+        let body_tokens = self
+            .fields_required
+            .iter()
+            .map(|field| {
+                let name = field.ident();
+                quote! {
+                    #name: #name,
+                }
+            })
+            .chain(self.fields_option.iter().map(|field| {
+                let name = field.ident();
+                quote! {
+                    #name: None,
+                }
+            }))
+            .chain(self.fields_default.iter().map(|(field, attribute)| {
+                let name = field.ident();
+                let value = &attribute.value;
+                match value {
+                    syn::Lit::Str(value) => {
+                        let value_str = value.value();
+                        quote! {
+                            #name: serde_json::from_str(#value_str).unwrap(),
+                        }
+                    }
+                    _ => quote! {
+                        #name: #value,
+                    },
+                }
+            }));
 
-        for field in self.fields_required.iter() {
+        let name_tokens = self.fields_required.iter().map(|field| {
             let name = field.ident();
             let ty = &field.field.ty;
-
-            body.extend(quote! {
-                #name: #name,
-            });
-            names.push(quote! {
+            quote! {
                 #name: #ty
-            });
-        }
+            }
+        });
 
-        for field in self.fields_option.iter() {
-            let name = field.ident();
-
-            body.extend(quote! {
-                #name: None,
-            });
-        }
-
-        for (field, attribute) in self.fields_default.iter() {
-            let name = field.ident();
-            let value = &attribute.value;
-            match value {
-                syn::Lit::Str(value) => {
-                    let stream: proc_macro2::TokenStream = value.value().parse().unwrap();
-
-                    body.extend(quote! {
-                        #name: #stream,
-                    });
+        let field_doc_tokens = self
+            .fields_required
+            .iter()
+            .map(|field| {
+                let _name = field.ident();
+                let _doc = field.doc().unwrap_or_else(|| {
+                    quote! {
+                        /// Required field.
+                    }
+                });
+                quote! {
+                    /// - `#_name`: #_doc
                 }
-                _ => {
-                    body.extend(quote! {
-                        #name: #value,
-                    });
+            })
+            .chain(self.fields_option.iter().map(|field| {
+                let _name = field.ident();
+                let _doc = field.doc().unwrap_or_else(|| {
+                    quote! {
+                        /// Optional field.
+                    }
+                });
+                quote! {
+                    /// - `#_name`: #_doc
                 }
-            };
-        }
+            }))
+            .chain(self.fields_default.iter().map(|(field, attribute)| {
+                let _name = field.ident();
+                let _doc = field.doc().unwrap_or_else(|| {
+                    quote! {
+                        /// Field with default value.
+                    }
+                });
+                let value = &attribute.value;
+                let default_doc = match value {
+                    syn::Lit::Str(value) => {
+                        let _value_str = value.value();
+                        quote! {
+                            /// Default: #_value_str
+                        }
+                    }
+                    _ => quote! {
+                        /// Default: #value
+                    },
+                };
+                quote! {
+                    /// - `#_name`: #_doc
+                    #default_doc
+                }
+            }));
 
-        let body = quote! {
+        let impl_block = quote! {
             /// Create a new instance of the config.
+            ///
+            /// Fields:
+            #(#field_doc_tokens)*
             pub fn new(
-                #(#names),*
+                #(#name_tokens),*
             ) -> Self {
-                Self { #body }
+                Self { #(#body_tokens)* }
             }
         };
-        self.wrap_impl_block(body)
+        self.wrap_impl_block(impl_block)
     }
 
     fn gen_builder_fns(&self) -> TokenStream {
-        let mut body = quote! {};
-
-        for (field, _) in self.fields_default.iter() {
-            let name = field.ident();
-            let doc = field.doc().unwrap_or_else(|| {
-                quote! {
+        let builder_tokens = self
+            .fields_default
+            .iter()
+            .map(|(field, attribute)| {
+                let name = field.ident();
+                let doc = field.doc().unwrap_or_else(|| {
+                    quote! {
                         /// Set the default value for the field.
+                    }
+                });
+                let ty = &field.field.ty;
+                let fn_name = Ident::new(&format!("with_{name}"), name.span());
+                let value = &attribute.value;
+                let default_doc = match value {
+                    syn::Lit::Str(value) => {
+                        let _value_str = value.value();
+                        quote! {
+                            ///
+                            /// Defaults to `#_value_str`.
+                        }
+                    }
+                    _ => quote! {
+                        ///
+                        /// Defaults to `#value`.
+                    },
+                };
+
+                quote! {
+                    #doc
+                    #default_doc
+                    pub fn #fn_name(mut self, #name: #ty) -> Self {
+                        self.#name = #name;
+                        self
+                    }
                 }
-            });
-            let ty = &field.field.ty;
-            let fn_name = Ident::new(&format!("with_{name}"), name.span());
+            })
+            .chain(self.fields_option.iter().map(|field| {
+                let name = field.ident();
+                let doc = field.doc().unwrap_or_else(|| {
+                    quote! {
+                        /// Set the optional field value.
+                    }
+                });
+                let ty = &field.field.ty;
+                let fn_name = Ident::new(&format!("with_{name}"), name.span());
 
-            body.extend(quote! {
-                #doc
-                pub fn #fn_name(mut self, #name: #ty) -> Self {
-                    self.#name = #name;
-                    self
+                quote! {
+                    #doc
+                    ///
+                    /// Defaults to `None`.
+                    pub fn #fn_name(mut self, #name: #ty) -> Self {
+                        self.#name = #name;
+                        self
+                    }
                 }
-            });
-        }
+            }));
 
-        for field in self.fields_option.iter() {
-            let name = field.ident();
-            let ty = &field.field.ty;
-            let fn_name = Ident::new(&format!("with_{name}"), name.span());
-
-            body.extend(quote! {
-                /// Set the default value for the field.
-                pub fn #fn_name(mut self, #name: #ty) -> Self {
-                    self.#name = #name;
-                    self
-                }
-            });
-        }
-
-        self.wrap_impl_block(body)
+        let impl_block = quote! {
+            #(#builder_tokens)*
+        };
+        self.wrap_impl_block(impl_block)
     }
 
     fn gen_serde_impl(&self) -> TokenStream {
@@ -246,7 +321,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
 
         let struct_name = self.serde_struct_ident();
         let name_types = self.name_types(&names);
-        let struct_gen = self.gen_serde_struct(&name_types);
+        let struct_gen = self.gen_serde_struct(&name_types[..]);
 
         let serialize_gen = self.gen_serialize_fn(&struct_name, &struct_gen, &names);
         let deserialize_gen = self.gen_deserialize_fn(&struct_name, &struct_gen, &names);
