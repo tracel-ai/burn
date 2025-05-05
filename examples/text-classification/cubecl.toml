@@ -1,0 +1,11 @@
+[profiling]
+logger = { log = "info", level = "disabled" }
+
+[autotune]
+level = "balanced"
+cache = "target"
+logger = { log = "info", level = "minimal" }
+
+[compilation]
+logger = { level = "disabled" }
+cache = "target"
