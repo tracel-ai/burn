@@ -105,7 +105,7 @@ pub struct LoadArgs {
 /// Specifies the type of adapter to use for tensor loading.
 ///
 /// Adapters handle potential differences in tensor formats or naming conventions
-/// between the source framework (like PyTorch or TensorFlow) and Burn.
+/// between the source framework and Burn.
 #[derive(Debug, Clone, Default, Copy)]
 pub enum AdapterType {
     /// Adapts tensors assuming they originated from PyTorch.
