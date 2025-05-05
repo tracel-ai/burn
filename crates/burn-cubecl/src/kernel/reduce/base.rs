@@ -3,10 +3,24 @@ use super::{autotune_reduce, autotune_sum};
 use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
 use burn_tensor::{DType, Shape};
 pub use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
-use cubecl::reduce::{
-    instructions::{ReduceFn, ReduceFnConfig},
-    shared_sum,
+use cubecl::{
+    AutotuneKey,
+    reduce::{
+        instructions::{ReduceFn, ReduceFnConfig},
+        shared_sum,
+    },
 };
+use serde::{Deserialize, Serialize};
+
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
+/// Autotune key representative of sum versions
+pub struct SumAutotuneKey {
+    /// The type of the tensor
+    pub dtype: burn_tensor::DType,
+    /// The anchored length of the tensor
+    #[autotune(anchor)]
+    pub length: usize,
+}
 
 /// Specialize reduce function to compute the sum of all elements of the `input` tensor and return
 /// the value into a single-element tensor of shape `1 x 1 x 1 x ...` with the same rank as `input`.

@@ -781,9 +781,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The maximum element in the tensor along the dimension.
     fn int_max_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         let index = B::int_argmax(tensor.clone(), dim);
-        let ndim = tensor.shape().num_dims();
-
-        B::int_gather(ndim - 1, tensor, index)
+        B::int_gather(dim, tensor, index)
     }
 
     /// Gets the maximum elements and corresponding indices along a dimension.
@@ -861,9 +859,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The minimum element in the tensor along the dimension.
     fn int_min_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         let index = B::int_argmin(tensor.clone(), dim);
-        let ndim = tensor.shape().num_dims();
-
-        B::int_gather(ndim - 1, tensor, index)
+        B::int_gather(dim, tensor, index)
     }
 
     /// Gets the minimum elements and corresponding indices along a dimension.
@@ -878,8 +874,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The minimum elements and corresponding indices along the dimension.
     fn int_min_dim_with_indices(tensor: IntTensor<B>, dim: usize) -> (IntTensor<B>, IntTensor<B>) {
         let indices = B::int_argmin(tensor.clone(), dim);
-        let ndim = tensor.shape().num_dims();
-        let values = B::int_gather(ndim - 1, tensor, indices.clone());
+        let values = B::int_gather(dim, tensor, indices.clone());
 
         (values, indices)
     }

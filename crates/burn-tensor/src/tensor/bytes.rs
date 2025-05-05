@@ -331,7 +331,8 @@ impl Bytes {
         unsafe {
             // SAFETY:
             // - data and alloc are distinct allocations of `len` bytes
-            core::ptr::copy_nonoverlapping::<u8>(data.as_ref().as_ptr(), alloc.as_mut_ptr(), len);
+            let data_ptr = data.as_ptr();
+            core::ptr::copy_nonoverlapping::<u8>(data_ptr, alloc.as_mut_ptr(), len);
         };
         Ok(Self { alloc, len })
     }
