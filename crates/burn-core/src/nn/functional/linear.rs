@@ -46,9 +46,9 @@ pub fn linear<B: Backend, const D: usize>(
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::TensorData;
     use super::*;
     use crate::TestBackend;
+    use burn_tensor::TensorData;
 
     #[test]
     fn test_linear_1d() {
@@ -78,9 +78,8 @@ mod tests {
         linear(x.clone(), weight.clone(), None)
             .into_data()
             .assert_eq(
-                &TensorData::from(
-                    [[[7.0, 10.0], [15.0, 22.0]], [[-7.0, -10.0], [-15.0, -22.0]]],
-                ).convert_dtype(x.dtype()),
+                &TensorData::from([[[7.0, 10.0], [15.0, 22.0]], [[-7.0, -10.0], [-15.0, -22.0]]])
+                    .convert_dtype(x.dtype()),
                 true,
             );
     }
@@ -102,9 +101,8 @@ mod tests {
         linear(x.clone(), weight.clone(), bias.clone())
             .into_data()
             .assert_eq(
-                &TensorData::from(
-                    [[[8.0, 9.0], [16.0, 21.0]], [[-6.0, -11.0], [-14.0, -23.0]]],
-                ).convert_dtype(x.dtype()),
+                &TensorData::from([[[8.0, 9.0], [16.0, 21.0]], [[-6.0, -11.0], [-14.0, -23.0]]])
+                    .convert_dtype(x.dtype()),
                 true,
             );
     }
