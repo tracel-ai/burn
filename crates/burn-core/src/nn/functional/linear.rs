@@ -17,9 +17,9 @@ use crate::tensor::backend::Backend;
 ///
 /// The transformed tensor, ``[..., d_output]``.
 ///
-/// # PyTorch Compatibility:
+/// # Compatibility
 ///
-/// This function differs from PyTorch's `torch.nn.functional.linear` in that it does not
+/// This function differs from PyTorch's ``torch.nn.functional.linear`` in that it does not
 /// transpose the weight matrix. In PyTorch, the weight matrix is transposed before
 /// multiplication:
 ///
