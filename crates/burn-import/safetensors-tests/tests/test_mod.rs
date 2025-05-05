@@ -1,11 +1,1 @@
-mod batch_norm;
-mod boolean;
-mod buffer;
-mod enum_module;
-mod group_norm;
-mod integer;
-mod key_remap;
-mod key_remap_chained;
-mod layer_norm;
-mod missing_module_field;
-mod non_contiguous_indexes;
+mod multi_layer;
