@@ -1,3 +1,5 @@
+pub use burn_tensor::nn::*;
+
 /// Attention module
 pub mod attention;
 
@@ -18,9 +20,6 @@ pub mod transformer;
 
 /// Interpolate module
 pub mod interpolate;
-
-/// Functional module
-pub mod functional;
 
 mod dropout;
 mod embedding;
