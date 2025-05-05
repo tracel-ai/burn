@@ -844,7 +844,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
     fn float_powi_scalar(lhs: FloatTensor<B>, rhs: IntElem<B>) -> FloatTensor<B> {
-        Self::float_powf_scalar(lhs, rhs.to_f32())
+        Self::float_powf_scalar(lhs, rhs.elem::<f32>())
     }
 
     /// Returns a new tensor with values raised to the power of float `value`.

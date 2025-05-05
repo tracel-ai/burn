@@ -155,7 +155,7 @@ impl AdaptiveMomentum {
             AdaptiveMomentumState::new(1, moment_1, moment_2)
         };
 
-        let time = (state.time as i32).elem();
+        let time = state.time as i32;
         let moment_1_corrected = state
             .moment_1
             .clone()
