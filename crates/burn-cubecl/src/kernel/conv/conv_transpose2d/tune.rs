@@ -1,14 +1,10 @@
-use burn_tensor::{DType, ElementConversion, Shape, ops::ConvTransposeOptions};
-use cubecl::{
-    AutotuneKey,
-    tune::{LocalTuner, TunableSet, local_tuner},
-};
-use serde::{Deserialize, Serialize};
+use burn_tensor::{ElementConversion, Shape, ops::ConvTransposeOptions};
+use cubecl::tune::{LocalTuner, TunableSet, local_tuner};
 
 use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId, FloatElement,
     kernel::{
-        conv::{conv_transpose2d_col2im, conv_transpose2d_direct},
+        conv::{ConvTranspose2dAutotuneKey, conv_transpose2d_col2im, conv_transpose2d_direct},
         prng::random_uniform,
     },
     tensor::CubeTensor,
@@ -35,29 +31,6 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime, E: FloatElement>(
         &tune_set,
         (input, weights, bias, options),
     )
-}
-
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
-/// Autotune key representative of matmul versions
-pub struct ConvTranspose2dAutotuneKey {
-    pub kernel_size: [usize; 2],
-    pub stride: [usize; 2],
-    pub padding: [usize; 2],
-    pub padding_out: [usize; 2],
-    pub dilation: [usize; 2],
-    pub groups: usize,
-    #[autotune(anchor)]
-    pub in_channels: usize,
-    #[autotune(anchor)]
-    pub out_channels: usize,
-    #[autotune(anchor)]
-    pub height: usize,
-    #[autotune(anchor)]
-    pub width: usize,
-    #[autotune(anchor)]
-    pub batch_size: usize,
-    pub has_bias: bool,
-    pub dtype: DType,
 }
 
 pub fn create_transpose2d_input<R: CubeRuntime, E: FloatElement>(
