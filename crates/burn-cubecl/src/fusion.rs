@@ -72,11 +72,11 @@ where
     }
 }
 
-/// This is only safe because we know the execution must be executed before the cubecl context is drop.
+/// This is only safe because we know the fallback must be executed before the cubecl context is dropped.
 ///
-/// The save alternatives would require every fused operation to be inside an Arc, so that it could
+/// The safer alternatives would require every fused operation to be inside an Arc, so that it could
 /// be cloned and escape the lifetime of the context's execution, which doesn't make sense since
-/// its only operation is to modify the context is operates on.
+/// its only goal is to modify the context it operates on.
 struct FallbackOperationUnsafe<O> {
     operation: *const O,
 }

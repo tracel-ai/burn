@@ -146,6 +146,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
+        // The index of the fallback reduce is the number of ops fused as read.
         self.fallback = Some(fallback(self.len_read));
 
         #[cfg(feature = "autotune")]

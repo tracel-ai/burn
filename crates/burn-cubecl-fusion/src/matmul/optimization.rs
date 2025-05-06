@@ -89,6 +89,7 @@ impl<R: Runtime> MatmulOptimization<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
+        // The index of the fallback matmul is always 0.
         self.fallback = Some(fallback(0));
 
         #[cfg(feature = "autotune")]
