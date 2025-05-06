@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use burn_fusion::stream::Context;
 use burn_ir::{ReduceDimOpIr, TensorStatus};
 use burn_tensor::DType;
@@ -7,8 +5,8 @@ use cubecl::ir::Elem;
 use cubecl::prelude::*;
 use cubecl::reduce::instructions::{ReduceFn, ReduceFnConfig};
 use cubecl::reduce::{
-    BoundChecksInner, ReduceFamily, ReduceParams, ReduceStrategy, get_reduce_count,
-    get_reduce_index, init_tensors, reduce_kernel_inner,
+    BoundChecksInner, ReduceFamily, ReduceParams, ReduceStrategy, init_tensors,
+    reduce_kernel_virtal,
 };
 use cubecl::{
     CubeCount, CubeDim, Runtime,
@@ -17,7 +15,6 @@ use cubecl::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::CubeFusionHandle;
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::reduce::args::FusedReduceArgs;
 use crate::shared::ir::{FusePrecision, RefLayout};
@@ -27,6 +24,7 @@ use crate::shared::{
     ir::{Arg, FuseBlockConfig, GlobalArgsLaunch},
     trace::FuseTrace,
 };
+use crate::{CubeFusionHandle, FallbackOperation};
 
 use super::args::{
     FusedReduceInput, FusedReduceInputLaunch, FusedReduceOutput, FusedReduceOutputLaunch,
@@ -40,10 +38,11 @@ pub struct ReduceOptimization<R: Runtime> {
     pub(crate) client: ComputeClient<R::Server, R::Channel>,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
+    pub(crate) len_read: usize,
     pub(crate) reduce: FusedReduce,
     pub(crate) reduce_plane: FusedReduce,
     pub(crate) reduce_shared_plane: FusedReduce,
-    fallback: Option<Box<dyn ReduceFallbackFn<R>>>,
+    fallback: Option<Box<dyn FallbackOperation<R>>>,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
@@ -71,6 +70,7 @@ pub struct ReduceOptimizationState {
     pub(crate) reduce_plane: FusedReduce,
     pub(crate) reduce_shared_plane: FusedReduce,
     len: usize,
+    len_read: usize,
 }
 
 #[derive(new, Clone, Serialize, Deserialize, Debug)]
@@ -114,6 +114,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         client: ComputeClient<R::Server, R::Channel>,
         device: R::Device,
         len: usize,
+        len_read: usize,
         reduce: FusedReduce,
     ) -> Self {
         let reduce_plane = reduce.with_strategy(ReduceStrategy {
@@ -124,6 +125,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             use_planes: true,
             shared: true,
         });
+
         Self {
             trace,
             trace_read_fallback,
@@ -131,6 +133,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             client,
             device,
             len,
+            len_read,
             reduce,
             reduce_plane,
             reduce_shared_plane,
@@ -138,12 +141,12 @@ impl<R: Runtime> ReduceOptimization<R> {
         }
     }
     /// Execute the optimization.
-    pub fn execute<BT: CubeElement, Fallback: FnOnce(usize) -> Box<dyn ReduceFallbackFn<R>>>(
+    pub fn execute<BT: CubeElement>(
         &mut self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-        fallback: Fallback,
+        fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
-        self.fallback = Some(fallback(self.trace_read_fallback.len()));
+        self.fallback = Some(fallback(self.len_read));
 
         #[cfg(feature = "autotune")]
         fused_reduce_autotune::<R, BT>(self, context);
@@ -167,6 +170,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             reduce_plane: self.reduce_plane.clone(),
             reduce_shared_plane: self.reduce_shared_plane.clone(),
             len: self.len,
+            len_read: self.len_read,
         }
     }
 
@@ -181,6 +185,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             reduce_plane: state.reduce_plane,
             reduce_shared_plane: state.reduce_shared_plane,
             len: state.len,
+            len_read: state.len_read,
             client,
             device: device.clone(),
             fallback: None,
@@ -236,7 +241,10 @@ impl<R: Runtime> ReduceOptimization<R> {
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
 
-        self.fallback.as_ref().unwrap().run(context);
+        self.fallback
+            .as_ref()
+            .expect("A fallback operation should be available")
+            .run(context);
 
         #[cfg(feature = "autotune-checks")]
         let mut output_checks = TuneOutput::<R>::Checked {
@@ -432,8 +440,8 @@ fn launch_reduce<Run: Runtime, Rd: ReduceFamily>(
 }
 
 const INPUT: u8 = 0;
-const OUTPUT: u8 = 0;
-const ACC: u8 = 0;
+const OUTPUT: u8 = 1;
+const ACC: u8 = 2;
 
 #[cube(launch_unchecked)]
 pub fn reduce_kernel<R: ReduceFamily>(
@@ -452,20 +460,11 @@ pub fn reduce_kernel<R: ReduceFamily>(
 
     let (input, mut output) =
         init_tensors::<FusedReduceArgs, NumericExpand<INPUT>, NumericExpand<OUTPUT>>(input, output);
-    let reduce_index = get_reduce_index(params);
-
-    if comptime![params.bound_checks]
-        && reduce_index >= get_reduce_count(output.len() * params.line_size_output, params)
-    {
-        terminate!();
-    }
-
-    reduce_kernel_inner::<(NumericExpand<INPUT>, NumericExpand<ACC>), NumericExpand<OUTPUT>, R>(
+    reduce_kernel_virtal::<NumericExpand<INPUT>, NumericExpand<OUTPUT>, NumericExpand<ACC>, R>(
         &input,
         &mut output,
         axis_reduce,
-        reduce_index,
         params,
         config,
-    )
+    );
 }

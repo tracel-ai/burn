@@ -12,7 +12,7 @@ use crate::{
     },
 };
 
-use super::optimization::{FusedReduce, ReduceFallbackFn, ReduceOptimization};
+use super::optimization::{FusedReduce, ReduceOptimization};
 
 /// Fused element wise operations that are normally memory bound.
 pub struct ReduceBuilder<R: Runtime> {
@@ -232,6 +232,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
             client,
             self.device.clone(),
             self.len(),
+            self.builder_read_fallback.len(),
             fuse_reduce.clone(),
         );
 
