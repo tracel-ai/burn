@@ -1,5 +1,4 @@
 use crate as burn;
-use burn_tensor::ops::linear::linear;
 
 use crate::config::Config;
 use crate::module::Param;

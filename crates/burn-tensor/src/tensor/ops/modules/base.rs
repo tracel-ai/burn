@@ -1,7 +1,6 @@
 use core::num::NonZeroUsize;
 
 use super::{conv, pool, unfold::unfold4d_using_conv2d};
-use crate::ops::linear::linear;
 use crate::{
     Shape, Tensor, TensorMetadata,
     backend::Backend,
@@ -796,7 +795,17 @@ pub trait ModuleOps<B: Backend> {
         weight: Tensor<B, 2>,
         bias: Option<Tensor<B, 1>>,
     ) -> Tensor<B, D> {
-        linear(input, weight, bias)
+        if D == 1 {
+            // Insert and remove an extra batch dimension for the batch matmul to work.
+            return Self::linear::<2>(input.unsqueeze(), weight, bias).flatten(0, 1);
+        }
+
+        let weight = weight.unsqueeze();
+        let output = input.matmul(weight);
+        match bias {
+            Some(bias) => output + bias.unsqueeze(),
+            None => output,
+        }
     }
 }
 

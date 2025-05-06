@@ -13,7 +13,4 @@ pub mod pool;
 
 mod base;
 
-/// Module with linear operations.
-pub mod linear;
-
 pub use base::*;
