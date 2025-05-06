@@ -375,7 +375,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     grads,
                     |grad| {
                         let rhs = rhs_4lhs.unwrap();
-                        let value = B::float_powf_scalar(rhs, -1.0);
+                        let value = B::float_recip(rhs);
                         let grad = B::float_mul(grad, value);
 
                         broadcast.backward_lhs::<B>(grad)
@@ -383,7 +383,8 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     |grad| {
                         let rhs = rhs_4rhs.unwrap();
                         let lhs = lhs.unwrap();
-                        let value = B::float_div(B::float_neg(lhs), B::float_powf_scalar(rhs, 2.0));
+                        let value =
+                            B::float_div(B::float_neg(lhs), B::float_powi_scalar(rhs, 2.elem()));
                         let grad = B::float_mul(grad, value);
 
                         broadcast.backward_rhs::<B>(grad)
@@ -644,7 +645,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             ) {
                 let tensor = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    let tmp = B::float_powf_scalar(tensor, -2.0);
+                    let tmp = B::float_powi_scalar(tensor, (-2).elem());
                     let value = B::float_neg(tmp);
 
                     B::float_mul(grad, value)
@@ -1631,7 +1632,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             ) {
                 let input = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    let value = B::float_powf_scalar(input, -1.0);
+                    let value = B::float_recip(input);
                     B::float_mul(grad, value)
                 });
             }
@@ -1670,7 +1671,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let input = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     let value = B::float_add_scalar(input, 1.elem());
-                    let value = B::float_powf_scalar(value, -1.0);
+                    let value = B::float_recip(value);
 
                     B::float_mul(grad, value)
                 });
@@ -1920,7 +1921,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let state = B::float_tanh(input);
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     let value = B::float_add_scalar(
-                        B::float_neg(B::float_powf_scalar(state, 2.0)),
+                        B::float_neg(B::float_powi_scalar(state, 2.elem())),
                         1.elem(),
                     );
                     B::float_mul(grad, value)
@@ -2068,7 +2069,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             ) {
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     let ops = checkpointer.retrieve_node_output(ops.state);
-                    let exponent = B::float_neg(B::float_powf_scalar(ops, 2.0));
+                    let exponent = B::float_neg(B::float_powi_scalar(ops, 2.elem()));
                     let numerator = B::float_mul_scalar(B::float_exp(exponent), 2.0.elem());
                     let denominator = core::f64::consts::PI.sqrt().elem();
                     let value = B::float_div_scalar(numerator, denominator);

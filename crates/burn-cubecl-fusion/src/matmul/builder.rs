@@ -1,6 +1,3 @@
-use std::sync::Arc;
-
-use super::MatmulFallbackFn;
 use burn_fusion::{OptimizationBuilder, OptimizationStatus};
 use burn_ir::{FloatOperationIr, OperationIr};
 use cubecl::Runtime;
@@ -19,15 +16,10 @@ pub struct MatmulBuilder<R: Runtime> {
     builder_fallback: FuseOptimizationBuilder,
     device: R::Device,
     matmul: Option<FusedMatmul>,
-    fallback: Arc<dyn MatmulFallbackFn<R>>,
 }
 
 impl<R: Runtime> MatmulBuilder<R> {
-    pub fn new(
-        device: R::Device,
-        bool_precision: FusePrecision,
-        fallback: Arc<dyn MatmulFallbackFn<R>>,
-    ) -> Self {
+    pub fn new(device: R::Device, bool_precision: FusePrecision) -> Self {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware_properties().max_bindings;
@@ -43,7 +35,6 @@ impl<R: Runtime> MatmulBuilder<R> {
             builder_fallback: FuseOptimizationBuilder::new(max_bindings, bool_precision, settings),
             device,
             matmul: None,
-            fallback,
         }
     }
 }
@@ -94,7 +85,6 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
             self.device.clone(),
             self.len(),
             self.matmul.as_ref().unwrap().clone(),
-            self.fallback.clone(),
         );
 
         CubeOptimization::Matmul(matmul)

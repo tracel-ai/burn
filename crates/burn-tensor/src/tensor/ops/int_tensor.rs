@@ -1,7 +1,6 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use crate::cast::ToElement;
 use crate::{Distribution, ElementConversion, Int, TensorData, backend::Backend, tensor::Shape};
 use alloc::vec::Vec;
 use core::ops::Range;
@@ -419,10 +418,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the power of the elements of `rhs`.
     fn int_powi(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B> {
-        B::float_into_int(B::float_powf(
-            B::int_into_float(lhs),
-            B::int_into_float(rhs),
-        ))
+        B::float_into_int(B::float_powi(B::int_into_float(lhs), rhs))
     }
 
     /// Element-wise power with a floatTensor.
@@ -450,7 +446,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
     fn int_powi_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B> {
-        B::float_into_int(B::float_powf_scalar(B::int_into_float(lhs), rhs.to_f32()))
+        B::float_into_int(B::float_powi_scalar(B::int_into_float(lhs), rhs))
     }
 
     /// Element-wise power with a floatTensor.

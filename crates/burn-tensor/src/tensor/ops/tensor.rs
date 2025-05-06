@@ -1,7 +1,6 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
-use crate::tensor::cast::ToElement;
 use crate::{Distribution, ElementConversion, Float, TensorData, backend::Backend, tensor::Shape};
 use crate::{FloatDType, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
@@ -845,7 +844,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
     fn float_powi_scalar(lhs: FloatTensor<B>, rhs: IntElem<B>) -> FloatTensor<B> {
-        Self::float_powf_scalar(lhs, rhs.to_f32())
+        Self::float_powf_scalar(lhs, rhs.elem::<f32>())
     }
 
     /// Returns a new tensor with values raised to the power of float `value`.
