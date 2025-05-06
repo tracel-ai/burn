@@ -26,7 +26,7 @@ where
         &mut self,
         streams: Vec<StreamId>,
         repr: OperationIr,
-        operation: Box<dyn Operation<R>>,
+        operation: Arc<dyn Operation<R>>,
     ) {
         self.streams
             .register(streams, repr, operation, &mut self.handles)

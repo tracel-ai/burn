@@ -11,6 +11,7 @@ use burn_tensor::{
 };
 use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
 
@@ -117,7 +118,7 @@ pub trait Optimization<R: FusionRuntime>: Send {
     fn execute(
         &mut self,
         context: &mut Context<'_, R::FusionHandle>,
-        operations: &[Box<dyn Operation<R>>],
+        operations: &[Arc<dyn Operation<R>>],
     );
     /// The number of registered operations in this optimization.
     fn len(&self) -> usize;

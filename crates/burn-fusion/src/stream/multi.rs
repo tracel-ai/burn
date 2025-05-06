@@ -6,7 +6,7 @@ use super::{
     store::{ExecutionPlanId, ExecutionPlanStore},
 };
 use crate::FusionRuntime;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 /// Keep track of multiple concurrent streams of operations.
 pub struct MultiStream<R: FusionRuntime> {
@@ -29,7 +29,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         &mut self,
         streams: Vec<StreamId>,
         repr: OperationIr,
-        operation: Box<dyn Operation<R>>,
+        operation: Arc<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
         let id = self.resolve_streams(streams, handles, &repr);

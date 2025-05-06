@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc};
 
 use super::{OperationConverter, RelativeOps, execution::Operation};
 use crate::FusionRuntime;
@@ -18,7 +18,7 @@ pub struct OperationQueue<R: FusionRuntime> {
     /// determine which operations can be fused.
     pub(crate) relative: Vec<OperationIr>,
     pub(crate) converter: OperationConverter,
-    pub(crate) operations: Vec<Box<dyn Operation<R>>>,
+    pub(crate) operations: Vec<Arc<dyn Operation<R>>>,
     pub(crate) ids: BTreeSet<TensorId>,
 }
 
@@ -45,7 +45,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
     /// The new [operation intermediate representation](OperationIr) will be converted to a local
     /// representation that can be reused when the same pattern emerge in different but similar
     /// scenario, so that the same optimization can be used.
-    pub fn add(&mut self, global: OperationIr, operation: Box<dyn Operation<R>>) {
+    pub fn add(&mut self, global: OperationIr, operation: Arc<dyn Operation<R>>) {
         for node in global.nodes() {
             self.ids.insert(node.id);
         }

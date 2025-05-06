@@ -1,6 +1,7 @@
 use crate::BoolElement;
 use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, kernel, tensor::CubeTensor};
 
+use alloc::sync::Arc;
 use burn_cubecl_fusion::elemwise::optimization::ElemwiseOptimization;
 use burn_cubecl_fusion::matmul::builder::MatmulBuilder;
 use burn_cubecl_fusion::matmul::optimization::MatmulOptimization;
@@ -28,15 +29,15 @@ where
             '_,
             <FusionCubeRuntime<R, BT> as FusionRuntime>::FusionHandle,
         >,
-        operations: &[Box<dyn Operation<FusionCubeRuntime<R, BT>>>],
+        operations: &[Arc<dyn Operation<FusionCubeRuntime<R, BT>>>],
     ) {
         match self {
             Self::ElementWise(op) => op.execute::<BT>(context),
             Self::Matmul(op) => op.execute::<BT>(context, |index| {
-                Box::new(FallbackOperationUnsafe::new(operations, index))
+                Box::new(FallbackOperationWrapper::new(operations, index))
             }),
             Self::Reduce(op) => op.execute::<BT>(context, |index| {
-                Box::new(FallbackOperationUnsafe::new(operations, index))
+                Box::new(FallbackOperationWrapper::new(operations, index))
             }),
         }
     }
@@ -72,6 +73,9 @@ where
     }
 }
 
+struct FallbackOperationWrapper<O> {
+    operation: O,
+}
 /// This is only safe because we know the fallback must be executed before the cubecl context is dropped.
 ///
 /// The safer alternatives would require fused operation to be cloned, so that it could
@@ -100,6 +104,22 @@ impl<R: CubeRuntime, BT: BoolElement> FallbackOperation<R>
         unsafe {
             self.operation.as_ref().unwrap().execute(context.handles);
         }
+    }
+}
+
+impl<O: Clone> FallbackOperationWrapper<O> {
+    fn new(operations: &[O], index: usize) -> Self {
+        Self {
+            operation: operations[index].clone(),
+        }
+    }
+}
+
+impl<R: CubeRuntime, BT: BoolElement> FallbackOperation<R>
+    for FallbackOperationWrapper<Arc<dyn Operation<FusionCubeRuntime<R, BT>>>>
+{
+    fn run(&self, context: &mut burn_fusion::stream::Context<'_, CubeFusionHandle<R>>) {
+        self.operation.as_ref().execute(context.handles);
     }
 }
 
