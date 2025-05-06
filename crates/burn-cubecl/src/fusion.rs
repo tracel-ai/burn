@@ -74,8 +74,8 @@ where
 
 /// This is only safe because we know the fallback must be executed before the cubecl context is dropped.
 ///
-/// The safer alternatives would require every fused operation to be inside an Arc, so that it could
-/// be cloned and escape the lifetime of the context's execution, which doesn't make sense since
+/// The safer alternatives would require fused operation to be cloned, so that it could
+/// escape the lifetime of the context's execution, which doesn't make sense since
 /// its only goal is to modify the context it operates on.
 struct FallbackOperationUnsafe<O> {
     operation: *const O,
@@ -98,11 +98,7 @@ impl<R: CubeRuntime, BT: BoolElement> FallbackOperation<R>
 {
     fn run(&self, context: &mut burn_fusion::stream::Context<'_, CubeFusionHandle<R>>) {
         unsafe {
-            self.operation
-                .as_ref()
-                .unwrap()
-                .clone_dyn()
-                .execute(context.handles);
+            self.operation.as_ref().unwrap().execute(context.handles);
         }
     }
 }

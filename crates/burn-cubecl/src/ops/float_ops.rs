@@ -424,7 +424,6 @@ where
     }
 
     fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        println!("Float sum dim");
         execute_with_dtype!(
             float(tensor.dtype),
             E,

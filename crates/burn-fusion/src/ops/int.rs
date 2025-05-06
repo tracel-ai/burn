@@ -24,13 +24,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for EmptyOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let output = B::int_empty(Shape::from(&self.desc.shape), &self.device);
                 handles.register_int_tensor::<B>(&self.desc.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -102,14 +98,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ReshapeDimsOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_int_tensor::<B>(&self.desc.input);
                 let output = B::int_reshape(input, Shape::from(&self.desc.out.shape));
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -139,16 +131,12 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for SliceOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
 
                 let output = B::int_slice(tensor, self.desc.ranges.as_slice());
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -190,17 +178,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for SliceAssignOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
                 let value = handles.get_int_tensor::<B>(&self.desc.value);
 
                 let output = B::int_slice_assign(tensor, self.desc.ranges.as_slice(), value);
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -237,7 +221,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for MaskWhereOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
                 let value = handles.get_int_tensor::<B>(&self.desc.value);
                 let mask = handles.get_bool_tensor::<B>(&self.desc.mask);
@@ -245,10 +229,6 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 let output = B::int_mask_where(tensor, mask, value);
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -290,17 +270,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for MaskFillOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
                 let mask = handles.get_bool_tensor::<B>(&self.desc.mask);
 
                 let output = B::int_mask_fill(tensor, mask, self.desc.value.elem());
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -340,16 +316,12 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for GatherOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
 
                 let output = B::int_gather(self.desc.dim, tensor, indices);
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -390,7 +362,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ScatterOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
                 let value = handles.get_int_tensor::<B>(&self.desc.value);
@@ -398,10 +370,6 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 let output = B::int_scatter(self.desc.dim, tensor, indices, value);
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -443,17 +411,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for SelectOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
 
                 let output = B::int_select(tensor, self.desc.dim, indices);
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -495,7 +459,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for SelectAssignOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
                 let value = handles.get_int_tensor::<B>(&self.desc.value);
@@ -503,10 +467,6 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 let output = B::int_select_assign(tensor, self.desc.dim, indices, value);
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -544,7 +504,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for CatOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensors = self
                     .desc
                     .tensors
@@ -555,10 +515,6 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 let output = B::int_cat(tensors, self.desc.dim);
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -1114,14 +1070,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ZerosOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let shape = Shape::from(self.desc.shape.clone());
                 let output = B::int_zeros(shape, &self.device);
                 handles.register_int_tensor::<B>(&self.desc.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -1149,14 +1101,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for OnesOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let shape = Shape::from(self.desc.shape.clone());
                 let output = B::int_ones(shape, &self.device);
                 handles.register_int_tensor::<B>(&self.desc.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -1396,15 +1344,11 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ClampOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_int_tensor::<B>(&self.desc.tensor);
                 let output = B::int_clamp(input, self.desc.min.elem(), self.desc.max.elem());
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -1462,14 +1406,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for IntoFloatOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_int_tensor::<B>(&self.desc.input);
                 let output = B::int_into_float(input);
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -1498,14 +1438,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for SwapDimsOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_int_tensor::<B>(&self.desc.input);
                 let output = B::int_swap_dims(input, self.desc.dim1, self.desc.dim2);
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -1595,16 +1531,12 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for MaxDimWithIndicesOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
                 let (output, indices) = B::int_max_dim_with_indices(tensor, self.desc.dim);
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
                 handles.register_int_tensor::<B>(&self.desc.out_indices.id, indices);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -1746,16 +1678,12 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for MinDimWithIndicesOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
                 let (output, indices) = B::int_min_dim_with_indices(tensor, self.desc.dim);
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
                 handles.register_int_tensor::<B>(&self.desc.out_indices.id, indices);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -1795,14 +1723,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for IntRandomOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let shape = Shape::from(self.desc.out.shape.clone());
                 let output = B::int_random(shape, self.desc.distribution, &self.device);
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -1834,14 +1758,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for PermuteDimsOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_int_tensor::<B>(&self.desc.input);
                 let output = B::int_permute(input, self.desc.axes.as_slice());
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -1877,14 +1797,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ExpandOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_int_tensor::<B>(&self.desc.input);
-                let output = B::int_expand(input, self.desc.shape.clone().into());
+                let output = B::int_expand(input, self.desc.shape.as_slice().into());
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -1917,15 +1833,11 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for FlipDimsOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_int_tensor::<B>(&self.desc.input);
                 let axes = &self.desc.axes;
                 let output = B::int_flip(input, axes);
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 
@@ -1958,16 +1870,12 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for RepeatDimOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
 
                 let output = B::int_repeat_dim(tensor, self.desc.dim, self.desc.times);
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
 

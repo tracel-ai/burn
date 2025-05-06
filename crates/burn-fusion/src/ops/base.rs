@@ -8,8 +8,5 @@ pub struct NoOp<B: FusionBackend> {
 }
 
 impl<B: FusionBackend> Operation<B::FusionRuntime> for NoOp<B> {
-    fn execute(self: Box<Self>, _handles: &mut HandleContainer<B::Handle>) {}
-    fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-        Box::new(self.clone())
-    }
+    fn execute(&self, _handles: &mut HandleContainer<B::Handle>) {}
 }

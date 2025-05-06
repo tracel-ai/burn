@@ -50,16 +50,12 @@ macro_rules! binary_float_ops {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_float_tensor::<B>(&self.desc.lhs);
                 let rhs = handles.get_float_tensor::<B>(&self.desc.rhs);
                 let output = $ops(lhs, rhs);
 
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
     };
@@ -79,16 +75,12 @@ macro_rules! binary_float_cmp_ops {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_float_tensor::<B>(&self.desc.lhs);
                 let rhs = handles.get_float_tensor::<B>(&self.desc.rhs);
                 let output = $ops(lhs, rhs);
 
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
     };
@@ -117,16 +109,12 @@ macro_rules! binary_int_cmp_ops {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_int_tensor::<B>(&self.desc.lhs);
                 let rhs = handles.get_int_tensor::<B>(&self.desc.rhs);
                 let output = $ops(lhs, rhs);
 
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
     };
@@ -146,16 +134,12 @@ macro_rules! binary_int_ops {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_int_tensor::<B>(&self.desc.lhs);
                 let rhs = handles.get_int_tensor::<B>(&self.desc.rhs);
                 let output = $ops(lhs, rhs);
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-
-            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
-                Box::new(self.clone())
             }
         }
     };

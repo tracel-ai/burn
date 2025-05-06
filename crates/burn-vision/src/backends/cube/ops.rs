@@ -95,20 +95,16 @@ mod fusion {
 
             impl<B1: FusionBackend + BoolVisionOps> Operation<B1::FusionRuntime> for ConnComp<B1> {
                 fn execute(
-                    self: Box<Self>,
+                    &self,
                     handles: &mut HandleContainer<
                         <B1::FusionRuntime as FusionRuntime>::FusionHandle,
                     >,
                 ) {
-                    let ([img], [labels]) = self.desc.clone().consume();
+                    let ([img], [labels]) = self.desc.as_fixed();
                     let input = handles.get_bool_tensor::<B1>(&img);
                     let output = B1::connected_components(input, self.conn);
 
                     handles.register_int_tensor::<B1>(&labels.id, output);
-                }
-
-                fn clone_dyn(&self) -> Box<dyn Operation<B1::FusionRuntime>> {
-                    Box::new(self.clone())
                 }
             }
 
@@ -145,13 +141,13 @@ mod fusion {
 
             impl<B1: FusionBackend + BoolVisionOps> Operation<B1::FusionRuntime> for ConnCompStats<B1> {
                 fn execute(
-                    self: Box<Self>,
+                    &self,
                     handles: &mut HandleContainer<
                         <B1::FusionRuntime as FusionRuntime>::FusionHandle,
                     >,
                 ) {
                     let ([img], [labels, area, left, top, right, bottom, max_label]) =
-                        self.desc.clone().consume();
+                        self.desc.as_fixed();
                     let input = handles.get_bool_tensor::<B1>(&img);
                     let (output, stats) =
                         B1::connected_components_with_stats(input, self.conn, self.opts);
@@ -163,10 +159,6 @@ mod fusion {
                     handles.register_int_tensor::<B1>(&right.id, stats.right);
                     handles.register_int_tensor::<B1>(&bottom.id, stats.bottom);
                     handles.register_int_tensor::<B1>(&max_label.id, stats.max_label);
-                }
-
-                fn clone_dyn(&self) -> Box<dyn Operation<B1::FusionRuntime>> {
-                    Box::new(self.clone())
                 }
             }
 
