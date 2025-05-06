@@ -86,7 +86,7 @@ mod fusion {
             let width = img.shape[1];
             let client = img.client.clone();
 
-            #[derive(derive_new::new)]
+            #[derive(derive_new::new, Clone)]
             struct ConnComp<B> {
                 desc: CustomOpIr,
                 conn: Connectivity,
@@ -95,7 +95,7 @@ mod fusion {
 
             impl<B1: FusionBackend + BoolVisionOps> Operation<B1::FusionRuntime> for ConnComp<B1> {
                 fn execute(
-                    &self,
+                    self: Box<Self>,
                     handles: &mut HandleContainer<
                         <B1::FusionRuntime as FusionRuntime>::FusionHandle,
                     >,
@@ -105,6 +105,10 @@ mod fusion {
                     let output = B1::connected_components(input, self.conn);
 
                     handles.register_int_tensor::<B1>(&labels.id, output);
+                }
+
+                fn clone_dyn(&self) -> Box<dyn Operation<B1::FusionRuntime>> {
+                    Box::new(self.clone())
                 }
             }
 
@@ -131,7 +135,7 @@ mod fusion {
             let width = img.shape[1];
             let client = img.client.clone();
 
-            #[derive(derive_new::new)]
+            #[derive(derive_new::new, Clone)]
             struct ConnCompStats<B> {
                 desc: CustomOpIr,
                 conn: Connectivity,
@@ -141,7 +145,7 @@ mod fusion {
 
             impl<B1: FusionBackend + BoolVisionOps> Operation<B1::FusionRuntime> for ConnCompStats<B1> {
                 fn execute(
-                    &self,
+                    self: Box<Self>,
                     handles: &mut HandleContainer<
                         <B1::FusionRuntime as FusionRuntime>::FusionHandle,
                     >,
@@ -159,6 +163,10 @@ mod fusion {
                     handles.register_int_tensor::<B1>(&right.id, stats.right);
                     handles.register_int_tensor::<B1>(&bottom.id, stats.bottom);
                     handles.register_int_tensor::<B1>(&max_label.id, stats.max_label);
+                }
+
+                fn clone_dyn(&self) -> Box<dyn Operation<B1::FusionRuntime>> {
+                    Box::new(self.clone())
                 }
             }
 
