@@ -3503,6 +3503,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0263a3d970d5c054ed9312c0057b4f3bde9c0b33836d3637361d4a9e6e7a408"
 
 [[package]]
+name = "import-model-weights"
+version = "0.18.0"
+dependencies = [
+ "burn",
+ "burn-import",
+]
+
+[[package]]
 name = "indexmap"
 version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4065,14 +4073,6 @@ dependencies = [
  "serde",
  "wasm-bindgen",
  "wasm-bindgen-futures",
-]
-
-[[package]]
-name = "model"
-version = "0.7.0"
-dependencies = [
- "burn",
- "burn-import",
 ]
 
 [[package]]
@@ -5435,15 +5435,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pytorch-import"
-version = "0.18.0"
-dependencies = [
- "burn",
- "burn-import",
- "model",
-]
-
-[[package]]
 name = "pytorch-tests"
 version = "0.18.0"
 dependencies = [
@@ -6185,6 +6176,18 @@ checksum = "44560c11236a6130a46ce36c836a62936dc81ebf8c36a37947423571be0e55b6"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "safetensors-tests"
+version = "0.18.0"
+dependencies = [
+ "burn",
+ "burn-autodiff",
+ "burn-import",
+ "burn-ndarray",
+ "float-cmp",
+ "serde",
 ]
 
 [[package]]

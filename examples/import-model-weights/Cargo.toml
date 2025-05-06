@@ -2,23 +2,19 @@
 authors = ["Dilshod Tadjibaev (@antimora)"]
 edition.workspace = true
 license = "MIT OR Apache-2.0"
-name = "pytorch-import"
+name = "import-model-weights"
 publish = false
 version = "0.18.0"
 
 [dependencies]
+
 burn = { path = "../../crates/burn", features = [
     "ndarray",
     "dataset",
     "vision",
 ] }
 
-model = { path = "./model" }
-
-
-[build-dependencies]
-model = { path = "./model" }
-burn = { path = "../../crates/burn", features = ["ndarray"] }
 burn-import = { path = "../../crates/burn-import", features = [
     "pytorch",
+    "safetensors",
 ], default-features = false }
