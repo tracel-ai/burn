@@ -2,6 +2,8 @@
 
 This guide explains how to create and submit new examples to the Burn repository. Examples are a great way to demonstrate Burn's capabilities and help users understand how to use the framework effectively.
 
+For a minimal working example, see the [simple-regression](https://github.com/tracel-ai/burn/blob/main/examples/simple-regression/examples/regression.rs) example in the repository.
+
 ## Repository Structure
 
 The Burn repository is set up as a workspace, with examples located in the `examples/` directory. Each example is a separate crate that can reuse workspace dependencies.
@@ -40,11 +42,11 @@ The Burn repository is set up as a workspace, with examples located in the `exam
 ### README.md
 Each example must include a README.md file with:
 - A brief description of what the example demonstrates
-- Code blocks showing how to run the example
+- A terminal command showing how to run the example
 - Any prerequisites or setup instructions
 
 Example README structure:
-```markdown
+````markdown
 # Example Name
 
 Brief description of what this example demonstrates.
@@ -52,20 +54,19 @@ Brief description of what this example demonstrates.
 ## Running the Example
 
 ```bash
-cargo run --example training
-cargo run --example inference
+cargo run --example <my-example>
 ```
 
 ## Prerequisites
 
 List any prerequisites here.
-```
+````
 
 ### Source Code Structure
+
 - `src/` directory: Contains the main implementation code
-- `examples/` directory: Contains training and inference functions (if applicable)
-  - `training.rs`: Training implementation
-  - `inference.rs`: Inference implementation
+- `examples/` directory: Contains example code
+  - `<my-example>.rs`: Example implementation
 
 ## Resource Handling
 
@@ -95,39 +96,6 @@ List any prerequisites here.
    - Include inline comments for complex logic
    - Explain any non-obvious implementation details
 
-## Example Structure
-
-Here's a minimal example structure:
-
-```rust
-// src/lib.rs
-pub struct MyExample {
-    // Configuration and state
-}
-
-impl MyExample {
-    pub fn new() -> Self {
-        // Initialize the example
-    }
-}
-
-// examples/training.rs
-use my_example::MyExample;
-
-fn main() {
-    let example = MyExample::new();
-    // Training implementation
-}
-
-// examples/inference.rs
-use my_example::MyExample;
-
-fn main() {
-    let example = MyExample::new();
-    // Inference implementation
-}
-```
-
 ## Submitting Your Example
 
 1. Ensure your example follows all the guidelines above
@@ -137,13 +105,4 @@ fn main() {
    - Any relevant issue numbers
    - Screenshots or output examples (if applicable)
 
-## Review Process
-
-Your example will be reviewed for:
-- Code quality and organization
-- Documentation completeness
-- Resource handling
-- Performance considerations
-- Adherence to Burn's best practices
-
-Feel free to ask questions in the pull request if you need clarification or guidance during the review process. 
+Feel free to ask questions in the pull request if you need clarification or guidance. 
