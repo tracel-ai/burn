@@ -1,9 +1,9 @@
 use crate as burn;
+use burn_tensor::ops::linear::linear;
 
 use crate::config::Config;
 use crate::module::Param;
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use crate::nn::functional::linear;
 use crate::tensor::{Tensor, backend::Backend};
 
 use super::Initializer;
@@ -30,8 +30,6 @@ pub struct LinearConfig {
 /// Should be created with [LinearConfig]
 ///
 /// `O = IW + b`
-///
-/// See: [linear][nn::functional::linear]
 #[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct Linear<B: Backend> {
@@ -83,7 +81,8 @@ impl<B: Backend> Linear<B> {
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let weight = self.weight.val();
         let bias = self.bias.as_ref().map(|b| b.val());
-        linear(input, weight, bias)
+
+        B::linear(input, weight, bias)
     }
 }
 

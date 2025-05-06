@@ -1,5 +1,3 @@
-pub use burn_tensor::nn::*;
-
 /// Attention module
 pub mod attention;
 

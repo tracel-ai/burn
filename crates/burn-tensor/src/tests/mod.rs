@@ -3,7 +3,6 @@ mod clone_invariance;
 mod grid;
 mod linalg;
 mod module;
-mod nn;
 mod ops;
 mod primitive;
 mod quantization;
@@ -157,9 +156,6 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_silu!();
         burn_tensor::testgen_tanh_activation!();
 
-        // test nn.functional
-        burn_tensor::testgen_nn_fn_vector_norm!();
-
         // test grid
         burn_tensor::testgen_meshgrid!();
 
@@ -185,6 +181,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_module_nearest_interpolate!();
         burn_tensor::testgen_module_bilinear_interpolate!();
         burn_tensor::testgen_module_bicubic_interpolate!();
+        burn_tensor::testgen_module_linear!();
 
         // test ops
         burn_tensor::testgen_gather_scatter!();

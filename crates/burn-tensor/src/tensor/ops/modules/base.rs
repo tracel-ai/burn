@@ -1,8 +1,9 @@
 use core::num::NonZeroUsize;
 
 use super::{conv, pool, unfold::unfold4d_using_conv2d};
+use crate::ops::linear::linear;
 use crate::{
-    Shape, TensorMetadata,
+    Shape, Tensor, TensorMetadata,
     backend::Backend,
     ops::{FloatTensor, IntTensor},
 };
@@ -764,6 +765,39 @@ pub trait ModuleOps<B: Backend> {
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<B>;
+
+    /// Applies a linear transformation to the input tensor using the given weight and bias.
+    ///
+    /// ```math
+    /// y = x @ weight + [bias]
+    /// ```
+    ///
+    /// # Arguments:
+    ///
+    /// - `input` is the input tensor, ``[..., d_input]``.
+    /// - `weight` is the weight tensor, ``[d_input, d_output]``.
+    /// - `b` is the bias tensor (optional), ``[d_output]``.
+    ///
+    /// # Returns:
+    ///
+    /// The transformed tensor, ``[..., d_output]``.
+    ///
+    /// # Compatibility
+    ///
+    /// This function differs from PyTorch's ``torch.nn.functional.linear`` in that it does not
+    /// transpose the weight matrix. In PyTorch, the weight matrix is transposed before
+    /// multiplication:
+    ///
+    /// ```math
+    /// y = x @ weight^T + [bias]
+    /// ```
+    fn linear<const D: usize>(
+        input: Tensor<B, D>,
+        weight: Tensor<B, 2>,
+        bias: Option<Tensor<B, 1>>,
+    ) -> Tensor<B, D> {
+        linear(input, weight, bias)
+    }
 }
 
 #[cfg(test)]

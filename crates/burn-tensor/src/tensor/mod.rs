@@ -35,9 +35,6 @@ pub mod loss;
 /// The burn module.
 pub mod module;
 
-/// The nn module.
-pub mod nn;
-
 /// Operations on tensors module.
 pub mod ops;
 
