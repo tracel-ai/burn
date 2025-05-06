@@ -23,9 +23,9 @@ macro_rules! make_ops {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 #[allow(clippy::redundant_closure_call)]
-                $fn(self.desc, handles)
+                $fn(&self.desc, handles)
             }
         }
     };
@@ -38,7 +38,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<1>,
     ) -> FloatTensor<Self> {
-        make_ops!(Conv1dOps, Conv1dOpIr, |desc: Conv1dOpIr,
+        make_ops!(Conv1dOps, Conv1dOpIr, |desc: &Conv1dOpIr,
                                           handles: &mut HandleContainer<
             B::Handle,
         >| {
@@ -48,7 +48,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                 .bias
                 .as_ref()
                 .map(|bias| handles.get_float_tensor::<B>(bias));
-            let output = B::conv1d(x, weight, bias, desc.options.into());
+            let output = B::conv1d(x, weight, bias, desc.options.clone().into());
             handles.register_float_tensor::<B>(&desc.out.id, output);
         });
 
@@ -93,7 +93,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        make_ops!(Conv2dOps, Conv2dOpIr, |args: Conv2dOpIr,
+        make_ops!(Conv2dOps, Conv2dOpIr, |args: &Conv2dOpIr,
                                           handles: &mut HandleContainer<
             B::Handle,
         >| {
@@ -162,7 +162,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             DeformConv2dOps,
             DeformConv2dOpIr,
-            |args: DeformConv2dOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &DeformConv2dOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let offset = handles.get_float_tensor::<B>(&args.offset);
                 let weight = handles.get_float_tensor::<B>(&args.weight);
@@ -248,7 +248,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             DeformConv2dBackwardOps,
             DeformConv2dBackwardOpIr,
-            |args: DeformConv2dBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &DeformConv2dBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let offset = handles.get_float_tensor::<B>(&args.offset);
                 let weight = handles.get_float_tensor::<B>(&args.weight);
@@ -356,7 +356,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<3>,
     ) -> FloatTensor<Self> {
-        make_ops!(Conv3dOps, Conv3dOpIr, |args: Conv3dOpIr,
+        make_ops!(Conv3dOps, Conv3dOpIr, |args: &Conv3dOpIr,
                                           handles: &mut HandleContainer<
             B::Handle,
         >| {
@@ -430,7 +430,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             ConvTranspose1dOps,
             ConvTranspose1dOpIr,
-            |args: ConvTranspose1dOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &ConvTranspose1dOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let weight = handles.get_float_tensor::<B>(&args.weight);
                 let bias = args
@@ -489,7 +489,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             ConvTranspose2dOps,
             ConvTranspose2dOpIr,
-            |args: ConvTranspose2dOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &ConvTranspose2dOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let weight = handles.get_float_tensor::<B>(&args.weight);
                 let bias = args
@@ -556,7 +556,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             ConvTranspose3dOps,
             ConvTranspose3dOpIr,
-            |args: ConvTranspose3dOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &ConvTranspose3dOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let weight = handles.get_float_tensor::<B>(&args.weight);
                 let bias = args
@@ -638,7 +638,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             AvgPool1dOps,
             AvgPool1dOpIr,
-            |args: AvgPool1dOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &AvgPool1dOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::avg_pool1d(
                     x,
@@ -684,7 +684,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             AvgPool2dOps,
             AvgPool2dOpIr,
-            |args: AvgPool2dOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &AvgPool2dOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::avg_pool2d(
                     x,
@@ -735,7 +735,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             AvgPool1dBackwardOps,
             AvgPool1dBackwardOpIr,
-            |args: AvgPool1dBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &AvgPool1dBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let grad = handles.get_float_tensor::<B>(&args.grad);
                 let output = B::avg_pool1d_backward(
@@ -786,7 +786,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             AvgPool2dBackwardOps,
             AvgPool2dBackwardOpIr,
-            |args: AvgPool2dBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &AvgPool2dBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let grad = handles.get_float_tensor::<B>(&args.grad);
                 let output = B::avg_pool2d_backward(
@@ -836,7 +836,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             MaxPool1dOps,
             MaxPool1dOpIr,
-            |args: MaxPool1dOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &MaxPool1dOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::max_pool1d(
                     x,
@@ -883,7 +883,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             MaxPool2dOps,
             MaxPool2dOpIr,
-            |args: MaxPool2dOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &MaxPool2dOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::max_pool2d(
                     x,
@@ -943,7 +943,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             MaxPool1dWithIndicesOps,
             MaxPool1dWithIndicesOpIr,
-            |args: MaxPool1dWithIndicesOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &MaxPool1dWithIndicesOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::max_pool1d_with_indices(
                     x,
@@ -994,7 +994,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             MaxPool2dWithIndicesOps,
             MaxPool2dWithIndicesOpIr,
-            |args: MaxPool2dWithIndicesOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &MaxPool2dWithIndicesOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::max_pool2d_with_indices(
                     x,
@@ -1061,7 +1061,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             MaxPool1dWithIndicesBackwardOps,
             MaxPool1dWithIndicesBackwardOpIr,
-            |args: MaxPool1dWithIndicesBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &MaxPool1dWithIndicesBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let grad = handles.get_float_tensor::<B>(&args.grad);
                 let indices = handles.get_int_tensor::<B>(&args.indices);
@@ -1119,7 +1119,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             MaxPool2dWithIndicesBackwardOps,
             MaxPool2dWithIndicesBackwardOpIr,
-            |args: MaxPool2dWithIndicesBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &MaxPool2dWithIndicesBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let grad = handles.get_float_tensor::<B>(&args.grad);
                 let indices = handles.get_int_tensor::<B>(&args.indices);
@@ -1169,7 +1169,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             AdaptiveAvgPool1dOps,
             AdaptiveAvgPool1dOpIr,
-            |args: AdaptiveAvgPool1dOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &AdaptiveAvgPool1dOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::adaptive_avg_pool1d(x, args.output_size);
 
@@ -1199,7 +1199,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             AdaptiveAvgPool2dOps,
             AdaptiveAvgPool2dOpIr,
-            |args: AdaptiveAvgPool2dOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &AdaptiveAvgPool2dOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::adaptive_avg_pool2d(x, args.output_size);
 
@@ -1232,7 +1232,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             AdaptiveAvgPool1dBackwardOps,
             AdaptiveAvgPool1dBackwardOpIr,
-            |args: AdaptiveAvgPool1dBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &AdaptiveAvgPool1dBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let grad = handles.get_float_tensor::<B>(&args.grad);
                 let output = B::adaptive_avg_pool1d_backward(x, grad);
@@ -1268,7 +1268,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             AdaptiveAvgPool2dBackwardOps,
             AdaptiveAvgPool2dBackwardOpIr,
-            |args: AdaptiveAvgPool2dBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &AdaptiveAvgPool2dBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let grad = handles.get_float_tensor::<B>(&args.grad);
                 let output = B::adaptive_avg_pool2d_backward(x, grad);
@@ -1305,7 +1305,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             InterpolateOps,
             InterpolateOpIr,
-            |args: InterpolateOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &InterpolateOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::interpolate(x, args.output_size, args.options.clone().into());
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -1341,7 +1341,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             InterpolateBackwardOps,
             InterpolateBackwardOpIr,
-            |args: InterpolateBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+            |args: &InterpolateBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
                 let x = handles.get_float_tensor::<B>(&args.x);
                 let grad = handles.get_float_tensor::<B>(&args.grad);
                 let output =
