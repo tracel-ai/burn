@@ -1,7 +1,7 @@
 use crate::tensor::CubeTensor;
 use crate::{CubeElement, CubeRuntime, IntElement};
 use burn_tensor::Shape;
-use burn_tensor::quantization::{QuantizationMode, QuantizationScheme, QuantizationType};
+use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 
@@ -90,16 +90,19 @@ fn create_quantized_output<R: CubeRuntime>(
     num_input_elems: usize,
     device: R::Device,
     shape: Shape,
-    scheme: QuantizationScheme,
+    scheme: QuantScheme,
 ) -> CubeTensor<R> {
     // Output tensor contains 4x less elements (four int8 values packed in a single u32)
     let output_elems_size = usize::div_ceil(num_input_elems, 4) * core::mem::size_of::<u32>();
 
     // Scale and offset (optional) qparams are also packed in the tensor data
     let qparams_size = match &scheme {
-        QuantizationScheme::PerTensor(mode, ..) => match mode {
-            QuantizationMode::Symmetric => core::mem::size_of::<f32>(),
-        },
+        QuantScheme {
+            level: QuantLevel::Tensor,
+            mode: QuantMode::Symmetric,
+            q_type: QuantInputType::QInt8,
+            ..
+        } => core::mem::size_of::<f32>(),
     };
 
     let handle = client.empty(output_elems_size + qparams_size);
@@ -115,7 +118,7 @@ fn create_quantized_output<R: CubeRuntime>(
 /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
 pub fn quantize<R, F, I>(
     tensor: CubeTensor<R>,
-    scheme: &QuantizationScheme,
+    scheme: &QuantScheme,
     scale: CubeTensor<R>,
 ) -> CubeTensor<R>
 where
@@ -142,32 +145,28 @@ where
     );
 
     match scheme {
-        QuantizationScheme::PerTensor(mode, QuantizationType::QInt8) => {
+        QuantScheme {
+            level: QuantLevel::Tensor,
+            mode: QuantMode::Symmetric,
+            q_type: QuantInputType::QInt8,
+            ..
+        } => {
             let ndims = tensor.shape.num_dims();
             let dummy_array = vec![1; ndims];
 
-            match mode {
-                QuantizationMode::Symmetric => {
-                    unsafe {
-                        quantize_per_tensor_symmetric_int8_kernel::launch_unchecked::<R>(
-                            &client,
-                            cube_count,
-                            cube_dim,
-                            tensor.as_tensor_arg::<F>(line_size),
-                            // Ignore shape and stride
-                            TensorArg::from_raw_parts::<F>(
-                                &scale.handle,
-                                &dummy_array,
-                                &dummy_array,
-                                1,
-                            ),
-                            ScalarArg::new(-i8::MAX as f32),
-                            ScalarArg::new(i8::MAX as f32),
-                            output.as_array_arg::<u32>(1),
-                        )
-                    };
-                }
-            }
+            unsafe {
+                quantize_per_tensor_symmetric_int8_kernel::launch_unchecked::<R>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    tensor.as_tensor_arg::<F>(line_size),
+                    // Ignore shape and stride
+                    TensorArg::from_raw_parts::<F>(&scale.handle, &dummy_array, &dummy_array, 1),
+                    ScalarArg::new(-i8::MAX as f32),
+                    ScalarArg::new(i8::MAX as f32),
+                    output.as_array_arg::<u32>(1),
+                )
+            };
         }
     }
 

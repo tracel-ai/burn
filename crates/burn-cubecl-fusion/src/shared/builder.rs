@@ -8,7 +8,7 @@ use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
     TensorIr, UnaryOpIr,
 };
-use burn_tensor::Element;
+use burn_tensor::{DType, Element};
 use cubecl::ir::Elem;
 
 /// The base optimization builder that can be used to fuse all elemwise operations.
@@ -212,6 +212,10 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
+                if self.input_is_quantized(&desc.input) {
+                    return false;
+                }
+
                 if self.builder.register(|build| {
                     build.input_swap_dims(
                         &desc.input,
@@ -240,6 +244,10 @@ impl FuseOptimizationBuilder {
                 }
 
                 if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                if self.input_is_quantized(&desc.input) {
                     return false;
                 }
 
@@ -447,6 +455,10 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
+                if self.input_is_quantized(&desc.tensor) {
+                    return false;
+                }
+
                 self.builder.register(|build| {
                     let input = build.input_indexed(&desc.tensor)?;
                     let indices = build.input(&desc.indices)?;
@@ -464,6 +476,10 @@ impl FuseOptimizationBuilder {
             }
             NumericOperationIr::Select(desc) => {
                 if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                if self.input_is_quantized(&desc.tensor) {
                     return false;
                 }
 
@@ -494,6 +510,10 @@ impl FuseOptimizationBuilder {
             return false;
         }
 
+        if self.input_is_quantized(&desc.lhs) {
+            return false;
+        }
+
         self.builder.register(|build| {
             let lhs = build.input(&desc.lhs)?;
             let rhs = build.input(&desc.rhs)?;
@@ -513,6 +533,10 @@ impl FuseOptimizationBuilder {
             return false;
         }
 
+        if self.input_is_quantized(&desc.input) {
+            return false;
+        }
+
         self.builder.register(|build| {
             let input = build.input(&desc.input)?;
             let out = build.output(&desc.out)?;
@@ -529,6 +553,10 @@ impl FuseOptimizationBuilder {
             return false;
         }
 
+        if self.input_is_quantized(&desc.lhs) {
+            return false;
+        }
+
         self.builder.register(|build| {
             let elem = desc.lhs.dtype;
             let lhs = build.input(&desc.lhs)?;
@@ -539,6 +567,10 @@ impl FuseOptimizationBuilder {
 
             Some(())
         })
+    }
+
+    fn input_is_quantized(&self, input: &TensorIr) -> bool {
+        matches!(input.dtype, DType::QFloat(_scheme))
     }
 
     fn output_is_compatible(&mut self, out: &TensorIr) -> bool {
