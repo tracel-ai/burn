@@ -162,7 +162,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ReshapeDimsOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_quantized_tensor::<B>(&self.desc.input);
                 let output = B::q_reshape(input, Shape::from(&self.desc.out.shape));
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
@@ -202,7 +202,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for SwapDimsOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_quantized_tensor::<B>(&self.desc.input);
                 let output = B::q_swap_dims(input, self.desc.dim1, self.desc.dim2);
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
@@ -241,7 +241,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for PermuteDimsOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_quantized_tensor::<B>(&self.desc.input);
                 let output = B::q_permute(input, self.desc.axes.as_slice());
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
@@ -278,7 +278,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for FlipOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_quantized_tensor::<B>(&self.desc.input);
                 let output = B::q_flip(input, &self.desc.axes);
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
@@ -317,7 +317,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for GatherOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_quantized_tensor::<B>(&self.desc.tensor);
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
 
@@ -359,7 +359,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for SelectOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_quantized_tensor::<B>(&self.desc.tensor);
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
 
@@ -398,7 +398,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for SliceOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_quantized_tensor::<B>(&self.desc.tensor);
 
                 let output = B::q_slice(tensor, self.desc.ranges.as_slice());
@@ -439,9 +439,9 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ExpandOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_quantized_tensor::<B>(&self.desc.input);
-                let output = B::q_expand(input, self.desc.shape.into());
+                let output = B::q_expand(input, self.desc.shape.clone().into());
 
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
             }
