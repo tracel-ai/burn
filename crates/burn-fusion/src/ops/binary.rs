@@ -34,7 +34,6 @@ macro_rules! binary_float_ops {
         $name:ident,
         $ops:expr
     ) => {
-        #[derive(Clone)]
         struct $name<B: FusionBackend> {
             desc: BinaryOpIr,
             _b: PhantomData<B>,
@@ -68,7 +67,7 @@ macro_rules! binary_float_cmp_ops {
         $name:ident,
         $ops:expr
     ) => {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct $name<B: FusionBackend> {
             desc: BinaryOpIr,
             _b: PhantomData<B>,
@@ -93,7 +92,6 @@ macro_rules! binary_int_cmp_ops {
         $name:ident,
         $ops:expr
     ) => {
-        #[derive(Clone)]
         struct $name<B: FusionBackend> {
             desc: BinaryOpIr,
             _b: PhantomData<B>,
@@ -127,7 +125,7 @@ macro_rules! binary_int_ops {
         $name:ident,
         $ops:expr
     ) => {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct $name<B: FusionBackend> {
             desc: BinaryOpIr,
             _b: PhantomData<B>,

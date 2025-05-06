@@ -45,7 +45,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         scheme: &QuantizationScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct QuantizeOp<B: FusionBackend> {
             desc: QuantizeOpIr,
             _b: PhantomData<B>,
@@ -102,7 +102,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct DequantizeOp<B: FusionBackend> {
             desc: DequantizeOpIr,
             _b: PhantomData<B>,

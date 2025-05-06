@@ -16,7 +16,7 @@ use std::marker::PhantomData;
 
 macro_rules! make_ops {
     ($name:ident, $desc:ty, $fn:expr) => {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct $name<B: FusionBackend> {
             desc: $desc,
             _b: PhantomData<B>,

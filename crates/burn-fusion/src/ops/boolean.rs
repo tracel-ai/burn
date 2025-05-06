@@ -20,7 +20,7 @@ use super::NoOp;
 
 impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct EmptyOps<B: FusionBackend> {
             desc: TensorIr,
             device: Device<B>,
@@ -72,7 +72,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct IntoIntOps<B: FusionBackend> {
             desc: UnaryOpIr,
             _b: PhantomData<B>,
@@ -106,7 +106,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct IntoFloatOps<B: FusionBackend> {
             desc: UnaryOpIr,
             _b: PhantomData<B>,
@@ -160,7 +160,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_reshape(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct ReshapeDimsOps<B: FusionBackend> {
             desc: UnaryOpIr,
             _b: PhantomData<B>,
@@ -193,7 +193,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_slice(tensor: BoolTensor<Self>, ranges: &[std::ops::Range<usize>]) -> BoolTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct SliceOps<B: FusionBackend> {
             desc: SliceOpIr,
             _b: PhantomData<B>,
@@ -240,7 +240,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         ranges: &[std::ops::Range<usize>],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct SliceAssignOps<B: FusionBackend> {
             desc: SliceAssignOpIr,
             _b: PhantomData<B>,
@@ -281,7 +281,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_cat(tensors: Vec<BoolTensor<Self>>, dim: usize) -> BoolTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct CatOps<B: FusionBackend> {
             desc: CatOpIr,
             _b: PhantomData<B>,
@@ -331,7 +331,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_equal(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct EqualOps<B: FusionBackend> {
             desc: BinaryOpIr,
             _b: PhantomData<B>,
@@ -368,7 +368,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct NotOps<B: FusionBackend> {
             desc: UnaryOpIr,
             _b: PhantomData<B>,
@@ -402,7 +402,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_and(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct AndOps<B: FusionBackend> {
             desc: BinaryOpIr,
             _b: PhantomData<B>,
@@ -439,7 +439,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_or(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct OrOps<B: FusionBackend> {
             desc: BinaryOpIr,
             _b: PhantomData<B>,
@@ -476,7 +476,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_swap_dims(tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct SwapDimsOps<B: FusionBackend> {
             desc: SwapDimsOpIr,
             _b: PhantomData<B>,
@@ -515,7 +515,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_permute(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct PermuteDimsOps<B: FusionBackend> {
             desc: PermuteOpIr,
             _b: PhantomData<B>,
@@ -554,7 +554,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_expand(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct ExpandOps<B: FusionBackend> {
             desc: ExpandOpIr,
             _b: PhantomData<B>,
@@ -591,7 +591,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_flip(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct FlipOps<B: FusionBackend> {
             desc: FlipOpIr,
             _b: PhantomData<B>,
@@ -626,7 +626,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_repeat_dim(tensor: BoolTensor<Self>, dim: usize, times: usize) -> BoolTensor<Self> {
-        #[derive(new, Clone)]
+        #[derive(new)]
         struct RepeatDimOps<B: FusionBackend> {
             desc: RepeatDimOpIr,
             _b: PhantomData<B>,
