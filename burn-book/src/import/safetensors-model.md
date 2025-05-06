@@ -206,9 +206,6 @@ If your Burn model structure doesn't match the parameter names in the Safetensor
 remap keys using regular expressions:
 
 ```rust
-use burn_import::safetensors::{LoadArgs, SafetensorsFileRecorder};
-use burn::record::{FullPrecisionSettings, Recorder};
-
 let device = Default::default();
 
 // Create load arguments with key remapping
@@ -229,9 +226,6 @@ To help with troubleshooting import issues, you can enable debugging to print th
 remapped keys:
 
 ```rust
-use burn_import::safetensors::{LoadArgs, SafetensorsFileRecorder};
-use burn::record::{FullPrecisionSettings, Recorder};
-
 let device = Default::default();
 
 // Enable debug printing of keys
