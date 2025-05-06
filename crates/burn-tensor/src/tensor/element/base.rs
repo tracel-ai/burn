@@ -410,7 +410,7 @@ impl DType {
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum FloatDType {
     F64,
     F32,
