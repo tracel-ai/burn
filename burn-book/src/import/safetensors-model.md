@@ -179,9 +179,6 @@ tensor transformations. This is crucial when importing models from different ML 
 tensor layouts and naming conventions can vary:
 
 ```rust
-use burn_import::safetensors::{AdapterType, LoadArgs, SafetensorsFileRecorder};
-use burn::record::{FullPrecisionSettings, Recorder};
-
 let device = Default::default();
 
 // Create load arguments with framework-specific adapter
