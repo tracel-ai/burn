@@ -1,5 +1,5 @@
 use burn_fusion::stream::Context;
-use burn_ir::{ReduceDimOpIr, TensorStatus};
+use burn_ir::ReduceDimOpIr;
 use burn_tensor::DType;
 use cubecl::ir::Elem;
 use cubecl::prelude::*;
@@ -256,7 +256,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             let out_desc = context.tensors.get(&self.reduce.op.out.id).unwrap();
             let handle_out = context
                 .handles
-                .get_handle(&out_desc.id, &TensorStatus::ReadOnly);
+                .get_handle(&out_desc.id, &burn_ir::TensorStatus::ReadOnly);
 
             handles.insert(
                 self.reduce.op.out.id,
@@ -460,6 +460,7 @@ pub fn reduce_kernel<R: ReduceFamily>(
 
     let (input, mut output) =
         init_tensors::<FusedReduceArgs, NumericExpand<INPUT>, NumericExpand<OUTPUT>>(input, output);
+
     reduce_kernel_virtal::<NumericExpand<INPUT>, NumericExpand<OUTPUT>, NumericExpand<ACC>, R>(
         &input,
         &mut output,

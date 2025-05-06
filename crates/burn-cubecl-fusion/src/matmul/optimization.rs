@@ -10,7 +10,7 @@ use crate::shared::trace::TuneOutput;
 use crate::shared::trace::Vectorization;
 
 use burn_fusion::stream::Context;
-use burn_ir::{BinaryOpIr, TensorStatus};
+use burn_ir::BinaryOpIr;
 use cubecl::linalg::matmul::components;
 use cubecl::linalg::matmul::components::MatmulPrecision;
 use cubecl::linalg::matmul::components::MatmulProblem;
@@ -180,7 +180,7 @@ impl<R: Runtime> MatmulOptimization<R> {
             let out_desc = context.tensors.get(&self.matmul_simple.op.out.id).unwrap();
             let handle_out = context
                 .handles
-                .get_handle(&out_desc.id, &TensorStatus::ReadOnly);
+                .get_handle(&out_desc.id, &burn_ir::TensorStatus::ReadOnly);
 
             handles.insert(
                 self.matmul_simple.op.out.id,
