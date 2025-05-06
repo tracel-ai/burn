@@ -101,7 +101,8 @@ impl<R: CubeRuntime, BT: BoolElement> FallbackOperation<R>
             self.operation
                 .as_ref()
                 .unwrap()
-                .execute(&mut context.handles);
+                .clone_dyn()
+                .execute(context.handles);
         }
     }
 }

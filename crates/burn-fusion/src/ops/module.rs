@@ -16,16 +16,20 @@ use std::marker::PhantomData;
 
 macro_rules! make_ops {
     ($name:ident, $desc:ty, $fn:expr) => {
-        #[derive(new)]
+        #[derive(new, Clone)]
         struct $name<B: FusionBackend> {
             desc: $desc,
             _b: PhantomData<B>,
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 #[allow(clippy::redundant_closure_call)]
                 $fn(&self.desc, handles)
+            }
+
+            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
+                Box::new(self.clone())
             }
         }
     };

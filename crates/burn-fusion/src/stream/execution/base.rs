@@ -18,7 +18,9 @@ pub(crate) enum ExecutionMode {
 /// General trait to abstract how a single operation is executed.
 pub trait Operation<R: FusionRuntime>: Send + Sync {
     /// Execute the operation.
-    fn execute(&self, handles: &mut HandleContainer<R::FusionHandle>);
+    fn execute(self: Box<Self>, handles: &mut HandleContainer<R::FusionHandle>);
+    /// Clone the operation.
+    fn clone_dyn(&self) -> Box<dyn Operation<R>>;
 }
 
 impl<R: FusionRuntime> OperationQueue<R> {

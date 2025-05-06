@@ -45,14 +45,14 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         scheme: &QuantizationScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Clone)]
         struct QuantizeOp<B: FusionBackend> {
             desc: QuantizeOpIr,
             _b: PhantomData<B>,
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for QuantizeOp<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let scale = handles.get_float_tensor::<B>(&self.desc.qparams.scale);
                 let offset = self
@@ -65,6 +65,10 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
                 let qparams = QuantizationParametersPrimitive { scale, offset };
                 let output = B::quantize(tensor, &self.desc.scheme, qparams);
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+            }
+
+            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
+                Box::new(self.clone())
             }
         }
 
@@ -102,18 +106,22 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Clone)]
         struct DequantizeOp<B: FusionBackend> {
             desc: DequantizeOpIr,
             _b: PhantomData<B>,
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for DequantizeOp<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_quantized_tensor::<B>(&self.desc.input);
 
                 let output = B::dequantize(tensor);
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+
+            fn clone_dyn(&self) -> Box<dyn Operation<B::FusionRuntime>> {
+                Box::new(self.clone())
             }
         }
 

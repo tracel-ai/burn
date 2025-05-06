@@ -95,12 +95,12 @@ mod fusion {
 
             impl<B1: FusionBackend + BoolVisionOps> Operation<B1::FusionRuntime> for ConnComp<B1> {
                 fn execute(
-                    self: Box<Self>,
+                    &self,
                     handles: &mut HandleContainer<
                         <B1::FusionRuntime as FusionRuntime>::FusionHandle,
                     >,
                 ) {
-                    let ([img], [labels]) = self.desc.consume();
+                    let ([img], [labels]) = self.desc.clone().consume();
                     let input = handles.get_bool_tensor::<B1>(&img);
                     let output = B1::connected_components(input, self.conn);
 
@@ -141,13 +141,13 @@ mod fusion {
 
             impl<B1: FusionBackend + BoolVisionOps> Operation<B1::FusionRuntime> for ConnCompStats<B1> {
                 fn execute(
-                    self: Box<Self>,
+                    &self,
                     handles: &mut HandleContainer<
                         <B1::FusionRuntime as FusionRuntime>::FusionHandle,
                     >,
                 ) {
                     let ([img], [labels, area, left, top, right, bottom, max_label]) =
-                        self.desc.consume();
+                        self.desc.clone().consume();
                     let input = handles.get_bool_tensor::<B1>(&img);
                     let (output, stats) =
                         B1::connected_components_with_stats(input, self.conn, self.opts);
