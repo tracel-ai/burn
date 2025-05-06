@@ -13,4 +13,5 @@
   - [Onnx To Burn Conversion Tool: A Development Guide](./guides/onnx-to-burn-conversion-tool.md)
   - [Adding a New Operation to Burn](./guides/adding-a-new-operation-to-burn.md)
 - [Frequently Encountered Issues](./frequently-encountered-issues/README.md)
+  - [Debugging Tips](./frequently-encountered-issues/debugging-tips.md)
   - [Issues Related To Adding Operators](./frequently-encountered-issues/issues-while-adding-ops.md)
