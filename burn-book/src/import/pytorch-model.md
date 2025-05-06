@@ -297,7 +297,6 @@ example, if the source model contains indices with gaps:
 "model.layers.4.bias"
 ```
 
-
 The recorder will automatically reindex these to be contiguous while preserving their order:
 
 ```
@@ -308,7 +307,6 @@ The recorder will automatically reindex these to be contiguous while preserving 
 "model.layers.2.weight"  // Reindexed from 4
 "model.layers.2.bias"
 ```
-
 
 ### Partial Model Loading
 
