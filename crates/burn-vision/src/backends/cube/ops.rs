@@ -101,7 +101,7 @@ mod fusion {
                     >,
                 ) {
                     let ([img], [labels]) = self.desc.as_fixed();
-                    let input = handles.get_bool_tensor::<B1>(&img);
+                    let input = handles.get_bool_tensor::<B1>(img);
                     let output = B1::connected_components(input, self.conn);
 
                     handles.register_int_tensor::<B1>(&labels.id, output);
@@ -148,7 +148,7 @@ mod fusion {
                 ) {
                     let ([img], [labels, area, left, top, right, bottom, max_label]) =
                         self.desc.as_fixed();
-                    let input = handles.get_bool_tensor::<B1>(&img);
+                    let input = handles.get_bool_tensor::<B1>(img);
                     let (output, stats) =
                         B1::connected_components_with_stats(input, self.conn, self.opts);
 
