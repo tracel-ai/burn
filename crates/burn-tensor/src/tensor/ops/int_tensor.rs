@@ -1,10 +1,8 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use crate::cast::ToElement;
 use crate::{Distribution, ElementConversion, Int, TensorData, backend::Backend, tensor::Shape};
 use alloc::vec::Vec;
-use core::future::Future;
 use core::ops::Range;
 
 use crate::{TensorMetadata, argsort, sort, sort_with_indices};
@@ -33,7 +31,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn int_into_data(tensor: IntTensor<B>) -> impl Future<Output = TensorData> + 'static + Send;
+    fn int_into_data(tensor: IntTensor<B>) -> impl Future<Output = TensorData> + Send;
 
     /// Creates a tensor from the data structure.
     ///
@@ -420,10 +418,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the power of the elements of `rhs`.
     fn int_powi(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B> {
-        B::float_into_int(B::float_powf(
-            B::int_into_float(lhs),
-            B::int_into_float(rhs),
-        ))
+        B::float_into_int(B::float_powi(B::int_into_float(lhs), rhs))
     }
 
     /// Element-wise power with a floatTensor.
@@ -451,7 +446,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
     fn int_powi_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B> {
-        B::float_into_int(B::float_powf_scalar(B::int_into_float(lhs), rhs.to_f32()))
+        B::float_into_int(B::float_powi_scalar(B::int_into_float(lhs), rhs))
     }
 
     /// Element-wise power with a floatTensor.
@@ -782,9 +777,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The maximum element in the tensor along the dimension.
     fn int_max_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         let index = B::int_argmax(tensor.clone(), dim);
-        let ndim = tensor.shape().num_dims();
-
-        B::int_gather(ndim - 1, tensor, index)
+        B::int_gather(dim, tensor, index)
     }
 
     /// Gets the maximum elements and corresponding indices along a dimension.
@@ -862,9 +855,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The minimum element in the tensor along the dimension.
     fn int_min_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         let index = B::int_argmin(tensor.clone(), dim);
-        let ndim = tensor.shape().num_dims();
-
-        B::int_gather(ndim - 1, tensor, index)
+        B::int_gather(dim, tensor, index)
     }
 
     /// Gets the minimum elements and corresponding indices along a dimension.
@@ -879,8 +870,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The minimum elements and corresponding indices along the dimension.
     fn int_min_dim_with_indices(tensor: IntTensor<B>, dim: usize) -> (IntTensor<B>, IntTensor<B>) {
         let indices = B::int_argmin(tensor.clone(), dim);
-        let ndim = tensor.shape().num_dims();
-        let values = B::int_gather(ndim - 1, tensor, indices.clone());
+        let values = B::int_gather(dim, tensor, indices.clone());
 
         (values, indices)
     }

@@ -30,5 +30,13 @@ pub mod burn;
 #[cfg(feature = "pytorch")]
 pub mod pytorch;
 
+/// The Safetensors module for recorder.
+#[cfg(feature = "safetensors")]
+pub mod safetensors;
+
+// Enabled when the `pytorch` or `safetensors` feature is enabled.
+#[cfg(any(feature = "pytorch", feature = "safetensors"))]
+mod common;
+
 mod formatter;
 pub use formatter::*;

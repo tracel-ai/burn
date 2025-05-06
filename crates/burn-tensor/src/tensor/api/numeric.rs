@@ -3801,7 +3801,7 @@ impl<B: Backend> Numeric<B> for Int {
     }
 
     fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        B::int_powf_scalar(lhs, rhs.elem())
+        B::int_powi_scalar(lhs, rhs.elem())
     }
 
     fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
@@ -4227,9 +4227,9 @@ impl<B: Backend> Numeric<B> for Float {
     fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(B::float_powf_scalar(lhs, rhs.elem()))
+                TensorPrimitive::Float(B::float_powi_scalar(lhs, rhs.elem()))
             }
-            TensorPrimitive::QFloat(lhs) => B::q_powf_scalar(lhs, rhs.elem()),
+            TensorPrimitive::QFloat(lhs) => B::q_powi_scalar(lhs, rhs.elem()),
         }
     }
 

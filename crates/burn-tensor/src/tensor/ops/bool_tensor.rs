@@ -33,7 +33,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn bool_into_data(tensor: BoolTensor<B>) -> impl Future<Output = TensorData> + 'static + Send;
+    fn bool_into_data(tensor: BoolTensor<B>) -> impl Future<Output = TensorData> + Send;
 
     /// Creates a tensor from the data structure.
     ///

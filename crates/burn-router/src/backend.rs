@@ -67,6 +67,6 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
 
     fn sync(device: &Self::Device) {
         let client = get_client::<R>(device);
-        burn_common::future::block_on(client.sync());
+        client.sync();
     }
 }

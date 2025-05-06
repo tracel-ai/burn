@@ -1,4 +1,5 @@
 use alloc::sync::Arc;
+use burn_common::future::DynFut;
 use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorId, TensorIr};
 use burn_tensor::{
     DType, Shape, TensorData,
@@ -102,11 +103,11 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                async fn read_tensor(&self, tensor: TensorIr) -> TensorData {
+                fn read_tensor(&self, tensor: TensorIr) -> DynFut<TensorData> {
                     match self {
-                        Self::$DefaultBackend(runner) => runner.read_tensor(tensor).await,
+                        Self::$DefaultBackend(runner) => runner.read_tensor(tensor),
                         $(
-                            Self::$OtherBackend(runner) => runner.read_tensor(tensor).await,
+                            Self::$OtherBackend(runner) => runner.read_tensor(tensor),
                         )+
                     }
                 }
@@ -174,17 +175,13 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn sync(&self) -> impl core::future::Future<Output = ()> + Send {
-                    let fut: core::pin::Pin<Box<dyn core::future::Future<Output = ()> + Send>> = match self {
-                        Self::$DefaultBackend(runner) => Box::pin(runner.sync()),
+                fn sync(&self) {
+                    match self {
+                        Self::$DefaultBackend(runner) => runner.sync(),
                         $(
-                            Self::$OtherBackend(runner) => Box::pin(runner.sync()),
+                            Self::$OtherBackend(runner) => runner.sync(),
                         )+
                     };
-
-                    async move  {
-                        fut.await;
-                    }
                 }
 
                 fn seed(&self, seed: u64) {

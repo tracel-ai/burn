@@ -1,5 +1,3 @@
-use core::future::Future;
-
 use super::{BasicOps, Tensor, TensorPrimitive};
 use crate::{
     TensorData,
@@ -50,27 +48,23 @@ impl<B: Backend> Transaction<B> {
 
     /// Executes the transaction asynchronously and returns the [data](TensorData) in the same order
     /// in which they were [registered](Self::register).
-    pub fn execute_async(self) -> impl Future<Output = Vec<TensorData>> {
-        let fut = B::tr_execute(self.op);
+    pub async fn execute_async(self) -> Vec<TensorData> {
+        let result = B::tr_execute(self.op).await;
 
-        async move {
-            let result = fut.await;
+        let mut floats: Vec<_> = result.read_floats.into_iter().map(Some).collect();
+        let mut qfloats: Vec<_> = result.read_qfloats.into_iter().map(Some).collect();
+        let mut ints: Vec<_> = result.read_ints.into_iter().map(Some).collect();
+        let mut bools: Vec<_> = result.read_bools.into_iter().map(Some).collect();
 
-            let mut floats: Vec<_> = result.read_floats.into_iter().map(Some).collect();
-            let mut qfloats: Vec<_> = result.read_qfloats.into_iter().map(Some).collect();
-            let mut ints: Vec<_> = result.read_ints.into_iter().map(Some).collect();
-            let mut bools: Vec<_> = result.read_bools.into_iter().map(Some).collect();
-
-            self.orders
-                .into_iter()
-                .map(|order| match order {
-                    Order::Float(index) => floats.get_mut(index).unwrap().take().unwrap(),
-                    Order::QFloat(index) => qfloats.get_mut(index).unwrap().take().unwrap(),
-                    Order::Int(index) => ints.get_mut(index).unwrap().take().unwrap(),
-                    Order::Bool(index) => bools.get_mut(index).unwrap().take().unwrap(),
-                })
-                .collect::<Vec<_>>()
-        }
+        self.orders
+            .into_iter()
+            .map(|order| match order {
+                Order::Float(index) => floats.get_mut(index).unwrap().take().unwrap(),
+                Order::QFloat(index) => qfloats.get_mut(index).unwrap().take().unwrap(),
+                Order::Int(index) => ints.get_mut(index).unwrap().take().unwrap(),
+                Order::Bool(index) => bools.get_mut(index).unwrap().take().unwrap(),
+            })
+            .collect::<Vec<_>>()
     }
 
     pub(crate) fn register_float(&mut self, tensor: TensorPrimitive<B>) {

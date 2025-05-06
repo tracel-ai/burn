@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, vec::Vec};
+use burn_common::future::DynFut;
 use core::{
-    future::Future,
     ops::DerefMut,
     sync::atomic::{AtomicBool, AtomicU64, Ordering},
 };
@@ -31,7 +31,9 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     /// Register a new tensor operation to be executed by the (runner) server.
     fn register(&self, op: OperationIr);
     /// Read the values contained by a tensor.
-    fn read_tensor(&self, tensor: TensorIr) -> impl Future<Output = TensorData> + Send;
+    fn read_tensor(&self, tensor: TensorIr) -> DynFut<TensorData>;
+    /// Sync the runner, ensure that all computations are finished.
+    fn sync(&self);
     /// Create a new [RouterTensor] from the tensor data.
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self>;
     /// Create a new [RouterTensor] with no resources associated.
@@ -42,8 +44,7 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     fn device(&self) -> Self::Device;
     /// Drop the tensor with the given [tensor id](TensorId).
     fn register_orphan(&self, id: &TensorId);
-    /// Sync the runner, ensure that all computations are finished.
-    fn sync(&self) -> impl Future<Output = ()> + Send;
+
     /// Seed the runner.
     fn seed(&self, seed: u64);
 }

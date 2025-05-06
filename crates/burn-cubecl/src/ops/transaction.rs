@@ -12,10 +12,9 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    fn tr_execute(
+    async fn tr_execute(
         transaction: burn_tensor::ops::TransactionPrimitive<Self>,
-    ) -> impl std::future::Future<Output = burn_tensor::ops::TransactionPrimitiveResult> + 'static + Send
-    {
+    ) -> burn_tensor::ops::TransactionPrimitiveResult {
         let mut bindings = Vec::new();
         let mut client = None;
 
@@ -59,40 +58,38 @@ where
 
         let client = client.unwrap();
 
-        async move {
-            let mut data: Vec<Option<_>> = client
-                .read_async(bindings)
-                .await
-                .into_iter()
-                .map(Some)
-                .collect::<Vec<Option<_>>>();
+        let mut data: Vec<Option<_>> = client
+            .read_async(bindings)
+            .await
+            .into_iter()
+            .map(Some)
+            .collect::<Vec<Option<_>>>();
 
-            let mut result = TransactionPrimitiveResult::default();
+        let mut result = TransactionPrimitiveResult::default();
 
-            for kind in kinds {
-                match kind {
-                    Kind::Float(index, shape, dtype) => {
-                        let bytes = data.get_mut(index).unwrap().take().unwrap();
-                        result
-                            .read_floats
-                            .push(TensorData::from_bytes(bytes, shape, dtype));
-                    }
-                    Kind::Int(index, shape, dtype) => {
-                        let bytes = data.get_mut(index).unwrap().take().unwrap();
-                        result
-                            .read_ints
-                            .push(TensorData::from_bytes(bytes, shape, dtype));
-                    }
-                    Kind::Bool(index, shape, dtype) => {
-                        let bytes = data.get_mut(index).unwrap().take().unwrap();
-                        result
-                            .read_bools
-                            .push(TensorData::from_bytes(bytes, shape, dtype));
-                    }
+        for kind in kinds {
+            match kind {
+                Kind::Float(index, shape, dtype) => {
+                    let bytes = data.get_mut(index).unwrap().take().unwrap();
+                    result
+                        .read_floats
+                        .push(TensorData::from_bytes(bytes, shape, dtype));
+                }
+                Kind::Int(index, shape, dtype) => {
+                    let bytes = data.get_mut(index).unwrap().take().unwrap();
+                    result
+                        .read_ints
+                        .push(TensorData::from_bytes(bytes, shape, dtype));
+                }
+                Kind::Bool(index, shape, dtype) => {
+                    let bytes = data.get_mut(index).unwrap().take().unwrap();
+                    result
+                        .read_bools
+                        .push(TensorData::from_bytes(bytes, shape, dtype));
                 }
             }
-
-            result
         }
+
+        result
     }
 }

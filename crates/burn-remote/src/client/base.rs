@@ -70,7 +70,7 @@ impl WsSender {
     pub(crate) fn send_callback(
         &self,
         task: ComputeTask,
-    ) -> impl Future<Output = TaskResponseContent> + Send {
+    ) -> impl Future<Output = TaskResponseContent> + Send + use<> {
         let position = self
             .position_counter
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
