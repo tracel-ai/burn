@@ -271,4 +271,4 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Tests
         # run: CUBECL_DEBUG_LOG=stdout cargo xtask test --ci
-        run: cargo test --color always -p burn-wgpu tests::cube_fusion::autodiff::f32_ty::ad_conv1d::tests::test_conv1d_basic
+        run: cargo test --color always -p burn-wgpu test_conv1d_basic
