@@ -1054,13 +1054,13 @@ pub fn pad_config(node: &Node) -> PadConfig {
                 .and_then(|input| match &input.value.as_ref().expect("Value input must be present").data {
                     Data::Float16s(constant_value) => {
                         constant_value.first().map(|&f| f32::from(f))
-                    }
+                    },
                     Data::Float32s(constant_value) => {
                         constant_value.first().copied()
-                    }
+                    },
                     Data::Float64s(constant_value) => {
                         constant_value.first().map(|&f| f as f32)
-                    }
+                    },
                     Data::Float16(constant_value) => Some(f32::from(*constant_value)),
                     Data::Float32(constant_value) => Some(*constant_value),
                     Data::Float64(constant_value) => Some(*constant_value as f32),
@@ -1940,4 +1940,12 @@ pub fn gemm_config(curr: &Node) -> (f32, f32, i64, i64) {
         .unwrap_or(0);
 
     (alpha, beta, trans_a, trans_b)
+}
+
+/// Configuration for BitShift operation
+pub fn bitshift_config(node: &Node) -> String {
+    node.attrs
+        .get("direction")
+        .map(|val| val.clone().into_string())
+        .unwrap_or("left".to_string())
 }

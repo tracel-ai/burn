@@ -21,6 +21,11 @@ use crate::{
             avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
             binary::BinaryNode,
+            bitshift::BitShiftNode,
+            bitwiseand::BitwiseAndNode,
+            bitwisenot::BitwiseNotNode,
+            bitwiseor::BitwiseOrNode,
+            bitwisexor::BitwiseXorNode,
             clip::ClipNode,
             concat::ConcatNode,
             constant::{ConstantNode, ConstantValue},
@@ -70,14 +75,15 @@ use crate::{
 };
 
 use super::op_configuration::{
-    argmax_config, avg_pool1d_config, avg_pool2d_config, batch_norm_config, clip_config,
-    concat_config, conv_transpose1d_config, conv_transpose2d_config, conv_transpose3d_config,
-    conv1d_config, conv2d_config, conv3d_config, dropout_config, expand_config, flatten_config,
-    gather_config, gemm_config, hard_sigmoid_config, layer_norm_config, leaky_relu_config,
-    linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, one_hot_config,
-    pad_config, reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
-    reduce_sum_config, reshape_config, resize_config, shape_config, softmax_config, split_config,
-    squeeze_config, tile_config, top_k_config, transpose_config, trilu_config, unsqueeze_config,
+    argmax_config, avg_pool1d_config, avg_pool2d_config, batch_norm_config, bitshift_config,
+    clip_config, concat_config, conv_transpose1d_config, conv_transpose2d_config,
+    conv_transpose3d_config, conv1d_config, conv2d_config, conv3d_config, dropout_config,
+    expand_config, flatten_config, gather_config, gemm_config, hard_sigmoid_config,
+    layer_norm_config, leaky_relu_config, linear_config, log_softmax_config, max_pool1d_config,
+    max_pool2d_config, one_hot_config, pad_config, reduce_max_config, reduce_mean_config,
+    reduce_min_config, reduce_prod_config, reduce_sum_config, reshape_config, resize_config,
+    shape_config, softmax_config, split_config, squeeze_config, tile_config, top_k_config,
+    transpose_config, trilu_config, unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -275,6 +281,11 @@ impl ParsedOnnxGraph {
             match node.node_type {
                 NodeType::Add => graph.register(Self::add_conversion(node)),
                 NodeType::ArgMax => graph.register(Self::argmax_conversion(node)),
+                NodeType::BitShift => graph.register(Self::bitshift_conversion(node)),
+                NodeType::BitwiseAnd => graph.register(Self::bitwise_and_conversion(node)),
+                NodeType::BitwiseOr => graph.register(Self::bitwise_or_conversion(node)),
+                NodeType::BitwiseXor => graph.register(Self::bitwise_xor_conversion(node)),
+                NodeType::BitwiseNot => graph.register(Self::bitwise_not_conversion(node)),
                 NodeType::Sub => graph.register(Self::sub_conversion(node)),
                 NodeType::Mul => graph.register(Self::mul_conversion(node)),
                 NodeType::Div => graph.register(Self::div_conversion(node)),
@@ -639,6 +650,42 @@ impl ParsedOnnxGraph {
         let output = Type::from(node.outputs.first().unwrap());
 
         BinaryNode::equal(lhs, rhs, output)
+    }
+
+    fn bitshift_conversion(node: Node) -> BitShiftNode {
+        let inputs = node.inputs.iter().map(TensorType::from).collect();
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let direction = bitshift_config(&node);
+
+        BitShiftNode::new(inputs, output, direction)
+    }
+
+    fn bitwise_and_conversion(node: Node) -> BitwiseAndNode {
+        let inputs = node.inputs.iter().map(TensorType::from).collect();
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        BitwiseAndNode::new(inputs, output)
+    }
+
+    fn bitwise_or_conversion(node: Node) -> BitwiseOrNode {
+        let inputs = node.inputs.iter().map(TensorType::from).collect();
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        BitwiseOrNode::new(inputs, output)
+    }
+
+    fn bitwise_xor_conversion(node: Node) -> BitwiseXorNode {
+        let inputs = node.inputs.iter().map(TensorType::from).collect();
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        BitwiseXorNode::new(inputs, output)
+    }
+
+    fn bitwise_not_conversion(node: Node) -> BitwiseNotNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        BitwiseNotNode::new(input, output)
     }
 
     fn max_conversion(node: Node) -> BinaryNode {

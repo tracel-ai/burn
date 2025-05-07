@@ -23,6 +23,17 @@ include_models!(
     avg_pool1d,
     avg_pool2d,
     batch_norm,
+    bitshift_left,
+    bitshift_left_scalar,
+    bitshift_right,
+    bitshift_right_scalar,
+    bitwise_and,
+    bitwise_and_scalar,
+    bitwise_or,
+    bitwise_or_scalar,
+    bitwise_not,
+    bitwise_xor,
+    bitwise_xor_scalar,
     cast,
     clip,
     concat,
@@ -344,6 +355,162 @@ mod tests {
         output_mm.to_data().assert_eq(&expected_mm, true);
         output_vm.to_data().assert_eq(&expected_vm, true);
         output_mv.to_data().assert_eq(&expected_mv, true);
+    }
+
+    #[test]
+    fn bitshift_left_tensors() {
+        // Initialize the model with weights (loaded from the exported file)
+        let device = Default::default();
+        let model: bitshift_left::Model<Backend> = bitshift_left::Model::new(&device);
+        // Run the model
+        let input1 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
+        let input2 = Tensor::<Backend, 1, Int>::from_ints([1, 1, 2, 2], &device);
+        let output = model.forward(input1, input2);
+        let expected = TensorData::from([2i64, 4, 12, 16]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn bitshift_left_scalar_tensor() {
+        // Initialize the model with weights (loaded from the exported file)
+        let device = Default::default();
+        let model: bitshift_left_scalar::Model<Backend> = bitshift_left_scalar::Model::new(&device);
+        // Run the model
+        let input1 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
+        let scalar = 2;
+        let output = model.forward(input1, scalar);
+        let expected = TensorData::from([4i64, 8, 12, 16]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn bitshift_right_tensors() {
+        let device = Default::default();
+        let model: bitshift_right::Model<Backend> = bitshift_right::Model::new(&device);
+
+        // Run the model
+        let input1 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
+        let input2 = Tensor::<Backend, 1, Int>::from_ints([1, 1, 2, 2], &device);
+        let output = model.forward(input1, input2);
+        let expected = TensorData::from([0i64, 1, 0, 1]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn bitshift_right_scalar_tensor() {
+        // Initialize the model with weights (loaded from the exported file)
+        let device = Default::default();
+        let model: bitshift_right_scalar::Model<Backend> =
+            bitshift_right_scalar::Model::new(&device);
+        // Run the model
+        let input1 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
+        let scalar = 2;
+        let output = model.forward(input1, scalar);
+        let expected = TensorData::from([0i64, 0, 0, 1]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn bitwise_and_tensors() {
+        let device = Default::default();
+        let model: bitwise_and::Model<Backend> = bitwise_and::Model::new(&device);
+
+        // Run the model
+        let input1 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
+        let input2 = Tensor::<Backend, 1, Int>::from_ints([1, 1, 2, 2], &device);
+        let output = model.forward(input1, input2);
+        let expected = TensorData::from([1i64, 0, 2, 0]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn bitwise_and_scalar_tensor() {
+        let device = Default::default();
+        let model: bitwise_and_scalar::Model<Backend> = bitwise_and_scalar::Model::new(&device);
+
+        // Run the model
+        let input1 = Tensor::<Backend, 1, Int>::from_ints([1, 2, 3, 4], &device);
+        let scalar = 2;
+        let output = model.forward(input1, scalar);
+        let expected = TensorData::from([0i64, 2, 2, 0]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn bitwise_or_tensors() {
+        // Initialize the model
+        let device = Default::default();
+        let model: bitwise_or::Model<Backend> = bitwise_or::Model::new(&device);
+
+        // Run the model
+        let input1 = Tensor::<Backend, 2, Int>::from_ints([[1, 2, 3, 4]], &device);
+        let input2 = Tensor::<Backend, 2, Int>::from_ints([[1, 1, 2, 2]], &device);
+        let output = model.forward(input1, input2);
+        let expected = TensorData::from([[1i64, 3, 3, 6]]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn bitwise_or_scalar_tensor() {
+        // Initialize the model
+        let device = Default::default();
+        let model: bitwise_or_scalar::Model<Backend> = bitwise_or_scalar::Model::new(&device);
+
+        // Run the model
+        let input1 = Tensor::<Backend, 2, Int>::from_ints([[1, 2, 3, 4]], &device);
+        let scalar = 2;
+        let output = model.forward(input1, scalar);
+        let expected = TensorData::from([[3i64, 2, 3, 6]]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn bitwise_not_tensors() {
+        let device = Default::default();
+        let model: bitwise_not::Model<Backend> = bitwise_not::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 2, Int>::from_ints([[1, 2, 3, 4]], &device);
+        let output = model.forward(input);
+        let expected = TensorData::from([[-2i64, -3, -4, -5]]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn bitwise_xor_tensors() {
+        let device = Default::default();
+        let model: bitwise_xor::Model<Backend> = bitwise_xor::Model::new(&device);
+
+        // Run the model
+        let input1 = Tensor::<Backend, 2, Int>::from_ints([[1, 2, 3, 4]], &device);
+        let input2 = Tensor::<Backend, 2, Int>::from_ints([[1, 1, 2, 2]], &device);
+        let output = model.forward(input1, input2);
+        let expected = TensorData::from([[0i64, 2, 1, 6]]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn bitwise_xor_scalar_tensor() {
+        let device = Default::default();
+        let model: bitwise_xor_scalar::Model<Backend> = bitwise_xor_scalar::Model::new(&device);
+
+        // Run the model
+        let input1 = Tensor::<Backend, 2, Int>::from_ints([[1, 2, 3, 4]], &device);
+        let scalar = 2;
+        let output = model.forward(input1, scalar);
+        let expected = TensorData::from([[3i64, 0, 1, 6]]);
+
+        output.to_data().assert_eq(&expected, true);
     }
 
     #[test]
