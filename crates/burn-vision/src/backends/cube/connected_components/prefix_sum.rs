@@ -35,7 +35,7 @@ fn prefix_sum_kernel<I: Int>(
     if UNIT_POS_X == 0 {
         broadcast[0] = Atomic::add(&scan_bump[batch], I::new(1));
     }
-    sync_units();
+    sync_cube();
     let part_id = u32::cast_from(broadcast[0]);
 
     let plane_id = UNIT_POS_X / PLANE_DIM;
@@ -104,7 +104,7 @@ fn prefix_sum_kernel<I: Int>(
             reduce[plane_id] = prev;
         }
     }
-    sync_units();
+    sync_cube();
 
     //Non-divergent subgroup agnostic inclusive scan across subgroup reductions
     let lane_log = count_trailing_zeros(PLANE_DIM);
@@ -122,7 +122,7 @@ fn prefix_sum_kernel<I: Int>(
             if pred_0 {
                 reduce[i_0] = t_0;
             }
-            sync_units();
+            sync_cube();
 
             if j != PLANE_DIM {
                 let rshift = j >> lane_log;
@@ -142,7 +142,7 @@ fn prefix_sum_kernel<I: Int>(
             j <<= lane_log;
         }
     }
-    sync_units();
+    sync_cube();
 
     //Device broadcast
     if UNIT_POS_X == 0 {
@@ -176,7 +176,7 @@ fn prefix_sum_kernel<I: Int>(
                 }
             }
         }
-        sync_units();
+        sync_cube();
     }
 
     {
