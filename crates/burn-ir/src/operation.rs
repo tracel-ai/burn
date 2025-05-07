@@ -11,7 +11,7 @@ use burn_tensor::{
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
     },
-    quantization::QuantizationScheme,
+    quantization::QuantScheme,
 };
 
 use crate::TensorIr;
@@ -37,15 +37,15 @@ impl CustomOpIr {
         }
     }
 
-    /// Consume the intermediate representation, and get the in and output tensors.
-    pub fn consume<const N_IN: usize, const N_OUT: usize>(
-        self,
-    ) -> ([TensorIr; N_IN], [TensorIr; N_OUT]) {
+    /// Cast the intermediate representation, and get the in and output tensors.
+    pub fn as_fixed<const N_IN: usize, const N_OUT: usize>(
+        &self,
+    ) -> (&[TensorIr; N_IN], &[TensorIr; N_OUT]) {
         (
-            self.inputs.try_into().expect(
+            self.inputs.as_slice().try_into().expect(
                 "Wrong number of inputs expected (expected {D}, is {}), check your implementation",
             ),
-            self.outputs.try_into().expect(
+            self.outputs.as_slice().try_into().expect(
                 "Wrong number of outputs expected (expected {D}, is {}), check your implementation",
             ),
         )
@@ -978,7 +978,7 @@ pub struct QuantizationParametersIr {
 pub struct QuantizeOpIr {
     pub tensor: TensorIr,
     pub qparams: QuantizationParametersIr,
-    pub scheme: QuantizationScheme,
+    pub scheme: QuantScheme,
     pub out: TensorIr,
 }
 

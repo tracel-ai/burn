@@ -619,9 +619,7 @@ pub mod backward {
         });
 
         #[cfg(not(feature = "std"))]
-        run_par!(|| {
-            iter_par!(Zip::indexed(columns)).for_each(|args0, args1| compute_for_each(args0, args1))
-        });
+        run_par!(|| { iter_par!(Zip::indexed(columns)).for_each(&compute_for_each) });
 
         let grad_in: Array1<F> = grad_in
             .into_iter()

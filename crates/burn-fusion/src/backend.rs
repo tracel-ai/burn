@@ -1,4 +1,8 @@
-use crate::{FusionClientLocator, FusionTensor, client::FusionClient, stream::Context};
+use crate::{
+    FusionClientLocator, FusionTensor,
+    client::FusionClient,
+    stream::{Context, Operation},
+};
 use burn_ir::{BackendIr, OperationIr, TensorHandle};
 use burn_tensor::{
     Device, Element,
@@ -110,7 +114,11 @@ pub trait OptimizationBuilder<O>: Send {
 /// The operation created from the [builder](OptimizationBuilder).
 pub trait Optimization<R: FusionRuntime>: Send {
     /// Execute the operation.
-    fn execute(&mut self, context: &mut Context<'_, R::FusionHandle>);
+    fn execute(
+        &mut self,
+        context: &mut Context<'_, R::FusionHandle>,
+        operations: &[Box<dyn Operation<R>>],
+    );
     /// The number of registered operations in this optimization.
     fn len(&self) -> usize;
     /// If the current optimization is empty.

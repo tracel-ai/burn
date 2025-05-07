@@ -415,7 +415,7 @@ impl From<DType> for FusePrecision {
             DType::U16 => Self::U16,
             DType::U8 => Self::U8,
             DType::Bool => Self::Bool,
-            _ => panic!("Unsupported"),
+            _ => panic!("Unsupported precision for fusion: {value:?}"),
         }
     }
 }

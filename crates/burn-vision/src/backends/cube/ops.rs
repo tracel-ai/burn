@@ -86,7 +86,7 @@ mod fusion {
             let width = img.shape[1];
             let client = img.client.clone();
 
-            #[derive(derive_new::new)]
+            #[derive(derive_new::new, Clone)]
             struct ConnComp<B> {
                 desc: CustomOpIr,
                 conn: Connectivity,
@@ -95,13 +95,13 @@ mod fusion {
 
             impl<B1: FusionBackend + BoolVisionOps> Operation<B1::FusionRuntime> for ConnComp<B1> {
                 fn execute(
-                    self: Box<Self>,
+                    &self,
                     handles: &mut HandleContainer<
                         <B1::FusionRuntime as FusionRuntime>::FusionHandle,
                     >,
                 ) {
-                    let ([img], [labels]) = self.desc.consume();
-                    let input = handles.get_bool_tensor::<B1>(&img);
+                    let ([img], [labels]) = self.desc.as_fixed();
+                    let input = handles.get_bool_tensor::<B1>(img);
                     let output = B1::connected_components(input, self.conn);
 
                     handles.register_int_tensor::<B1>(&labels.id, output);
@@ -131,7 +131,7 @@ mod fusion {
             let width = img.shape[1];
             let client = img.client.clone();
 
-            #[derive(derive_new::new)]
+            #[derive(derive_new::new, Clone)]
             struct ConnCompStats<B> {
                 desc: CustomOpIr,
                 conn: Connectivity,
@@ -141,14 +141,14 @@ mod fusion {
 
             impl<B1: FusionBackend + BoolVisionOps> Operation<B1::FusionRuntime> for ConnCompStats<B1> {
                 fn execute(
-                    self: Box<Self>,
+                    &self,
                     handles: &mut HandleContainer<
                         <B1::FusionRuntime as FusionRuntime>::FusionHandle,
                     >,
                 ) {
                     let ([img], [labels, area, left, top, right, bottom, max_label]) =
-                        self.desc.consume();
-                    let input = handles.get_bool_tensor::<B1>(&img);
+                        self.desc.as_fixed();
+                    let input = handles.get_bool_tensor::<B1>(img);
                     let (output, stats) =
                         B1::connected_components_with_stats(input, self.conn, self.opts);
 
