@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::reduce::args::FusedReduceArgs;
 use crate::shared::ir::{FusePrecision, RefLayout};
+use crate::shared::trace::executor::ScalarIds;
 use crate::shared::trace::{TraceError, TraceRunner};
 use crate::shared::trace::{TuneOutput, Vectorization};
 use crate::shared::{
@@ -203,6 +204,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             &self.device,
             context,
             &self.reduce,
+            &mut Default::default(),
         )
     }
 
@@ -216,6 +218,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             &self.device,
             context,
             &self.reduce_plane,
+            &mut Default::default(),
         )
     }
 
@@ -229,6 +232,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             &self.device,
             context,
             &self.reduce_shared_plane,
+            &mut Default::default(),
         )
     }
 
@@ -236,10 +240,19 @@ impl<R: Runtime> ReduceOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> TuneOutput<R> {
+        // We have to share the same scalar ids between the two traces (read & write).
+        let mut scalars = ScalarIds::default();
+
         #[allow(unused_mut)] // It is used when #[cfg(test)] is true.
         let mut output_read = self
             .trace_read_fallback
-            .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
+            .run::<R, BT, ElemwiseRunner>(
+                &self.client,
+                &self.device,
+                context,
+                &ElemwiseRunner,
+                &mut scalars,
+            )
             .unwrap();
 
         self.fallback
@@ -248,12 +261,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             .run(context);
 
         #[cfg(feature = "autotune-checks")]
-        let mut output_checks = TuneOutput::<R>::Checked {
-            handles: Default::default(),
-        };
-
-        #[cfg(feature = "autotune-checks")]
-        if let TuneOutput::Checked { handles } = &mut output_checks {
+        if let TuneOutput::Checked { handles } = &mut output_read {
             let out_desc = context.tensors.get(&self.reduce.op.out.id).unwrap();
             let handle_out = context
                 .handles
@@ -267,14 +275,16 @@ impl<R: Runtime> ReduceOptimization<R> {
 
         let output_write = self
             .trace_write_fallback
-            .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
+            .run::<R, BT, ElemwiseRunner>(
+                &self.client,
+                &self.device,
+                context,
+                &ElemwiseRunner,
+                &mut scalars,
+            )
             .unwrap();
 
-        #[cfg(feature = "autotune-checks")]
-        return output_read.merge(output_write).merge(output_checks);
-
-        #[cfg(not(feature = "autotune-checks"))]
-        return output_read.merge(output_write);
+        output_read.merge(output_write)
     }
     /// Returns the number of output buffers added by fusion.
     pub fn num_ops_fused(&self) -> usize {

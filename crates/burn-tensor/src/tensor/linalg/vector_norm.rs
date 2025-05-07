@@ -181,7 +181,10 @@ pub fn l2_norm<B: Backend, const D: usize>(x: Tensor<B, D>, dim: usize) -> Tenso
 ///
 /// The ``L(p)`` norm of the input tensor.
 pub fn lp_norm<B: Backend, const D: usize>(x: Tensor<B, D>, p: f64, dim: usize) -> Tensor<B, D> {
-    x.abs().powf_scalar(p).sum_dim(dim).powf_scalar(1. / p)
+    // x.abs().powf_scalar(p).sum_dim(dim).powf_scalar(1. / p)
+    let tmp = x.abs().powf_scalar(p).sum_dim(dim);
+    // B::sync(&B::Device::default());
+    tmp.powf_scalar(1. / p)
 }
 
 /// Computes the L:INFINITY norm of a tensor along a specified dimension.
