@@ -1,0 +1,177 @@
+#[burn_tensor_testgen::testgen(vector_norm)]
+mod tests {
+    use super::*;
+    use burn_tensor::Tolerance;
+    use burn_tensor::backend::Backend;
+    use burn_tensor::linalg;
+
+    #[test]
+    fn test_max_min_abs() {
+        let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
+
+        linalg::vector_norm(x.clone(), linalg::Norm::LInf, 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[3., 4.]]).into_data(), true);
+        linalg::max_abs_norm(x.clone(), 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[3., 4.]]).into_data(), true);
+
+        linalg::vector_norm(x.clone(), -f64::INFINITY, 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1., 2.]]).into_data(), true);
+        linalg::vector_norm(x.clone(), f64::NEG_INFINITY, 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1., 2.]]).into_data(), true);
+        linalg::min_abs_norm(x.clone(), 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1., 2.]]).into_data(), true);
+
+        linalg::vector_norm(x.clone(), f64::INFINITY, 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[2.], [4.]]).into_data(), true);
+        linalg::max_abs_norm(x.clone(), 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[2.], [4.]]).into_data(), true);
+
+        linalg::vector_norm(x.clone(), -f64::INFINITY, 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1.], [3.]]).into_data(), true);
+        linalg::vector_norm(x.clone(), f64::NEG_INFINITY, 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1.], [3.]]).into_data(), true);
+        linalg::min_abs_norm(x.clone(), 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1.], [3.]]).into_data(), true);
+
+        // Test with integer tensor
+        let z = x.clone().int();
+
+        linalg::max_abs_norm(z.clone(), 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[3., 4.]]).int().into_data(), true);
+        linalg::max_abs_norm(z.clone(), 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[2], [4]]).int().into_data(), true);
+
+        linalg::min_abs_norm(z.clone(), 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1, 2]]).int().into_data(), true);
+        linalg::min_abs_norm(z.clone(), 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1], [3]]).int().into_data(), true);
+    }
+
+    #[test]
+    fn test_l0_norm() {
+        let x = TestTensor::<2>::from([[1.0, -2.0, 0.], [0.0, 0., 4.]]);
+
+        linalg::vector_norm(x.clone(), linalg::Norm::L0, 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1., 1., 1.]]).into_data(), true);
+        linalg::l0_norm(x.clone(), 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1., 1., 1.]]).into_data(), true);
+
+        linalg::vector_norm(x.clone(), 0.0, 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[2.], [1.]]).into_data(), true);
+        linalg::l0_norm(x.clone(), 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[2.], [1.]]).into_data(), true);
+
+        // Test with integer tensor
+        let z = TestTensor::<2>::from([[1, -2, 0], [0, 0, 4]]).int();
+
+        linalg::l0_norm(z.clone(), 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[1, 1, 1]]).int().into_data(), true);
+        linalg::l0_norm(z.clone(), 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[2], [1]]).int().into_data(), true);
+    }
+
+    #[test]
+    fn test_l1_norm() {
+        let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
+
+        linalg::vector_norm(x.clone(), linalg::Norm::L1, 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[4.0, 6.0]]).into_data(), true);
+        linalg::l1_norm(x.clone(), 0)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[4.0, 6.0]]).into_data(), true);
+
+        linalg::vector_norm(x.clone(), 1.0, 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[3.0], [7.0]]).into_data(), true);
+        linalg::l1_norm(x.clone(), 1)
+            .into_data()
+            .assert_eq(&TestTensor::<2>::from([[3.0], [7.0]]).into_data(), true);
+    }
+
+    #[test]
+    fn test_lp_norm() {
+        let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
+        let tolerance = Tolerance::<f32>::absolute(1e-5);
+
+        linalg::vector_norm(x.clone(), 3, 0)
+            .into_data()
+            .assert_approx_eq(
+                &TestTensor::<2>::from([[3.0365891, 4.1601677]]).into_data(),
+                tolerance,
+            );
+        linalg::lp_norm(x.clone(), 3., 0)
+            .into_data()
+            .assert_approx_eq(
+                &TestTensor::<2>::from([[3.0365891, 4.1601677]]).into_data(),
+                tolerance,
+            );
+    }
+
+    #[test]
+    fn test_l2_norm() {
+        let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
+        let tolerance = Tolerance::<f32>::absolute(1e-5);
+
+        linalg::vector_norm(x.clone(), linalg::Norm::L2, 0)
+            .into_data()
+            .assert_approx_eq(
+                &TestTensor::<2>::from([[3.1622776601683795, 4.47213595499958]]).into_data(),
+                tolerance,
+            );
+        linalg::l2_norm(x.clone(), 0).into_data().assert_approx_eq(
+            &TestTensor::<2>::from([[3.1622776601683795, 4.47213595499958]]).into_data(),
+            tolerance,
+        );
+
+        linalg::vector_norm(x.clone(), 2.0, 1)
+            .into_data()
+            .assert_approx_eq(
+                &TestTensor::<2>::from([[2.23606797749979], [5.0]]).into_data(),
+                tolerance,
+            );
+        linalg::l2_norm(x.clone(), 1).into_data().assert_approx_eq(
+            &TestTensor::<2>::from([[2.23606797749979], [5.0]]).into_data(),
+            tolerance,
+        );
+    }
+
+    #[test]
+    fn test_normalize() {
+        let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
+
+        linalg::vector_normalize(x.clone(), 1.0, 0, 0.25)
+            .into_data()
+            .assert_eq(
+                &TestTensor::<2>::from([[1. / 4., 2. / 6.], [3. / 4., 4. / 6.]]).into_data(),
+                true,
+            );
+
+        linalg::vector_normalize(x.clone(), 1.0, 0, 5.)
+            .into_data()
+            .assert_eq(
+                &TestTensor::<2>::from([[1. / 5., 2. / 6.], [3. / 5., 4. / 6.]]).into_data(),
+                true,
+            );
+    }
+}
