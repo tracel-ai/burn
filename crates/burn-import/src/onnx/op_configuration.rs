@@ -759,7 +759,7 @@ pub fn argmax_config(node: &Node) -> usize {
                         value
                     );
                 }
-            },
+            }
             "keepdims" => {
                 // not all params are supported in burn
                 if value.clone().into_i64() != 1 {
@@ -768,7 +768,7 @@ pub fn argmax_config(node: &Node) -> usize {
                         value
                     );
                 }
-            },
+            }
             _ => {}
         }
     }
@@ -1003,13 +1003,13 @@ pub fn pad_config(node: &Node) -> PadConfig {
                             x as usize
                         })
                         .collect()
-                },
+                }
                 "mode" => {
                     let mode = value.clone().into_string();
                     if mode != "constant" {
                         panic!("only constant mode is supported, given mode is {}", mode);
                     }
-                },
+                }
 
                 _ => {}
             }
@@ -1253,7 +1253,7 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
         Some(TensorData { data, shape, .. }) => {
             assert_eq!(shape.len(), 1, "Reshape: shape tensor must be 1D");
             data.clone().into_i64s()
-        },
+        }
         _ => panic!("Only tensor input is valid for shape"),
     }
 }
@@ -1290,7 +1290,7 @@ pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
             "axes" => panic!("Resize: custom axes attribute is not supported"),
             "coordinate_transformation_mode" => {
                 log::warn!("Resize: coordinate_transformation_mode is ignored")
-            },
+            }
 
             "cubic_coeff_a" => log::warn!("Resize: cubic_coeff_a is ignored"),
             "exclude_outside" => assert_eq!(
@@ -1416,7 +1416,7 @@ pub fn unsqueeze_config(node: &Node) -> UnsqueezeAxes {
             } else {
                 UnsqueezeAxes::Runtime(crate::burn::Type::from(&node.inputs[1]))
             }
-        },
+        }
         _ => panic!("Arg for unsqueeze must be tensor or scalar"),
     }
 }
@@ -1431,11 +1431,11 @@ pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
             "min" => {
                 let min = value.clone().into_f32() as f64;
                 min_result = Some(min);
-            },
+            }
             "max" => {
                 let max = value.clone().into_f32();
                 max_result = Some(max as f64);
-            },
+            }
             _ => {}
         }
     }
