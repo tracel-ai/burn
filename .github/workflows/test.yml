@@ -271,4 +271,4 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Tests
         # run: CUBECL_DEBUG_LOG=stdout cargo xtask test --ci
-        run: cargo test --color always -p burn-wgpu --no-default-features --features autotune,std
+        run: cargo test --color always -p burn-wgpu --no-default-features --features std
