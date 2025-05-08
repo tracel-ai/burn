@@ -1,3 +1,5 @@
+use burn_tensor::module::linear;
+
 use crate as burn;
 
 use crate::config::Config;
@@ -78,10 +80,11 @@ impl<B: Backend> Linear<B> {
     ///
     /// The transformed tensor of shape `[..., d_output]`.
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        let weight = self.weight.val();
-        let bias = self.bias.as_ref().map(|b| b.val());
-
-        B::linear(input, weight, bias)
+        linear(
+            input,
+            self.weight.val(),
+            self.bias.as_ref().map(|b| b.val()),
+        )
     }
 }
 

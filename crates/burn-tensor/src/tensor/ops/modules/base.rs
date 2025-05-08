@@ -2,7 +2,7 @@ use core::num::NonZeroUsize;
 
 use super::{conv, pool, unfold::unfold4d_using_conv2d};
 use crate::{
-    Shape, Tensor, TensorMetadata,
+    Shape, TensorMetadata,
     backend::Backend,
     ops::{FloatTensor, IntTensor},
 };
@@ -790,23 +790,40 @@ pub trait ModuleOps<B: Backend> {
     /// ```math
     /// y = x @ weight^T + [bias]
     /// ```
-    fn linear<const D: usize>(
-        input: Tensor<B, D>,
-        weight: Tensor<B, 2>,
-        bias: Option<Tensor<B, 1>>,
-    ) -> Tensor<B, D> {
-        if D == 1 {
+    fn linear(
+        input: FloatTensor<B>,
+        weight: FloatTensor<B>,
+        bias: Option<FloatTensor<B>>,
+    ) -> FloatTensor<B> {
+        let ndims_in = input.shape().num_dims();
+        let [d_input, d_output] = weight.shape().dims();
+        if ndims_in == 1 {
             // Insert and remove an extra batch dimension for the batch matmul to work.
-            return Self::linear::<2>(input.unsqueeze(), weight, bias).flatten(0, 1);
+            let input = B::float_reshape(input, Shape::from([1, d_input]));
+            let output = Self::linear(input, weight, bias);
+            return B::float_reshape(output, Shape::from([d_output]));
         }
 
-        let weight = weight.unsqueeze();
-        let output = input.matmul(weight);
+        let weight = unsqueeze::<B>(weight, ndims_in);
+        let output = B::float_matmul(input, weight);
         match bias {
-            Some(bias) => output + bias.unsqueeze(),
+            Some(bias) => B::float_add(output, unsqueeze::<B>(bias, ndims_in)),
             None => output,
         }
     }
+}
+
+// Unsqueeze op on primitive.
+// TODO: would be nice to have this on primitives too for convenience.
+fn unsqueeze<B: Backend>(tensor: FloatTensor<B>, ndims_out: usize) -> FloatTensor<B> {
+    let shape = tensor.shape();
+    let ndims_in = shape.num_dims();
+
+    let mut dims = vec![1; ndims_out];
+    let num_ones = ndims_out - ndims_in;
+    dims[num_ones..(ndims_in + num_ones)].copy_from_slice(&shape.dims[..ndims_in]);
+
+    B::float_reshape(tensor, Shape::from(dims))
 }
 
 #[cfg(test)]
