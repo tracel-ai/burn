@@ -39,7 +39,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         client.register(
             vec![stream],
             OperationIr::BaseInt(BaseOperationIr::Empty(desc.clone())),
-            EmptyOps::<B>::new(desc),
+            EmptyOps::<B>::new(desc, device.clone()),
         );
 
         out
@@ -63,7 +63,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         client.register(
             vec![stream],
             OperationIr::Init(InitOperationIr { out: desc }),
-            NoOp::<B>::new(device),
+            NoOp::<B>::new(),
         );
 
         out
@@ -1087,7 +1087,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 IntElem::<Self>::dtype(),
                 NumericOperationIr::Zeros(desc.clone()),
             ),
-            ZerosOps::<B>::new(desc),
+            ZerosOps::<B>::new(desc, device.clone()),
         );
 
         out
@@ -1119,7 +1119,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 IntElem::<Self>::dtype(),
                 NumericOperationIr::Ones(desc.clone()),
             ),
-            OnesOps::<B>::new(desc),
+            OnesOps::<B>::new(desc, device.clone()),
         );
 
         out
