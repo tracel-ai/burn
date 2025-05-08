@@ -100,68 +100,29 @@ pub fn expand_config(node: &Node) -> ExpandShape {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, ElementType, NodeType, TensorData};
-    use std::collections::HashMap;
+    use crate::ir::{ElementType, NodeType, TensorData};
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(
         input_rank: usize,
         shape_value: Option<Vec<i64>>,
         shape_type: Option<ArgType>,
     ) -> Node {
-        let inputs = vec![
-            Argument {
-                name: "input".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: input_rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "shape".to_string(),
-                ty: shape_type.unwrap_or_else(|| {
-                    if shape_value.is_some() {
-                        ArgType::Tensor(TensorType {
-                            elem_type: ElementType::Int64,
-                            rank: 1,
-                            static_shape: Some(vec![shape_value.as_ref().unwrap().len()]),
-                        })
-                    } else {
-                        ArgType::Tensor(TensorType {
-                            elem_type: ElementType::Int64,
-                            rank: 1,
-                            static_shape: Some(vec![3]), // Example: a shape with 3 dimensions
-                        })
-                    }
-                }),
-                value: shape_value.map(|shape| TensorData {
-                    shape: vec![shape.len()],
-                    data: Data::Int64s(shape),
-                }),
-                passed: true,
-            },
-        ];
+        let mut builder = NodeBuilder::new(NodeType::Expand, "test_expand")
+            .input_tensor_f32("input", input_rank, None)
+            .output_tensor_f32("output", 0, None); // Rank 0 will be updated
 
-        let outputs = vec![Argument {
-            name: "output".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 0, // Will be updated
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        Node {
-            node_type: NodeType::Expand,
-            name: "test_expand".to_string(),
-            inputs,
-            outputs,
-            attrs: HashMap::new(),
+        if let Some(shape) = shape_value {
+            builder = builder.input_tensor_i64_data("shape", shape.clone(), vec![shape.len()]);
+        } else if let Some(st) = shape_type {
+            // Use the provided custom shape type
+            builder = builder.add_input("shape", st);
+        } else {
+            // Default case with dynamic shape
+            builder = builder.input_tensor_i64("shape", 1, Some(vec![3]));
         }
+
+        builder.build()
     }
 
     #[test]

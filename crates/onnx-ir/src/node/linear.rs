@@ -79,74 +79,26 @@ pub fn linear_config(node: &Node) -> LinearConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, Data, ElementType, NodeType, TensorData, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(has_bias: bool, weight_dims: Vec<usize>) -> Node {
-        let weight_tensor = TensorData {
-            data: Data::Float32s(vec![0.0; weight_dims.iter().product()]), // Not important for the test
-            shape: weight_dims.clone(),
-        };
+        // Create weight tensor data
+        let weight_data = vec![0.0; weight_dims.iter().product()]; // Not important for the test
 
-        let mut inputs = vec![
-            Argument {
-                name: "input".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 2,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "weight".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: weight_dims.len(),
-                    static_shape: None,
-                }),
-                value: Some(weight_tensor),
-                passed: true,
-            },
-        ];
+        // Start building the node with input and weight
+        let mut builder = NodeBuilder::new(NodeType::Gemm, "test_linear")
+            .input_tensor_f32("input", 2, None)
+            .input_tensor_f32_data("weight", weight_data, weight_dims.clone())
+            .output_tensor_f32("output", 2, None);
 
+        // Add bias if needed
         if has_bias {
-            let bias_tensor = TensorData {
-                data: Data::Float32s(vec![0.0; weight_dims[1]]), // bias size equals output size
-                shape: vec![weight_dims[1]],
-            };
-
-            inputs.push(Argument {
-                name: "bias".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: Some(bias_tensor),
-                passed: true,
-            });
+            let bias_data = vec![0.0; weight_dims[1]]; // bias size equals output size
+            builder = builder.input_tensor_f32_data("bias", bias_data, vec![weight_dims[1]]);
         }
 
-        let attrs = HashMap::new();
-
-        Node {
-            node_type: NodeType::Gemm,
-            name: "test_linear".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 2,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        builder.build()
     }
 
     #[test]

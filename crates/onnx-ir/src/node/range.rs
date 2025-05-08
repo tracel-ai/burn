@@ -24,49 +24,16 @@ pub fn range_update_outputs(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, NodeType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node() -> Node {
-        let inputs = vec![
-            Argument {
-                name: "start".to_string(),
-                ty: ArgType::Scalar(ElementType::Int64),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "limit".to_string(),
-                ty: ArgType::Scalar(ElementType::Int64),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "delta".to_string(),
-                ty: ArgType::Scalar(ElementType::Int64),
-                value: None,
-                passed: true,
-            },
-        ];
-
-        let outputs = vec![Argument {
-            name: "output".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
-                rank: 0, // Will be updated
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        Node {
-            node_type: NodeType::Range,
-            name: "test_range".to_string(),
-            inputs,
-            outputs,
-            attrs: HashMap::new(),
-        }
+        NodeBuilder::new(NodeType::Range, "test_range")
+            .input_scalar_i64("start")
+            .input_scalar_i64("limit")
+            .input_scalar_i64("delta")
+            .output_tensor_i64("output", 0, None) // Rank 0 will be updated
+            .build()
     }
 
     #[test]

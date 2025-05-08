@@ -108,58 +108,25 @@ pub fn gather_config(curr: &Node) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, ElementType, NodeType, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(axis: i64, input_rank: usize, is_shape: bool) -> Node {
-        let input_ty = if is_shape {
-            ArgType::Shape(1)
+        // Start building the node with the appropriate input type
+        let mut builder = NodeBuilder::new(NodeType::Gather, "test_gather").attr_int("axis", axis);
+
+        if is_shape {
+            builder = builder.add_input("data", ArgType::Shape(1));
         } else {
-            ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: input_rank,
-                static_shape: None,
-            })
-        };
-
-        let inputs = vec![
-            Argument {
-                name: "data".to_string(),
-                ty: input_ty,
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "indices".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-        ];
-
-        let mut attrs = HashMap::new();
-        attrs.insert("axis".to_string(), AttributeValue::Int64(axis));
-
-        Node {
-            node_type: NodeType::Gather,
-            name: "test_gather".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: input_rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
+            builder = builder.input_tensor_f32("data", input_rank, None);
         }
+
+        // Add indices and output
+        builder = builder
+            .input_tensor_i64("indices", 1, None)
+            .output_tensor_f32("output", input_rank, None);
+
+        builder.build()
     }
 
     #[test]

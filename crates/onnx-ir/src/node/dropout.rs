@@ -46,91 +46,23 @@ pub fn dropout_config(node: &Node) -> DropoutConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{
-        ArgType, Argument, AttributeValue, Data, ElementType, NodeType, TensorData, TensorType,
-    };
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node_with_attr(ratio: f32) -> Node {
-        let inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 3,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        let mut attrs = HashMap::new();
-        attrs.insert("ratio".to_string(), AttributeValue::Float32(ratio));
-
-        Node {
-            node_type: NodeType::Dropout,
-            name: "test_dropout".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 3,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        NodeBuilder::new(NodeType::Dropout, "test_dropout")
+            .input_tensor_f32("data", 3, None)
+            .output_tensor_f32("output", 3, None)
+            .attr_float("ratio", ratio)
+            .build()
     }
 
     fn create_test_node_with_input(ratio: f32) -> Node {
-        let ratio_tensor = TensorData {
-            data: Data::Float32(ratio),
-            shape: vec![],
-        };
-
-        let inputs = vec![
-            Argument {
-                name: "data".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 3,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "ratio".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 0,
-                    static_shape: None,
-                }),
-                value: Some(ratio_tensor),
-                passed: true,
-            },
-        ];
-
-        let attrs = HashMap::new();
-
-        Node {
-            node_type: NodeType::Dropout,
-            name: "test_dropout".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 3,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        NodeBuilder::new(NodeType::Dropout, "test_dropout")
+            .input_tensor_f32("data", 3, None)
+            .input_scalar_tensor_f32("ratio", Some(ratio))
+            .output_tensor_f32("output", 3, None)
+            .build()
     }
 
     #[test]
@@ -151,7 +83,7 @@ mod tests {
     #[should_panic(expected = "Dropout configuration must have at least 2 inputs")]
     fn test_dropout_config_missing_input() {
         let mut node = create_test_node_with_input(0.5);
-        node.attrs = HashMap::new(); // Remove attributes
+        node.attrs.clear(); // Remove attributes
         node.inputs.remove(1); // Remove ratio input
         let _ = dropout_config(&node);
     }
