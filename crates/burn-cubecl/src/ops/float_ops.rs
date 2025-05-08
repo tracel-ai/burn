@@ -45,7 +45,7 @@ where
             Distribution::Uniform(low, high) => {
                 random_uniform(shape, device, low.elem::<F>(), high.elem())
             }
-            Distribution::Bernoulli(prob) => random_bernoulli(shape, device, prob.elem::<F>()),
+            Distribution::Bernoulli(prob) => random_bernoulli::<R, F>(shape, device, prob as f32),
             Distribution::Normal(mean, std) => {
                 random_normal(shape, device, mean.elem::<F>(), std.elem())
             }

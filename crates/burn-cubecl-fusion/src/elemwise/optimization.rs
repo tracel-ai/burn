@@ -33,7 +33,13 @@ impl<R: Runtime> ElemwiseOptimization<R> {
     /// Execute the optimization.
     pub fn execute<BT: CubeElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
         self.trace
-            .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
+            .run::<R, BT, ElemwiseRunner>(
+                &self.client,
+                &self.device,
+                context,
+                &ElemwiseRunner,
+                &mut Default::default(),
+            )
             .unwrap();
     }
 

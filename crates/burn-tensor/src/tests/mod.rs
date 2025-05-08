@@ -1,6 +1,7 @@
 mod activation;
 mod clone_invariance;
 mod grid;
+mod linalg;
 mod module;
 mod ops;
 mod primitive;
@@ -158,6 +159,9 @@ macro_rules! testgen_with_float_param {
         // test grid
         burn_tensor::testgen_meshgrid!();
 
+        // test linalg
+        burn_tensor::testgen_vector_norm!();
+
         // test module
         burn_tensor::testgen_module_conv1d!();
         burn_tensor::testgen_module_conv2d!();
@@ -177,6 +181,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_module_nearest_interpolate!();
         burn_tensor::testgen_module_bilinear_interpolate!();
         burn_tensor::testgen_module_bicubic_interpolate!();
+        burn_tensor::testgen_module_linear!();
 
         // test ops
         burn_tensor::testgen_gather_scatter!();
@@ -365,11 +370,7 @@ macro_rules! as_type {
 pub mod qtensor {
     use core::marker::PhantomData;
 
-    use crate::{
-        Tensor, TensorData,
-        backend::Backend,
-        quantization::{QuantizationMode, QuantizationScheme, QuantizationType},
-    };
+    use crate::{Tensor, TensorData, backend::Backend, quantization::QuantScheme};
 
     pub struct QTensor<B: Backend, const D: usize> {
         b: PhantomData<B>,
@@ -384,12 +385,8 @@ pub mod qtensor {
 
         /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.
         pub fn int8_symmetric<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
-            Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
-                &QuantizationScheme::PerTensor(
-                    QuantizationMode::Symmetric,
-                    QuantizationType::QInt8,
-                ),
-            )
+            Tensor::from_floats(floats, &Default::default())
+                .quantize_dynamic(&QuantScheme::default())
         }
     }
 }
