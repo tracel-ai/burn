@@ -151,14 +151,14 @@ mod tests {
             TensorData::from([2f32]),
             None,
             ConvTranspose3dConfig::new(
-                [3, 3],    // kernel_size
-                [1, 1, 1], // stride
-                [0, 0, 0], // dilation
-                [0, 0, 0], // padding
-                [0, 0, 0], // output_padding
-                [0, 0, 0], // output_padding additional
-                1,         // groups
-                true,      // bias
+                [3, 3],
+                [1, 1, 1],
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+                1,
+                true,
             ),
         ));
 

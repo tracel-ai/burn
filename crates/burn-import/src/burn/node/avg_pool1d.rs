@@ -105,12 +105,7 @@ mod tests {
             "avg_pool1d",
             TensorType::new_float("input", 3),
             TensorType::new_float("output", 3),
-            AvgPool1dConfig::new(
-                3,                      // kernel_size
-                1,                      // stride
-                PaddingConfig1d::Valid, // padding
-                true,                   // count_include_pad
-            ),
+            AvgPool1dConfig::new(3, 1, PaddingConfig1d::Valid, true),
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);

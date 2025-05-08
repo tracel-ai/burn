@@ -149,13 +149,13 @@ mod tests {
             TensorData::from([2f32]),
             None,
             Conv2dConfig::new(
-                [3, 3],                 // kernel_size
-                [3, 3],                 // stride
-                [1, 1],                 // dilation
-                PaddingConfig2d::Valid, // padding
-                [1, 1],                 // output_padding
-                1,                      // groups
-                true,                   // bias
+                [3, 3],
+                [3, 3],
+                [1, 1],
+                PaddingConfig2d::Valid,
+                [1, 1],
+                1,
+                true,
             ),
         ));
 
