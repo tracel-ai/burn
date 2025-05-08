@@ -324,15 +324,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
             .product();
 
         let line_mode = match self.axis == config_read.rank as usize - 1 {
-            true => {
-                let strides =
-                    inputs.strides_ref(&config_read.ref_layout, config_read.rank as usize);
-                if strides[self.axis] == 1 {
-                    LineMode::Parallel // axis de vectorization == axis de reduce.
-                } else {
-                    LineMode::Perpendicular
-                }
-            }
+            true => LineMode::Parallel,
             false => LineMode::Perpendicular,
         };
 

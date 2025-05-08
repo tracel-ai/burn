@@ -33,6 +33,9 @@ pub fn read<C: CubePrimitive>(
                 read_input(inputs, locals, pos, ref_pos, layout, config, None)
             }
         }
+        Arg::InputShape { .. } => {
+            todo!()
+        }
         Arg::Output(pos, _precision, layout) => {
             read_output(inputs, outputs, locals, pos, ref_pos, layout, config)
         }
@@ -430,6 +433,7 @@ pub fn ref_buffer_len(
             _ => panic!("Invalid concrete ref layout."),
         },
         RefLayout::Virtual(VirtualLayout::Reshaped(..)) => num_elements(locals, config),
+        RefLayout::Virtual(VirtualLayout::Shape(..)) => num_elements(locals, config),
     }
 }
 

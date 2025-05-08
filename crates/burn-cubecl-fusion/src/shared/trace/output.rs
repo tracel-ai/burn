@@ -1,4 +1,4 @@
-use burn_common::tensor::is_contiguous;
+use burn_common::tensor::{contiguous_strides, is_contiguous};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use burn_tensor::DType;
@@ -162,15 +162,28 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             match input_ref {
                 InputReference::Normal { input_pos } => {
                     let reference = handle_inputs.get(input_pos).unwrap();
-                    block.reference = ReferenceSelection::Concrete {
-                        layout: Arg::Input(
-                            input_pos as u32,
-                            reference.precision,
-                            LayoutInfo::IsRef,
-                        ),
-                        shape: reference.global_shape.clone(),
-                        strides: reference.handle.strides.clone(),
-                    };
+                    if is_contiguous(&reference.global_shape, &reference.handle.strides) {
+                        block.reference = ReferenceSelection::Concrete {
+                            layout: Arg::Input(
+                                input_pos as u32,
+                                reference.precision,
+                                LayoutInfo::IsRef,
+                            ),
+                            shape: reference.global_shape.clone(),
+                            strides: reference.handle.strides.clone(),
+                        };
+                        Self::add_layout_info_inputs(block, handle_inputs);
+                    } else {
+                        block.reference = ReferenceSelection::Shape {
+                            original: Arg::Input(
+                                input_pos as u32,
+                                reference.precision,
+                                LayoutInfo::Unknown,
+                            ),
+                            shape: reference.global_shape.clone(),
+                            strides: contiguous_strides(&reference.global_shape),
+                        };
+                    }
                     Self::add_layout_info_inputs(block, handle_inputs);
                 }
                 InputReference::SwapDims { original_pos, dims } => {
@@ -195,7 +208,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
     fn add_layout_info_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput<R>]) {
         for hi in handle_inputs.iter() {
-            if let ReferenceSelection::Concrete { strides, shape, .. } = &block.reference {
+            if let ReferenceSelection::Concrete { strides, shape, .. }
+            | ReferenceSelection::Shape { strides, shape, .. } = &block.reference
+            {
                 if strides == &hi.handle.strides && shape == &hi.global_shape {
                     if let Some(ops) = block.reads.get_mut(&hi.relative_id) {
                         for op in ops.iter_mut() {

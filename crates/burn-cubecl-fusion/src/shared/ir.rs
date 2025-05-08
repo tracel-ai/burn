@@ -26,6 +26,9 @@ pub enum Arg {
         dims: (u32, u32),
         broadcasted: bool,
     },
+    InputShape {
+        original: Box<Arg>,
+    },
 }
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -50,6 +53,7 @@ impl Arg {
             Arg::ScalarShape(_) => return FusePrecision::U32,
             Arg::InputReshaped { original, .. } => return original.precision(),
             Arg::InputSwapDims { original, .. } => return original.precision(),
+            Arg::InputShape { original } => return original.precision(),
         }
     }
 }
@@ -204,6 +208,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
                         .map(|s| s.elem as usize)
                         .collect()
                 }
+                VirtualLayout::Shape(original, _) => self.shape(original),
             },
         }
     }
@@ -444,6 +449,8 @@ pub enum RefLayout {
 pub enum VirtualLayout {
     Reshaped(u32),
     SwapDims(Arg, (u32, u32)),
+    /// Virtual tensor with the same shape as the given input, but with contiguous strides.
+    Shape(Arg, u32),
 }
 
 impl Arg {

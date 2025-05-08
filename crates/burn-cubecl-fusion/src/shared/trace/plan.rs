@@ -63,6 +63,11 @@ pub enum ReferenceSelection {
     Reshaped {
         reshape_pos: usize,
     },
+    Shape {
+        original: Arg,
+        shape: Vec<usize>,
+        strides: Vec<usize>,
+    },
 }
 
 impl ReferenceSelection {
