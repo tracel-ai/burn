@@ -63,15 +63,15 @@ mod tests {
         let mut builder = NodeBuilder::new(NodeType::Clip, "test_clip")
             .input_tensor_f32("X", 4, None)
             .output_tensor_f32("Y", 4, None);
-            
+
         if let Some(min_val) = min {
             builder = builder.attr_float("min", min_val);
         }
-        
+
         if let Some(max_val) = max {
             builder = builder.attr_float("max", max_val);
         }
-        
+
         builder.build()
     }
 

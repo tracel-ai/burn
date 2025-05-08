@@ -56,11 +56,11 @@ mod tests {
             .input_scalar_tensor_i64("depth", depth)
             .input_tensor_f32_data("values", values.clone(), vec![2]) // always [off_value, on_value]
             .output_tensor_f32("output", 3, None); // rank increases by 1
-            
+
         if let Some(axis_val) = axis {
             builder = builder.attr_int("axis", axis_val);
         }
-        
+
         builder.build()
     }
 

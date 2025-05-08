@@ -41,64 +41,26 @@ pub fn trilu_config(node: &Node) -> TriluConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, AttributeValue, ElementType, NodeType, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     /// Helper function to create test nodes for Trilu tests
     fn create_test_node(upper_attr: Option<i64>, diagonal_input: Option<i64>) -> Node {
-        let mut inputs = vec![
-            // First input: the tensor to process
-            Argument {
-                name: "X".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 2, // Typically a matrix
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-        ];
+        let mut builder = NodeBuilder::new(NodeType::Trilu, "test_trilu")
+            .input_tensor_f32("X", 2, None) // Typically a matrix
+            .output_tensor_f32("Y", 2, None);
 
         // Add diagonal input if provided
         if let Some(diag) = diagonal_input {
-            inputs.push(Argument {
-                name: "k".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 0,
-                    static_shape: Some(vec![]),
-                }),
-                value: Some(TensorData {
-                    shape: vec![],
-                    data: Data::Int64(diag),
-                }),
-                passed: true,
-            });
+            builder = builder.input_scalar_tensor_i64("k", diag);
         }
 
-        // Create attributes map
-        let mut attrs = HashMap::new();
+        // Add upper attribute if provided
         if let Some(upper) = upper_attr {
-            attrs.insert("upper".to_string(), AttributeValue::Int64(upper));
+            builder = builder.attr_int("upper", upper);
         }
 
-        Node {
-            node_type: NodeType::Trilu,
-            name: "test_trilu".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "Y".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 2,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        builder.build()
     }
 
     #[test]

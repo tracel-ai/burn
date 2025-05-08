@@ -19,41 +19,16 @@ pub fn hard_sigmoid_config(node: &Node) -> (f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, AttributeValue, ElementType, NodeType, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(alpha: f32, beta: f32) -> Node {
-        let inputs = vec![Argument {
-            name: "X".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 4,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        let mut attrs = HashMap::new();
-        attrs.insert("alpha".to_string(), AttributeValue::Float32(alpha));
-        attrs.insert("beta".to_string(), AttributeValue::Float32(beta));
-
-        Node {
-            node_type: NodeType::HardSigmoid,
-            name: "test_hard_sigmoid".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "Y".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 4,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        NodeBuilder::new(NodeType::HardSigmoid, "test_hard_sigmoid")
+            .input_tensor_f32("X", 4, None)
+            .output_tensor_f32("Y", 4, None)
+            .attr_float("alpha", alpha)
+            .attr_float("beta", beta)
+            .build()
     }
 
     #[test]

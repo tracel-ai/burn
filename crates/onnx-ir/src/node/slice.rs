@@ -152,13 +152,14 @@ mod tests {
             builder = builder.input_tensor_i64_data("ends", ends.clone(), vec![ends.len()]);
 
             if let Some(axes_vec) = axes.clone() {
-                builder = builder.input_tensor_i64_data("axes", axes_vec.clone(), vec![axes_vec.len()]);
+                builder =
+                    builder.input_tensor_i64_data("axes", axes_vec.clone(), vec![axes_vec.len()]);
             }
         } else {
             // Add attributes
             builder = builder.attr_ints("starts", starts);
             builder = builder.attr_ints("ends", ends);
-            
+
             if let Some(axes_vec) = axes {
                 builder = builder.attr_ints("axes", axes_vec);
             }

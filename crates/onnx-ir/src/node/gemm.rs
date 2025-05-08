@@ -76,7 +76,7 @@ mod tests {
             .input_tensor_f32("B", 2, None)
             .input_tensor_f32("C", 2, None)
             .output_tensor_f32("Y", 2, None);
-            
+
         if let Some(alpha_val) = alpha {
             builder = builder.attr_float("alpha", alpha_val);
         }
@@ -89,7 +89,7 @@ mod tests {
         if let Some(trans_b_val) = trans_b {
             builder = builder.attr_int("transB", trans_b_val);
         }
-        
+
         builder.build()
     }
 

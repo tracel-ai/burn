@@ -94,7 +94,7 @@ pub fn reduce_sum_update_outputs(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{NodeType};
+    use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(
@@ -105,22 +105,22 @@ mod tests {
         let mut builder = NodeBuilder::new(NodeType::ReduceSum, "test_reduce_sum")
             .input_tensor_f32("data", 3, None)
             .output_tensor_f32("reduced", 3, None);
-        
+
         // Add axes input if requested
         if with_axes_input && axes.is_some() {
             let axes_vec = axes.clone().unwrap();
             builder = builder.input_tensor_i64_data("axes", axes_vec.clone(), vec![axes_vec.len()]);
         }
-        
+
         // Add attributes
         if !with_axes_input && axes.is_some() {
             builder = builder.attr_ints("axes", axes.clone().unwrap());
         }
-        
+
         if let Some(kd) = keepdims {
             builder = builder.attr_int("keepdims", kd);
         }
-        
+
         builder.build()
     }
 

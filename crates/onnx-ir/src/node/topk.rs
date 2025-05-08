@@ -95,7 +95,8 @@ pub fn top_k_config(node: &Node) -> TopKConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, Data, NodeType, TensorData};
+    use crate::ir::{AttributeValue, NodeType};
+    use crate::node::test_utils::NodeBuilder;
     use std::collections::HashMap;
 
     fn create_test_node(
@@ -103,64 +104,32 @@ mod tests {
         attrs: Option<HashMap<String, AttributeValue>>,
         k_input_value: Option<i64>,
     ) -> Node {
-        let mut inputs = vec![Argument {
-            name: "X".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: input_rank,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
+        let mut builder = NodeBuilder::new(NodeType::TopK, "test_topk")
+            .input_tensor_f32("X", input_rank, None)
+            .output_tensor_f32("Values", 0, None) // Rank will be updated
+            .output_tensor_i64("Indices", 0, None); // Rank will be updated
 
         // Add K input if provided
         if let Some(k) = k_input_value {
-            inputs.push(Argument {
-                name: "K".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 0,
-                    static_shape: Some(vec![]),
-                }),
-                value: Some(TensorData {
-                    shape: vec![],
-                    data: Data::Int64s(vec![k]),
-                }),
-                passed: true,
-            });
+            builder = builder.input_tensor_i64_data("K", vec![k], vec![]);
         }
 
-        let outputs = vec![
-            Argument {
-                name: "Values".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 0, // Will be updated
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "Indices".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 0, // Will be updated
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-        ];
-
-        Node {
-            node_type: NodeType::TopK,
-            name: "test_topk".to_string(),
-            inputs,
-            outputs,
-            attrs: attrs.unwrap_or_default(),
+        // Add attributes if provided
+        if let Some(attr_map) = attrs {
+            for (key, value) in attr_map {
+                match value {
+                    AttributeValue::Int64(val) => builder = builder.attr_int(&key, val),
+                    AttributeValue::Int64s(vals) => builder = builder.attr_ints(&key, vals),
+                    AttributeValue::Float32(val) => builder = builder.attr_float(&key, val),
+                    AttributeValue::Float32s(vals) => builder = builder.attr_floats(&key, vals),
+                    AttributeValue::String(val) => builder = builder.attr_string(&key, &val),
+                    AttributeValue::Strings(vals) => builder = builder.attr_strings(&key, vals),
+                    _ => panic!("Unsupported attribute type"),
+                }
+            }
         }
+
+        builder.build()
     }
 
     #[test]

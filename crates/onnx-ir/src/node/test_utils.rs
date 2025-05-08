@@ -222,14 +222,9 @@ impl NodeBuilder {
             shape,
         )
     }
-    
-    
+
     /// Add a float32 scalar tensor input (rank 0)
-    pub fn input_scalar_tensor_f32(
-        mut self,
-        name: &str,
-        value: Option<f32>,
-    ) -> Self {
+    pub fn input_scalar_tensor_f32(mut self, name: &str, value: Option<f32>) -> Self {
         let arg = Argument {
             name: name.to_string(),
             ty: ArgType::Tensor(TensorType {
@@ -246,13 +241,9 @@ impl NodeBuilder {
         self.inputs.push(arg);
         self
     }
-    
+
     /// Add an int64 scalar tensor input (rank 0)
-    pub fn input_scalar_tensor_i64(
-        mut self,
-        name: &str,
-        value: i64,
-    ) -> Self {
+    pub fn input_scalar_tensor_i64(mut self, name: &str, value: i64) -> Self {
         let arg = Argument {
             name: name.to_string(),
             ty: ArgType::Tensor(TensorType {
@@ -269,8 +260,7 @@ impl NodeBuilder {
         self.inputs.push(arg);
         self
     }
-    
-    
+
     /// Add multiple tensor inputs with the same type but different names
     pub fn input_tensors_f32<I>(
         mut self,
@@ -280,7 +270,11 @@ impl NodeBuilder {
         static_shape: Option<Vec<usize>>,
     ) -> Self {
         for i in 0..count {
-            self = self.input_tensor_f32(&format!("{}_{}", name_prefix, i), rank, static_shape.clone());
+            self = self.input_tensor_f32(
+                &format!("{}_{}", name_prefix, i),
+                rank,
+                static_shape.clone(),
+            );
         }
         self
     }
@@ -480,7 +474,7 @@ impl NodeBuilder {
             .insert(name.to_string(), AttributeValue::Strings(values));
         self
     }
-    
+
     /// Add a tensor attribute
     pub fn attr_tensor(mut self, name: &str, tensor: TensorData) -> Self {
         self.attrs

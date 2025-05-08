@@ -56,7 +56,7 @@ mod tests {
     fn create_test_node(epsilon: f32, momentum: f32, num_features: usize) -> Node {
         let ones = vec![1.0; num_features];
         let zeros = vec![0.0; num_features];
-        
+
         NodeBuilder::new(NodeType::BatchNormalization, "test_batchnorm")
             .input_tensor_f32("X", 4, None) // NCHW format
             .input_tensor_f32_data("scale", ones.clone(), vec![num_features])

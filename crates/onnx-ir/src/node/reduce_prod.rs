@@ -81,45 +81,22 @@ pub fn reduce_prod_update_outputs(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, ElementType, NodeType, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(axes: Option<Vec<i64>>, keepdims: Option<i64>) -> Node {
-        let inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 3,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
+        let mut builder = NodeBuilder::new(NodeType::ReduceProd, "test_reduce_prod")
+            .input_tensor_f32("data", 3, None)
+            .output_tensor_f32("reduced", 3, None);
 
-        let mut attrs = HashMap::new();
         if let Some(axes_val) = axes {
-            attrs.insert("axes".to_string(), AttributeValue::Int64s(axes_val.clone()));
+            builder = builder.attr_ints("axes", axes_val);
         }
         if let Some(kd) = keepdims {
-            attrs.insert("keepdims".to_string(), AttributeValue::Int64(kd));
+            builder = builder.attr_int("keepdims", kd);
         }
 
-        Node {
-            node_type: NodeType::ReduceProd,
-            name: "test_reduce_prod".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "reduced".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 3,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        builder.build()
     }
 
     #[test]

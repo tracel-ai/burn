@@ -27,42 +27,19 @@ pub fn transpose_config(curr: &Node) -> Vec<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, ElementType, NodeType, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(perm: Option<Vec<i64>>, rank: usize) -> Node {
-        let inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
+        let mut builder = NodeBuilder::new(NodeType::Transpose, "test_transpose")
+            .input_tensor_f32("data", rank, None)
+            .output_tensor_f32("transposed", rank, None);
 
-        let mut attrs = HashMap::new();
         if let Some(perm_val) = perm {
-            attrs.insert("perm".to_string(), AttributeValue::Int64s(perm_val));
+            builder = builder.attr_ints("perm", perm_val);
         }
 
-        Node {
-            node_type: NodeType::Transpose,
-            name: "test_transpose".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "transposed".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        builder.build()
     }
 
     #[test]
@@ -83,10 +60,11 @@ mod tests {
     #[should_panic(expected = "Transpose: multiple inputs are not supported")]
     fn test_transpose_config_multiple_inputs() {
         let mut node = create_test_node(None, 3);
-        node.inputs.push(Argument {
+        // Add an extra input to cause the expected panic
+        node.inputs.push(crate::ir::Argument {
             name: "extra".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
+            ty: crate::ir::ArgType::Tensor(crate::ir::TensorType {
+                elem_type: crate::ir::ElementType::Float32,
                 rank: 3,
                 static_shape: None,
             }),

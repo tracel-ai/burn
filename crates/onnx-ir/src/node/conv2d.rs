@@ -107,7 +107,7 @@ mod tests {
         let weight_data = vec![0.0; 16];
         // [output_channels, input_channels/groups, k_h, k_w]
         let weight_shape = vec![4, 2, 2, 2];
-        
+
         let mut builder = NodeBuilder::new(NodeType::Conv2d, "test_conv2d")
             .input_tensor_f32("data", 4, None)
             .input_tensor_f32_data("weight", weight_data.clone(), weight_shape)
@@ -117,11 +117,11 @@ mod tests {
             .attr_ints("pads", pads)
             .attr_ints("dilations", dilations)
             .attr_int("group", group);
-            
+
         if has_bias {
             builder = builder.input_tensor_f32("bias", 1, None);
         }
-        
+
         builder.build()
     }
 

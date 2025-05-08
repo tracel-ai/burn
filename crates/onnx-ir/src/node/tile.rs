@@ -36,7 +36,7 @@ pub fn tile_config(node: &Node) -> TileConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, ArgType, NodeType, TensorType, ElementType};
+    use crate::ir::{ArgType, Argument, ElementType, NodeType, TensorType};
     use crate::node::test_utils::NodeBuilder;
 
     /// Helper function to create test nodes with different repeat values
@@ -44,16 +44,12 @@ mod tests {
         let mut builder = NodeBuilder::new(NodeType::Tile, "test_tile")
             .input_tensor_f32("input", input_rank, None)
             .output_tensor_f32("output", input_rank, None); // Same rank as input initially
-            
+
         // Add repeats input if provided
         if let Some(reps) = repeats {
-            builder = builder.input_tensor_i64_data(
-                "repeats", 
-                reps.clone(), 
-                vec![reps.len()]
-            );
+            builder = builder.input_tensor_i64_data("repeats", reps.clone(), vec![reps.len()]);
         }
-        
+
         builder.build()
     }
 

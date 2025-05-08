@@ -58,45 +58,23 @@ pub fn shape_update_outputs(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, ElementType, NodeType, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(start: Option<i64>, end: Option<i64>, rank: usize) -> Node {
-        let inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
+        let mut builder = NodeBuilder::new(NodeType::Shape, "test_shape")
+            .input_tensor_f32("data", rank, None)
+            .output_tensor_i64("shape", 1, None);
 
-        let mut attrs = HashMap::new();
         if let Some(start_val) = start {
-            attrs.insert("start".to_string(), AttributeValue::Int64(start_val));
-        }
-        if let Some(end_val) = end {
-            attrs.insert("end".to_string(), AttributeValue::Int64(end_val));
+            builder = builder.attr_int("start", start_val);
         }
 
-        Node {
-            node_type: NodeType::Shape,
-            name: "test_shape".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "shape".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
+        if let Some(end_val) = end {
+            builder = builder.attr_int("end", end_val);
         }
+
+        builder.build()
     }
 
     #[test]
@@ -143,10 +121,11 @@ mod tests {
     #[should_panic(expected = "Shape: multiple inputs are not supported")]
     fn test_shape_config_multiple_inputs() {
         let mut node = create_test_node(None, None, 4);
-        node.inputs.push(Argument {
+        // Add an extra input to cause the expected panic
+        node.inputs.push(crate::ir::Argument {
             name: "extra".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
+            ty: crate::ir::ArgType::Tensor(crate::ir::TensorType {
+                elem_type: crate::ir::ElementType::Float32,
                 rank: 4,
                 static_shape: None,
             }),

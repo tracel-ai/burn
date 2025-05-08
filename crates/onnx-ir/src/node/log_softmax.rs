@@ -37,40 +37,15 @@ pub fn log_softmax_config(node: &Node) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, ElementType, NodeType, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(axis: i64, input_rank: usize) -> Node {
-        let inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: input_rank,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        let mut attrs = HashMap::new();
-        attrs.insert("axis".to_string(), AttributeValue::Int64(axis));
-
-        Node {
-            node_type: NodeType::LogSoftmax,
-            name: "test_log_softmax".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: input_rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        NodeBuilder::new(NodeType::LogSoftmax, "test_log_softmax")
+            .input_tensor_f32("data", input_rank, None)
+            .output_tensor_f32("output", input_rank, None)
+            .attr_int("axis", axis)
+            .build()
     }
 
     #[test]
@@ -91,10 +66,11 @@ mod tests {
     #[should_panic(expected = "LogSoftmax: multiple inputs are not supported")]
     fn test_log_softmax_config_multiple_inputs() {
         let mut node = create_test_node(1, 3);
-        node.inputs.push(Argument {
+        // Add an extra input to cause the expected panic
+        node.inputs.push(crate::ir::Argument {
             name: "extra".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
+            ty: crate::ir::ArgType::Tensor(crate::ir::TensorType {
+                elem_type: crate::ir::ElementType::Float32,
                 rank: 1,
                 static_shape: None,
             }),

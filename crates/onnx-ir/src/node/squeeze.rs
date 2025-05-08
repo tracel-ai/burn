@@ -61,42 +61,21 @@ pub fn squeeze_update_output(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, ElementType, NodeType, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(axes: Option<Vec<i64>>, rank: usize) -> Node {
-        let inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
+        let output_rank = rank - (axes.as_ref().map_or(0, |a| a.len()));
 
-        let mut attrs = HashMap::new();
-        if let Some(ref axes_val) = axes {
-            attrs.insert("axes".to_string(), AttributeValue::Int64s(axes_val.clone()));
+        let mut builder = NodeBuilder::new(NodeType::Squeeze, "test_squeeze")
+            .input_tensor_f32("data", rank, None)
+            .output_tensor_f32("squeezed", output_rank, None);
+
+        if let Some(axes_val) = axes {
+            builder = builder.attr_ints("axes", axes_val);
         }
 
-        Node {
-            node_type: NodeType::Squeeze,
-            name: "test_squeeze".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "squeezed".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: rank - (axes.as_ref().map_or(0, |a| a.len())),
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        builder.build()
     }
 
     #[test]

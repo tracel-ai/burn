@@ -160,30 +160,30 @@ mod tests {
         let mut builder = NodeBuilder::new(NodeType::Pad, "test_pad")
             .input_tensor_f32("data", rank, None)
             .output_tensor_f32("output", rank, None);
-            
+
         // Add pad inputs if provided
         if let Some(pads) = pad_inputs.clone() {
             builder = builder.input_tensor_i64_data("pads", pads, vec![]);
         }
-        
+
         // Add constant value input if provided
         if let Some(value) = constant_value_input {
             builder = builder.input_scalar_tensor_f32("constant_value", Some(value));
         }
-            
+
         // Add attributes if provided
         if let Some(pads) = pad_attrs {
             builder = builder.attr_ints("pads", pads);
         }
-        
+
         if let Some(value) = constant_value_attr {
             builder = builder.attr_float("value", value);
         }
-        
+
         if let Some(mode_val) = mode {
             builder = builder.attr_string("mode", mode_val);
         }
-        
+
         builder.build()
     }
 

@@ -83,11 +83,7 @@ pub fn max_pool1d_config(curr: &Node) -> MaxPool1dConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        ir::NodeType,
-        node::padding::PaddingConfig1d,
-        node::test_utils::NodeBuilder,
-    };
+    use crate::{ir::NodeType, node::padding::PaddingConfig1d, node::test_utils::NodeBuilder};
 
     fn create_test_node(
         kernel_shape: Vec<i64>,

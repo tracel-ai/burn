@@ -82,7 +82,7 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{NodeType};
+    use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(allowzero: i64, shape_vec: Vec<i64>) -> Node {
@@ -90,11 +90,11 @@ mod tests {
             .input_tensor_f32("data", 4, None)
             .input_tensor_i64_data("shape", shape_vec.clone(), vec![shape_vec.len()])
             .output_tensor_f32("reshaped", 2, None);
-            
+
         if allowzero != 0 {
             builder = builder.attr_int("allowzero", allowzero);
         }
-        
+
         builder.build()
     }
 

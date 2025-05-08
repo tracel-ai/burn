@@ -131,7 +131,7 @@ mod tests {
             .input_tensor_f32("X", input_rank, None)
             .output_tensor_f32("Y", 0, None) // Will be updated
             .attr_ints("axes", axes);
-            
+
         builder.build()
     }
 
@@ -140,23 +140,15 @@ mod tests {
         let mut builder = NodeBuilder::new(NodeType::Unsqueeze, "test_unsqueeze")
             .input_tensor_f32("X", input_rank, None)
             .output_tensor_f32("Y", 0, None); // Will be updated
-            
+
         // Add axes input with or without value
         if with_value {
-            builder = builder.input_tensor_i64_data(
-                "axes", 
-                axes.clone(), 
-                vec![axes_len]
-            );
+            builder = builder.input_tensor_i64_data("axes", axes.clone(), vec![axes_len]);
         } else {
             // Input without value
-            builder = builder.input_tensor_i64(
-                "axes", 
-                1, 
-                Some(vec![axes_len])
-            );
+            builder = builder.input_tensor_i64("axes", 1, Some(vec![axes_len]));
         }
-        
+
         builder.build()
     }
 

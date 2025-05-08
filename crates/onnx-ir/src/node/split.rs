@@ -157,7 +157,7 @@ pub fn split_config(node: &Node) -> SplitConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{AttributeValue, ElementType, NodeType, ArgType};
+    use crate::ir::{ArgType, AttributeValue, ElementType, NodeType};
     use crate::node::test_utils::NodeBuilder;
     use std::collections::HashMap;
 
@@ -169,34 +169,33 @@ mod tests {
         split_sizes_input: Option<Vec<i64>>,
     ) -> Node {
         // Start with input tensor
-        let mut builder = NodeBuilder::new(NodeType::Split, "test_split")
-            .input_tensor_f32("input", input_rank, static_shape);
-            
+        let mut builder = NodeBuilder::new(NodeType::Split, "test_split").input_tensor_f32(
+            "input",
+            input_rank,
+            static_shape,
+        );
+
         // Add split sizes input if provided
         if let Some(sizes) = split_sizes_input {
-            builder = builder.input_tensor_i64_data(
-                "split", 
-                sizes.clone(), 
-                vec![sizes.len()]
-            );
+            builder = builder.input_tensor_i64_data("split", sizes.clone(), vec![sizes.len()]);
         }
-        
+
         // Add output tensors
         for i in 0..num_outputs {
             builder = builder.output_tensor_f32(
-                &format!("output_{}", i), 
-                0,  // Will be updated
-                None
+                &format!("output_{}", i),
+                0, // Will be updated
+                None,
             );
         }
-        
+
         // Add attributes if provided
         let mut node = builder.build();
-        
+
         if let Some(attributes) = attrs {
             node.attrs = attributes;
         }
-        
+
         node
     }
 
