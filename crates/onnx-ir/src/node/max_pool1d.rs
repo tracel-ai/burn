@@ -58,7 +58,9 @@ pub fn max_pool1d_config(curr: &Node) -> MaxPool1dConfig {
             "strides" => stride = value.clone().into_i64s(),
             "pads" => pads = value.clone().into_i64s(),
             "dilations" => dilation = value.clone().into_i64s(),
-            _ => {}
+            // These are attributes that are allowed but not used in this implementation
+            "auto_pad" | "ceil_mode" | "storage_order" => {}
+            _ => panic!("Unexpected attribute for MaxPool1d: {key}"),
         }
     }
 

@@ -35,26 +35,20 @@ pub fn gemm_output_shape(node: &mut Node) {
 }
 
 pub fn gemm_config(curr: &Node) -> (f32, f32, i64, i64) {
-    let alpha = curr
-        .attrs
-        .get("alpha")
-        .map(|val| val.clone().into_f32())
-        .unwrap_or(1.0);
-    let beta = curr
-        .attrs
-        .get("beta")
-        .map(|val| val.clone().into_f32())
-        .unwrap_or(1.0);
-    let trans_a = curr
-        .attrs
-        .get("transA")
-        .map(|val| val.clone().into_i64())
-        .unwrap_or(0);
-    let trans_b = curr
-        .attrs
-        .get("transB")
-        .map(|val| val.clone().into_i64())
-        .unwrap_or(0);
+    let mut alpha: f32 = 1.0;
+    let mut beta: f32 = 1.0;
+    let mut trans_a: i64 = 0;
+    let mut trans_b: i64 = 0;
+
+    for (key, value) in curr.attrs.iter() {
+        match key.as_str() {
+            "alpha" => alpha = value.clone().into_f32(),
+            "beta" => beta = value.clone().into_f32(),
+            "transA" => trans_a = value.clone().into_i64(),
+            "transB" => trans_b = value.clone().into_i64(),
+            _ => panic!("Unexpected attribute for Gemm: {key}"),
+        }
+    }
 
     (alpha, beta, trans_a, trans_b)
 }

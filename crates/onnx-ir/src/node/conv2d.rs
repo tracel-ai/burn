@@ -68,7 +68,7 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
             "pads" => pads = value.clone().into_i64s(),
             "dilations" => dilations = value.clone().into_i64s(),
             "group" => group = value.clone().into_i64() as usize,
-            _ => {}
+            _ => panic!("Unexpected attribute for Conv2d: {key}"),
         }
     }
 

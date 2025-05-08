@@ -99,10 +99,8 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{
-        ArgType, Argument, AttributeValue, Data, ElementType, NodeType, TensorData, TensorType,
-    };
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(
         kernel_shape: Vec<i64>,
@@ -112,75 +110,33 @@ mod tests {
         group: i64,
         has_bias: bool,
     ) -> Node {
-        let mut inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 3,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
+        // Create weight tensor data
+        let weight_data = vec![0.1; 16];
 
-        // Add weight tensor
-        inputs.push(Argument {
-            name: "weight".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 3,
-                static_shape: None,
-            }),
-            value: Some(TensorData {
-                data: Data::Float32s(vec![0.1; 16]),
-                shape: vec![2, 2, 4], // [out_channels, in_channels, kernel_size]
-            }),
-            passed: true,
-        });
+        // Start building the node with input and weight
+        let mut builder = NodeBuilder::new(NodeType::Conv1d, "test_conv1d")
+            .input_tensor_f32("data", 3, None)
+            .input_tensor_f32_data(
+                "weight",
+                weight_data,
+                vec![2, 2, 4], // [out_channels, in_channels, kernel_size]
+            )
+            .output_tensor_f32("output", 3, None);
 
         // Add bias if needed
         if has_bias {
-            inputs.push(Argument {
-                name: "bias".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: Some(TensorData {
-                    data: Data::Float32s(vec![0.1, 0.2]),
-                    shape: vec![2],
-                }),
-                passed: true,
-            });
+            builder = builder.input_tensor_f32_data("bias", vec![0.1, 0.2], vec![2]);
         }
 
-        let mut attrs = HashMap::new();
-        attrs.insert(
-            "kernel_shape".to_string(),
-            AttributeValue::Int64s(kernel_shape),
-        );
-        attrs.insert("strides".to_string(), AttributeValue::Int64s(strides));
-        attrs.insert("pads".to_string(), AttributeValue::Int64s(pads));
-        attrs.insert("dilations".to_string(), AttributeValue::Int64s(dilations));
-        attrs.insert("group".to_string(), AttributeValue::Int64(group));
+        // Add attributes
+        builder = builder
+            .attr_ints("kernel_shape", kernel_shape)
+            .attr_ints("strides", strides)
+            .attr_ints("pads", pads)
+            .attr_ints("dilations", dilations)
+            .attr_int("group", group);
 
-        Node {
-            node_type: NodeType::Conv1d,
-            name: "test_conv1d".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 3,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        builder.build()
     }
 
     #[test]

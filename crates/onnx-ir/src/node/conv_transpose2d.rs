@@ -1,4 +1,4 @@
-use crate::ir::{AttributeValue, Node};
+use crate::ir::Node;
 
 /// Configuration for ConvTranspose2d operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,36 +49,26 @@ impl ConvTranspose2dConfig {
 
 /// Create a ConvTranspose2dConfig from the attributes of the node
 pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
-    let mut attrs = curr.attrs.clone();
-    let kernel_shape = attrs
-        .remove("kernel_shape")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_default();
-    let stride = attrs
-        .remove("strides")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![1, 1]);
-    let pads = attrs
-        .remove("pads")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0, 0, 0, 0]);
-    let dilations = attrs
-        .remove("dilations")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![1, 1]);
-    let group = attrs
-        .remove("group")
-        .map(AttributeValue::into_i64)
-        .unwrap_or(1) as usize;
-    let output_padding = attrs
-        .remove("output_padding")
-        .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0, 0]);
+    let mut kernel_shape = Vec::new(); // Default to empty vector
+    let mut stride = vec![1, 1]; // Default stride to 1
+    let mut pads = vec![0, 0, 0, 0]; // Default padding to 0
+    let mut dilations = vec![1, 1]; // Default dilation to 1
+    let mut group: usize = 1; // Default group to 1
+    let mut output_padding = vec![0, 0]; // Default output padding to 0
 
-    // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
-    if !attrs.is_empty() {
-        panic!("Not all attributes are used: {attrs:?}");
+    // Extract attributes
+    for (key, value) in curr.attrs.iter() {
+        match key.as_str() {
+            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+            "strides" => stride = value.clone().into_i64s(),
+            "pads" => pads = value.clone().into_i64s(),
+            "dilations" => dilations = value.clone().into_i64s(),
+            "group" => group = value.clone().into_i64() as usize,
+            "output_padding" => output_padding = value.clone().into_i64s(),
+            _ => panic!("Unexpected attribute for ConvTranspose2d: {key}"),
+        }
     }
+
     // Check the pads are symmetric.
     let [left, top, right, bottom] = [pads[0], pads[1], pads[2], pads[3]];
     if left < 0 || top < 0 || right < 0 || bottom < 0 {
@@ -115,10 +105,8 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{
-        ArgType, Argument, AttributeValue, Data, ElementType, NodeType, TensorData, TensorType,
-    };
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(
         kernel_shape: Vec<i64>,
@@ -129,77 +117,34 @@ mod tests {
         group: i64,
         has_bias: bool,
     ) -> Node {
-        let weight_tensor = TensorData {
-            data: Data::Float32s(vec![0.0; 16]), // Not important for the test
-            shape: vec![2, 4, 2, 2], // [input_channels, output_channels/groups, k_h, k_w]
-        };
+        // Create weight tensor data
+        let weight_data = vec![0.0; 16]; // Not important for the test
 
-        let mut inputs = vec![
-            Argument {
-                name: "data".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 4,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "weight".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 4,
-                    static_shape: None,
-                }),
-                value: Some(weight_tensor),
-                passed: true,
-            },
-        ];
+        // Start building the node with input and weight
+        let mut builder = NodeBuilder::new(NodeType::ConvTranspose2d, "test_convtranspose2d")
+            .input_tensor_f32("data", 4, None)
+            .input_tensor_f32_data(
+                "weight",
+                weight_data,
+                vec![2, 4, 2, 2], // [out_channels, in_channels, k_h, k_w]
+            )
+            .output_tensor_f32("output", 4, None);
 
+        // Add bias if needed
         if has_bias {
-            inputs.push(Argument {
-                name: "bias".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            });
+            builder = builder.input_tensor_f32("bias", 1, None);
         }
 
-        let mut attrs = HashMap::new();
-        attrs.insert(
-            "kernel_shape".to_string(),
-            AttributeValue::Int64s(kernel_shape),
-        );
-        attrs.insert("strides".to_string(), AttributeValue::Int64s(strides));
-        attrs.insert("pads".to_string(), AttributeValue::Int64s(pads));
-        attrs.insert("dilations".to_string(), AttributeValue::Int64s(dilations));
-        attrs.insert(
-            "output_padding".to_string(),
-            AttributeValue::Int64s(output_padding),
-        );
-        attrs.insert("group".to_string(), AttributeValue::Int64(group));
+        // Add attributes
+        builder = builder
+            .attr_ints("kernel_shape", kernel_shape)
+            .attr_ints("strides", strides)
+            .attr_ints("pads", pads)
+            .attr_ints("dilations", dilations)
+            .attr_ints("output_padding", output_padding)
+            .attr_int("group", group);
 
-        Node {
-            node_type: NodeType::ConvTranspose2d,
-            name: "test_convtranspose2d".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 4,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        builder.build()
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use crate::ir::{AttributeValue, Node};
+use crate::ir::Node;
 
 /// Configuration for ConvTranspose1d operations extracted from ONNX nodes
 #[derive(Debug, Clone)]
@@ -24,99 +24,95 @@ pub struct ConvTranspose1dConfig {
 }
 
 impl ConvTranspose1dConfig {
-    /// Create a new ConvTranspose1dConfig from the attributes of the node
-    pub fn new(curr: &Node) -> Self {
-        let mut attrs = curr.attrs.clone();
-
-        // Extract kernel_shape, default to an empty vector if not present
-        let kernel_shape = attrs
-            .remove("kernel_shape")
-            .map(AttributeValue::into_i64s)
-            .unwrap_or_default();
-
-        // Extract strides, default to 1 if not present
-        let stride = attrs
-            .remove("strides")
-            .map(AttributeValue::into_i64s)
-            .unwrap_or_else(|| vec![1]);
-
-        // Extract padding, default to 0 if not present
-        let pads = attrs
-            .remove("pads")
-            .map(AttributeValue::into_i64s)
-            .unwrap_or_else(|| vec![0, 0]);
-
-        // Extract dilations, default to 1 if not present
-        let dilations = attrs
-            .remove("dilations")
-            .map(AttributeValue::into_i64s)
-            .unwrap_or_else(|| vec![1]);
-
-        // Extract group attribute, default to 1
-        let group = attrs
-            .remove("group")
-            .map(AttributeValue::into_i64)
-            .unwrap_or(1) as usize;
-
-        // Extract output_padding, default to 0 if not present
-        let output_padding = attrs
-            .remove("output_padding")
-            .map(AttributeValue::into_i64s)
-            .unwrap_or_else(|| vec![0]);
-
-        // Ensure no unused attributes remain
-        if !attrs.is_empty() {
-            panic!("Not all attributes are used: {attrs:?}");
-        }
-
-        // Check the pads are symmetric
-        if pads.len() != 2 || pads[0] != pads[1] {
-            panic!(
-                "Asymmetric padding is not supported for ConvTranspose1d: {:?}",
-                pads
-            );
-        }
-
-        let weight_shape = curr.inputs[1]
-            .value
-            .as_ref()
-            .expect("ConvTranspose1d: weight tensor must be present")
-            .shape
-            .clone();
-
-        // Check if bias is present (third input)
-        let bias = curr.inputs.len() == 3;
-
-        // Extract channels from the weight tensor shape [out_channels, in_channels]
-        let channels_in = weight_shape[1] * group;
-        let channels_out = weight_shape[0];
-
+    /// Create a new ConvTranspose1dConfig
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        channels_in: usize,
+        channels_out: usize,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+        dilation: usize,
+        groups: usize,
+        bias: bool,
+        padding_out: usize,
+    ) -> Self {
         Self {
             channels_in,
             channels_out,
-            kernel_size: kernel_shape[0] as usize,
-            stride: stride[0] as usize,
-            padding: pads[0] as usize,
-            dilation: dilations[0] as usize,
-            padding_out: output_padding[0] as usize,
-            groups: group,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            groups,
             bias,
+            padding_out,
         }
     }
 }
 
 /// Create a ConvTranspose1dConfig from the attributes of the node
 pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
-    ConvTranspose1dConfig::new(curr)
+    let mut kernel_shape = Vec::new(); // Default to empty vector
+    let mut stride = vec![1]; // Default stride to 1
+    let mut pads = vec![0, 0]; // Default padding to 0
+    let mut dilations = vec![1]; // Default dilation to 1
+    let mut group: usize = 1; // Default group to 1
+    let mut output_padding = vec![0]; // Default output padding to 0
+
+    // Extract attributes
+    for (key, value) in curr.attrs.iter() {
+        match key.as_str() {
+            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+            "strides" => stride = value.clone().into_i64s(),
+            "pads" => pads = value.clone().into_i64s(),
+            "dilations" => dilations = value.clone().into_i64s(),
+            "group" => group = value.clone().into_i64() as usize,
+            "output_padding" => output_padding = value.clone().into_i64s(),
+            _ => panic!("Unexpected attribute for ConvTranspose1d: {key}"),
+        }
+    }
+
+    // Check the pads are symmetric
+    if pads.len() != 2 || pads[0] != pads[1] {
+        panic!(
+            "Asymmetric padding is not supported for ConvTranspose1d: {:?}",
+            pads
+        );
+    }
+
+    let weight_shape = curr.inputs[1]
+        .value
+        .as_ref()
+        .expect("ConvTranspose1d: weight tensor must be present")
+        .shape
+        .clone();
+
+    // Check if bias is present (third input)
+    let bias = curr.inputs.len() == 3;
+
+    // Extract channels from the weight tensor shape [out_channels, in_channels]
+    let channels_in = weight_shape[1] * group;
+    let channels_out = weight_shape[0];
+
+    ConvTranspose1dConfig {
+        channels_in,
+        channels_out,
+        kernel_size: kernel_shape[0] as usize,
+        stride: stride[0] as usize,
+        padding: pads[0] as usize,
+        dilation: dilations[0] as usize,
+        padding_out: output_padding[0] as usize,
+        groups: group,
+        bias,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{
-        ArgType, Argument, AttributeValue, Data, ElementType, NodeType, TensorData, TensorType,
-    };
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(
         kernel_shape: Vec<i64>,
@@ -127,79 +123,34 @@ mod tests {
         output_padding: Vec<i64>,
         has_bias: bool,
     ) -> Node {
-        let mut inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 3,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
+        // Create weight tensor data
+        let weight_data = vec![0.1; 16];
 
-        // Add weight tensor
-        inputs.push(Argument {
-            name: "weight".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 3,
-                static_shape: None,
-            }),
-            value: Some(TensorData {
-                data: Data::Float32s(vec![0.1; 16]),
-                shape: vec![2, 2, 4], // [out_channels, in_channels, kernel_size]
-            }),
-            passed: true,
-        });
+        // Start building the node with input and weight
+        let mut builder = NodeBuilder::new(NodeType::ConvTranspose1d, "test_conv_transpose1d")
+            .input_tensor_f32("data", 3, None)
+            .input_tensor_f32_data(
+                "weight",
+                weight_data,
+                vec![2, 2, 4], // [out_channels, in_channels, kernel_size]
+            )
+            .output_tensor_f32("output", 3, None);
 
         // Add bias if needed
         if has_bias {
-            inputs.push(Argument {
-                name: "bias".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: Some(TensorData {
-                    data: Data::Float32s(vec![0.1, 0.2]),
-                    shape: vec![2],
-                }),
-                passed: true,
-            });
+            builder = builder.input_tensor_f32_data("bias", vec![0.1, 0.2], vec![2]);
         }
 
-        let mut attrs = HashMap::new();
-        attrs.insert(
-            "kernel_shape".to_string(),
-            AttributeValue::Int64s(kernel_shape),
-        );
-        attrs.insert("strides".to_string(), AttributeValue::Int64s(stride));
-        attrs.insert("pads".to_string(), AttributeValue::Int64s(pads));
-        attrs.insert("dilations".to_string(), AttributeValue::Int64s(dilations));
-        attrs.insert("group".to_string(), AttributeValue::Int64(group));
-        attrs.insert(
-            "output_padding".to_string(),
-            AttributeValue::Int64s(output_padding),
-        );
+        // Add attributes
+        builder = builder
+            .attr_ints("kernel_shape", kernel_shape)
+            .attr_ints("strides", stride)
+            .attr_ints("pads", pads)
+            .attr_ints("dilations", dilations)
+            .attr_int("group", group)
+            .attr_ints("output_padding", output_padding);
 
-        Node {
-            node_type: NodeType::ConvTranspose1d,
-            name: "test_conv_transpose1d".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 3,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        builder.build()
     }
 
     #[test]

@@ -68,7 +68,7 @@ pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
             "pads" => pads = value.clone().into_i64s(),
             "dilations" => dilations = value.clone().into_i64s(),
             "group" => group = value.clone().into_i64() as usize,
-            _ => {}
+            _ => panic!("Unexpected attribute for Conv3d: {key}"),
         }
     }
 
@@ -104,10 +104,8 @@ pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{
-        ArgType, Argument, AttributeValue, Data, ElementType, NodeType, TensorData, TensorType,
-    };
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(
         kernel_shape: Vec<i64>,
@@ -117,73 +115,30 @@ mod tests {
         group: i64,
         has_bias: bool,
     ) -> Node {
-        let weight_tensor = TensorData {
-            data: Data::Float32s(vec![0.0; 32]), // Not important for the test
-            shape: vec![4, 2, 2, 2, 2], // [output_channels, input_channels/groups, k_d, k_h, k_w]
-        };
+        // Create weight tensor data (not important for the test)
+        let weight_data = vec![0.0; 32];
+        let weight_shape = vec![4, 2, 2, 2, 2]; // [output_channels, input_channels/groups, k_d, k_h, k_w]
 
-        let mut inputs = vec![
-            Argument {
-                name: "data".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 5,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "weight".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 5,
-                    static_shape: None,
-                }),
-                value: Some(weight_tensor),
-                passed: true,
-            },
-        ];
+        // Start building the node with input and weight
+        let mut builder = NodeBuilder::new(NodeType::Conv3d, "test_conv3d")
+            .input_tensor_f32("data", 5, None)
+            .input_tensor_f32_data("weight", weight_data, weight_shape)
+            .output_tensor_f32("output", 5, None);
 
+        // Add bias if needed
         if has_bias {
-            inputs.push(Argument {
-                name: "bias".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            });
+            builder = builder.input_tensor_f32("bias", 1, None);
         }
 
-        let mut attrs = HashMap::new();
-        attrs.insert(
-            "kernel_shape".to_string(),
-            AttributeValue::Int64s(kernel_shape),
-        );
-        attrs.insert("strides".to_string(), AttributeValue::Int64s(strides));
-        attrs.insert("pads".to_string(), AttributeValue::Int64s(pads));
-        attrs.insert("dilations".to_string(), AttributeValue::Int64s(dilations));
-        attrs.insert("group".to_string(), AttributeValue::Int64(group));
+        // Add attributes
+        builder = builder
+            .attr_ints("kernel_shape", kernel_shape)
+            .attr_ints("strides", strides)
+            .attr_ints("pads", pads)
+            .attr_ints("dilations", dilations)
+            .attr_int("group", group);
 
-        Node {
-            node_type: NodeType::Conv3d,
-            name: "test_conv3d".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 5,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        builder.build()
     }
 
     #[test]

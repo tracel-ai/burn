@@ -54,8 +54,10 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
     let mut allowzero = 0;
 
     for (key, value) in node.attrs.iter() {
-        if key.as_str() == "allowzero" {
-            allowzero = value.clone().into_i64()
+        match key.as_str() {
+            "allowzero" => allowzero = value.clone().into_i64(),
+            "shape" => {} // This can be used when shape is not provided as input - handled elsewhere
+            _ => panic!("Unexpected attribute for Reshape: {key}"),
         }
     }
 

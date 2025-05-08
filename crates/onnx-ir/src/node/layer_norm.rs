@@ -47,7 +47,7 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
             "axis" => axis = value.clone().into_i64(),
             "epsilon" => epsilon = value.clone().into_f32(),
             "stash_type" => stash_type = value.clone().into_i64(),
-            _ => {}
+            _ => panic!("Unexpected attribute for LayerNorm: {key}"),
         }
     }
 
