@@ -53,45 +53,15 @@ pub fn concat_config(node: &Node) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, ElementType, NodeType, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(axis: i64, input_rank: usize, num_inputs: usize) -> Node {
-        let mut inputs = Vec::new();
-
-        // Create multiple inputs for concat
-        for i in 0..num_inputs {
-            inputs.push(Argument {
-                name: format!("data_{}", i),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: input_rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            });
-        }
-
-        let mut attrs = HashMap::new();
-        attrs.insert("axis".to_string(), AttributeValue::Int64(axis));
-
-        Node {
-            node_type: NodeType::Concat,
-            name: "test_concat".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: input_rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        NodeBuilder::new(NodeType::Concat, "test_concat")
+            .input_tensors_f32::<Vec<usize>>("data", num_inputs, input_rank, None)
+            .output_tensor_f32("output", input_rank, None)
+            .attr_int("axis", axis)
+            .build()
     }
 
     #[test]

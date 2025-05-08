@@ -112,8 +112,8 @@ pub fn unsqueeze_config(node: &Node) -> UnsqueezeConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, ElementType, NodeType, TensorData};
-    use std::collections::HashMap;
+    use crate::ir::{ElementType, NodeType};
+    use crate::node::test_utils::NodeBuilder;
 
     // Implement custom equality for UnsqueezeConfig to make testing easier
     impl PartialEq<UnsqueezeConfig> for UnsqueezeConfig {
@@ -127,90 +127,37 @@ mod tests {
     }
 
     fn create_test_node_with_attr(input_rank: usize, axes: Vec<i64>) -> Node {
-        let inputs = vec![Argument {
-            name: "X".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: input_rank,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        let outputs = vec![Argument {
-            name: "Y".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 0, // Will be updated
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        let mut attrs = HashMap::new();
-        attrs.insert("axes".to_string(), AttributeValue::Int64s(axes.clone()));
-
-        Node {
-            node_type: NodeType::Unsqueeze,
-            name: "test_unsqueeze".to_string(),
-            inputs,
-            outputs,
-            attrs,
-        }
+        let builder = NodeBuilder::new(NodeType::Unsqueeze, "test_unsqueeze")
+            .input_tensor_f32("X", input_rank, None)
+            .output_tensor_f32("Y", 0, None) // Will be updated
+            .attr_ints("axes", axes);
+            
+        builder.build()
     }
 
     fn create_test_node_with_input(input_rank: usize, axes: Vec<i64>, with_value: bool) -> Node {
         let axes_len = axes.len();
-        let inputs = vec![
-            Argument {
-                name: "X".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: input_rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "axes".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 1,
-                    static_shape: Some(vec![axes_len]),
-                }),
-                value: if with_value {
-                    Some(TensorData {
-                        data: Data::Int64s(axes.clone()),
-                        shape: vec![axes_len],
-                    })
-                } else {
-                    None
-                },
-                passed: true,
-            },
-        ];
-
-        let outputs = vec![Argument {
-            name: "Y".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 0, // Will be updated
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        Node {
-            node_type: NodeType::Unsqueeze,
-            name: "test_unsqueeze".to_string(),
-            inputs,
-            outputs,
-            attrs: HashMap::new(),
+        let mut builder = NodeBuilder::new(NodeType::Unsqueeze, "test_unsqueeze")
+            .input_tensor_f32("X", input_rank, None)
+            .output_tensor_f32("Y", 0, None); // Will be updated
+            
+        // Add axes input with or without value
+        if with_value {
+            builder = builder.input_tensor_i64_data(
+                "axes", 
+                axes.clone(), 
+                vec![axes_len]
+            );
+        } else {
+            // Input without value
+            builder = builder.input_tensor_i64(
+                "axes", 
+                1, 
+                Some(vec![axes_len])
+            );
         }
+        
+        builder.build()
     }
 
     // Tests for unsqueeze_update_output function

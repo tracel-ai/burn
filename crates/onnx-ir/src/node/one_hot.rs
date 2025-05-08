@@ -47,72 +47,21 @@ pub fn one_hot_output_shape(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{
-        ArgType, Argument, AttributeValue, Data, ElementType, NodeType, TensorData, TensorType,
-    };
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(depth: i64, values: Vec<f32>, axis: Option<i64>) -> Node {
-        let inputs = vec![
-            Argument {
-                name: "indices".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 2,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "depth".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 0,
-                    static_shape: None,
-                }),
-                value: Some(TensorData {
-                    data: Data::Int64(depth),
-                    shape: vec![],
-                }),
-                passed: true,
-            },
-            Argument {
-                name: "values".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: Some(TensorData {
-                    data: Data::Float32s(values),
-                    shape: vec![2], // always [off_value, on_value]
-                }),
-                passed: true,
-            },
-        ];
-
-        let mut attrs = HashMap::new();
+        let mut builder = NodeBuilder::new(NodeType::OneHot, "test_one_hot")
+            .input_tensor_i64("indices", 2, None)
+            .input_scalar_tensor_i64("depth", depth)
+            .input_tensor_f32_data("values", values.clone(), vec![2]) // always [off_value, on_value]
+            .output_tensor_f32("output", 3, None); // rank increases by 1
+            
         if let Some(axis_val) = axis {
-            attrs.insert("axis".to_string(), AttributeValue::Int64(axis_val));
+            builder = builder.attr_int("axis", axis_val);
         }
-
-        Node {
-            node_type: NodeType::OneHot,
-            name: "test_one_hot".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 3, // rank increases by 1
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        
+        builder.build()
     }
 
     #[test]

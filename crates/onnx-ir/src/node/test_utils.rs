@@ -222,6 +222,68 @@ impl NodeBuilder {
             shape,
         )
     }
+    
+    
+    /// Add a float32 scalar tensor input (rank 0)
+    pub fn input_scalar_tensor_f32(
+        mut self,
+        name: &str,
+        value: Option<f32>,
+    ) -> Self {
+        let arg = Argument {
+            name: name.to_string(),
+            ty: ArgType::Tensor(TensorType {
+                elem_type: ElementType::Float32,
+                rank: 0,
+                static_shape: None,
+            }),
+            value: value.map(|val| TensorData {
+                data: Data::Float32(val),
+                shape: vec![],
+            }),
+            passed: true,
+        };
+        self.inputs.push(arg);
+        self
+    }
+    
+    /// Add an int64 scalar tensor input (rank 0)
+    pub fn input_scalar_tensor_i64(
+        mut self,
+        name: &str,
+        value: i64,
+    ) -> Self {
+        let arg = Argument {
+            name: name.to_string(),
+            ty: ArgType::Tensor(TensorType {
+                elem_type: ElementType::Int64,
+                rank: 0,
+                static_shape: None,
+            }),
+            value: Some(TensorData {
+                data: Data::Int64(value),
+                shape: vec![],
+            }),
+            passed: true,
+        };
+        self.inputs.push(arg);
+        self
+    }
+    
+    
+    /// Add multiple tensor inputs with the same type but different names
+    pub fn input_tensors_f32<I>(
+        mut self,
+        name_prefix: &str,
+        count: usize,
+        rank: usize,
+        static_shape: Option<Vec<usize>>,
+    ) -> Self {
+        for i in 0..count {
+            self = self.input_tensor_f32(&format!("{}_{}", name_prefix, i), rank, static_shape.clone());
+        }
+        self
+    }
 
     /// Add a generic output with the given name and type
     ///
@@ -423,6 +485,17 @@ impl NodeBuilder {
     pub fn attr_tensor(mut self, name: &str, tensor: TensorData) -> Self {
         self.attrs
             .insert(name.to_string(), AttributeValue::Tensor(tensor));
+        self
+    }
+
+    /// Add a default output with the given name
+    pub fn output_default(mut self, name: &str) -> Self {
+        self.outputs.push(Argument {
+            name: name.to_string(),
+            ty: ArgType::default(),
+            value: None,
+            passed: true,
+        });
         self
     }
 

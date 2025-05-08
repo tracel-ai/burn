@@ -157,7 +157,8 @@ pub fn split_config(node: &Node) -> SplitConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, Data, ElementType, NodeType, TensorData};
+    use crate::ir::{AttributeValue, ElementType, NodeType, ArgType};
+    use crate::node::test_utils::NodeBuilder;
     use std::collections::HashMap;
 
     fn create_test_node(
@@ -167,55 +168,36 @@ mod tests {
         attrs: Option<HashMap<String, AttributeValue>>,
         split_sizes_input: Option<Vec<i64>>,
     ) -> Node {
-        let mut inputs = vec![Argument {
-            name: "input".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: input_rank,
-                static_shape,
-            }),
-            value: None,
-            passed: true,
-        }];
-
+        // Start with input tensor
+        let mut builder = NodeBuilder::new(NodeType::Split, "test_split")
+            .input_tensor_f32("input", input_rank, static_shape);
+            
         // Add split sizes input if provided
         if let Some(sizes) = split_sizes_input {
-            inputs.push(Argument {
-                name: "split".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 1,
-                    static_shape: Some(vec![sizes.len()]),
-                }),
-                value: Some(TensorData {
-                    shape: vec![sizes.len()],
-                    data: Data::Int64s(sizes),
-                }),
-                passed: true,
-            });
+            builder = builder.input_tensor_i64_data(
+                "split", 
+                sizes.clone(), 
+                vec![sizes.len()]
+            );
         }
-
-        let mut outputs = Vec::new();
+        
+        // Add output tensors
         for i in 0..num_outputs {
-            outputs.push(Argument {
-                name: format!("output_{}", i),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 0, // Will be updated
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            });
+            builder = builder.output_tensor_f32(
+                &format!("output_{}", i), 
+                0,  // Will be updated
+                None
+            );
         }
-
-        Node {
-            node_type: NodeType::Split,
-            name: "test_split".to_string(),
-            inputs,
-            outputs,
-            attrs: attrs.unwrap_or_default(),
+        
+        // Add attributes if provided
+        let mut node = builder.build();
+        
+        if let Some(attributes) = attrs {
+            node.attrs = attributes;
         }
+        
+        node
     }
 
     #[test]

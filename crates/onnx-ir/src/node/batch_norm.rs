@@ -50,105 +50,23 @@ pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{
-        ArgType, Argument, AttributeValue, Data, ElementType, NodeType, TensorData, TensorType,
-    };
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(epsilon: f32, momentum: f32, num_features: usize) -> Node {
-        let weight_tensor = TensorData {
-            data: Data::Float32s(vec![1.0; num_features]), // Not important for the test
-            shape: vec![num_features],
-        };
-
-        let bias_tensor = TensorData {
-            data: Data::Float32s(vec![0.0; num_features]), // Not important for the test
-            shape: vec![num_features],
-        };
-
-        let mean_tensor = TensorData {
-            data: Data::Float32s(vec![0.0; num_features]), // Not important for the test
-            shape: vec![num_features],
-        };
-
-        let var_tensor = TensorData {
-            data: Data::Float32s(vec![1.0; num_features]), // Not important for the test
-            shape: vec![num_features],
-        };
-
-        let inputs = vec![
-            Argument {
-                name: "X".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 4, // NCHW format
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "scale".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: Some(weight_tensor),
-                passed: true,
-            },
-            Argument {
-                name: "bias".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: Some(bias_tensor),
-                passed: true,
-            },
-            Argument {
-                name: "mean".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: Some(mean_tensor),
-                passed: true,
-            },
-            Argument {
-                name: "var".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: Some(var_tensor),
-                passed: true,
-            },
-        ];
-
-        let mut attrs = HashMap::new();
-        attrs.insert("epsilon".to_string(), AttributeValue::Float32(epsilon));
-        attrs.insert("momentum".to_string(), AttributeValue::Float32(momentum));
-
-        Node {
-            node_type: NodeType::BatchNormalization,
-            name: "test_batchnorm".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 4,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        let ones = vec![1.0; num_features];
+        let zeros = vec![0.0; num_features];
+        
+        NodeBuilder::new(NodeType::BatchNormalization, "test_batchnorm")
+            .input_tensor_f32("X", 4, None) // NCHW format
+            .input_tensor_f32_data("scale", ones.clone(), vec![num_features])
+            .input_tensor_f32_data("bias", zeros.clone(), vec![num_features])
+            .input_tensor_f32_data("mean", zeros.clone(), vec![num_features])
+            .input_tensor_f32_data("var", ones.clone(), vec![num_features])
+            .output_tensor_f32("output", 4, None)
+            .attr_float("epsilon", epsilon)
+            .attr_float("momentum", momentum)
+            .build()
     }
 
     #[test]

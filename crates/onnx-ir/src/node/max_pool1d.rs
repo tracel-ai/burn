@@ -84,10 +84,10 @@ pub fn max_pool1d_config(curr: &Node) -> MaxPool1dConfig {
 mod tests {
     use super::*;
     use crate::{
-        ir::{ArgType, Argument, AttributeValue, ElementType, NodeType, TensorType},
+        ir::NodeType,
         node::padding::PaddingConfig1d,
+        node::test_utils::NodeBuilder,
     };
-    use std::collections::HashMap;
 
     fn create_test_node(
         kernel_shape: Vec<i64>,
@@ -95,42 +95,14 @@ mod tests {
         pads: Vec<i64>,
         dilation: Vec<i64>,
     ) -> Node {
-        let inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 3,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        let mut attrs = HashMap::new();
-        attrs.insert(
-            "kernel_shape".to_string(),
-            AttributeValue::Int64s(kernel_shape),
-        );
-        attrs.insert("strides".to_string(), AttributeValue::Int64s(stride));
-        attrs.insert("pads".to_string(), AttributeValue::Int64s(pads));
-        attrs.insert("dilations".to_string(), AttributeValue::Int64s(dilation));
-
-        Node {
-            node_type: NodeType::MaxPool1d,
-            name: "test_maxpool1d".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 3,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        NodeBuilder::new(NodeType::MaxPool1d, "test_maxpool1d")
+            .input_tensor_f32("data", 3, None)
+            .output_tensor_f32("output", 3, None)
+            .attr_ints("kernel_shape", kernel_shape)
+            .attr_ints("strides", stride)
+            .attr_ints("pads", pads)
+            .attr_ints("dilations", dilation)
+            .build()
     }
 
     #[test]

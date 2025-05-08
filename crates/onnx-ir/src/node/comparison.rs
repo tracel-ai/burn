@@ -32,51 +32,15 @@ pub fn elementwise_comparison_outputs(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, NodeType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(input1_rank: usize, input2_rank: usize) -> Node {
-        let inputs = vec![
-            Argument {
-                name: "A".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: input1_rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "B".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: input2_rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-        ];
-
-        let outputs = vec![Argument {
-            name: "result".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Bool,
-                rank: 0, // Will be updated
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        Node {
-            node_type: NodeType::Equal,
-            name: "test_comparison".to_string(),
-            inputs,
-            outputs,
-            attrs: HashMap::new(),
-        }
+        NodeBuilder::new(NodeType::Equal, "test_comparison")
+            .input_tensor_f32("A", input1_rank, None)
+            .input_tensor_f32("B", input2_rank, None)
+            .output_tensor_bool("result", 0, None) // rank will be updated
+            .build()
     }
 
     #[test]

@@ -67,8 +67,8 @@ pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, AttributeValue, ElementType, NodeType, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(
         kernel_shape: Vec<i64>,
@@ -77,46 +77,15 @@ mod tests {
         count_include_pad: i64,
         ceil_mode: i64,
     ) -> Node {
-        let inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 4,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        let mut attrs = HashMap::new();
-        attrs.insert(
-            "kernel_shape".to_string(),
-            AttributeValue::Int64s(kernel_shape),
-        );
-        attrs.insert("strides".to_string(), AttributeValue::Int64s(strides));
-        attrs.insert("pads".to_string(), AttributeValue::Int64s(pads));
-        attrs.insert(
-            "count_include_pad".to_string(),
-            AttributeValue::Int64(count_include_pad),
-        );
-        attrs.insert("ceil_mode".to_string(), AttributeValue::Int64(ceil_mode));
-
-        Node {
-            node_type: NodeType::AveragePool2d,
-            name: "test_avgpool2d".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 4,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        NodeBuilder::new(NodeType::AveragePool2d, "test_avgpool2d")
+            .input_tensor_f32("data", 4, None)
+            .output_tensor_f32("output", 4, None)
+            .attr_ints("kernel_shape", kernel_shape)
+            .attr_ints("strides", strides)
+            .attr_ints("pads", pads)
+            .attr_int("count_include_pad", count_include_pad)
+            .attr_int("ceil_mode", ceil_mode)
+            .build()
     }
 
     #[test]

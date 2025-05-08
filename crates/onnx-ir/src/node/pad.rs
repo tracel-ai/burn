@@ -146,10 +146,8 @@ pub fn pad_config(node: &Node) -> PadConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{
-        Argument, AttributeValue, Data, ElementType, NodeType, TensorData, TensorType,
-    };
-    use std::collections::HashMap;
+    use crate::ir::{ArgType, Argument, Data, ElementType, NodeType, TensorData, TensorType};
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(
         pad_attrs: Option<Vec<i64>>,
@@ -159,81 +157,34 @@ mod tests {
         mode: Option<&str>,
         rank: usize,
     ) -> Node {
-        let mut inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        // Add pads input if provided
-        if let Some(pads) = pad_inputs {
-            inputs.push(Argument {
-                name: "pads".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: Some(TensorData {
-                    data: Data::Int64s(pads),
-                    shape: vec![],
-                }),
-                passed: true,
-            });
+        let mut builder = NodeBuilder::new(NodeType::Pad, "test_pad")
+            .input_tensor_f32("data", rank, None)
+            .output_tensor_f32("output", rank, None);
+            
+        // Add pad inputs if provided
+        if let Some(pads) = pad_inputs.clone() {
+            builder = builder.input_tensor_i64_data("pads", pads, vec![]);
         }
-
-        // Add constant_value input if provided
+        
+        // Add constant value input if provided
         if let Some(value) = constant_value_input {
-            inputs.push(Argument {
-                name: "constant_value".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 0,
-                    static_shape: None,
-                }),
-                value: Some(TensorData {
-                    data: Data::Float32(value),
-                    shape: vec![],
-                }),
-                passed: true,
-            });
+            builder = builder.input_scalar_tensor_f32("constant_value", Some(value));
         }
-
-        let mut attrs = HashMap::new();
+            
+        // Add attributes if provided
         if let Some(pads) = pad_attrs {
-            attrs.insert("pads".to_string(), AttributeValue::Int64s(pads));
+            builder = builder.attr_ints("pads", pads);
         }
+        
         if let Some(value) = constant_value_attr {
-            attrs.insert("value".to_string(), AttributeValue::Float32(value));
+            builder = builder.attr_float("value", value);
         }
+        
         if let Some(mode_val) = mode {
-            attrs.insert(
-                "mode".to_string(),
-                AttributeValue::String(mode_val.to_string()),
-            );
+            builder = builder.attr_string("mode", mode_val);
         }
-
-        Node {
-            node_type: NodeType::Pad,
-            name: "test_pad".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        
+        builder.build()
     }
 
     #[test]

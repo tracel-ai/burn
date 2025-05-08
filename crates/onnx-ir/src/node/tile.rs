@@ -36,58 +36,25 @@ pub fn tile_config(node: &Node) -> TileConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, Data, ElementType, NodeType, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::{Argument, ArgType, NodeType, TensorType, ElementType};
+    use crate::node::test_utils::NodeBuilder;
 
     /// Helper function to create test nodes with different repeat values
     fn create_test_node(repeats: Option<Vec<i64>>, input_rank: usize) -> Node {
-        let mut inputs = vec![
-            // First input: the tensor to tile
-            Argument {
-                name: "input".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: input_rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-        ];
-
+        let mut builder = NodeBuilder::new(NodeType::Tile, "test_tile")
+            .input_tensor_f32("input", input_rank, None)
+            .output_tensor_f32("output", input_rank, None); // Same rank as input initially
+            
         // Add repeats input if provided
         if let Some(reps) = repeats {
-            inputs.push(Argument {
-                name: "repeats".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 1,
-                    static_shape: Some(vec![reps.len()]),
-                }),
-                value: Some(TensorData {
-                    shape: vec![reps.len()],
-                    data: Data::Int64s(reps),
-                }),
-                passed: true,
-            });
+            builder = builder.input_tensor_i64_data(
+                "repeats", 
+                reps.clone(), 
+                vec![reps.len()]
+            );
         }
-
-        Node {
-            node_type: NodeType::Tile,
-            name: "test_tile".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: input_rank, // Same rank as input initially
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs: HashMap::new(),
-        }
+        
+        builder.build()
     }
 
     #[test]

@@ -110,7 +110,7 @@ mod tests {
         
         let mut builder = NodeBuilder::new(NodeType::Conv2d, "test_conv2d")
             .input_tensor_f32("data", 4, None)
-            .input_tensor_f32_data("weight", weight_data, weight_shape)
+            .input_tensor_f32_data("weight", weight_data.clone(), weight_shape)
             .output_tensor_f32("output", 4, None)
             .attr_ints("kernel_shape", kernel_shape)
             .attr_ints("strides", strides)

@@ -147,7 +147,7 @@ mod tests {
             
         // Add ROI input if provided
         if let Some(roi_data) = roi {
-            builder = builder.input_tensor_f32_data("roi", roi_data, vec![8]); 
+            builder = builder.input_tensor_f32_data("roi", roi_data.clone(), vec![8]); 
             // For 4D input (start x, start y, end x, end y)
         } else {
             // Empty ROI still needs to be added as a placeholder
@@ -156,7 +156,7 @@ mod tests {
         
         // Add scales input if provided
         if let Some(scales_data) = scales {
-            builder = builder.input_tensor_f32_data("scales", scales_data, vec![4]); 
+            builder = builder.input_tensor_f32_data("scales", scales_data.clone(), vec![4]); 
             // N,C,H,W scales
         } else {
             // Empty scales still needs to be added as a placeholder
@@ -165,7 +165,7 @@ mod tests {
         
         // Add sizes input if provided
         if let Some(sizes_data) = sizes {
-            builder = builder.input_tensor_i64_data("sizes", sizes_data, vec![4]); 
+            builder = builder.input_tensor_i64_data("sizes", sizes_data.clone(), vec![4]); 
             // N,C,H,W sizes
         } else {
             // Empty sizes still needs to be added as a placeholder

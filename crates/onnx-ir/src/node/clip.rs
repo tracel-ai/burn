@@ -56,107 +56,32 @@ pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{
-        ArgType, Argument, AttributeValue, Data, ElementType, NodeType, TensorData, TensorType,
-    };
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node_with_attributes(min: Option<f32>, max: Option<f32>) -> Node {
-        let inputs = vec![Argument {
-            name: "X".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 4,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        let mut attrs = HashMap::new();
+        let mut builder = NodeBuilder::new(NodeType::Clip, "test_clip")
+            .input_tensor_f32("X", 4, None)
+            .output_tensor_f32("Y", 4, None);
+            
         if let Some(min_val) = min {
-            attrs.insert("min".to_string(), AttributeValue::Float32(min_val));
+            builder = builder.attr_float("min", min_val);
         }
+        
         if let Some(max_val) = max {
-            attrs.insert("max".to_string(), AttributeValue::Float32(max_val));
+            builder = builder.attr_float("max", max_val);
         }
-
-        Node {
-            node_type: NodeType::Clip,
-            name: "test_clip".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "Y".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 4,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        
+        builder.build()
     }
 
     fn create_test_node_with_inputs(min: Option<f32>, max: Option<f32>) -> Node {
-        let mut inputs = vec![Argument {
-            name: "X".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 4,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        // Add min input
-        inputs.push(Argument {
-            name: "min".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 0,
-                static_shape: None,
-            }),
-            value: min.map(|val| TensorData {
-                data: Data::Float32(val),
-                shape: vec![],
-            }),
-            passed: true,
-        });
-
-        // Add max input
-        inputs.push(Argument {
-            name: "max".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 0,
-                static_shape: None,
-            }),
-            value: max.map(|val| TensorData {
-                data: Data::Float32(val),
-                shape: vec![],
-            }),
-            passed: true,
-        });
-
-        Node {
-            node_type: NodeType::Clip,
-            name: "test_clip".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "Y".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 4,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs: HashMap::new(),
-        }
+        NodeBuilder::new(NodeType::Clip, "test_clip")
+            .input_tensor_f32("X", 4, None)
+            .input_scalar_tensor_f32("min", min)
+            .input_scalar_tensor_f32("max", max)
+            .output_tensor_f32("Y", 4, None)
+            .build()
     }
 
     #[test]
