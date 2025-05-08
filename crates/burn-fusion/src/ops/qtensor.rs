@@ -1,13 +1,14 @@
 use std::{marker::PhantomData, ops::Range};
 
 use burn_ir::{
-    DequantizeOpIr, FloatOperationIr, HandleContainer, InitOperationIr, OperationIr,
-    QuantizationParametersIr, QuantizeOpIr,
+    BaseOperationIr, DequantizeOpIr, ExpandOpIr, FlipOpIr, FloatOperationIr, GatherOpIr,
+    HandleContainer, InitOperationIr, NumericOperationIr, OperationIr, PermuteOpIr,
+    QuantizationParametersIr, QuantizeOpIr, SelectOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
 };
 use burn_tensor::{
     DType, Device, Element, Shape, TensorData, TensorMetadata,
-    ops::{FloatElem, FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
-    quantization::{QuantizationParametersPrimitive, QuantizationScheme},
+    ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
+    quantization::{QuantScheme, QuantizationParametersPrimitive},
 };
 
 use crate::{
@@ -42,7 +43,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
     fn quantize(
         tensor: FloatTensor<Self>,
-        scheme: &QuantizationScheme,
+        scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         #[derive(new)]
@@ -69,6 +70,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
+        let dtype = tensor.dtype;
         let out = tensor
             .client
             .tensor_uninitialized(shape, DType::QFloat(*scheme));
@@ -91,10 +93,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         out.client.register(
             streams,
-            OperationIr::Float(
-                FloatElem::<Self>::dtype(),
-                FloatOperationIr::Quantize(desc.clone()),
-            ),
+            OperationIr::Float(dtype, FloatOperationIr::Quantize(desc.clone())),
             QuantizeOp::<B>::new(desc),
         );
 
@@ -119,9 +118,8 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         let stream = tensor.stream;
         let shape: Vec<usize> = tensor.shape.clone();
-        let out = tensor
-            .client
-            .tensor_uninitialized(shape, B::FloatElem::dtype());
+        let dtype = B::FloatElem::dtype();
+        let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = DequantizeOpIr {
             input: tensor.into_ir(),
@@ -130,10 +128,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         out.client.register(
             vec![stream],
-            OperationIr::Float(
-                FloatElem::<Self>::dtype(),
-                FloatOperationIr::Dequantize(desc.clone()),
-            ),
+            OperationIr::Float(dtype, FloatOperationIr::Dequantize(desc.clone())),
             DequantizeOp::<B>::new(desc),
         );
 
@@ -159,8 +154,36 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         client_original.change_client_quantized::<B>(tensor.into_ir(), client_target, id)
     }
 
-    fn q_reshape(_tensor: QuantizedTensor<Self>, _shape: Shape) -> QuantizedTensor<Self> {
-        unimplemented!()
+    fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
+        #[derive(new)]
+        struct ReshapeDimsOps<B: FusionBackend> {
+            desc: UnaryOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for ReshapeDimsOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_quantized_tensor::<B>(&self.desc.input);
+                let output = B::q_reshape(input, Shape::from(&self.desc.out.shape));
+                handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+        let dtype = tensor.dtype;
+        let out = tensor.client.tensor_uninitialized(shape.dims, dtype);
+
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationIr::BaseFloat(BaseOperationIr::Reshape(desc.clone())),
+            ReshapeDimsOps::<B>::new(desc),
+        );
+
+        out
     }
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
@@ -168,42 +191,280 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     }
 
     fn q_swap_dims(
-        _tensor: QuantizedTensor<Self>,
-        _dim1: usize,
-        _dim2: usize,
+        tensor: QuantizedTensor<Self>,
+        dim1: usize,
+        dim2: usize,
     ) -> QuantizedTensor<Self> {
-        unimplemented!()
+        #[derive(new)]
+        struct SwapDimsOps<B: FusionBackend> {
+            desc: SwapDimsOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for SwapDimsOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_quantized_tensor::<B>(&self.desc.input);
+                let output = B::q_swap_dims(input, self.desc.dim1, self.desc.dim2);
+                handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+        let dtype = tensor.dtype;
+        let mut shape = tensor.shape.clone();
+        shape[dim1] = tensor.shape[dim2];
+        shape[dim2] = tensor.shape[dim1];
+
+        let mut out = tensor.client.tensor_uninitialized(shape, dtype);
+
+        let desc = SwapDimsOpIr {
+            input: tensor.into_ir(),
+            dim1,
+            dim2,
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationIr::BaseFloat(BaseOperationIr::SwapDims(desc.clone())),
+            SwapDimsOps::<B>::new(desc),
+        );
+        out.stream = stream;
+
+        out
     }
 
-    fn q_permute(_tensor: QuantizedTensor<Self>, _axes: &[usize]) -> QuantizedTensor<Self> {
-        unimplemented!()
+    fn q_permute(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
+        #[derive(new)]
+        struct PermuteDimsOps<B: FusionBackend> {
+            desc: PermuteOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for PermuteDimsOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_quantized_tensor::<B>(&self.desc.input);
+                let output = B::q_permute(input, self.desc.axes.as_slice());
+                handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+
+        // Change the shape of the tensor to match the new axes
+        let shape = axes.iter().map(|x| tensor.shape[*x]).collect();
+
+        let out = tensor.client.tensor_uninitialized(shape, tensor.dtype);
+
+        let desc = PermuteOpIr {
+            input: tensor.into_ir(),
+            axes: axes.to_vec(),
+            out: out.to_ir_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationIr::BaseInt(BaseOperationIr::Permute(desc.clone())),
+            PermuteDimsOps::<B>::new(desc),
+        );
+
+        out
     }
 
-    fn q_flip(_tensor: QuantizedTensor<Self>, _axes: &[usize]) -> QuantizedTensor<Self> {
-        unimplemented!()
+    fn q_flip(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
+        #[derive(new)]
+        struct FlipOps<B: FusionBackend> {
+            desc: FlipOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for FlipOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_quantized_tensor::<B>(&self.desc.input);
+                let output = B::q_flip(input, &self.desc.axes);
+                handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), tensor.dtype);
+
+        let desc = FlipOpIr {
+            input: tensor.into_ir(),
+            axes: axes.to_vec(),
+            out: out.to_ir_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationIr::BaseInt(BaseOperationIr::Flip(desc.clone())),
+            FlipOps::<B>::new(desc),
+        );
+
+        out
     }
 
     fn q_gather(
-        _dim: usize,
-        _tensor: QuantizedTensor<Self>,
-        _indices: IntTensor<Self>,
+        dim: usize,
+        tensor: QuantizedTensor<Self>,
+        indices: IntTensor<Self>,
     ) -> QuantizedTensor<Self> {
-        unimplemented!()
+        #[derive(new)]
+        struct GatherOps<B: FusionBackend> {
+            desc: GatherOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for GatherOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_quantized_tensor::<B>(&self.desc.tensor);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+
+                let output = B::q_gather(self.desc.dim, tensor, indices);
+                handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream_1 = tensor.stream;
+        let stream_2 = indices.stream;
+        let dtype = tensor.dtype;
+        let shape: Vec<usize> = indices.shape.clone();
+        let out = tensor.client.tensor_uninitialized(shape, dtype);
+
+        let desc = GatherOpIr {
+            tensor: tensor.into_ir(),
+            dim,
+            indices: indices.into_ir(),
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            OperationIr::NumericFloat(dtype, NumericOperationIr::Gather(desc.clone())),
+            GatherOps::<B>::new(desc),
+        );
+
+        out
     }
 
     fn q_select(
-        _tensor: QuantizedTensor<Self>,
-        _dim: usize,
-        _indices: IntTensor<Self>,
+        tensor: QuantizedTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
     ) -> QuantizedTensor<Self> {
-        unimplemented!()
+        #[derive(new)]
+        struct SelectOps<B: FusionBackend> {
+            desc: SelectOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for SelectOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_quantized_tensor::<B>(&self.desc.tensor);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+
+                let output = B::q_select(tensor, self.desc.dim, indices);
+
+                handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream_1 = tensor.stream;
+        let stream_2 = indices.stream;
+        let dtype = tensor.dtype;
+        let mut shape: Vec<usize> = tensor.shape.clone();
+        shape[dim] = indices.shape[0];
+        let out = tensor.client.tensor_uninitialized(shape, dtype);
+        let desc = SelectOpIr {
+            tensor: tensor.into_ir(),
+            dim,
+            indices: indices.into_ir(),
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            OperationIr::NumericFloat(dtype, NumericOperationIr::Select(desc.clone())),
+            SelectOps::<B>::new(desc),
+        );
+
+        out
     }
 
-    fn q_slice(_tensor: QuantizedTensor<Self>, _ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
-        unimplemented!()
+    fn q_slice(tensor: QuantizedTensor<Self>, ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
+        #[derive(new)]
+        struct SliceOps<B: FusionBackend> {
+            desc: SliceOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for SliceOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_quantized_tensor::<B>(&self.desc.tensor);
+
+                let output = B::q_slice(tensor, self.desc.ranges.as_slice());
+
+                handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+        let stream = tensor.stream;
+        let dtype = tensor.dtype;
+        let ndims = tensor.shape().num_dims();
+        let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
+
+        for i in shape.len()..ndims {
+            shape.push(tensor.shape[i]);
+        }
+
+        let out = tensor.client.tensor_uninitialized(shape, dtype);
+
+        let desc = SliceOpIr {
+            tensor: tensor.into_ir(),
+            ranges: ranges.into(),
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationIr::BaseFloat(BaseOperationIr::Slice(desc.clone())),
+            SliceOps::<B>::new(desc),
+        );
+
+        out
     }
 
-    fn q_expand(_tensor: QuantizedTensor<Self>, _shape: Shape) -> QuantizedTensor<Self> {
-        unimplemented!()
+    fn q_expand(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
+        #[derive(new)]
+        struct ExpandOps<B: FusionBackend> {
+            desc: ExpandOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for ExpandOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_quantized_tensor::<B>(&self.desc.input);
+                let output = B::q_expand(input, self.desc.shape.clone().into());
+
+                handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+
+        let out = tensor
+            .client
+            .tensor_uninitialized(shape.dims.clone(), tensor.dtype);
+
+        let desc = ExpandOpIr {
+            input: tensor.into_ir(),
+            shape: shape.dims,
+            out: out.to_ir_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationIr::BaseFloat(BaseOperationIr::Expand(desc.clone())),
+            ExpandOps::<B>::new(desc),
+        );
+
+        out
     }
 }
