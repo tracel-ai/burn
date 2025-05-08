@@ -1,6 +1,7 @@
 mod activation;
 mod clone_invariance;
 mod grid;
+mod linalg;
 mod module;
 mod ops;
 mod primitive;
@@ -157,6 +158,9 @@ macro_rules! testgen_with_float_param {
 
         // test grid
         burn_tensor::testgen_meshgrid!();
+
+        // test linalg
+        burn_tensor::testgen_vector_norm!();
 
         // test module
         burn_tensor::testgen_module_conv1d!();
