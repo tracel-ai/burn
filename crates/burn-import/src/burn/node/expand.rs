@@ -174,8 +174,6 @@ mod tests {
     fn test_codegen_expand_tensor() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        // let shape_tensor_type = TensorType::new_int("tensor3", 1);
-
         graph.register(ExpandNode::new(
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
