@@ -35,7 +35,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         client.register(
             vec![stream],
             OperationIr::Init(InitOperationIr { out: desc }),
-            NoOp::<B>::new(),
+            NoOp::<B>::new(device),
         );
 
         out
