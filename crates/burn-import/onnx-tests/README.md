@@ -40,6 +40,11 @@ Additional dependencies are specified in `requirements.lock`.
 
 ## Creating a Test for a New Operator
 
+There are two main approaches to generating ONNX files for testing:
+
+1. **Exporting a model from PyTorch** (most common)
+2. **Constructing an ONNX graph directly** (for specific cases)
+
 ### 1. Create the Python Script
 
 Create a new directory and Python script:
@@ -48,6 +53,8 @@ Create a new directory and Python script:
 mkdir -p tests/my_new_op
 touch tests/my_new_op/my_new_op.py
 ```
+
+#### Approach 1: Exporting a PyTorch Model to ONNX
 
 Your script should:
 
@@ -95,6 +102,59 @@ torch.onnx.export(
 output = model(input_tensor)
 print("Input:", input_tensor)
 print("Output:", output)
+```
+
+#### Approach 2: Constructing an ONNX Graph Directly
+
+For some test cases, you may want to construct the ONNX graph directly using the ONNX Python API.
+This is particularly useful when:
+
+- You need precise control over operator attributes
+- You're testing operators that are difficult to trigger through PyTorch models
+- You want to test specific graph structures
+
+Example (see `tests/gather/gather_1d_idx.py` for a complete example):
+
+```python
+import numpy as np
+import onnx
+from onnx import TensorProto, helper
+
+# Create inputs
+data = np.random.randn(5, 5, 5).astype(np.float32)
+indices = np.array([0, 2, 4], dtype=np.int64)
+
+# Create node
+node = helper.make_node(
+    "Gather",
+    inputs=["data", "indices"],
+    outputs=["output"],
+    axis=1
+)
+
+# Create input tensors
+data_tensor = helper.make_tensor_value_info("data", TensorProto.FLOAT, data.shape)
+indices_tensor = helper.make_tensor_value_info("indices", TensorProto.INT64, indices.shape)
+
+# Create output tensor
+output_tensor = helper.make_tensor_value_info("output", TensorProto.FLOAT, [5, 3, 5])
+
+# Create graph and model
+graph = helper.make_graph(
+    [node],
+    "gather-model",
+    [data_tensor, indices_tensor],
+    [output_tensor],
+    initializer=[]
+)
+
+model = helper.make_model(graph)
+onnx.save(model, "tests/my_new_op/my_new_op.onnx")
+
+# For test verification, print input and expected output
+print("Data:", data)
+print("Indices:", indices)
+print("Expected output:", np.take(data, indices, axis=1))
 ```
 
 ### 2. Add the Build Step
