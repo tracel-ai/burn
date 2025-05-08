@@ -36,7 +36,7 @@ pub fn tile_config(node: &Node) -> TileConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, ElementType, NodeType, TensorType};
+    use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
     /// Helper function to create test nodes with different repeat values
@@ -141,16 +141,14 @@ mod tests {
         let mut node = create_test_node(None, 3);
 
         // Add repeats input with no value
-        node.inputs.push(Argument {
-            name: "repeats".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
-                rank: 1,
-                static_shape: Some(vec![3]),
-            }),
-            value: None, // No value provided
-            passed: true,
-        });
+        node.inputs.push(
+            NodeBuilder::new(NodeType::Identity, "temp")
+                .input_tensor_i64("repeats", 1, Some(vec![3]))
+                .build()
+                .inputs
+                .pop()
+                .unwrap(),
+        );
 
         let config = tile_config(&node);
 

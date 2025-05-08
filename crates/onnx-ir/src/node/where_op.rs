@@ -51,7 +51,7 @@ pub fn where_update_outputs(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{NodeType, TensorType};
+    use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(condition_rank: usize, x_rank: usize, y_rank: usize) -> Node {
@@ -94,11 +94,16 @@ mod tests {
     #[should_panic(expected = "Where condition must be boolean!")]
     fn test_where_invalid_condition() {
         let mut node = create_test_node(2, 2, 2);
-        node.inputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: ElementType::Float32, // Not boolean
-            rank: 2,
-            static_shape: None,
-        });
+
+        // Replace condition with non-boolean tensor
+        let non_bool_input = NodeBuilder::new(NodeType::Identity, "temp")
+            .input_tensor_f32("x", 2, None)
+            .build()
+            .inputs
+            .pop()
+            .unwrap();
+
+        node.inputs[0] = non_bool_input;
         where_update_outputs(&mut node);
     }
 
@@ -106,11 +111,16 @@ mod tests {
     #[should_panic(expected = "Where x and y have different element types!")]
     fn test_where_mismatched_types() {
         let mut node = create_test_node(2, 2, 2);
-        node.inputs[2].ty = ArgType::Tensor(TensorType {
-            elem_type: ElementType::Int64, // Different from X
-            rank: 2,
-            static_shape: None,
-        });
+
+        // Replace Y with int64 tensor (different from X's float32)
+        let int64_input = NodeBuilder::new(NodeType::Identity, "temp")
+            .input_tensor_i64("y", 2, None)
+            .build()
+            .inputs
+            .pop()
+            .unwrap();
+
+        node.inputs[2] = int64_input;
         where_update_outputs(&mut node);
     }
 }
