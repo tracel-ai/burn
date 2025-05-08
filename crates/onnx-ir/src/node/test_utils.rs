@@ -418,6 +418,13 @@ impl NodeBuilder {
             .insert(name.to_string(), AttributeValue::Strings(values));
         self
     }
+    
+    /// Add a tensor attribute
+    pub fn attr_tensor(mut self, name: &str, tensor: TensorData) -> Self {
+        self.attrs
+            .insert(name.to_string(), AttributeValue::Tensor(tensor));
+        self
+    }
 
     /// Build the node
     pub fn build(self) -> Node {

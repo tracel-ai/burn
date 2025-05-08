@@ -69,31 +69,13 @@ pub fn constant_update_outputs(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, NodeType, TensorData};
-    use std::collections::HashMap;
+    use crate::ir::{NodeType, TensorData};
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node() -> Node {
-        let inputs = vec![];
-
-        let attrs = HashMap::new();
-        // Empty attrs initially
-
-        Node {
-            node_type: NodeType::Constant,
-            name: "test_constant".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32, // This will be overwritten
-                    rank: 0,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        NodeBuilder::new(NodeType::Constant, "test_constant")
+            .output_tensor_f32("output", 0, None) // This will be overwritten
+            .build()
     }
 
     #[test]

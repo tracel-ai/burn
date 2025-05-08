@@ -94,72 +94,34 @@ pub fn reduce_sum_update_outputs(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{
-        Argument, AttributeValue, Data, ElementType, NodeType, TensorData, TensorType,
-    };
-    use std::collections::HashMap;
+    use crate::ir::{NodeType};
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(
         axes: Option<Vec<i64>>,
         keepdims: Option<i64>,
         with_axes_input: bool,
     ) -> Node {
-        let mut inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 3,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
+        let mut builder = NodeBuilder::new(NodeType::ReduceSum, "test_reduce_sum")
+            .input_tensor_f32("data", 3, None)
+            .output_tensor_f32("reduced", 3, None);
+        
         // Add axes input if requested
         if with_axes_input && axes.is_some() {
-            let axes_clone = axes.clone().unwrap();
-            inputs.push(Argument {
-                name: "axes".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: Some(TensorData {
-                    data: Data::Int64s(axes_clone.clone()),
-                    shape: vec![axes_clone.len()],
-                }),
-                passed: true,
-            });
+            let axes_vec = axes.clone().unwrap();
+            builder = builder.input_tensor_i64_data("axes", axes_vec.clone(), vec![axes_vec.len()]);
         }
-
-        let mut attrs = HashMap::new();
+        
+        // Add attributes
         if !with_axes_input && axes.is_some() {
-            attrs.insert(
-                "axes".to_string(),
-                AttributeValue::Int64s(axes.clone().unwrap()),
-            );
+            builder = builder.attr_ints("axes", axes.clone().unwrap());
         }
+        
         if let Some(kd) = keepdims {
-            attrs.insert("keepdims".to_string(), AttributeValue::Int64(kd));
+            builder = builder.attr_int("keepdims", kd);
         }
-
-        Node {
-            node_type: NodeType::ReduceSum,
-            name: "test_reduce_sum".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "reduced".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 3,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        
+        builder.build()
     }
 
     #[test]

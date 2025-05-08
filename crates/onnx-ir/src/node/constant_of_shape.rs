@@ -63,38 +63,14 @@ pub fn constant_of_shape_update_output(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, Data, NodeType, TensorData};
-    use std::collections::HashMap;
+    use crate::ir::{AttributeValue, Data, NodeType, TensorData};
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(input_ty: ArgType) -> Node {
-        let inputs = vec![Argument {
-            name: "shape".to_string(),
-            ty: input_ty,
-            value: None,
-            passed: true,
-        }];
-
-        let outputs = vec![Argument {
-            name: "output".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32, // Will be updated
-                rank: 0,                         // Will be updated
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        let attrs = HashMap::new();
-        // Default value attribute not set initially
-
-        Node {
-            node_type: NodeType::ConstantOfShape,
-            name: "test_constantofshape".to_string(),
-            inputs,
-            outputs,
-            attrs,
-        }
+        NodeBuilder::new(NodeType::ConstantOfShape, "test_constantofshape")
+            .add_input("shape", input_ty)
+            .output_tensor_f32("output", 0, None) // Will be updated
+            .build()
     }
 
     #[test]
