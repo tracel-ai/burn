@@ -48,40 +48,24 @@ pub fn cast_update_outputs(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, NodeType};
-    use std::collections::HashMap;
+    use crate::ir::{Argument, NodeType, TensorType};
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(input_rank: usize, to_type: i64) -> Node {
-        let mut attrs = HashMap::new();
-        attrs.insert("to".to_string(), AttributeValue::Int64(to_type));
+        NodeBuilder::new(NodeType::Cast, "test_cast")
+            .input_tensor_f32("X", input_rank, None)
+            .output_tensor_f32("Y", input_rank, None) // Element type will be overwritten
+            .attr_int("to", to_type)
+            .build()
+    }
 
-        let inputs = vec![Argument {
-            name: "X".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: input_rank,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        Node {
-            node_type: NodeType::Cast,
-            name: "test_cast".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "Y".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32, // This will be overwritten
-                    rank: 0,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+    // Additional test function to demonstrate scalar inputs
+    fn create_scalar_test_node(to_type: i64) -> Node {
+        NodeBuilder::new(NodeType::Cast, "test_cast")
+            .input_scalar_f32("X")
+            .output_scalar_f32("Y") // Element type will be overwritten
+            .attr_int("to", to_type)
+            .build()
     }
 
     #[test]
@@ -133,5 +117,18 @@ mod tests {
             passed: true,
         });
         cast_update_outputs(&mut node);
+    }
+
+    #[test]
+    fn test_cast_scalar_to_bool() {
+        let mut node = create_scalar_test_node(DataType::BOOL.value() as i64);
+        cast_update_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Scalar(elem_type) => {
+                assert_eq!(*elem_type, ElementType::Bool);
+            }
+            _ => panic!("Expected scalar output"),
+        }
     }
 }

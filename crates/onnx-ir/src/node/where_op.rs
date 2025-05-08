@@ -51,61 +51,16 @@ pub fn where_update_outputs(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, NodeType};
-    use std::collections::HashMap;
+    use crate::ir::{NodeType, TensorType};
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(condition_rank: usize, x_rank: usize, y_rank: usize) -> Node {
-        let inputs = vec![
-            Argument {
-                name: "condition".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Bool,
-                    rank: condition_rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "X".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: x_rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "Y".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: y_rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-        ];
-
-        let outputs = vec![Argument {
-            name: "output".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 0, // Will be updated
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        Node {
-            node_type: NodeType::Where,
-            name: "test_where".to_string(),
-            inputs,
-            outputs,
-            attrs: HashMap::new(),
-        }
+        NodeBuilder::new(NodeType::Where, "test_where")
+            .input_tensor_bool("condition", condition_rank, None)
+            .input_tensor_f32("X", x_rank, None)
+            .input_tensor_f32("Y", y_rank, None)
+            .output_tensor_f32("output", 0, None) // Rank will be updated
+            .build()
     }
 
     #[test]

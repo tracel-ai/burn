@@ -38,51 +38,15 @@ pub fn matmul_update_outputs(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, ElementType, NodeType};
-    use std::collections::HashMap;
+    use crate::ir::{ElementType, NodeType};
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(a_rank: usize, b_rank: usize) -> Node {
-        let inputs = vec![
-            Argument {
-                name: "A".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: a_rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "B".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: b_rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-        ];
-
-        let outputs = vec![Argument {
-            name: "C".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 0, // Will be updated
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        Node {
-            node_type: NodeType::MatMul,
-            name: "test_matmul".to_string(),
-            inputs,
-            outputs,
-            attrs: HashMap::new(),
-        }
+        NodeBuilder::new(NodeType::MatMul, "test_matmul")
+            .input_tensor_f32("A", a_rank, None)
+            .input_tensor_f32("B", b_rank, None)
+            .output_tensor_f32("C", 0, None) // Rank will be updated
+            .build()
     }
 
     #[test]

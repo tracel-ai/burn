@@ -131,10 +131,8 @@ pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{
-        Argument, AttributeValue, Data, ElementType, NodeType, TensorData, TensorType,
-    };
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(
         mode: &str,
@@ -142,81 +140,39 @@ mod tests {
         sizes: Option<Vec<i64>>,
         roi: Option<Vec<f32>>,
     ) -> Node {
-        let mut inputs = vec![Argument {
-            name: "X".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 4, // N,C,H,W format
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
+        let mut builder = NodeBuilder::new(NodeType::Resize, "test_resize")
+            .input_tensor_f32("X", 4, None) // N,C,H,W format
+            .output_tensor_f32("Y", 4, None)
+            .attr_string("mode", mode);
+            
         // Add ROI input if provided
-        inputs.push(Argument {
-            name: "roi".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 1,
-                static_shape: None,
-            }),
-            value: roi.map(|data| TensorData {
-                data: Data::Float32s(data),
-                shape: vec![8], // For 4D input (start x, start y, end x, end y)
-            }),
-            passed: true,
-        });
-
-        // Add scales input if provided
-        inputs.push(Argument {
-            name: "scales".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 1,
-                static_shape: None,
-            }),
-            value: scales.map(|data| TensorData {
-                data: Data::Float32s(data),
-                shape: vec![4], // N,C,H,W scales
-            }),
-            passed: true,
-        });
-
-        // Add sizes input if provided
-        inputs.push(Argument {
-            name: "sizes".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
-                rank: 1,
-                static_shape: None,
-            }),
-            value: sizes.map(|data| TensorData {
-                data: Data::Int64s(data),
-                shape: vec![4], // N,C,H,W sizes
-            }),
-            passed: true,
-        });
-
-        let mut attrs = HashMap::new();
-        attrs.insert("mode".to_string(), AttributeValue::String(mode.to_string()));
-
-        Node {
-            node_type: NodeType::Resize,
-            name: "test_resize".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "Y".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 4,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
+        if let Some(roi_data) = roi {
+            builder = builder.input_tensor_f32_data("roi", roi_data, vec![8]); 
+            // For 4D input (start x, start y, end x, end y)
+        } else {
+            // Empty ROI still needs to be added as a placeholder
+            builder = builder.input_tensor_f32("roi", 1, None);
         }
+        
+        // Add scales input if provided
+        if let Some(scales_data) = scales {
+            builder = builder.input_tensor_f32_data("scales", scales_data, vec![4]); 
+            // N,C,H,W scales
+        } else {
+            // Empty scales still needs to be added as a placeholder
+            builder = builder.input_tensor_f32("scales", 1, None);
+        }
+        
+        // Add sizes input if provided
+        if let Some(sizes_data) = sizes {
+            builder = builder.input_tensor_i64_data("sizes", sizes_data, vec![4]); 
+            // N,C,H,W sizes
+        } else {
+            // Empty sizes still needs to be added as a placeholder
+            builder = builder.input_tensor_i64("sizes", 1, None);
+        }
+        
+        builder.build()
     }
 
     #[test]

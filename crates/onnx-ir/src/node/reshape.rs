@@ -82,59 +82,20 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{
-        ArgType, Argument, AttributeValue, Data, ElementType, NodeType, TensorData, TensorType,
-    };
-    use std::collections::HashMap;
+    use crate::ir::{NodeType};
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(allowzero: i64, shape_vec: Vec<i64>) -> Node {
-        let inputs = vec![
-            Argument {
-                name: "data".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 4,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "shape".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: Some(TensorData {
-                    data: Data::Int64s(shape_vec),
-                    shape: vec![2],
-                }),
-                passed: true,
-            },
-        ];
-
-        let mut attrs = HashMap::new();
+        let mut builder = NodeBuilder::new(NodeType::Reshape, "test_reshape")
+            .input_tensor_f32("data", 4, None)
+            .input_tensor_i64_data("shape", shape_vec.clone(), vec![shape_vec.len()])
+            .output_tensor_f32("reshaped", 2, None);
+            
         if allowzero != 0 {
-            attrs.insert("allowzero".to_string(), AttributeValue::Int64(allowzero));
+            builder = builder.attr_int("allowzero", allowzero);
         }
-
-        Node {
-            node_type: NodeType::Reshape,
-            name: "test_reshape".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "reshaped".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 2,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        
+        builder.build()
     }
 
     #[test]

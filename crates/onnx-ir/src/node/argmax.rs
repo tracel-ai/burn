@@ -79,45 +79,17 @@ pub fn argmax_update_outputs(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, ElementType, NodeType, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::{Argument, ElementType, NodeType};
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(axis: i64, select_last_index: i64, keepdims: i64) -> Node {
-        let inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 3,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        let mut attrs = HashMap::new();
-        attrs.insert("axis".to_string(), AttributeValue::Int64(axis));
-        attrs.insert(
-            "select_last_index".to_string(),
-            AttributeValue::Int64(select_last_index),
-        );
-        attrs.insert("keepdims".to_string(), AttributeValue::Int64(keepdims));
-
-        Node {
-            node_type: NodeType::ArgMax,
-            name: "test_argmax".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 3,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        NodeBuilder::new(NodeType::ArgMax, "test_argmax")
+            .input_tensor_f32("data", 3, None)
+            .output_tensor_i64("output", 3, None)
+            .attr_int("axis", axis)
+            .attr_int("select_last_index", select_last_index)
+            .attr_int("keepdims", keepdims)
+            .build()
     }
 
     #[test]

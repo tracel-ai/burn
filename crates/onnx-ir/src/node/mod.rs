@@ -7,6 +7,9 @@
 //! This modular structure allows for clean separation of operation implementations
 //! and facilitates easier maintenance and extension of the ONNX operation set.
 
+#[cfg(test)]
+pub mod test_utils;
+
 pub mod argmax;
 pub mod avg_pool1d;
 pub mod avg_pool2d;

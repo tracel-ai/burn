@@ -62,8 +62,8 @@ pub fn gemm_config(curr: &Node) -> (f32, f32, i64, i64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, Argument, AttributeValue, ElementType, NodeType, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(
         alpha: Option<f32>,
@@ -71,69 +71,26 @@ mod tests {
         trans_a: Option<i64>,
         trans_b: Option<i64>,
     ) -> Node {
-        let inputs = vec![
-            Argument {
-                name: "A".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 2,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "B".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 2,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-            Argument {
-                name: "C".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 2,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            },
-        ];
-
-        let mut attrs = HashMap::new();
+        let mut builder = NodeBuilder::new(NodeType::Gemm, "test_gemm")
+            .input_tensor_f32("A", 2, None)
+            .input_tensor_f32("B", 2, None)
+            .input_tensor_f32("C", 2, None)
+            .output_tensor_f32("Y", 2, None);
+            
         if let Some(alpha_val) = alpha {
-            attrs.insert("alpha".to_string(), AttributeValue::Float32(alpha_val));
+            builder = builder.attr_float("alpha", alpha_val);
         }
         if let Some(beta_val) = beta {
-            attrs.insert("beta".to_string(), AttributeValue::Float32(beta_val));
+            builder = builder.attr_float("beta", beta_val);
         }
         if let Some(trans_a_val) = trans_a {
-            attrs.insert("transA".to_string(), AttributeValue::Int64(trans_a_val));
+            builder = builder.attr_int("transA", trans_a_val);
         }
         if let Some(trans_b_val) = trans_b {
-            attrs.insert("transB".to_string(), AttributeValue::Int64(trans_b_val));
+            builder = builder.attr_int("transB", trans_b_val);
         }
-
-        Node {
-            node_type: NodeType::Gemm,
-            name: "test_gemm".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "Y".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 2,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        
+        builder.build()
     }
 
     #[test]

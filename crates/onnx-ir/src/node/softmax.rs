@@ -37,40 +37,15 @@ pub fn softmax_config(node: &Node) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, ElementType, NodeType, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::{Argument, ElementType, NodeType, TensorType};
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(axis: i64, input_rank: usize) -> Node {
-        let inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: input_rank,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        let mut attrs = HashMap::new();
-        attrs.insert("axis".to_string(), AttributeValue::Int64(axis));
-
-        Node {
-            node_type: NodeType::Softmax,
-            name: "test_softmax".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: input_rank,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        NodeBuilder::new(NodeType::Softmax, "test_softmax")
+            .input_tensor_f32("data", input_rank, None)
+            .output_tensor_f32("output", input_rank, None)
+            .attr_int("axis", axis)
+            .build()
     }
 
     #[test]
