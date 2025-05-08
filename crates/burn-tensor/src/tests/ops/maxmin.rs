@@ -7,13 +7,29 @@ mod tests {
 
     #[test]
     fn test_max_dim_2d() {
-        let tensor =
+        let f =
             TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
-        let output = tensor.max_dim(1);
-        let expected = TensorData::from([[2.], [5.]]);
+        f.clone()
+            .max_dim(0)
+            .into_data()
+            .assert_eq(&TensorData::from([[3., 4., 5.]]), false);
 
-        output.into_data().assert_eq(&expected, false);
+        f.clone()
+            .max_dim(1)
+            .into_data()
+            .assert_eq(&TensorData::from([[2.], [5.]]), false);
+
+        // Regression Test: https://github.com/tracel-ai/burn/issues/3139
+        let z = f.clone().int();
+        z.clone()
+            .max_dim(0)
+            .into_data()
+            .assert_eq(&TensorData::from([[3, 4, 5]]).into(), false);
+        z.clone()
+            .max_dim(1)
+            .into_data()
+            .assert_eq(&TensorData::from([[2], [5]]).into(), false);
     }
 
     #[test]
@@ -68,14 +84,28 @@ mod tests {
 
     #[test]
     fn test_min_dim_2d() {
-        let tensor =
+        let f =
             TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
-        let output = tensor.min_dim(1);
+        f.clone()
+            .min_dim(0)
+            .into_data()
+            .assert_eq(&TensorData::from([[0., 1., 2.]]), false);
+        f.clone()
+            .min_dim(1)
+            .into_data()
+            .assert_eq(&TensorData::from([[0.], [3.]]), false);
 
-        let expected = TensorData::from([[0.], [3.]]);
-
-        output.into_data().assert_eq(&expected, false);
+        // Regression Test: https://github.com/tracel-ai/burn/issues/3139
+        let z = f.int();
+        z.clone()
+            .min_dim(0)
+            .into_data()
+            .assert_eq(&TensorData::from([[0, 1, 2]]).into(), false);
+        z.clone()
+            .min_dim(1)
+            .into_data()
+            .assert_eq(&TensorData::from([[0], [3]]).into(), false);
     }
 
     #[test]

@@ -3,7 +3,9 @@ use core::marker::PhantomData;
 use num_traits::{Float, PrimInt, Signed};
 use serde::{Deserialize, Serialize};
 
-use super::{QuantizationMode, QuantizationScheme, QuantizationType};
+use super::{
+    QuantAccPrecision, QuantInputType, QuantLevel, QuantMode, QuantPropagation, QuantScheme,
+};
 
 /// Quantization strategy.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,11 +32,15 @@ impl QuantizationStrategy {
 
 impl QuantizationStrategy {
     /// Returns the corresponding quantization scheme.
-    pub fn scheme(&self) -> QuantizationScheme {
+    pub fn scheme(&self) -> QuantScheme {
         match self {
-            QuantizationStrategy::PerTensorSymmetricInt8(_) => {
-                QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8)
-            }
+            QuantizationStrategy::PerTensorSymmetricInt8(_) => QuantScheme {
+                level: QuantLevel::Tensor,
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
+                acc_precision: QuantAccPrecision::Full,
+                propagation: QuantPropagation::Inhibit,
+            },
         }
     }
 }

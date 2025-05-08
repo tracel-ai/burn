@@ -40,7 +40,7 @@ burn-ir = { path = "../burn-ir", version = "0.18.0", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "0.18.0", default-features = false, features = [
     "cubecl",
 ] }
-cubecl = { workspace = true, features = ["linalg", "reduce"] }
+cubecl = { workspace = true, features = ["linalg", "reduce", "random"] }
 cubecl-std = { workspace = true }
 
 bytemuck = { workspace = true }
