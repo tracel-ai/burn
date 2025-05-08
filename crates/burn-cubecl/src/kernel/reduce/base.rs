@@ -137,6 +137,9 @@ pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: Cube
             rank: input.shape.num_dims(),
         },
     )?;
+
+    println!("Axis = {dim:?}");
+    println!("Shape = {:?}", output.shape);
     let result = match strategy {
         ReduceStrategy::Unspecified => cubecl::reduce::reduce::<Run, (In, Acc), Out, ReduceFn>(
             &client,

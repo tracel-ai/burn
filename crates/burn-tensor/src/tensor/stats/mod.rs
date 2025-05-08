@@ -16,6 +16,7 @@ pub fn var_with_mean<B: Backend, const D: usize>(
 
 pub fn var_bias<B: Backend, const D: usize>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
     let mean = tensor.clone().mean_dim(dim);
+    println!("MEAN ({dim:?}) {:?}", mean);
     var_with_mean_bias(tensor, mean, dim)
 }
 
@@ -34,9 +35,11 @@ pub fn var_with_mean_n<B: Backend, const D: usize>(
     dim: usize,
     n: usize,
 ) -> Tensor<B, D> {
-    tensor
-        .sub(mean)
-        .powi_scalar(2)
-        .sum_dim(dim)
-        .div_scalar(n as f32)
+    println!("HH");
+    B::sync(&tensor.device());
+    let temp = tensor.sub(mean);
+
+    let t = temp.powi_scalar(2).sum_dim(dim).div_scalar(n as f32);
+    println!("t {t}");
+    t
 }
