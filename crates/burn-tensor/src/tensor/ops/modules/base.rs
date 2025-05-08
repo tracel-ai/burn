@@ -1,3 +1,4 @@
+use alloc::vec;
 use core::num::NonZeroUsize;
 
 use super::{conv, pool, unfold::unfold4d_using_conv2d};
