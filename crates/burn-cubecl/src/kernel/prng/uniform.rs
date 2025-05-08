@@ -11,9 +11,9 @@ pub fn random_uniform<R: CubeRuntime, E: CubeElement>(
 ) -> CubeTensor<R> {
     let client = R::client(device);
     let output = empty_device::<R, E>(client.clone(), device.clone(), shape);
-    let mut output_handle = output.as_handle_ref();
+    let output_handle = output.as_handle_ref();
 
-    cubecl::random::random_uniform(&client, lower_bound, upper_bound, &mut output_handle);
+    cubecl::random::random_uniform(&client, lower_bound, upper_bound, output_handle);
 
     output
 }
