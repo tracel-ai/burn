@@ -1,8 +1,8 @@
 #[burn_tensor_testgen::testgen(module_linear)]
 mod tests {
     use super::*;
+    use burn_tensor::TensorData;
     use burn_tensor::module::linear;
-    use burn_tensor::{Tensor, TensorData};
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
