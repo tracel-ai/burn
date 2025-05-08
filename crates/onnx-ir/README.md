@@ -5,14 +5,6 @@ can be used to generate code for various ML/DL frameworks. It's a core component
 import system, providing a clean abstraction layer between ONNX protobuf structures and Burn's
 tensor operations.
 
-## Features
-
-- **ONNX Model Parsing**: Converts ONNX protobuf definitions to a clean Rust IR
-- **Rank Inference**: Automatically infers tensor ranks throughout the computational graph
-- **Constant Folding**: Lifts constants from separate nodes into direct node inputs
-- **Node Remapping**: Maps generic ONNX operations to dimension-specific implementations
-- **Framework Independence**: The IR is designed to be independent of any specific ML framework
-
 ## Architecture
 
 The ONNX-IR crate is designed with the following components:
