@@ -1504,6 +1504,7 @@ dependencies = [
  "cubecl-cuda",
  "cubecl-hip",
  "cubecl-linalg",
+ "cubecl-random",
  "cubecl-reduce",
  "cubecl-runtime",
  "cubecl-std",
@@ -1688,6 +1689,21 @@ dependencies = [
  "smallvec",
  "stable-vec",
  "type-map",
+]
+
+[[package]]
+name = "cubecl-random"
+version = "0.6.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=6f4696457e9ca33a7716682f16d87cce272252ef#6f4696457e9ca33a7716682f16d87cce272252ef"
+dependencies = [
+ "cubecl-common",
+ "cubecl-core",
+ "cubecl-runtime",
+ "cubecl-std",
+ "half",
+ "num-traits",
+ "rand 0.9.1",
+ "serde",
 ]
 
 [[package]]
