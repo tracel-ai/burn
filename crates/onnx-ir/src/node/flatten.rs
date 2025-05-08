@@ -66,40 +66,15 @@ pub fn flatten_config(curr: &Node) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, ElementType, NodeType, TensorType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(axis: i64) -> Node {
-        let inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 4,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        let mut attrs = HashMap::new();
-        attrs.insert("axis".to_string(), AttributeValue::Int64(axis));
-
-        Node {
-            node_type: NodeType::Flatten,
-            name: "test_flatten".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 2,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        NodeBuilder::new(NodeType::Flatten, "test_flatten")
+            .input_tensor_f32("data", 4, None)
+            .output_tensor_f32("output", 2, None)
+            .attr_int("axis", axis)
+            .build()
     }
 
     #[test]
@@ -120,11 +95,14 @@ mod tests {
     #[should_panic(expected = "Flatten: input tensor must have at least 2 dimensions")]
     fn test_flatten_config_with_low_rank() {
         let mut node = create_test_node(1);
-        node.inputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: ElementType::Float32,
-            rank: 1,
-            static_shape: None,
-        });
+        // Replace the input with one that has lower rank
+        let input = NodeBuilder::new(NodeType::Identity, "temp")
+            .input_tensor_f32("x", 1, None)
+            .build()
+            .inputs
+            .pop()
+            .unwrap();
+        node.inputs[0] = input;
         let _ = flatten_config(&node);
     }
 
@@ -132,16 +110,14 @@ mod tests {
     #[should_panic(expected = "Flatten: multiple inputs are not supported")]
     fn test_flatten_config_with_multiple_inputs() {
         let mut node = create_test_node(1);
-        node.inputs.push(Argument {
-            name: "extra".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 1,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        });
+        // Add an extra input
+        let extra_input = NodeBuilder::new(NodeType::Identity, "temp")
+            .input_tensor_f32("extra", 1, None)
+            .build()
+            .inputs
+            .pop()
+            .unwrap();
+        node.inputs.push(extra_input);
         let _ = flatten_config(&node);
     }
 }

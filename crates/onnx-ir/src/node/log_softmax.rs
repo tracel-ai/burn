@@ -66,17 +66,14 @@ mod tests {
     #[should_panic(expected = "LogSoftmax: multiple inputs are not supported")]
     fn test_log_softmax_config_multiple_inputs() {
         let mut node = create_test_node(1, 3);
-        // Add an extra input to cause the expected panic
-        node.inputs.push(crate::ir::Argument {
-            name: "extra".to_string(),
-            ty: crate::ir::ArgType::Tensor(crate::ir::TensorType {
-                elem_type: crate::ir::ElementType::Float32,
-                rank: 1,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        });
+        // Add an extra input
+        let extra_input = NodeBuilder::new(NodeType::Identity, "temp")
+            .input_tensor_f32("extra", 1, None)
+            .build()
+            .inputs
+            .pop()
+            .unwrap();
+        node.inputs.push(extra_input);
         let _ = log_softmax_config(&node);
     }
 }

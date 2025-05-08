@@ -40,32 +40,16 @@ pub fn random_update_output(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, NodeType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
+    use crate::protos::tensor_proto::DataType;
 
     fn create_test_node(dtype: i32, shape: Vec<i64>) -> Node {
-        let mut attrs = HashMap::new();
-        attrs.insert("dtype".to_string(), AttributeValue::Int64(dtype as i64));
-        attrs.insert("shape".to_string(), AttributeValue::Int64s(shape.clone()));
-
-        let outputs = vec![Argument {
-            name: "output".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32, // Will be updated
-                rank: 0,                         // Will be updated
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        Node {
-            node_type: NodeType::RandomNormal,
-            name: "test_random".to_string(),
-            inputs: vec![],
-            outputs,
-            attrs,
-        }
+        NodeBuilder::new(NodeType::RandomNormal, "test_random")
+            .output_tensor_f32("output", 0, None) // Rank 0 will be updated
+            .attr_int("dtype", dtype as i64)
+            .attr_ints("shape", shape)
+            .build()
     }
 
     #[test]
@@ -99,6 +83,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "required shape attribute missing")]
     fn test_random_normal_missing_shape() {
+        // Create node and then manually remove the shape attribute
         let mut node = create_test_node(DataType::FLOAT.value(), vec![2, 3]);
         node.attrs.remove("shape");
         random_update_output(&mut node);

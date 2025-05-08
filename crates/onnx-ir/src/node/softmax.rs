@@ -37,7 +37,7 @@ pub fn softmax_config(node: &Node) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, ElementType, NodeType, TensorType};
+    use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(axis: i64, input_rank: usize) -> Node {
@@ -66,16 +66,14 @@ mod tests {
     #[should_panic(expected = "Softmax: multiple inputs are not supported")]
     fn test_softmax_config_multiple_inputs() {
         let mut node = create_test_node(1, 3);
-        node.inputs.push(Argument {
-            name: "extra".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 1,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        });
+        // Add an extra input
+        let extra_input = NodeBuilder::new(NodeType::Identity, "temp")
+            .input_tensor_f32("extra", 1, None)
+            .build()
+            .inputs
+            .pop()
+            .unwrap();
+        node.inputs.push(extra_input);
         let _ = softmax_config(&node);
     }
 }

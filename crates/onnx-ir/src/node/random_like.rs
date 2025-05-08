@@ -38,42 +38,16 @@ pub fn random_like_update_output(node: &mut Node) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Argument, AttributeValue, NodeType};
-    use std::collections::HashMap;
+    use crate::ir::NodeType;
+    use crate::node::test_utils::NodeBuilder;
+    use crate::protos::tensor_proto::DataType;
 
     fn create_test_node(dtype: i32, input_rank: usize, static_shape: Option<Vec<usize>>) -> Node {
-        let mut attrs = HashMap::new();
-        attrs.insert("dtype".to_string(), AttributeValue::Int64(dtype as i64));
-
-        let inputs = vec![Argument {
-            name: "input".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: input_rank,
-                static_shape,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        let outputs = vec![Argument {
-            name: "output".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32, // Will be updated
-                rank: 0,                         // Will be updated
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
-
-        Node {
-            node_type: NodeType::RandomNormalLike,
-            name: "test_random_like".to_string(),
-            inputs,
-            outputs,
-            attrs,
-        }
+        NodeBuilder::new(NodeType::RandomNormalLike, "test_random_like")
+            .input_tensor_f32("input", input_rank, static_shape)
+            .output_tensor_f32("output", 0, None) // Rank 0 will be updated
+            .attr_int("dtype", dtype as i64)
+            .build()
     }
 
     #[test]
