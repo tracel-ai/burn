@@ -65,7 +65,6 @@ macro_rules! reduce_float_ops {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                std::println!("Executed fused reduce {:?}", self.desc);
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
                 let output = $ops(input, self.desc.axis);
 
