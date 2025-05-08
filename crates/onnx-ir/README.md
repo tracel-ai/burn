@@ -74,28 +74,16 @@ inferred_model = shape_inference.infer_shapes(upgraded_model)
 onnx.save(inferred_model, 'upgraded_model.onnx')
 ```
 
-## Adding New Operators
+## Resources
 
-To add support for a new ONNX operator:
+- **ONNX to Burn Conversion Guide**: For detailed implementation guidance on adding new operators,
+  see the
+  [ONNX to Burn conversion guide](https://github.com/tracel-ai/burn/blob/main/contributor-book/src/guides/onnx-to-burn-conversion-tool.md).
 
-1. Add a new NodeType variant in `ir.rs`
-2. Create a new module in `node/<operation_name>.rs` with:
-   - A configuration function that extracts parameters from ONNX nodes
-   - A rank inference function that updates output tensor ranks
-3. Register the rank inference function in `rank_inference.rs`
-4. If the operation works with constants, add it to `LIFT_CONSTANTS_FOR_NODE_TYPES` in
-   `from_onnx.rs`
+- **Supported ONNX Operators**: For a full list of currently supported ONNX operators, please see
+  the
+  [Supported ONNX Operators table](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/SUPPORTED-ONNX-OPS.md).
 
-For detailed implementation guidance, see the
-[ONNX to Burn conversion guide](https://github.com/tracel-ai/burn/blob/main/contributor-book/src/guides/onnx-to-burn-conversion-tool.md).
-
-## Supported Operators
-
-For a full list of currently supported ONNX operators, please see the
-[Supported ONNX Operators table](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/SUPPORTED-ONNX-OPS.md).
-
-## Integration with Burn
-
-ONNX-IR serves as the foundation for the ONNX import support in Burn. The conversion from ONNX-IR to
-Burn graphs is implemented in
-[`burn-import/src/onnx/to_burn.rs`](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/src/onnx/to_burn.rs).
+- **Burn Integration**: ONNX-IR serves as the foundation for the ONNX import support in Burn. The
+  conversion from ONNX-IR to Burn graphs is implemented in
+  [`burn-import/src/onnx/to_burn.rs`](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/src/onnx/to_burn.rs).
