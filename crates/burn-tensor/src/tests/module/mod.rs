@@ -12,6 +12,7 @@ mod conv_transpose2d;
 mod conv_transpose3d;
 mod deform_conv2d;
 mod forward;
+mod linear;
 mod maxpool1d;
 mod maxpool2d;
 mod nearest_interpolate;
