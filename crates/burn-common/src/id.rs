@@ -1,5 +1,4 @@
 use crate::rand::gen_random;
-use serde::{Deserialize, Serialize};
 
 /// Simple ID generator.
 pub struct IdGenerator {}
