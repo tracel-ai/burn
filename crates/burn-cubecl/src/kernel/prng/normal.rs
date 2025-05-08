@@ -12,9 +12,9 @@ pub fn random_normal<R: CubeRuntime, E: CubeElement + Numeric>(
 ) -> CubeTensor<R> {
     let client = R::client(device);
     let output = empty_device::<R, E>(client.clone(), device.clone(), shape);
-    let mut output_handle = output.as_handle_ref();
+    let output_handle = output.as_handle_ref();
 
-    cubecl::random::random_normal(&client, mean, std, &mut output_handle);
+    cubecl::random::random_normal(&client, mean, std, output_handle);
 
     output
 }

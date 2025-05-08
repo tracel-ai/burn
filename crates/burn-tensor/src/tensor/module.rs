@@ -357,3 +357,40 @@ where
         options,
     )))
 }
+
+/// Applies a [linear transformation](crate::ops::ModuleOps::linear) to the input tensor using the given weight and bias.
+///
+/// ```math
+/// y = x @ weight + [bias]
+/// ```
+///
+/// # Arguments:
+///
+/// - `input` is the input tensor, ``[..., d_input]``.
+/// - `weight` is the weight tensor, ``[d_input, d_output]``.
+/// - `bias` is the bias tensor (optional), ``[d_output]``.
+///
+/// # Returns:
+///
+/// The transformed tensor, ``[..., d_output]``.
+///
+/// # Compatibility
+///
+/// This function differs from PyTorch's ``torch.nn.functional.linear`` in that it does not
+/// transpose the weight matrix. In PyTorch, the weight matrix is transposed before
+/// multiplication:
+///
+/// ```math
+/// y = x @ weight^T + [bias]
+/// ```
+pub fn linear<B: Backend, const D: usize>(
+    input: Tensor<B, D>,
+    weight: Tensor<B, 2>,
+    bias: Option<Tensor<B, 1>>,
+) -> Tensor<B, D> {
+    Tensor::new(TensorPrimitive::Float(B::linear(
+        input.primitive.tensor(),
+        weight.primitive.tensor(),
+        bias.map(|b| b.primitive.tensor()),
+    )))
+}
