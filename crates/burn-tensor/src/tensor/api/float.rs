@@ -1,6 +1,6 @@
 use crate::Tensor;
 use crate::check::TensorCheck;
-use crate::quantization::{QuantizationParameters, QuantizationScheme};
+use crate::quantization::{QTensorPrimitive, QuantScheme, QuantizationParameters};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
@@ -206,12 +206,24 @@ where
         check!(TensorCheck::matmul(&self, &other));
         match (self.primitive, other.primitive) {
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
-                Self::new(TensorPrimitive::QFloat(B::q_matmul(lhs, rhs)))
+                Self::new(B::q_matmul(lhs, rhs))
             }
-            (lhs, rhs) => Self::new(TensorPrimitive::Float(B::float_matmul(
-                lhs.tensor(),
-                rhs.tensor(),
-            ))),
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => Self::new(
+                TensorPrimitive::Float(B::float_matmul(B::dequantize(lhs), rhs)),
+            ),
+            (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
+                // NOTE: in a typical workflow with linear layers (e.g., transformers), the rhs
+                // represents the weights.
+                //
+                // Since `q_matmul(lhs_f16, rhs_quant)` isn't currently supported, in practice it makes
+                // more sense to re-quantize the input back. Better usability.
+                //
+                // This might change in the future (dequantize on read in fusion?).
+                Self::new(B::q_matmul(B::quantize_dynamic(lhs, rhs.scheme()), rhs))
+            }
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                Self::new(TensorPrimitive::Float(B::float_matmul(lhs, rhs)))
+            }
         }
     }
 
@@ -326,7 +338,7 @@ where
     /// The quantized tensor.
     pub fn quantize(
         self,
-        scheme: &QuantizationScheme,
+        scheme: &QuantScheme,
         qparams: QuantizationParameters<B>,
     ) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::QFloat(B::quantize(
@@ -348,7 +360,7 @@ where
     ///
     /// # Notes
     /// This uses [min-max calibration](crate::quantization::Calibration::MinMax).
-    pub fn quantize_dynamic(self, scheme: &QuantizationScheme) -> Tensor<B, D> {
+    pub fn quantize_dynamic(self, scheme: &QuantScheme) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::QFloat(B::quantize_dynamic(
             self.primitive.tensor(),
             scheme,

@@ -3,7 +3,7 @@ use crate::{
     element::BoolElement,
     kernel::{
         self,
-        conv::{Conv2dStrategy, ConvTranspose2dStrategy},
+        conv::{ConvStrategy, ConvTranspose2dStrategy},
     },
 };
 use burn_tensor::ops::{
@@ -19,13 +19,22 @@ where
     I: IntElement,
     BT: BoolElement,
 {
+    fn conv1d(
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
+        options: ConvOptions<1>,
+    ) -> FloatTensor<Self> {
+        kernel::conv::conv::<R, F, 1>(x, weight, bias, options, ConvStrategy::default()).unwrap()
+    }
+
     fn conv2d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv2d::<R, F>(x, weight, bias, options, Conv2dStrategy::default()).unwrap()
+        kernel::conv::conv::<R, F, 2>(x, weight, bias, options, ConvStrategy::default()).unwrap()
     }
 
     fn deform_conv2d(
@@ -66,7 +75,7 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<3>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv3d::<R, F>(x, weight, bias, options)
+        kernel::conv::conv::<R, F, 3>(x, weight, bias, options, ConvStrategy::Direct).unwrap()
     }
 
     fn conv_transpose2d(

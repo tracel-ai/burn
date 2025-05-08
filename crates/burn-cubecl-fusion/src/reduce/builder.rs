@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use super::optimization::ReduceInstruction;
 use burn_fusion::{OptimizationBuilder, OptimizationStatus};
 use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
@@ -14,7 +12,7 @@ use crate::{
     },
 };
 
-use super::optimization::{FusedReduce, ReduceFallbackFn, ReduceOptimization};
+use super::optimization::{FusedReduce, ReduceOptimization};
 
 /// Fused element wise operations that are normally memory bound.
 pub struct ReduceBuilder<R: Runtime> {
@@ -24,15 +22,10 @@ pub struct ReduceBuilder<R: Runtime> {
     device: R::Device,
     reduce: Option<FusedReduce>,
     status: OptimizationStatus,
-    fallback: Arc<dyn ReduceFallbackFn<R>>,
 }
 
 impl<R: Runtime> ReduceBuilder<R> {
-    pub fn new(
-        device: R::Device,
-        bool_precision: FusePrecision,
-        fallback: Arc<dyn ReduceFallbackFn<R>>,
-    ) -> Self {
+    pub fn new(device: R::Device, bool_precision: FusePrecision) -> Self {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware_properties().max_bindings;
@@ -64,7 +57,6 @@ impl<R: Runtime> ReduceBuilder<R> {
             device,
             reduce: None,
             status: OptimizationStatus::Open,
-            fallback,
         }
     }
 
@@ -240,8 +232,8 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
             client,
             self.device.clone(),
             self.len(),
+            self.builder_read_fallback.len(),
             fuse_reduce.clone(),
-            self.fallback.clone(),
         );
 
         CubeOptimization::Reduce(reduce)

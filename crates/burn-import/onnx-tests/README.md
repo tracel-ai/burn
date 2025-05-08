@@ -10,7 +10,8 @@ the same outputs as the original ONNX model.
 - `tests/<op_name>/`: Each operator or model has its own directory
 - `tests/<op_name>/<op_name>.py`: Python script that generates the ONNX model
 - `tests/<op_name>/<op_name>.onnx`: Generated ONNX model
-- `tests/test_onnx.rs`: Main test file containing all end-to-end tests
+- `tests/<op_name>/mod.rs`: Test implementation for the specific operator
+- `tests/test_mod.rs`: Main test file that integrates all operator tests
 - `build.rs`: Build script that generates ONNX models before running tests
 
 ## Setting Up Your Python Environment
@@ -39,6 +40,11 @@ Additional dependencies are specified in `requirements.lock`.
 
 ## Creating a Test for a New Operator
 
+There are two main approaches to generating ONNX files for testing:
+
+1. **Exporting a model from PyTorch** (most common)
+2. **Constructing an ONNX graph directly** (for specific cases)
+
 ### 1. Create the Python Script
 
 Create a new directory and Python script:
@@ -47,6 +53,8 @@ Create a new directory and Python script:
 mkdir -p tests/my_new_op
 touch tests/my_new_op/my_new_op.py
 ```
+
+#### Approach 1: Exporting a PyTorch Model to ONNX
 
 Your script should:
 
@@ -96,22 +104,86 @@ print("Input:", input_tensor)
 print("Output:", output)
 ```
 
+#### Approach 2: Constructing an ONNX Graph Directly
+
+For some test cases, you may want to construct the ONNX graph directly using the ONNX Python API.
+This is particularly useful when:
+
+- You need precise control over operator attributes
+- You're testing operators that are difficult to trigger through PyTorch models
+- You want to test specific graph structures
+
+Example (see `tests/gather/gather_1d_idx.py` for a complete example):
+
+```python
+import numpy as np
+import onnx
+from onnx import TensorProto, helper
+
+# Create inputs
+data = np.random.randn(5, 5, 5).astype(np.float32)
+indices = np.array([0, 2, 4], dtype=np.int64)
+
+# Create node
+node = helper.make_node(
+    "Gather",
+    inputs=["data", "indices"],
+    outputs=["output"],
+    axis=1
+)
+
+# Create input tensors
+data_tensor = helper.make_tensor_value_info("data", TensorProto.FLOAT, data.shape)
+indices_tensor = helper.make_tensor_value_info("indices", TensorProto.INT64, indices.shape)
+
+# Create output tensor
+output_tensor = helper.make_tensor_value_info("output", TensorProto.FLOAT, [5, 3, 5])
+
+# Create graph and model
+graph = helper.make_graph(
+    [node],
+    "gather-model",
+    [data_tensor, indices_tensor],
+    [output_tensor],
+    initializer=[]
+)
+
+model = helper.make_model(graph)
+onnx.save(model, "tests/my_new_op/my_new_op.onnx")
+
+# For test verification, print input and expected output
+print("Data:", data)
+print("Indices:", indices)
+print("Expected output:", np.take(data, indices, axis=1))
+```
+
 ### 2. Add the Build Step
 
 Update `build.rs` to include your new model.
 
-### 3. Add the Test in test_onnx.rs
+### 3. Create a mod.rs Test File
 
-First, add your model to the include_models! macro:
+Create a test module file in your operator directory:
+
+```sh
+touch tests/my_new_op/mod.rs
+```
+
+Implement the test for your operator in this file:
 
 ```rust
-include_models! {
-    // Other models...
-    my_new_op,
+use super::test_record_type::TestRecordType;
+use burn_import::onnx::OnnxModel;
+
+#[test]
+fn test_my_new_op() {
+    let model = OnnxModel::read("tests/my_new_op/my_new_op.onnx").unwrap();
+    let record = model.into_record::<TestRecordType>();
+    // Implement test logic and assertions here
 }
 ```
 
-Then add a test function.
+Your test will be automatically included in the main test suite through `tests/test_mod.rs`.
 
 ## Best Practices for ONNX Testing
 
@@ -159,10 +231,10 @@ Run all tests with:
 cargo test
 ```
 
-Run a specific test with:
+Run tests for a specific operator with:
 
 ```sh
-cargo test test_my_new_op
+cargo test --test test_mod my_new_op::test_my_new_op
 ```
 
 ## Debugging Failed Tests

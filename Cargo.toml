@@ -8,8 +8,8 @@ members = [
     "crates/*",
     "crates/burn-import/pytorch-tests",
     "crates/burn-import/onnx-tests",
+    "crates/burn-import/safetensors-tests",
     "examples/*",
-    "examples/pytorch-import/model",
     "xtask",
 ]
 
@@ -47,7 +47,7 @@ hound = "3.5.1"
 image = "0.25.6"
 indicatif = "0.17.11"
 js-sys = "0.3.72"
-libm = "0.2.11"
+libm = "0.2.14"
 log = { default-features = false, version = "0.4.27" }
 md5 = "0.7.0"
 paste = "1"
@@ -156,9 +156,9 @@ portable-atomic = { version = "1.11.0" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "1f1d197d2206e2e75792f4aa4d3f327a435d7915" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "1f1d197d2206e2e75792f4aa4d3f327a435d7915" }
-cubecl-std = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "1f1d197d2206e2e75792f4aa4d3f327a435d7915" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "83e6f4446a985c7f9ba19a45f8c22375cd7e3f6b" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "83e6f4446a985c7f9ba19a45f8c22375cd7e3f6b" }
+cubecl-std = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "83e6f4446a985c7f9ba19a45f8c22375cd7e3f6b" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

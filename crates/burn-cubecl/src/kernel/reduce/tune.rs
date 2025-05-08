@@ -2,17 +2,17 @@
 
 use burn_tensor::ElementConversion;
 use cubecl::{
-    AutotuneKey,
     client::ComputeClient,
     reduce::{ReduceFamily, tune_key::ReduceAutotuneKey},
     tune::{LocalTuner, TunableSet, local_tuner},
 };
-use serde::{Deserialize, Serialize};
 
 use crate::{
     CubeAutotuneKey, CubeElement, CubeRuntime, CubeTuneId, kernel::prng::random_like_uniform,
     ops::numeric::empty_device, tensor::CubeTensor,
 };
+
+use super::SumAutotuneKey;
 
 /// Executes autotune on reduce operations.
 pub fn autotune_reduce<
@@ -237,15 +237,8 @@ pub(crate) fn create_key_sum<Run: CubeRuntime>(input: &CubeTensor<Run>) -> CubeA
     CubeAutotuneKey::Sum(SumAutotuneKey::generate(input))
 }
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
-/// Autotune key representative of sum versions
-pub struct SumAutotuneKey {
-    dtype: burn_tensor::DType,
-    #[autotune(anchor)]
-    length: usize,
-}
-
 impl SumAutotuneKey {
+    #[allow(unused)]
     pub(crate) fn generate<Run: CubeRuntime>(input: &CubeTensor<Run>) -> Self {
         let dtype = input.dtype;
         let length = input.shape.num_elements();

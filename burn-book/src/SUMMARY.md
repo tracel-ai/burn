@@ -24,6 +24,7 @@
 - [Import Models](./import/README.md)
   - [ONNX Model](./import/onnx-model.md)
   - [PyTorch Model](./import/pytorch-model.md)
+  - [Safetensors Model](./import/safetensors-model.md)
 - [Models & Pre-Trained Weights](./models-and-pretrained-weights.md)
 - [Quantization (Beta)](./quantization.md)
 - [Advanced](./advanced/README.md)

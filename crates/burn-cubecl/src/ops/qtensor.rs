@@ -1,11 +1,11 @@
 use std::ops::Range;
 
 use burn_tensor::{
-    DType, Device, Shape, TensorData,
+    DType, Device, Shape, TensorData, TensorPrimitive,
     ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QTensorPrimitive, QuantizationMode, QuantizationParametersPrimitive, QuantizationScheme,
-        QuantizationType,
+        QTensorPrimitive, QuantInputType, QuantLevel, QuantMode, QuantPropagation, QuantScheme,
+        QuantizationParametersPrimitive,
     },
 };
 use cubecl::{
@@ -27,7 +27,7 @@ use super::{permute, swap_dims};
 fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
     data: &[u8],
     shape: S,
-    scheme: QuantizationScheme,
+    scheme: QuantScheme,
     device: &R::Device,
 ) -> CubeTensor<R> {
     let client = R::client(device);
@@ -52,7 +52,12 @@ where
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
-                QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8) => {
+                QuantScheme {
+                    level: QuantLevel::Tensor,
+                    mode: QuantMode::Symmetric,
+                    q_type: QuantInputType::QInt8,
+                    ..
+                } => {
                     // TensorData quantized representation is the same, with multiple quantized values
                     // packed into u32 and quantization parameters appended to the bytes
                     new_qtensor(data.as_bytes(), data.shape.clone(), scheme, device)
@@ -69,7 +74,7 @@ where
 
     fn quantize(
         tensor: FloatTensor<Self>,
-        scheme: &QuantizationScheme,
+        scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         kernel::quantization::quantize::<R, F, I>(tensor, scheme, qparams.scale)
@@ -93,7 +98,11 @@ where
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
         let tensor = kernel::into_contiguous(tensor);
-        let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
+        let bytes = tensor
+            .client
+            .read_async(vec![tensor.handle.binding()])
+            .await
+            .remove(0);
 
         // We use the same internal representation
         TensorData::from_bytes(bytes, tensor.shape, tensor.dtype)
@@ -139,29 +148,47 @@ where
         unimplemented!()
     }
 
-    fn q_matmul(lhs: QuantizedTensor<Self>, rhs: QuantizedTensor<Self>) -> QuantizedTensor<Self> {
+    fn q_matmul(lhs: QuantizedTensor<Self>, rhs: QuantizedTensor<Self>) -> TensorPrimitive<Self> {
         if features_enabled::<R>(&lhs.client)
             && both_matches_symmetric_qint8(lhs.scheme(), rhs.scheme())
         {
             let out =
                 kernel::matmul::q_matmul(lhs.clone(), rhs.clone(), None, MatmulStrategy::default());
             if let Ok(out) = out {
-                return out;
+                return match lhs.scheme().propagation {
+                    QuantPropagation::Propagate => {
+                        TensorPrimitive::QFloat(Self::quantize_dynamic(out, lhs.scheme()))
+                    }
+                    QuantPropagation::Inhibit => TensorPrimitive::Float(out),
+                };
             }
         }
 
         // If the above quantized matmul fail, we fallback to the dequantize-then-matmul pattern.
+        let scheme = *lhs.scheme();
         let t1_f = <Self>::dequantize(lhs);
         let t2_f = <Self>::dequantize(rhs);
-        Self::float_matmul(t1_f, t2_f)
+        let out = Self::float_matmul(t1_f, t2_f);
+
+        match scheme.propagation {
+            QuantPropagation::Propagate => {
+                TensorPrimitive::QFloat(Self::quantize_dynamic(out, &scheme))
+            }
+            QuantPropagation::Inhibit => TensorPrimitive::Float(out),
+        }
     }
 }
 
-fn both_matches_symmetric_qint8(lhs: &QuantizationScheme, rhs: &QuantizationScheme) -> bool {
+fn both_matches_symmetric_qint8(lhs: &QuantScheme, rhs: &QuantScheme) -> bool {
     [lhs, rhs].iter().all(|scheme| {
         matches!(
             scheme,
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8),
+            QuantScheme {
+                level: QuantLevel::Tensor,
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
+                ..
+            }
         )
     })
 }

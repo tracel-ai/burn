@@ -18,7 +18,7 @@ pub(crate) enum ExecutionMode {
 /// General trait to abstract how a single operation is executed.
 pub trait Operation<R: FusionRuntime>: Send + Sync {
     /// Execute the operation.
-    fn execute(self: Box<Self>, handles: &mut HandleContainer<R::FusionHandle>);
+    fn execute(&self, handles: &mut HandleContainer<R::FusionHandle>);
 }
 
 impl<R: FusionRuntime> OperationQueue<R> {
@@ -47,7 +47,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
         let num_drained = optimization.len();
 
         let mut context = self.converter.context(handles);
-        optimization.execute(&mut context);
+        optimization.execute(&mut context, &self.operations);
 
         self.drain_queue(num_drained, handles);
         self.operations.drain(0..num_drained);

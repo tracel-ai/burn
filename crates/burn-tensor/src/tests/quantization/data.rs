@@ -5,12 +5,6 @@ mod tests {
     use burn_tensor::quantization::{QuantizationStrategy, SymmetricQuantization};
     use burn_tensor::{Tensor, TensorData};
 
-    // NOTE: we mark the per-block tests as `might_panic` since backends are not strictly
-    // required to support this quantization scheme.
-    // Also std feature gated (until `catch_unwind` is stable in core).
-    #[cfg(feature = "std")]
-    use burn_tensor::might_panic;
-
     #[test]
     fn should_support_per_tensor_symmetric_int8() {
         let data = TensorData::quantized(

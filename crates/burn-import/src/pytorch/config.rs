@@ -3,22 +3,28 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
-use super::error::Error;
-
 use burn::record::serde::{adapter::DefaultAdapter, data::NestedValue, de::Deserializer};
 use candle_core::pickle::{Object, Stack};
 use serde::de::DeserializeOwned;
 use zip::ZipArchive;
 
-/// Extracts data from a `.pth` file, specifically looking for "data.pkl".
+use crate::common::candle::Error;
+
+/// Reads data from a `.pth` file, specifically looking for `data.pkl`.
+///
+/// Extracts the pickled data, potentially filtering by a top-level key,
+/// and converts it into a `NestedValue`.
 ///
 /// # Arguments
+///
 /// * `file_path` - The path to the `.pth` file.
-/// * `key` - Optional key to retrieve specific data from the pth file.
+/// * `key` - An optional key to select a specific dictionary entry within the `data.pkl`.
+///   If `None`, the entire content is returned.
 ///
 /// # Returns
 ///
-/// The nested value that can be deserialized into a specific type.
+/// A `Result` containing the `NestedValue` representation of the data, or an `Error` if
+/// reading, parsing, or key extraction fails.
 fn read_pt_info<P: AsRef<Path>>(file_path: P, key: Option<&str>) -> Result<NestedValue, Error> {
     let mut zip = ZipArchive::new(BufReader::new(File::open(file_path)?))?;
 
@@ -46,17 +52,23 @@ fn read_pt_info<P: AsRef<Path>>(file_path: P, key: Option<&str>) -> Result<Neste
     to_nested_value(obj)
 }
 
-/// Convert a PyTorch object to a nested value recursively.
+/// Recursively converts a candle `Object` to a burn `NestedValue`.
+///
+/// This handles basic types (bool, int, float, string), lists, and dictionaries
+/// with string keys.
 ///
 /// # Arguments
-/// * `obj` - The PyTorch object to convert.
+///
+/// * `obj` - The candle `Object` to convert.
 ///
 /// # Returns
-/// The nested value.
+///
+/// A `Result` containing the corresponding `NestedValue`, or an `Error` if an
+/// unsupported `Object` type is encountered.
 fn to_nested_value(obj: Object) -> Result<NestedValue, Error> {
     match obj {
         Object::Bool(v) => Ok(NestedValue::Bool(v)),
-        Object::Int(v) => Ok(NestedValue::I32(v)),
+        Object::Int(v) => Ok(NestedValue::I32(v)), // Note: Potential truncation from i64
         Object::Float(v) => Ok(NestedValue::F64(v)),
         Object::Unicode(v) => Ok(NestedValue::String(v)),
         Object::List(v) => {
@@ -70,52 +82,77 @@ fn to_nested_value(obj: Object) -> Result<NestedValue, Error> {
             let map = key_values
                 .into_iter()
                 .filter_map(|(name, value)| {
+                    // Only keep entries where the key is a Unicode string
                     if let Object::Unicode(name) = name {
-                        let nested_value = to_nested_value(value).ok()?;
-                        Some((name, nested_value))
+                        to_nested_value(value).ok().map(|nv| (name, nv))
                     } else {
-                        None // Skip non-unicode names
+                        None
                     }
                 })
                 .collect::<HashMap<_, _>>();
             Ok(NestedValue::Map(map))
         }
-        _ => Err(Error::Other("Unsupported value type".into())),
+        // Other Object types (e.g., Tuple, Tensor, Storage) are not supported here.
+        _ => Err(Error::Other(format!("Unsupported object type: {:?}", obj))),
     }
 }
 
-/// Extracts the relevant object based on the optional key.
-/// If a key is provided, it attempts to find and return the associated value.
+/// Extracts a sub-object from a candle `Object` based on an optional key.
+///
+/// If a `key` is provided and the `obj` is a `Object::Dict`, it attempts to find
+/// the value associated with that key. If the key is not found or `obj` is not a
+/// dictionary, an error is returned. If `key` is `None`, the original `obj` is returned.
+///
+/// # Arguments
+///
+/// * `obj` - The candle `Object` (expected to be a `Dict` if `key` is `Some`).
+/// * `key` - The optional string key to look up in the dictionary.
+///
+/// # Returns
+///
+/// A `Result` containing the extracted `Object` or the original `obj`. Returns an `Error`
+/// if the key is specified but not found, or if the `obj` is not a dictionary when a key is provided.
 fn extract_relevant_object(obj: Object, key: Option<&str>) -> Result<Object, Error> {
-    if let Some(key) = key {
-        if let Object::Dict(key_values) = obj {
-            key_values
+    match key {
+        Some(key_to_find) => match obj {
+            Object::Dict(key_values) => key_values
                 .into_iter()
-                .find(|(k, _)| {
-                    if let Object::Unicode(k_str) = k {
-                        k_str == key
-                    } else {
-                        false
-                    }
+                .find(|(k, _)| match k {
+                    Object::Unicode(k_str) => k_str == key_to_find,
+                    _ => false,
                 })
-                .map(|(_, v)| v)
-                .ok_or_else(|| Error::Other(format!("Key `{key}` not found")))
-        } else {
-            Err(Error::Other(
-                "Object is not a dictionary as expected".into(),
-            ))
-        }
-    } else {
-        Ok(obj)
+                .map(|(_, v)| v) // Return the value associated with the key
+                .ok_or_else(|| {
+                    Error::Other(format!("Key `{key_to_find}` not found in dictionary"))
+                }),
+            _ => Err(Error::Other(
+                "A key was provided, but the loaded object is not a dictionary.".into(),
+            )),
+        },
+        None => Ok(obj), // No key specified, return the whole object
     }
 }
 
-/// Deserialize config values  from a `.pth` file.
+/// Deserializes configuration data from a `.pth` file into a specified type `D`.
+///
+/// Reads the `data.pkl` from the `.pth` archive, potentially extracts data under
+/// `top_level_key`, and then deserializes it using burn's serde mechanism.
+///
+/// # Type Parameters
+///
+/// * `D` - The target type to deserialize into. Must implement `DeserializeOwned`.
+/// * `P` - The type of the path, must implement `AsRef<Path>`.
 ///
 /// # Arguments
 ///
 /// * `path` - The path to the `.pth` file.
-/// * `top_level_key` - Optional key to retrieve specific data from the pth file.
+/// * `top_level_key` - An optional key to select a specific dictionary entry within
+///   the `data.pkl` before deserialization. If `None`, the entire content is deserialized.
+///
+/// # Returns
+///
+/// A `Result` containing an instance of type `D`, or an `Error` if file reading,
+/// parsing, or deserialization fails.
 pub fn config_from_file<D, P>(path: P, top_level_key: Option<&str>) -> Result<D, Error>
 where
     D: DeserializeOwned,

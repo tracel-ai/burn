@@ -48,6 +48,12 @@ impl<const D: usize> From<[usize; D]> for Shape {
     }
 }
 
+impl From<&[usize]> for Shape {
+    fn from(dims: &[usize]) -> Self {
+        Shape { dims: dims.into() }
+    }
+}
+
 impl From<Vec<i64>> for Shape {
     fn from(shape: Vec<i64>) -> Self {
         Self {

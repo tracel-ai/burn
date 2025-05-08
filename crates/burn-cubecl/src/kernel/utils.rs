@@ -20,17 +20,17 @@ pub fn strided_layout<'a, R: CubeRuntime>(tensor: &CubeTensor<R>) -> StridedLayo
     }
 }
 
-pub fn split_dim<R: CubeRuntime, const N: usize>(
+pub fn split_dim<R: CubeRuntime>(
     mut tensor: CubeTensor<R>,
     dim: usize,
-    shape: [usize; N],
+    shape: &[usize],
 ) -> CubeTensor<R> {
     let mut stride = tensor.strides[dim];
     tensor.shape.dims.remove(dim);
     tensor.strides.remove(dim);
 
-    for size in shape.into_iter().rev() {
-        tensor.shape.dims.insert(dim, size);
+    for size in shape.iter().rev() {
+        tensor.shape.dims.insert(dim, *size);
         tensor.strides.insert(dim, stride);
         stride *= size;
     }

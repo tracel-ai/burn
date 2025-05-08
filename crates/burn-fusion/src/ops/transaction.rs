@@ -3,10 +3,9 @@ use burn_tensor::ops::{TransactionOps, TransactionPrimitive};
 use crate::{Fusion, FusionBackend, client::FusionClient};
 
 impl<B: FusionBackend> TransactionOps<Fusion<B>> for Fusion<B> {
-    fn tr_execute(
+    async fn tr_execute(
         transaction: TransactionPrimitive<Self>,
-    ) -> impl std::future::Future<Output = burn_tensor::ops::TransactionPrimitiveResult> + 'static + Send
-    {
+    ) -> burn_tensor::ops::TransactionPrimitiveResult {
         B::tr_execute(TransactionPrimitive {
             read_floats: transaction
                 .read_floats
@@ -29,5 +28,6 @@ impl<B: FusionBackend> TransactionOps<Fusion<B>> for Fusion<B> {
                 .map(|t| t.client.clone().resolve_tensor_bool::<B>(t))
                 .collect(),
         })
+        .await
     }
 }
