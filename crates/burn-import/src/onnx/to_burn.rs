@@ -306,6 +306,9 @@ impl ParsedOnnxGraph {
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
                 NodeType::Not => graph.register(Self::not_conversion(node)),
+                NodeType::And => graph.register(Self::and_conversion(node)),
+                NodeType::Or => graph.register(Self::or_conversion(node)),
+                NodeType::Xor => graph.register(Self::xor_conversion(node)),
                 NodeType::OneHot => graph.register(Self::one_hot_conversion(node)),
                 NodeType::Greater => graph.register(Self::greater_conversion(node)),
                 NodeType::GreaterOrEqual => graph.register(Self::greater_or_equal_conversion(node)),
@@ -1250,6 +1253,30 @@ impl ParsedOnnxGraph {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
         UnaryNode::not(input, output)
+    }
+
+    fn and_conversion(node: Node) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        BinaryNode::bool_and(lhs, rhs, output)
+    }
+
+    fn or_conversion(node: Node) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        BinaryNode::bool_or(lhs, rhs, output)
+    }
+
+    fn xor_conversion(node: Node) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        BinaryNode::bool_xor(lhs, rhs, output)
     }
 
     fn greater_conversion(node: Node) -> BinaryNode {
