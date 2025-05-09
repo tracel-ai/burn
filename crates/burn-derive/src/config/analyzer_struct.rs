@@ -185,10 +185,42 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
                             quote! {
                                 #name: #tokens,
                             }
-                        } else {
+                        }
+                        // Check if the value looks like a JSON value
+                        else if value_str.starts_with('[') || value_str.starts_with('{') || value_str.parse::<f64>().is_ok() || value_str.parse::<bool>().is_ok() {
                             quote! {
                                 #name: serde_json::from_str(#value_str)
                                     .unwrap_or_else(|e| panic!("Failed to parse default value for field '{}': {}", stringify!(#name), e)),
+                            }
+                        }
+                        // For string literals, check if the field type is String
+                        else if let syn::Type::Path(syn::TypePath { path: syn::Path { segments, .. }, .. }) = &field.field.ty {
+                            if segments.last().map(|s| s.ident == "String").unwrap_or(false) {
+                                quote! {
+                                    #name: #value_str.to_string(),
+                                }
+                            } else {
+                                match syn::parse_str::<syn::Expr>(&value_str) {
+                                    Ok(tokens) => quote! {
+                                        #name: #tokens,
+                                    },
+                                    Err(_) => quote! {
+                                        #name: serde_json::from_str(#value_str)
+                                            .unwrap_or_else(|e| panic!("Failed to parse default value for field '{}': {}", stringify!(#name), e)),
+                                    }
+                                }
+                            }
+                        }
+                        // For other values, try parsing as a Rust expression first, then fall back to JSON
+                        else {
+                            match syn::parse_str::<syn::Expr>(&value_str) {
+                                Ok(tokens) => quote! {
+                                    #name: #tokens,
+                                },
+                                Err(_) => quote! {
+                                    #name: serde_json::from_str(#value_str)
+                                        .unwrap_or_else(|e| panic!("Failed to parse default value for field '{}': {}", stringify!(#name), e)),
+                                }
                             }
                         }
                     }
