@@ -171,15 +171,19 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
                     syn::Lit::Str(value) => {
                         let value_str = value.value();
                         // Check if the value is a complex enum variant with fields
-                        if value_str.contains("{") {
+                        if value_str.contains("{") && value_str.contains("::") {
+                            let tokens = syn::parse_str::<syn::Expr>(&value_str)
+                                .unwrap_or_else(|e| panic!("Failed to parse default value for field '{}': {}", stringify!(#name), e));
                             quote! {
-                                #name: #value_str,
+                                #name: #tokens,
                             }
                         }
                         // Check if the value is a simple enum variant
                         else if value_str.contains("::") {
+                            let tokens = syn::parse_str::<syn::Expr>(&value_str)
+                                .unwrap_or_else(|e| panic!("Failed to parse default value for field '{}': {}", stringify!(#name), e));
                             quote! {
-                                #name: #value_str,
+                                #name: #tokens,
                             }
                         } else {
                             quote! {
