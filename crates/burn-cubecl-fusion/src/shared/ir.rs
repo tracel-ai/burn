@@ -204,6 +204,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
                         .map(|s| s.elem as usize)
                         .collect()
                 }
+                VirtualLayout::Shape(original, _) => self.shape(original),
             },
         }
     }
@@ -415,7 +416,7 @@ impl From<DType> for FusePrecision {
             DType::U16 => Self::U16,
             DType::U8 => Self::U8,
             DType::Bool => Self::Bool,
-            _ => panic!("Unsupported"),
+            _ => panic!("Unsupported precision for fusion: {value:?}"),
         }
     }
 }
@@ -442,8 +443,13 @@ pub enum RefLayout {
 /// A virtual layout is always contiguous and retrieve its shape from either a reshape tensor or a
 /// tensor with swap dimensions.
 pub enum VirtualLayout {
+    /// Virtual tensor with the provided shape id and contiguous strides.
     Reshaped(u32),
+    /// Virtual tensor with the same shape as the given input, but with swap dims and contiguous
+    /// strides.
     SwapDims(Arg, (u32, u32)),
+    /// Virtual tensor with the same shape as the given input, but with contiguous strides.
+    Shape(Arg, u32),
 }
 
 impl Arg {

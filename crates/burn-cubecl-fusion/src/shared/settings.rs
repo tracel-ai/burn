@@ -14,6 +14,8 @@ pub struct FuseSettings {
     pub inplace: bool,
     /// Whether vectorization is enabled.
     pub vectorization: VectorizationSetting,
+    /// How [reference layout](super::ir::RefLayout) selection is done.
+    pub ref_layout: RefLayoutSetting,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -25,4 +27,16 @@ pub enum VectorizationSetting {
     Deactivated,
     /// This is a good setting when a block processes values calculated from a previous block.
     SmallerOrEqualThanPreviousBlock,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+/// Influence how the [reference layout](super::ir::RefLayout) selection is done.
+pub enum RefLayoutSetting {
+    /// Any reference layout is allowed.
+    Any,
+    /// Only contiguous reference layout is allowed.
+    ///
+    /// Note that forcing a contiguous reference layout might reduce the oportunity of inplace
+    /// fusion.
+    OnlyContiguous,
 }

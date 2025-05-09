@@ -1,6 +1,9 @@
 use super::init_matmul_output;
 use crate::{CubeRuntime, FloatElement, tensor::CubeTensor};
-use burn_tensor::{DType, quantization::QTensorPrimitive};
+use burn_tensor::{
+    DType,
+    quantization::{QTensorPrimitive, QuantAccPrecision},
+};
 use cubecl::{
     linalg::matmul::{components::Quantized, kernels::MatmulLaunchError},
     prelude::TensorHandleRef,
@@ -70,6 +73,8 @@ pub fn q_matmul<R: CubeRuntime>(
 
     let client = &lhs.client;
 
+    let scheme = *lhs.scheme();
+
     lhs.dtype = DType::I8;
     rhs.dtype = DType::I8;
 
@@ -83,15 +88,33 @@ pub fn q_matmul<R: CubeRuntime>(
     let rhs_scales =
         unsafe { TensorHandleRef::from_raw_parts(&rhs_scales, &[1], &[1], size_of::<f32>()) };
 
-    cubecl::linalg::matmul::launch_ref::<R, (i8, half::f16, half::f16, half::f16, Quantized)>(
-        &Default::default(),
-        client,
-        &lhs.as_handle_ref(),
-        &Some(lhs_scales),
-        &rhs.as_handle_ref(),
-        &Some(rhs_scales),
-        &out.as_handle_ref(),
-    )?;
+    match scheme.acc_precision {
+        QuantAccPrecision::Full => {
+            cubecl::linalg::matmul::launch_ref::<R, (i8, half::f16, f32, half::f16, Quantized)>(
+                &Default::default(),
+                client,
+                &lhs.as_handle_ref(),
+                &Some(lhs_scales),
+                &rhs.as_handle_ref(),
+                &Some(rhs_scales),
+                &out.as_handle_ref(),
+            )?;
+        }
+        QuantAccPrecision::Half => {
+            cubecl::linalg::matmul::launch_ref::<
+                R,
+                (i8, half::f16, half::f16, half::f16, Quantized),
+            >(
+                &Default::default(),
+                client,
+                &lhs.as_handle_ref(),
+                &Some(lhs_scales),
+                &rhs.as_handle_ref(),
+                &Some(rhs_scales),
+                &out.as_handle_ref(),
+            )?;
+        }
+    }
 
     Ok(out)
 }

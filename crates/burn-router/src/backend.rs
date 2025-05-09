@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 
 use burn_tensor::{
     backend::Backend,
-    quantization::{QTensorPrimitive, QuantizationScheme},
+    quantization::{QTensorPrimitive, QuantScheme},
 };
 
 use super::{RouterTensor, RunnerChannel, RunnerClient, get_client, set_seed};
@@ -33,7 +33,7 @@ impl<R: RunnerChannel> Default for BackendRouter<R> {
 
 // TODO: quantization tensor primitive (w/ qparams)
 impl<R: RunnerClient> QTensorPrimitive for RouterTensor<R> {
-    fn scheme(&self) -> &QuantizationScheme {
+    fn scheme(&self) -> &QuantScheme {
         todo!()
     }
 }
@@ -67,6 +67,6 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
 
     fn sync(device: &Self::Device) {
         let client = get_client::<R>(device);
-        burn_common::future::block_on(client.sync());
+        client.sync();
     }
 }

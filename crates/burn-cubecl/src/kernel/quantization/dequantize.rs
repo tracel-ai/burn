@@ -1,7 +1,7 @@
 use crate::tensor::CubeTensor;
 use crate::{CubeElement, CubeRuntime};
 use burn_tensor::DType;
-use burn_tensor::quantization::{QuantizationMode, QuantizationScheme, QuantizationType};
+use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 
@@ -39,7 +39,7 @@ fn unpack_i8s(value: u32) -> Line<i32> {
 fn dequantize_per_tensor_symmetric_int8_kernel(
     input: &QTensor,
     output: &mut Tensor<Line<f32>>,
-    #[comptime] scheme: QuantizationScheme,
+    #[comptime] scheme: QuantScheme,
 ) {
     // Last position contains the qparam
     if ABSOLUTE_POS >= input.len() - 1 {
@@ -93,7 +93,12 @@ where
 
     if let DType::QFloat(scheme) = tensor.dtype {
         match scheme {
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
+            QuantScheme {
+                level: QuantLevel::Tensor,
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
+                ..
+            } => {
                 unsafe {
                     dequantize_per_tensor_symmetric_int8_kernel::launch_unchecked::<R>(
                         &client,

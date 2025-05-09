@@ -1,7 +1,7 @@
 use std::any::TypeId;
-use std::sync::Arc;
 
 use crate::CubeFusionHandle;
+use crate::FallbackOperation;
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::ir::FusePrecision;
 use crate::shared::ir::RefLayout;
@@ -10,7 +10,7 @@ use crate::shared::trace::TuneOutput;
 use crate::shared::trace::Vectorization;
 
 use burn_fusion::stream::Context;
-use burn_ir::{BinaryOpIr, TensorStatus};
+use burn_ir::BinaryOpIr;
 use cubecl::linalg::matmul::components;
 use cubecl::linalg::matmul::components::MatmulPrecision;
 use cubecl::linalg::matmul::components::MatmulProblem;
@@ -44,15 +44,7 @@ pub struct MatmulOptimization<R: Runtime> {
     pub(crate) len: usize,
     pub(crate) matmul_simple: FusedMatmul,
     pub(crate) matmul_double_buffering: FusedMatmul,
-    fallback: Arc<dyn MatmulFallbackFn<R>>,
-}
-
-pub trait MatmulFallbackFn<R: Runtime>: Send + Sync {
-    fn run(
-        &self,
-        lhs: (CubeFusionHandle<R>, &[usize]),
-        rhs: (CubeFusionHandle<R>, &[usize]),
-    ) -> CubeFusionHandle<R>;
+    fallback: Option<Box<dyn FallbackOperation<R>>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -73,7 +65,6 @@ impl<R: Runtime> MatmulOptimization<R> {
         device: R::Device,
         len: usize,
         matmul: FusedMatmul,
-        fallback: Arc<dyn MatmulFallbackFn<R>>,
     ) -> Self {
         let mut matmul_simple = matmul.clone();
         let mut matmul_double_buffering = matmul;
@@ -89,11 +80,18 @@ impl<R: Runtime> MatmulOptimization<R> {
             len,
             matmul_simple,
             matmul_double_buffering,
-            fallback,
+            fallback: None,
         }
     }
     /// Execute the optimization.
-    pub fn execute<BT: CubeElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
+    pub fn execute<BT: CubeElement>(
+        &mut self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+        fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
+    ) {
+        // The index of the fallback matmul is always 0.
+        self.fallback = Some(fallback(0));
+
         #[cfg(feature = "autotune")]
         fused_matmul_autotune::<R, BT>(self, context);
 
@@ -109,11 +107,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     }
 
     /// Create an optimization from its [state](MatmulOptimizationState).
-    pub fn from_state(
-        device: &R::Device,
-        state: MatmulOptimizationState,
-        fallback: Arc<dyn MatmulFallbackFn<R>>,
-    ) -> Self {
+    pub fn from_state(device: &R::Device, state: MatmulOptimizationState) -> Self {
         Self {
             trace: state.trace,
             trace_fallback: state.trace_fallback,
@@ -122,7 +116,7 @@ impl<R: Runtime> MatmulOptimization<R> {
             device: device.clone(),
             matmul_simple: state.matmul_simple.clone(),
             matmul_double_buffering: state.matmul_double_buffering.clone(),
-            fallback,
+            fallback: None,
         }
     }
 
@@ -151,6 +145,7 @@ impl<R: Runtime> MatmulOptimization<R> {
             &self.device,
             context,
             &self.matmul_simple,
+            &mut Default::default(),
         )
     }
 
@@ -163,6 +158,7 @@ impl<R: Runtime> MatmulOptimization<R> {
             &self.device,
             context,
             &self.matmul_double_buffering,
+            &mut Default::default(),
         )
     }
 
@@ -170,31 +166,11 @@ impl<R: Runtime> MatmulOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> TuneOutput<R> {
-        let (out_tensor, out_desc) = {
-            let lhs = context
-                .tensors
-                .get(&self.matmul_simple.op.lhs.id)
-                .unwrap()
-                .clone();
-            let rhs = context
-                .tensors
-                .get(&self.matmul_simple.op.rhs.id)
-                .unwrap()
-                .clone();
-            let out = context
-                .tensors
-                .get(&self.matmul_simple.op.out.id)
-                .unwrap()
-                .clone();
+        self.fallback
+            .as_ref()
+            .expect("A fallback operation should be available")
+            .run(context);
 
-            let lhs_handle = context.handles.get_handle(&lhs.id, &TensorStatus::ReadOnly);
-            let rhs_handle = context.handles.get_handle(&rhs.id, &TensorStatus::ReadOnly);
-            let out_handle = self
-                .fallback
-                .run((lhs_handle, &lhs.shape), (rhs_handle, &rhs.shape));
-
-            (out_handle, out)
-        };
         #[cfg(feature = "autotune-checks")]
         let mut output = TuneOutput::Checked {
             handles: Default::default(),
@@ -204,16 +180,26 @@ impl<R: Runtime> MatmulOptimization<R> {
 
         #[cfg(feature = "autotune-checks")]
         if let TuneOutput::Checked { handles } = &mut output {
+            let out_desc = context.tensors.get(&self.matmul_simple.op.out.id).unwrap();
+            let handle_out = context
+                .handles
+                .get_handle(&out_desc.id, &burn_ir::TensorStatus::ReadOnly);
+
             handles.insert(
                 self.matmul_simple.op.out.id,
-                (out_desc.shape.clone(), out_tensor.clone()),
+                (out_desc.shape.clone(), handle_out.clone()),
             );
         }
-        context.handles.register_handle(out_desc.id, out_tensor);
 
         let output_write = self
             .trace_fallback
-            .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
+            .run::<R, BT, ElemwiseRunner>(
+                &self.client,
+                &self.device,
+                context,
+                &ElemwiseRunner,
+                &mut Default::default(),
+            )
             .unwrap();
 
         output.merge(output_write)

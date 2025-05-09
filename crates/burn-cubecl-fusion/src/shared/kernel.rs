@@ -144,6 +144,28 @@ pub fn init_locals(
 
                 LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), 1u32)
             }
+            VirtualLayout::Shape(original, line_size) => {
+                let layout = match comptime![original.clone()] {
+                    Arg::Input(pos, ..) => inputs.tensors.index(pos),
+                    Arg::Output(pos, ..) => outputs.tensors.index(pos),
+                    _ => comptime![panic!("Unsupported")],
+                };
+                let mut stride_curr = 1u32;
+
+                #[unroll]
+                #[allow(clippy::clone_on_copy)]
+                for i in 0..config.rank {
+                    let reverse = reverse_index(config.rank, i);
+                    let shape = layout.tensor.shape(reverse);
+
+                    ref_shape[comptime![reverse]] = shape;
+                    ref_strides[comptime![reverse]] = stride_curr;
+
+                    stride_curr *= ref_shape[comptime![reverse]];
+                }
+
+                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), line_size)
+            }
         },
     }
 }

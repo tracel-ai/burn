@@ -79,7 +79,7 @@ impl RotaryEncodingConfig {
         // Calculate (10000 ^ (2i / d_model)) by using the log base property `exp(log(10000) * (2i / d_model))`
         // This is done since burn doesn't support exponentiation of scalar to tensor
         let theta_i = exponent.mul_scalar(self.theta.ln()).exp();
-        let theta_i = theta_i.powf_scalar(-1.0);
+        let theta_i = theta_i.recip();
 
         let theta_i = scaling(theta_i);
 

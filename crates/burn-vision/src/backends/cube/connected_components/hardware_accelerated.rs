@@ -114,13 +114,13 @@ fn strip_labeling<I: Int, BT: CubePrimitive>(
             }
 
             // Only needed pre-Volta, but we can't check that at present
-            sync_units();
+            sync_cube();
 
             if UNIT_POS_X == 0 {
                 shared_pixels[UNIT_POS_Y] = pixels_y;
             }
 
-            sync_units();
+            sync_cube();
 
             // Requires if and not select, because `select` may execute the then branch even if the
             // condition is false (on non-CUDA backends), which can lead to OOB reads.
@@ -245,7 +245,7 @@ fn strip_merge<I: Int, BT: CubePrimitive>(
                     last_dist_up_vec[UNIT_POS_Z] = start_distance(pixels_up, 32);
                 }
 
-                sync_units();
+                sync_cube();
 
                 if CUBE_POS_X == 0 || UNIT_POS_Z > 0 {
                     let last_dist = if UNIT_POS_Z > 0 {

@@ -73,13 +73,12 @@ impl RunnerClient for WsClient {
         self.sender.send(ComputeTask::RegisterOrphan(*id));
     }
 
-    fn sync(&self) -> impl Future<Output = ()> + Send {
+    fn sync(&self) -> impl Future<Output = ()> + Send + use<> {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::SyncBackend);
-        let runtime = self.runtime.clone();
 
         async move {
-            match runtime.block_on(fut) {
+            match fut.await {
                 TaskResponseContent::SyncBackend => {}
                 _ => panic!("Invalid message type"),
             };

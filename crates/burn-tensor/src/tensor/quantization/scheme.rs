@@ -1,5 +1,3 @@
-#![allow(missing_docs)] // cube derive macros
-
 use serde::{Deserialize, Serialize};
 
 use crate::{Tensor, TensorPrimitive, backend::Backend};
@@ -8,56 +6,106 @@ use super::{
     Calibration, CalibrationRange, QuantizationParameters, QuantizationParametersPrimitive,
 };
 
-#[cfg(feature = "cubecl")]
-use cubecl::prelude::*;
+/// Describes a quantization scheme/configuration.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct QuantScheme {
+    /// Granularity level of quantization (e.g., per-tensor).
+    pub level: QuantLevel,
+    /// Quantization mode (e.g., symmetric).
+    pub mode: QuantMode,
+    /// Data type used for storing quantized values (e.g., QInt8).
+    pub q_type: QuantInputType,
+    /// Precision used for accumulating intermediate values (e.g., during matmul).
+    pub acc_precision: QuantAccPrecision,
+    /// Whether to propagate quantization to outputs or return unquantized results.
+    pub propagation: QuantPropagation,
+}
 
-/// Quantization data type.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "cubecl", derive(CubeType, PartialOrd, Ord))]
-pub enum QuantizationType {
+impl Default for QuantScheme {
+    fn default() -> Self {
+        Self {
+            level: QuantLevel::Tensor,
+            mode: QuantMode::Symmetric,
+            q_type: QuantInputType::QInt8,
+            acc_precision: QuantAccPrecision::Full,
+            propagation: QuantPropagation::Inhibit,
+        }
+    }
+}
+
+impl QuantScheme {
+    /// Set the quantization level.
+    pub fn set_level(mut self, level: QuantLevel) -> Self {
+        self.level = level;
+        self
+    }
+
+    /// Set the quantization mode.
+    pub fn set_mode(mut self, mode: QuantMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    /// Set the data type used for quantized values.
+    pub fn set_q_type(mut self, q_type: QuantInputType) -> Self {
+        self.q_type = q_type;
+        self
+    }
+
+    /// Set the accumulation precision used during computations.
+    pub fn set_acc_precision(mut self, acc_precision: QuantAccPrecision) -> Self {
+        self.acc_precision = acc_precision;
+        self
+    }
+
+    /// Set whether quantization is propagated through operations.
+    pub fn set_propagation(mut self, propagation: QuantPropagation) -> Self {
+        self.propagation = propagation;
+        self
+    }
+}
+/// Level or granularity of quantization.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum QuantLevel {
+    /// Quantize the whole tensor using a single tensor.
+    Tensor,
+}
+
+/// Data type used to represent quantized values.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum QuantInputType {
     /// 8-bit signed integer.
     QInt8,
 }
 
-/// Quantization mode.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "cubecl", derive(PartialOrd, Ord))]
-pub enum QuantizationMode {
+/// Strategy used to quantize values.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum QuantMode {
     /// Symmetric or scale quantization.
     Symmetric,
 }
 
-/// Quantization scheme.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "cubecl", derive(PartialOrd, Ord))]
-pub enum QuantizationScheme {
-    /// Per-tensor quantization.
-    PerTensor(QuantizationMode, QuantizationType),
+/// Quantization accumulator precision. This is the precision to used when accumulating values
+/// while executing algorithms such as matmul.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum QuantAccPrecision {
+    /// Full precision accumulation (f32).
+    Full,
+    /// Half precision accumulation (f16).
+    Half,
 }
 
-#[cfg(feature = "cubecl")]
-impl CubeType for QuantizationScheme {
-    type ExpandType = Self;
+/// Specify if the output of an operation is quantized using the scheme of the input
+/// or returned unquantized.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum QuantPropagation {
+    /// The output is quantized using the scheme of the input.
+    Propagate,
+    /// The output is not quantized.
+    Inhibit,
 }
 
-#[cfg(feature = "cubecl")]
-impl CubeDebug for QuantizationScheme {}
-
-#[cfg(feature = "cubecl")]
-impl cubecl::frontend::IntoMut for QuantizationScheme {
-    fn into_mut(self, _scope: &mut cubecl::ir::Scope) -> Self {
-        self
-    }
-}
-
-impl QuantizationScheme {
-    /// Get the [quantization mode](QuantizationMode)
-    pub fn mode(&self) -> QuantizationMode {
-        match self {
-            QuantizationScheme::PerTensor(mode, ..) => *mode,
-        }
-    }
-
+impl QuantScheme {
     /// Compute the quantization range mapping.
     pub fn compute_range<B: Backend, const D: usize>(
         &self,
@@ -83,10 +131,8 @@ impl QuantizationScheme {
         calibration: &Calibration,
     ) -> (B::FloatTensorPrimitive, B::FloatTensorPrimitive) {
         match calibration {
-            Calibration::MinMax => match self {
-                QuantizationScheme::PerTensor(_, _) => {
-                    (B::float_min(tensor.clone()), B::float_max(tensor))
-                }
+            Calibration::MinMax => match self.level {
+                QuantLevel::Tensor => (B::float_min(tensor.clone()), B::float_max(tensor)),
             },
         }
     }
@@ -97,7 +143,12 @@ impl QuantizationScheme {
         range: CalibrationRange<B>,
     ) -> QuantizationParameters<B> {
         match self {
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
+            QuantScheme {
+                level: QuantLevel::Tensor,
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
+                ..
+            } => {
                 // Quantized range `[a, b]`
                 let b = i8::MAX as i32;
                 let a = -b;
@@ -124,11 +175,5 @@ impl QuantizationScheme {
             max: Tensor::from_primitive(TensorPrimitive::Float(max)),
         };
         self.compute_q_params(range).into()
-    }
-
-    pub fn q_type(&self) -> QuantizationType {
-        match self {
-            QuantizationScheme::PerTensor(_, quantization_type) => *quantization_type,
-        }
     }
 }

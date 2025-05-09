@@ -4,8 +4,11 @@ use crate::{
 };
 
 use super::{
-    HandleInput, HandleOutput, LaunchPlan, TraceRunner, block::FuseBlock,
-    executor::LaunchPlanExecutor, input::InputPlanner, output::OutputPlanner,
+    HandleInput, HandleOutput, LaunchPlan, TraceRunner,
+    block::FuseBlock,
+    executor::{LaunchPlanExecutor, ScalarIds},
+    input::InputPlanner,
+    output::OutputPlanner,
     vectorization::VectorizationPlanner,
 };
 use burn_fusion::stream::Context;
@@ -157,18 +160,20 @@ impl FuseTrace {
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         runner: &Runner,
+        scalars: &mut ScalarIds,
     ) -> Result<TuneOutput<R>, TraceError<Runner::Error>> {
         let mut plan = LaunchPlan::<R>::new(&self.blocks);
 
         InputPlanner::<R>::new(&self.resources, &self.blocks).run(context, &mut plan);
 
-        OutputPlanner::<R>::new(&self.resources).run::<BT>(client, device, context, &mut plan);
+        OutputPlanner::<R>::new(&self.resources, &self.blocks)
+            .run::<BT>(client, device, context, &mut plan);
 
         VectorizationPlanner::<R>::new(&self.resources, &self.blocks)
             .run(runner, context, &mut plan);
 
         match LaunchPlanExecutor::<R>::new(&self.resources, &self.blocks)
-            .execute::<_, BT>(client, runner, context, plan)
+            .execute::<_, BT>(client, runner, context, plan, scalars)
         {
             Err(err) => {
                 self.rollback(context, err.handles_input, err.handles_output);

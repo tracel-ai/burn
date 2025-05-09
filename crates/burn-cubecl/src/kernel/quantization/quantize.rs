@@ -1,13 +1,10 @@
-use crate::{
-    CubeRuntime, FloatElement,
-    kernel::into_contiguous,
-    ops::{into_data_sync, max_line_size},
-};
+use crate::{CubeRuntime, FloatElement, kernel::into_contiguous, ops::max_line_size};
 use crate::{kernel::utils::strided_layout, tensor::CubeTensor};
 use burn_tensor::Shape;
-use burn_tensor::quantization::{QuantizationMode, QuantizationScheme, QuantizationType};
+use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
+use cubecl::linalg::tensor::index_offset_contiguous;
+use cubecl::prelude::*;
 use cubecl::{calculate_cube_count_elemwise, linalg::tensor::StridedLayout};
-use cubecl::{linalg::tensor::index_offset_contiguous, prelude::*};
 
 #[cube]
 fn pack_i8s_to_u32s(value: Line<u32>) -> u32 {
@@ -127,11 +124,16 @@ fn create_quantized_output<R: CubeRuntime>(
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
     shape: Shape,
-    scheme: QuantizationScheme,
+    scheme: QuantScheme,
 ) -> (CubeTensor<R>, CubeTensor<R>) {
     // Scale and offset (optional) qparams are also packed in the tensor data
     let (shapes, elem_sizes) = match &scheme {
-        QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
+        QuantScheme {
+            level: QuantLevel::Tensor,
+            mode: QuantMode::Symmetric,
+            q_type: QuantInputType::QInt8,
+            ..
+        } => {
             let shapes = vec![shape.dims.as_slice(), &[1]];
             let elem_sizes = vec![size_of::<i8>(), size_of::<f32>()];
             (shapes, elem_sizes)
@@ -164,7 +166,7 @@ fn create_quantized_output<R: CubeRuntime>(
 /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
 pub fn quantize<R, F>(
     tensor: CubeTensor<R>,
-    scheme: &QuantizationScheme,
+    scheme: &QuantScheme,
     scale: CubeTensor<R>,
 ) -> CubeTensor<R>
 where
@@ -187,7 +189,7 @@ where
 
 fn quantize_unpacked<R: CubeRuntime, F: FloatElement>(
     tensor: CubeTensor<R>,
-    scheme: &QuantizationScheme,
+    scheme: &QuantScheme,
     scale: CubeTensor<R>,
     output: CubeTensor<R>,
     out_scale: CubeTensor<R>,
@@ -204,7 +206,12 @@ fn quantize_unpacked<R: CubeRuntime, F: FloatElement>(
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
     match scheme {
-        QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
+        QuantScheme {
+            level: QuantLevel::Tensor,
+            mode: QuantMode::Symmetric,
+            q_type: QuantInputType::QInt8,
+            ..
+        } => {
             unsafe {
                 quantize_per_tensor_symmetric_int8_kernel::launch_unchecked::<F, R>(
                     &client,
@@ -228,7 +235,7 @@ fn quantize_unpacked<R: CubeRuntime, F: FloatElement>(
 
 fn quantize_packed<R: CubeRuntime, F: FloatElement>(
     tensor: CubeTensor<R>,
-    scheme: &QuantizationScheme,
+    scheme: &QuantScheme,
     scale: CubeTensor<R>,
     output: CubeTensor<R>,
     out_scale: CubeTensor<R>,
@@ -245,7 +252,12 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement>(
         calculate_cube_count_elemwise(num_elems.div_ceil(line_size as usize), cube_dim);
 
     match scheme {
-        QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
+        QuantScheme {
+            level: QuantLevel::Tensor,
+            mode: QuantMode::Symmetric,
+            q_type: QuantInputType::QInt8,
+            ..
+        } => {
             unsafe {
                 quantize_per_tensor_symmetric_int8_packed_kernel::launch_unchecked::<F, R>(
                     &client,

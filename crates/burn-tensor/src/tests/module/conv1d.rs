@@ -134,8 +134,9 @@ mod tests {
                 ConvOptions::new([self.stride], [self.padding], [self.dilation], self.groups),
             );
 
+            let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(1e-3);
             y.to_data()
-                .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
+                .assert_approx_eq::<FT>(&output.into_data(), tolerance);
         }
     }
 }

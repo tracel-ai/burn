@@ -3,7 +3,8 @@ use cubecl::{CubeCount, CubeDim, prelude::*};
 
 use crate::{
     CubeElement, CubeRuntime,
-    ops::{max_line_size, numeric::empty_device_strided},
+    kernel::into_contiguous,
+    ops::{max_vectorization, numeric::empty_device_strided},
     tensor::CubeTensor,
 };
 
@@ -54,7 +55,7 @@ pub fn nchw_to_nhwc<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> Cub
     };
     let cube_count = CubeCount::Static(cube_count_x, cube_count_y, cube_count_z);
 
-    let in_vec = max_line_size(&input);
+    let in_vec = max_vectorization(&input);
     let out_vec = R::supported_line_sizes()
         .iter()
         .copied()
@@ -157,7 +158,7 @@ fn nchw_to_nhwc_kernel<E: Numeric>(
         }
     }
 
-    sync_units();
+    sync_cube();
 
     let mat_hw = mat_c;
     let hw = base_hw + mat_hw;
@@ -199,4 +200,27 @@ pub fn swizzle(offset: u32, #[comptime] bank_count: i32) -> u32 {
     let mask_shift = num_bits;
 
     offset ^ ((offset & yyy_mask) >> mask_shift)
+}
+
+/// Transpose an NCHW tensor to NHWC.
+pub fn permute_nchw_to_nhwc<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> CubeTensor<R> {
+    // Disabled for now, need to fix hard to track down bug
+
+    // let use_plane = if cfg!(target_family = "wasm") {
+    //     // Any plane op enables subgroups on wasm so we need to make sure it is entirely supported.
+    //     // Otherwise, `nchw_to_nhwc` will cause compilation issues on wasm.
+    //     input
+    //         .client
+    //         .properties()
+    //         .feature_enabled(cubecl::Feature::Plane)
+    // } else {
+    //     true // plane broadcast was/is always used on other platforms
+    // };
+
+    // if input.is_contiguous() && use_plane {
+    //     nchw_to_nhwc::<R, E>(input)
+    // } else {
+    //     crate::ops::permute(input, &[0, 2, 3, 1])
+    // }
+    into_contiguous(crate::ops::permute(input, &[0, 2, 3, 1]))
 }
