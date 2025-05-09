@@ -1,0 +1,29 @@
+pytorch2.3.1:Ÿ
+6
+onnx::Cast_0/Cast_output_0/Cast"Cast*	
+to	 
+:
+onnx::Cast_1/Cast_1_output_0/Cast_1"Cast*	
+to	 
+0
+/Cast_output_0
+/Cast_1_output_04/And"And
+main_graphZ&
+onnx::Cast_0
+	
+
+
+
+Z&
+onnx::Cast_1
+	
+
+
+
+b
+4
+	
+
+
+
+B
