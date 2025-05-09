@@ -322,6 +322,7 @@ functionality.
 [119]: https://onnx.ai/onnx/operators/onnx__Or.html "ONNX Or"
 [120]: https://onnx.ai/onnx/operators/onnx__Pad.html "ONNX Pad"
 [121]: https://onnx.ai/onnx/operators/onnx__Pow.html "ONNX Pow"
+[122]: https://onnx.ai/onnx/operators/onnx__PRelu.html "ONNX PRelu"
 [123]: https://onnx.ai/onnx/operators/onnx__QLinearConv "ONNX QLinearConv"
 [124]: https://onnx.ai/onnx/operators/onnx__QLinearMatMul.html "ONNX QLinearMatMul"
 [125]: https://onnx.ai/onnx/operators/onnx__QuantizeLinear.html "ONNX QuantizeLinear"
