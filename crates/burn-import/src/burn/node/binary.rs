@@ -321,7 +321,7 @@ mod tests {
     use crate::burn::{ScalarKind, ScalarType, TensorType};
 
     macro_rules! test_binary_operator_on_tensors {
-    ($operator:ident) => {{
+    ($operator:ident, $burn_operator:ident) => {{
       one_node_graph(
         BinaryNode::$operator(
           Type::Tensor(TensorType::new_float("tensor1", 4)),
@@ -330,7 +330,7 @@ mod tests {
         ),
         quote! {
             pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
-                let tensor3 = tensor1.$operator(tensor2);
+                let tensor3 = tensor1.$burn_operator(tensor2);
 
                 tensor3
             }
@@ -339,6 +339,9 @@ mod tests {
         vec!["tensor3".to_string()],
       );
     }};
+    ($operator:ident) => {
+        test_binary_operator_on_tensors!($operator, $operator);
+    };
   }
 
     macro_rules! test_binary_operator_on_tensor_and_scalar {
@@ -583,6 +586,6 @@ mod tests {
 
     #[test]
     fn test_binary_codegen_bool_xor() {
-        test_binary_operator_on_tensors!(bool_xor);
+        test_binary_operator_on_tensors!(bool_xor, not_equal);
     }
 }
