@@ -31,9 +31,12 @@ impl InstanceNormNode {
         config: InstanceNormConfig,
     ) -> Self {
         Self {
-            field: OtherType::new(name, quote! {
-                InstanceNorm<B>
-            }),
+            field: OtherType::new(
+                name,
+                quote! {
+                    InstanceNorm<B>
+                },
+            ),
             input,
             output,
             gamma,
