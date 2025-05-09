@@ -20,6 +20,9 @@ pub enum BinaryType {
     GreaterOrEqual,
     Less,
     LessOrEqual,
+    And,
+    Or,
+    Xor,
 }
 
 impl BinaryType {
@@ -38,6 +41,9 @@ impl BinaryType {
             BinaryType::GreaterOrEqual => "greater_equal",
             BinaryType::Less => "lower",
             BinaryType::LessOrEqual => "lower_equal",
+            BinaryType::And => "and",
+            BinaryType::Or => "or",
+            BinaryType::Xor => "xor",
         }
     }
 }
@@ -274,6 +280,33 @@ impl BinaryNode {
             Arc::new(function),
         )
     }
+
+    pub(crate) fn bool_and(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.bool_and(#rhs) },
+            _ => panic!("and is supported for tensor only"),
+        };
+
+        Self::new(lhs, rhs, output, BinaryType::And, Arc::new(function))
+    }
+
+    pub(crate) fn bool_or(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.bool_or(#rhs) },
+            _ => panic!("or is supported for tensor only"),
+        };
+
+        Self::new(lhs, rhs, output, BinaryType::Or, Arc::new(function))
+    }
+
+    pub(crate) fn bool_xor(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.not_equal(#rhs) },
+            _ => panic!("xor is supported for tensor only"),
+        };
+
+        Self::new(lhs, rhs, output, BinaryType::Xor, Arc::new(function))
+    }
 }
 
 #[cfg(test)]
@@ -288,7 +321,7 @@ mod tests {
     use crate::burn::{ScalarKind, ScalarType, TensorType};
 
     macro_rules! test_binary_operator_on_tensors {
-    ($operator:ident) => {{
+    ($operator:ident, $burn_operator:ident) => {{
       one_node_graph(
         BinaryNode::$operator(
           Type::Tensor(TensorType::new_float("tensor1", 4)),
@@ -297,7 +330,7 @@ mod tests {
         ),
         quote! {
             pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
-                let tensor3 = tensor1.$operator(tensor2);
+                let tensor3 = tensor1.$burn_operator(tensor2);
 
                 tensor3
             }
@@ -306,6 +339,9 @@ mod tests {
         vec!["tensor3".to_string()],
       );
     }};
+    ($operator:ident) => {
+        test_binary_operator_on_tensors!($operator, $operator);
+    };
   }
 
     macro_rules! test_binary_operator_on_tensor_and_scalar {
@@ -536,5 +572,20 @@ mod tests {
     #[test]
     fn test_binary_codegen_equal_scalars() {
         test_binary_operator_on_scalar_and_scalar!(equal, ==);
+    }
+
+    #[test]
+    fn test_binary_codegen_bool_and() {
+        test_binary_operator_on_tensors!(bool_and);
+    }
+
+    #[test]
+    fn test_binary_codegen_bool_or() {
+        test_binary_operator_on_tensors!(bool_or);
+    }
+
+    #[test]
+    fn test_binary_codegen_bool_xor() {
+        test_binary_operator_on_tensors!(bool_xor, not_equal);
     }
 }

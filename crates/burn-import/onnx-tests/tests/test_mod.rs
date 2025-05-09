@@ -4,6 +4,7 @@ extern crate alloc;
 
 // Import individual node modules
 pub mod add;
+pub mod and;
 pub mod argmax;
 pub mod avg_pool;
 pub mod batch_norm;
@@ -49,6 +50,7 @@ pub mod mul;
 pub mod neg;
 pub mod not;
 pub mod one_hot;
+pub mod or;
 pub mod pad;
 pub mod pow;
 pub mod prelu;
@@ -85,6 +87,7 @@ pub mod topk;
 pub mod transpose;
 pub mod trilu;
 pub mod unsqueeze;
+pub mod xor;
 
 /// Include specified models in the `model` directory in the target directory.
 #[macro_export]

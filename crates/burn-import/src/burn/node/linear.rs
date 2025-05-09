@@ -2,10 +2,11 @@ use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{Param, ParamId},
-    nn::{LinearConfig, LinearRecord},
+    nn::LinearRecord,
     record::{PrecisionSettings, Record},
     tensor::{Tensor, TensorData},
 };
+use onnx_ir::node::linear::LinearConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;

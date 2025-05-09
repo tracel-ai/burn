@@ -13,7 +13,7 @@ functionality.
 | [Acos][2]                        | ❌             | ❌           |
 | [Acosh][3]                       | ❌             | ❌           |
 | [Add][4]                         | ✅             | ✅           |
-| [And][5]                         | ❌             | ✅           |
+| [And][5]                         | ✅             | ✅           |
 | [ArgMax][6]                      | ✅             | ✅           |
 | [ArgMin][7]                      | ❌             | ✅           |
 | [Asin][8]                        | ❌             | ❌           |
@@ -130,7 +130,7 @@ functionality.
 | [Optional][116]                  | ❌             | ❌           |
 | [OptionalGetElement][117]        | ❌             | ❌           |
 | [OptionalHasElement][118]        | ❌             | ❌           |
-| [Or][119]                        | ❌             | ✅           |
+| [Or][119]                        | ✅             | ✅           |
 | [Pad][120]                       | ✅             | ✅           |
 | [Pow][121]                       | ✅             | ✅           |
 | [PRelu][122]                     | ✅             | ✅           |
@@ -203,7 +203,7 @@ functionality.
 | [Unique][189]                    | ❌             | ❌           |
 | [Upsample][190]                  | ❌             | ❌           |
 | [Where][191]                     | ✅             | ✅           |
-| [Xor][192]                       | ❌             | ❌           |
+| [Xor][192]                       | ✅             | ✅           |
 | [Unsqueeze][193]                 | ✅             | ✅           |
 
 [1]: https://onnx.ai/onnx/operators/onnx__Abs.html "ONNX Abs"
