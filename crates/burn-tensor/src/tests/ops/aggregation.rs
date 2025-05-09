@@ -302,8 +302,8 @@ mod tests {
 
     #[test]
     fn test_sum_dim_3_maybe_fused_on_read_not_contiguous() {
-        let tensor_1 = TestTensorInt::arange(0..16, &Default::default()).float();
-        let tensor_2 = TestTensorInt::arange(16..32, &Default::default()).float();
+        let tensor_1 = TestTensorInt::arange(0..8, &Default::default()).float();
+        let tensor_2 = TestTensorInt::arange(16..24, &Default::default()).float();
 
         let tensor_1 = tensor_1.reshape([4, 2, 1]);
         let tensor_1 = tensor_1.swap_dims(0, 2);
@@ -320,9 +320,9 @@ mod tests {
 
     #[test]
     fn test_sum_dim_4_maybe_fused_on_read_not_contiguous_mixed() {
-        let tensor_1 = TestTensorInt::arange(0..16, &Default::default()).float();
-        let tensor_2 = TestTensorInt::arange(16..32, &Default::default()).float();
-        let tensor_3 = TestTensorInt::arange(32..48, &Default::default()).float();
+        let tensor_1 = TestTensorInt::arange(0..8, &Default::default()).float();
+        let tensor_2 = TestTensorInt::arange(16..24, &Default::default()).float();
+        let tensor_3 = TestTensorInt::arange(32..40, &Default::default()).float();
 
         let tensor_1 = tensor_1.reshape([4, 2, 1]);
         let tensor_3 = tensor_3.reshape([1, 2, 4]);
@@ -340,9 +340,9 @@ mod tests {
 
     #[test]
     fn test_sum_dim_5_maybe_fused_on_read_not_contiguous_mixed() {
-        let tensor_1 = TestTensorInt::arange(0..16, &Default::default()).float();
-        let tensor_2 = TestTensorInt::arange(16..32, &Default::default()).float();
-        let tensor_3 = TestTensorInt::arange(32..48, &Default::default()).float();
+        let tensor_1 = TestTensorInt::arange(0..8, &Default::default()).float();
+        let tensor_2 = TestTensorInt::arange(16..24, &Default::default()).float();
+        let tensor_3 = TestTensorInt::arange(32..40, &Default::default()).float();
 
         let tensor_1 = tensor_1.reshape([4, 2, 1]);
         let tensor_3 = tensor_3.reshape([1, 2, 4]);
