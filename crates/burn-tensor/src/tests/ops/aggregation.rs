@@ -313,7 +313,6 @@ mod tests {
         TestBackend::sync(&tensor_1.device());
 
         let output = (tensor_1 + tensor_2).sum_dim(2);
-        println!("output {output}");
         let expected = TensorData::from([[[88.0], [96.0]]]);
 
         output.into_data().assert_eq(&expected, false);
@@ -334,7 +333,6 @@ mod tests {
         TestBackend::sync(&tensor_1.device());
 
         let output = (tensor_3 + tensor_1 + tensor_2).sum_dim(2);
-        println!("output {output}");
         let expected = TensorData::from([[[222.0], [246.0]]]);
 
         output.into_data().assert_eq(&expected, false);
@@ -355,7 +353,6 @@ mod tests {
         TestBackend::sync(&tensor_1.device());
 
         let output = (tensor_3 + tensor_1 + tensor_2).sum_dim(1);
-        println!("output {output}");
         let expected = TensorData::from([[[102.0, 112.0, 122.0, 132.0]]]);
 
         output.into_data().assert_eq(&expected, false);
