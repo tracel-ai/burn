@@ -7,6 +7,7 @@ use crate::{
 use alloc::{format, string::String};
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
+    container::TensorContainerError,
     ops::{BoolTensor, IntTensor, QuantizedTensor},
 };
 use core::marker::PhantomData;
@@ -52,7 +53,11 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::sync(device)
     }
 }
-
+macro_rules! format_container_error_message {
+    ($action:literal) => {
+        concat!("Downcast mismatch when retrieving tensor. If you are trying to ", $action, " the gradients for a given parameter id, make sure to use the inner backend. Gradients are not stored on the autodiff backend.")
+    };
+}
 impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     type InnerBackend = B;
     type Gradients = Gradients;
@@ -64,14 +69,30 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     }
 
     fn grad(tensor: &AutodiffTensor<B>, grads: &Gradients) -> Option<B::FloatTensorPrimitive> {
-        grads.get::<B>(tensor)
+        match grads.get::<B>(tensor) {
+            Ok(tensor) => Some(tensor),
+            Err(error) => match error {
+                TensorContainerError::NotFound => None,
+                TensorContainerError::DowncastError => {
+                    panic!(format_container_error_message!("retrieve"))
+                }
+            },
+        }
     }
 
     fn grad_remove(
         tensor: &AutodiffTensor<B>,
         grads: &mut Gradients,
     ) -> Option<B::FloatTensorPrimitive> {
-        grads.remove::<B>(tensor)
+        match grads.remove::<B>(tensor) {
+            Ok(tensor) => Some(tensor),
+            Err(error) => match error {
+                TensorContainerError::NotFound => None,
+                TensorContainerError::DowncastError => {
+                    panic!(format_container_error_message!("remove"))
+                }
+            },
+        }
     }
     fn inner(tensor: AutodiffTensor<B>) -> B::FloatTensorPrimitive {
         tensor.primitive
@@ -86,7 +107,9 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
         grads: &mut Self::Gradients,
         grad: B::FloatTensorPrimitive,
     ) {
-        grads.remove::<B>(tensor);
+        if let Err(TensorContainerError::DowncastError) = grads.remove::<B>(tensor) {
+            panic!(format_container_error_message!("replace"))
+        };
         grads.register::<B>(tensor.node.id, grad);
     }
 
