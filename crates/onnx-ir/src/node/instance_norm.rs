@@ -62,7 +62,7 @@ mod tests {
     }
 
     #[test]
-    fn test_layer_norm_config_basic() {
+    fn test_instance_norm_config_basic() {
         let node = create_test_node(1e-5, 64);
         let config = instance_norm_config(&node);
 
