@@ -6,7 +6,7 @@ use crate::{
     shared::{
         builder::FuseOptimizationBuilder,
         ir::FusePrecision,
-        settings::{FuseSettings, VectorizationSetting},
+        settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
 };
 
@@ -33,6 +33,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                     output_shape_updates: true,
                     inplace: true,
                     vectorization: VectorizationSetting::Activated,
+                    ref_layout: RefLayoutSetting::Any,
                 },
             ),
             device,

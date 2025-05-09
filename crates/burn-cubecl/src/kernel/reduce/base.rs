@@ -114,6 +114,7 @@ pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
             rank: input.shape.num_dims(),
         },
     )?;
+
     let result = match strategy {
         ReduceStrategy::Unspecified => cubecl::reduce::reduce::<Run, In, Out, ReduceFn>(
             &client,
