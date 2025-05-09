@@ -229,6 +229,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
                 let value = &attribute.value;
                 let default_doc = match value {
                     syn::Lit::Str(value) => {
+                        #[allow(unused_variables)]
                         let value_str = value.value();
                         quote! {
                             /// Default: #value_str
