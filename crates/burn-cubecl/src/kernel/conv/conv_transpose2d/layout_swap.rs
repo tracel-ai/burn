@@ -157,7 +157,7 @@ fn nchw_to_nhwc_kernel<E: Numeric>(
         }
     }
 
-    sync_units();
+    sync_cube();
 
     let mat_hw = mat_c;
     let hw = base_hw + mat_hw;

@@ -1,10 +1,10 @@
-use std::marker::PhantomData;
-
 use crate::reduce::optimization::{ReduceOptimization, ReduceOptimizationState};
+use std::marker::PhantomData;
 
 use super::elemwise::optimization::{ElemwiseOptimization, ElemwiseOptimizationState};
 use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
 
+use burn_fusion::stream::Context;
 use burn_tensor::DType;
 use cubecl::client::ComputeClient;
 use cubecl::ir::Elem;
@@ -33,6 +33,10 @@ pub enum CubeOptimizationState {
     /// Matrix multiplication optimization state.
     Matmul(MatmulOptimizationState),
     Reduce(ReduceOptimizationState),
+}
+
+pub trait FallbackOperation<R: Runtime>: Send + Sync {
+    fn run(&self, context: &mut Context<'_, CubeFusionHandle<R>>);
 }
 
 pub(crate) fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
