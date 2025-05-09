@@ -169,11 +169,17 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
                 let value = &attribute.value;
                 match value {
                     syn::Lit::Str(value) => {
-                        #[allow(unused_variables)]
                         let value_str = value.value();
-                        quote! {
-                            #name: serde_json::from_str(#value_str)
-                                .unwrap_or_else(|e| panic!("Failed to parse default value for field '{}': {}", stringify!(#name), e)),
+                        // Check if the value is an enum variant
+                        if value_str.contains("::") {
+                            quote! {
+                                #name: #value_str,
+                            }
+                        } else {
+                            quote! {
+                                #name: serde_json::from_str(#value_str)
+                                    .unwrap_or_else(|e| panic!("Failed to parse default value for field '{}': {}", stringify!(#name), e)),
+                            }
                         }
                     }
                     _ => quote! {
