@@ -1,4 +1,4 @@
-use crate::{DType, Shape, backend::Backend};
+use crate::{DType, Element, Shape, backend::Backend};
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
@@ -60,6 +60,8 @@ pub trait TensorMetadata: Clone + Send + Sync + core::fmt::Debug {
 pub trait TensorKind<B: Backend>: Clone + core::fmt::Debug {
     /// The primitive type of the tensor.
     type Primitive: TensorMetadata;
+    /// The type of the tensor elements.
+    type Elem: Element;
 
     /// The name of the tensor kind.
     fn name() -> &'static str;
@@ -67,6 +69,7 @@ pub trait TensorKind<B: Backend>: Clone + core::fmt::Debug {
 
 impl<B: Backend> TensorKind<B> for Float {
     type Primitive = TensorPrimitive<B>;
+    type Elem = B::FloatElem;
     fn name() -> &'static str {
         "Float"
     }
@@ -74,6 +77,7 @@ impl<B: Backend> TensorKind<B> for Float {
 
 impl<B: Backend> TensorKind<B> for Int {
     type Primitive = B::IntTensorPrimitive;
+    type Elem = B::IntElem;
     fn name() -> &'static str {
         "Int"
     }
@@ -81,6 +85,7 @@ impl<B: Backend> TensorKind<B> for Int {
 
 impl<B: Backend> TensorKind<B> for Bool {
     type Primitive = B::BoolTensorPrimitive;
+    type Elem = B::BoolElem;
     fn name() -> &'static str {
         "Bool"
     }
