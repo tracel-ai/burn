@@ -171,7 +171,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
                     syn::Lit::Str(value) => {
                         let value_str = value.value();
                         quote! {
-                            #name: serde_json::from_str(#value_str).unwrap(),
+                            #name: serde_json::from_str(#value_str).expect("Failed to parse default value"),
                         }
                     }
                     _ => quote! {
@@ -192,30 +192,30 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
             .fields_required
             .iter()
             .map(|field| {
-                let _name = field.ident();
-                let _doc = field.doc().unwrap_or_else(|| {
+                let name = field.ident();
+                let doc = field.doc().unwrap_or_else(|| {
                     quote! {
                         /// Required field.
                     }
                 });
                 quote! {
-                    /// - `#_name`: #_doc
+                    /// - `#name`: #doc
                 }
             })
             .chain(self.fields_option.iter().map(|field| {
-                let _name = field.ident();
-                let _doc = field.doc().unwrap_or_else(|| {
+                let name = field.ident();
+                let doc = field.doc().unwrap_or_else(|| {
                     quote! {
                         /// Optional field.
                     }
                 });
                 quote! {
-                    /// - `#_name`: #_doc
+                    /// - `#name`: #doc
                 }
             }))
             .chain(self.fields_default.iter().map(|(field, attribute)| {
-                let _name = field.ident();
-                let _doc = field.doc().unwrap_or_else(|| {
+                let name = field.ident();
+                let doc = field.doc().unwrap_or_else(|| {
                     quote! {
                         /// Field with default value.
                     }
@@ -223,9 +223,9 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
                 let value = &attribute.value;
                 let default_doc = match value {
                     syn::Lit::Str(value) => {
-                        let _value_str = value.value();
+                        let value_str = value.value();
                         quote! {
-                            /// Default: #_value_str
+                            /// Default: #value_str
                         }
                     }
                     _ => quote! {
@@ -233,7 +233,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
                     },
                 };
                 quote! {
-                    /// - `#_name`: #_doc
+                    /// - `#name`: #doc
                     #default_doc
                 }
             }));
