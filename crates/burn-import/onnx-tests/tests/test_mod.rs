@@ -32,6 +32,7 @@ pub mod graph_multiple_output_tracking;
 pub mod greater;
 pub mod greater_or_equal;
 pub mod hard_sigmoid;
+pub mod instance_norm;
 pub mod layer_norm;
 pub mod leaky_relu;
 pub mod less;

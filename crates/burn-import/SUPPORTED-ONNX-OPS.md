@@ -91,7 +91,7 @@ functionality.
 | [Identity][76]                   | ✅             | ✅           |
 | [If][77]                         | ❌             | ✅           |
 | [Im][78]                         | ❌             | ❌           |
-| [InstanceNormalization][79]      | ❌             | ✅           |
+| [InstanceNormalization][79]      | ✅             | ✅           |
 | [IsInf][80]                      | ❌             | ❌           |
 | [IsNaN][81]                      | ❌             | ❌           |
 | [LayerNormalization][82]         | ✅             | ✅           |
