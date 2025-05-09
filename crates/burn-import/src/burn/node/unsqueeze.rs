@@ -1,6 +1,7 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{BurnImports, Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
+use onnx_ir::node::unsqueeze::UnsqueezeConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -8,13 +9,7 @@ use quote::quote;
 pub struct UnsqueezeNode {
     pub input: Type,
     pub output: TensorType,
-    pub axes: UnsqueezeAxes,
-}
-
-#[derive(Debug, Clone)]
-pub enum UnsqueezeAxes {
-    Static(Vec<i64>),
-    Runtime(Type),
+    pub axes: UnsqueezeConfig,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
@@ -25,8 +20,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
     fn input_types(&self) -> Vec<Type> {
         let input = self.input.clone();
         match &self.axes {
-            UnsqueezeAxes::Static(_) => vec![input],
-            UnsqueezeAxes::Runtime(rt_type) => vec![input, rt_type.clone()],
+            UnsqueezeConfig::Static(_) => vec![input],
+            UnsqueezeConfig::Runtime(rt_type) => vec![input, Type::from(rt_type)],
         }
     }
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
@@ -34,17 +29,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
         let output_rank = self.output.rank.to_tokens();
 
         let axes = match &self.axes {
-            UnsqueezeAxes::Static(static_axes) => static_axes.to_tokens(),
-            UnsqueezeAxes::Runtime(Type::Tensor(axes_tensor)) => {
-                let tensor_name = &axes_tensor.name;
-                quote! {
-                    #tensor_name.to_data().as_slice::<B::IntElem>().unwrap().iter().map(|&x| x.to_isize()).collect::<Vec<isize>>()
+            UnsqueezeConfig::Static(static_axes) => static_axes.to_tokens(),
+            UnsqueezeConfig::Runtime(arg) => match Type::from(arg) {
+                Type::Tensor(axes_tensor) => {
+                    let tensor_name = &axes_tensor.name;
+                    quote! {
+                        #tensor_name.to_data().as_slice::<B::IntElem>().unwrap().iter().map(|&x| x.to_isize()).collect::<Vec<isize>>()
+                    }
                 }
-            }
-            _ => panic!(
-                "UnsqueezeNode received invalid axes type: expected static axes or tensor but got {:?}",
-                self.axes
-            ),
+                _ => panic!(
+                    "UnsqueezeNode received invalid axes type: expected tensor but got {:?}",
+                    arg
+                ),
+            },
         };
 
         match &self.input {
@@ -79,7 +76,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
             _ => {}
         }
         match &self.axes {
-            UnsqueezeAxes::Runtime(_) => {
+            UnsqueezeConfig::Runtime(_) => {
                 imports.register("alloc::vec::Vec");
                 imports.register("burn::tensor::cast::ToElement");
             }
@@ -106,7 +103,7 @@ mod tests {
         graph.register(UnsqueezeNode::new(
             Type::Tensor(TensorType::new_float("tensor1", 3)),
             TensorType::new_float("tensor2", 5),
-            UnsqueezeAxes::Static([0, 4].into()),
+            UnsqueezeConfig::Static([0, 4].into()),
         ));
 
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);

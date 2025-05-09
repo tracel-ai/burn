@@ -1,7 +1,8 @@
+use onnx_ir::node::max_pool1d::MaxPool1dConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use burn::{nn::pool::MaxPool1dConfig, record::PrecisionSettings};
+use burn::record::PrecisionSettings;
 
 use super::{Node, NodeCodegen};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
@@ -92,10 +93,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPool1dNode {
 mod tests {
     use super::*;
     use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
-    use burn::{
-        nn::{PaddingConfig1d, pool::MaxPool1dConfig},
-        record::FullPrecisionSettings,
-    };
+    use burn::record::FullPrecisionSettings;
+    use onnx_ir::node::padding::PaddingConfig1d;
 
     #[test]
     fn test_codegen() {
