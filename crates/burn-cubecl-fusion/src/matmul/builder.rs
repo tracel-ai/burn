@@ -4,8 +4,11 @@ use cubecl::Runtime;
 
 use crate::{
     CubeOptimization,
-    shared::settings::VectorizationSetting,
-    shared::{builder::FuseOptimizationBuilder, ir::FusePrecision, settings::FuseSettings},
+    shared::{
+        builder::FuseOptimizationBuilder,
+        ir::FusePrecision,
+        settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
+    },
 };
 
 use super::optimization::{FusedMatmul, MatmulOptimization};
@@ -28,6 +31,7 @@ impl<R: Runtime> MatmulBuilder<R> {
             output_shape_updates: false,
             inplace: true,
             vectorization: VectorizationSetting::Activated,
+            ref_layout: RefLayoutSetting::Any,
         };
 
         Self {
