@@ -1,6 +1,6 @@
 use crate::{CubeRuntime, element::CubeElement, kernel, tensor::CubeTensor};
 use burn_tensor::{Shape, TensorData};
-use cubecl::tensor_vectorization_factor;
+use cubecl::{server::BindingWithMeta, tensor_vectorization_factor};
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let shape: Shape = (&data.shape).into();
@@ -11,23 +11,30 @@ pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) ->
 }
 
 pub(crate) async fn into_data<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
-    let tensor = kernel::into_contiguous(tensor);
-    let bytes = tensor
-        .client
-        .read_async(vec![tensor.handle.binding()])
-        .await;
-    let bytes = &bytes[0];
-    let actual_len = tensor.shape.num_elements() * size_of::<E>();
+    let tensor = kernel::into_contiguous_aligned(tensor);
+
+    let elem_size = size_of::<E>();
+    let shape = tensor.shape.dims.clone();
+    let actual_len = tensor.shape.num_elements() * elem_size;
+    let binding = BindingWithMeta::new(tensor.handle.binding(), shape, tensor.strides, elem_size);
+    let bytes = tensor.client.read_one_tensor_async(binding).await;
     TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
 }
 
 /// Read data from a `CubeTensor` synchronously
 #[allow(unused, reason = "useful for debugging kernels")]
 pub fn into_data_sync<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
-    let tensor = kernel::into_contiguous(tensor);
+    let tensor = if R::can_read_tensor(&tensor.shape.dims, &tensor.strides) {
+        tensor
+    } else {
+        kernel::into_contiguous_aligned(tensor)
+    };
 
-    let bytes = tensor.client.read_one(tensor.handle.binding());
-    let actual_len = tensor.shape.num_elements() * size_of::<E>();
+    let elem_size = size_of::<E>();
+    let shape = tensor.shape.dims.clone();
+    let actual_len = tensor.shape.num_elements() * elem_size;
+    let binding = BindingWithMeta::new(tensor.handle.binding(), shape, tensor.strides, elem_size);
+    let bytes = tensor.client.read_one_tensor(binding);
     TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
 }
 

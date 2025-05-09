@@ -82,7 +82,9 @@ fn matmul_simple<R: CubeRuntime, E: FloatElement>(
         &Strategy::Simple(SyncLoadingStrategy::Cyclic),
         &lhs.client,
         &lhs.as_handle_ref(),
+        &None,
         &rhs.as_handle_ref(),
+        &None,
         &out.as_handle_ref(),
     )
     .map_err(|err| format!("{err:?}"))
@@ -113,7 +115,9 @@ fn matmul_tiling2d<R: CubeRuntime, E: FloatElement>(
         &Strategy::Tiling2D(Tiling2dConfig::default()),
         &lhs.client,
         &lhs.as_handle_ref(),
+        &None,
         &rhs.as_handle_ref(),
+        &None,
         &out.as_handle_ref(),
     )
     .map_err(|err| format!("{err:?}"))
@@ -128,7 +132,9 @@ fn matmul_naive<R: CubeRuntime, E: FloatElement>(
         &Strategy::Naive,
         &lhs.client,
         &lhs.as_handle_ref(),
+        &None,
         &rhs.as_handle_ref(),
+        &None,
         &out.as_handle_ref(),
     )
     .map_err(|err| format!("{err:?}"))
