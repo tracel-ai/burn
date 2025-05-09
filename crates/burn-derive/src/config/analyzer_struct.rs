@@ -192,7 +192,9 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
             .fields_required
             .iter()
             .map(|field| {
+                #[allow(unused_variables)]
                 let name = field.ident();
+                #[allow(unused_variables)]
                 let doc = field.doc().unwrap_or_else(|| {
                     quote! {
                         /// Required field.
@@ -203,7 +205,9 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
                 }
             })
             .chain(self.fields_option.iter().map(|field| {
+                #[allow(unused_variables)]
                 let name = field.ident();
+                #[allow(unused_variables)]
                 let doc = field.doc().unwrap_or_else(|| {
                     quote! {
                         /// Optional field.
@@ -214,7 +218,9 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
                 }
             }))
             .chain(self.fields_default.iter().map(|(field, attribute)| {
+                #[allow(unused_variables)]
                 let name = field.ident();
+                #[allow(unused_variables)]
                 let doc = field.doc().unwrap_or_else(|| {
                     quote! {
                         /// Field with default value.
