@@ -1,4 +1,4 @@
-# ONNX to Burn Conversion Tool: Development Guide
+# ONNX to Burn: Development Guide
 
 This guide offers in-depth design insights and step-by-step procedures for developers working on the
 ONNX to Burn conversion tool. This tool allows the importation of ONNX models into the Burn deep
@@ -7,28 +7,6 @@ weights to Burn state files.
 
 For an introduction to ONNX import in Burn, see
 [this section of the Burn book](https://burn.dev/burn-book/import/onnx-model.html).
-
-## Table of Contents
-
-- [ONNX to Burn Conversion Tool: Development Guide](#onnx-to-burn-conversion-tool-development-guide)
-  - [Table of Contents](#table-of-contents)
-  - [Design Overview](#design-overview)
-    - [Design Goals](#design-goals)
-    - [Design Decisions](#design-decisions)
-  - [Adding New Operators](#adding-new-operators)
-  - [Implementing a New Operator](#implementing-a-new-operator)
-    - [Step 1: Visibility](#step-1-visibility)
-    - [Step 2: Node Implementation](#step-2-node-implementation)
-      - [Within Onnx-IR](#within-onnx-ir)
-      - [Within burn-import](#within-burn-import)
-    - [Step 3: Registering New Operations](#step-3-registering-new-operations)
-    - [Step 4: Create a Config Function](#step-4-create-a-config-function)
-    - [Step 5: Dimension Inference](#step-5-dimension-inference)
-    - [Step 6: Integrate into the Graph Building Process](#step-6-integrate-into-the-graph-building-process)
-    - [Step 7: Add Newly Supported Op!](#step-7-add-newly-supported-op)
-    - [Misc:](#misc)
-  - [Testing](#testing)
-  - [Resources](#resources)
 
 ## Design Overview
 
@@ -66,8 +44,7 @@ To extend `burn-import` with support for new ONNX operators, follow these steps:
    model contains the expected operators.
 
 4. **Generate IR and Burn Graph**: Navigate to
-   [crates/burn-import/](https://github.com/tracel-ai/burn/tree/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import)
-   and run:
+   [crates/burn-import/](https://github.com/tracel-ai/burn/tree/main/crates/burn-import) and run:
 
    ```
    cargo r -- ./onnx-tests/tests/<op>/<op>.onnx ./out
@@ -81,225 +58,261 @@ To extend `burn-import` with support for new ONNX operators, follow these steps:
    the Burn model in Rust code, and `my-model.json` includes the model data.
 
 7. **Add End-to-End Test**: Include the test in
-   [crates/burn-import/onnx-tests/tests/onnx_tests.rs](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/onnx-tests/tests/test_onnx.rs).
+   [crates/burn-import/onnx-tests/tests/test_onnx.rs](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/tests/test_onnx.rs).
    Further details can be found in the
-   [onnx-tests README](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/onnx-tests/README.md).
+   [onnx-tests README](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/README.md).
 
 ## Implementing a New Operator
 
 To extend the capabilities of the Burn library by supporting new operations imported from ONNX
 graphs, developers must go through a few systematic steps. Here, we detail the process, using the
 implementation of the `Squeeze` operation to illustrate points as needed. All file/directory paths
-are relative to `burn/crates/burn-import/`.
+are relative to the root of the burn repository.
 
 ### Step 1: Visibility
 
-To make a new operation accessible to the rest of the Burn project, you need to declare the module
-within the
-[`mod.rs` file](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/mod.rs#L43)
-located in the `src/burn/node/` directory.
+To make a new operation accessible, there are two key modules to update:
+
+1. In `crates/onnx-ir/src/node/mod.rs`, add your new operation module to make it visible within the
+   IR
+2. In `crates/burn-import/src/burn/node/mod.rs`, make the corresponding node type visible within
+   burn-import
 
 ### Step 2: Node Implementation
 
-#### Within Onnx-IR
+#### Within onnx-ir
 
-If the node type does not exist within the
-[`NodeType` enum](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/ir.rs#L273),
-it will need to be added (support for custom operators is planned). If the node might be provided an
-input which is a constant or the output of an identity node, it will need to be added to the list of
-nodeTypes
-[checked for constants](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/from_onnx.rs#L21).
-The node will need to be added to `rank_inference`, and in most cases the work parsing side will be
-done. If a node requires extra parsing (such as handling an edge case like potentially remapping an
-unsqueeze to a reshape) the best place for that is after check constants and prior to rank_inference
-in
-[`OnnxGraphBuilder::Build`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/from_onnx.rs#L222)
+The `onnx-ir` crate handles the Intermediate Representation (IR) of ONNX models. For each operation:
+
+1. Add the operation to the `NodeType` enum in `crates/onnx-ir/src/ir.rs`.
+
+2. Create a new module file in `crates/onnx-ir/src/node/<operation_name>.rs`. This file should
+   include:
+
+   - A `<operation_name>_config` function to extract operation parameters
+   - A `<operation_name>_update_output` function for dimension inference
+
+3. If the operation might work with constants, add it to the list of node types checked for
+   constants in `crates/onnx-ir/src/from_onnx.rs`.
+
+For example, the squeeze operation is defined in `crates/onnx-ir/src/node/squeeze.rs` and contains:
+
+- A `squeeze_config` function that extracts axes from node attributes
+- A `squeeze_update_output` function that updates output dimensions by reducing input rank
 
 #### Within burn-import
 
-Create a new file named `<operation_name>.rs` in the `src/burn/node/` directory.  
-This file will define the structure and functionality of your new operation. By convention, the
-necessary information for carrying out an operation is encapsulated within a struct named
-`<operation>Node`. For the `Squeeze` operation, we defined a
-[struct called `SqueezeNode`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/squeeze.rs#L8)
-that holds necessary information about the input tensor, output tensor, and axes for the operation.
-**If implementing a unary or binary operation, please see note below.**
+1. Create a new file named `<operation_name>.rs` in the `crates/burn-import/src/burn/node/`
+   directory. This file will define the structure and functionality of your new operation. By
+   convention, the necessary information for carrying out an operation is encapsulated within a
+   struct named `<operation>Node`. For the `Squeeze` operation, we defined a struct called
+   `SqueezeNode` that holds necessary information about the input tensor, output tensor, and axes
+   for the operation. **If implementing a unary or binary operation, please see note below.**
 
-The core of integrating a new operation involves implementing the `NodeCodegen` trait for your node.
-This trait defines how the node generates code during the graph compilation process. The
-implementation must provide methods to define input and output types, to generate the forward pass
-code, and to encapsulate the node into the more general `Node` structure. Specifically:
+2. The core of integrating a new operation involves implementing the `NodeCodegen` trait for your
+   node. This trait defines how the node generates code during the graph compilation process. The
+   implementation must provide methods to define input and output types, to generate the forward
+   pass code, and to encapsulate the node into the more general `Node` structure. Specifically:
 
-- `output_types` and `input_types` return the tensor (or element) types for the output and inputs of
-  the node, respectively.
-- `forward` generates the Rust code that performs the operation during the execution phase. The
-  `quote!` macro is used to generate rust code. Ensure that this is syntactically correct using Burn
-  code.
-- `into_node` wraps the specific node in a general `Node` type, facilitating its inclusion in the
-  broader Burn graph structure.
+   - `output_types` and `input_types` return the tensor (or element) types for the output and inputs
+     of the node, respectively.
+   - `forward` generates the Rust code that performs the operation during the execution phase. The
+     `quote!` macro is used to generate rust code. Ensure that this is syntactically correct using
+     Burn code.
+   - `into_node` wraps the specific node in a general `Node` type, facilitating its inclusion in the
+     broader Burn graph structure.
 
-This file is also where you would put `test_codegen_nodes()`, to make sure that the generated code
-works within the Burn library.
+3. This file is also where you would put `test_codegen_nodes()`, to make sure that the generated
+   code works within the Burn library.
 
 **For unary and binary operations:** The implementation of `NodeCodegen` is mostly implemented in
-[`binary.rs`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/binary.rs#L9)
-and
-[`unary.rs`](https://github.com/tracel-ai/burn/blob/76fe0ed881b3965782f78896433f8bb5e2f13a1b/crates/burn-import/src/burn/node/unary.rs#L13),
-so each new operation only has to define a method to execute the function on the input(s) token
-stream.
+binary.rs and unary.rs, so each new operation only has to define a method to execute the function on
+the input(s) token stream.
 
 ### Step 3: Registering New Operations
 
-[Register the `NodeType::<operation>`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/onnx/to_burn.rs#L353)
-and
-[create an `<operation>_conversion(node: Node)` function](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/onnx/to_burn.rs#L1263),
-both in `src/onnx/to_burn.rs`.
-
-**Registering new operations in the ONNX -> Burn Conversion**  
-To integrate new operations from an ONNX graph into the Burn framework, each operation must be
-registered within the ONNX graph conversion process. This is done in the `src/onnx/to_burn.rs` file,
-where the conversion from ONNX nodes to Burn nodes is orchestrated.
-
-In the `into_burn()` method of the `OnnxGraph` struct, operations are matched with their
-corresponding conversion functions. This method iterates over each node in the ONNX graph and,
-depending on the node type, calls a specific conversion function that translates the ONNX node into
-a corresponding Burn node.
+1. In `crates/burn-import/src/onnx/to_burn.rs`, add the operation to the match statement in the
+   `into_burn()` method:
 
 ```rust
-impl OnnxGraph {
+impl ParsedOnnxGraph {
     pub fn into_burn<PS: PrecisionSettings + 'static>(self) -> BurnGraph<PS> {
-        let mut graph = BurnGraph::<PS>::default();
-        let mut unsupported_ops = vec![];
-
-        for node in self.nodes {
+        // ...
+        for node in self.0.nodes {
             match node.node_type {
-                NodeType::Add => graph.register(Self::add_conversion(node)),
-                // Other operations...
+                // ...
                 NodeType::Squeeze => graph.register(Self::squeeze_conversion(node)),
-                // Add new operations here
+                // Add your new operation here
             }
         }
     }
 }
 ```
 
-Here, the `NodeType::Squeeze` matches the ONNX node type with the `squeeze_conversion()` function
-that you define to handle the specific attributes and settings of a Squeeze operation.
+2. Create a conversion function that creates an instance of your Burn node:
 
-**Define the Conversion Function**  
-Each operation conversion function extracts necessary information from the ONNX node and constructs
-a corresponding Burn node. The structure of these functions generally includes:
+```rust
+fn squeeze_conversion(node: Node) -> SqueezeNode {
+    let input = TensorType::from(node.inputs.first().unwrap());
+    let output = TensorType::from(node.outputs.first().unwrap());
+    let axes = squeeze_config(&node);
 
-1. Extracting input and output tensors from the node.
-2. Retrieving and processing operation-specific configurations.
-3. Calling `<operation>_config()` to parse ONNX node configurations.
-4. Creating an instance of the appropriate Burn node
-   ([defined in step 2](#step-2-node-implementation)) using this information.
+    SqueezeNode::new(input, output, axes)
+}
+```
+
+This function extracts the necessary information from the ONNX node and passes it to your node's
+constructor.
 
 ### Step 4: Create a Config Function
 
-[Create an `<operation>_config(curr: &Node)`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/onnx/op_configuration.rs#L1847)
-in `src/onnx/op_configuration.rs`.
+In `crates/onnx-ir/src/node/<operation_name>.rs`, create a config function that extracts
+operation-specific parameters from the ONNX node:
 
-The `squeeze_conversion()` function in `src/onnx/to_burn.rs` from the previous step calls the
-`squeeze_config()` function in `src/onnx/op_configuration.rs` in order the parse the ONNX node's
-attributes to extract parameters specific to the Squeeze operation. In this case, the axes along
-which the squeeze operation is performed.
+```rust
+pub fn squeeze_config(curr: &Node) -> Vec<i64> {
+    let axes = curr
+        .attrs
+        .iter()
+        .filter_map(|(key, value)| {
+            if key == "axes" {
+                Some(value.clone().into_i64s())
+            } else {
+                None
+            }
+        })
+        .next()
+        .unwrap_or_else(Vec::new);
 
-> 📘 Info: Understanding Generic `config` Patterns
->
-> The `<op>_config()` functions follow a similar pattern:
->
-> 1. Extract tensor or scalar types for inputs and outputs.
-> 2. Validate the input structure and types for each node, ensuring they conform to expected formats
->    (panicking if not).
-> 3. Parse and convert configurations or parameters specific to each operation.
-> 4. Create and return a node specific to the operation, initialized with extracted values and
->    configurations.
->
-> For example, config functions handle specific settings like kernel size for pooling or handling
-> different tensor and scalar types for power operations.
+    match curr.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
 
-These functions translate the more varied and flexible structure of ONNX nodes into the more
-structured and type-safe environment of Rust and the Burn framework. Spec compliance is dealt with
-here.
+    axes
+}
+```
 
-### Step 5: Dimension Inference
+This config function is responsible for parsing the ONNX node attributes and extracting
+operation-specific parameters. In this case, it extracts the "axes" attribute from the squeeze
+operation.
 
-If needed,
-[create a rank inference function](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/rank_inference.rs#L410),
-called `<operation>_update_output(node: &mut Node)` in `src/rank_inference.rs`. If dimensions remain
-unchanged, use the `same_as_input()` function, for example
-`NodeType::AveragePool1d => same_as_input(node)`. Match the `NodeType` to the function in the
-`rank_inference()` match block.
+### Step 5: Rank Inference
 
-Dimension inference is an important step in the conversion process where Burn determines the
-dimensions of each output tensor based on the operation.
-[The `rank_inference()`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/rank_inference.rs#L14)
-function is responsible for determining the dimensions of the output tensors for each node in the
-graph. It does this by:
+In `crates/onnx-ir/src/node/<operation_name>.rs`, implement a rank inference function that updates
+the output rank based on the operation:
 
-1. **Matching the Node Type**: The function uses a `match` statement on the `node_type` of each node
-   to apply the correct dimension inference logic depending on the operation.
-2. **Applying Operation Specific Logic**: For each operation, a specific inference function is
-   called that encapsulates the rules for how output dimensions should be derived from the inputs.
+```rust
+pub fn squeeze_update_output(node: &mut Node) {
+    // Extract axes information
+    let axes = /* ... */;
+    let input_rank = /* ... */;
+    let output_rank = input_rank - axes.len();
 
-For the Squeeze operation, the dimension inference is handled by the `squeeze_update_output()`
-function, which is specifically tailored to handle the nuances of the squeeze operation, which is
-currently not that nuanced. The output tensor should be (dimensions of input tensor) - 1.
+    // Update output rank
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        elem_type: node.inputs[0].ty.elem_type().clone(),
+        rank: output_rank,
+        static_shape: None,
+    });
+}
+```
 
-> 📘 Info: How `squeeze_update_output()` Works
->
-> 1. Validation of axes input: We first check if the second input of the node contains a list of
->    integers, which represent the axes along which the squeeze operation is applied. The function
->    also validates that only one axis is specified for squeezing, ensuring that the operation's
->    requirements within Burn are followed.
-> 2. Extracting input dimensions: The input tensor's dimension is extracted from the first input.
-> 3. Configuring output dimensions: The output tensor's dimensions are then set to be one less than
->    the input tensor’s dimensions, reflecting the reduction in dimensions caused by the squeeze
->    operation.
-> 4. The function includes several checks that throw errors (panics) if the inputs do not meet the
->    expected types or configurations, such as when the axes are not provided as an integer list or
->    if the input type is not a tensor.
+Then register this function in `crates/onnx-ir/src/rank_inference.rs` by adding it to the match
+statement:
 
-By invoking this function within the `rank_inference()` match block, the output dimensions of each
-node are updated before the graph is finalized. This ensures that all subsequent operations within
-the graph can rely on correct tensor sizes, which is critical for both compiling the graph and for
-runtime execution efficiency.
+```rust
+pub fn rank_inference(node: &mut Node) {
+    match node.node_type {
+        // ...
+        NodeType::Squeeze => squeeze_update_output(node),
+        // Add your new operation here
+    }
+}
+```
 
-If something is amiss (ie weird panics are happening), after doing this step and the dimensions of
-your output tensor differs from the dimensions of your input, see the warning at the very end.
+The `rank_inference.rs` file is responsible for determining the output tensor rank for each node in
+the graph.
+
+If the rank remains unchanged, you can use helper functions like `same_as_input()` or
+`same_as_input_broadcast()` instead of writing a custom update function.
 
 ### Step 6: Integrate into the Graph Building Process
 
-When a new node type is introduced, it must be added to the
-[`Node<PS: PrecisionSettings>` enum](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/base.rs#L85)
-and
-[`match_all!` macro](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/base.rs#L138)
-in `src/burn/node/base.rs`.
+When a new node type is introduced, it must be added to the `Node<PS: PrecisionSettings>` enum in
+`crates/burn-import/src/burn/node/base.rs` and the `match_all!` macro in the same file.
 
 The `Node` enum abstracts over different types of operations (nodes) within a network graph. Each
-variant of the enum corresponds to a specific type of operation, and it encapsulates the
-operation-specific data structures (like `SqueezeNode1`) that was
-[defined in step 2](#step-2-node-implementation).
+variant of the enum corresponds to a specific type of operation and encapsulates the
+operation-specific data structures (like `SqueezeNode`) that were defined in step 2.
 
 ### Step 7: Add Newly Supported Op!
 
-As a reward, add an extra check to
-[SUPPORTED-ONNX-OPS.md](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/SUPPORTED-ONNX-OPS.md)!
+As a reward, add an extra check to `crates/burn-import/SUPPORTED-ONNX-OPS.md`!
 
-### Misc:
+### Lifting Constant Nodes
 
-> 🚧 **Warning**: Dimension Changes
->
-> If your operation changes the dimensions of the input tensor, you may need to modify the
-> [`LIFT_CONSTANTS_FOR_NODE_TYPES` enum](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/from_onnx.rs#L21)
-> in `src/from_onnx.rs` by adding the `NodeType` of your operation to it.
+If your operation takes inputs from constant nodes (such as weights in Conv1d, shape tensors in
+Reshape, etc.), you need to add your operation's `NodeType` to the `LIFT_CONSTANTS_FOR_NODE_TYPES`
+array in `crates/onnx-ir/src/from_onnx.rs`.
+
+```rust
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 16] = [
+    NodeType::BatchNormalization,
+    // other operations...
+    NodeType::Squeeze,
+    NodeType::Unsqueeze,
+    // Add your operation here if it needs constants to be processed
+];
+```
+
+"Lifting" constants means converting Constant nodes into direct input values. This is similar to how
+ONNX initializers work. For example, instead of having a separate Constant node providing weights to
+a Convolution operation, the weights are directly embedded as values in the Convolution node's
+inputs.
+
+This transformation makes it easier to:
+
+1.  Access the constant values during node configuration
+2.  Process operations like Conv1d that expect weights as direct inputs
+3.  Handle shape-defining inputs needed for operations like Reshape
+
+Without this, operations that need to extract configuration from constant inputs (such as shapes,
+weights, or other parameters) would not work correctly because they wouldn't have direct access to
+those constant values.
 
 ## Testing
 
-- Unit tests for the Burn graph to Rust source code conversion are mandatory.
-- End-to-end tests should include a test ONNX model and its expected output for each operator.
+When implementing a new operator, there are several levels of testing to consider:
+
+### Unit Testing
+
+- **Node Configuration**: Write unit tests for the `<operation_name>_config` function in
+  `crates/onnx-ir/src/node/<operation_name>.rs` to verify that it correctly extracts parameters from
+  ONNX nodes.
+
+- **Rank Inference**: Test the `<operation_name>_update_output` function to ensure it correctly
+  computes output ranks.
+
+- **Code Generation**: Test the Node implementation in `burn-import` to verify that it generates
+  correct Rust code.
+
+### Integration Testing
+
+- Create small ONNX models that use your operator and test the end-to-end conversion process
+- Ensure the generated Rust code compiles and produces the expected outputs
+- Add these tests to `crates/burn-import/onnx-tests/tests/test_onnx.rs`
+
+### End-to-End Testing
+
+- Test with realistic ONNX models that use your operator in conjunction with others
+- Verify that inputs and outputs match between the original ONNX model and the converted Burn model
+- Include models that test edge cases (e.g., different input shapes, parameter combinations)
+
+Testing both the rank inference and node configuration is particularly important as these components
+directly affect the correctness of the conversion process. Incorrect rank inference can lead to
+mismatched tensor shapes, while incorrect configuration can cause runtime errors or incorrect
+results.
 
 ## Resources
 

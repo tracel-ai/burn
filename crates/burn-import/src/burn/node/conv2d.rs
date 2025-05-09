@@ -2,10 +2,11 @@ use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
-    nn::conv::{Conv2dConfig, Conv2dRecord},
+    nn::conv::Conv2dRecord,
     record::{PrecisionSettings, Record},
     tensor::{Tensor, TensorData},
 };
+use onnx_ir::node::conv2d::Conv2dConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
@@ -134,7 +135,8 @@ mod tests {
         graph::BurnGraph,
         node::{conv2d::Conv2dNode, test::assert_tokens},
     };
-    use burn::{nn::PaddingConfig2d, nn::conv::Conv2dConfig, record::FullPrecisionSettings};
+    use burn::record::FullPrecisionSettings;
+    use onnx_ir::node::padding::PaddingConfig2d;
 
     #[test]
     fn test_codegen() {
@@ -146,7 +148,15 @@ mod tests {
             TensorType::new_float("output", 4),
             TensorData::from([2f32]),
             None,
-            Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
+            Conv2dConfig::new(
+                [3, 3],
+                [3, 3],
+                [1, 1],
+                PaddingConfig2d::Valid,
+                [1, 1],
+                1,
+                true,
+            ),
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);

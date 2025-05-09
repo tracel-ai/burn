@@ -10,7 +10,7 @@
   - [Tensor](./project-architecture/tensor.md)
   - [Backend](./project-architecture/backend.md)
 - [Guides for Contributors](./guides/README.md)
-  - [Onnx To Burn Conversion Tool: A Development Guide](./guides/onnx-to-burn-conversion-tool.md)
+  - [ONNX to Burn: Development Guide](./guides/onnx-to-burn-conversion-tool.md)
   - [Adding a New Operation to Burn](./guides/adding-a-new-operation-to-burn.md)
   - [Submitting Examples to Burn](./guides/submitting-examples.md)
 - [Frequently Encountered Issues](./frequently-encountered-issues/README.md)
