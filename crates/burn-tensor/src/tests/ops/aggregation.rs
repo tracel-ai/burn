@@ -37,6 +37,7 @@ mod tests {
             .into_data()
             .assert_eq(&TensorData::from([15.0]), false);
     }
+
     #[test]
     fn test_should_sum_dim_maybe_fused() {
         let tensor = TestTensor::<2>::from([[5.0], [-12.0]]);
@@ -295,6 +296,67 @@ mod tests {
         let output = (tensor_1 + tensor_2.clone()).sum_dim(2) + tensor_2;
         TestBackend::sync(&output.device());
         let expected = TensorData::from([[[56.0], [77.0]]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_sum_dim_3_maybe_fused_on_read_not_contiguous() {
+        let tensor_1 = TestTensorInt::arange(0..16, &Default::default()).float();
+        let tensor_2 = TestTensorInt::arange(16..32, &Default::default()).float();
+
+        let tensor_1 = tensor_1.reshape([4, 2, 1]);
+        let tensor_1 = tensor_1.swap_dims(0, 2);
+
+        let tensor_2 = tensor_2.reshape([1, 4, 2]);
+        let tensor_2 = tensor_2.swap_dims(1, 2);
+        TestBackend::sync(&tensor_1.device());
+
+        let output = (tensor_1 + tensor_2).sum_dim(2);
+        println!("output {output}");
+        let expected = TensorData::from([[[88.0], [96.0]]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_sum_dim_4_maybe_fused_on_read_not_contiguous_mixed() {
+        let tensor_1 = TestTensorInt::arange(0..16, &Default::default()).float();
+        let tensor_2 = TestTensorInt::arange(16..32, &Default::default()).float();
+        let tensor_3 = TestTensorInt::arange(32..48, &Default::default()).float();
+
+        let tensor_1 = tensor_1.reshape([4, 2, 1]);
+        let tensor_3 = tensor_3.reshape([1, 2, 4]);
+        let tensor_1 = tensor_1.swap_dims(0, 2);
+
+        let tensor_2 = tensor_2.reshape([1, 4, 2]);
+        let tensor_2 = tensor_2.swap_dims(1, 2);
+        TestBackend::sync(&tensor_1.device());
+
+        let output = (tensor_3 + tensor_1 + tensor_2).sum_dim(2);
+        println!("output {output}");
+        let expected = TensorData::from([[[222.0], [246.0]]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_sum_dim_5_maybe_fused_on_read_not_contiguous_mixed() {
+        let tensor_1 = TestTensorInt::arange(0..16, &Default::default()).float();
+        let tensor_2 = TestTensorInt::arange(16..32, &Default::default()).float();
+        let tensor_3 = TestTensorInt::arange(32..48, &Default::default()).float();
+
+        let tensor_1 = tensor_1.reshape([4, 2, 1]);
+        let tensor_3 = tensor_3.reshape([1, 2, 4]);
+        let tensor_1 = tensor_1.swap_dims(0, 2);
+
+        let tensor_2 = tensor_2.reshape([1, 4, 2]);
+        let tensor_2 = tensor_2.swap_dims(1, 2);
+        TestBackend::sync(&tensor_1.device());
+
+        let output = (tensor_3 + tensor_1 + tensor_2).sum_dim(1);
+        println!("output {output}");
+        let expected = TensorData::from([[[102.0, 112.0, 122.0, 132.0]]]);
 
         output.into_data().assert_eq(&expected, false);
     }

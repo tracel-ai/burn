@@ -166,7 +166,8 @@ impl FuseTrace {
 
         InputPlanner::<R>::new(&self.resources, &self.blocks).run(context, &mut plan);
 
-        OutputPlanner::<R>::new(&self.resources).run::<BT>(client, device, context, &mut plan);
+        OutputPlanner::<R>::new(&self.resources, &self.blocks)
+            .run::<BT>(client, device, context, &mut plan);
 
         VectorizationPlanner::<R>::new(&self.resources, &self.blocks)
             .run(runner, context, &mut plan);

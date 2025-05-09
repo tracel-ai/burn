@@ -33,9 +33,6 @@ pub fn read<C: CubePrimitive>(
                 read_input(inputs, locals, pos, ref_pos, layout, config, None)
             }
         }
-        Arg::InputShape { .. } => {
-            todo!()
-        }
         Arg::Output(pos, _precision, layout) => {
             read_output(inputs, outputs, locals, pos, ref_pos, layout, config)
         }

@@ -26,9 +26,6 @@ pub enum Arg {
         dims: (u32, u32),
         broadcasted: bool,
     },
-    InputShape {
-        original: Box<Arg>,
-    },
 }
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -53,7 +50,6 @@ impl Arg {
             Arg::ScalarShape(_) => return FusePrecision::U32,
             Arg::InputReshaped { original, .. } => return original.precision(),
             Arg::InputSwapDims { original, .. } => return original.precision(),
-            Arg::InputShape { original } => return original.precision(),
         }
     }
 }
@@ -447,7 +443,10 @@ pub enum RefLayout {
 /// A virtual layout is always contiguous and retrieve its shape from either a reshape tensor or a
 /// tensor with swap dimensions.
 pub enum VirtualLayout {
+    /// Virtual tensor with the provided shape id and contiguous strides.
     Reshaped(u32),
+    /// Virtual tensor with the same shape as the given input, but with swap dims and contiguous
+    /// strides.
     SwapDims(Arg, (u32, u32)),
     /// Virtual tensor with the same shape as the given input, but with contiguous strides.
     Shape(Arg, u32),
