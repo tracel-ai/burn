@@ -170,8 +170,14 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
                 match value {
                     syn::Lit::Str(value) => {
                         let value_str = value.value();
-                        // Check if the value is an enum variant
-                        if value_str.contains("::") {
+                        // Check if the value is a complex enum variant with fields
+                        if value_str.contains("{") {
+                            quote! {
+                                #name: #value_str,
+                            }
+                        }
+                        // Check if the value is a simple enum variant
+                        else if value_str.contains("::") {
                             quote! {
                                 #name: #value_str,
                             }
