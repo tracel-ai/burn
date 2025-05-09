@@ -247,10 +247,7 @@ where
     /// Calculate the variance along the given dimension without applying the Bessel’s correction and also returns the mean.
     pub fn var_mean_bias(self, dim: usize) -> (Self, Self) {
         let mean = self.clone().mean_dim(dim);
-        B::sync(&mean.device());
-        println!("MEan {mean}");
         let var = stats::var_with_mean_bias(self, mean.clone(), dim);
-        println!("Allo");
         (var, mean)
     }
 

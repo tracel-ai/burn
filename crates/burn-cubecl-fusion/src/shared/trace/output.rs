@@ -189,7 +189,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     };
 
                     let set_ref_as_virtual = |block: &mut BlockPlan<'_>| {
-                        block.reference = ReferenceSelection::Shape {
+                        block.reference = ReferenceSelection::VirtualShape {
                             original: Arg::Input(
                                 input_pos as u32,
                                 reference.precision,
@@ -236,7 +236,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     fn add_layout_info_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput<R>]) {
         for hi in handle_inputs.iter() {
             if let ReferenceSelection::Concrete { strides, shape, .. }
-            | ReferenceSelection::Shape { strides, shape, .. } = &block.reference
+            | ReferenceSelection::VirtualShape { strides, shape, .. } = &block.reference
             {
                 if strides == &hi.handle.strides && shape == &hi.global_shape {
                     if let Some(ops) = block.reads.get_mut(&hi.relative_id) {

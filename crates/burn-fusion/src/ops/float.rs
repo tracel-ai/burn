@@ -1258,8 +1258,6 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
         shape[axis] = 1;
-        println!("Axis = {axis:?}");
-        println!("Shape = {shape:?}");
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = ReduceDimOpIr {

@@ -87,7 +87,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         for (block_plan, block) in plan.blocks.into_iter().zip(self.blocks) {
             let reference = match block_plan.reference {
                 ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
-                ReferenceSelection::Shape { original, .. } => {
+                ReferenceSelection::VirtualShape { original, .. } => {
                     RefLayout::Virtual(VirtualLayout::Shape(original, block_plan.width as u32))
                 }
                 ReferenceSelection::SwapDims { original, dims } => {
