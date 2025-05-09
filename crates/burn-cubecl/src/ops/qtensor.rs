@@ -114,7 +114,6 @@ where
     }
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
-        // TODO: use into_data with meta?
         let tensor = kernel::into_contiguous(tensor);
         let bytes = tensor
             .client
