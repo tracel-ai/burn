@@ -3,7 +3,8 @@ use burn_tensor::{
     DType, TensorData,
     backend::{DeviceId, DeviceOps},
 };
-use std::{future::Future, sync::Arc};
+use burn_common::future::DynFut;
+use std::sync::Arc;
 
 use crate::shared::{ComputeTask, TaskResponseContent};
 
@@ -25,16 +26,16 @@ impl RunnerClient for WsClient {
     fn read_tensor(
         &self,
         tensor: burn_ir::TensorIr,
-    ) -> impl std::future::Future<Output = TensorData> + Send {
+    ) -> DynFut<TensorData> {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::ReadTensor(tensor));
 
-        async move {
+        Box::pin(async move {
             match fut.await {
                 TaskResponseContent::ReadTensor(data) => data,
                 _ => panic!("Invalid message type"),
             }
-        }
+        })
     }
 
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {
@@ -73,16 +74,16 @@ impl RunnerClient for WsClient {
         self.sender.send(ComputeTask::RegisterOrphan(*id));
     }
 
-    fn sync(&self) -> impl Future<Output = ()> + Send + use<> {
+    fn sync(&self) {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::SyncBackend);
+        
+        let runtime = self.runtime.clone();
 
-        async move {
-            match fut.await {
-                TaskResponseContent::SyncBackend => {}
-                _ => panic!("Invalid message type"),
-            };
-        }
+        match runtime.block_on(fut) {
+            TaskResponseContent::SyncBackend => {}
+            _ => panic!("Invalid message type"),
+        };
     }
 
     fn seed(&self, _seed: u64) {

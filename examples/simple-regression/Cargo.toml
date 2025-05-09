@@ -15,6 +15,7 @@ ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
+remote = ["burn/remote"]
 
 [dependencies]
 burn = {path = "../../crates/burn", features=["train"]}
