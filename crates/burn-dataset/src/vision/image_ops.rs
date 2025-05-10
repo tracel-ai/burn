@@ -1,4 +1,4 @@
-use burn_tensor::{Tensor, TensorData, backend::Backend};
+use burn_tensor::{ElementConversion, Tensor, TensorData, backend::Backend};
 use image::RgbImage;
 
 use super::BoundingBox;
@@ -20,34 +20,24 @@ pub const MAX_PIXEL_VAL: f32 = 255.0;
 /// # Returns
 /// Returns a new tuple:
 /// - The vertically flipped image tensor.
-/// - The vertically flipped bounding box tensors (if provided), adjusted for the new vertical orientation,
-///   still in `[x, y, w, h]` format.
-pub fn vertical_flip<B: Backend>(
-    img_data: (Tensor<B, 3>, Option<Vec<Tensor<B, 1>>>),
-) -> (Tensor<B, 3>, Option<Vec<Tensor<B, 1>>>) {
-    let (mut img_tnsr, mut maybe_bbox_t_list) = img_data;
-    let [_ch, height, _width] = img_tnsr.dims();
-
+pub fn vertical_flip<B: Backend>(img_tnsr: Tensor<B, 3>) -> Tensor<B, 3> {
     // Flip image vertically
-    img_tnsr = img_tnsr.flip([1]);
+    img_tnsr.flip([1])
+}
 
-    // Flip bounding boxes vertically
-    if let Some(cur_bb_tnsr_lst) = maybe_bbox_t_list.as_mut() {
-        let device = img_tnsr.device();
-        let mut tmp_bb_tnsr_list = Vec::<Tensor<B, 1>>::new();
-        for bbox in cur_bb_tnsr_lst.iter() {
-            let mut trans = bbox.clone().into_data().to_vec::<f32>().unwrap();
-            trans[1] = height as f32 - trans[1] - trans[3];
-            tmp_bb_tnsr_list.push(Tensor::<B, 1>::from_data(
-                TensorData::new(trans, [4]),
-                &device,
-            ));
-        }
-
-        maybe_bbox_t_list = Some(tmp_bb_tnsr_list);
-    }
-
-    (img_tnsr, maybe_bbox_t_list)
+/// doc
+pub fn zoom_out<B: Backend>(
+    cur_img_tnsr: Tensor<B, 3>,
+    left: usize,
+    right: usize,
+    top: usize,
+    bottom: usize,
+    fill: u8,
+) -> Tensor<B, 3> {
+    cur_img_tnsr.pad(
+        (left, right, top, bottom),
+        ElementConversion::elem::<f32>(fill as f32),
+    )
 }
 
 /// Adjusts the contrast of an image tensor by a specified percentage.
@@ -152,15 +142,16 @@ pub fn brighten<B: Backend>(img_tnsr: Tensor<B, 3>, value: i32) -> Tensor<B, 3> 
 ///
 /// # Returns
 /// A `[3, H, W]` tensor representing the RGB image.
-pub fn rgb_img_as_tensor<B: Backend>(rgb_img: image::RgbImage, device: &B::Device) -> Tensor<B, 3> {
+pub fn rgb_img_as_tensor<B: Backend>(rgb_img: image::RgbImage) -> Tensor<B, 3> {
     let width = rgb_img.width() as usize;
     let height = rgb_img.height() as usize;
     let img_vec = rgb_img.into_raw().iter().map(|&p| p as f32).collect();
+    let device = B::Device::default();
 
     // [H, W, C] -> [C, H, W]
     Tensor::<B, 3>::from_data(
         TensorData::new(img_vec, [height, width, 3]).convert::<B::FloatElem>(),
-        device,
+        &device,
     )
     .permute([2, 0, 1])
 }
@@ -207,68 +198,27 @@ pub fn create_test_image(width: u32, height: u32, pattern: [u8; 3]) -> RgbImage 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::vision::BoundingBox;
-    use burn_ndarray::{NdArray, NdArrayDevice};
+    use burn_ndarray::NdArray;
     use std::hash::{DefaultHasher, Hash, Hasher};
 
     #[test]
     fn vertical_flip_test() {
         let img = create_test_image(12, 12, [127, 128, 255]);
-        let mut bbox_tnsr_list = Vec::<Tensor<NdArray<f32>, 1>>::new();
+        let img_tnsr = rgb_img_as_tensor::<NdArray<f32>>(img);
 
-        let bb = BoundingBox {
-            coords: [1.0, 1.0, 6.0, 6.0],
-            label: 0,
-        };
-        let device = NdArrayDevice::default();
-        bbox_tnsr_list.push(bbox_as_tensor::<NdArray<f32>>(bb, &device));
-
-        let bb = BoundingBox {
-            coords: [1.0, 2.0, 3.0, 4.0],
-            label: 1,
-        };
-
-        bbox_tnsr_list.push(bbox_as_tensor::<NdArray<f32>>(bb, &device));
-
-        let img_tnsr = rgb_img_as_tensor::<NdArray<f32>>(img, &device);
-
-        let (img_tnsr, bbox_tnsr_list) = vertical_flip((img_tnsr, Some(bbox_tnsr_list)));
+        let img_tnsr = vertical_flip(img_tnsr);
 
         // Test hash of image
         let test_success_hash: u64 = 10732386221966926898;
         let mut h = DefaultHasher::new();
         img_tnsr.to_data().as_bytes().hash(&mut h);
         assert_eq!(test_success_hash, h.finish());
-
-        // Check bounding box translations
-        let bb_vec = bbox_tnsr_list.unwrap();
-
-        let eq_test_t = bb_vec[0].to_data();
-        let eq_test_t: Vec<i32> = eq_test_t
-            .as_slice::<f32>()
-            .unwrap()
-            .iter()
-            .map(|&x| x as i32)
-            .collect();
-
-        assert_eq!(eq_test_t.as_slice(), [1, 5, 6, 6]);
-
-        let eq_test_t = bb_vec[1].to_data();
-        let eq_test_t: Vec<i32> = eq_test_t
-            .as_slice::<f32>()
-            .unwrap()
-            .iter()
-            .map(|&x| x as i32)
-            .collect();
-
-        assert_eq!(eq_test_t.as_slice(), [1, 6, 3, 4]);
     }
 
     #[test]
     fn brighten_test() {
         let img = create_test_image(12, 12, [127, 128, 255]);
-        let device = NdArrayDevice::default();
-        let img_tnsr = rgb_img_as_tensor::<NdArray<f32>>(img, &device);
+        let img_tnsr = rgb_img_as_tensor::<NdArray<f32>>(img);
 
         let img_tnsr = brighten::<NdArray>(img_tnsr, 4);
 
@@ -282,8 +232,7 @@ mod tests {
     #[test]
     fn contrast_test() {
         let img = create_test_image(12, 12, [127, 128, 100]);
-        let device = NdArrayDevice::default();
-        let img_tnsr = rgb_img_as_tensor::<NdArray<f32>>(img, &device);
+        let img_tnsr = rgb_img_as_tensor::<NdArray<f32>>(img);
 
         let img_tnsr = contrast::<NdArray>(img_tnsr, 70.0);
 
@@ -297,8 +246,8 @@ mod tests {
     #[test]
     fn hue_rotate_test() {
         let img = create_test_image(12, 12, [127, 128, 255]);
-        let device = NdArrayDevice::default();
-        let img_tnsr = rgb_img_as_tensor::<NdArray<f32>>(img, &device);
+
+        let img_tnsr = rgb_img_as_tensor::<NdArray<f32>>(img);
 
         let img_tnsr = hue_rotate::<NdArray>(img_tnsr, 180.0);
 

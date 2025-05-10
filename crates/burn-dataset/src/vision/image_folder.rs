@@ -71,7 +71,7 @@ pub enum Annotation {
     BoundingBoxes(Vec<BoundingBox>),
     /// Segmentation mask.
     SegmentationMask(SegmentationMask),
-} // BM&JJ
+}
 
 /// Segmentation mask annotation.
 /// For semantic segmentation, a mask has a single channel (C = 1).
@@ -97,7 +97,7 @@ pub struct BoundingBox {
 pub struct ImageDatasetItem {
     /// Image as a vector with a valid image type.
     pub image: Vec<PixelDepth>,
-    pub image_dims: (u32, u32),
+
     /// Annotation for the image.
     pub annotation: Annotation,
 
@@ -357,7 +357,7 @@ impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageDatasetItem {
 
         // Load image from disk
         let image = image::open(&item.image_path).unwrap();
-        let img_dims = (image.width(), image.height());
+
         // Image as Vec<PixelDepth>
         let img_vec = match image.color() {
             ColorType::L8 => image
@@ -415,7 +415,6 @@ impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageDatasetItem {
 
         ImageDatasetItem {
             image: img_vec,
-            image_dims: img_dims,
             annotation,
             image_path: item.image_path.display().to_string(),
         }
