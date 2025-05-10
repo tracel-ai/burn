@@ -1,4 +1,8 @@
-use crate::{CubeRuntime, FloatElement, kernel::into_contiguous, ops::max_line_size};
+use crate::{
+    CubeRuntime, FloatElement,
+    kernel::into_contiguous,
+    ops::{into_data_sync, max_line_size},
+};
 use crate::{kernel::utils::strided_layout, tensor::CubeTensor};
 use burn_tensor::Shape;
 use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
@@ -99,9 +103,10 @@ fn quantize_per_tensor_symmetric_int8_packed_kernel<F: Float>(
 
     let scale = scale[0];
 
-    // Cast the scale to u32 and write the value in the output
     if ABSOLUTE_POS == 0 {
-        out_scale[ABSOLUTE_POS] = scale;
+        out_scale[0] = scale;
+        let out_scale = out_scale[0];
+        debug_print!("Wrote scale: %f", out_scale);
     }
 
     if comptime!(input.line_size() == 4) {
@@ -205,6 +210,9 @@ fn quantize_unpacked<R: CubeRuntime, F: FloatElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
+    println!("output handle: {:?}", output.handle);
+    println!("out_scale handle: {:?}", out_scale.handle);
+
     match scheme {
         QuantScheme {
             level: QuantLevel::Tensor,
@@ -251,6 +259,8 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement>(
     let cube_count =
         calculate_cube_count_elemwise(num_elems.div_ceil(line_size as usize), cube_dim);
 
+    println!("scale: {}", into_data_sync::<R, f32>(scale.clone()));
+
     match scheme {
         QuantScheme {
             level: QuantLevel::Tensor,
@@ -273,6 +283,8 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement>(
             };
         }
     }
+
+    println!("out_scale: {}", into_data_sync::<R, f32>(out_scale.clone()));
 
     output
 }

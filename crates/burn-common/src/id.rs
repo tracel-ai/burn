@@ -12,6 +12,8 @@ impl IdGenerator {
     }
 }
 
+pub use cubecl_common::stream_id::StreamId;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -64,5 +66,3 @@ mod tests {
         assert_eq!(set.len(), EXPECTED_TOTAL_IDS);
     }
 }
-
-pub use cubecl_common::stream_id::StreamId;

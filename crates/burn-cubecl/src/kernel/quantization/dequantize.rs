@@ -1,14 +1,14 @@
-use crate::tensor::CubeTensor;
-use crate::{CubeElement, CubeRuntime};
-use burn_tensor::DType;
+use crate::{CubeRuntime, FloatElement, kernel::utils::strided_layout, ops::max_line_size};
+use crate::{ops::numeric::empty_device_strided, tensor::CubeTensor};
 use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
-use cubecl::calculate_cube_count_elemwise;
-use cubecl::prelude::*;
+use burn_tensor::{DType, Shape};
+use cubecl::{calculate_cube_count_elemwise, linalg::tensor::StridedLayout};
+use cubecl::{linalg::tensor::index_offset_contiguous, prelude::*};
 
 use super::{QParams, QTensor};
 
 #[cube]
-fn dequantize_symmetric_int8<F: Float>(value: Line<i32>, scale: f32) -> Line<F> {
+fn dequantize_symmetric_int8<I: Int, F: Float>(value: Line<I>, scale: f32) -> Line<F> {
     // x = scale * x_q
     Line::cast_from(scale) * Line::cast_from(value)
 }
@@ -36,18 +36,18 @@ fn unpack_i8s(value: u32) -> Line<i32> {
 }
 
 #[cube(launch_unchecked)]
-fn dequantize_per_tensor_symmetric_int8_kernel(
+fn dequantize_per_tensor_symmetric_int8_packed_kernel<F: Float>(
     input: &QTensor,
-    output: &mut Tensor<Line<f32>>,
+    scale: &Tensor<f32>,
+    output: &mut Tensor<Line<F>>,
     #[comptime] scheme: QuantScheme,
 ) {
-    // Last position contains the qparam
-    if ABSOLUTE_POS >= input.len() - 1 {
+    if ABSOLUTE_POS >= input.len() {
         terminate!();
     }
 
     let qparams = QParams::new(scheme);
-    let (scale, _) = qparams.values(input);
+    let (scale, _) = qparams.values(scale);
 
     let value = input[ABSOLUTE_POS];
 
@@ -56,7 +56,7 @@ fn dequantize_per_tensor_symmetric_int8_kernel(
         output[ABSOLUTE_POS] = dequantize_symmetric_int8(unpack_i8s(value[0]), scale);
     } else {
         // For very small inputs where number of elements < 4, the output line size is 1
-        let out = dequantize_symmetric_int8::<f32>(unpack_i8s(value[0]), scale);
+        let out = dequantize_symmetric_int8::<i32, F>(unpack_i8s(value[0]), scale);
 
         #[unroll]
         for j in 0..out.size() {
@@ -65,11 +65,48 @@ fn dequantize_per_tensor_symmetric_int8_kernel(
     }
 }
 
+#[cube(launch_unchecked)]
+fn dequantize_per_tensor_symmetric_int8_unpacked_kernel<F: Float>(
+    input: &Tensor<Line<i8>>,
+    scale: &Tensor<f32>,
+    output: &mut Tensor<Line<F>>,
+    out_layout: StridedLayout,
+    #[comptime] scheme: QuantScheme,
+    #[comptime] rank: Option<u32>,
+) {
+    if ABSOLUTE_POS >= input.len() {
+        terminate!();
+    }
+
+    let qparams = QParams::new(scheme);
+    let (scale, _) = qparams.values(scale);
+
+    let in_pos = index_offset_contiguous(input, ABSOLUTE_POS, rank);
+    let out_pos = out_layout.index(output, ABSOLUTE_POS);
+
+    output[out_pos] = dequantize_symmetric_int8(input[in_pos], scale);
+}
+
 /// Convert the tensor back to a higher precision data type.
 pub fn dequantize<R, F>(tensor: CubeTensor<R>) -> CubeTensor<R>
 where
     R: CubeRuntime,
-    F: CubeElement,
+    F: FloatElement,
+{
+    let shape = tensor.shape.clone();
+    let output = empty_device_strided::<R, F>(tensor.client.clone(), tensor.device.clone(), shape);
+
+    if i8::is_supported(&tensor.client) {
+        dequantize_unpacked::<R, F>(tensor, output)
+    } else {
+        dequantize_packed::<R, F>(tensor, output)
+    }
+}
+
+fn dequantize_packed<R, F>(tensor: CubeTensor<R>, output: CubeTensor<R>) -> CubeTensor<R>
+where
+    R: CubeRuntime,
+    F: FloatElement,
 {
     // The actual number of elements is 1/4 (four int8 values packed in a single u32)
     // so we choose a line size to match a valid input binding size.
@@ -80,17 +117,6 @@ where
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size_in as usize, cube_dim);
 
-    let client = tensor.client.clone();
-    let handle = client.empty(num_out_elems * core::mem::size_of::<F>());
-
-    let output = CubeTensor::new_contiguous(
-        client.clone(),
-        tensor.device.clone(),
-        tensor.shape.clone(),
-        handle,
-        F::dtype(),
-    );
-
     if let DType::QFloat(scheme) = tensor.dtype {
         match scheme {
             QuantScheme {
@@ -99,12 +125,15 @@ where
                 q_type: QuantInputType::QInt8,
                 ..
             } => {
+                let scales = scales_per_tensor::<R, f32>(&tensor);
+
                 unsafe {
-                    dequantize_per_tensor_symmetric_int8_kernel::launch_unchecked::<R>(
-                        &client,
+                    dequantize_per_tensor_symmetric_int8_packed_kernel::launch_unchecked::<F, R>(
+                        &tensor.client,
                         cube_count,
                         cube_dim,
                         tensor.as_array_arg::<u32>(line_size_in),
+                        scales.as_tensor_arg::<f32>(1),
                         output.as_tensor_arg::<F>(line_size_out),
                         scheme,
                     )
@@ -114,4 +143,62 @@ where
     }
 
     output
+}
+
+fn dequantize_unpacked<R, F>(tensor: CubeTensor<R>, output: CubeTensor<R>) -> CubeTensor<R>
+where
+    R: CubeRuntime,
+    F: FloatElement,
+{
+    // The actual number of elements is 1/4 (four int8 values packed in a single u32)
+    // so we choose a line size to match a valid input binding size.
+    let num_elems = tensor.shape.num_elements();
+    let line_size = max_line_size(&tensor);
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+
+    let out_layout = strided_layout(&output);
+
+    if let DType::QFloat(scheme) = tensor.dtype {
+        match scheme {
+            QuantScheme {
+                level: QuantLevel::Tensor,
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
+                ..
+            } => {
+                let scales = scales_per_tensor::<R, f32>(&tensor);
+
+                unsafe {
+                    dequantize_per_tensor_symmetric_int8_unpacked_kernel::launch_unchecked::<F, R>(
+                        &tensor.client,
+                        cube_count,
+                        cube_dim,
+                        tensor.as_tensor_arg::<i8>(line_size),
+                        scales.as_tensor_arg::<f32>(1),
+                        output.as_tensor_arg::<F>(line_size),
+                        out_layout,
+                        scheme,
+                        Some(tensor.shape.num_dims() as u32),
+                    )
+                };
+            }
+        }
+    }
+
+    output
+}
+
+fn scales_per_tensor<R: CubeRuntime, F: FloatElement>(data: &CubeTensor<R>) -> CubeTensor<R> {
+    let mut scales_handle = data.handle.clone().offset_start(data.handle.size());
+    scales_handle.offset_end = None;
+
+    CubeTensor::new(
+        data.client.clone(),
+        scales_handle,
+        Shape::new([1]),
+        data.device.clone(),
+        vec![1],
+        F::dtype(),
+    )
 }

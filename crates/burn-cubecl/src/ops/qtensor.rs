@@ -47,6 +47,8 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
         }
     };
 
+    println!("data: {data:?}");
+
     let (handle, strides) = client.create_tensors(data, shapes, elem_sizes).remove(0);
 
     CubeTensor::new(
@@ -114,12 +116,32 @@ where
     }
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
+        let client = tensor.client.clone();
+        let handle = tensor.handle.clone();
+        let data_size = handle.size();
+        let dtype = tensor.dtype;
+
         let tensor = kernel::into_contiguous(tensor);
-        let bytes = tensor
+        let mut bytes = tensor
             .client
-            .read_async(vec![tensor.handle.binding()])
+            .read_async(vec![handle.clone().binding()])
             .await
             .remove(0);
+        bytes.truncate(tensor.shape.num_elements() * tensor.dtype.size());
+        if let DType::QFloat(params) = dtype {
+            // There's no scale type rn so assume f32. At some point we should add a type to support
+            // things like e8m0 scales.
+            let (scale_len, scale_ty) = match params.level {
+                QuantLevel::Tensor => (1, DType::F32),
+            };
+            let mut handle = handle.offset_start(data_size);
+            handle.offset_end = None;
+            let scale_bytes = scale_len * scale_ty.size();
+            let data = client.read_one(handle.binding());
+            bytes.extend(data[..scale_bytes].iter().copied())
+        }
+
+        println!("bytes: {bytes:?}");
 
         // We use the same internal representation
         TensorData::from_bytes(bytes, tensor.shape, tensor.dtype)
