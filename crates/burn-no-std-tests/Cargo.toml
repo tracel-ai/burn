@@ -18,3 +18,4 @@ burn = { path = "../burn", version = "0.18.0", default-features = false }
 burn-ndarray = { path = "../burn-ndarray", version = "0.18.0", default-features = false }
 
 serde = { workspace = true }
+serde_json = { workspace = true, features = ["std"] }
