@@ -1,5 +1,5 @@
 use crate::{
-    Dataset, HuggingfaceDatasetLoader, SqliteDataset,
+    Dataset, HuggingfaceDatasetLoader, LabeledDataset, SqliteDataset,
     transform::{Mapper, MapperDataset},
 };
 
@@ -97,6 +97,17 @@ pub struct SpeechItem {
     pub label: SpeechCommandClass,
 }
 
+/// Format for saving labels
+#[derive(Debug, Clone, Copy)]
+pub enum LabelFormat {
+    /// Text format with one label per line
+    Txt,
+    /// JSON format with an array of labels
+    Json,
+    /// YAML format with an array of labels
+    Yaml,
+}
+
 /// Speech Commands dataset from Huggingface v0.02.
 /// See [Speech Commands dataset](https://huggingface.co/datasets/speech_commands).
 ///
@@ -156,6 +167,12 @@ impl Dataset<SpeechItem> for SpeechCommandsDataset {
 
     fn len(&self) -> usize {
         self.dataset.len()
+    }
+}
+
+impl LabeledDataset<SpeechItem, String> for SpeechCommandsDataset {
+    fn get_label(&self, index: usize) -> Option<String> {
+        self.dataset.get(index).map(|item| item.label.to_string())
     }
 }
 
