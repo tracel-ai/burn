@@ -28,7 +28,9 @@ tokio = { workspace = true, optional = true }
 
 # Parallel
 rayon = { workspace = true, optional = true }
-cubecl-common = { workspace = true, default-features = false }
+cubecl-common = { workspace = true, default-features = false, features = [
+    "serde",
+] }
 
 [dev-dependencies]
 dashmap = { workspace = true }
