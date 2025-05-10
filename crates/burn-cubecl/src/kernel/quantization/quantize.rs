@@ -1,8 +1,4 @@
-use crate::{
-    CubeRuntime, FloatElement,
-    kernel::into_contiguous,
-    ops::{into_data_sync, max_line_size},
-};
+use crate::{CubeRuntime, FloatElement, kernel::into_contiguous, ops::max_line_size};
 use crate::{kernel::utils::strided_layout, tensor::CubeTensor};
 use burn_tensor::Shape;
 use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
