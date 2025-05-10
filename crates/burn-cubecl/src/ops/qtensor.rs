@@ -47,8 +47,6 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
         }
     };
 
-    println!("data: {data:?}");
-
     let (handle, strides) = client.create_tensors(data, shapes, elem_sizes).remove(0);
 
     CubeTensor::new(
@@ -140,8 +138,6 @@ where
             let data = client.read_one(handle.binding());
             bytes.extend(data[..scale_bytes].iter().copied())
         }
-
-        println!("bytes: {bytes:?}");
 
         // We use the same internal representation
         TensorData::from_bytes(bytes, tensor.shape, tensor.dtype)

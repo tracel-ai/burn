@@ -1634,6 +1634,7 @@ dependencies = [
  "bytemuck",
  "cubecl-common",
  "cubecl-core",
+ "cubecl-random",
  "cubecl-reduce",
  "cubecl-runtime",
  "cubecl-std",
