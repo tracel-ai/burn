@@ -20,14 +20,20 @@ fn repeat_dim_kernel<E: CubePrimitive>(input: &Tensor<E>, output: &mut Tensor<E>
 }
 
 pub(crate) fn repeat_dim<R: CubeRuntime, E: CubeElement>(
-    input: CubeTensor<R>,
+    mut input: CubeTensor<R>,
     dim: usize,
     times: usize,
 ) -> CubeTensor<R> {
+    if input.shape.dims[dim] == 1 {
+        input.strides[dim] = 0;
+        input.shape.dims[dim] *= times;
+        return input;
+    }
+
     let mut shape = input.shape.clone();
+    shape.dims[dim] *= times;
 
     // Create output handle
-    shape.dims[dim] *= times;
     let output = empty_device::<R, E>(input.client.clone(), input.device.clone(), shape);
 
     let cube_dim = CubeDim::default();
