@@ -9,7 +9,7 @@ use cubecl::{
 
 use crate::{
     CubeAutotuneKey, CubeElement, CubeRuntime, CubeTuneId, kernel::prng::random_like_uniform,
-    ops::numeric::empty_device, tensor::CubeTensor,
+    tensor::CubeTensor,
 };
 
 use super::SumAutotuneKey;
@@ -88,16 +88,7 @@ mod reduce_ops {
         dim: &usize,
         config: &Rd::Config,
     ) -> (CubeTensor<Run>, CubeTensor<Run>, usize, Rd::Config) {
-        let random_bounds: (In, In) = ((-10.0_f32).elem::<In>(), (10.0_f32).elem::<In>());
-        let input = random_like_uniform(input, random_bounds.0, random_bounds.1);
-
-        let output = empty_device::<Run, Out>(
-            output.client.clone(),
-            output.device.clone(),
-            output.shape.clone(),
-        );
-
-        (input, output, *dim, *config)
+        (input.clone(), output.clone(), *dim, *config)
     }
 
     pub(crate) fn reduce<

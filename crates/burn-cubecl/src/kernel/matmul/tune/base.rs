@@ -1,17 +1,15 @@
-use burn_tensor::{Element, ElementConversion};
+use burn_tensor::Element;
 use cubecl::{
     linalg::matmul::{
-        Strategy, SyncLoadingStrategy, kernels::tiling2d::Tiling2dConfig,
-        tune_key::MatmulAutotuneKey,
+        Strategy, SyncLoadingStrategy,
+        kernels::tiling2d::Tiling2dConfig,
+        tune_key::{MatmulAutotuneKey, MatmulScale, should_tune_double_buffering},
     },
     tune::{LocalTuner, TunableSet, local_tuner},
 };
 
 use crate::{
-    CubeRuntime, CubeTuneId,
-    element::FloatElement,
-    kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
-    ops::numeric::empty_device,
+    CubeRuntime, CubeTuneId, element::FloatElement, kernel::matmul::utils::init_matmul_output,
     tensor::CubeTensor,
 };
 
@@ -21,13 +19,7 @@ fn matmul_input_gen<R: CubeRuntime, E: FloatElement>(
     rhs: &CubeTensor<R>,
     out: &CubeTensor<R>,
 ) -> (CubeTensor<R>, CubeTensor<R>, CubeTensor<R>) {
-    let random_bounds: (E, E) = ((-10.0).elem::<E>(), (10.0).elem::<E>());
-    let lhs = random_like_uniform(lhs, random_bounds.0, random_bounds.1);
-    let rhs = random_like_uniform(rhs, random_bounds.0, random_bounds.1);
-
-    let out = empty_device::<R, E>(out.client.clone(), out.device.clone(), out.shape.clone());
-
-    (lhs, rhs, out)
+    (lhs.clone(), rhs.clone(), out.clone())
 }
 
 /// Executes autotune on matmul operations
@@ -43,10 +35,16 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
     static TUNER: LocalTuner<MatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<R, E>, matmul_input_gen::<R, E>)
-        .with_tunable(matmul_tiling2d::<R, E>)
+        .with_tunable_optional(matmul_tiling2d::<R, E>, |key| {
+            !key.kind.may_use_tensor_cores || matches!(key.kind.scale, MatmulScale::Small)
+        })
         .with_tunable(matmul_simple::<R, E>)
-        //.with_tunable(matmul_double_buffering::<R, E>) // Sometimes creates invalid configs, re-enable when fixed
-        .with_tunable(matmul_naive::<R, E>);
+        .with_tunable_optional(matmul_double_buffering::<R, E>, |key| {
+            should_tune_double_buffering(false, key)
+        })
+        .with_tunable_optional(matmul_naive::<R, E>, |key| {
+            !key.kind.may_use_tensor_cores || key.kind.mat2vec
+        });
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&lhs.client, &lhs.device),
@@ -61,15 +59,17 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
 fn create_key<R: CubeRuntime, E: FloatElement>(
     lhs: &CubeTensor<R>,
     rhs: &CubeTensor<R>,
-    _out: &CubeTensor<R>,
+    out: &CubeTensor<R>,
 ) -> MatmulAutotuneKey {
-    MatmulAutotuneKey::generate(
+    MatmulAutotuneKey::generate::<R>(
+        &lhs.client,
         &lhs.shape.dims,
         &rhs.shape.dims,
         &lhs.strides,
         &rhs.strides,
-        E::dtype().into(),
-        E::dtype().into(),
+        lhs.dtype.into(),
+        rhs.dtype.into(),
+        out.dtype.into(),
     )
 }
 
@@ -91,22 +91,22 @@ fn matmul_simple<R: CubeRuntime, E: FloatElement>(
 }
 
 // Creates invalid configs for some shapes, re-enable once fixed
-// fn matmul_double_buffering<R: CubeRuntime, E: FloatElement>(
-//     lhs: CubeTensor<R>,
-//     rhs: CubeTensor<R>,
-//     out: CubeTensor<R>,
-// ) -> Result<(), String> {
-//     cubecl::linalg::matmul::launch_ref::<R, E>(
-//         &Strategy::DoubleBuffering,
-//         &lhs.client,
-//         &lhs.as_handle_ref(),
-//         &None,
-//         &rhs.as_handle_ref(),
-//         &None,
-//         &out.as_handle_ref(),
-//     )
-//     .map_err(|err| format!("{err:?}"))
-// }
+fn matmul_double_buffering<R: CubeRuntime, E: FloatElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
+) -> Result<(), String> {
+    cubecl::linalg::matmul::launch_ref::<R, E>(
+        &Strategy::DoubleBuffering(cubecl::linalg::matmul::SyncBufferLoadingStrategy::Cyclic),
+        &lhs.client,
+        &lhs.as_handle_ref(),
+        &None,
+        &rhs.as_handle_ref(),
+        &None,
+        &out.as_handle_ref(),
+    )
+    .map_err(|err| format!("{err:?}"))
+}
 
 fn matmul_tiling2d<R: CubeRuntime, E: FloatElement>(
     lhs: CubeTensor<R>,
