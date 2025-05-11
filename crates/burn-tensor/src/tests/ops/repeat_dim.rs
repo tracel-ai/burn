@@ -231,7 +231,6 @@ mod tests {
                 [[7.0, 15.0], [7.0, 15.0], [7.0, 15.0], [7.0, 15.0]],
             ],
         ]);
-        println!("{output}");
         output.into_data().assert_eq(&expected, false);
     }
 }
