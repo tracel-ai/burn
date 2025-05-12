@@ -16,6 +16,7 @@ tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 metal = ["burn/metal"]
+remote = ["burn/remote"]
 
 [dependencies]
 burn = { path = "../../crates/burn", features = ["train"] }

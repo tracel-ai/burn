@@ -63,6 +63,16 @@ mod tch_cpu {
     }
 }
 
+#[cfg(feature = "remote")]
+mod remote {
+    use burn::backend::{Autodiff, RemoteBackend};
+    use mnist::training;
+
+    pub fn run() {
+        training::run::<Autodiff<RemoteBackend>>(Default::default());
+    }
+}
+
 fn main() {
     #[cfg(any(
         feature = "ndarray",
@@ -77,4 +87,6 @@ fn main() {
     tch_cpu::run();
     #[cfg(any(feature = "wgpu", feature = "metal"))]
     wgpu::run();
+    #[cfg(feature = "remote")]
+    remote::run();
 }
