@@ -64,7 +64,6 @@ impl TensorData {
         Self::check_data_len(&value, &shape);
 
         let q_bytes = QuantizedBytes::new(value, strategy);
-        println!("q_bytes: {:?}", q_bytes.bytes);
 
         Self {
             bytes: q_bytes.bytes,

@@ -330,6 +330,14 @@ impl From<cubecl::ir::Elem> for DType {
                 cubecl::ir::FloatKind::F32 => DType::F32,
                 cubecl::ir::FloatKind::F64 => DType::F64,
                 cubecl::ir::FloatKind::TF32 => panic!("Not a valid DType for tensors."),
+                cubecl::ir::FloatKind::E2M1
+                | cubecl::ir::FloatKind::E2M3
+                | cubecl::ir::FloatKind::E3M2
+                | cubecl::ir::FloatKind::E4M3
+                | cubecl::ir::FloatKind::E5M2
+                | cubecl::ir::FloatKind::UE8M0 => {
+                    unimplemented!("Not yet supported, will be used for quantization")
+                }
             },
             cubecl::ir::Elem::Int(int_kind) => match int_kind {
                 cubecl::ir::IntKind::I8 => DType::I8,
