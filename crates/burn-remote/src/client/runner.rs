@@ -1,9 +1,9 @@
+use burn_common::future::DynFut;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient};
 use burn_tensor::{
     DType, TensorData,
     backend::{DeviceId, DeviceOps},
 };
-use burn_common::future::DynFut;
 use std::sync::Arc;
 
 use crate::shared::{ComputeTask, TaskResponseContent};
@@ -23,10 +23,7 @@ impl RunnerClient for WsClient {
             .send(ComputeTask::RegisterOperation(Box::new(op)));
     }
 
-    fn read_tensor(
-        &self,
-        tensor: burn_ir::TensorIr,
-    ) -> DynFut<TensorData> {
+    fn read_tensor(&self, tensor: burn_ir::TensorIr) -> DynFut<TensorData> {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::ReadTensor(tensor));
 
@@ -77,7 +74,7 @@ impl RunnerClient for WsClient {
     fn sync(&self) {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::SyncBackend);
-        
+
         let runtime = self.runtime.clone();
 
         match runtime.block_on(fut) {
