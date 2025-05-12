@@ -304,6 +304,7 @@ pub fn write<C: CubePrimitive>(
             };
             let tensor = outputs.tensors.index_mut(pos);
             set_polyfill::<NumericExpand<DYN_ELEM_ID>>(comptime![precision.into_elem()]);
+
             tensor.tensor[offset] = Line::cast_from(value);
         }
         Arg::Local(pos, precision) => match comptime![precision] {

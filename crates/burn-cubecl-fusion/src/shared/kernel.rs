@@ -48,7 +48,27 @@ pub fn fuse_on_read<E: CubePrimitive>(
         let arg = comptime![read_args.index(i).clone()];
         let value = read::<E>(inputs, outputs, locals, read_pos, arg, config);
 
-        output.push(value);
+        let value_line_size = value.line_size();
+        let output_line_size = comptime!(config.width as u32);
+
+        // We currently don't support broadcasting __across__ blocks.
+        if comptime!(value_line_size != output_line_size) {
+            let mut tmp = Line::<E>::empty(comptime!(config.width as u32));
+            comptime!(
+                assert_eq!(value_line_size, 1, "The input line_size must be 1 or the same as the config width.");
+            );
+
+            let val = value[0];
+
+            #[unroll]
+            for i in 0..comptime!(config.width as u32) {
+                tmp[i] = val;
+            }
+
+            output.push(tmp);
+        } else {
+            output.push(value);
+        }
     }
 
     output
@@ -361,26 +381,6 @@ fn assign<C: CubePrimitive>(
     #[comptime] config: &FuseBlockConfig,
 ) {
     let input = read::<C>(inputs, outputs, locals, write_pos, op.input, config);
-
-    let line_size = input.line_size();
-
-    let input = if comptime!(line_size == config.width as u32) {
-        input
-    } else {
-        let mut tmp = Line::<C>::empty(comptime!(config.width as u32));
-        comptime!(
-            assert_eq!(line_size, 1, "The input line_size must be 1 or the same as the config width.");
-        );
-
-        let val = input[0];
-
-        #[unroll]
-        for i in 0..comptime!(config.width as u32) {
-            tmp[i] = val;
-        }
-
-        tmp
-    };
 
     write::<C>(inputs, outputs, locals, write_pos, input, op.out, config);
 }
