@@ -34,7 +34,8 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
     let client = R::client(device);
     let shape: Shape = shape.into();
     let scales_shape: Shape;
-    let scales_dtype: DType;
+    let scales_dtype = DType::F32; // Make this variable at some point
+
     let (data, shapes, elem_sizes) = match scheme {
         // Just to ensure we get and error if more modes are added and unhandled
         QuantScheme {
@@ -47,7 +48,6 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
             let shapes = vec![shape.dims.as_slice(), &[1]];
             let elem_sizes = vec![size_of::<i8>(), size_of::<f32>()];
             scales_shape = Shape::new([1]);
-            scales_dtype = DType::F32;
             (data, shapes, elem_sizes)
         }
     };

@@ -172,4 +172,4 @@ cubecl-std = { path = "../cubecl/crates/cubecl-std", default-features = false }
 tracel-xtask = { version = "=1.1.9" }
 
 [profile.dev]
-debug = 1 # Speed up compilation time and not necessary.
+debug = 0 # Speed up compilation time and not necessary.

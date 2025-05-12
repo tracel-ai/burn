@@ -168,13 +168,15 @@ pub fn reshape<R: CubeRuntime>(tensor: CubeTensor<R>, shape: Shape) -> CubeTenso
     // TODO: Not force standard layout all the time (improve performance).
     let tensor = kernel::into_contiguous(tensor);
 
-    CubeTensor::new_contiguous(
+    let mut out = CubeTensor::new_contiguous(
         tensor.client,
         tensor.device,
         shape,
         tensor.handle,
         tensor.dtype,
-    )
+    );
+    out.qparams = tensor.qparams;
+    out
 }
 
 pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {
