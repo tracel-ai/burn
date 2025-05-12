@@ -362,6 +362,26 @@ fn assign<C: CubePrimitive>(
 ) {
     let input = read::<C>(inputs, outputs, locals, write_pos, op.input, config);
 
+    let line_size = input.line_size();
+
+    let input = if comptime!(line_size == config.width as u32) {
+        input
+    } else {
+        let mut tmp = Line::<C>::empty(comptime!(config.width as u32));
+        comptime!(
+            assert_eq!(line_size, 1, "The input line_size must be 1 or the same as the config width.");
+        );
+
+        let val = input[0];
+
+        #[unroll]
+        for i in 0..comptime!(config.width as u32) {
+            tmp[i] = val;
+        }
+
+        tmp
+    };
+
     write::<C>(inputs, outputs, locals, write_pos, input, op.out, config);
 }
 
