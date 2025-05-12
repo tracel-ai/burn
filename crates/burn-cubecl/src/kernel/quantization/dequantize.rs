@@ -1,7 +1,7 @@
 use crate::{CubeRuntime, FloatElement, kernel::utils::strided_layout, ops::max_line_size};
 use crate::{ops::numeric::empty_device_strided, tensor::CubeTensor};
+use burn_tensor::DType;
 use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
-use burn_tensor::{DType, Shape};
 use cubecl::{calculate_cube_count_elemwise, linalg::tensor::StridedLayout};
 use cubecl::{linalg::tensor::index_offset_contiguous, prelude::*};
 
@@ -125,7 +125,7 @@ where
                 q_type: QuantInputType::QInt8,
                 ..
             } => {
-                let scales = scales_per_tensor::<R, f32>(&tensor);
+                let scales = tensor.scales().unwrap();
 
                 unsafe {
                     dequantize_per_tensor_symmetric_int8_packed_kernel::launch_unchecked::<F, R>(
@@ -167,7 +167,7 @@ where
                 q_type: QuantInputType::QInt8,
                 ..
             } => {
-                let scales = scales_per_tensor::<R, f32>(&tensor);
+                let scales = tensor.scales().unwrap();
 
                 unsafe {
                     dequantize_per_tensor_symmetric_int8_unpacked_kernel::launch_unchecked::<F, R>(
@@ -187,18 +187,4 @@ where
     }
 
     output
-}
-
-fn scales_per_tensor<R: CubeRuntime, F: FloatElement>(data: &CubeTensor<R>) -> CubeTensor<R> {
-    let mut scales_handle = data.handle.clone().offset_start(data.handle.size());
-    scales_handle.offset_end = None;
-
-    CubeTensor::new(
-        data.client.clone(),
-        scales_handle,
-        Shape::new([1]),
-        data.device.clone(),
-        vec![1],
-        F::dtype(),
-    )
 }

@@ -1,5 +1,8 @@
 use crate::{CubeRuntime, element::CubeElement, kernel, tensor::CubeTensor};
-use burn_tensor::{Shape, TensorData};
+use burn_tensor::{
+    Shape, TensorData,
+    quantization::{QTensorPrimitive, QuantLevel},
+};
 use cubecl::{server::BindingWithMeta, tensor_vectorization_factor};
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
@@ -24,11 +27,7 @@ pub(crate) async fn into_data<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor
 /// Read data from a `CubeTensor` synchronously
 #[allow(unused, reason = "useful for debugging kernels")]
 pub fn into_data_sync<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
-    let tensor = if R::can_read_tensor(&tensor.shape.dims, &tensor.strides) {
-        tensor
-    } else {
-        kernel::into_contiguous_aligned(tensor)
-    };
+    let tensor = kernel::into_contiguous_aligned(tensor);
 
     let elem_size = size_of::<E>();
     let shape = tensor.shape.dims.clone();
@@ -146,6 +145,13 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
         }
     }
 
+    // Extra check to ensure block scales must be properly handled once they're added
+    if tensor.qparams.is_some() {
+        match tensor.scheme().level {
+            QuantLevel::Tensor => {}
+        }
+    }
+
     CubeTensor {
         client: tensor.client,
         device: tensor.device,
@@ -153,6 +159,7 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
         strides: new_strides,
         handle: tensor.handle,
         dtype: tensor.dtype,
+        qparams: tensor.qparams,
     }
 }
 

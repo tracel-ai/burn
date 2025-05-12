@@ -1,6 +1,9 @@
-use crate::{CubeRuntime, FloatElement, kernel::into_contiguous, ops::max_line_size};
+use crate::{
+    CubeRuntime, FloatElement,
+    kernel::into_contiguous,
+    ops::{empty_qtensor, max_line_size},
+};
 use crate::{kernel::utils::strided_layout, tensor::CubeTensor};
-use burn_tensor::Shape;
 use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
 use cubecl::linalg::tensor::index_offset_contiguous;
 use cubecl::prelude::*;
@@ -119,49 +122,6 @@ fn quantize_per_tensor_symmetric_int8_packed_kernel<F: Float>(
     }
 }
 
-fn create_quantized_output<R: CubeRuntime>(
-    client: ComputeClient<R::Server, R::Channel>,
-    device: R::Device,
-    shape: Shape,
-    scheme: QuantScheme,
-) -> (CubeTensor<R>, CubeTensor<R>) {
-    // Scale and offset (optional) qparams are also packed in the tensor data
-    let (shapes, elem_sizes) = match &scheme {
-        QuantScheme {
-            level: QuantLevel::Tensor,
-            mode: QuantMode::Symmetric,
-            q_type: QuantInputType::QInt8,
-            ..
-        } => {
-            let shapes = vec![shape.dims.as_slice(), &[1]];
-            let elem_sizes = vec![size_of::<i8>(), size_of::<f32>()];
-            (shapes, elem_sizes)
-        }
-    };
-
-    let mut tensors = client.empty_tensors(shapes, elem_sizes).into_iter();
-    let (handle, strides) = tensors.next().unwrap();
-    let (scale, scale_stride) = tensors.next().unwrap();
-
-    let data = CubeTensor::new(
-        client.clone(),
-        handle,
-        shape,
-        device.clone(),
-        strides,
-        burn_tensor::DType::QFloat(scheme),
-    );
-    let scale = CubeTensor::new(
-        client,
-        scale,
-        Shape::new([1]),
-        device,
-        scale_stride,
-        burn_tensor::DType::F32,
-    );
-    (data, scale)
-}
-
 /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
 pub fn quantize<R, F>(
     tensor: CubeTensor<R>,
@@ -172,17 +132,12 @@ where
     R: CubeRuntime,
     F: FloatElement,
 {
-    let (output, out_scale) = create_quantized_output(
-        tensor.client.clone(),
-        tensor.device.clone(),
-        tensor.shape.clone(),
-        *scheme,
-    );
+    let output = empty_qtensor(tensor.shape.clone(), *scheme, &tensor.device);
 
     if i8::is_supported(&tensor.client) {
-        quantize_unpacked::<R, F>(tensor, scheme, scale, output, out_scale)
+        quantize_unpacked::<R, F>(tensor, scheme, scale, output)
     } else {
-        quantize_packed::<R, F>(tensor, scheme, scale, output, out_scale)
+        quantize_packed::<R, F>(tensor, scheme, scale, output)
     }
 }
 
@@ -191,13 +146,13 @@ fn quantize_unpacked<R: CubeRuntime, F: FloatElement>(
     scheme: &QuantScheme,
     scale: CubeTensor<R>,
     output: CubeTensor<R>,
-    out_scale: CubeTensor<R>,
 ) -> CubeTensor<R> {
     let client = tensor.client.clone();
     // Output tensor contains 4x less elements (four int8 values packed in a single u32)
     let num_elems = tensor.shape.num_elements();
 
     let out_layout = strided_layout(&output);
+    let out_scale = output.scales().unwrap();
 
     // Force vectorization to process 4 quantized values packed for 1 output value
     let line_size = max_line_size(&tensor);
@@ -237,12 +192,13 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement>(
     scheme: &QuantScheme,
     scale: CubeTensor<R>,
     output: CubeTensor<R>,
-    out_scale: CubeTensor<R>,
 ) -> CubeTensor<R> {
     let tensor = into_contiguous(tensor);
     let client = tensor.client.clone();
     // Output tensor contains 4x less elements (four int8 values packed in a single u32)
     let num_elems = tensor.shape.num_elements();
+
+    let out_scale = output.scales().unwrap();
 
     // Force vectorization to process 4 quantized values packed for 1 output value
     let line_size: u8 = 1;

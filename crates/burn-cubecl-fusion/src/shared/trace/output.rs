@@ -409,6 +409,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             device: device.clone(),
             strides,
             dtype,
+            qparams: None,
         };
 
         plan.rank = usize::max(tensor_global.shape.len(), plan.rank);
@@ -467,6 +468,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 device: device.clone(),
                 strides,
                 dtype,
+                qparams: original_handle.handle.qparams.clone(),
             };
             context
                 .handles
@@ -536,6 +538,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             device: device.clone(),
             strides,
             dtype,
+            qparams: original_handle.handle.qparams.clone(),
         };
         handle.strides.swap(dims.0 as usize, dims.1 as usize);
 
