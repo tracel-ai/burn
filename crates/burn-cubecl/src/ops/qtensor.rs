@@ -190,6 +190,7 @@ where
                 ..
             } => into_data::<R, i8>(tensor.clone()).await,
         };
+        data.dtype = tensor.dtype; // Reset to qfloat after reading
         let scales = tensor.scales().unwrap();
         let scales_data = execute_with_dtype!(scales.dtype, E, into_data::<R, E>(scales).await);
         data.bytes.extend_from_byte_slice(&scales_data.bytes);
