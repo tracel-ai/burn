@@ -13,7 +13,7 @@ use crate::{
     tensor::CubeTensor,
 };
 
-fn matmul_input_gen<R: CubeRuntime, E: FloatElement>(
+fn matmul_input_gen<R: CubeRuntime>(
     _key: &MatmulAutotuneKey,
     lhs: &CubeTensor<R>,
     rhs: &CubeTensor<R>,
@@ -34,7 +34,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
 
     static TUNER: LocalTuner<MatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TunableSet::new(create_key::<R, E>, matmul_input_gen::<R, E>)
+    let tunables = TunableSet::new(create_key::<R>, matmul_input_gen::<R>)
         .with_tunable_optional(matmul_tiling2d::<R, E>, |key| {
             !key.analysis.may_use_tensor_cores
                 || matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
@@ -57,7 +57,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
     output
 }
 
-fn create_key<R: CubeRuntime, E: FloatElement>(
+fn create_key<R: CubeRuntime>(
     lhs: &CubeTensor<R>,
     rhs: &CubeTensor<R>,
     out: &CubeTensor<R>,

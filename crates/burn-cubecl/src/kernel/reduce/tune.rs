@@ -32,14 +32,11 @@ pub fn autotune_reduce<
 
     static TUNER: LocalTuner<ReduceAutotuneKey, CubeTuneId> = local_tuner!("reduce-dim");
 
-    let tunables = TunableSet::new(
-        create_key::<Run, Acc, Rd>,
-        reduce_input_gen::<Run, In, Out, Rd>,
-    )
-    .with_tunable(reduce::<Run, In, Out, Acc, Rd>)
-    .with_tunable(reduce_shared::<Run, In, Out, Acc, Rd>)
-    .with_tunable(reduce_plane::<Run, In, Out, Acc, Rd>)
-    .with_tunable(reduce_shared_plane::<Run, In, Out, Acc, Rd>);
+    let tunables = TunableSet::new(create_key::<Run, Acc, Rd>, reduce_input_gen::<Run, Rd>)
+        .with_tunable(reduce::<Run, In, Out, Acc, Rd>)
+        .with_tunable(reduce_shared::<Run, In, Out, Acc, Rd>)
+        .with_tunable(reduce_plane::<Run, In, Out, Acc, Rd>)
+        .with_tunable(reduce_shared_plane::<Run, In, Out, Acc, Rd>);
 
     TUNER.execute(
         &CubeTuneId::new::<Run>(&input.client, &input.device),
@@ -76,12 +73,7 @@ mod reduce_ops {
 
     use super::*;
 
-    pub(crate) fn reduce_input_gen<
-        Run: CubeRuntime,
-        In: CubeElement,
-        Out: CubeElement,
-        Rd: ReduceFamily,
-    >(
+    pub(crate) fn reduce_input_gen<Run: CubeRuntime, Rd: ReduceFamily>(
         _key: &ReduceAutotuneKey,
         input: &CubeTensor<Run>,
         output: &CubeTensor<Run>,
