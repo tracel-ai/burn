@@ -88,7 +88,7 @@ mod reduce_ops {
         dim: &usize,
         config: &Rd::Config,
     ) -> (CubeTensor<Run>, CubeTensor<Run>, usize, Rd::Config) {
-        (input.clone(), output.clone(), *dim, *config)
+        (input.clone(), output.copy(), *dim, *config)
     }
 
     pub(crate) fn reduce<

@@ -3,7 +3,7 @@ use cubecl::{
     linalg::matmul::{
         Strategy, SyncLoadingStrategy,
         kernels::tiling2d::Tiling2dConfig,
-        tune_key::{MatmulAutotuneKey, MatmulScale, should_tune_double_buffering},
+        tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
     },
     tune::{LocalTuner, TunableSet, local_tuner},
 };
@@ -19,7 +19,7 @@ fn matmul_input_gen<R: CubeRuntime, E: FloatElement>(
     rhs: &CubeTensor<R>,
     out: &CubeTensor<R>,
 ) -> (CubeTensor<R>, CubeTensor<R>, CubeTensor<R>) {
-    (lhs.clone(), rhs.clone(), out.clone())
+    (lhs.clone(), rhs.clone(), out.copy())
 }
 
 /// Executes autotune on matmul operations
@@ -36,14 +36,15 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
 
     let tunables = TunableSet::new(create_key::<R, E>, matmul_input_gen::<R, E>)
         .with_tunable_optional(matmul_tiling2d::<R, E>, |key| {
-            !key.kind.may_use_tensor_cores || matches!(key.kind.scale, MatmulScale::Small)
+            !key.analysis.may_use_tensor_cores
+                || matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
         })
         .with_tunable(matmul_simple::<R, E>)
         .with_tunable_optional(matmul_double_buffering::<R, E>, |key| {
             should_tune_double_buffering(false, key)
         })
         .with_tunable_optional(matmul_naive::<R, E>, |key| {
-            !key.kind.may_use_tensor_cores || key.kind.mat2vec
+            !key.analysis.may_use_tensor_cores || key.analysis.mat2vec
         });
 
     TUNER.execute(
