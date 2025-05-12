@@ -2,10 +2,11 @@ use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
-    nn::conv::{ConvTranspose2dConfig, ConvTranspose2dRecord},
+    nn::conv::ConvTranspose2dRecord,
     record::{PrecisionSettings, Record},
     tensor::{Tensor, TensorData},
 };
+use onnx_ir::node::conv_transpose2d::ConvTranspose2dConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
@@ -137,7 +138,7 @@ mod tests {
         graph::BurnGraph,
         node::{conv_transpose_2d::ConvTranspose2dNode, test::assert_tokens},
     };
-    use burn::{nn::conv::ConvTranspose2dConfig, record::FullPrecisionSettings};
+    use burn::record::FullPrecisionSettings;
 
     #[test]
     fn test_codegen() {
@@ -149,7 +150,7 @@ mod tests {
             TensorType::new_float("output", 4),
             TensorData::from([2f32]),
             None,
-            ConvTranspose2dConfig::new([3, 3], [3, 3]).with_padding([0, 0]),
+            ConvTranspose2dConfig::new([3, 3], [1, 1], [0, 0], [0, 0], [0, 0], [0, 0], 1, true),
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
@@ -172,11 +173,11 @@ mod tests {
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
                 pub fn new(device: &B::Device) -> Self {
-                    let conv_transpose_2d = ConvTranspose2dConfig::new([3, 3], [3, 3])
-                        .with_stride([1, 1])
+                    let conv_transpose_2d = ConvTranspose2dConfig::new([3, 3], [1, 1])
+                        .with_stride([0, 0])
                         .with_padding([0, 0])
                         .with_padding_out([0, 0])
-                        .with_dilation([1, 1])
+                        .with_dilation([0, 0])
                         .with_groups(1)
                         .with_bias(true)
                         .init(device);

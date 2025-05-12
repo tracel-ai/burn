@@ -69,24 +69,31 @@ use crate::{
     logger::init_log,
 };
 
-use super::op_configuration::{
-    argmax_config, avg_pool1d_config, avg_pool2d_config, batch_norm_config, clip_config,
-    concat_config, conv_transpose1d_config, conv_transpose2d_config, conv_transpose3d_config,
-    conv1d_config, conv2d_config, conv3d_config, dropout_config, expand_config, flatten_config,
-    gather_config, gemm_config, hard_sigmoid_config, layer_norm_config, leaky_relu_config,
-    linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, one_hot_config,
-    pad_config, reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
-    reduce_sum_config, reshape_config, resize_config, shape_config, softmax_config, split_config,
-    squeeze_config, tile_config, top_k_config, transpose_config, trilu_config, unsqueeze_config,
-};
 use onnx_ir::{
     convert_constant_value,
     ir::{
         ArgType, Argument as OnnxArgument, Data, ElementType, Node, NodeType, OnnxGraph,
         TensorType as OnnxTensorType,
     },
-    node::slice::slice_config,
+    node::{
+        argmax::argmax_config, avg_pool1d::avg_pool1d_config, avg_pool2d::avg_pool2d_config,
+        batch_norm::batch_norm_config, clip::clip_config, concat::concat_config,
+        conv_transpose1d::conv_transpose1d_config, conv_transpose2d::conv_transpose2d_config,
+        conv_transpose3d::conv_transpose3d_config, conv1d::conv1d_config, conv2d::conv2d_config,
+        conv3d::conv3d_config, dropout::dropout_config, expand::expand_config,
+        flatten::flatten_config, gather::gather_config, gemm::gemm_config,
+        hard_sigmoid::hard_sigmoid_config, layer_norm::layer_norm_config,
+        leaky_relu::leaky_relu_config, linear::linear_config, log_softmax::log_softmax_config,
+        max_pool1d::max_pool1d_config, max_pool2d::max_pool2d_config, one_hot::one_hot_config,
+        pad::pad_config, reduce_max::reduce_max_config, reduce_mean::reduce_mean_config,
+        reduce_min::reduce_min_config, reduce_prod::reduce_prod_config,
+        reduce_sum::reduce_sum_config, reshape::reshape_config, resize::resize_config,
+        slice::slice_config, softmax::softmax_config, split::split_config, squeeze::squeeze_config,
+        tile::tile_config, topk::top_k_config, transpose::transpose_config, trilu::trilu_config,
+        unsqueeze::unsqueeze_config,
+    },
     parse_onnx,
+    util::shape_config,
 };
 
 pub use crate::burn::graph::RecordType;
@@ -299,6 +306,9 @@ impl ParsedOnnxGraph {
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
                 NodeType::Not => graph.register(Self::not_conversion(node)),
+                NodeType::And => graph.register(Self::and_conversion(node)),
+                NodeType::Or => graph.register(Self::or_conversion(node)),
+                NodeType::Xor => graph.register(Self::xor_conversion(node)),
                 NodeType::OneHot => graph.register(Self::one_hot_conversion(node)),
                 NodeType::Greater => graph.register(Self::greater_conversion(node)),
                 NodeType::GreaterOrEqual => graph.register(Self::greater_or_equal_conversion(node)),
@@ -1022,6 +1032,8 @@ impl ParsedOnnxGraph {
     fn conv1d_conversion<PS: PrecisionSettings>(node: Node) -> Conv1dNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
+
+        // Get configuration from onnx-ir
         let config = conv1d_config(&node);
 
         let bias = node.inputs.len() == 3;
@@ -1070,6 +1082,8 @@ impl ParsedOnnxGraph {
     fn max_pool1d_conversion(node: Node) -> MaxPool1dNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
+
+        // Get configuration from onnx-ir
         let config = max_pool1d_config(&node);
 
         let name = &node.name;
@@ -1114,7 +1128,21 @@ impl ParsedOnnxGraph {
     fn conv_transpose1d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose1dNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = conv_transpose1d_config(&node);
+
+        // Get configuration from onnx-ir
+        let onnx_config = conv_transpose1d_config(&node);
+
+        // Convert to burn ConvTranspose1dConfig
+        let config = burn::nn::conv::ConvTranspose1dConfig::new(
+            [onnx_config.channels_in, onnx_config.channels_out],
+            onnx_config.kernel_size,
+        )
+        .with_stride(onnx_config.stride)
+        .with_padding(onnx_config.padding)
+        .with_dilation(onnx_config.dilation)
+        .with_padding_out(onnx_config.padding_out)
+        .with_groups(onnx_config.groups)
+        .with_bias(onnx_config.bias);
 
         let bias = node.inputs.len() == 3;
         let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
@@ -1160,6 +1188,8 @@ impl ParsedOnnxGraph {
     fn avg_pool_1d_conversion(node: Node) -> AvgPool1dNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
+
+        // Get configuration from onnx-ir
         let config = avg_pool1d_config(&node);
 
         let name = &node.name;
@@ -1223,6 +1253,30 @@ impl ParsedOnnxGraph {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
         UnaryNode::not(input, output)
+    }
+
+    fn and_conversion(node: Node) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        BinaryNode::bool_and(lhs, rhs, output)
+    }
+
+    fn or_conversion(node: Node) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        BinaryNode::bool_or(lhs, rhs, output)
+    }
+
+    fn xor_conversion(node: Node) -> BinaryNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        BinaryNode::bool_xor(lhs, rhs, output)
     }
 
     fn greater_conversion(node: Node) -> BinaryNode {

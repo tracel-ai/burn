@@ -8,6 +8,7 @@ use cubecl::{
     linalg::matmul::{components::Quantized, kernels::MatmulLaunchError},
     prelude::TensorHandleRef,
 };
+use cubecl_std::size_of;
 
 #[cfg(feature = "autotune")]
 use super::matmul_autotune;
@@ -83,10 +84,22 @@ pub fn q_matmul<R: CubeRuntime>(
     let mut rhs_scales = rhs.handle.clone().offset_start(rhs.handle.size());
     rhs_scales.offset_end = None;
 
-    let lhs_scales =
-        unsafe { TensorHandleRef::from_raw_parts(&lhs_scales, &[1], &[1], size_of::<f32>()) };
-    let rhs_scales =
-        unsafe { TensorHandleRef::from_raw_parts(&rhs_scales, &[1], &[1], size_of::<f32>()) };
+    let lhs_scales = unsafe {
+        TensorHandleRef::from_raw_parts(
+            &lhs_scales,
+            &[1],
+            &[1],
+            size_of::<f32>().try_into().unwrap(),
+        )
+    };
+    let rhs_scales = unsafe {
+        TensorHandleRef::from_raw_parts(
+            &rhs_scales,
+            &[1],
+            &[1],
+            size_of::<f32>().try_into().unwrap(),
+        )
+    };
 
     match scheme.acc_precision {
         QuantAccPrecision::Full => {

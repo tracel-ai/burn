@@ -100,7 +100,9 @@ fn matmul_simple<R: CubeRuntime, E: FloatElement>(
 //         &Strategy::DoubleBuffering,
 //         &lhs.client,
 //         &lhs.as_handle_ref(),
+//         &None,
 //         &rhs.as_handle_ref(),
+//         &None,
 //         &out.as_handle_ref(),
 //     )
 //     .map_err(|err| format!("{err:?}"))

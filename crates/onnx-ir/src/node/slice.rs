@@ -131,9 +131,8 @@ pub fn slice_update_output_rank(node: &mut Node) {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
-    use crate::ir::{Argument, AttributeValue, ElementType, NodeType, TensorType};
+    use crate::ir::{ElementType, NodeType};
+    use crate::node::test_utils::NodeBuilder;
 
     use super::*;
 
@@ -143,151 +142,40 @@ mod tests {
         axes: Option<Vec<i64>>,
         use_attrs: bool,
     ) -> Node {
-        let mut inputs = vec![Argument {
-            name: "data".to_string(),
-            ty: crate::ir::ArgType::Tensor(TensorType {
-                elem_type: ElementType::Float32,
-                rank: 3,
-                static_shape: None,
-            }),
-            value: None,
-            passed: true,
-        }];
+        let mut builder = NodeBuilder::new(NodeType::Slice, "test_slice")
+            .input_tensor_f32("data", 3, None)
+            .output_default("output");
 
         if !use_attrs {
             // Add inputs as tensors
-            inputs.push(Argument {
-                name: "starts".to_string(),
-                ty: crate::ir::ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 1,
-                    static_shape: Some(vec![starts.len()]),
-                }),
-                value: Some(TensorData {
-                    data: Data::Int64s(starts.clone()),
-                    shape: vec![starts.len()],
-                }),
-                passed: true,
-            });
+            builder = builder.input_tensor_i64_data("starts", starts.clone(), vec![starts.len()]);
+            builder = builder.input_tensor_i64_data("ends", ends.clone(), vec![ends.len()]);
 
-            inputs.push(Argument {
-                name: "ends".to_string(),
-                ty: crate::ir::ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 1,
-                    static_shape: Some(vec![ends.len()]),
-                }),
-                value: Some(TensorData {
-                    data: Data::Int64s(ends.clone()),
-                    shape: vec![ends.len()],
-                }),
-                passed: true,
-            });
-
-            if let Some(axes_vec) = &axes {
-                inputs.push(Argument {
-                    name: "axes".to_string(),
-                    ty: crate::ir::ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Int64,
-                        rank: 1,
-                        static_shape: Some(vec![axes_vec.len()]),
-                    }),
-                    value: Some(TensorData {
-                        data: Data::Int64s(axes_vec.clone()),
-                        shape: vec![axes_vec.len()],
-                    }),
-                    passed: true,
-                });
+            if let Some(axes_vec) = axes.clone() {
+                builder =
+                    builder.input_tensor_i64_data("axes", axes_vec.clone(), vec![axes_vec.len()]);
             }
-        }
+        } else {
+            // Add attributes
+            builder = builder.attr_ints("starts", starts);
+            builder = builder.attr_ints("ends", ends);
 
-        let mut attrs = HashMap::new();
-        if use_attrs {
-            attrs.insert("starts".to_string(), AttributeValue::Int64s(starts));
-            attrs.insert("ends".to_string(), AttributeValue::Int64s(ends));
             if let Some(axes_vec) = axes {
-                attrs.insert("axes".to_string(), AttributeValue::Int64s(axes_vec));
+                builder = builder.attr_ints("axes", axes_vec);
             }
         }
 
-        Node {
-            node_type: NodeType::Slice,
-            name: "test_slice".to_string(),
-            inputs,
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::default(),
-                value: None,
-                passed: true,
-            }],
-            attrs,
-        }
+        builder.build()
     }
 
     fn create_shape_input_node(start: i64, end: i64) -> Node {
-        let mut node = Node {
-            node_type: NodeType::Slice,
-            name: "test_slice_shape".to_string(),
-            inputs: vec![Argument {
-                name: "data".to_string(),
-                ty: ArgType::Shape(5), // 1-dimensional shape (important: matches what the tests expect)
-                value: None,
-                passed: true,
-            }],
-            outputs: vec![Argument {
-                name: "output".to_string(),
-                ty: ArgType::default(),
-                value: None,
-                passed: true,
-            }],
-            attrs: HashMap::new(),
-        };
-
-        // Add starts and ends as tensors
-        node.inputs.push(Argument {
-            name: "starts".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
-                rank: 1,
-                static_shape: Some(vec![1]),
-            }),
-            value: Some(TensorData {
-                data: Data::Int64s(vec![start]),
-                shape: vec![1],
-            }),
-            passed: true,
-        });
-
-        node.inputs.push(Argument {
-            name: "ends".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
-                rank: 1,
-                static_shape: Some(vec![1]),
-            }),
-            value: Some(TensorData {
-                data: Data::Int64s(vec![end]),
-                shape: vec![1],
-            }),
-            passed: true,
-        });
-
-        // Add axes tensor to specify dimension 0
-        node.inputs.push(Argument {
-            name: "axes".to_string(),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
-                rank: 1,
-                static_shape: Some(vec![1]),
-            }),
-            value: Some(TensorData {
-                data: Data::Int64s(vec![0]),
-                shape: vec![1],
-            }),
-            passed: true,
-        });
-
-        node
+        NodeBuilder::new(NodeType::Slice, "test_slice_shape")
+            .input_shape("data", 5)
+            .input_tensor_i64_data("starts", vec![start], vec![1])
+            .input_tensor_i64_data("ends", vec![end], vec![1])
+            .input_tensor_i64_data("axes", vec![0], vec![1])
+            .output_default("output")
+            .build()
     }
 
     #[test]

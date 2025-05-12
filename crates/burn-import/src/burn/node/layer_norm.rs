@@ -2,10 +2,11 @@ use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
-    nn::{LayerNormConfig, LayerNormRecord},
+    nn::LayerNormRecord,
     record::{PrecisionSettings, Record},
     tensor::{Tensor, TensorData},
 };
+use onnx_ir::node::layer_norm::LayerNormConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;

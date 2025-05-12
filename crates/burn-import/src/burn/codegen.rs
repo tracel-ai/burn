@@ -1,9 +1,6 @@
+use onnx_ir::node::padding::{PaddingConfig1d, PaddingConfig2d, PaddingConfig3d};
 use proc_macro2::TokenStream;
 use quote::quote;
-
-use burn::nn::PaddingConfig1d;
-use burn::nn::PaddingConfig2d;
-use burn::nn::PaddingConfig3d;
 
 fn convert_primitive<T: core::fmt::Debug>(primitive: T) -> TokenStream {
     let value = format!("{:?}", primitive);
@@ -76,7 +73,6 @@ impl ToTokens for f32 {
 impl ToTokens for PaddingConfig1d {
     fn to_tokens(&self) -> TokenStream {
         match self {
-            Self::Same => quote! { PaddingConfig1d::Same },
             Self::Valid => quote! { PaddingConfig1d::Valid },
             Self::Explicit(padding) => {
                 let padding = padding.to_tokens();
@@ -90,7 +86,6 @@ impl ToTokens for PaddingConfig1d {
 impl ToTokens for PaddingConfig2d {
     fn to_tokens(&self) -> TokenStream {
         match self {
-            Self::Same => quote! { PaddingConfig2d::Same },
             Self::Valid => quote! { PaddingConfig2d::Valid },
             Self::Explicit(padding1, padding2) => {
                 let padding1 = padding1.to_tokens();
@@ -105,7 +100,6 @@ impl ToTokens for PaddingConfig2d {
 impl ToTokens for PaddingConfig3d {
     fn to_tokens(&self) -> TokenStream {
         match self {
-            Self::Same => quote! { PaddingConfig3d::Same },
             Self::Valid => quote! { PaddingConfig3d::Valid },
             Self::Explicit(padding1, padding2, padding3) => {
                 let padding1 = padding1.to_tokens();

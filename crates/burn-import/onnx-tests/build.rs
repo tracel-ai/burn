@@ -7,6 +7,7 @@ fn main() {
     // Add onnx models.
     ModelGen::new()
         .input("tests/add/add.onnx")
+        .input("tests/and/and.onnx")
         .input("tests/add/add_int.onnx")
         .input("tests/argmax/argmax.onnx")
         .input("tests/avg_pool1d/avg_pool1d.onnx")
@@ -81,6 +82,7 @@ fn main() {
         .input("tests/neg/neg.onnx")
         .input("tests/not/not.onnx")
         .input("tests/one_hot/one_hot.onnx")
+        .input("tests/or/or.onnx")
         .input("tests/pad/pad.onnx")
         .input("tests/pow/pow.onnx")
         .input("tests/pow/pow_int.onnx")
@@ -129,6 +131,7 @@ fn main() {
         .input("tests/unsqueeze/unsqueeze_runtime_axes.onnx")
         .input("tests/unsqueeze/unsqueeze_like.onnx")
         .input("tests/split/split.onnx")
+        .input("tests/xor/xor.onnx")
         .out_dir("model/")
         .run_from_script();
 
