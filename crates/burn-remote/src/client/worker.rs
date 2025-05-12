@@ -51,6 +51,8 @@ impl ClientWorker {
 
         const MB: usize = 1024 * 1024;
 
+        let session_id = SessionId::new();
+
         #[allow(deprecated)]
         runtime.spawn(async move {
             log::info!("Connecting to {address_request} ...");
@@ -86,7 +88,6 @@ impl ClientWorker {
             let state = Arc::new(tokio::sync::Mutex::new(ClientWorker::default()));
 
             // Init the connection.
-            let session_id = SessionId::new();
             let bytes: tungstenite::Bytes = rmp_serde::to_vec(&Task::Init(session_id))
                 .expect("Can serialize tasks to bytes.")
                 .into();
@@ -150,6 +151,6 @@ impl ClientWorker {
             });
         });
 
-        WsClient::new(device, sender, runtime)
+        WsClient::new(device, sender, runtime, session_id)
     }
 }
