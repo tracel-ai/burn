@@ -1,5 +1,5 @@
 [default]
-extend-ignore-identifiers-re = ["ratatui", "Ratatui", "NdArray*", "ND"]
+extend-ignore-identifiers-re = ["ratatui", "Ratatui", "NdArray*", "ND", "UE"]
 
 [files]
 extend-exclude = [
@@ -11,3 +11,4 @@ extend-exclude = [
 [default.extend-words]
 # Don't correct "arange" which is intentional
 arange = "arange"
+
