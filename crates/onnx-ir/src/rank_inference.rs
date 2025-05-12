@@ -55,6 +55,7 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::GlobalAveragePool => same_as_input(node),
         NodeType::ConvTranspose1d => same_as_input(node),
         NodeType::ConvTranspose2d => same_as_input(node),
+        NodeType::InstanceNormalization => same_as_input(node),
         NodeType::LayerNormalization => same_as_input(node),
         NodeType::LeakyRelu => same_as_input(node),
         NodeType::Less => elementwise_comparison_outputs(node),

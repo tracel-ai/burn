@@ -127,4 +127,110 @@ mod tests {
 
         output.into_data().assert_eq(&expected, false);
     }
+
+    #[test]
+    fn repeat_dim_swap_dims_1() {
+        let tensor = TestTensorInt::arange(0..16, &Default::default()).float();
+
+        let tensor = tensor.reshape([4, 1, 4]);
+        let tensor = tensor.swap_dims(0, 2);
+        let output = tensor.repeat_dim(1, 4);
+
+        let expected = TensorData::from([
+            [
+                [0.0, 4.0, 8.0, 12.0],
+                [0.0, 4.0, 8.0, 12.0],
+                [0.0, 4.0, 8.0, 12.0],
+                [0.0, 4.0, 8.0, 12.0],
+            ],
+            [
+                [1.0, 5.0, 9.0, 13.0],
+                [1.0, 5.0, 9.0, 13.0],
+                [1.0, 5.0, 9.0, 13.0],
+                [1.0, 5.0, 9.0, 13.0],
+            ],
+            [
+                [2.0, 6.0, 10.0, 14.0],
+                [2.0, 6.0, 10.0, 14.0],
+                [2.0, 6.0, 10.0, 14.0],
+                [2.0, 6.0, 10.0, 14.0],
+            ],
+            [
+                [3.0, 7.0, 11.0, 15.0],
+                [3.0, 7.0, 11.0, 15.0],
+                [3.0, 7.0, 11.0, 15.0],
+                [3.0, 7.0, 11.0, 15.0],
+            ],
+        ]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn repeat_dim_swap_dims_2() {
+        let tensor = TestTensorInt::arange(0..16, &Default::default()).float();
+
+        let tensor = tensor.reshape([2, 2, 1, 4]);
+        let tensor = tensor.swap_dims(0, 1);
+        let output = tensor.repeat_dim(2, 4);
+
+        let expected = TensorData::from([
+            [
+                [
+                    [0.0, 1.0, 2.0, 3.0],
+                    [0.0, 1.0, 2.0, 3.0],
+                    [0.0, 1.0, 2.0, 3.0],
+                    [0.0, 1.0, 2.0, 3.0],
+                ],
+                [
+                    [8.0, 9.0, 10.0, 11.0],
+                    [8.0, 9.0, 10.0, 11.0],
+                    [8.0, 9.0, 10.0, 11.0],
+                    [8.0, 9.0, 10.0, 11.0],
+                ],
+            ],
+            [
+                [
+                    [4.0, 5.0, 6.0, 7.0],
+                    [4.0, 5.0, 6.0, 7.0],
+                    [4.0, 5.0, 6.0, 7.0],
+                    [4.0, 5.0, 6.0, 7.0],
+                ],
+                [
+                    [12.0, 13.0, 14.0, 15.0],
+                    [12.0, 13.0, 14.0, 15.0],
+                    [12.0, 13.0, 14.0, 15.0],
+                    [12.0, 13.0, 14.0, 15.0],
+                ],
+            ],
+        ]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn repeat_dim_swap_dims_3() {
+        let tensor = TestTensorInt::arange(0..16, &Default::default()).float();
+
+        let tensor = tensor.reshape([1, 2, 2, 4]);
+        let tensor = tensor.swap_dims(0, 2);
+        let tensor = tensor.swap_dims(1, 3);
+        let output = tensor.repeat_dim(2, 4);
+
+        let expected = TensorData::from([
+            [
+                [[0.0, 8.0], [0.0, 8.0], [0.0, 8.0], [0.0, 8.0]],
+                [[1.0, 9.0], [1.0, 9.0], [1.0, 9.0], [1.0, 9.0]],
+                [[2.0, 10.0], [2.0, 10.0], [2.0, 10.0], [2.0, 10.0]],
+                [[3.0, 11.0], [3.0, 11.0], [3.0, 11.0], [3.0, 11.0]],
+            ],
+            [
+                [[4.0, 12.0], [4.0, 12.0], [4.0, 12.0], [4.0, 12.0]],
+                [[5.0, 13.0], [5.0, 13.0], [5.0, 13.0], [5.0, 13.0]],
+                [[6.0, 14.0], [6.0, 14.0], [6.0, 14.0], [6.0, 14.0]],
+                [[7.0, 15.0], [7.0, 15.0], [7.0, 15.0], [7.0, 15.0]],
+            ],
+        ]);
+        output.into_data().assert_eq(&expected, false);
+    }
 }
