@@ -83,6 +83,16 @@ mod wgpu {
     }
 }
 
+#[cfg(feature = "metal")]
+mod metal {
+    use crate::{ElemType, launch};
+    use burn::backend::metal::{Metal, MetalDevice};
+
+    pub fn run() {
+        launch::<Metal<ElemType, i32>>(MetalDevice::default());
+    }
+}
+
 #[cfg(feature = "cuda")]
 mod cuda {
     use crate::{ElemType, launch};

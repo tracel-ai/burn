@@ -52,6 +52,16 @@ mod tch_cpu {
     }
 }
 
+#[cfg(feature = "remote")]
+mod remote {
+    use burn::backend::{RemoteBackend, remote::RemoteDevice};
+
+    pub fn run() {
+        let device = RemoteDevice::default();
+        super::run::<RemoteBackend>(device);
+    }
+}
+
 /// Train a regression model and predict results on a number of samples.
 pub fn run<B: Backend>(device: B::Device) {
     training::run::<Autodiff<B>>(ARTIFACT_DIR, device.clone());
@@ -72,4 +82,6 @@ fn main() {
     tch_cpu::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
+    #[cfg(feature = "remote")]
+    remote::run();
 }
