@@ -3,7 +3,9 @@ use cubecl::{
     linalg::matmul::{
         Strategy, SyncLoadingStrategy,
         kernels::tiling2d::Tiling2dConfig,
-        tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
+        tune_key::{
+            MatmulAutotuneKey, MatmulGlobalScale, MatmulKind, should_tune_double_buffering,
+        },
     },
     tune::{LocalTuner, TunableSet, local_tuner},
 };
@@ -44,7 +46,11 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
             should_tune_double_buffering(false, key)
         })
         .with_tunable_optional(matmul_naive::<R, E>, |key| {
-            !key.analysis.may_use_tensor_cores || key.analysis.mat2vec
+            !key.analysis.may_use_tensor_cores
+                || matches!(
+                    key.analysis.king,
+                    MatmulKind::InnerProduct | MatmulKind::MatVec | MatmulKind::VecMat
+                )
         });
 
     TUNER.execute(
