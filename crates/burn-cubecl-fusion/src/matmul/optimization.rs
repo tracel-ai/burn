@@ -332,10 +332,7 @@ impl FusedMatmul {
             out_line_size,
         };
 
-        let plane_size = client
-            .properties()
-            .hardware_properties()
-            .defined_plane_size();
+        let plane_size = client.properties().hardware.defined_plane_size();
 
         let plane_size = match plane_size {
             Some(val) => val,
