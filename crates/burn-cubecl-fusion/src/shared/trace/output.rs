@@ -101,8 +101,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 .unwrap()
                 .clone();
             let strides = strides_dyn_rank(&tensor_global.shape);
-
             let (kind, block_idx) = self.output_kind(plan, &tensor_global, &output, &strides);
+
             match kind {
                 OutputKind::Inplace { input_pos } => {
                     self.inplace_output(context, plan, output, tensor_global, input_pos, block_idx);
@@ -366,7 +366,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     ) {
         let block = &mut plan.blocks[block_idx];
 
-        if !block.reference.is_found() {
+        if !block.reference.is_found()
+            && self.blocks[block_idx].shape_ref == output.tensor_relative.shape
+        {
             block.reference = ReferenceSelection::Concrete {
                 layout: Arg::Output(
                     output.pos_original as u32,

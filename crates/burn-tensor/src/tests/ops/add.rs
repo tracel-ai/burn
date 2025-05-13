@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(add)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData, backend::Backend};
 
     #[test]
     fn test_add_d2() {
@@ -81,6 +81,42 @@ mod tests {
         output
             .into_data()
             .assert_eq(&TensorData::from([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]), false);
+    }
+
+    #[test]
+    fn add_maybe_fused_not_contiguous() {
+        let tensor1 = TestTensorInt::arange(0..8, &Default::default()).float();
+        let tensor2 = TestTensorInt::arange(8..16, &Default::default()).float();
+        let tensor1 = tensor1.reshape([2, 4]);
+        let tensor2 = tensor2.reshape([4, 2]);
+        let tensor2 = tensor2.swap_dims(0, 1);
+
+        TestBackend::sync(&tensor2.device());
+
+        let output = tensor1 + tensor2;
+
+        output.into_data().assert_eq(
+            &TensorData::from([[8.0, 11.0, 14.0, 17.0], [13.0, 16.0, 19.0, 22.0]]),
+            false,
+        );
+    }
+
+    #[test]
+    fn add_maybe_fused_not_contiguous_broadcasted() {
+        let tensor1 = TestTensorInt::arange(0..8, &Default::default()).float();
+        let tensor2 = TestTensorInt::arange(8..10, &Default::default()).float();
+        let tensor1 = tensor1.reshape([2, 4]);
+        let tensor2 = tensor2.reshape([1, 2]);
+        let tensor2 = tensor2.swap_dims(0, 1);
+
+        TestBackend::sync(&tensor2.device());
+
+        let output = tensor2 + tensor1;
+
+        output.into_data().assert_eq(
+            &TensorData::from([[8.0, 9.0, 10.0, 11.0], [13.0, 14.0, 15.0, 16.0]]),
+            false,
+        );
     }
 
     #[test]

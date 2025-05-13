@@ -359,6 +359,36 @@ mod tests {
     }
 
     #[test]
+    fn test_sum_dim_6_maybe_fused_on_read_not_contiguous_broadcasted() {
+        let tensor_1 = TestTensorInt::arange(0..32, &Default::default()).float();
+        let tensor_2 = TestTensorInt::arange(0..8, &Default::default()).float();
+
+        let tensor_1 = tensor_1.reshape([4, 2, 2, 2]);
+        let tensor_1 = tensor_1.swap_dims(3, 2);
+        let tensor_1 = tensor_1.swap_dims(1, 2);
+
+        let tensor_2 = tensor_2.reshape([1, 2, 2, 2]);
+
+        TestBackend::sync(&tensor_1.device());
+        let sum = tensor_2.clone().sum_dim(0);
+        let sum = sum.sum_dim(1);
+        let sum = sum.sum_dim(2);
+
+        TestBackend::sync(&tensor_1.device());
+
+        let tmp = sum.clone() + 2;
+        let output = (tensor_1 + tensor_2 + sum).sum_dim(1);
+        let expected = TensorData::from([
+            [[[29.0, 43.0], [41.0, 55.0]]],
+            [[[45.0, 59.0], [57.0, 71.0]]],
+            [[[61.0, 75.0], [73.0, 87.0]]],
+            [[[77.0, 91.0], [89.0, 103.0]]],
+        ]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
     fn test_mean_dim_2d() {
         let tensor =
             TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());

@@ -36,7 +36,7 @@ pub enum RefLayoutSetting {
     Any,
     /// Only contiguous reference layout is allowed.
     ///
-    /// Note that forcing a contiguous reference layout might reduce the oportunity of inplace
+    /// Note that forcing a contiguous reference layout might reduce the opportunity of inplace
     /// fusion.
     OnlyContiguous,
 }
