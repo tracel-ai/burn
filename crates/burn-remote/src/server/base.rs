@@ -173,7 +173,7 @@ impl<B: BackendIr> WsServer<B> {
             };
         }
 
-        log::info!("Closing connection");
+        log::info!("Closing session {:?}", session_id);
         self.state.close(session_id);
     }
 }

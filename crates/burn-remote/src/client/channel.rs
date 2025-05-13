@@ -1,5 +1,5 @@
 use burn_ir::TensorIr;
-use burn_router::{RouterTensor, RunnerChannel, TensorHandle};
+use burn_router::{RouterTensor, RunnerChannel, RunnerClient, TensorHandle};
 
 use super::{
     WsClient,
@@ -29,16 +29,19 @@ impl RunnerChannel for WsChannel {
         WsClient::init(device.clone())
     }
 
-    fn get_tensor_handle(_tensor: &TensorIr, _client: &Self::Client) -> TensorHandle<Self::Bridge> {
-        panic!("Unsupported")
+    fn get_tensor_handle(tensor: &TensorIr, client: &Self::Client) -> TensorHandle<Self::Bridge> {
+        client.runtime.block_on(client.read_tensor(tensor.clone()))
     }
 
     fn register_tensor(
-        _client: &Self::Client,
+        client: &Self::Client,
         _handle: TensorHandle<Self::Bridge>,
         _shape: Vec<usize>,
         _dtype: burn_tensor::DType,
     ) -> RouterTensor<Self::Client> {
-        panic!("Unsupported")
+        let router_tensor = client.register_tensor_data(_handle);
+        client.sync();
+
+        router_tensor
     }
 }
