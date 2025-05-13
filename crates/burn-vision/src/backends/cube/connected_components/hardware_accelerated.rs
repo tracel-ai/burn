@@ -475,7 +475,7 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
         return Err("Requires plane instructions".into());
     }
 
-    let props = client.properties().hardware_properties();
+    let props = &client.properties().hardware;
 
     if props.plane_size_min < 32 {
         return Err("Requires plane size of at least 32".into());

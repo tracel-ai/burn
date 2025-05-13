@@ -287,6 +287,9 @@ impl FuseOptimizationBuilder {
             }),
             FloatOperationIr::Erf(desc) => self
                 .register_unary_ops(desc, |input, out| FuseOp::Erf(UnaryFuseArgs { input, out })),
+            FloatOperationIr::Sqrt(desc) => self.register_unary_ops(desc, |input, out| {
+                FuseOp::Sqrt(UnaryFuseArgs { input, out })
+            }),
             FloatOperationIr::Recip(desc) => self.register_unary_ops(desc, |input, out| {
                 FuseOp::Recip(UnaryFuseArgs { input, out })
             }),

@@ -16,14 +16,14 @@ use burn_tensor::{
 
 use crate::TensorIr;
 
-/// Custom operation in fusion stream, declaring it's inputs and outputs.
+/// Custom operation in fusion stream, declaring its inputs and outputs.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct CustomOpIr {
     /// Unique identifier of the operation.
     pub id: String,
-    /// Input tensors used in this the custom operation.
+    /// Input tensors used in the custom operation.
     pub inputs: Vec<TensorIr>,
-    /// Output tensors used in this the custom operation.
+    /// Output tensors used in the custom operation.
     pub outputs: Vec<TensorIr>,
 }
 

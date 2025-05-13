@@ -38,6 +38,7 @@ use crate::{
             gather_elements::GatherElementsNode,
             gemm::GemmNode,
             global_avg_pool::GlobalAvgPoolNode,
+            instance_norm::InstanceNormNode,
             layer_norm::LayerNormNode,
             linear::LinearNode,
             mask_where::WhereNode,
@@ -82,10 +83,11 @@ use onnx_ir::{
         conv_transpose3d::conv_transpose3d_config, conv1d::conv1d_config, conv2d::conv2d_config,
         conv3d::conv3d_config, dropout::dropout_config, expand::expand_config,
         flatten::flatten_config, gather::gather_config, gemm::gemm_config,
-        hard_sigmoid::hard_sigmoid_config, layer_norm::layer_norm_config,
-        leaky_relu::leaky_relu_config, linear::linear_config, log_softmax::log_softmax_config,
-        max_pool1d::max_pool1d_config, max_pool2d::max_pool2d_config, one_hot::one_hot_config,
-        pad::pad_config, reduce_max::reduce_max_config, reduce_mean::reduce_mean_config,
+        hard_sigmoid::hard_sigmoid_config, instance_norm::instance_norm_config,
+        layer_norm::layer_norm_config, leaky_relu::leaky_relu_config, linear::linear_config,
+        log_softmax::log_softmax_config, max_pool1d::max_pool1d_config,
+        max_pool2d::max_pool2d_config, one_hot::one_hot_config, pad::pad_config,
+        reduce_max::reduce_max_config, reduce_mean::reduce_mean_config,
         reduce_min::reduce_min_config, reduce_prod::reduce_prod_config,
         reduce_sum::reduce_sum_config, reshape::reshape_config, resize::resize_config,
         slice::slice_config, softmax::softmax_config, split::split_config, squeeze::squeeze_config,
@@ -316,6 +318,9 @@ impl ParsedOnnxGraph {
                 NodeType::LessOrEqual => graph.register(Self::less_or_equal_conversion(node)),
                 NodeType::LayerNormalization => {
                     graph.register(Self::layer_norm_conversion::<PS>(node))
+                }
+                NodeType::InstanceNormalization => {
+                    graph.register(Self::instance_norm_conversion::<PS>(node))
                 }
                 NodeType::Linear => graph.register(Self::linear_conversion::<PS>(node)),
                 NodeType::BatchNormalization => {
@@ -1027,6 +1032,21 @@ impl ParsedOnnxGraph {
         let name = &node.name;
 
         LayerNormNode::new(name, input, output, gamma, beta, config, full_precision)
+    }
+
+    fn instance_norm_conversion<PS: PrecisionSettings>(node: Node) -> InstanceNormNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        // Get configuration from onnx-ir
+        let config = instance_norm_config(&node);
+        // Scale tensor (aka gamma)
+        let gamma = extract_data_serialize::<PS::FloatElem>(1, &node).expect("Gamma is required");
+        // Bias (B) optional tensor
+        let beta = extract_data_serialize::<PS::FloatElem>(2, &node).expect("Beta is required");
+
+        let name = &node.name;
+        InstanceNormNode::new(name, input, output, gamma, beta, config)
     }
 
     fn conv1d_conversion<PS: PrecisionSettings>(node: Node) -> Conv1dNode {

@@ -6,7 +6,7 @@ use cubecl::prelude::*;
 use cubecl::reduce::instructions::{ReduceFn, ReduceFnConfig};
 use cubecl::reduce::{
     BoundChecksInner, ReduceFamily, ReduceParams, ReduceStrategy, init_tensors,
-    reduce_kernel_virtal,
+    reduce_kernel_virtual,
 };
 use cubecl::{
     CubeCount, CubeDim, Runtime,
@@ -472,7 +472,7 @@ pub fn reduce_kernel<R: ReduceFamily>(
     let (input, mut output) =
         init_tensors::<FusedReduceArgs, NumericExpand<INPUT>, NumericExpand<OUTPUT>>(input, output);
 
-    reduce_kernel_virtal::<NumericExpand<INPUT>, NumericExpand<OUTPUT>, NumericExpand<ACC>, R>(
+    reduce_kernel_virtual::<NumericExpand<INPUT>, NumericExpand<OUTPUT>, NumericExpand<ACC>, R>(
         &input,
         &mut output,
         axis_reduce,
