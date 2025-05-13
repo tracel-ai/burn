@@ -364,6 +364,7 @@ impl FuseBlockBuilder {
                 &mut local_tensor_ids_input,
                 &mut local_tensor_ids_output,
             ),
+
             FuseOp::Sub(op) => mark_binary(
                 op,
                 &mut local_tensor_ids_input,
@@ -390,6 +391,11 @@ impl FuseBlockBuilder {
                 &mut local_tensor_ids_output,
             ),
             FuseOp::Exp(op) => mark_unary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            FuseOp::Sqrt(op) => mark_unary(
                 op,
                 &mut local_tensor_ids_input,
                 &mut local_tensor_ids_output,

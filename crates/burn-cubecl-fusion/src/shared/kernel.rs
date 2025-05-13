@@ -222,6 +222,9 @@ fn fuse(
             FuseOp::Erf(op) => {
                 erf::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
             }
+            FuseOp::Sqrt(op) => {
+                sqrt::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
             FuseOp::Abs(op) => {
                 abs::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
             }
@@ -640,6 +643,7 @@ binary_func!(powf, Line::<C>::powf, Float);
 unary_func!(exp, Line::<C>::exp, Float);
 unary_func!(log, Line::<C>::log, Float);
 unary_func!(log1p, Line::<C>::log1p, Float);
+unary_func!(sqrt, Line::<C>::sqrt, Float);
 unary_func!(cos, Line::<C>::cos, Float);
 unary_func!(sin, Line::<C>::sin, Float);
 unary_func!(tanh, Line::<C>::tanh, Float);
