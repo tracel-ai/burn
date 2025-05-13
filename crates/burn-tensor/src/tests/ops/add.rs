@@ -84,7 +84,7 @@ mod tests {
     }
 
     #[test]
-    fn add_mayby_fused_not_contiguous() {
+    fn add_maybe_fused_not_contiguous() {
         let tensor1 = TestTensorInt::arange(0..8, &Default::default()).float();
         let tensor2 = TestTensorInt::arange(8..16, &Default::default()).float();
         let tensor1 = tensor1.reshape([2, 4]);
@@ -102,7 +102,7 @@ mod tests {
     }
 
     #[test]
-    fn add_mayby_fused_not_contiguous_broadcasted() {
+    fn add_maybe_fused_not_contiguous_broadcasted() {
         let tensor1 = TestTensorInt::arange(0..8, &Default::default()).float();
         let tensor2 = TestTensorInt::arange(8..10, &Default::default()).float();
         let tensor1 = tensor1.reshape([2, 4]);
