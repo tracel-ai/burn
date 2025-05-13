@@ -38,7 +38,7 @@ impl<B: BackendIr> WsServer<B> {
                 }
                 true
             }));
-    
+
         // If we start multiple servers in the same process, this will fail, it's ok
         let _ = registry().with(layer).try_init();
 
