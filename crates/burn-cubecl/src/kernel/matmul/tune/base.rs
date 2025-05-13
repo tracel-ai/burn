@@ -48,7 +48,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
         .with_tunable_optional(matmul_naive::<R, E>, |key| {
             !key.analysis.may_use_tensor_cores
                 || matches!(
-                    key.analysis.king,
+                    key.analysis.kind,
                     MatmulKind::InnerProduct | MatmulKind::MatVec | MatmulKind::VecMat
                 )
         });
