@@ -137,6 +137,11 @@ impl<B: BackendIr> WsServer<B> {
                     }
                 };
 
+                if let Task::Close(id) = task {
+                    session_id = Some(id);
+                    break;
+                }
+
                 let (stream, connection_id, task) = match self.state.stream(&mut session_id, task) {
                     Some(val) => val,
                     None => {

@@ -25,7 +25,7 @@ impl<R: Runtime> MatmulBuilder<R> {
     pub fn new(device: R::Device, bool_precision: FusePrecision) -> Self {
         let client = R::client(&device);
         let props = client.properties();
-        let max_bindings = props.hardware_properties().max_bindings;
+        let max_bindings = props.hardware.max_bindings;
         let settings = FuseSettings {
             broadcast: true,
             output_shape_updates: false,

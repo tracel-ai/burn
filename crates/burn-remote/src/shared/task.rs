@@ -39,6 +39,7 @@ impl SessionId {
 pub enum Task {
     Compute(ComputeTask, ConnectionId),
     Init(SessionId),
+    Close(SessionId),
 }
 
 #[allow(missing_docs)]

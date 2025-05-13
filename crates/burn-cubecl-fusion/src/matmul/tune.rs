@@ -6,7 +6,7 @@ use crate::{
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
-    linalg::matmul::tune_key::MatmulAutotuneKey,
+    linalg::matmul::tune_key::{MatmulAutotuneKey, should_tune_double_buffering},
     tune::{LocalTuner, TunableSet, local_tuner},
 };
 use serde::{Deserialize, Serialize};
@@ -32,7 +32,9 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
     let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
         .with_tunable(tune_fallback::<R, BT>) // First one should always work.
         .with_tunable(tune_simple_fused::<R, BT>)
-        .with_tunable(tune_double_buffering_fused::<R, BT>);
+        .with_tunable_optional(tune_double_buffering_fused::<R, BT>, |key| {
+            should_tune_double_buffering(key.num_out_buffers > 1, &key.matmul_key)
+        });
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&optimization.client, &optimization.device),
@@ -64,12 +66,14 @@ pub(crate) fn create_key<R: Runtime>(
         .get_handle(&rhs.id, &burn_ir::TensorStatus::ReadOnly)
         .strides;
 
-    let key = MatmulAutotuneKey::generate(
+    let key = MatmulAutotuneKey::generate::<R>(
+        &opt.client,
         &lhs.shape,
         &rhs.shape,
         &lhs_strides,
         &rhs_strides,
         lhs.dtype.into(),
+        rhs.dtype.into(),
         out.dtype.into(),
     );
     FusedMatmulAutotuneKey::new(key, opt.num_output_buffers(), opt.num_ops_fused())

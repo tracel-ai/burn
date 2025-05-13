@@ -12,8 +12,8 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-cubecl-fus
 version.workspace = true
 
 [features]
-autotune = []
 default = ["autotune", "std", "cubecl/default"]
+autotune = []
 doc = ["default"]
 std = ["cubecl/std", "burn-tensor/std"]
 autotune-checks = ["cubecl/autotune-checks"]
