@@ -40,11 +40,29 @@ pub use __client::*;
 #[cfg(feature = "client")]
 mod tests {
     use crate::RemoteBackend;
+    use burn_ndarray::NdArray;
     use burn_tensor::{Distribution, Tensor};
 
-    /// There must be two servers started on ports 3000 and 3010 for this test to work.
     #[test]
     pub fn test_to_device_over_websocket() {
+        let rt_a = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+        let rt_b = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        rt_a.spawn(crate::server::start_async::<NdArray>(
+            Default::default(),
+            3000,
+        ));
+        rt_b.spawn(crate::server::start_async::<NdArray>(
+            Default::default(),
+            3010,
+        ));
+
         let remote_device_1 = super::RemoteDevice::new("ws://localhost:3000");
         let remote_device_2 = super::RemoteDevice::new("ws://localhost:3010");
 
@@ -66,5 +84,8 @@ mod tests {
         let input = input.to_device(&remote_device_1);
         let numbers: Vec<f32> = input.to_data().to_vec().unwrap();
         assert_eq!(numbers, numbers_expected);
+
+        rt_a.shutdown_background();
+        rt_b.shutdown_background();
     }
 }

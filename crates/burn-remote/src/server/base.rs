@@ -38,7 +38,9 @@ impl<B: BackendIr> WsServer<B> {
                 }
                 true
             }));
-        registry().with(layer).init();
+    
+        // If we start multiple servers in the same process, this will fail, it's ok
+        let _ = registry().with(layer).try_init();
 
         let address = format!("0.0.0.0:{port}");
         log::info!("Start server {address} on device {device:?}");
@@ -178,8 +180,12 @@ impl<B: BackendIr> WsServer<B> {
     }
 }
 
+pub async fn start_async<B: BackendIr>(device: Device<B>, port: u16) {
+    WsServer::<B>::start(device, port).await;
+}
+
 #[tokio::main]
 /// Start the server on the given port and [device](Device).
 pub async fn start<B: BackendIr>(device: Device<B>, port: u16) {
-    WsServer::<B>::start(device, port).await;
+    start_async::<B>(device, port).await
 }
