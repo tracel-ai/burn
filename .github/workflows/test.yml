@@ -64,6 +64,8 @@ env:
   TYPOS_VERSION: "1.23.4"
 
   # GCP runners
+  GCP_RUNNERS_CUDA_IMAGE_FAMILY: "tracel-ubuntu-2404-amd64-nvidia"
+  GCP_RUNNERS_TYPE: "g2-standard-4"
   GCP_RUNNERS_ZONE: "us-east1-c"
 
 concurrency:
@@ -137,107 +139,136 @@ jobs:
   #     - name: Documentation Tests
   #       run: cargo xtask doc tests
 
-  linux-std-tests-launcher:
+  linux-std-cuda-tests-launcher:
     needs: prepare-checks
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        rust: [stable, prev]
+        rust: [stable]
     outputs:
       label_stable: ${{ steps.gen_output.outputs.label_stable }}
-      label_prev: ${{ steps.gen_output.outputs.label_prev }}
     steps:
-      - name: create runners
+      - name: Create runners
         id: create-runner
         uses: related-sciences/gce-github-runner@v0.14
         with:
-          vm_name_prefix: ${{ format('gce-gh-runner-linux-std-tests-{0}', matrix.rust) }}
-          token: ${{ secrets.GCE_GITHUB_RUNNER_GH_TOKEN }}
+          ephemeral: true
+          image_family: ${{ env.GCP_RUNNERS_CUDA_IMAGE_FAMILY }}
+          image_project: ${{ secrets.GCP_CI_PROJECT_ID }}
+          machine_type: ${{ env.GCP_RUNNERS_TYPE }}
+          machine_zone: ${{ env.GCP_RUNNERS_ZONE }}
+          maintenance_policy_terminate: true
           project_id: ${{ secrets.GCP_CI_PROJECT_ID }}
           service_account_key: ${{ secrets.GCP_SA_KEY }}
-          image_project: ubuntu-os-cloud
-          image_family: ubuntu-2204-lts
-          machine_zone: ${{ env.GCP_RUNNERS_ZONE }}
-          ephemeral: true
-      - name: generate output
+          token: ${{ secrets.GCE_GITHUB_RUNNER_GH_TOKEN }}
+          vm_name_prefix: ${{ format('gce-gh-runner-linux-std-cuda-tests-{0}', matrix.rust) }}
+      # --------------------------------------------------------------------------------
+      - name: Generate output
         id: gen_output
         run: |
           rust=${{ matrix.rust }}
           label=${{ steps.create-runner.outputs.label }}
           echo "label_${rust}=${label}" >> "$GITHUB_OUTPUT"
+      # --------------------------------------------------------------------------------
       # handle the case where we cancel the workflow while runners are being created
-      - name: install gcloud
+      - name: Install gcloud
         uses: google-github-actions/setup-gcloud@v2
         if: cancelled()
-      - name: gcloud authentication
+      # --------------------------------------------------------------------------------
+      - name: Gcloud authentication
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
           create_credentials_file: false
         if: cancelled()
-      - name: make sure ephemeral runners are deleted
+      # --------------------------------------------------------------------------------
+      - name: Make sure ephemeral runners are deleted
         if: cancelled()
         run: >
           gcloud compute instances delete
           --project ${{ secrets.GCP_CI_PROJECT_ID }}
           --zone ${{ env.GCP_RUNNERS_ZONE }}
           --quiet
-          ${{ format('gce-gh-runner-linux-std-tests-{0}', matrix.rust) }}-${{ github.run_id }}-${{ github.run_attempt }}
+          ${{ format('gce-gh-runner-linux-std-cuda-tests-{0}', matrix.rust) }}-${{ github.run_id }}-${{ github.run_attempt }}
 
-  linux-std-tests:
-    needs: [prepare-checks, linux-std-tests-launcher]
-    runs-on: ${{ needs.linux-std-tests-launcher.outputs[format('label_{0}', matrix.rust)] }}
+  linux-std-cuda-tests:
+    needs: [prepare-checks, linux-std-cuda-tests-launcher]
+    runs-on: ${{ needs.linux-std-cuda-tests-launcher.outputs[format('label_{0}', matrix.rust)] }}
     env:
-      DISABLE_WGPU_SPIRV: '1'
+      LD_LIBRARY_PATH: '/usr/local/cuda/lib64'
     strategy:
       matrix:
-        rust: [stable, prev]
+        rust: [stable]
         include:
           - rust: stable
             toolchain: stable
-            coverage: --enable-coverage
-          - rust: prev
-            toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
-      # disable incremental compilation (reduces artifact size)
-      - name: Set CI Profile
-        run: echo "CARGO_PROFILE_TEST_INCREMENTAL=false" >> $GITHUB_ENV
-      # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v2
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
       # --------------------------------------------------------------------------------
-      - name: Setup Linux runner
-        uses: tracel-ai/github-actions/setup-linux@v2
-        with:
-          vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
-          mesa-version: ${{ env.MESA_VERSION }}
-          mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
-      # # --------------------------------------------------------------------------------
-      # - name: Install grcov
-      #   if: matrix.rust == 'stable'
-      #   shell: bash
-      #   run: |
-      #     curl -L "$GRCOV_LINK/v$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
-      #     tar xj -C $HOME/.cargo/bin
-      #     cargo xtask coverage install
-      # # --------------------------------------------------------------------------------
-      # - name: Tests
-      #   run: cargo xtask ${{ matrix.coverage }} test --ci
-      # # --------------------------------------------------------------------------------
-      # - name: Generate lcov.info
-      #   if: matrix.rust == 'stable'
-      #   # /* is to exclude std library code coverage from analysis
-      #   run: cargo xtask coverage generate --ignore "/*,xtask/*,examples/*"
-      # # --------------------------------------------------------------------------------
-      # - name: Codecov upload lcov.info
-      #   if: matrix.rust == 'stable'
-      #   uses: codecov/codecov-action@v5
-      #   with:
-      #     files: lcov.info
-      #     token: ${{ secrets.CODECOV_TOKEN }}
+      - name: Tests (burn-cuda)
+        run: cargo xtask test --ci nvidia-runner
+
+  # linux-std-tests:
+  #   runs-on: ubuntu-22.04
+  #   needs: prepare-checks
+  #   env:
+  #     DISABLE_WGPU_SPIRV: '1'
+  #   strategy:
+  #     matrix:
+  #       rust: [stable, prev]
+  #       include:
+  #         - rust: stable
+  #           toolchain: stable
+  #           coverage: --enable-coverage
+  #         - rust: prev
+  #           toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
+  #   steps:
+  #     # disable incremental compilation (reduces artifact size)
+  #     - name: Set CI Profile
+  #       run: echo "CARGO_PROFILE_TEST_INCREMENTAL=false" >> $GITHUB_ENV
+  #     # --------------------------------------------------------------------------------
+  #     - name: Setup Rust
+  #       uses: tracel-ai/github-actions/setup-rust@v1
+  #       with:
+  #         rust-toolchain: ${{ matrix.toolchain }}
+  #         cache-key: ${{ matrix.rust }}-linux
+  #         # Disable cache on linux-std (stable) runner which currently always runs out of disk space with tests + coverage
+  #         enable-cache: ${{ matrix.rust != 'stable' }}
+  #     # --------------------------------------------------------------------------------
+  #     - name: Setup Linux runner
+  #       uses: tracel-ai/github-actions/setup-linux@v1
+  #       with:
+  #         vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
+  #         mesa-version: ${{ env.MESA_VERSION }}
+  #         mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
+  #         cargo-package-to-clean: burn-tch
+  #     # --------------------------------------------------------------------------------
+  #     - name: Install grcov
+  #       if: matrix.rust == 'stable'
+  #       shell: bash
+  #       run: |
+  #         curl -L "$GRCOV_LINK/v$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
+  #         tar xj -C $HOME/.cargo/bin
+  #         cargo xtask coverage install
+  #     # --------------------------------------------------------------------------------
+  #     - name: Tests
+  #       run: cargo xtask ${{ matrix.coverage }} test --ci github-runner
+  #     # --------------------------------------------------------------------------------
+  #     - name: Generate lcov.info
+  #       if: matrix.rust == 'stable'
+  #       # /* is to exclude std library code coverage from analysis
+  #       run: cargo xtask coverage generate --ignore "/*,xtask/*,examples/*"
+  #     # --------------------------------------------------------------------------------
+  #     - name: Codecov upload lcov.info
+  #       if: matrix.rust == 'stable'
+  #       uses: codecov/codecov-action@v5
+  #       with:
+  #         files: lcov.info
+  #         token: ${{ secrets.CODECOV_TOKEN }}
 
   # linux-no-std-tests:
   #   runs-on: ubuntu-22.04
@@ -267,10 +298,10 @@ jobs:
   #         mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
   #     # --------------------------------------------------------------------------------
   #     - name: Crates Build
-  #       run: cargo xtask --execution-environment no-std build --ci
+  #       run: cargo xtask --execution-environment no-std build --ci github-runner
   #     # --------------------------------------------------------------------------------
   #     - name: Crates Tests
-  #       run: cargo xtask --execution-environment no-std test --ci
+  #       run: cargo xtask --execution-environment no-std test --ci github-runner
 
   # windows-std-tests:
   #   runs-on: windows-2022
@@ -302,7 +333,7 @@ jobs:
   #         warp-version: ${{ env.WARP_VERSION }}
   #     # --------------------------------------------------------------------------------
   #     - name: Tests
-  #       run: cargo xtask test --ci
+  #       run: cargo xtask test --ci github-runner
 
   # macos-std-tests:
   #   runs-on: blaze/macos-14
@@ -323,4 +354,4 @@ jobs:
   #         cache-key: ${{ matrix.rust }}-macos
   #     # --------------------------------------------------------------------------------
   #     - name: Tests
-  #       run: CUBECL_DEBUG_OPTION=profile cargo xtask test --ci
+  #       run: CUBECL_DEBUG_OPTION=profile cargo xtask test --ci github-runner
