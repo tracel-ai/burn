@@ -1,10 +1,10 @@
+use super::{ModuleMapper, ParamId};
 use burn_tensor::{
-    Element, ElementConversion, Tensor,
+    Element, ElementConversion, Tensor, TensorData,
     backend::Backend,
     ops::{FloatElem, IntElem},
 };
-
-use super::{ModuleMapper, ParamId};
+use rand::{Rng, SeedableRng, distr::StandardUniform};
 
 #[derive(new, Debug)]
 pub struct ModuleWiper<B: Backend> {
@@ -16,6 +16,7 @@ pub struct ModuleWiper<B: Backend> {
 pub enum WipeStrategy<E> {
     Arange(Option<WipeNormalization<E>>),
     Constant(E),
+    Random { seed: u64, min: E, max: E },
 }
 
 #[derive(Debug)]
@@ -59,6 +60,18 @@ impl<B: Backend> ModuleMapper<B> for ModuleWiper<B> {
                 tensor * factor + bias
             }
             WipeStrategy::Constant(value) => Tensor::full(shape, value.clone(), &device),
+            WipeStrategy::Random { seed, min, max } => {
+                let mut rng = rand::rngs::StdRng::seed_from_u64(*seed);
+                let dist =
+                    rand::distr::Uniform::<f64>::new(min.elem::<f64>(), max.elem::<f64>()).unwrap();
+                let data = (0..num_elements)
+                    .map(|_| rng.sample(dist.clone()))
+                    .map(|e| e.elem::<FloatElem<B>>())
+                    .collect();
+
+                let data = TensorData::new(data, shape);
+                Tensor::from_data(data, &device)
+            }
         }
     }
 
@@ -82,6 +95,18 @@ impl<B: Backend> ModuleMapper<B> for ModuleWiper<B> {
                 tensor * factor + bias
             }
             WipeStrategy::Constant(value) => Tensor::full(shape, value.clone(), &device),
+            WipeStrategy::Random { seed, min, max } => {
+                let mut rng = rand::rngs::StdRng::seed_from_u64(*seed);
+                let dist =
+                    rand::distr::Uniform::<f64>::new(min.elem::<f64>(), max.elem::<f64>()).unwrap();
+                let data = (0..num_elements)
+                    .map(|_| rng.sample(dist.clone()))
+                    .map(|e| e.elem::<FloatElem<B>>())
+                    .collect();
+
+                let data = TensorData::new(data, shape);
+                Tensor::from_data(data, &device)
+            }
         }
     }
 
@@ -100,7 +125,10 @@ mod tests {
 
     #[test]
     fn test_norm_uniform() {
-        let norm = WipeNormalization::Uniform { min: -5.0, max: 5.0 };
+        let norm = WipeNormalization::Uniform {
+            min: -5.0,
+            max: 5.0,
+        };
         let (factor, bias) = norm.resolve(64);
 
         assert_eq!(bias, -5.0);
