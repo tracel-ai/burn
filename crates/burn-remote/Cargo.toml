@@ -44,6 +44,9 @@ axum = { version = "0.8.3", features = ["ws"], optional = true }
 tracing-core = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 
+[dev-dependencies]
+burn-ndarray = { path = "../burn-ndarray", version = "0.18.0" }
+
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]

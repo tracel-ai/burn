@@ -95,7 +95,8 @@ impl RunnerClient for WsClient {
 /// The device contains the connection information of the server.
 pub struct WsDevice {
     pub(crate) address: Arc<String>,
-    pub(crate) index: u32,
+    // Unique ID generated from hash of the address
+    pub(crate) id: u32,
 }
 
 impl WsDevice {
@@ -112,11 +113,11 @@ impl WsDevice {
 
         let mut hasher = DefaultHasher::new();
         address.hash(&mut hasher);
-        let index = hasher.finish() as u32;
+        let id = hasher.finish() as u32;
 
         Self {
             address: Arc::new(address),
-            index,
+            id,
         }
     }
 }
@@ -136,7 +137,7 @@ impl DeviceOps for WsDevice {
     fn id(&self) -> DeviceId {
         DeviceId {
             type_id: 0,
-            index_id: self.index,
+            index_id: self.id,
         }
     }
 }

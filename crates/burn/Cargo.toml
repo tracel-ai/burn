@@ -23,6 +23,7 @@ default = [
     "burn-tch?/default",
     "burn-wgpu?/default",
     "burn-router?/default",
+    "burn-remote?/default",
     "burn-cuda?/default",
     "burn-autodiff?/default",
     "burn-rocm?/default",
@@ -131,3 +132,4 @@ burn-remote = { path = "../burn-remote", version = "0.18.0", default-features = 
 burn-router = { path = "../burn-router", version = "0.18.0", default-features = false, optional = true }
 burn-tch = { path = "../burn-tch", version = "0.18.0", optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "0.18.0", optional = true, default-features = false }
+burn-ir = { path = "../burn-ir", version = "0.18.0", default-features = false }

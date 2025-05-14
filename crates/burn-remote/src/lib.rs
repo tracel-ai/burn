@@ -36,8 +36,7 @@ mod __client {
 #[cfg(feature = "client")]
 pub use __client::*;
 
-#[cfg(test)]
-#[cfg(feature = "client")]
+#[cfg(all(test, feature = "client", feature = "server"))]
 mod tests {
     use crate::RemoteBackend;
     use burn_ndarray::NdArray;
@@ -45,20 +44,16 @@ mod tests {
 
     #[test]
     pub fn test_to_device_over_websocket() {
-        let rt_a = tokio::runtime::Builder::new_multi_thread()
-            .enable_io()
-            .build()
-            .unwrap();
-        let rt_b = tokio::runtime::Builder::new_multi_thread()
+        let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_io()
             .build()
             .unwrap();
 
-        rt_a.spawn(crate::server::start_async::<NdArray>(
+        rt.spawn(crate::server::start_async::<NdArray>(
             Default::default(),
             3000,
         ));
-        rt_b.spawn(crate::server::start_async::<NdArray>(
+        rt.spawn(crate::server::start_async::<NdArray>(
             Default::default(),
             3010,
         ));
@@ -85,7 +80,6 @@ mod tests {
         let numbers: Vec<f32> = input.to_data().to_vec().unwrap();
         assert_eq!(numbers, numbers_expected);
 
-        rt_a.shutdown_background();
-        rt_b.shutdown_background();
+        rt.shutdown_background();
     }
 }

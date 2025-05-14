@@ -35,12 +35,11 @@ impl RunnerChannel for WsChannel {
 
     fn register_tensor(
         client: &Self::Client,
-        _handle: TensorHandle<Self::Bridge>,
+        handle: TensorHandle<Self::Bridge>,
         _shape: Vec<usize>,
         _dtype: burn_tensor::DType,
     ) -> RouterTensor<Self::Client> {
-        let router_tensor = client.register_tensor_data(_handle);
-        client.sync();
+        let router_tensor = client.register_tensor_data(handle);
 
         router_tensor
     }
