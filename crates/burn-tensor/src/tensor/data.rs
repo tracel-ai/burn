@@ -4,14 +4,14 @@ use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
-use bytemuck::{cast_mut, checked::CheckedCastError, AnyBitPattern, CheckedBitPattern, Zeroable};
+use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::CheckedCastError};
 use half::{bf16, f16};
 use num_traits::{Float, ToPrimitive};
 
 use crate::{
+    DType, Distribution, Element, ElementConversion,
     quantization::{QuantInputType, QuantScheme, QuantizationStrategy, QuantizedBytes},
     tensor::bytes::Bytes,
-    DType, Distribution, Element, ElementConversion,
 };
 
 use rand::RngCore;
@@ -775,14 +775,8 @@ impl<E: Element, const A: usize, const B: usize, const C: usize, const D: usize>
     }
 }
 
-impl<
-        Elem: Element,
-        const A: usize,
-        const B: usize,
-        const C: usize,
-        const D: usize,
-        const E: usize,
-    > From<[[[[[Elem; E]; D]; C]; B]; A]> for TensorData
+impl<Elem: Element, const A: usize, const B: usize, const C: usize, const D: usize, const E: usize>
+    From<[[[[[Elem; E]; D]; C]; B]; A]> for TensorData
 {
     fn from(elems: [[[[[Elem; E]; D]; C]; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B * C * D * E);
@@ -1012,11 +1006,11 @@ impl<F: Float> Tolerance<F> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{quantization::SymmetricQuantization, Shape};
+    use crate::{Shape, quantization::SymmetricQuantization};
 
     use super::*;
     use alloc::vec;
-    use rand::{rngs::StdRng, SeedableRng};
+    use rand::{SeedableRng, rngs::StdRng};
 
     #[test]
     fn into_vec_should_yield_same_value_as_iter() {
