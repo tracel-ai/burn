@@ -4,14 +4,14 @@ use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
-use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::CheckedCastError};
+use bytemuck::{cast_mut, checked::CheckedCastError, AnyBitPattern, CheckedBitPattern, Zeroable};
 use half::{bf16, f16};
 use num_traits::{Float, ToPrimitive};
 
 use crate::{
-    DType, Distribution, Element, ElementConversion,
     quantization::{QuantInputType, QuantScheme, QuantizationStrategy, QuantizedBytes},
     tensor::bytes::Bytes,
+    DType, Distribution, Element, ElementConversion,
 };
 
 use rand::RngCore;
@@ -624,7 +624,8 @@ impl TensorData {
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     let diff_abs = ToPrimitive::to_f64(&(a - b).abs()).unwrap();
-                    let diff_rel = diff_abs / ToPrimitive::to_f64(&(a + b).abs()).unwrap();
+                    let max = F::max(a.abs(), b.abs());
+                    let diff_rel = diff_abs / ToPrimitive::to_f64(&max).unwrap();
 
                     let tol_rel = ToPrimitive::to_f64(&tolerance.relative).unwrap();
                     let tol_abs = ToPrimitive::to_f64(&tolerance.absolute).unwrap();
@@ -774,8 +775,14 @@ impl<E: Element, const A: usize, const B: usize, const C: usize, const D: usize>
     }
 }
 
-impl<Elem: Element, const A: usize, const B: usize, const C: usize, const D: usize, const E: usize>
-    From<[[[[[Elem; E]; D]; C]; B]; A]> for TensorData
+impl<
+        Elem: Element,
+        const A: usize,
+        const B: usize,
+        const C: usize,
+        const D: usize,
+        const E: usize,
+    > From<[[[[[Elem; E]; D]; C]; B]; A]> for TensorData
 {
     fn from(elems: [[[[[Elem; E]; D]; C]; B]; A]) -> Self {
         let mut data = Vec::with_capacity(A * B * C * D * E);
@@ -882,7 +889,7 @@ impl<F: Float> Tolerance<F> {
     /// That is, `x` and `y` are approximately equal if
     ///
     /// ```text
-    /// |x - y| < R * (|x + y|)
+    /// |x - y| < R * max(|x|, |y|)
     /// ```
     ///
     /// where `R` is the relative `tolerance`.
@@ -985,11 +992,9 @@ impl<F: Float> Tolerance<F> {
         }
 
         let diff = (x - y).abs();
+        let max = F::max(x.abs(), y.abs());
 
-        let norm = (x + y).abs();
-        let norm = norm.min(F::max_value()); // In case |a + b| -> inf.
-
-        diff < self.absolute.max(self.relative * norm)
+        diff < self.absolute.max(self.relative * max)
     }
 
     fn check_relative<FF: ToPrimitive>(tolerance: FF) -> F {
@@ -1007,11 +1012,11 @@ impl<F: Float> Tolerance<F> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Shape, quantization::SymmetricQuantization};
+    use crate::{quantization::SymmetricQuantization, Shape};
 
     use super::*;
     use alloc::vec;
-    use rand::{SeedableRng, rngs::StdRng};
+    use rand::{rngs::StdRng, SeedableRng};
 
     #[test]
     fn into_vec_should_yield_same_value_as_iter() {
