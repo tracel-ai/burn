@@ -1633,8 +1633,8 @@ where
     /// If the tensor doesn't have one element.
     pub async fn into_scalar_async(self) -> K::Elem {
         check!(TensorCheck::into_scalar::<D>(&self.shape()));
-        let x = self.into_data_async().await.iter().next().unwrap();
-        x
+
+        self.into_data_async().await.iter().next().unwrap()
     }
 
     /// Broadcast the tensor to the given shape.
@@ -3058,7 +3058,7 @@ impl<const D1: usize, const D2: usize, E: Element> BroadcastArgs<D1, D2> for [E;
             .rev()
             .collect();
 
-        if new_shape.iter().any(|&x| x == 0) {
+        if new_shape.contains(&0) {
             panic!("Cannot substitute -1 for a non-existing dimension");
         }
 

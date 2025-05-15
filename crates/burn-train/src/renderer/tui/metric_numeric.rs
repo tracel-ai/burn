@@ -176,6 +176,7 @@ impl NumericMetricsState {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(new)]
 pub(crate) enum NumericMetricView<'a> {
     Plots(&'a [String], usize, Chart<'a>, PlotKind),
