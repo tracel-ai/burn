@@ -17,7 +17,7 @@ pub fn unsqueeze_update_output(node: &mut Node) {
             None => None,
         }
     } else {
-        let axes = node.attrs.get("axes").cloned().map(|v| {
+        node.attrs.get("axes").cloned().map(|v| {
             let axes = v.into_i64s();
             log::debug!(
                 "Unsqueeze axes from attribute for {}: {:?}",
@@ -25,8 +25,7 @@ pub fn unsqueeze_update_output(node: &mut Node) {
                 axes
             );
             axes
-        });
-        axes
+        })
     };
 
     let input_rank = match &node.inputs[0].ty {
