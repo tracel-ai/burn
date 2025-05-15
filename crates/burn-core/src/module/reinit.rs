@@ -23,6 +23,12 @@ enum ReinitStrategy<E> {
     Random { seed: u64, min: E, max: E },
 }
 
+impl<B: Backend> Default for Reinitializer<B> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<B: Backend> Reinitializer<B> {
     /// Create a new [reinitializer](Reinitializer).
     pub fn new() -> Self {
@@ -123,10 +129,10 @@ impl<B: Backend> ModuleMapper<B> for Reinitializer<B> {
                     .reshape(shape)
                     .float();
                 let (factor, bias) =
-                    resolve::<FloatElem<B>>(min.clone(), max.clone(), num_elements);
+                    resolve::<FloatElem<B>>(*min, *max, num_elements);
                 tensor * factor + bias
             }
-            ReinitStrategy::Constant { value } => Tensor::full(shape, value.clone(), &device),
+            ReinitStrategy::Constant { value } => Tensor::full(shape, *value, &device),
             ReinitStrategy::Random { seed, min, max } => {
                 let data = TensorData::new(
                     random_vector::<FloatElem<B>>(*seed, min.elem(), max.elem(), num_elements),
@@ -149,10 +155,10 @@ impl<B: Backend> ModuleMapper<B> for Reinitializer<B> {
         match &self.int {
             ReinitStrategy::Range { min, max } => {
                 let tensor = Tensor::arange(0..num_elements as i64, &device).reshape(shape);
-                let (factor, bias) = resolve::<IntElem<B>>(min.clone(), max.clone(), num_elements);
+                let (factor, bias) = resolve::<IntElem<B>>(*min, *max, num_elements);
                 tensor * factor + bias
             }
-            ReinitStrategy::Constant { value } => Tensor::full(shape, value.clone(), &device),
+            ReinitStrategy::Constant { value } => Tensor::full(shape, *value, &device),
             ReinitStrategy::Random { seed, min, max } => {
                 let data = TensorData::new(
                     random_vector::<IntElem<B>>(*seed, min.elem(), max.elem(), num_elements),
@@ -184,7 +190,7 @@ fn random_vector<E: Element>(seed: u64, min: f64, max: f64, num_elements: usize)
     let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
     let dist = rand::distr::Uniform::new(min, max).unwrap();
     (0..num_elements)
-        .map(|_| rng.sample(dist.clone()))
+        .map(|_| rng.sample(dist))
         .map(|e| e.elem::<E>())
         .collect()
 }

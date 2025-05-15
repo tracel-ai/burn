@@ -72,12 +72,12 @@ impl ExecutionPlanIndex {
             None => return Vec::new(),
         };
 
-        let val = match self.starters.get(*index) {
+        
+
+        match self.starters.get(*index) {
             Some(value) => value.clone(),
             None => Vec::new(),
-        };
-
-        val
+        }
     }
 
     /// Update the index for an execution plan starting with operation `ops`

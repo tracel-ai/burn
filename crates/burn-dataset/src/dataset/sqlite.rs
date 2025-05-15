@@ -339,14 +339,14 @@ impl SqliteDatasetStorage {
     ///
     /// * A `PathBuf` instance representing the file path.
     pub fn db_file(&self) -> PathBuf {
-        let db_file = match &self.db_file {
+        
+        match &self.db_file {
             Some(db_file) => db_file.clone(),
             None => {
                 let name = sanitize(self.name.as_ref().expect("Name is not set"));
                 Self::base_dir(self.base_dir.to_owned()).join(format!("{name}.db"))
             }
-        };
-        db_file
+        }
     }
 
     /// Determines the base directory for storing the dataset.
