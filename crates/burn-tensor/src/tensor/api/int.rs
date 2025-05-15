@@ -1,7 +1,9 @@
+use crate::check::TensorCheck;
 use crate::{
     Float, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend, cartesian_grid,
 };
 
+use crate::tensor::check::macros::check;
 use core::ops::Range;
 
 impl<B> Tensor<B, 1, Int>
@@ -153,5 +155,17 @@ where
     /// Applies the bitwise right shift operation with the scalar.
     pub fn bitwise_right_shift_scalar(self, other: B::IntElem) -> Self {
         Self::new(B::bitwise_right_shift_scalar(self.primitive, other))
+    }
+
+    /// Applies the matrix multiplication operation.
+    ///
+    /// `C = AB`
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have a compatible shape.
+    pub fn matmul(self, other: Self) -> Self {
+        check!(TensorCheck::matmul(&self, &other));
+        Self::new(B::matmul(self.primitive, other.primitive))
     }
 }
