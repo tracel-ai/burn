@@ -65,6 +65,7 @@ env:
 
   # GCP runners
   GCP_RUNNERS_CUDA_IMAGE_FAMILY: "tracel-ubuntu-2404-amd64-nvidia"
+  GCP_RUNNERS_VULKAN_IMAGE_FAMILY: "tracel-ubuntu-2404-amd64-nvidia"
   GCP_RUNNERS_TYPE: "g2-standard-4"
   GCP_RUNNERS_ZONE: "us-east1-c"
 
@@ -139,14 +140,16 @@ jobs:
       - name: Documentation Tests
         run: cargo xtask doc tests
 
-  linux-std-cuda-tests-launcher:
+  linux-std-tests-gcp-launcher:
     needs: [prepare-checks, code-quality]
     runs-on: ubuntu-22.04
     strategy:
       matrix:
         rust: [stable]
+        backend: [cuda, vulkan]
     outputs:
-      label_stable: ${{ steps.gen_output.outputs.label_stable }}
+      label_stable_cuda: ${{ steps.gen_output.outputs.label_stable_cuda }}
+      label_stable_vulkan: ${{ steps.gen_output.outputs.label_stable_vulkan }}
     steps:
       - name: Create runners
         id: create-runner
@@ -161,14 +164,15 @@ jobs:
           project_id: ${{ secrets.GCP_CI_PROJECT_ID }}
           service_account_key: ${{ secrets.GCP_SA_KEY }}
           token: ${{ secrets.GCE_GITHUB_RUNNER_GH_TOKEN }}
-          vm_name_prefix: ${{ format('gce-gh-runner-linux-std-cuda-tests-{0}', matrix.rust) }}
+          vm_name_prefix: ${{ format('gce-gh-runner-linux-std-{0}-{1}-tests', matrix.rust, matrix.backend) }}
       # --------------------------------------------------------------------------------
       - name: Generate output
         id: gen_output
         run: |
           rust=${{ matrix.rust }}
+          backend=${{ matrix.backend }}
           label=${{ steps.create-runner.outputs.label }}
-          echo "label_${rust}=${label}" >> "$GITHUB_OUTPUT"
+          echo "label_${rust}_${backend}=${label}" >> "$GITHUB_OUTPUT"
       # --------------------------------------------------------------------------------
       # handle the case where we cancel the workflow while runners are being created
       - name: Install gcloud
@@ -192,8 +196,8 @@ jobs:
           ${{ format('gce-gh-runner-linux-std-cuda-tests-{0}', matrix.rust) }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   linux-std-cuda-tests:
-    needs: [prepare-checks, code-quality, linux-std-cuda-tests-launcher]
-    runs-on: ${{ needs.linux-std-cuda-tests-launcher.outputs[format('label_{0}', matrix.rust)] }}
+    needs: [prepare-checks, code-quality, linux-std-tests-gcp-launcher]
+    runs-on: ${{ needs.linux-std-tests-gcp-launcher.outputs[format('label_{0}_cuda', matrix.rust)] }}
     env:
       LD_LIBRARY_PATH: '/usr/local/cuda/lib64'
       # disable incremental compilation (reduces artifact size)
@@ -213,7 +217,30 @@ jobs:
           enable-cache: false
       # --------------------------------------------------------------------------------
       - name: Tests (burn-cuda)
-        run: cargo xtask test --ci nvidia-runner
+        run: cargo xtask test --ci gcp-cuda-runner
+
+  linux-std-vulkan-tests:
+    needs: [prepare-checks, code-quality, linux-std-tests-gcp-launcher]
+    runs-on: ${{ needs.linux-std-tests-gcp-launcher.outputs[format('label_{0}_vulkan', matrix.rust)] }}
+    env:
+      # disable incremental compilation (reduces artifact size)
+      CARGO_PROFILE_TEST_INCREMENTAL: 'false'
+    # Keep the stragegy to be able to easily add new rust versions if required
+    strategy:
+      matrix:
+        rust: [stable]
+        include:
+          - rust: stable
+            toolchain: stable
+    steps:
+      - name: Setup Rust
+        uses: tracel-ai/github-actions/setup-rust@v2
+        with:
+          rust-toolchain: ${{ matrix.toolchain }}
+          enable-cache: false
+      # --------------------------------------------------------------------------------
+      - name: Tests (burn-vulkan)
+        run: cargo xtask test --ci gcp-vulkan-runner
 
   linux-std-tests:
     runs-on: ubuntu-22.04

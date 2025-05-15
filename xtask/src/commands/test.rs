@@ -9,10 +9,12 @@ pub struct BurnTestCmdArgs {
     pub ci: CiTestType,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum CiTestType {
     GithubRunner,
-    NvidiaRunner,
+    GcpCudaRunner,
+    GcpVulkanRunner,
 }
 
 pub(crate) fn handle_command(
@@ -58,9 +60,16 @@ pub(crate) fn handle_command(
                         ]);
                     };
                 }
-                CiTestType::NvidiaRunner => {
+                CiTestType::GcpCudaRunner => {
                     args.target = Target::AllPackages;
                     args.only.push("burn-cuda".to_string());
+                }
+                CiTestType::GcpVulkanRunner => {
+                    args.target = Target::AllPackages;
+                    args.only.push("burn-wgpu".to_string());
+                    args.features
+                        .get_or_insert_with(Vec::new)
+                        .push("vulkan".to_string());
                 }
             }
 
