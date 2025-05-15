@@ -299,7 +299,7 @@ jobs:
           mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
       # --------------------------------------------------------------------------------
       - name: Crates Build
-        run: cargo xtask --execution-environment no-std build --ci github-runner
+        run: cargo xtask --execution-environment no-std build --ci
       # --------------------------------------------------------------------------------
       - name: Crates Tests
         run: cargo xtask --execution-environment no-std test --ci github-runner
