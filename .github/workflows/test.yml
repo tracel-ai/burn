@@ -96,7 +96,6 @@ jobs:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v2
         with:
-          runner-os: ${{ runner.os }}
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
       # --------------------------------------------------------------------------------
@@ -130,7 +129,6 @@ jobs:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v2
         with:
-          runner-os: ${{ runner.os }}
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
       # --------------------------------------------------------------------------------
@@ -313,14 +311,12 @@ jobs:
   #     - name: Setup Rust
   #       uses: tracel-ai/github-actions/setup-rust@v2
   #       with:
-  #         runner-os: ${{ runner.os }}
   #         rust-toolchain: ${{ matrix.toolchain }}
   #         cache-key: ${{ matrix.rust }}-linux-no-std
   #     # --------------------------------------------------------------------------------
   #     - name: Setup Linux runner
   #       uses: tracel-ai/github-actions/setup-linux@v2
   #       with:
-  #         runner-os: ${{ runner.os }}
   #         vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
   #         mesa-version: ${{ env.MESA_VERSION }}
   #         mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
@@ -347,7 +343,6 @@ jobs:
   #     - name: Setup Rust
   #       uses: tracel-ai/github-actions/setup-rust@v2
   #       with:
-  #         runner-os: ${{ runner.os }}
   #         rust-toolchain: ${{ matrix.toolchain }}
   #         cache-key: ${{ matrix.rust }}-windows
   #     # --------------------------------------------------------------------------------
@@ -377,7 +372,6 @@ jobs:
   #     - name: Setup Rust
   #       uses: tracel-ai/github-actions/setup-rust@v2
   #       with:
-  #         runner-os: ${{ runner.os }}
   #         rust-toolchain: ${{ matrix.toolchain }}
   #         cache-key: ${{ matrix.rust }}-macos
   #     # --------------------------------------------------------------------------------
