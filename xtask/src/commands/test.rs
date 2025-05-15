@@ -9,7 +9,6 @@ pub struct BurnTestCmdArgs {
     pub ci: CiTestType,
 }
 
-
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum CiTestType {
     GithubRunner,
@@ -58,11 +57,11 @@ pub(crate) fn handle_command(
                             "burn-router".to_string(),
                         ]);
                     };
-                },
+                }
                 CiTestType::NvidiaRunner => {
                     args.target = Target::AllPackages;
                     args.only.push("burn-cuda".to_string());
-                },
+                }
             }
 
             // test workspace

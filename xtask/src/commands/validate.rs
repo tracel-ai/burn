@@ -1,6 +1,9 @@
 use tracel_xtask::prelude::*;
 
-use crate::commands::{build::BurnBuildCmdArgs, test::{BurnTestCmdArgs, CiTestType}};
+use crate::commands::{
+    build::BurnBuildCmdArgs,
+    test::{BurnTestCmdArgs, CiTestType},
+};
 
 pub fn handle_command(
     args: &ValidateCmdArgs,
