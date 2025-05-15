@@ -64,8 +64,7 @@ env:
   TYPOS_VERSION: "1.23.4"
 
   # GCP runners
-  GCP_RUNNERS_CUDA_IMAGE_FAMILY: "tracel-ubuntu-2404-amd64-nvidia"
-  GCP_RUNNERS_VULKAN_IMAGE_FAMILY: "tracel-ubuntu-2404-amd64-nvidia"
+  GCP_RUNNERS_IMAGE_FAMILY: "tracel-ci-ubuntu-2404-amd64-nvidia"
   GCP_RUNNERS_TYPE: "g2-standard-4"
   GCP_RUNNERS_ZONE: "us-east1-c"
 
@@ -154,7 +153,7 @@ jobs:
         uses: related-sciences/gce-github-runner@v0.14
         with:
           ephemeral: true
-          image_family: ${{ env.GCP_RUNNERS_CUDA_IMAGE_FAMILY }}
+          image_family: ${{ env.GCP_RUNNERS_IMAGE_FAMILY }}
           image_project: ${{ secrets.GCP_CI_PROJECT_ID }}
           machine_type: ${{ env.GCP_RUNNERS_TYPE }}
           machine_zone: ${{ env.GCP_RUNNERS_ZONE }}
