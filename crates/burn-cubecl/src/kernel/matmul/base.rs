@@ -8,7 +8,6 @@ use cubecl::{
     linalg::matmul::{components::Quantized, kernels::MatmulLaunchError},
     prelude::TensorHandleRef,
 };
-use cubecl_std::size_of;
 
 #[cfg(feature = "autotune")]
 use super::matmul_autotune;
@@ -89,7 +88,7 @@ pub fn q_matmul<R: CubeRuntime>(
             &lhs_scales,
             &[1],
             &[1],
-            size_of::<f32>().try_into().unwrap(),
+            core::mem::size_of::<f32>().try_into().unwrap(),
         )
     };
     let rhs_scales = unsafe {
@@ -97,7 +96,7 @@ pub fn q_matmul<R: CubeRuntime>(
             &rhs_scales,
             &[1],
             &[1],
-            size_of::<f32>().try_into().unwrap(),
+            core::mem::size_of::<f32>().try_into().unwrap(),
         )
     };
 
