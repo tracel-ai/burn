@@ -143,10 +143,11 @@ jobs:
     strategy:
       matrix:
         rust: [stable]
-        backend: [cuda, vulkan]
+        backend: [cuda]
+        # backend: [cuda, vulkan]
     outputs:
       label_stable_cuda: ${{ steps.gen_output.outputs.label_stable_cuda }}
-      label_stable_vulkan: ${{ steps.gen_output.outputs.label_stable_vulkan }}
+      # label_stable_vulkan: ${{ steps.gen_output.outputs.label_stable_vulkan }}
     steps:
       - name: Create runners
         id: create-runner
@@ -216,28 +217,31 @@ jobs:
       - name: Tests (burn-cuda)
         run: cargo xtask test --ci gcp-cuda-runner
 
-  linux-std-vulkan-tests:
-    needs: [prepare-checks, code-quality, linux-std-tests-gcp-launcher]
-    runs-on: ${{ needs.linux-std-tests-gcp-launcher.outputs[format('label_{0}_vulkan', matrix.rust)] }}
-    env:
-      # disable incremental compilation (reduces artifact size)
-      CARGO_PROFILE_TEST_INCREMENTAL: 'false'
-    # Keep the stragegy to be able to easily add new rust versions if required
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
-    steps:
-      - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v2
-        with:
-          rust-toolchain: ${{ matrix.toolchain }}
-          enable-cache: false
-      # --------------------------------------------------------------------------------
-      - name: Tests (burn-vulkan)
-        run: cargo xtask test --ci gcp-vulkan-runner
+  ######################################################################################
+  ## Disable Vulkan tests as they are very long to run for now in GCP
+  ######################################################################################
+  # linux-std-vulkan-tests:
+  #   needs: [prepare-checks, code-quality, linux-std-tests-gcp-launcher]
+  #   runs-on: ${{ needs.linux-std-tests-gcp-launcher.outputs[format('label_{0}_vulkan', matrix.rust)] }}
+  #   env:
+  #     # disable incremental compilation (reduces artifact size)
+  #     CARGO_PROFILE_TEST_INCREMENTAL: 'false'
+  #   # Keep the stragegy to be able to easily add new rust versions if required
+  #   strategy:
+  #     matrix:
+  #       rust: [stable]
+  #       include:
+  #         - rust: stable
+  #           toolchain: stable
+  #   steps:
+  #     - name: Setup Rust
+  #       uses: tracel-ai/github-actions/setup-rust@v2
+  #       with:
+  #         rust-toolchain: ${{ matrix.toolchain }}
+  #         enable-cache: false
+  #     # --------------------------------------------------------------------------------
+  #     - name: Tests (burn-vulkan)
+  #       run: cargo xtask test --ci gcp-vulkan-runner
 
   linux-std-tests:
     runs-on: ubuntu-22.04
