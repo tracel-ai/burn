@@ -72,8 +72,6 @@ impl ExecutionPlanIndex {
             None => return Vec::new(),
         };
 
-        
-
         match self.starters.get(*index) {
             Some(value) => value.clone(),
             None => Vec::new(),

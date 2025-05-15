@@ -142,7 +142,6 @@ fn segmentation_mask_to_vec_usize(mask_path: &PathBuf) -> Vec<usize> {
 
     // Image as Vec<PixelDepth>
     // if rgb8 or rgb16, keep only the first channel assuming all channels are the same
-    
 
     match image.color() {
         ColorType::L8 => image.into_luma8().iter().map(|&x| x as usize).collect(),

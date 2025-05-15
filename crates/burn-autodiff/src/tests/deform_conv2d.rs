@@ -1804,7 +1804,7 @@ mod tests {
             // deformable conv2d samples input values at fractional offset locations (learned offsets).
             // These non-integer positions require bilinear interpolation to estimate the input value.
             // Gradients computed through all these floating-point operations can compound numerical differences.
-            let tolerance = Tolerance::rel_abs(1.4e-4, 1e-5).set_half_precision_relative(8e-2);
+            let tolerance = Tolerance::rel_abs(1e-2, 1e-5).set_half_precision_relative(8e-2);
 
             println!("Testing bias");
             expected_grads

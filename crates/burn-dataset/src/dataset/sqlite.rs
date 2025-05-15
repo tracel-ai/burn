@@ -339,7 +339,6 @@ impl SqliteDatasetStorage {
     ///
     /// * A `PathBuf` instance representing the file path.
     pub fn db_file(&self) -> PathBuf {
-        
         match &self.db_file {
             Some(db_file) => db_file.clone(),
             None => {

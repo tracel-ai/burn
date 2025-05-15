@@ -1651,7 +1651,7 @@ where
     /// If the tensor doesn't have one element.
     pub async fn into_scalar_async(self) -> K::Elem {
         check!(TensorCheck::into_scalar::<D>(&self.shape()));
-        
+
         self.into_data_async().await.iter().next().unwrap()
     }
 

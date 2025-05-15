@@ -17,7 +17,6 @@ pub fn unsqueeze_update_output(node: &mut Node) {
             None => None,
         }
     } else {
-        
         node.attrs.get("axes").cloned().map(|v| {
             let axes = v.into_i64s();
             log::debug!(

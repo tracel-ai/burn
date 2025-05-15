@@ -128,8 +128,7 @@ impl<B: Backend> ModuleMapper<B> for Reinitializer<B> {
                 let tensor = Tensor::arange(0..num_elements as i64, &device)
                     .reshape(shape)
                     .float();
-                let (factor, bias) =
-                    resolve::<FloatElem<B>>(*min, *max, num_elements);
+                let (factor, bias) = resolve::<FloatElem<B>>(*min, *max, num_elements);
                 tensor * factor + bias
             }
             ReinitStrategy::Constant { value } => Tensor::full(shape, *value, &device),
