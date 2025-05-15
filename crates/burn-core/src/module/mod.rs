@@ -2,10 +2,13 @@ mod base;
 mod display;
 mod param;
 mod quantize;
-mod wiper;
+#[cfg(feature = "std")]
+mod reinit;
 
 pub use base::*;
 pub use display::*;
 pub use param::*;
 pub use quantize::*;
-pub use wiper::*;
+
+#[cfg(feature = "std")]
+pub use reinit::*;

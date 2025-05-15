@@ -13,6 +13,7 @@ version.workspace = true
 
 [features]
 autotune = ["burn-cubecl/autotune"]
+autotune-checks = ["burn-cubecl/autotune-checks"]
 default = ["std", "autotune", "fusion", "burn-cubecl/default", "cubecl/default"]
 doc = ["burn-cubecl/doc"]
 exclusive-memory-only = ["cubecl/exclusive-memory-only"]

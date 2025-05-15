@@ -13,6 +13,7 @@ version.workspace = true
 
 [features]
 autotune = ["burn-cubecl-fusion?/autotune"]
+autotune-checks = ["burn-cubecl-fusion?/autotune-checks"]
 default = [
     "autotune",
     "std",
@@ -22,12 +23,12 @@ default = [
 ]
 doc = ["default"]
 export_tests = [
+    "autotune-checks",
     "burn-tensor-testgen",
     "serial_test",
     "burn-autodiff/export_tests",
     "burn-tensor/export_tests",
     "cubecl/autotune-checks",
-    "burn-cubecl-fusion/autotune-checks",
     "burn-ndarray",
     "fusion",
     "paste",

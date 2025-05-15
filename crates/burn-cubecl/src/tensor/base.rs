@@ -35,7 +35,7 @@ impl<R: CubeRuntime, E: CubeElement> From<CubeTensor<R>> for TensorHandle<R, E> 
 }
 
 impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
-    #[cfg(feature = "export_tests")]
+    #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) {
         use burn_tensor::Tolerance;
 

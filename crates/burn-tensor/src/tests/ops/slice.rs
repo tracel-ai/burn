@@ -4,6 +4,18 @@ mod tests {
     use burn_tensor::{Int, Tensor, TensorData, as_type, s};
 
     #[test]
+    fn should_support_slice_aa() {
+        let tensor = TestTensorInt::arange(0..8, &Default::default());
+
+        let val1 = tensor.clone().slice([0..1]);
+        let val2 = tensor.clone().slice([1..2]);
+        let val3 = tensor.slice([2..3]);
+
+        val1.into_data().assert_eq(&TensorData::from([0]), false);
+        val2.into_data().assert_eq(&TensorData::from([1]), false);
+        val3.into_data().assert_eq(&TensorData::from([2]), false);
+    }
+    #[test]
     fn should_support_full_sliceing_1d() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
         let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
