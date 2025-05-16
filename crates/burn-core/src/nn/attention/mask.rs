@@ -51,22 +51,14 @@ pub fn generate_padding_mask<B: Backend>(
     tensor = tensor.add_scalar(pad_token as i64);
 
     for (index, tokens) in tokens_list.into_iter().enumerate() {
-        let mut seq_length = tokens.len();
-        let mut tokens = tokens;
-
-        if let Some(max_seq_length) = max_seq_length {
-            if seq_length > max_seq_length {
-                seq_length = max_seq_length;
-                let _ = tokens.split_off(seq_length);
-            }
-        }
-
+        let seq_length = tokens.len().min(max_size);
         tensor = tensor.slice_assign(
-            [index..index + 1, 0..tokens.len()],
+            [index..index + 1, 0..seq_length],
             Tensor::from_data(
                 TensorData::new(
                     tokens
                         .into_iter()
+                        .take(max_size)
                         .map(|e| (e as i64).elem::<IntElem<B>>())
                         .collect(),
                     Shape::new([1, seq_length]),
