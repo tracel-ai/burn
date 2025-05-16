@@ -1,6 +1,9 @@
 use tracel_xtask::prelude::*;
 
-use crate::commands::{build::BurnBuildCmdArgs, test::BurnTestCmdArgs};
+use crate::commands::{
+    build::BurnBuildCmdArgs,
+    test::{BurnTestCmdArgs, CiTestType},
+};
 
 pub fn handle_command(
     args: &ValidateCmdArgs,
@@ -54,7 +57,7 @@ pub fn handle_command(
                 threads: None,
                 jobs: None,
                 command: Some(TestSubCommand::All),
-                ci: true,
+                ci: CiTestType::GithubRunner,
                 features: None,
                 no_default_features: false,
             },
@@ -102,7 +105,7 @@ pub fn handle_command(
                     threads: None,
                     jobs: None,
                     command: Some(TestSubCommand::All),
-                    ci: true,
+                    ci: CiTestType::GithubRunner,
                     features: None,
                     no_default_features: false,
                 },

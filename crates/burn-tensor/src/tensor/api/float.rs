@@ -11,24 +11,6 @@ impl<const D: usize, B> Tensor<B, D>
 where
     B: Backend,
 {
-    /// Executes an operation on the tensor and modifies its value.
-    ///
-    /// # Notes
-    ///
-    /// This won't necessarily reuse the same tensor data/buffer, but it should if there is
-    /// no other reference pointing to the same tensor.
-    ///
-    /// Wrapping operations with inplace is not an optimization, it's mainly there if you
-    /// want to mutate a tensor by using owned operations. A plausible usage would be to
-    /// update the weights of a mutable model reference.
-    pub fn inplace<F: FnOnce(Self) -> Self>(&mut self, func: F) {
-        let mut tensor_owned = Tensor::empty([0; D], &self.device());
-        core::mem::swap(&mut tensor_owned, self);
-
-        let mut tensor_new = func(tensor_owned);
-        core::mem::swap(&mut tensor_new, self);
-    }
-
     /// Applies element wise exponential operation.
     ///
     /// `y = e^x`
