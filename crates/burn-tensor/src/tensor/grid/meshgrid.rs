@@ -1,5 +1,5 @@
 use crate::backend::Backend;
-use crate::tensor::grid::{GridIndexing, GridOptions, GridSparsity};
+use crate::tensor::grid::{GridIndexing, GridOptions, GridSparsity, IndexPos};
 use crate::tensor::{BasicOps, Tensor};
 use alloc::vec::Vec;
 
@@ -69,4 +69,39 @@ where
         .collect::<Vec<_>>()
         .try_into()
         .unwrap()
+}
+
+/// Return a coordinate matrix for a given set of 1D coordinate tensors.
+///
+/// Equivalent to stacking a dense matrix `meshgrid`,
+/// where the stack is along the first or last dimension.
+///
+/// # Arguments
+///
+/// * `tensors`: A slice of 1D tensors.
+/// * `index_pos`: The position of the index in the output tensor.
+///
+/// # Returns
+///
+/// A tensor of either ``(N, ..., |T[i]|, ...)`` or ``(..., |T[i]|, ..., N)``,
+/// of coordinates, indexed on the first or last dimension.
+pub fn meshgrid_stack<B: Backend, const D: usize, const D2: usize, K>(
+    tensors: &[Tensor<B, 1, K>; D],
+    index_pos: IndexPos,
+) -> Tensor<B, D2, K>
+where
+    K: BasicOps<B>,
+{
+    assert_eq!(D2, D + 1, "D2 ({}) != D ({}) + 1", D2, D);
+
+    let xs: Vec<Tensor<B, D, K>> = meshgrid(tensors, GridOptions::default())
+        .into_iter()
+        .collect();
+
+    let dim = match index_pos {
+        IndexPos::First => 0,
+        IndexPos::Last => D,
+    };
+
+    Tensor::stack(xs, dim)
 }

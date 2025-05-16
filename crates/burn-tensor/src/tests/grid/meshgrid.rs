@@ -3,7 +3,9 @@ mod tests {
     use super::*;
     use burn_tensor::BasicOps;
     use burn_tensor::backend::Backend;
-    use burn_tensor::grid::{GridIndexing, GridOptions, GridSparsity, meshgrid};
+    use burn_tensor::grid::{
+        GridIndexing, GridOptions, GridSparsity, IndexPos, meshgrid, meshgrid_stack,
+    };
     use burn_tensor::{Int, Shape, Tensor, TensorData};
 
     fn assert_tensors_equal<const N: usize, B: Backend, K>(
@@ -121,6 +123,33 @@ mod tests {
                 y.clone().reshape([1, 2, 1]).swap_dims(0, 1),
                 z.clone().reshape([1, 1, 2]).swap_dims(0, 1),
             ],
+        );
+    }
+
+    #[test]
+    fn test_meshgrid_stack() {
+        let tensors = [
+            TestTensor::from([0.5, 1.0, 2.5]),
+            TestTensor::from([0.5, 1.0]),
+        ];
+
+        let result: Tensor<_, 3> = meshgrid_stack(&tensors, IndexPos::First);
+        result.to_data().assert_eq(
+            &TensorData::from([
+                [[0.5, 0.5], [1.0, 1.0], [2.5, 2.5]],
+                [[0.5, 1.0], [0.5, 1.0], [0.5, 1.0]],
+            ]),
+            false,
+        );
+
+        let result: Tensor<_, 3> = meshgrid_stack(&tensors, IndexPos::Last);
+        result.to_data().assert_eq(
+            &TensorData::from([
+                [[0.5, 0.5], [0.5, 1.0]],
+                [[1.0, 0.5], [1.0, 1.0]],
+                [[2.5, 0.5], [2.5, 1.0]],
+            ]),
+            false,
         );
     }
 }

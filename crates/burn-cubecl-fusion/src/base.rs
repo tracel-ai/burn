@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 /// Fusion optimization type for cubecl.
 ///
 /// More optimization variants should be added here.
+#[allow(clippy::large_enum_variant)]
 pub enum CubeOptimization<R: Runtime> {
     /// Element wise optimization.
     ElementWise(ElemwiseOptimization<R>),
@@ -26,6 +27,7 @@ pub enum CubeOptimization<R: Runtime> {
 /// Fusion optimization state type for cubecl.
 ///
 /// More optimization variants should be added here.
+#[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize)]
 pub enum CubeOptimizationState {
     /// Element wise state.
