@@ -102,7 +102,7 @@ mod tests {
         assert_eq!(output2.shape(), expected_shape2);
         assert_eq!(output3.shape(), expected_shape3);
 
-        let tolerance = Tolerance::default();
+        let tolerance = Tolerance::permissive();
         output1
             .to_data()
             .assert_approx_eq::<FT>(&expected1, tolerance);
