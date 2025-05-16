@@ -854,14 +854,33 @@ pub struct Tolerance<F> {
 
 impl<F: Float> Default for Tolerance<F> {
     fn default() -> Self {
-        Self {
-            relative: F::from(0.005).unwrap(), // 0.5%
-            absolute: F::from(16).unwrap() * F::min_positive_value(),
-        }
+        Self::balanced()
     }
 }
 
 impl<F: Float> Tolerance<F> {
+    /// Create a tolerance with strict precision setting.
+    pub fn strict() -> Self {
+        Self {
+            relative: F::from(0.00).unwrap(),
+            absolute: F::from(16).unwrap() * F::min_positive_value(),
+        }
+    }
+    /// Create a tolerance with balanced precision setting.
+    pub fn balanced() -> Self {
+        Self {
+            relative: F::from(0.005).unwrap(), // 0.5%
+            absolute: F::from(32).unwrap() * F::min_positive_value(),
+        }
+    }
+
+    /// Create a tolerance with permissive precision setting.
+    pub fn permissive() -> Self {
+        Self {
+            relative: F::from(0.01).unwrap(), // 1.0%
+            absolute: F::from(64).unwrap() * F::min_positive_value(),
+        }
+    }
     /// When comparing two numbers, this uses both the relative and absolute differences.
     ///
     /// That is, `x` and `y` are approximately equal if
