@@ -34,7 +34,7 @@ mod tests {
     fn test_int_matmul_d3() {
         let device = Default::default();
         let tensor_1 = TestTensorInt::<3>::from_ints([[[1, 7], [2, 3]]], &device);
-        let tensor_2 = TestTensorInt::from_ints([[[4, 7], [2, 3]]], &device);
+        let tensor_2 = TestTensorInt::<3>::from_ints([[[4, 7], [2, 3]]], &device);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
         let expected = TensorData::from([[[18, 28], [14, 23]]]);

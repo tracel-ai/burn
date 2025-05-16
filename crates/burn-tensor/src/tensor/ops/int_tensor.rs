@@ -1167,35 +1167,4 @@ pub trait IntTensorOps<B: Backend> {
 
     /// Bitwise right shift operation for Int Tensors with a scalar
     fn bitwise_right_shift_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
-
-    /// Applies the matrix multiplication operation.
-    ///
-    /// `C = AB`
-    ///
-    /// # Panics
-    ///
-    /// If the two tensors don't have a compatible shape.
-    fn matmul(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B> {
-        let mut lhs_shape: Vec<usize> = lhs.shape().dims.clone();
-        lhs_shape.push(1);
-        let lhs_shape: Shape = Shape::from(lhs_shape);
-        let lhs = B::int_reshape(lhs, lhs_shape);
-
-        let mut rhs_shape: Vec<usize> = rhs.shape().dims.clone();
-        rhs_shape.insert(rhs_shape.len() - 2, 1);
-        let rhs_shape: Shape = Shape::from(rhs_shape);
-        let rhs = B::int_reshape(rhs, rhs_shape);
-
-        let p = B::int_mul(lhs, rhs);
-
-        let k = p.shape().num_dims();
-
-        let s = B::int_sum_dim(p, k - 2);
-
-        let mut s_shape = s.shape().dims.clone();
-        s_shape.remove(k - 2);
-        let s_shape = Shape::from(s_shape);
-
-        B::int_reshape(s, s_shape)
-    }
 }
