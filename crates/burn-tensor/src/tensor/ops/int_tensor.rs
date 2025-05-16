@@ -2,10 +2,9 @@ use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use crate::{Distribution, ElementConversion, Int, TensorData, backend::Backend, tensor::Shape};
+use crate::{TensorMetadata, argsort, sort, sort_with_indices};
 use alloc::vec::Vec;
 use core::ops::Range;
-
-use crate::{TensorMetadata, argsort, sort, sort_with_indices};
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
 /// for documentation on each function.

@@ -568,10 +568,13 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn matmul<B: Backend, const D: usize>(
-        lhs: &Tensor<B, D>,
-        rhs: &Tensor<B, D>,
-    ) -> Self {
+    pub(crate) fn matmul<B: Backend, const D: usize, K>(
+        lhs: &Tensor<B, D, K>,
+        rhs: &Tensor<B, D, K>,
+    ) -> Self
+    where
+        K: BasicOps<B>,
+    {
         let mut check = Self::Ok;
 
         check = check.binary_ops_device("Matmul", &lhs.device(), &rhs.device());
