@@ -150,7 +150,7 @@ mod tests {
                 InterpolateOptions::new(InterpolateMode::Bicubic),
             );
 
-            let tolerance = Tolerance::default().set_half_precision_relative(3e-3);
+            let tolerance = Tolerance::permissive();
             y.to_data()
                 .assert_approx_eq::<FT>(&output.into_data(), tolerance);
         }

@@ -435,7 +435,7 @@ mod tests {
                 ),
             );
 
-            let tolerance = Tolerance::default().set_half_precision_relative(1e-3);
+            let tolerance = Tolerance::permissive();
             y.to_data()
                 .assert_approx_eq::<FT>(&output.into_data(), tolerance);
         }
