@@ -855,7 +855,7 @@ pub struct Tolerance<F> {
 impl<F: Float> Default for Tolerance<F> {
     fn default() -> Self {
         Self {
-            relative: F::from(0.01).unwrap(), // around 1%
+            relative: F::from(0.005).unwrap(), // 0.5%
             absolute: F::from(16).unwrap() * F::min_positive_value(),
         }
     }
