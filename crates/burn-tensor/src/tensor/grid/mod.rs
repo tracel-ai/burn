@@ -52,3 +52,14 @@ impl From<GridSparsity> for GridOptions {
         }
     }
 }
+
+/// Enum to specify the index dimension position.
+#[derive(Default, Debug, Copy, Clone)]
+pub enum IndexPos {
+    /// The index is in the first dimension.
+    #[default]
+    First,
+
+    /// The index is in the last dimension.
+    Last,
+}
