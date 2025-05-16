@@ -235,7 +235,7 @@ mod tests_1d {
         ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::permissive());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(0.1, 0.001));
     }
 
     #[test]
@@ -384,7 +384,7 @@ mod tests_2d {
 
         let grads = output.backward();
 
-        let tolerance = Tolerance::permissive();
+        let tolerance = Tolerance::rel_abs(0.1, 0.001);
         let expected = TensorData::from([0.0000e+00, -5.9035e-07, -6.0011e-07]);
         module
             .gamma
