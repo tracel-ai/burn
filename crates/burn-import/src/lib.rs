@@ -10,7 +10,7 @@
 //! aligns the imported model with Burn's model and converts tensor data into a format compatible with
 //! Burn.
 
-#[cfg(any(feature = "pytorch", feature = "onnx"))]
+#[cfg(any(feature = "pytorch", feature = "onnx", feature = "safetensors"))]
 #[macro_use]
 extern crate derive_new;
 
