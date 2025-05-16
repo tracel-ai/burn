@@ -6,6 +6,9 @@ name = "custom-training-loop"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 burn = {path = "../../crates/burn", features=["autodiff", "webgpu", "vision"]}
 guide = {path = "../guide"}

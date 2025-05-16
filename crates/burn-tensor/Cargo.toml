@@ -11,6 +11,9 @@ readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor"
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 cubecl = ["dep:cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]

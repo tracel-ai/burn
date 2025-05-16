@@ -11,6 +11,9 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-router"
 documentation = "https://docs.rs/burn-router"
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = ["std"]
 std = ["burn-tensor/std", "burn-common/std", "burn-ir/std"]

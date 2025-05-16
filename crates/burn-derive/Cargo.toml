@@ -10,6 +10,9 @@ readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-derive"
 version.workspace = true
 
+[lints]
+workspace = true
+
 [lib]
 proc-macro = true
 

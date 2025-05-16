@@ -6,6 +6,9 @@ name = "text-generation"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = ["burn/dataset", "burn/sqlite-bundled"]
 f16 = []

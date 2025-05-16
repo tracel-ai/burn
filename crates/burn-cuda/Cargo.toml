@@ -11,6 +11,9 @@ readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-cuda"
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 autotune = ["burn-cubecl/autotune"]
 autotune-checks = ["burn-cubecl/autotune-checks"]

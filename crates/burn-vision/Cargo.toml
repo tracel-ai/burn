@@ -14,6 +14,9 @@ readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-vision"
 version.workspace = true
 
+[lints]
+workspace = true
+
 
 [features]
 candle = ["burn-candle"]

@@ -14,6 +14,9 @@ version.workspace = true
 
 default-run = "onnx2burn"
 
+[lints]
+workspace = true
+
 [features]
 default = ["onnx", "pytorch", "safetensors"]
 onnx = ["burn-ndarray"]

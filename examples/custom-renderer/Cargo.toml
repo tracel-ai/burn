@@ -7,6 +7,9 @@ description = "Example of how to render training progress outside of the tui"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 burn = {path = "../../crates/burn", features=["autodiff", "wgpu", "train", "dataset", "vision"], default-features=false}
 guide = {path = "../guide", default-features=false}

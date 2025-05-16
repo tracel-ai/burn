@@ -6,6 +6,9 @@ name = "import-model-weights"
 publish = false
 version = "0.18.0"
 
+[lints]
+workspace = true
+
 [dependencies]
 
 burn = { path = "../../crates/burn", features = [

@@ -6,6 +6,9 @@ name = "onnx-inference"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = ["embedded-model"]
 

@@ -6,6 +6,9 @@ name = "image-classification-web"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [lib]
 crate-type = ["cdylib"]
 

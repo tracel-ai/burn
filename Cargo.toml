@@ -24,6 +24,8 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 version = "0.18.0"
 
+[workspace.lints.clippy]
+
 [workspace.dependencies]
 atomic_float = "1"
 bytemuck = "1.21.0"
