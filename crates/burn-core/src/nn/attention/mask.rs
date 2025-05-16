@@ -11,17 +11,8 @@ pub fn generate_autoregressive_mask<B: Backend>(
     seq_length: usize,
     device: &B::Device,
 ) -> Tensor<B, 3, Bool> {
-    // TODO replace with more efficient op of `triu_mask` and `expand`
-    let mut mask = Tensor::<B, 3, Int>::zeros([1, seq_length, seq_length], device);
-
-    for i in 0..(seq_length - 1) {
-        let values = Tensor::<B, 3, Int>::ones([1, 1, seq_length - (i + 1)], device);
-        mask = mask.slice_assign([0..1, i..i + 1, i + 1..seq_length], values);
-    }
-
-    mask = mask.repeat_dim(0, batch_size);
-
-    mask.equal_elem(1_i64.elem::<i64>())
+    let mask = Tensor::<B, 2, Bool>::tril_mask([seq_length, seq_length], 0, device);
+    mask.expand([batch_size, seq_length, seq_length])
 }
 
 /// Generate a padding attention mask.
