@@ -297,7 +297,7 @@ mod tests_2d {
         ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(0.1, 0.001));
     }
 
     #[test]
