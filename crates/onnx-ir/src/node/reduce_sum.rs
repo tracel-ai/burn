@@ -42,7 +42,7 @@ pub fn reduce_sum_config(node: &Node) -> Option<usize> {
 
     // Not supported in Burn
     assert!(
-        !(!axes.is_empty() && keepdims == 0),
+        axes.is_empty() || keepdims != 0,
         "ReduceSum: the reduce operation must preserve the reduced dimension"
     );
 

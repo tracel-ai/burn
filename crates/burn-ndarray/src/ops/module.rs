@@ -109,8 +109,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
                     x.into(),
                     offset.into(),
                     weight.into(),
-                    mask.map(std::convert::Into::into),
-                    bias.map(std::convert::Into::into),
+                    mask.map(Into::into),
+                    bias.map(Into::into),
                 )
             }
         )

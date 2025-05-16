@@ -33,7 +33,7 @@ pub fn reduce_prod_config(node: &Node) -> Option<usize> {
 
     // Not supported in Burn
     assert!(
-        !(!axes.is_empty() && keepdims == 0),
+        axes.is_empty() || keepdims != 0,
         "ReduceProd: the reduce operation must preserve the reduced dimension"
     );
 

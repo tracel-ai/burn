@@ -8,11 +8,11 @@ use crate::{
     unary_float_ops,
 };
 use burn_ir::{
-    BackendIr, BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr,
-    FloatOperationIr, GatherOpIr, HandleContainer, InitOperationIr, MaskFillOpIr, MaskWhereOpIr,
-    NumericOperationIr, OperationIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr,
-    ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr,
-    SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr,
+    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr, FloatOperationIr,
+    GatherOpIr, HandleContainer, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, NumericOperationIr,
+    OperationIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr,
+    ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr,
+    SwapDimsOpIr, TensorIr, UnaryOpIr,
 };
 use burn_tensor::{
     Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,

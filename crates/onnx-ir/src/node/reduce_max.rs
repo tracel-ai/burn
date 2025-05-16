@@ -32,7 +32,7 @@ pub fn reduce_max_config(node: &Node) -> Option<usize> {
 
     // Not supported in Burn
     assert!(
-        !(!axes.is_empty() && keepdims == 0),
+        axes.is_empty() || keepdims != 0,
         "ReduceMax: the reduce operation must preserve the reduced dimension"
     );
 

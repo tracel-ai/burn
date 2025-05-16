@@ -95,7 +95,7 @@ pub fn pad_config(node: &Node) -> PadConfig {
 
         for (index, &item) in pads.iter().enumerate() {
             assert!(
-                !(!index_list.contains(&index) && item != 0),
+                index_list.contains(&index) || item == 0,
                 "Pad: padding will only be applied to the last two dimensions but found non zero padding for other dimensions"
             );
         }

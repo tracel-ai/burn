@@ -42,7 +42,7 @@ pub fn slice_config(node: &Node) -> Vec<Option<(i64, i64)>> {
     }
 
     assert!(
-        !(!steps.is_empty() && steps.iter().any(|&x| x != 1)),
+        steps.is_empty() || steps.iter().all(|&x| x == 1),
         "Slice: steps other than 1 are not supported"
     );
 

@@ -6,7 +6,7 @@ use crate::{
     unary_int_ops,
 };
 use burn_ir::{
-    BackendIr, BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr, GatherOpIr,
+    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr, GatherOpIr,
     HandleContainer, InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr,
     NumericOperationIr, OperationIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr,
     ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr,

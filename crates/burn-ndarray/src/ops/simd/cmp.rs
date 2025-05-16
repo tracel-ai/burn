@@ -230,8 +230,8 @@ mod elemwise {
     use macerator::vload;
 
     use super::{
-        ArrayD, NdArrayElement, NdArrayTensor, PhantomData, Scalar, Simd, SimdCmpOp,
-        TensorMetadata, Vector, is_accelerated, seq, should_use_simd, vload_unaligned,
+        ArrayD, NdArrayElement, NdArrayTensor, PhantomData, Scalar, Simd, SimdCmpOp, Vector,
+        is_accelerated, seq, should_use_simd, vload_unaligned,
     };
 
     pub fn try_cmp_scalar_simd<E: NdArrayElement, T: NdArrayElement + Scalar, Op: SimdCmpOp<T>>(

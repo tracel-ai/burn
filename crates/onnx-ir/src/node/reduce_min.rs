@@ -31,7 +31,7 @@ pub fn reduce_min_config(node: &Node) -> Option<usize> {
     );
 
     assert!(
-        !(!axes.is_empty() && keepdims == 0),
+        axes.is_empty() || keepdims != 0,
         "ReduceMin: the reduce operation must preserve the reduced dimension"
     );
 
