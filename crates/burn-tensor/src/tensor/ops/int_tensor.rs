@@ -1196,8 +1196,6 @@ pub trait IntTensorOps<B: Backend> {
         s_shape.remove(k - 2);
         let s_shape = Shape::from(s_shape);
 
-        let s = B::int_reshape(s, s_shape);
-
-        s
+        B::int_reshape(s, s_shape)
     }
 }
