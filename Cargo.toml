@@ -25,9 +25,6 @@ readme = "README.md"
 version = "0.18.0"
 
 [workspace.lints.clippy]
-large_enum_variant = "allow"
-let_and_return = "allow"
-manual_contains = "allow"
 
 [workspace.dependencies]
 atomic_float = "1"
