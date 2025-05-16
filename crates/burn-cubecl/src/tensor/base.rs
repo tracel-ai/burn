@@ -45,22 +45,22 @@ impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
             DType::F64 => {
                 let expected = into_data_sync::<R, f64>(self.clone());
                 let actual = into_data_sync::<R, f64>(other);
-                expected.assert_approx_eq::<f64>(&actual, Tolerance::rel_abs(1e-2, 1e-3));
+                expected.assert_approx_eq::<f64>(&actual, Tolerance::default());
             }
             DType::F32 | DType::Flex32 => {
                 let expected = into_data_sync::<R, f32>(self.clone());
                 let actual = into_data_sync::<R, f32>(other);
-                expected.assert_approx_eq::<f32>(&actual, Tolerance::rel_abs(1e-2, 1e-3));
+                expected.assert_approx_eq::<f32>(&actual, Tolerance::default());
             }
             DType::F16 => {
                 let expected = into_data_sync::<R, half::f16>(self.clone());
                 let actual = into_data_sync::<R, half::f16>(other);
-                expected.assert_approx_eq::<half::f16>(&actual, Tolerance::rel_abs(1e-2, 4e-3));
+                expected.assert_approx_eq::<half::f16>(&actual, Tolerance::default());
             }
             DType::BF16 => {
                 let expected = into_data_sync::<R, half::bf16>(self.clone());
                 let actual = into_data_sync::<R, half::bf16>(other);
-                expected.assert_approx_eq::<half::bf16>(&actual, Tolerance::rel_abs(1e-2, 1e-3));
+                expected.assert_approx_eq::<half::bf16>(&actual, Tolerance::default());
             }
             DType::I64 => {
                 let expected = into_data_sync::<R, i64>(self.clone());

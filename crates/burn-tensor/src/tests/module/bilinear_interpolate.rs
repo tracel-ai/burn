@@ -158,7 +158,7 @@ mod tests {
                 InterpolateOptions::new(InterpolateMode::Bilinear),
             );
 
-            let tolerance = Tolerance::rel_abs(1e-4, 1e-5).set_half_precision_relative(1e-3);
+            let tolerance = Tolerance::default().set_half_precision_relative(1e-3);
             y.to_data()
                 .assert_approx_eq::<FT>(&output.into_data(), tolerance);
         }

@@ -465,7 +465,7 @@ mod tests {
         let (output, state) = lstm.forward(input, None);
 
         let expected = TensorData::from([[0.046]]);
-        let tolerance = Tolerance::rel_abs(1e-5, 1e-4);
+        let tolerance = Tolerance::default();
         state
             .cell
             .to_data()
@@ -727,7 +727,7 @@ mod tests {
             lstm.forward(input.clone(), Some(LstmState::new(c0, h0)));
         let (output_without_init_state, state_without_init_state) = lstm.forward(input, None);
 
-        let tolerance = Tolerance::rel_abs(1e-4, 1e-4);
+        let tolerance = Tolerance::default();
         output_with_init_state
             .to_data()
             .assert_approx_eq::<FT>(&expected_output_with_init_state, tolerance);

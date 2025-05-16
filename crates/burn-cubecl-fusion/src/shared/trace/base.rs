@@ -90,8 +90,9 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
                         DType::F64 => {
                             data_ref.assert_approx_eq::<f64>(&data_other, Tolerance::default())
                         }
-                        DType::F32 => data_ref
-                            .assert_approx_eq::<f32>(&data_other, Tolerance::rel_abs(1e-2, 1e-4)),
+                        DType::F32 => {
+                            data_ref.assert_approx_eq::<f32>(&data_other, Tolerance::default())
+                        }
                         DType::F16 => data_ref
                             .assert_approx_eq::<half::f16>(&data_other, Tolerance::default()),
                         DType::BF16 => data_ref

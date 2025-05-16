@@ -327,7 +327,7 @@ mod tests {
         rotary_encoding
             .freq_complex
             .to_data()
-            .assert_approx_eq::<FT>(&expected_freqs.to_data(), Tolerance::rel_abs(1e-4, 1e-5));
+            .assert_approx_eq::<FT>(&expected_freqs.to_data(), Tolerance::default());
     }
 
     fn apply_freq_scaling_by_parts<B: Backend>(freqs: Tensor<B, 1>) -> Tensor<B, 1> {
@@ -398,7 +398,7 @@ mod tests {
         rotary_encoding
             .freq_complex
             .to_data()
-            .assert_approx_eq::<FT>(&expected_freqs.to_data(), Tolerance::rel_abs(1e-4, 1e-5));
+            .assert_approx_eq::<FT>(&expected_freqs.to_data(), Tolerance::default());
     }
 
     #[test]

@@ -540,7 +540,7 @@ mod tests {
         // assert that the difference between input (`a`) and Q @ R is (almost) zero
         q_matmul_r
             .into_data()
-            .assert_approx_eq::<FT>(&a.into_data(), Tolerance::rel_abs(1e-5, 1e-5));
+            .assert_approx_eq::<FT>(&a.into_data(), Tolerance::default());
     }
 
     #[test]
@@ -561,7 +561,7 @@ mod tests {
             .transpose()
             .matmul(q)
             .into_data()
-            .assert_approx_eq::<FT>(&eye.into_data(), Tolerance::rel_abs(1e-5, 1e-5));
+            .assert_approx_eq::<FT>(&eye.into_data(), Tolerance::default());
     }
 
     #[test]

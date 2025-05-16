@@ -123,7 +123,7 @@ mod tests {
         ]]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -146,7 +146,7 @@ mod tests {
         ]]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[cfg(feature = "std")]

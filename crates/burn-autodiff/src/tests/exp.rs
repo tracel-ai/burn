@@ -19,7 +19,7 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let tolerance = Tolerance::rel_abs(1.1e-4, 1e-5);
+        let tolerance = Tolerance::default();
         let expected = TensorData::from([[54.5991, 27.4746], [54.5991, 27.4746]]);
         grad_1
             .to_data()
