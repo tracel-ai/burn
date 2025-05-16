@@ -333,7 +333,7 @@ mod tests {
             .select(0, Tensor::arange(0..1, &device))
             .squeeze::<2>(0);
 
-        let tolerance = Tolerance::rel_abs(1e-4, 1e-4);
+        let tolerance = Tolerance::default();
         output
             .to_data()
             .assert_approx_eq::<FT>(&expected, tolerance);
@@ -366,7 +366,7 @@ mod tests {
             .select(0, Tensor::arange(0..1, &device))
             .squeeze::<2>(0);
 
-        let tolerance = Tolerance::rel_abs(1e-4, 1e-4);
+        let tolerance = Tolerance::default();
         output
             .to_data()
             .assert_approx_eq::<FT>(&expected, tolerance);

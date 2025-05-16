@@ -208,6 +208,9 @@ mod utils {
                         if let Some(offset) = offset {
                             vec.drain(..offset);
                         }
+                        if vec.len() > shape.num_elements() {
+                            vec.drain(shape.num_elements()..vec.len());
+                        }
                         vec
                     }
                     Err(array) => array.into_iter().collect(),

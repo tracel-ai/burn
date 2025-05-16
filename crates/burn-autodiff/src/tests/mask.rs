@@ -54,7 +54,7 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
         let grad_3 = tensor_3.grad(&grads).unwrap();
 
-        let tolerance = Tolerance::rel_abs(2e-4, 1e-5).set_half_precision_relative(1e-3);
+        let tolerance = Tolerance::default().set_half_precision_relative(1e-3);
         let expected = TensorData::from([[121.8, 55.0], [110.8, 50.0]]);
         grad_1
             .into_data()

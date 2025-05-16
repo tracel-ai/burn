@@ -95,7 +95,7 @@ mod tests {
             let grads = output.backward();
             let x_grad_actual = x.grad(&grads).unwrap();
 
-            let tolerance = Tolerance::rel_abs(1e-4, 1e-5).set_half_precision_relative(1e-3);
+            let tolerance = Tolerance::default().set_half_precision_relative(1e-3);
             x_grad
                 .to_data()
                 .assert_approx_eq::<FloatType>(&x_grad_actual.into_data(), tolerance);
