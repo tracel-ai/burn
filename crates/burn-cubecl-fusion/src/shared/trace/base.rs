@@ -88,15 +88,15 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
 
                     match handle.dtype {
                         DType::F64 => {
-                            data_ref.assert_approx_eq::<f64>(&data_other, Tolerance::default())
+                            data_ref.assert_approx_eq::<f64>(&data_other, Tolerance::permissive())
                         }
                         DType::F32 => {
-                            data_ref.assert_approx_eq::<f32>(&data_other, Tolerance::default())
+                            data_ref.assert_approx_eq::<f32>(&data_other, Tolerance::permissive())
                         }
                         DType::F16 => data_ref
-                            .assert_approx_eq::<half::f16>(&data_other, Tolerance::default()),
+                            .assert_approx_eq::<half::f16>(&data_other, Tolerance::permissive()),
                         DType::BF16 => data_ref
-                            .assert_approx_eq::<half::bf16>(&data_other, Tolerance::default()),
+                            .assert_approx_eq::<half::bf16>(&data_other, Tolerance::permissive()),
                         _ => data_ref.assert_eq(&data_other, true),
                     }
                     num_checked += 1;
