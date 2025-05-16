@@ -15,7 +15,7 @@ mod tests {
         let expected = TensorData::from([[42.05]]);
         tensor_3
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
+            .assert_approx_eq::<FT>(&expected, Tolerance::relative(2e-2));
     }
 
     #[test]
@@ -27,7 +27,7 @@ mod tests {
         let expected = TensorData::from([[16.7, 27.05, 50.8], [14., 25., 43.4], [10., 17., 30.7]]);
         tensor_3
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
+            .assert_approx_eq::<FT>(&expected, Tolerance::relative(2e-2));
     }
 
     #[test]
@@ -42,7 +42,7 @@ mod tests {
         let expected = TensorData::from([[[25.4, 23.05], [31.4, 17.0]]]);
         tensor_3
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
+            .assert_approx_eq::<FT>(&expected, Tolerance::relative(2e-2));
     }
 
     #[test]
@@ -63,7 +63,7 @@ mod tests {
 
         tensor_3
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
+            .assert_approx_eq::<FT>(&expected, Tolerance::relative(2e-2));
     }
 
     #[test]
@@ -78,7 +78,7 @@ mod tests {
 
         tensor_3
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-2, 1e-1));
+            .assert_approx_eq::<FT>(&expected, Tolerance::relative(2e-2));
     }
 
     #[test]
