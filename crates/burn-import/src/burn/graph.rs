@@ -199,7 +199,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         self
     }
 
-    /// Generate tokens reprensenting the graph with Burn modules and tensor operations.
+    /// Generate tokens representing the graph with Burn modules and tensor operations.
     pub fn codegen(mut self) -> TokenStream {
         self.build_scope();
 

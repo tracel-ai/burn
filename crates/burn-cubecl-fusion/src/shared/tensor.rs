@@ -208,12 +208,12 @@ impl LaunchArgExpand for GlobalScalar {
                 FloatKind::F32 => GlobalScalarExpand::F32(expand.into()),
                 FloatKind::TF32 => GlobalScalarExpand::F32(expand.into()),
                 FloatKind::F64 => GlobalScalarExpand::F32(expand.into()),
-                FloatKind::E2M3
+                FloatKind::E2M1
+                | FloatKind::E2M3
                 | FloatKind::E3M2
                 | FloatKind::E4M3
                 | FloatKind::E5M2
-                | FloatKind::E2M1
-                | FloatKind::UE8M0 => GlobalScalarExpand::F32(expand.into()),
+                | FloatKind::UE8M0 => unimplemented!("FP8 can't be passed as scalar"),
             },
             Elem::Int(int_kind) | Elem::AtomicInt(int_kind) => match int_kind {
                 IntKind::I8 => GlobalScalarExpand::I8(expand.into()),

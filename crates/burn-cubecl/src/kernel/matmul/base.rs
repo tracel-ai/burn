@@ -4,11 +4,7 @@ use burn_tensor::{
     DType,
     quantization::{QTensorPrimitive, QuantAccPrecision},
 };
-use cubecl::{
-    linalg::matmul::{components::Quantized, kernels::MatmulLaunchError},
-    prelude::TensorHandleRef,
-};
-use cubecl_std::size_of;
+use cubecl::linalg::matmul::{components::Quantized, kernels::MatmulLaunchError};
 
 #[cfg(feature = "autotune")]
 use super::matmul_autotune;
@@ -79,27 +75,8 @@ pub fn q_matmul<R: CubeRuntime>(
     lhs.dtype = DType::I8;
     rhs.dtype = DType::I8;
 
-    let mut lhs_scales = lhs.handle.clone().offset_start(lhs.handle.size());
-    lhs_scales.offset_end = None;
-    let mut rhs_scales = rhs.handle.clone().offset_start(rhs.handle.size());
-    rhs_scales.offset_end = None;
-
-    let lhs_scales = unsafe {
-        TensorHandleRef::from_raw_parts(
-            &lhs_scales,
-            &[1],
-            &[1],
-            size_of::<f32>().try_into().unwrap(),
-        )
-    };
-    let rhs_scales = unsafe {
-        TensorHandleRef::from_raw_parts(
-            &rhs_scales,
-            &[1],
-            &[1],
-            size_of::<f32>().try_into().unwrap(),
-        )
-    };
+    let lhs_scales = lhs.scales().unwrap();
+    let rhs_scales = rhs.scales().unwrap();
 
     match scheme.acc_precision {
         QuantAccPrecision::Full => {
@@ -107,9 +84,9 @@ pub fn q_matmul<R: CubeRuntime>(
                 &Default::default(),
                 client,
                 &lhs.as_handle_ref(),
-                &Some(lhs_scales),
+                &Some(lhs_scales.as_handle_ref()),
                 &rhs.as_handle_ref(),
-                &Some(rhs_scales),
+                &Some(rhs_scales.as_handle_ref()),
                 &out.as_handle_ref(),
             )?;
         }
@@ -121,9 +98,9 @@ pub fn q_matmul<R: CubeRuntime>(
                 &Default::default(),
                 client,
                 &lhs.as_handle_ref(),
-                &Some(lhs_scales),
+                &Some(lhs_scales.as_handle_ref()),
                 &rhs.as_handle_ref(),
-                &Some(rhs_scales),
+                &Some(rhs_scales.as_handle_ref()),
                 &out.as_handle_ref(),
             )?;
         }

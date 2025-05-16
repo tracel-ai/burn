@@ -39,10 +39,10 @@ pub fn run<B: Backend>(device: &B::Device) {
 
     let output = output.mul(input.clone());
 
-    let permut = output.clone().swap_dims::<_, 1, 2>();
+    let permute = output.clone().swap_dims::<_, 1, 2>();
 
     println!("Weights => {weights}");
     println!("Input   => {input}");
     println!("Output  => {output}");
-    println!("Permut  => {permut}");
+    println!("Permute  => {permute}");
 }
