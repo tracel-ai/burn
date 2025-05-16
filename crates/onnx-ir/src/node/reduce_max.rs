@@ -1,6 +1,7 @@
 use crate::ir::{ArgType, AttributeValue, Node, TensorType};
 
-/// Create a ReduceMaxConfig from the attributes of the node
+/// Create a `ReduceMaxConfig` from the attributes of the node
+#[must_use]
 pub fn reduce_max_config(node: &Node) -> Option<usize> {
     let mut axes = Vec::new();
     let mut keepdims = 1;
@@ -11,7 +12,7 @@ pub fn reduce_max_config(node: &Node) -> Option<usize> {
     };
 
     // Extract the attributes
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         match key.as_str() {
             "axes" => axes = value.clone().into_i64s(),
             "keepdims" => keepdims = value.clone().into_i64(),
@@ -19,18 +20,21 @@ pub fn reduce_max_config(node: &Node) -> Option<usize> {
         }
     }
 
-    if axes.len() > 1 {
-        panic!("ReduceMax: reducing on multiple dimensions is not supported")
-    }
+    assert!(
+        (axes.len() <= 1),
+        "ReduceMax: reducing on multiple dimensions is not supported"
+    );
 
-    if axes.is_empty() && keepdims == 1 {
-        panic!("ReduceMax: axes must be provided with keepdims")
-    }
+    assert!(
+        !(axes.is_empty() && keepdims == 1),
+        "ReduceMax: axes must be provided with keepdims"
+    );
 
-    if !axes.is_empty() && keepdims == 0 {
-        // Not supported in Burn
-        panic!("ReduceMax: the reduce operation must preserve the reduced dimension")
-    }
+    // Not supported in Burn
+    assert!(
+        !(!axes.is_empty() && keepdims == 0),
+        "ReduceMax: the reduce operation must preserve the reduced dimension"
+    );
 
     if axes.is_empty() {
         None
@@ -45,13 +49,14 @@ pub fn reduce_max_config(node: &Node) -> Option<usize> {
     }
 }
 
-/// Update output rank for ReduceMax based on axes.
+/// Update output rank for `ReduceMax` based on axes.
 pub fn reduce_max_update_outputs(node: &mut Node) {
     log::debug!("ReduceMax rank inference for node {}", node.name);
 
-    if node.inputs.len() != 1 {
-        panic!("ReduceMax: multiple inputs are not supported");
-    }
+    assert!(
+        (node.inputs.len() == 1),
+        "ReduceMax: multiple inputs are not supported"
+    );
     let tensor = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),

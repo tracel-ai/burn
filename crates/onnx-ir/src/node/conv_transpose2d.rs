@@ -1,6 +1,6 @@
 use crate::ir::Node;
 
-/// Configuration for ConvTranspose2d operations.
+/// Configuration for `ConvTranspose2d` operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConvTranspose2dConfig {
     /// Input and output channels [in, out].
@@ -22,8 +22,9 @@ pub struct ConvTranspose2dConfig {
 }
 
 impl ConvTranspose2dConfig {
-    /// Create a new configuration for a ConvTranspose2d.
+    /// Create a new configuration for a `ConvTranspose2d`.
     #[allow(clippy::too_many_arguments)]
+    #[must_use]
     pub fn new(
         channels: [usize; 2],
         kernel_size: [usize; 2],
@@ -47,7 +48,8 @@ impl ConvTranspose2dConfig {
     }
 }
 
-/// Create a ConvTranspose2dConfig from the attributes of the node
+/// Create a `ConvTranspose2dConfig` from the attributes of the node
+#[must_use]
 pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     let mut kernel_shape = Vec::new(); // Default to empty vector
     let mut stride = vec![1, 1]; // Default stride to 1
@@ -57,7 +59,7 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     let mut output_padding = vec![0, 0]; // Default output padding to 0
 
     // Extract attributes
-    for (key, value) in curr.attrs.iter() {
+    for (key, value) in &curr.attrs {
         match key.as_str() {
             "kernel_shape" => kernel_shape = value.clone().into_i64s(),
             "strides" => stride = value.clone().into_i64s(),

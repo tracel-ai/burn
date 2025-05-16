@@ -85,7 +85,7 @@ pub struct SegmentationMask {
 /// Object detection bounding box annotation.
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct BoundingBox {
-    /// Coordinates in [x_min, y_min, width, height] format.
+    /// Coordinates in [`x_min`, `y_min`, width, height] format.
     pub coords: [f32; 4],
 
     /// Box class label.
@@ -266,8 +266,7 @@ fn parse_coco_bbox_annotations(
 
             if bbox_coords.len() < BBOX_MIN_NUM_VALUES {
                 return Err(ImageLoaderError::ParsingError(format!(
-                    "not enough bounding box coordinates in annotation for image {}",
-                    image_id
+                    "not enough bounding box coordinates in annotation for image {image_id}"
                 )));
             }
 
@@ -334,8 +333,8 @@ fn parse_coco_images<P: AsRef<Path>>(
                 .unwrap_or_else(|| AnnotationRaw::BoundingBoxes(Vec::new()));
 
             images.push(ImageDatasetItemRaw {
-                annotation,
                 image_path,
+                annotation,
             });
         }
     }
@@ -534,7 +533,7 @@ impl ImageFolderDataset {
             items.push(ImageDatasetItemRaw::new(
                 image_path,
                 AnnotationRaw::Label(label),
-            ))
+            ));
         }
 
         // Sort class names
@@ -639,7 +638,7 @@ impl ImageFolderDataset {
     /// # Arguments
     ///
     /// * `annotations_json` - Path to the JSON file containing annotations in COCO format (for
-    ///   example instances_train2017.json).
+    ///   example `instances_train2017.json`).
     ///
     /// * `images_path` - Path containing the images matching the annotations JSON.
     ///
@@ -650,9 +649,9 @@ impl ImageFolderDataset {
         images_path: I,
     ) -> Result<Self, ImageLoaderError> {
         let file = fs::File::open(annotations_json)
-            .map_err(|e| ImageLoaderError::IOError(format!("Failed to open annotations: {}", e)))?;
+            .map_err(|e| ImageLoaderError::IOError(format!("Failed to open annotations: {e}")))?;
         let json: Value = serde_json::from_reader(file).map_err(|e| {
-            ImageLoaderError::ParsingError(format!("Failed to parse annotations: {}", e))
+            ImageLoaderError::ParsingError(format!("Failed to parse annotations: {e}"))
         })?;
 
         let classes = parse_coco_classes(&json)?;
@@ -683,7 +682,10 @@ impl ImageFolderDataset {
         let dataset = InMemDataset::new(items);
 
         // Class names to index map
-        let classes = classes.iter().map(|c| c.as_ref()).collect::<Vec<_>>();
+        let classes = classes
+            .iter()
+            .map(std::convert::AsRef::as_ref)
+            .collect::<Vec<_>>();
         let classes_map: HashMap<_, _> = classes
             .into_iter()
             .enumerate()
@@ -701,12 +703,12 @@ impl ImageFolderDataset {
     /// Check if extension is supported.
     fn check_extension<S: AsRef<str>>(extension: &S) -> Result<String, ImageLoaderError> {
         let extension = extension.as_ref();
-        if !SUPPORTED_FILES.contains(&extension) {
+        if SUPPORTED_FILES.contains(&extension) {
+            Ok(extension.to_string())
+        } else {
             Err(ImageLoaderError::InvalidFileExtensionError(
                 extension.to_string(),
             ))
-        } else {
-            Ok(extension.to_string())
         }
     }
 }
@@ -826,7 +828,7 @@ mod tests {
     #[test]
     #[should_panic]
     pub fn pixel_depth_try_into_u8_invalid() {
-        let _: u8 = PixelDepth::U16(u8::MAX as u16 + 1).try_into().unwrap();
+        let _: u8 = PixelDepth::U16(u16::from(u8::MAX) + 1).try_into().unwrap();
     }
 
     #[test]
@@ -839,7 +841,7 @@ mod tests {
     #[test]
     #[should_panic]
     pub fn pixel_depth_try_into_u16_invalid() {
-        let _: u16 = PixelDepth::F32(u16::MAX as f32).try_into().unwrap();
+        let _: u16 = PixelDepth::F32(f32::from(u16::MAX)).try_into().unwrap();
     }
 
     #[test]

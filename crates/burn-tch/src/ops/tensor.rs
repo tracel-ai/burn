@@ -332,58 +332,58 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
     }
 
     fn float_exp(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.exp_(), |tensor| tensor.exp())
+        tensor.unary_ops(|mut tensor| tensor.exp_(), tch::Tensor::exp)
     }
 
     fn float_log(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.log_(), |tensor| tensor.log())
+        tensor.unary_ops(|mut tensor| tensor.log_(), tch::Tensor::log)
     }
 
     fn float_log1p(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.log1p_(), |tensor| tensor.log1p())
+        tensor.unary_ops(|mut tensor| tensor.log1p_(), tch::Tensor::log1p)
     }
 
     fn float_powf_scalar(tensor: TchTensor, value: f32) -> TchTensor {
         tensor.unary_ops(
-            |mut tensor| tensor.f_pow_(value as f64).unwrap(),
-            |tensor| tensor.pow_tensor_scalar(value as f64),
+            |mut tensor| tensor.f_pow_(f64::from(value)).unwrap(),
+            |tensor| tensor.pow_tensor_scalar(f64::from(value)),
         )
     }
 
     fn float_sqrt(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.sqrt_(), |tensor| tensor.sqrt())
+        tensor.unary_ops(|mut tensor| tensor.sqrt_(), tch::Tensor::sqrt)
     }
 
     fn float_abs(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.abs_(), |tensor| tensor.abs())
+        tensor.unary_ops(|mut tensor| tensor.abs_(), tch::Tensor::abs)
     }
 
     fn float_cos(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.cos_(), |tensor| tensor.cos())
+        tensor.unary_ops(|mut tensor| tensor.cos_(), tch::Tensor::cos)
     }
 
     fn float_sin(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.sin_(), |tensor| tensor.sin())
+        tensor.unary_ops(|mut tensor| tensor.sin_(), tch::Tensor::sin)
     }
 
     fn float_tanh(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.tanh_(), |tensor| tensor.tanh())
+        tensor.unary_ops(|mut tensor| tensor.tanh_(), tch::Tensor::tanh)
     }
 
     fn float_round(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.round_(), |tensor| tensor.round())
+        tensor.unary_ops(|mut tensor| tensor.round_(), tch::Tensor::round)
     }
 
     fn float_floor(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.floor_(), |tensor| tensor.floor())
+        tensor.unary_ops(|mut tensor| tensor.floor_(), tch::Tensor::floor)
     }
 
     fn float_ceil(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.ceil_(), |tensor| tensor.ceil())
+        tensor.unary_ops(|mut tensor| tensor.ceil_(), tch::Tensor::ceil)
     }
 
     fn float_erf(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.erf_(), |tensor| tensor.erf())
+        tensor.unary_ops(|mut tensor| tensor.erf_(), tch::Tensor::erf)
     }
 
     fn float_cat(tensors: Vec<TchTensor>, dim: usize) -> TchTensor {

@@ -192,7 +192,7 @@ macro_rules! execute_with_float_dtype {
 mod utils {
     use burn_common::tensor::is_contiguous;
 
-    use super::*;
+    use super::{Element, NdArrayTensor, TensorData, TensorMetadata, Vec};
 
     impl<E> NdArrayTensor<E>
     where
@@ -302,6 +302,7 @@ where
     E: Element,
 {
     /// Create a new [ndarray tensor](NdArrayTensor) from [data](TensorData).
+    #[must_use]
     pub fn from_data(mut data: TensorData) -> NdArrayTensor<E> {
         let shape = mem::take(&mut data.shape);
 
@@ -328,6 +329,7 @@ pub struct NdArrayQTensor<Q: QuantElement> {
 
 impl<Q: QuantElement> NdArrayQTensor<Q> {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
+    #[must_use]
     pub fn strategy(&self) -> QuantizationStrategy {
         match self.scheme {
             QuantScheme {

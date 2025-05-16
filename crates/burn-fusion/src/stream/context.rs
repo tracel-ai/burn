@@ -1,4 +1,18 @@
-use burn_ir::*;
+use burn_ir::{
+    AdaptiveAvgPool1dBackwardOpIr, AdaptiveAvgPool1dOpIr, AdaptiveAvgPool2dBackwardOpIr,
+    AdaptiveAvgPool2dOpIr, AvgPool1dBackwardOpIr, AvgPool1dOpIr, AvgPool2dBackwardOpIr,
+    AvgPool2dOpIr, BaseOperationIr, BinaryOpIr, BoolOperationIr, CatOpIr, ClampOpIr, Conv1dOpIr,
+    Conv2dOpIr, Conv3dOpIr, ConvTranspose1dOpIr, ConvTranspose2dOpIr, ConvTranspose3dOpIr,
+    CustomOpIr, DeformConv2dBackwardOpIr, DeformConv2dOpIr, DequantizeOpIr, EmbeddingBackwardOpIr,
+    EmbeddingOpIr, ExpandOpIr, FlipOpIr, FloatOperationIr, GatherOpIr, HandleContainer,
+    InitOperationIr, IntOperationIr, InterpolateBackwardOpIr, InterpolateOpIr, MaskFillOpIr,
+    MaskWhereOpIr, MaxPool1dOpIr, MaxPool1dWithIndicesBackwardOpIr, MaxPool1dWithIndicesOpIr,
+    MaxPool2dOpIr, MaxPool2dWithIndicesBackwardOpIr, MaxPool2dWithIndicesOpIr, ModuleOperationIr,
+    NumericOperationIr, OperationIr, PermuteOpIr, QuantizationParametersIr, QuantizeOpIr,
+    RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr,
+    SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorId, TensorIr,
+    UnaryOpIr,
+};
 use burn_tensor::{DType, Element, ElementConversion};
 use half::{bf16, f16};
 use hashbrown::HashMap;
@@ -121,6 +135,7 @@ impl<H: Clone> ContextOwned<H> {
     }
 
     /// Fork the context again.
+    #[must_use]
     pub fn fork(&self) -> ContextOwned<H> {
         ContextOwned {
             tensors: self.tensors.clone(),
@@ -142,6 +157,7 @@ impl<H: Clone> ContextOwned<H> {
 
 impl<H: Clone> Context<'_, H> {
     /// Fork the context into an [owned context](ContextOwned).
+    #[must_use]
     pub fn fork(&self) -> ContextOwned<H> {
         ContextOwned {
             tensors: self.tensors.clone(),
@@ -1094,7 +1110,7 @@ impl RelativeOps for TensorIr {
 
         // We can create relative shapes by mapping each shape found to an ID, which is a `usize`.
         let mut relative_shape = Vec::with_capacity(self.shape.len());
-        for dim in self.shape.iter() {
+        for dim in &self.shape {
             if let Some(dim_id) = converter.shapes_global2relative.get(dim) {
                 // We already saw that dim value before, so we retrieve its ID.
                 relative_shape.push(*dim_id);

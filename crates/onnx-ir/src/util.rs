@@ -2,13 +2,13 @@ use crate::ir::{ArgType, Node, TensorType};
 
 use crate::protos::OperatorSetIdProto;
 
+#[must_use]
 pub fn shape_config(curr: &Node) -> (usize, usize) {
-    if curr.inputs.len() != 1 {
-        panic!(
-            "Shape: multiple inputs are not supported (got {:?})",
-            curr.inputs.len()
-        );
-    }
+    assert!(
+        (curr.inputs.len() == 1),
+        "Shape: multiple inputs are not supported (got {:?})",
+        curr.inputs.len()
+    );
 
     // Extract the shape of the input tensor
     let tensor = match curr.inputs.first().unwrap().clone().ty {
@@ -21,7 +21,7 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
     let mut end_dim: i64 = tensor.rank as i64;
 
     // Extract the attributes
-    for (key, value) in curr.attrs.iter() {
+    for (key, value) in &curr.attrs {
         match key.as_str() {
             "start" => start_dim = value.clone().into_i64(),
             "end" => end_dim = value.clone().into_i64(),
@@ -56,9 +56,10 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
 /// * If the domain is not the empty ONNX domain
 pub fn check_opset_version(opset: &OperatorSetIdProto, min_version: i64) -> bool {
     // For now, only empty domain (standard ONNX operators) is supported
-    if !opset.domain.is_empty() {
-        panic!("Only the standard ONNX domain is supported");
-    }
+    assert!(
+        opset.domain.is_empty(),
+        "Only the standard ONNX domain is supported"
+    );
 
     // Return true if the opset version is greater than or equal to min_version
     opset.version >= min_version
@@ -174,7 +175,7 @@ mod tests {
 
         for (i, rank) in input_ranks.iter().enumerate() {
             inputs.push(Argument {
-                name: format!("input_{}", i),
+                name: format!("input_{i}"),
                 ty: ArgType::Tensor(TensorType {
                     elem_type: ElementType::Float32,
                     rank: *rank,
@@ -198,7 +199,7 @@ mod tests {
 
         Node {
             node_type: op_type.clone(),
-            name: format!("test_{:?}", op_type).to_lowercase(),
+            name: format!("test_{op_type:?}").to_lowercase(),
             inputs,
             outputs,
             attrs: HashMap::new(),

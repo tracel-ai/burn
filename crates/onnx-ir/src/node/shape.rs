@@ -1,12 +1,12 @@
 use crate::ir::{ArgType, Node};
 
+#[must_use]
 pub fn shape_config(curr: &Node) -> (usize, usize) {
-    if curr.inputs.len() != 1 {
-        panic!(
-            "Shape: multiple inputs are not supported (got {:?})",
-            curr.inputs.len()
-        );
-    }
+    assert!(
+        (curr.inputs.len() == 1),
+        "Shape: multiple inputs are not supported (got {:?})",
+        curr.inputs.len()
+    );
 
     // Extract the shape of the input tensor
     let tensor = match curr.inputs.first().unwrap().clone().ty {
@@ -19,7 +19,7 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
     let mut end_dim: i64 = tensor.rank as i64;
 
     // Extract the attributes
-    for (key, value) in curr.attrs.iter() {
+    for (key, value) in &curr.attrs {
         match key.as_str() {
             "start" => start_dim = value.clone().into_i64(),
             "end" => end_dim = value.clone().into_i64(),
@@ -40,9 +40,10 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
 
 /// Update output type for Shape operation (rank 1).
 pub fn shape_update_outputs(node: &mut Node) {
-    if node.inputs.len() != 1 {
-        panic!("Shape: multiple inputs are not supported: {:?}", node);
-    }
+    assert!(
+        (node.inputs.len() == 1),
+        "Shape: multiple inputs are not supported: {node:?}"
+    );
     let (start, end) = shape_config(node);
     let dim = end - start;
     log::debug!(

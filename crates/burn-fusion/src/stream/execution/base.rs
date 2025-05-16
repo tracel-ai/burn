@@ -31,10 +31,10 @@ impl<R: FusionRuntime> OperationQueue<R> {
     ) {
         match &mut store.get_mut_unchecked(id).strategy {
             ExecutionStrategy::Optimization(optimization) => {
-                self.execute_optimization(handles, optimization)
+                self.execute_optimization(handles, optimization);
             }
             ExecutionStrategy::Operations => self.execute_operations(handles),
-        };
+        }
     }
 
     /// Execute the optimization (fused operations) and remove all the corresponding
@@ -80,7 +80,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
         self.relative.clear();
         self.converter.clear();
 
-        for node in self.global.iter() {
+        for node in &self.global {
             let relative = node.to_relative(&mut self.converter);
             self.relative.push(relative);
         }

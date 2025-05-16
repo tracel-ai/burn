@@ -1,6 +1,7 @@
 use crate::ir::{ArgType, AttributeValue, Data, Node, TensorType};
 
-/// Create a ReduceSumConfig from the attributes of the node
+/// Create a `ReduceSumConfig` from the attributes of the node
+#[must_use]
 pub fn reduce_sum_config(node: &Node) -> Option<usize> {
     let mut axes = Vec::new();
     let mut keepdims = 1;
@@ -11,7 +12,7 @@ pub fn reduce_sum_config(node: &Node) -> Option<usize> {
     };
 
     // Extract the attributes
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         match key.as_str() {
             "keepdims" => keepdims = value.clone().into_i64(),
             "axes" => axes = value.clone().into_i64s(),
@@ -29,18 +30,21 @@ pub fn reduce_sum_config(node: &Node) -> Option<usize> {
         axes = value.clone().data.into_i64s();
     }
 
-    if axes.len() > 1 {
-        panic!("ReduceSum: reducing on multiple dimensions is not supported")
-    }
+    assert!(
+        (axes.len() <= 1),
+        "ReduceSum: reducing on multiple dimensions is not supported"
+    );
 
-    if axes.is_empty() && keepdims == 1 {
-        panic!("ReduceSum: axes must be provided with keepdims")
-    }
+    assert!(
+        !(axes.is_empty() && keepdims == 1),
+        "ReduceSum: axes must be provided with keepdims"
+    );
 
-    if !axes.is_empty() && keepdims == 0 {
-        // Not supported in Burn
-        panic!("ReduceSum: the reduce operation must preserve the reduced dimension")
-    }
+    // Not supported in Burn
+    assert!(
+        !(!axes.is_empty() && keepdims == 0),
+        "ReduceSum: the reduce operation must preserve the reduced dimension"
+    );
 
     if axes.is_empty() {
         None
@@ -55,7 +59,7 @@ pub fn reduce_sum_config(node: &Node) -> Option<usize> {
     }
 }
 
-/// Update output rank for ReduceSum based on axes.
+/// Update output rank for `ReduceSum` based on axes.
 pub fn reduce_sum_update_outputs(node: &mut Node) {
     log::debug!("ReduceSum rank inference for node {}", node.name);
 

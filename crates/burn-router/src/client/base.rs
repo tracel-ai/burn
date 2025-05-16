@@ -1,9 +1,6 @@
 use alloc::{boxed::Box, vec::Vec};
 use burn_common::future::DynFut;
-use core::{
-    ops::DerefMut,
-    sync::atomic::{AtomicBool, AtomicU64, Ordering},
-};
+use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use hashbrown::HashMap;
 
 use spin::Mutex;
@@ -34,11 +31,11 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     fn read_tensor(&self, tensor: TensorIr) -> DynFut<TensorData>;
     /// Sync the runner, ensure that all computations are finished.
     fn sync(&self);
-    /// Create a new [RouterTensor] from the tensor data.
+    /// Create a new [`RouterTensor`] from the tensor data.
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self>;
-    /// Create a new [RouterTensor] with no resources associated.
+    /// Create a new [`RouterTensor`] with no resources associated.
     fn register_empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self>;
-    /// Create a new float [RouterTensor] with no resources associated.
+    /// Create a new float [`RouterTensor`] with no resources associated.
     fn register_float_tensor(&self, shape: Vec<usize>, dtype: FloatDType) -> RouterTensor<Self>;
     /// Get the current device used by all operations handled by this client.
     fn device(&self) -> Self::Device;
@@ -76,7 +73,7 @@ fn get_seed() -> Option<u64> {
 fn new_client<R: RunnerChannel>(device: &R::Device) -> Client<R> {
     let client = R::init_client(device);
     if let Some(seed) = get_seed() {
-        client.seed(seed)
+        client.seed(seed);
     }
     client
 }
@@ -102,19 +99,18 @@ impl RunnerClientLocator {
             Self::register_inner::<R>(client_id, client, &mut clients);
         }
 
-        match clients.deref_mut() {
-            Some(clients) => match clients.get(&client_id) {
-                Some(client) => {
+        match &mut *clients {
+            Some(clients) => {
+                if let Some(client) = clients.get(&client_id) {
                     let client: &Client<R> = client.downcast_ref().unwrap();
                     client.clone()
-                }
-                None => {
+                } else {
                     let client = new_client::<R>(device);
                     let any = Box::new(client.clone());
                     clients.insert(client_id, any);
                     client
                 }
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -129,9 +125,10 @@ impl RunnerClientLocator {
         }
 
         if let Some(clients) = clients {
-            if clients.contains_key(&key) {
-                panic!("Client already created for device {:?}", key);
-            }
+            assert!(
+                !clients.contains_key(&key),
+                "Client already created for device {key:?}"
+            );
 
             clients.insert(key, Box::new(client));
         }

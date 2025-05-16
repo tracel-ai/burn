@@ -73,7 +73,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 
     println!("Starting training...");
     // Iterate over our training for X epochs
-    for epoch in 1..config.num_epochs + 1 {
+    for epoch in 1..=config.num_epochs {
         // Initialize the training and validation metrics at the start of each epoch
         let mut train_losses = vec![];
         let mut train_loss = 0.0;

@@ -4,9 +4,10 @@ use protobuf::Enum;
 
 /// Update output type for Cast operations, preserving rank.
 pub fn cast_update_outputs(node: &mut Node) {
-    if node.inputs.len() != 1 {
-        panic!("Cast: multiple inputs are not supported");
-    }
+    assert!(
+        (node.inputs.len() == 1),
+        "Cast: multiple inputs are not supported"
+    );
     let input = &mut node.inputs[0];
     let output = &mut node.outputs[0];
 
@@ -70,7 +71,7 @@ mod tests {
 
     #[test]
     fn test_cast_float_to_int64() {
-        let mut node = create_test_node(2, DataType::INT64.value() as i64);
+        let mut node = create_test_node(2, i64::from(DataType::INT64.value()));
         cast_update_outputs(&mut node);
 
         match &node.outputs[0].ty {
@@ -84,7 +85,7 @@ mod tests {
 
     #[test]
     fn test_cast_scalar_handling() {
-        let mut node = create_test_node(0, DataType::BOOL.value() as i64);
+        let mut node = create_test_node(0, i64::from(DataType::BOOL.value()));
         cast_update_outputs(&mut node);
 
         match &node.outputs[0].ty {
@@ -105,7 +106,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cast: multiple inputs are not supported")]
     fn test_cast_multiple_inputs() {
-        let mut node = create_test_node(2, DataType::INT64.value() as i64);
+        let mut node = create_test_node(2, i64::from(DataType::INT64.value()));
         node.inputs.push(Argument {
             name: "extra".to_string(),
             ty: ArgType::Tensor(TensorType {
@@ -121,7 +122,7 @@ mod tests {
 
     #[test]
     fn test_cast_scalar_to_bool() {
-        let mut node = create_scalar_test_node(DataType::BOOL.value() as i64);
+        let mut node = create_scalar_test_node(i64::from(DataType::BOOL.value()));
         cast_update_outputs(&mut node);
 
         match &node.outputs[0].ty {

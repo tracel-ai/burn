@@ -212,7 +212,7 @@ fn cmp<'a, S: Simd, T: NdArrayElement + Scalar, Op: SimdCmpOp<T>>(
         .zip(chunks_rhs.remainder())
         .zip(chunks_out.into_remainder())
     {
-        *out = Op::apply(*lhs, *rhs)
+        *out = Op::apply(*lhs, *rhs);
     }
 }
 
@@ -229,7 +229,10 @@ mod elemwise {
     use bytemuck::cast;
     use macerator::vload;
 
-    use super::*;
+    use super::{
+        ArrayD, NdArrayElement, NdArrayTensor, PhantomData, Scalar, Simd, SimdCmpOp,
+        TensorMetadata, Vector, is_accelerated, seq, should_use_simd, vload_unaligned,
+    };
 
     pub fn try_cmp_scalar_simd<E: NdArrayElement, T: NdArrayElement + Scalar, Op: SimdCmpOp<T>>(
         input: NdArrayTensor<E>,
@@ -324,7 +327,7 @@ mod elemwise {
             .iter()
             .zip(chunks_out.into_remainder())
         {
-            *out = Op::apply(*input, rhs)
+            *out = Op::apply(*input, rhs);
         }
     }
 
@@ -351,11 +354,11 @@ mod elemwise {
                 // Load a full vector from the aligned portion of the buffer.
                 // SAFETY: `align_to_mut` guarantees we're aligned to `T::Vector`'s size, and there is
                 // always a full vector in bounds.
-                let s~N = unsafe { vload(&elem[N] as *const _ as *const T) };
+                let s~N = unsafe { vload((&raw const elem[N]).cast::<T>()) };
                 let s~N = Op::apply_vec(s~N, rhs);
                 // Store a full vector at the same position as the input. Cast is safe because `Out` is
                 // size and align compatible
-                unsafe { T::mask_store_as_bool(&mut elem[N] as *mut _ as *mut bool, s~N) };
+                unsafe { T::mask_store_as_bool((&raw mut elem[N]).cast::<bool>(), s~N) };
             });
         }
 
@@ -363,12 +366,12 @@ mod elemwise {
             // Load a full vector from the aligned portion of the buffer.
             // SAFETY: `align_to_mut` guarantees we're aligned to `T::Vector`'s size, and there is
             // always a full vector in bounds.
-            let s0 = unsafe { vload(elem as *const _ as *const T) };
+            let s0 = unsafe { vload(std::ptr::from_ref(elem).cast::<T>()) };
 
             let s0 = Op::apply_vec(s0, rhs);
             // Store a full vector at the same position as the input. Cast is safe because `Out` is
             // size and align compatible
-            unsafe { T::mask_store_as_bool(elem as *mut _ as *mut bool, s0) };
+            unsafe { T::mask_store_as_bool(std::ptr::from_mut(elem).cast::<bool>(), s0) };
         }
     }
 }

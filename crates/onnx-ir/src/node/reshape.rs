@@ -6,21 +6,20 @@ pub fn reshape_update_outputs(node: &mut Node) {
 
     let shape = if node.inputs.len() == 2 {
         log::debug!("Reshape node {} has shape as second input", node.name);
-        match &node.inputs[1].value {
-            Some(value) => match &value.data {
+        if let Some(value) = &node.inputs[1].value {
+            match &value.data {
                 Data::Int64s(shape) => {
                     log::debug!("Reshape node {} has constant shape: {:?}", node.name, shape);
                     Some(shape.clone())
                 }
                 _ => panic!("Reshape: invalid input types"),
-            },
-            None => {
-                log::debug!(
-                    "Reshape node {} has dynamic shape as second input",
-                    node.name
-                );
-                None
             }
+        } else {
+            log::debug!(
+                "Reshape node {} has dynamic shape as second input",
+                node.name
+            );
+            None
         }
     } else {
         log::debug!("Reshape node {} using shape from attributes", node.name);
@@ -50,10 +49,11 @@ pub fn reshape_update_outputs(node: &mut Node) {
     });
 }
 
+#[must_use]
 pub fn reshape_config(node: &Node) -> Vec<i64> {
     let mut allowzero = 0;
 
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         match key.as_str() {
             "allowzero" => allowzero = value.clone().into_i64(),
             "shape" => {} // This can be used when shape is not provided as input - handled elsewhere
@@ -63,14 +63,13 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
 
     // Burn does not support zero size shape (0 means false in ONNX)
     // (see https://onnx.ai/onnx/operators/onnx__Reshape.html#attributes)
-    if allowzero != 0 {
-        panic!("Zero shape size is not supported");
-    }
+    assert!((allowzero == 0), "Zero shape size is not supported");
 
     // TODO: check "shape" attribute
-    if node.inputs.len() != 2 || node.inputs[1].value.is_none() {
-        panic!("Reshape: shape tensor must be present for {:?}", node);
-    }
+    assert!(
+        !(node.inputs.len() != 2 || node.inputs[1].value.is_none()),
+        "Reshape: shape tensor must be present for {node:?}"
+    );
 
     match &node.inputs[1].value {
         Some(TensorData { data, shape, .. }) => {

@@ -2,9 +2,10 @@ use crate::ir::{ArgType, Node, TensorType};
 
 /// Update output type for Flatten operation (rank 2).
 pub fn flatten_update_outputs(node: &mut Node) {
-    if node.inputs.len() != 1 {
-        panic!("Flatten: multiple inputs are not supported");
-    }
+    assert!(
+        (node.inputs.len() == 1),
+        "Flatten: multiple inputs are not supported"
+    );
     let tensor = node
         .inputs
         .iter()
@@ -21,18 +22,18 @@ pub fn flatten_update_outputs(node: &mut Node) {
     });
 }
 
-/// Create a FlattenConfig from the attributes of the node
+/// Create a `FlattenConfig` from the attributes of the node
+#[must_use]
 pub fn flatten_config(curr: &Node) -> usize {
     // the begin dimension is the first dimension (Default: 1 per ONNX spec)
     let mut axis: i64 = 1;
 
     // check if the node has only one input
-    if curr.inputs.len() != 1 {
-        panic!(
-            "Flatten: multiple inputs are not supported (got {:?})",
-            curr.inputs.len()
-        );
-    }
+    assert!(
+        (curr.inputs.len() == 1),
+        "Flatten: multiple inputs are not supported (got {:?})",
+        curr.inputs.len()
+    );
 
     // extract the shape of the input tensor
     let tensor = match curr.inputs.first().unwrap().clone().ty {
@@ -41,17 +42,16 @@ pub fn flatten_config(curr: &Node) -> usize {
     };
 
     // check if the input tensor has at least 2 dimensions
-    if tensor.rank < 2 {
-        panic!(
-            "Flatten: input tensor must have at least 2 dimensions (got {:?})",
-            tensor.rank
-        );
-    }
+    assert!(
+        (tensor.rank >= 2),
+        "Flatten: input tensor must have at least 2 dimensions (got {:?})",
+        tensor.rank
+    );
 
     // extract the attributes
-    for (key, value) in curr.attrs.iter() {
+    for (key, value) in &curr.attrs {
         if key.as_str() == "axis" {
-            axis = value.clone().into_i64()
+            axis = value.clone().into_i64();
         }
     }
 

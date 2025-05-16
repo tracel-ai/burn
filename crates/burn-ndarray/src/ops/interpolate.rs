@@ -75,10 +75,10 @@ pub(crate) fn nearest_interpolate_backward<E: FloatNdArrayElement>(
                     let ih = start_index(oh, output_height, input_height);
                     let iw = start_index(ow, output_width, input_width);
 
-                    output_grad[[b, c, ih, iw]] += grad.array[[b, c, oh, ow]]
+                    output_grad[[b, c, ih, iw]] += grad.array[[b, c, oh, ow]];
                 }
             }
-        })
+        });
     });
 
     NdArrayTensor::new(output_grad.into_dyn().into_shared())

@@ -34,15 +34,14 @@ impl<R: FusionRuntime> MultiStream<R> {
     ) {
         let id = self.resolve_streams(streams, handles, &repr);
 
-        let stream = match self.streams.get_mut(&id) {
-            Some(stream) => stream,
-            None => {
-                let stream = Stream::new(self.device.clone());
-                self.streams.insert(id, stream);
-                self.streams
-                    .get_mut(&id)
-                    .expect("Just added, so should be included in the hashmap.")
-            }
+        let stream = if let Some(stream) = self.streams.get_mut(&id) {
+            stream
+        } else {
+            let stream = Stream::new(self.device.clone());
+            self.streams.insert(id, stream);
+            self.streams
+                .get_mut(&id)
+                .expect("Just added, so should be included in the hashmap.")
         };
 
         stream.queue.add(repr, operation);
@@ -159,7 +158,7 @@ impl<R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'_, R> {
     }
 
     fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<R::Optimization>) {
-        self.queue.execute(id, self.handles, store)
+        self.queue.execute(id, self.handles, store);
     }
 }
 

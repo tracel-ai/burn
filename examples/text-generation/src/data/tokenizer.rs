@@ -36,9 +36,10 @@ impl Default for Gpt2Tokenizer {
 
 impl Tokenizer for Gpt2Tokenizer {
     fn encode(&self, value: &str, special_tokens: bool) -> Vec<usize> {
-        let text = match special_tokens {
-            true => "[START]".to_owned() + value + "[END]",
-            false => value.to_string(),
+        let text = if special_tokens {
+            "[START]".to_owned() + value + "[END]"
+        } else {
+            value.to_string()
         };
         let tokens = self.tokenizer.encode(text, true).unwrap();
         tokens.get_ids().iter().map(|t| *t as usize).collect()

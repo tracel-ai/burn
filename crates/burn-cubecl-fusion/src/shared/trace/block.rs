@@ -61,16 +61,15 @@ impl FuseBlockBuilder {
             _ => precision,
         };
 
-        let out = match self.locals.get(precision, tensor.id) {
-            Some(local) => local,
-            None => {
-                let out = self.locals.create(precision, tensor.id);
+        let out = if let Some(local) = self.locals.get(precision, tensor.id) {
+            local
+        } else {
+            let out = self.locals.create(precision, tensor.id);
 
-                self.outputs.insert(precision_output, tensor.clone());
-                resources.outputs.insert(precision_output, tensor.clone());
+            self.outputs.insert(precision_output, tensor.clone());
+            resources.outputs.insert(precision_output, tensor.clone());
 
-                out
-            }
+            out
         };
 
         Some(out)
@@ -90,35 +89,32 @@ impl FuseBlockBuilder {
             _ => precision,
         };
 
-        let arg = match self.locals.get(precision, tensor.id) {
-            Some(local) => {
-                resources.inputs.update(tensor);
-                // An input can be an output of a previously fused operation.
-                // We need to flag the new status for the tensor.
-                resources.outputs.update(tensor);
-                self.outputs.update(tensor);
+        let arg = if let Some(local) = self.locals.get(precision, tensor.id) {
+            resources.inputs.update(tensor);
+            // An input can be an output of a previously fused operation.
+            // We need to flag the new status for the tensor.
+            resources.outputs.update(tensor);
+            self.outputs.update(tensor);
 
-                local
-            }
-            None => {
-                let new_input = resources.inputs.insert(precision_input, tensor.clone());
-                let out = self.locals.create(precision, tensor.id);
-                let input = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
+            local
+        } else {
+            let new_input = resources.inputs.insert(precision_input, tensor.clone());
+            let out = self.locals.create(precision, tensor.id);
+            let input = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
 
-                let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
-                    e.insert(Vec::with_capacity(1));
-                    self.reads.get_mut(&tensor.id).unwrap()
-                } else {
-                    self.reads.get_mut(&tensor.id).unwrap()
-                };
+            let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
+                e.insert(Vec::with_capacity(1));
+                self.reads.get_mut(&tensor.id).unwrap()
+            } else {
+                self.reads.get_mut(&tensor.id).unwrap()
+            };
 
-                reads.push(FuseOp::Assign(UnaryFuseArgs {
-                    input,
-                    out: out.clone(),
-                }));
+            reads.push(FuseOp::Assign(UnaryFuseArgs {
+                input,
+                out: out.clone(),
+            }));
 
-                out
-            }
+            out
         };
 
         Some(arg)
@@ -499,17 +495,17 @@ impl FuseBlockBuilder {
         };
 
         // For all operators, mark their local tensor id in the proper set.
-        for (_, ops) in self.reads.iter() {
+        for ops in self.reads.values() {
             for op in ops {
                 mark_op(op);
             }
         }
 
-        for op in self.ops.iter() {
+        for op in &self.ops {
             mark_op(op);
         }
 
-        for arg in self.outputs_unhandled.iter() {
+        for arg in &self.outputs_unhandled {
             mark(arg, &mut local_tensor_ids_output);
         }
 
@@ -554,7 +550,7 @@ impl LocalVariablePool {
     }
 
     fn get_any_precision(&self, tensor_id: TensorId) -> Option<Arg> {
-        for (precision, indexes) in self.values.iter() {
+        for (precision, indexes) in &self.values {
             if let Some(index) = indexes.get(&tensor_id) {
                 return Some(Arg::Local(*index, *precision));
             }

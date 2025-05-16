@@ -52,10 +52,10 @@ impl ApplicationLoggerInstaller for FileApplicationLoggerInstaller {
         }
 
         let hook = std::panic::take_hook();
-        let file_path = self.path.to_owned();
+        let file_path = self.path.clone();
 
         std::panic::set_hook(Box::new(move |info| {
-            log::error!("PANIC => {}", info);
+            log::error!("PANIC => {info}");
             eprintln!(
                 "=== PANIC ===\nA fatal error happened, you can check the experiment logs here => \
                     '{}'\n=============",

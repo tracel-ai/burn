@@ -27,10 +27,10 @@ pub enum TensorStatus {
 ///
 /// A tensor that is used multiple times has its status updated for each operation.
 ///
-///   1. Status::NotInit
-///   2. Status::ReadOnly
-///   3. Status::ReadOnly
-///   4. Status::ReadWrite
+///   1. `Status::NotInit`
+///   2. `Status::ReadOnly`
+///   3. `Status::ReadOnly`
+///   4. `Status::ReadWrite`
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TensorIr {
     /// The [tensor id](TensorId).
@@ -45,6 +45,7 @@ pub struct TensorIr {
 
 impl TensorId {
     /// Create a new tensor id.
+    #[must_use]
     pub fn new(value: u64) -> Self {
         Self { value }
     }

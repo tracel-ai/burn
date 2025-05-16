@@ -1,7 +1,13 @@
 use crate::shared::DYN_ELEM_ID;
 
-use super::io::*;
-use super::ir::*;
+use super::io::{
+    global_offset, global_stride, read, read_input, read_scalar_shape, reverse_index,
+    swap_dims_transform, write,
+};
+use super::ir::{
+    Arg, BinaryFuseArgs, FuseBlockConfig, FuseOp, GlobalArgs, LayoutInfo, LocalArgs, RefLayout,
+    UnaryFuseArgs, VirtualLayout,
+};
 use cubecl::prelude::*;
 
 #[cube]
@@ -49,11 +55,11 @@ pub fn fuse_on_read<E: CubePrimitive>(
         let value = read::<E>(inputs, outputs, locals, read_pos, arg, config);
 
         let value_line_size = value.line_size();
-        let output_line_size = comptime!(config.width as u32);
+        let output_line_size = comptime!(u32::from(config.width));
 
         // We currently don't support broadcasting __across__ blocks.
         if comptime!(value_line_size != output_line_size) {
-            let mut tmp = Line::<E>::empty(comptime!(config.width as u32));
+            let mut tmp = Line::<E>::empty(comptime!(u32::from(config.width)));
             comptime!(
                 assert_eq!(value_line_size, 1, "The input line_size must be 1 or the same as the config width.");
             );
@@ -61,7 +67,7 @@ pub fn fuse_on_read<E: CubePrimitive>(
             let val = value[0];
 
             #[unroll]
-            for i in 0..comptime!(config.width as u32) {
+            for i in 0..comptime!(u32::from(config.width)) {
                 tmp[i] = val;
             }
 
@@ -205,67 +211,67 @@ fn fuse(
 
         match op {
             FuseOp::Add(op) => {
-                add::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                add::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Div(op) => {
-                div::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                div::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Sub(op) => {
-                sub::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                sub::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Mul(op) => {
-                mul::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                mul::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Powf(op) => {
-                powf::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                powf::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Erf(op) => {
-                erf::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                erf::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Sqrt(op) => {
-                sqrt::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                sqrt::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Abs(op) => {
-                abs::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                abs::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Log(op) => {
-                log::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                log::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Log1p(op) => {
-                log1p::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                log1p::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Recip(op) => {
-                recip::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                recip::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Assign(op) => {
-                assign::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                assign::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Exp(op) => {
-                exp::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                exp::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Cos(op) => {
-                cos::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                cos::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Sin(op) => {
-                sin::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                sin::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Tanh(op) => {
-                tanh::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                tanh::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Equal(op) => {
-                equal::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                equal::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::Greater(op) => {
-                greater::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                greater::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::GreaterEqual(op) => greater_equal::<NumericExpand<DYN_ELEM_ID>>(
                 inputs, outputs, locals, pos, op, config,
             ),
             FuseOp::Lower(op) => {
-                lower::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                lower::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::LowerEqual(op) => {
-                lower_equal::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+                lower_equal::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config);
             }
             FuseOp::ConditionalAssign {
                 cond,

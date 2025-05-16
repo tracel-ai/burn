@@ -62,7 +62,7 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
     }
 
     fn seed(seed: u64) {
-        set_seed(seed)
+        set_seed(seed);
     }
 
     fn sync(device: &Self::Device) {

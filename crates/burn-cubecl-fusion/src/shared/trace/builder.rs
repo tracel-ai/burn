@@ -44,7 +44,7 @@ impl FuseTraceBuilder {
     pub fn num_ops_fused(&self) -> u32 {
         let mut num_ops_fused = 0;
 
-        for (block, _) in self.blocks_previous.iter() {
+        for (block, _) in &self.blocks_previous {
             num_ops_fused += block.ops.len();
         }
 
@@ -63,7 +63,7 @@ impl FuseTraceBuilder {
     // but should never return less.
     pub fn estimate_bindings(&self) -> u32 {
         let mut estimation = 1; // Metadata takes one.
-        for b in self.blocks_previous.iter() {
+        for b in &self.blocks_previous {
             estimation += b.0.estimate_num_outputs(&self.resources);
         }
         estimation += self.block_current.estimate_num_outputs(&self.resources);
@@ -97,9 +97,10 @@ impl FuseTraceBuilder {
     ///
     /// It is therefore the responsibility of the operation to read the given tensor.
     pub fn input_unhandled(&mut self, tensor: &TensorIr) -> Arg {
-        if self.resources.indexed.contains_key(&tensor.id) {
-            panic!("Can't add a new input that is already used in an index operation");
-        }
+        assert!(
+            !self.resources.indexed.contains_key(&tensor.id),
+            "Can't add a new input that is already used in an index operation"
+        );
 
         let precision = tensor.dtype.into();
 
@@ -132,7 +133,7 @@ impl FuseTraceBuilder {
     pub fn input_indexed(&mut self, tensor: &TensorIr) -> Option<Arg> {
         if let Some(val) = self.resources.indexed.get(&tensor.id) {
             return Some(val.clone());
-        };
+        }
 
         if self.resources.inputs.get(tensor.id).is_some() {
             return None;
@@ -202,7 +203,7 @@ impl FuseTraceBuilder {
 
         let mut offset = 0;
 
-        for (block, shape_ref) in self.blocks_previous.iter() {
+        for (block, shape_ref) in &self.blocks_previous {
             offset += register_block(block, shape_ref, offset);
         }
         register_block(&self.block_current, &shape_ref, offset);

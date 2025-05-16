@@ -174,7 +174,7 @@ mod tests {
         let dataset = InMemDataset::new(items.clone());
         let expected = items
             .windows(3)
-            .map(|x| x.to_vec())
+            .map(<[i32]>::to_vec)
             .collect::<Vec<Vec<i32>>>();
 
         let result = dataset.windows(3).collect::<Vec<Vec<i32>>>();
@@ -188,7 +188,7 @@ mod tests {
         let dataset = InMemDataset::new(items.clone());
         let expected = items
             .windows(3)
-            .map(|x| x.to_vec())
+            .map(<[i32]>::to_vec)
             .collect::<Vec<Vec<i32>>>();
 
         let result = WindowsDataset::new(dataset, 3)

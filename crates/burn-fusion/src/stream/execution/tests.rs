@@ -452,11 +452,10 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
         if self.actual.len() < self.expected_operations.len() {
             let operations = &self.expected_operations[0..self.actual.len()];
 
-            return match self.actual == operations {
-                // Still optimizing.
-                true => OptimizationStatus::Open,
-                // Never gonna be possible on that stream.
-                false => OptimizationStatus::Closed,
+            return if self.actual == operations {
+                OptimizationStatus::Open
+            } else {
+                OptimizationStatus::Closed
             };
         }
 
@@ -512,7 +511,7 @@ impl StreamSegment<TestOptimization> for TestSegment<'_> {
                 self.operations.drain(0..optimization.size);
             }
             ExecutionStrategy::Operations => self.operations.clear(),
-        };
+        }
 
         self.executed.push(id);
     }

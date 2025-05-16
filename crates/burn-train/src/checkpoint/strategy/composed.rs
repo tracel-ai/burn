@@ -28,6 +28,7 @@ impl ComposedCheckpointingStrategyBuilder {
     }
 
     /// Create a new [composed checkpointing strategy](ComposedCheckpointingStrategy).
+    #[must_use]
     pub fn build(self) -> ComposedCheckpointingStrategy {
         ComposedCheckpointingStrategy::new(self.strategies)
     }
@@ -42,6 +43,7 @@ impl ComposedCheckpointingStrategy {
     }
     /// Create a new builder which help compose multiple
     /// [checkpointing strategies](CheckpointingStrategy).
+    #[must_use]
     pub fn builder() -> ComposedCheckpointingStrategyBuilder {
         ComposedCheckpointingStrategyBuilder::default()
     }
@@ -86,7 +88,7 @@ impl CheckpointingStrategy for ComposedCheckpointingStrategy {
             actions.push(CheckpointingAction::Save);
         }
 
-        for epoch in epochs_to_check.into_iter() {
+        for epoch in epochs_to_check {
             let mut num_true = 0;
             for i in 0..self.strategies.len() {
                 if self

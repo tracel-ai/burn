@@ -115,6 +115,7 @@ pub struct TrainingInterrupter {
 
 impl TrainingInterrupter {
     /// Create a new instance.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -124,7 +125,8 @@ impl TrainingInterrupter {
         self.state.store(true, Ordering::Relaxed);
     }
 
-    /// True if .stop() has been called.
+    /// True if .`stop()` has been called.
+    #[must_use]
     pub fn should_stop(&self) -> bool {
         self.state.load(Ordering::Relaxed)
     }

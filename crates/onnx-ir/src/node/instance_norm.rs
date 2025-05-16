@@ -1,6 +1,6 @@
 use crate::ir::Node;
 
-/// Configuration for InstanceNorm operations
+/// Configuration for `InstanceNorm` operations
 #[derive(Debug, Clone)]
 pub struct InstanceNormConfig {
     /// Number of features (channels)
@@ -10,7 +10,8 @@ pub struct InstanceNormConfig {
 }
 
 impl InstanceNormConfig {
-    /// Create a new InstanceNormConfig
+    /// Create a new `InstanceNormConfig`
+    #[must_use]
     pub fn new(num_features: usize, epsilon: f64) -> Self {
         Self {
             num_features,
@@ -19,7 +20,8 @@ impl InstanceNormConfig {
     }
 }
 
-/// Create a InstanceNormConfig from the attributes of the node
+/// Create a `InstanceNormConfig` from the attributes of the node
+#[must_use]
 pub fn instance_norm_config(node: &Node) -> InstanceNormConfig {
     log::debug!("... => '{:?}'", &node.inputs[1]);
     let weight_shape = node.inputs[1]
@@ -32,14 +34,14 @@ pub fn instance_norm_config(node: &Node) -> InstanceNormConfig {
     let num_features = weight_shape[0];
     let mut epsilon = 1e-5;
 
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         match key.as_str() {
             "epsilon" => epsilon = value.clone().into_f32(),
             _ => panic!("Unexpected attribute for InstanceNorm: {key}"),
         }
     }
 
-    InstanceNormConfig::new(num_features, epsilon as f64)
+    InstanceNormConfig::new(num_features, f64::from(epsilon))
 }
 
 #[cfg(test)]

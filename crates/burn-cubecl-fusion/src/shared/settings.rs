@@ -21,9 +21,9 @@ pub struct FuseSettings {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 /// How vectorization is handled during fusion.
 pub enum VectorizationSetting {
-    /// The biggest line_size possible will be used.
+    /// The biggest `line_size` possible will be used.
     Activated,
-    /// Equivalent to using line_size of one.
+    /// Equivalent to using `line_size` of one.
     Deactivated,
     /// This is a good setting when a block processes values calculated from a previous block.
     SmallerOrEqualThanPreviousBlock,

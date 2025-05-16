@@ -70,6 +70,7 @@ pub struct HuggingfaceDatasetLoader {
 
 impl HuggingfaceDatasetLoader {
     /// Create a huggingface dataset loader.
+    #[must_use]
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -87,6 +88,7 @@ impl HuggingfaceDatasetLoader {
     /// The subset name must be one of the subsets listed in the dataset page.
     ///
     /// If no subset names are listed, then do not use this method.
+    #[must_use]
     pub fn with_subset(mut self, subset: &str) -> Self {
         self.subset = Some(subset.to_string());
         self
@@ -95,6 +97,7 @@ impl HuggingfaceDatasetLoader {
     /// Specify a base directory to store the dataset.
     ///
     /// If not specified, the dataset will be stored in `~/.cache/burn-dataset`.
+    #[must_use]
     pub fn with_base_dir(mut self, base_dir: &str) -> Self {
         self.base_dir = Some(base_dir.into());
         self
@@ -103,6 +106,7 @@ impl HuggingfaceDatasetLoader {
     /// Specify a huggingface token to download datasets behind authentication.
     ///
     /// You can get a token from [tokens settings](https://huggingface.co/settings/tokens)
+    #[must_use]
     pub fn with_huggingface_token(mut self, huggingface_token: &str) -> Self {
         self.huggingface_token = Some(huggingface_token.to_string());
         self
@@ -111,6 +115,7 @@ impl HuggingfaceDatasetLoader {
     /// Specify a huggingface cache directory to store the downloaded datasets.
     ///
     /// If not specified, the dataset will be stored in `~/.cache/huggingface/datasets`.
+    #[must_use]
     pub fn with_huggingface_cache_dir(mut self, huggingface_cache_dir: &str) -> Self {
         self.huggingface_cache_dir = Some(huggingface_cache_dir.to_string());
         self
@@ -119,8 +124,9 @@ impl HuggingfaceDatasetLoader {
     /// Specify a relative path to a subset of a dataset. This is used in some datasets for the
     /// manual steps of dataset download process.
     ///
-    /// Unless you've encountered a ManualDownloadError
+    /// Unless you've encountered a `ManualDownloadError`
     /// when loading your dataset you probably don't have to worry about this setting.
+    #[must_use]
     pub fn with_huggingface_data_dir(mut self, huggingface_data_dir: &str) -> Self {
         self.huggingface_data_dir = Some(huggingface_data_dir.to_string());
         self
@@ -129,6 +135,7 @@ impl HuggingfaceDatasetLoader {
     /// Specify whether or not to trust remote code.
     ///
     /// If not specified, trust remote code is set to true.
+    #[must_use]
     pub fn with_trust_remote_code(mut self, trust_remote_code: bool) -> Self {
         self.trust_remote_code = trust_remote_code;
         self
@@ -162,7 +169,7 @@ impl HuggingfaceDatasetLoader {
         let db_file_name = if let Some(subset) = self.subset.clone() {
             format!("{}-{}.db", name, sanitize(subset.as_str()))
         } else {
-            format!("{}.db", name)
+            format!("{name}.db")
         };
 
         let db_file = base_dir.join(db_file_name);
@@ -263,7 +270,7 @@ fn check_python_version_is_3(python: &str) -> bool {
 /// get python3 name `python` `python3` or `py`
 fn get_python_name() -> Result<&'static str, ImporterError> {
     let python_name_list = ["python3", "python", "py"];
-    for python_name in python_name_list.iter() {
+    for python_name in &python_name_list {
         if check_python_version_is_3(python_name) {
             return Ok(python_name);
         }
@@ -298,7 +305,7 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
         let mut handle = command.spawn().unwrap();
 
         handle.wait().map_err(|err| {
-            ImporterError::FailToDownloadPythonDependencies(format!(" error: {}", err))
+            ImporterError::FailToDownloadPythonDependencies(format!(" error: {err}"))
         })?;
         // Check if the venv environment can be used successfully."
         if !check_python_version_is_3(venv_python_path.to_str().unwrap()) {
@@ -321,9 +328,9 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
 
     // Spawn the pip install process and wait for it to complete.
     let mut handle = command.spawn().unwrap();
-    handle.wait().map_err(|err| {
-        ImporterError::FailToDownloadPythonDependencies(format!(" error: {}", err))
-    })?;
+    handle
+        .wait()
+        .map_err(|err| ImporterError::FailToDownloadPythonDependencies(format!(" error: {err}")))?;
 
     Ok(venv_python_path)
 }

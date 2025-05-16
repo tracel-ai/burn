@@ -314,7 +314,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv_into(|a| a.exp_elem()).into_shared();
+            let array = tensor
+                .array
+                .mapv_into(super::super::element::ExpElement::exp_elem)
+                .into_shared();
 
             NdArrayTensor::new(array)
         })
@@ -322,7 +325,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
 
     fn float_log(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv_into(|a| a.log_elem()).into_shared();
+            let array = tensor
+                .array
+                .mapv_into(super::super::element::ExpElement::log_elem)
+                .into_shared();
 
             NdArrayTensor::new(array)
         })
@@ -338,7 +344,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
 
     fn float_log1p(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv_into(|a| a.log1p_elem()).into_shared();
+            let array = tensor
+                .array
+                .mapv_into(super::super::element::ExpElement::log1p_elem)
+                .into_shared();
 
             NdArrayTensor::new(array)
         })
@@ -366,7 +375,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
 
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv_into(|a| a.sqrt_elem()).into_shared();
+            let array = tensor
+                .array
+                .mapv_into(super::super::element::ExpElement::sqrt_elem)
+                .into_shared();
 
             NdArrayTensor::new(array)
         })
@@ -374,7 +386,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
 
     fn float_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv_into(|a| a.abs_elem()).into_shared();
+            let array = tensor
+                .array
+                .mapv_into(super::super::element::ExpElement::abs_elem)
+                .into_shared();
 
             NdArrayTensor::new(array)
         })
@@ -512,7 +527,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
 
     fn float_into_int(tensor: FloatTensor<Self>) -> NdArrayTensor<I> {
         execute_with_float_dtype!(tensor, E => |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv(|a| a.elem()).into_shared();
+            let array = tensor.array.mapv(burn_tensor::ElementConversion::elem).into_shared();
             NdArrayTensor { array }
         })
     }
@@ -545,7 +560,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         fn cast<E1: FloatNdArrayElement, E2: FloatNdArrayElement>(
             tensor: &NdArrayTensor<E1>,
         ) -> NdArrayTensor<E2> {
-            let array = tensor.array.mapv(|a| a.elem()).into_shared();
+            let array = tensor
+                .array
+                .mapv(burn_tensor::ElementConversion::elem)
+                .into_shared();
             NdArrayTensor { array }
         }
 

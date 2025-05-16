@@ -56,7 +56,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ElementWiseBuilder
     }
 
     fn reset(&mut self) {
-        self.builder.reset()
+        self.builder.reset();
     }
 
     fn status(&self) -> burn_fusion::OptimizationStatus {

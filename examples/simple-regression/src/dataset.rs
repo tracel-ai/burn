@@ -68,18 +68,22 @@ impl Dataset<HousingDistrictItem> for HousingDataset {
 }
 
 impl HousingDataset {
+    #[must_use]
     pub fn train() -> Self {
         Self::new("train")
     }
 
+    #[must_use]
     pub fn validation() -> Self {
         Self::new("validation")
     }
 
+    #[must_use]
     pub fn test() -> Self {
         Self::new("test")
     }
 
+    #[must_use]
     pub fn new(split: &str) -> Self {
         let dataset: SqliteDataset<HousingDistrictItem> =
             HuggingfaceDatasetLoader::new("gvlassis/california_housing")
@@ -142,7 +146,7 @@ impl<B: Backend> Batcher<B, HousingDistrictItem, HousingBatch<B>> for HousingBat
     fn batch(&self, items: Vec<HousingDistrictItem>, device: &B::Device) -> HousingBatch<B> {
         let mut inputs: Vec<Tensor<B, 2>> = Vec::new();
 
-        for item in items.iter() {
+        for item in &items {
             let input_tensor = Tensor::<B, 1>::from_floats(
                 [
                     item.median_income,

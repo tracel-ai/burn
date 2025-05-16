@@ -67,7 +67,7 @@ impl PopupState {
                     }
                 }
             }
-        };
+        }
 
         if reset {
             *self = Self::Empty;

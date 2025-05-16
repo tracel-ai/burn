@@ -54,7 +54,7 @@ pub trait Vectorization<R: Runtime> {
             ref_elem,
             max,
             axis,
-        )
+        );
     }
 }
 
@@ -126,16 +126,16 @@ fn vectorization_default<'a, R: Runtime>(
         let shape_axis = original.shape[original.shape.len() - 1];
 
         for s in R::line_size_elem(ref_elem) {
-            if !multi_reads {
-                // The last dimension should be a multiple of the vector size or broadcated.
-                if reshape_axis % s as usize == 0 && s <= max {
-                    return Vect::Aligned(s);
-                }
-            } else {
+            if multi_reads {
                 // Since the original tensor must share the same vectorization factor as the
                 // reshaped tensor, they must have compatible shapes when both are access
                 // independently.
                 if reshape_axis % s as usize == 0 && shape_axis % s as usize == 0 && s <= max {
+                    return Vect::Aligned(s);
+                }
+            } else {
+                // The last dimension should be a multiple of the vector size or broadcated.
+                if reshape_axis % s as usize == 0 && s <= max {
                     return Vect::Aligned(s);
                 }
             }
@@ -220,7 +220,7 @@ fn multi_reads_vectorization_update(
     original: TensorId,
     vect: Vect,
 ) {
-    if let Some(ori_vect) = vectorizations.get(&original).cloned() {
+    if let Some(ori_vect) = vectorizations.get(&original).copied() {
         match ori_vect {
             Vect::Broadcasted => {
                 // keep the original as is.
@@ -230,11 +230,11 @@ fn multi_reads_vectorization_update(
                     vectorizations.insert(original, Vect::Aligned(1));
                 }
                 Vect::Aligned(new) => {
-                    let val = if new != ori { 1 } else { new };
+                    let val = if new == ori { new } else { 1 };
                     vectorizations.insert(original, Vect::Aligned(val));
                 }
             },
-        };
+        }
     } else {
         vectorizations.insert(original, vect);
     }

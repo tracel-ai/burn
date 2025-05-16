@@ -26,7 +26,7 @@ where
     B: Backend,
 {
     fn run(self) {
-        for item in self.receiver.iter() {
+        for item in &self.receiver {
             match item {
                 Message::Restore(epoch, device, callback) => {
                     let record = self.checkpointer.restore(epoch, &device);
@@ -45,7 +45,7 @@ where
                 Message::End => {
                     return;
                 }
-            };
+            }
         }
     }
 }
@@ -104,7 +104,7 @@ where
 
         if let Ok(record) = receiver.recv() {
             return record;
-        };
+        }
 
         Err(CheckpointerError::Unknown("Channel error.".to_string()))
     }

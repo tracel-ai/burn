@@ -14,6 +14,7 @@ pub struct NodeBuilder {
 
 impl NodeBuilder {
     /// Create a new builder with the specified node type and name
+    #[must_use]
     pub fn new(node_type: NodeType, name: &str) -> Self {
         Self {
             node_type,
@@ -29,6 +30,7 @@ impl NodeBuilder {
     /// Note: Prefer using the specialized methods like `input_tensor_f32`,
     /// `input_scalar_f32`, etc. for better readability and type safety.
     #[doc(hidden)]
+    #[must_use]
     pub fn add_input(mut self, name: &str, ty: ArgType) -> Self {
         self.inputs.push(Argument {
             name: name.to_string(),
@@ -40,6 +42,7 @@ impl NodeBuilder {
     }
 
     /// Add a float32 tensor input with the given name and rank
+    #[must_use]
     pub fn input_tensor_f32(
         self,
         name: &str,
@@ -57,6 +60,7 @@ impl NodeBuilder {
     }
 
     /// Add a float64 tensor input with the given name and rank
+    #[must_use]
     pub fn input_tensor_f64(
         self,
         name: &str,
@@ -74,6 +78,7 @@ impl NodeBuilder {
     }
 
     /// Add an int32 tensor input with the given name and rank
+    #[must_use]
     pub fn input_tensor_i32(
         self,
         name: &str,
@@ -91,6 +96,7 @@ impl NodeBuilder {
     }
 
     /// Add an int64 tensor input with the given name and rank
+    #[must_use]
     pub fn input_tensor_i64(
         self,
         name: &str,
@@ -108,6 +114,7 @@ impl NodeBuilder {
     }
 
     /// Add a bool tensor input with the given name and rank
+    #[must_use]
     pub fn input_tensor_bool(
         self,
         name: &str,
@@ -125,6 +132,7 @@ impl NodeBuilder {
     }
 
     /// Add a float16 tensor input with the given name and rank
+    #[must_use]
     pub fn input_tensor_f16(
         self,
         name: &str,
@@ -142,6 +150,7 @@ impl NodeBuilder {
     }
 
     /// Add a string tensor input with the given name and rank
+    #[must_use]
     pub fn input_tensor_string(
         self,
         name: &str,
@@ -159,26 +168,31 @@ impl NodeBuilder {
     }
 
     /// Add a scalar input with the given name and element type
+    #[must_use]
     pub fn input_scalar(self, name: &str, elem_type: ElementType) -> Self {
         self.add_input(name, ArgType::Scalar(elem_type))
     }
 
     /// Add a float32 scalar input with the given name
+    #[must_use]
     pub fn input_scalar_f32(self, name: &str) -> Self {
         self.input_scalar(name, ElementType::Float32)
     }
 
     /// Add an int64 scalar input with the given name
+    #[must_use]
     pub fn input_scalar_i64(self, name: &str) -> Self {
         self.input_scalar(name, ElementType::Int64)
     }
 
     /// Add a shape input with the given name and rank
+    #[must_use]
     pub fn input_shape(self, name: &str, rank: usize) -> Self {
         self.add_input(name, ArgType::Shape(rank))
     }
 
     /// Add a tensor input with data value
+    #[must_use]
     pub fn input_tensor_with_data(
         mut self,
         name: &str,
@@ -202,6 +216,7 @@ impl NodeBuilder {
     }
 
     /// Add a float32 tensor input with data values
+    #[must_use]
     pub fn input_tensor_f32_data(self, name: &str, data: Vec<f32>, shape: Vec<usize>) -> Self {
         self.input_tensor_with_data(
             name,
@@ -213,6 +228,7 @@ impl NodeBuilder {
     }
 
     /// Add an int64 tensor input with data values
+    #[must_use]
     pub fn input_tensor_i64_data(self, name: &str, data: Vec<i64>, shape: Vec<usize>) -> Self {
         self.input_tensor_with_data(
             name,
@@ -224,6 +240,7 @@ impl NodeBuilder {
     }
 
     /// Add a float32 scalar tensor input (rank 0)
+    #[must_use]
     pub fn input_scalar_tensor_f32(mut self, name: &str, value: Option<f32>) -> Self {
         let arg = Argument {
             name: name.to_string(),
@@ -243,6 +260,7 @@ impl NodeBuilder {
     }
 
     /// Add an int64 scalar tensor input (rank 0)
+    #[must_use]
     pub fn input_scalar_tensor_i64(mut self, name: &str, value: i64) -> Self {
         let arg = Argument {
             name: name.to_string(),
@@ -262,6 +280,7 @@ impl NodeBuilder {
     }
 
     /// Add multiple tensor inputs with the same type but different names
+    #[must_use]
     pub fn input_tensors_f32<I>(
         mut self,
         name_prefix: &str,
@@ -270,11 +289,7 @@ impl NodeBuilder {
         static_shape: Option<Vec<usize>>,
     ) -> Self {
         for i in 0..count {
-            self = self.input_tensor_f32(
-                &format!("{}_{}", name_prefix, i),
-                rank,
-                static_shape.clone(),
-            );
+            self = self.input_tensor_f32(&format!("{name_prefix}_{i}"), rank, static_shape.clone());
         }
         self
     }
@@ -284,6 +299,7 @@ impl NodeBuilder {
     /// Note: Prefer using the specialized methods like `output_tensor_f32`,
     /// `output_scalar_f32`, etc. for better readability and type safety.
     #[doc(hidden)]
+    #[must_use]
     pub fn add_output(mut self, name: &str, ty: ArgType) -> Self {
         self.outputs.push(Argument {
             name: name.to_string(),
@@ -295,6 +311,7 @@ impl NodeBuilder {
     }
 
     /// Add a float32 tensor output with the given name and rank
+    #[must_use]
     pub fn output_tensor_f32(
         self,
         name: &str,
@@ -312,6 +329,7 @@ impl NodeBuilder {
     }
 
     /// Add a float64 tensor output with the given name and rank
+    #[must_use]
     pub fn output_tensor_f64(
         self,
         name: &str,
@@ -329,6 +347,7 @@ impl NodeBuilder {
     }
 
     /// Add an int32 tensor output with the given name and rank
+    #[must_use]
     pub fn output_tensor_i32(
         self,
         name: &str,
@@ -346,6 +365,7 @@ impl NodeBuilder {
     }
 
     /// Add an int64 tensor output with the given name and rank
+    #[must_use]
     pub fn output_tensor_i64(
         self,
         name: &str,
@@ -363,6 +383,7 @@ impl NodeBuilder {
     }
 
     /// Add a bool tensor output with the given name and rank
+    #[must_use]
     pub fn output_tensor_bool(
         self,
         name: &str,
@@ -380,6 +401,7 @@ impl NodeBuilder {
     }
 
     /// Add a float16 tensor output with the given name and rank
+    #[must_use]
     pub fn output_tensor_f16(
         self,
         name: &str,
@@ -397,6 +419,7 @@ impl NodeBuilder {
     }
 
     /// Add a string tensor output with the given name and rank
+    #[must_use]
     pub fn output_tensor_string(
         self,
         name: &str,
@@ -414,26 +437,31 @@ impl NodeBuilder {
     }
 
     /// Add a scalar output with the given name and element type
+    #[must_use]
     pub fn output_scalar(self, name: &str, elem_type: ElementType) -> Self {
         self.add_output(name, ArgType::Scalar(elem_type))
     }
 
     /// Add a float32 scalar output with the given name
+    #[must_use]
     pub fn output_scalar_f32(self, name: &str) -> Self {
         self.output_scalar(name, ElementType::Float32)
     }
 
     /// Add an int64 scalar output with the given name
+    #[must_use]
     pub fn output_scalar_i64(self, name: &str) -> Self {
         self.output_scalar(name, ElementType::Int64)
     }
 
     /// Add a shape output with the given name and rank
+    #[must_use]
     pub fn output_shape(self, name: &str, rank: usize) -> Self {
         self.add_output(name, ArgType::Shape(rank))
     }
 
     /// Add an integer attribute
+    #[must_use]
     pub fn attr_int(mut self, name: &str, value: i64) -> Self {
         self.attrs
             .insert(name.to_string(), AttributeValue::Int64(value));
@@ -441,6 +469,7 @@ impl NodeBuilder {
     }
 
     /// Add a float attribute
+    #[must_use]
     pub fn attr_float(mut self, name: &str, value: f32) -> Self {
         self.attrs
             .insert(name.to_string(), AttributeValue::Float32(value));
@@ -448,6 +477,7 @@ impl NodeBuilder {
     }
 
     /// Add a string attribute
+    #[must_use]
     pub fn attr_string(mut self, name: &str, value: &str) -> Self {
         self.attrs
             .insert(name.to_string(), AttributeValue::String(value.to_string()));
@@ -455,6 +485,7 @@ impl NodeBuilder {
     }
 
     /// Add an integer array attribute
+    #[must_use]
     pub fn attr_ints(mut self, name: &str, values: Vec<i64>) -> Self {
         self.attrs
             .insert(name.to_string(), AttributeValue::Int64s(values));
@@ -462,6 +493,7 @@ impl NodeBuilder {
     }
 
     /// Add a float array attribute
+    #[must_use]
     pub fn attr_floats(mut self, name: &str, values: Vec<f32>) -> Self {
         self.attrs
             .insert(name.to_string(), AttributeValue::Float32s(values));
@@ -469,6 +501,7 @@ impl NodeBuilder {
     }
 
     /// Add a string array attribute
+    #[must_use]
     pub fn attr_strings(mut self, name: &str, values: Vec<String>) -> Self {
         self.attrs
             .insert(name.to_string(), AttributeValue::Strings(values));
@@ -476,6 +509,7 @@ impl NodeBuilder {
     }
 
     /// Add a tensor attribute
+    #[must_use]
     pub fn attr_tensor(mut self, name: &str, tensor: TensorData) -> Self {
         self.attrs
             .insert(name.to_string(), AttributeValue::Tensor(tensor));
@@ -483,6 +517,7 @@ impl NodeBuilder {
     }
 
     /// Add a default output with the given name
+    #[must_use]
     pub fn output_default(mut self, name: &str) -> Self {
         self.outputs.push(Argument {
             name: name.to_string(),
@@ -494,6 +529,7 @@ impl NodeBuilder {
     }
 
     /// Build the node
+    #[must_use]
     pub fn build(self) -> Node {
         Node {
             node_type: self.node_type,

@@ -59,11 +59,12 @@ pub(crate) fn parse_variants(ast: &syn::DeriveInput) -> Vec<EnumVariant> {
     let mut variants = Vec::new();
 
     if let syn::Data::Enum(enum_data) = &ast.data {
-        for variant in enum_data.variants.iter() {
-            if variant.fields.len() != 1 {
-                // No support for unit variants or variants with multiple fields
-                panic!("Enums are only supported for one field type")
-            }
+        for variant in &enum_data.variants {
+            // No support for unit variants or variants with multiple fields
+            assert!(
+                (variant.fields.len() == 1),
+                "Enums are only supported for one field type"
+            );
 
             let field = variant.fields.iter().next().unwrap();
 

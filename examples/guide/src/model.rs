@@ -43,8 +43,8 @@ impl ModelConfig {
 
 impl<B: Backend> Model<B> {
     /// # Shapes
-    ///   - Images [batch_size, height, width]
-    ///   - Output [batch_size, class_prob]
+    ///   - Images [`batch_size`, height, width]
+    ///   - Output [`batch_size`, `class_prob`]
     pub fn forward(&self, images: Tensor<B, 3>) -> Tensor<B, 2> {
         let [batch_size, height, width] = images.dims();
 

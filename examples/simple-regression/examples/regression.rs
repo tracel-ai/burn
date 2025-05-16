@@ -65,7 +65,7 @@ mod remote {
 /// Train a regression model and predict results on a number of samples.
 pub fn run<B: Backend>(device: B::Device) {
     training::run::<Autodiff<B>>(ARTIFACT_DIR, device.clone());
-    inference::infer::<B>(ARTIFACT_DIR, device)
+    inference::infer::<B>(ARTIFACT_DIR, device);
 }
 
 fn main() {

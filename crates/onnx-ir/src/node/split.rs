@@ -37,6 +37,7 @@ pub struct SplitConfig {
 }
 
 impl SplitConfig {
+    #[must_use]
     pub fn new(axis: usize, split_size: Option<usize>, split_sizes: Option<Vec<usize>>) -> Self {
         SplitConfig {
             axis,
@@ -46,7 +47,8 @@ impl SplitConfig {
     }
 }
 
-/// Creates a SplitConfig from the node attributes and inputs.
+/// Creates a `SplitConfig` from the node attributes and inputs.
+#[must_use]
 pub fn split_config(node: &Node) -> SplitConfig {
     // Initialize the axis to split along (default is 0 as per ONNX specification)
     let mut axis: i64 = 0;
@@ -65,7 +67,7 @@ pub fn split_config(node: &Node) -> SplitConfig {
     let mut num_outputs: Option<usize> = None;
 
     // Iterate through node attributes to extract relevant values
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         match key.as_str() {
             "axis" => axis = value.clone().into_i64(),
             "num_outputs" => num_outputs = Some(value.clone().into_i64() as usize),
@@ -75,9 +77,10 @@ pub fn split_config(node: &Node) -> SplitConfig {
 
     // Handle the case when num_outputs is provided to calculate uniform split size
     if let Some(num_outputs) = num_outputs {
-        if num_outputs == 0 {
-            panic!("Split: 'num_outputs' must be a positive value greater than zero");
-        }
+        assert!(
+            (num_outputs != 0),
+            "Split: 'num_outputs' must be a positive value greater than zero"
+        );
 
         let dim_size = tensor
             .static_shape
@@ -86,13 +89,12 @@ pub fn split_config(node: &Node) -> SplitConfig {
 
         // Calculate the split size considering any remainder for non-evenly divisible dimensions
         let calculated_split_size =
-            dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
+            dim_size / (num_outputs - usize::from(dim_size % num_outputs != 0));
 
-        if calculated_split_size == 0 {
-            panic!(
-                "Split: Calculated split size is zero. Please ensure 'num_outputs' is valid for the dimension size"
-            );
-        }
+        assert!(
+            (calculated_split_size != 0),
+            "Split: Calculated split size is zero. Please ensure 'num_outputs' is valid for the dimension size"
+        );
 
         // Assign the calculated split size
         split_size = Some(calculated_split_size);
@@ -119,11 +121,10 @@ pub fn split_config(node: &Node) -> SplitConfig {
     }
 
     // Ensure that only one of 'split_sizes' or 'num_outputs' is specified
-    if split_sizes.is_some() && split_size.is_some() {
-        panic!(
-            "Split: Cannot specify both 'split' input and 'num_outputs' attribute simultaneously"
-        );
-    }
+    assert!(
+        !(split_sizes.is_some() && split_size.is_some()),
+        "Split: Cannot specify both 'split' input and 'num_outputs' attribute simultaneously"
+    );
 
     // Infer split_size if neither custom split_sizes nor split_size is provided
     if split_sizes.is_none() && split_size.is_none() {
@@ -135,13 +136,12 @@ pub fn split_config(node: &Node) -> SplitConfig {
 
         // Calculate inferred split size based on number of outputs
         let calculated_split_size =
-            dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
+            dim_size / (num_outputs - usize::from(dim_size % num_outputs != 0));
 
-        if calculated_split_size == 0 {
-            panic!(
-                "Split: Inferred split size is zero. Please ensure the number of outputs is valid for the dimension size"
-            );
-        }
+        assert!(
+            (calculated_split_size != 0),
+            "Split: Inferred split size is zero. Please ensure the number of outputs is valid for the dimension size"
+        );
 
         split_size = Some(calculated_split_size);
     }
@@ -183,7 +183,7 @@ mod tests {
         // Add output tensors
         for i in 0..num_outputs {
             builder = builder.output_tensor_f32(
-                &format!("output_{}", i),
+                &format!("output_{i}"),
                 0, // Will be updated
                 None,
             );

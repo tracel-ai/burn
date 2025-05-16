@@ -181,7 +181,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
                     _ => {
                         self.on_elemwise_read(operation);
                     }
-                };
+                }
             } else if let OperationIr::NumericInt(_, op) = operation {
                 match op {
                     NumericOperationIr::SumDim(op) => {
@@ -211,7 +211,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
                     _ => {
                         self.on_elemwise_read(operation);
                     }
-                };
+                }
             } else {
                 self.on_elemwise_read(operation);
             }
@@ -261,7 +261,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
             properties.score += 1;
         } else {
             properties.ready = false;
-        };
+        }
 
         properties
     }

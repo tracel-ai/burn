@@ -4,9 +4,11 @@ use crate::ir::{ArgType, ElementType, Node, TensorType};
 pub fn range_update_outputs(node: &mut Node) {
     log::debug!("Range rank inference for node {}", node.name);
 
-    if node.inputs.len() != 3 {
-        panic!("Range: expected 3 inputs, found {}", node.inputs.len());
-    }
+    assert!(
+        (node.inputs.len() == 3),
+        "Range: expected 3 inputs, found {}",
+        node.inputs.len()
+    );
     log::debug!(
         "Range operation always produces rank 1 tensor for {}",
         node.name

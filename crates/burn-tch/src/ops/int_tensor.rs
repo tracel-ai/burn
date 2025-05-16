@@ -328,7 +328,7 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
     }
 
     fn int_abs(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.abs_(), |tensor| tensor.abs())
+        tensor.unary_ops(|mut tensor| tensor.abs_(), tch::Tensor::abs)
     }
 
     fn int_into_float(tensor: TchTensor) -> TchTensor {

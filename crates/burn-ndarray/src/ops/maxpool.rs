@@ -63,7 +63,7 @@ pub(crate) fn max_pool2d<E: FloatNdArrayElement>(
                     output[[b, c, oh, ow]] = max_val;
                 }
             }
-        })
+        });
     });
 
     NdArrayTensor::new(output.into_dyn().into_shared())
@@ -133,7 +133,7 @@ pub(crate) fn max_pool2d_with_indices<E: FloatNdArrayElement, I: IntNdArrayEleme
                     indices[[b, c, oh, ow]] = index.elem();
                 }
             }
-        })
+        });
     });
 
     let output = NdArrayTensor::new(output.into_dyn().into_shared());

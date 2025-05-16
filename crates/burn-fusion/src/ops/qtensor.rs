@@ -85,7 +85,10 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             tensor: tensor.into_ir(),
             qparams: QuantizationParametersIr {
                 scale: qparams.scale.clone().into_ir(),
-                offset: qparams.offset.clone().map(|x| x.into_ir()),
+                offset: qparams
+                    .offset
+                    .clone()
+                    .map(super::super::tensor::FusionTensor::into_ir),
             },
             scheme: *scheme,
             out: out.to_ir_out(),

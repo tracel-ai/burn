@@ -64,7 +64,7 @@ pub(crate) fn avg_pool2d<E: FloatNdArrayElement>(
                     output[[b, c, oh, ow]] = sum_val / count;
                 }
             }
-        })
+        });
     });
 
     NdArrayTensor::new(output.into_dyn().into_shared())
@@ -110,9 +110,10 @@ pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
                     let ih_end = usize::min(ih_end, x_height + padding_height);
                     let iw_end = usize::min(iw_end, x_width + padding_width);
 
-                    let count = match count_include_pad {
-                        true => kernel_width * kernel_height,
-                        false => (ih_end - ih_start) * (iw_end - iw_start),
+                    let count = if count_include_pad {
+                        kernel_width * kernel_height
+                    } else {
+                        (ih_end - ih_start) * (iw_end - iw_start)
                     };
 
                     for ih in ih_start..ih_end {
@@ -126,7 +127,7 @@ pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
                     }
                 }
             }
-        })
+        });
     });
 
     NdArrayTensor::new(output_grad.into_dyn().into_shared())

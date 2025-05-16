@@ -26,6 +26,7 @@ impl<B: Backend> RecallMetric<B> {
     ///
     /// * `threshold` - The threshold to transform a probability into a binary prediction.
     #[allow(dead_code)]
+    #[must_use]
     pub fn binary(threshold: f64) -> Self {
         Self {
             config: ClassificationMetricConfig {
@@ -44,6 +45,7 @@ impl<B: Backend> RecallMetric<B> {
     /// * `top_k` - The number of highest predictions considered to find the correct label (typically `1`).
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
+    #[must_use]
     pub fn multiclass(top_k: usize, class_reduction: ClassReduction) -> Self {
         Self {
             config: ClassificationMetricConfig {
@@ -63,6 +65,7 @@ impl<B: Backend> RecallMetric<B> {
     /// * `threshold` - The threshold to transform a probability into a binary prediction.
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
+    #[must_use]
     pub fn multilabel(threshold: f64, class_reduction: ClassReduction) -> Self {
         Self {
             config: ClassificationMetricConfig {
@@ -87,7 +90,7 @@ impl<B: Backend> RecallMetric<B> {
                     let nan_mask = aggregated_metric.is_nan();
                     aggregated_metric = aggregated_metric
                         .clone()
-                        .select(0, nan_mask.bool_not().argwhere().squeeze(1))
+                        .select(0, nan_mask.bool_not().argwhere().squeeze(1));
                 }
                 aggregated_metric.mean()
             }
@@ -113,7 +116,7 @@ impl<B: Backend> Metric for RecallMetric<B> {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> String {
@@ -151,7 +154,7 @@ mod tests {
         let mut metric = RecallMetric::binary(threshold);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
-            .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default())
+            .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default());
     }
 
     #[rstest]
@@ -168,7 +171,7 @@ mod tests {
         let mut metric = RecallMetric::multiclass(top_k, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
-            .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default())
+            .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default());
     }
 
     #[rstest]
@@ -183,7 +186,7 @@ mod tests {
         let mut metric = RecallMetric::multilabel(threshold, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
-            .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default())
+            .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default());
     }
 
     #[test]

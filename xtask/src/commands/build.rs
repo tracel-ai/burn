@@ -66,7 +66,7 @@ pub(crate) fn handle_command(
                 ]);
                 if std::env::var("DISABLE_WGPU").is_ok() {
                     args.exclude.extend(vec!["burn-wgpu".to_string()]);
-                };
+                }
             }
             // Build workspace
             base_commands::build::handle_command(args.try_into().unwrap())?;

@@ -72,13 +72,14 @@ pub enum UnsqueezeConfig {
     Runtime(Argument),
 }
 
-/// Creates UnsqueezeAxes configuration from the node attributes.
+/// Creates `UnsqueezeAxes` configuration from the node attributes.
 ///
 /// Note: This function should only execute if the second input is a constant.
 /// If it wasn't and the output shape was known, unsqueeze has been remapped to reshape.
+#[must_use]
 pub fn unsqueeze_config(node: &Node) -> UnsqueezeConfig {
     // Check if axes attribute exists
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         if key.as_str() == "axes" {
             return UnsqueezeConfig::Static(value.clone().into_i64s());
         }

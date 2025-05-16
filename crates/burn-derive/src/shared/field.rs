@@ -94,12 +94,12 @@ pub(crate) fn parse_fields(ast: &syn::DeriveInput) -> Vec<Field> {
 
     match &ast.data {
         syn::Data::Struct(struct_data) => {
-            for field in struct_data.fields.iter() {
+            for field in &struct_data.fields {
                 fields.push(field.clone());
             }
         }
         syn::Data::Enum(_) => panic!("Only struct can be derived"),
         syn::Data::Union(_) => panic!("Only struct can be derived"),
-    };
+    }
     fields
 }

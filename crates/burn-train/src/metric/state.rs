@@ -30,12 +30,14 @@ impl FormatOptions {
     }
 
     /// Specify the metric unit.
+    #[must_use]
     pub fn unit(mut self, unit: &str) -> Self {
         self.unit = Some(unit.to_string());
         self
     }
 
     /// Specify the floating point precision.
+    #[must_use]
     pub fn precision(mut self, precision: usize) -> Self {
         self.precision = Some(precision);
         self
@@ -44,6 +46,7 @@ impl FormatOptions {
 
 impl NumericMetricState {
     /// Create a new [numeric metric state](NumericMetricState).
+    #[must_use]
     pub fn new() -> Self {
         Self {
             sum: 0.0,

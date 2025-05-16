@@ -91,7 +91,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BoolTensorOp
 
     fn bool_into_float(tensor: NdArrayTensor<bool>) -> FloatTensor<Self> {
         new_tensor_float!(NdArrayTensor {
-            array: tensor.array.mapv(|a| (a as i32).elem()).into_shared(),
+            array: tensor.array.mapv(|a| i32::from(a).elem()).into_shared(),
         })
     }
 

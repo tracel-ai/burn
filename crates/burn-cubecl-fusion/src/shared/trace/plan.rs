@@ -114,7 +114,7 @@ impl<R: Runtime> LaunchPlan<'_, R> {
         let mut rank = 0;
         let mut blocks = Vec::with_capacity(fuse_blocks.len());
 
-        for b in fuse_blocks.iter() {
+        for b in fuse_blocks {
             rank = usize::max(b.shape_ref.len(), rank);
             let block = BlockPlan {
                 reference: ReferenceSelection::Searching,

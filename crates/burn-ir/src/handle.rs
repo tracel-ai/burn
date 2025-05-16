@@ -22,10 +22,11 @@ pub struct HandleContainer<H> {
 
 impl<H: Clone> HandleContainer<H> {
     /// Fork the container, useful for autotune.
+    #[must_use]
     pub fn fork(&self) -> Self {
         let mut handles = HashMap::with_capacity(self.handles.len());
 
-        for (id, handle) in self.handles.iter() {
+        for (id, handle) in &self.handles {
             handles.insert(*id, handle.clone());
         }
 
@@ -57,7 +58,8 @@ pub enum Handle<H> {
 }
 
 impl<H: Clone> HandleContainer<H> {
-    /// Create a new HandleContainer
+    /// Create a new `HandleContainer`
+    #[must_use]
     pub fn new() -> Self {
         Self {
             handles: HashMap::new(),
@@ -87,7 +89,7 @@ impl<H: Clone> HandleContainer<H> {
         let (id, handle) = self
             .handles
             .remove_entry(id)
-            .unwrap_or_else(|| panic!("Should have handle for tensor {:?}", id));
+            .unwrap_or_else(|| panic!("Should have handle for tensor {id:?}"));
 
         match handle {
             Handle::Existing(handle) => match status {
@@ -97,11 +99,10 @@ impl<H: Clone> HandleContainer<H> {
                 }
                 TensorStatus::ReadWrite => handle,
                 TensorStatus::NotInit => panic!(
-                    "Cannot get uninitialized tensor {:?}. Tensor exist but with wrong status",
-                    id
+                    "Cannot get uninitialized tensor {id:?}. Tensor exist but with wrong status"
                 ),
             },
-            Handle::NotInit => panic!("Cannot get uninitialized handle {:?}.", id),
+            Handle::NotInit => panic!("Cannot get uninitialized handle {id:?}."),
         }
     }
 

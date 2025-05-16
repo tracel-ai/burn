@@ -24,8 +24,9 @@ pub struct Conv1dConfig {
 }
 
 impl Conv1dConfig {
-    /// Create a new Conv1dConfig
+    /// Create a new `Conv1dConfig`
     #[allow(clippy::too_many_arguments)]
+    #[must_use]
     pub fn new(
         channels_in: usize,
         channels_out: usize,
@@ -41,15 +42,16 @@ impl Conv1dConfig {
             channels_out,
             kernel_size,
             stride,
-            padding,
             dilation,
             groups,
             bias,
+            padding,
         }
     }
 }
 
-/// Create a Conv1dConfig from the attributes of the node
+/// Create a `Conv1dConfig` from the attributes of the node
+#[must_use]
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
     let mut kernel_shape = Vec::new(); // TODO default inferred from weight tensor per spec
     let mut strides = vec![1];
@@ -67,7 +69,7 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
     // check if the bias is present
     let bias = curr.inputs.len() == 3;
 
-    for (key, value) in curr.attrs.iter() {
+    for (key, value) in &curr.attrs {
         match key.as_str() {
             "kernel_shape" => kernel_shape = value.clone().into_i64s(),
             "strides" => strides = value.clone().into_i64s(),

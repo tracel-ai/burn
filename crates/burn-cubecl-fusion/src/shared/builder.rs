@@ -76,7 +76,7 @@ impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
                 self.status = OptimizationStatus::Closed;
                 return;
             }
-        };
+        }
 
         self.status = OptimizationStatus::Open;
         self.num_ops += 1;
@@ -181,10 +181,10 @@ impl FuseOptimizationBuilder {
             input
         });
 
-        let args = if !is_success {
-            return None;
-        } else {
+        let args = if is_success {
             args.map(|arg| arg.unwrap())
+        } else {
+            return None;
         };
 
         let current_output_shape = core::mem::take(&mut self.current_output_shape);

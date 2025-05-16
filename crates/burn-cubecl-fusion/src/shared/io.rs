@@ -1,4 +1,11 @@
-use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
+use super::{
+    DYN_ELEM_ID,
+    ir::{
+        Arg, FuseBlockConfig, FusePrecision, GlobalArgs, LayoutInfo, LocalArgs, RefLayout,
+        VirtualLayout,
+    },
+    tensor::GlobalTensor,
+};
 use cubecl::{
     intrinsic,
     ir::{ExpandElement, Variable},
@@ -27,7 +34,7 @@ pub fn read<C: CubePrimitive>(
             let global = inputs.tensors.index(pos);
             let line_size = global.tensor.line_size();
 
-            if comptime![!global.broadcasted && line_size != config.width as u32] {
+            if comptime![!global.broadcasted && line_size != u32::from(config.width)] {
                 read_input_aligned(inputs, locals, pos, ref_pos, layout, config, None)
             } else {
                 read_input(inputs, locals, pos, ref_pos, layout, config, None)
@@ -68,7 +75,7 @@ pub fn read<C: CubePrimitive>(
                 let global = inputs.tensors.index(pos);
                 let line_size = global.tensor.line_size();
 
-                if comptime![!broadcasted && line_size != config.width as u32] {
+                if comptime![!broadcasted && line_size != u32::from(config.width)] {
                     read_input_aligned(
                         inputs,
                         locals,
@@ -101,7 +108,7 @@ pub fn read<C: CubePrimitive>(
                 let global = inputs.tensors.index(pos);
                 let line_size = global.tensor.line_size();
 
-                if comptime![!broadcasted && line_size != config.width as u32] {
+                if comptime![!broadcasted && line_size != u32::from(config.width)] {
                     read_input_aligned(
                         inputs,
                         locals,
@@ -188,16 +195,16 @@ pub fn read_input_aligned<C: CubePrimitive>(
     #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
 ) -> Line<C> {
-    let mut result: Line<C> = Line::<C>::empty(comptime![config.width as u32]);
+    let mut result: Line<C> = Line::<C>::empty(comptime![u32::from(config.width)]);
     let tensor = inputs.tensors.index(pos);
 
     match comptime![transform.clone()] {
         Some(Transform::Reshape(shape)) => {
             // Very brute force, not really efficient, but not easy to optimize and not a very
             // frequent workflow.
-            let ref_pos = ref_pos * comptime![config.width as u32];
+            let ref_pos = ref_pos * comptime![u32::from(config.width)];
             #[unroll]
-            for i in 0u32..comptime!(config.width as u32) {
+            for i in 0u32..comptime!(u32::from(config.width)) {
                 let index = reshaped_index(
                     inputs,
                     locals,
@@ -216,7 +223,7 @@ pub fn read_input_aligned<C: CubePrimitive>(
             let stride = tensor.tensor.stride(comptime![i]);
 
             #[unroll]
-            for i in 0u32..comptime!(config.width as u32) {
+            for i in 0u32..comptime!(u32::from(config.width)) {
                 let index = offset + i * stride;
                 result[i] = C::cast_from(tensor.tensor[index][0])
             }
@@ -226,7 +233,7 @@ pub fn read_input_aligned<C: CubePrimitive>(
                 get_offset_aligned(inputs, locals, tensor, ref_pos, layout, config, transform);
             let stride = tensor.tensor.stride(comptime![config.rank - 1]);
             #[unroll]
-            for i in 0u32..comptime!(config.width as u32) {
+            for i in 0u32..comptime!(u32::from(config.width)) {
                 let index = offset + i * stride;
                 result[i] = C::cast_from(tensor.tensor[index][0])
             }
@@ -309,7 +316,7 @@ pub fn write<C: CubePrimitive>(
         }
         Arg::Local(pos, precision) => match comptime![precision] {
             FusePrecision::F32 | FusePrecision::Flex32 => {
-                locals.l_f32.insert(pos, Line::cast_from(value))
+                locals.l_f32.insert(pos, Line::cast_from(value));
             }
             FusePrecision::F16 => locals.l_f16.insert(pos, Line::cast_from(value)),
             FusePrecision::BF16 => locals.l_bf16.insert(pos, Line::cast_from(value)),

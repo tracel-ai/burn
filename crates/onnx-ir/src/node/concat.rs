@@ -25,6 +25,7 @@ pub fn concat_update_outputs(node: &mut Node) {
 }
 
 /// Create concat config from the attributes of the node
+#[must_use]
 pub fn concat_config(node: &Node) -> usize {
     // the axis is the last dimension (Default: 1 per ONNX spec)
     let mut axis: i64 = 1;
@@ -36,9 +37,9 @@ pub fn concat_config(node: &Node) -> usize {
     };
 
     // extract the attributes
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         if key.as_str() == "axis" {
-            axis = value.clone().into_i64()
+            axis = value.clone().into_i64();
         }
     }
 

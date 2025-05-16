@@ -27,7 +27,7 @@ impl<B: BackendIr> Processor<B> {
         let (sender, rec) = std::sync::mpsc::sync_channel(1);
 
         std::thread::spawn(move || {
-            for item in rec.iter() {
+            for item in &rec {
                 match item {
                     ProcessorTask::RegisterOperation(op) => {
                         runner.register(*op);

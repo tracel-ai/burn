@@ -15,6 +15,7 @@ pub struct CpuMemory {
 
 impl CpuMemory {
     /// Creates a new memory metric
+    #[must_use]
     pub fn new() -> Self {
         let mut metric = Self {
             last_refresh: Instant::now(),

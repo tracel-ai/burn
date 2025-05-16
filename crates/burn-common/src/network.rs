@@ -18,6 +18,7 @@ pub mod downloader {
     /// A vector of bytes containing the downloaded file data.
     #[cfg(feature = "std")]
     #[tokio::main(flavor = "current_thread")]
+    #[must_use]
     pub async fn download_file_as_bytes(url: &str, message: &str) -> Vec<u8> {
         // Get file from web
         let mut response = Client::new().get(url).send().await.unwrap();
@@ -34,7 +35,7 @@ pub mod downloader {
             .with_key(
                 "eta",
                 |state: &ProgressState, w: &mut dyn std::fmt::Write| {
-                    write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
+                    write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap();
                 },
             )
             .progress_chars("▬  "),

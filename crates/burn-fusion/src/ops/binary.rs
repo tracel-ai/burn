@@ -17,13 +17,13 @@ pub(crate) fn check_binary_op(desc: BinaryOpIr) -> Result<BinaryOpIr, BinaryOpEr
 }
 
 pub(crate) fn check_binary_op_types(lhs: &TensorIr, rhs: &TensorIr) -> Result<(), BinaryOpError> {
-    if lhs.dtype != rhs.dtype {
+    if lhs.dtype == rhs.dtype {
+        Ok(())
+    } else {
         Err(BinaryOpError::DTypeMismatch {
             lhs: lhs.dtype,
             rhs: rhs.dtype,
         })
-    } else {
-        Ok(())
     }
 }
 

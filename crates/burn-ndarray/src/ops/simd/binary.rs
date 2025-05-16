@@ -287,7 +287,7 @@ fn binary<
         .zip(chunks_rhs.remainder())
         .zip(chunks_out.into_remainder())
     {
-        *out = Op::apply(*lhs, *rhs)
+        *out = Op::apply(*lhs, *rhs);
     }
 }
 

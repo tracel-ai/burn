@@ -310,14 +310,17 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let streams = tensors.iter().map(|t| t.stream).collect::<Vec<_>>();
 
         shape[dim] = 0;
-        for tensor in tensors.iter() {
+        for tensor in &tensors {
             shape[dim] += tensor.shape[dim];
         }
 
         let out = client.tensor_uninitialized(shape, B::BoolElem::dtype());
 
         let desc = CatOpIr {
-            tensors: tensors.into_iter().map(|t| t.into_ir()).collect(),
+            tensors: tensors
+                .into_iter()
+                .map(super::super::tensor::FusionTensor::into_ir)
+                .collect(),
             dim,
             out: out.to_ir_out(),
         };

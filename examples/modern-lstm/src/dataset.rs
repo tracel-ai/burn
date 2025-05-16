@@ -23,6 +23,7 @@ pub struct SequenceDatasetItem {
 }
 
 impl SequenceDatasetItem {
+    #[must_use]
     pub fn new(seq_length: usize, noise_level: f32) -> Self {
         // Start with two random numbers between 0 and 1
         let mut seq = vec![rand::rng().random(), rand::rng().random()];
@@ -50,6 +51,7 @@ pub struct SequenceDataset {
 }
 
 impl SequenceDataset {
+    #[must_use]
     pub fn new(num_sequences: usize, seq_length: usize, noise_level: f32) -> Self {
         let mut items = vec![];
         for _i in 0..num_sequences {
@@ -84,7 +86,7 @@ impl<B: Backend> Batcher<B, SequenceDatasetItem, SequenceBatch<B>> for SequenceB
     fn batch(&self, items: Vec<SequenceDatasetItem>, device: &B::Device) -> SequenceBatch<B> {
         let mut sequences: Vec<Tensor<B, 2>> = Vec::new();
 
-        for item in items.iter() {
+        for item in &items {
             let seq_tensor = Tensor::<B, 1>::from_floats(item.sequence.as_slice(), device);
             // Add feature dimension, the input_size is 1 implicitly. We can change the input_size here with some operations
             sequences.push(seq_tensor.unsqueeze_dims(&[-1]));

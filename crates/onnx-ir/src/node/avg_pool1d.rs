@@ -2,7 +2,7 @@ use crate::{ir::Node, node::padding::padding_config_1d};
 
 use super::padding::PaddingConfig1d;
 
-/// Configuration for AvgPool1d operations extracted from ONNX nodes
+/// Configuration for `AvgPool1d` operations extracted from ONNX nodes
 #[derive(Debug, Clone)]
 pub struct AvgPool1dConfig {
     /// Kernel size
@@ -16,7 +16,8 @@ pub struct AvgPool1dConfig {
 }
 
 impl AvgPool1dConfig {
-    /// Create a new AvgPool1dConfig
+    /// Create a new `AvgPool1dConfig`
+    #[must_use]
     pub fn new(
         kernel_size: usize,
         stride: usize,
@@ -32,7 +33,8 @@ impl AvgPool1dConfig {
     }
 }
 
-/// Create an AvgPool1dConfig from the attributes of the node
+/// Create an `AvgPool1dConfig` from the attributes of the node
+#[must_use]
 pub fn avg_pool1d_config(curr: &Node) -> AvgPool1dConfig {
     let mut kernel_shape = Vec::new();
     let mut strides = vec![1];
@@ -40,7 +42,7 @@ pub fn avg_pool1d_config(curr: &Node) -> AvgPool1dConfig {
     let mut count_include_pad: i64 = 0;
     let mut ceil_mode: i64 = 0;
 
-    for (key, value) in curr.attrs.iter() {
+    for (key, value) in &curr.attrs {
         match key.as_str() {
             "kernel_shape" => kernel_shape = value.clone().into_i64s(),
             "strides" => strides = value.clone().into_i64s(),
@@ -60,9 +62,7 @@ pub fn avg_pool1d_config(curr: &Node) -> AvgPool1dConfig {
     );
     assert_eq!(strides.len(), 1, "AvgPool1d: stride must have length 1");
 
-    if ceil_mode == 1 {
-        panic!("ceil_mode is not supported");
-    }
+    assert!((ceil_mode != 1), "ceil_mode is not supported");
 
     let padding = padding_config_1d(&pads);
 

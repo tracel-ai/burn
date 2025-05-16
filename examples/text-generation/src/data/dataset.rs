@@ -27,13 +27,16 @@ impl Dataset<TextGenerationItem> for DbPediaDataset {
 }
 
 impl DbPediaDataset {
+    #[must_use]
     pub fn train() -> Self {
         Self::new("train")
     }
 
+    #[must_use]
     pub fn test() -> Self {
         Self::new("test")
     }
+    #[must_use]
     pub fn new(split: &str) -> Self {
         let dataset: SqliteDataset<DbPediaItem> = HuggingfaceDatasetLoader::new("dbpedia_14")
             .dataset(split)

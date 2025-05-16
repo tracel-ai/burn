@@ -56,7 +56,7 @@ impl MetricsRenderer for TuiMetricsRenderer {
                 self.metrics_numeric.push_train(entry.name.clone(), value);
                 self.metrics_text.update_train(entry);
             }
-        };
+        }
     }
 
     fn update_valid(&mut self, state: MetricState) {
@@ -68,7 +68,7 @@ impl MetricsRenderer for TuiMetricsRenderer {
                 self.metrics_numeric.push_valid(entry.name.clone(), value);
                 self.metrics_text.update_valid(entry);
             }
-        };
+        }
     }
 
     fn render_train(&mut self, item: TrainingProgress) {
@@ -92,6 +92,7 @@ impl MetricsRenderer for TuiMetricsRenderer {
 
 impl TuiMetricsRenderer {
     /// Create a new terminal UI renderer.
+    #[must_use]
     pub fn new(interuptor: TrainingInterrupter, checkpoint: Option<usize>) -> Self {
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen).unwrap();
@@ -125,6 +126,7 @@ impl TuiMetricsRenderer {
     }
 
     /// Set the renderer to persistent mode.
+    #[must_use]
     pub fn persistent(mut self) -> Self {
         self.persistent = true;
         self
@@ -148,20 +150,19 @@ impl TuiMetricsRenderer {
         self.terminal.draw(|frame| {
             let size = frame.area();
 
-            match self.popup.view() {
-                Some(view) => view.render(frame, size),
-                None => {
-                    let view = MetricsView::new(
-                        self.metrics_numeric.view(),
-                        self.metrics_text.view(),
-                        self.progress.view(),
-                        ControlsView,
-                        self.status.view(),
-                    );
+            if let Some(view) = self.popup.view() {
+                view.render(frame, size)
+            } else {
+                let view = MetricsView::new(
+                    self.metrics_numeric.view(),
+                    self.metrics_text.view(),
+                    self.progress.view(),
+                    ControlsView,
+                    self.status.view(),
+                );
 
-                    view.render(frame, size);
-                }
-            };
+                view.render(frame, size);
+            }
         })?;
 
         Ok(())
@@ -245,7 +246,7 @@ impl TuiMetricsRenderer {
                         self.draw().ok();
                     }
                     Err(err) => {
-                        eprintln!("Error reading event: {}", err);
+                        eprintln!("Error reading event: {err}");
                         break;
                     }
                     _ => continue,
@@ -261,7 +262,7 @@ impl TuiMetricsRenderer {
         if self.previous_panic_hook.is_some() {
             if self.persistent {
                 if let Err(err) = self.handle_post_training() {
-                    eprintln!("Error in post-training handling: {}", err);
+                    eprintln!("Error in post-training handling: {err}");
                 }
             }
 

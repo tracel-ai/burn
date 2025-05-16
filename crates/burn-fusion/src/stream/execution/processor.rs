@@ -71,7 +71,7 @@ impl<O> Processor<O> {
                     segment.execute(id, store);
                     self.reset(store, segment.operations());
                 }
-            };
+            }
         }
     }
 
@@ -132,7 +132,7 @@ impl<O> Processor<O> {
         self.policy.reset();
 
         // Reset the policy state with the remaining operations
-        for operation in operations.iter() {
+        for operation in operations {
             self.policy.update(store, operation);
         }
     }

@@ -1,6 +1,6 @@
 use crate::Dataset;
 use rand::{Rng, SeedableRng, distr::Uniform, rngs::StdRng, seq::IteratorRandom};
-use std::{marker::PhantomData, ops::DerefMut, sync::Mutex};
+use std::{marker::PhantomData, sync::Mutex};
 
 /// Sample items from a dataset.
 ///
@@ -62,7 +62,7 @@ where
     fn index(&self) -> usize {
         let mut state = self.state.lock().unwrap();
 
-        match state.deref_mut() {
+        match &mut *state {
             SamplerState::WithReplacement(rng) => {
                 rng.sample(Uniform::new(0, self.dataset.len()).unwrap())
             }

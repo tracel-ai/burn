@@ -51,7 +51,7 @@ impl Mapper<MnistItemRaw, MnistItem> for BytesToImage {
         for (i, pixel) in item.image_bytes.iter().enumerate() {
             let x = i % WIDTH;
             let y = i / HEIGHT;
-            image_array[y][x] = *pixel as f32;
+            image_array[y][x] = f32::from(*pixel);
         }
 
         MnistItem {
@@ -83,11 +83,13 @@ impl Dataset<MnistItem> for MnistDataset {
 
 impl MnistDataset {
     /// Creates a new train dataset.
+    #[must_use]
     pub fn train() -> Self {
         Self::new("train")
     }
 
     /// Creates a new test dataset.
+    #[must_use]
     pub fn test() -> Self {
         Self::new("test")
     }
@@ -139,8 +141,8 @@ impl MnistDataset {
                 MnistDataset::download_file(TEST_IMAGES, &split_dir);
                 MnistDataset::download_file(TEST_LABELS, &split_dir);
             }
-            _ => panic!("Invalid split specified {}", split),
-        };
+            _ => panic!("Invalid split specified {split}"),
+        }
 
         split_dir
     }
@@ -191,7 +193,7 @@ impl MnistDataset {
 
         buf_images
             .chunks(WIDTH * HEIGHT)
-            .map(|chunk| chunk.to_vec())
+            .map(<[u8]>::to_vec)
             .collect()
     }
 

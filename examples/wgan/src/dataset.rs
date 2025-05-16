@@ -27,7 +27,7 @@ impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher {
             .iter()
             .map(|item| {
                 Tensor::<B, 1, Int>::from_data(
-                    TensorData::from([(item.label as i64).elem::<B::IntElem>()]),
+                    TensorData::from([i64::from(item.label).elem::<B::IntElem>()]),
                     device,
                 )
             })

@@ -71,6 +71,7 @@ pub struct TrainingProgress {
 
 impl TrainingProgress {
     /// Creates a new empty training progress.
+    #[must_use]
     pub fn none() -> Self {
         Self {
             progress: Progress {

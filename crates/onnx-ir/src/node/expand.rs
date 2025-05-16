@@ -62,10 +62,11 @@ pub enum ExpandShape {
     Runtime(Argument),
 }
 
-/// Creates an ExpandShape configuration from the given Node.
+/// Creates an `ExpandShape` configuration from the given Node.
 ///
 /// Extracts shape information from the node's second input to determine
 /// whether to use static or runtime shape expansion.
+#[must_use]
 pub fn expand_config(node: &Node) -> ExpandShape {
     match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {

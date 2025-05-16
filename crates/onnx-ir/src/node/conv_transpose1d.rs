@@ -1,6 +1,6 @@
 use crate::ir::Node;
 
-/// Configuration for ConvTranspose1d operations extracted from ONNX nodes
+/// Configuration for `ConvTranspose1d` operations extracted from ONNX nodes
 #[derive(Debug, Clone)]
 pub struct ConvTranspose1dConfig {
     /// Input channels
@@ -24,8 +24,9 @@ pub struct ConvTranspose1dConfig {
 }
 
 impl ConvTranspose1dConfig {
-    /// Create a new ConvTranspose1dConfig
+    /// Create a new `ConvTranspose1dConfig`
     #[allow(clippy::too_many_arguments)]
+    #[must_use]
     pub fn new(
         channels_in: usize,
         channels_out: usize,
@@ -42,16 +43,17 @@ impl ConvTranspose1dConfig {
             channels_out,
             kernel_size,
             stride,
-            padding,
             dilation,
             groups,
             bias,
+            padding,
             padding_out,
         }
     }
 }
 
-/// Create a ConvTranspose1dConfig from the attributes of the node
+/// Create a `ConvTranspose1dConfig` from the attributes of the node
+#[must_use]
 pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
     let mut kernel_shape = Vec::new(); // Default to empty vector
     let mut stride = vec![1]; // Default stride to 1
@@ -61,7 +63,7 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
     let mut output_padding = vec![0]; // Default output padding to 0
 
     // Extract attributes
-    for (key, value) in curr.attrs.iter() {
+    for (key, value) in &curr.attrs {
         match key.as_str() {
             "kernel_shape" => kernel_shape = value.clone().into_i64s(),
             "strides" => stride = value.clone().into_i64s(),
@@ -74,12 +76,10 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
     }
 
     // Check the pads are symmetric
-    if pads.len() != 2 || pads[0] != pads[1] {
-        panic!(
-            "Asymmetric padding is not supported for ConvTranspose1d: {:?}",
-            pads
-        );
-    }
+    assert!(
+        !(pads.len() != 2 || pads[0] != pads[1]),
+        "Asymmetric padding is not supported for ConvTranspose1d: {pads:?}"
+    );
 
     let weight_shape = curr.inputs[1]
         .value

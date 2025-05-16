@@ -1,14 +1,12 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 
-/// Updates the output rank for a ConstantOfShape node based on the rank of its input.
+/// Updates the output rank for a `ConstantOfShape` node based on the rank of its input.
 pub fn constant_of_shape_update_output(node: &mut Node) {
     log::debug!("ConstantOfShape rank inference for node {}", node.name);
 
-    let value_type = node
-        .attrs
-        .get("value")
-        .map(|v| v.clone().into_tensor().elem_type())
-        .unwrap_or(ElementType::Float32); // If not given, defaults to 0 as float32
+    let value_type = node.attrs.get("value").map_or(ElementType::Float32, |v| {
+        v.clone().into_tensor().elem_type()
+    }); // If not given, defaults to 0 as float32
     log::debug!(
         "ConstantOfShape value type for {}: {:?}",
         node.name,

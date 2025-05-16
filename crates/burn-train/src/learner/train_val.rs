@@ -50,7 +50,7 @@ impl<TO> TrainOutput<TO> {
 /// # Notes
 ///
 /// To be used with the [Learner](Learner) struct, the struct which implements this trait must
-/// also implement the [AutodiffModule] trait, which is done automatically with the
+/// also implement the [`AutodiffModule`] trait, which is done automatically with the
 /// [Module](burn_core::module::Module) derive.
 pub trait TrainStep<TI, TO> {
     /// Runs the training step, which executes the forward and backward passes.
@@ -160,7 +160,7 @@ impl<LC: LearnerComponents> Learner<LC> {
             self.grad_accumulation,
         );
 
-        for epoch in starting_epoch..self.num_epochs + 1 {
+        for epoch in starting_epoch..=self.num_epochs {
             if self.devices.len() > 1 {
                 (self.model, self.optim) = epoch_train.run_multi_device::<LC, OutputTrain>(
                     self.model,
@@ -169,7 +169,7 @@ impl<LC: LearnerComponents> Learner<LC> {
                     &mut self.event_processor,
                     self.devices.clone(),
                     &self.interrupter,
-                )
+                );
             } else {
                 (self.model, self.optim) = epoch_train.run::<LC, OutputTrain>(
                     self.model,
@@ -216,7 +216,7 @@ impl<LC: LearnerComponents> Learner<LC> {
         if let Some(summary) = self.summary {
             match summary.init() {
                 Ok(summary) => {
-                    println!("{}", summary.with_model(self.model.to_string()))
+                    println!("{}", summary.with_model(self.model.to_string()));
                 }
                 Err(err) => log::error!("Could not retrieve learner summary:\n{err}"),
             }

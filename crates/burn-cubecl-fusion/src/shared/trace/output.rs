@@ -94,7 +94,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         let mut outputs = Vec::new();
         core::mem::swap(&mut outputs, &mut self.outputs_sorted);
 
-        for output in outputs.into_iter() {
+        for output in outputs {
             let tensor_global = context
                 .tensors
                 .get(&output.tensor_relative.id)
@@ -154,14 +154,14 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         }
 
         for (i, block) in plan.blocks.iter_mut().enumerate() {
-            if !block.reference.is_found() {
+            if block.reference.is_found() {
+                Self::add_layout_info_inputs(block, &plan.handle_inputs);
+            } else {
                 Self::select_reference_from_inputs(
                     self.blocks[i].settings.ref_layout,
                     block,
                     &plan.handle_inputs,
                 );
-            } else {
-                Self::add_layout_info_inputs(block, &plan.handle_inputs);
             }
         }
     }
@@ -204,9 +204,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         RefLayoutSetting::Any => set_ref_as_concrete(block),
                         RefLayoutSetting::OnlyContiguous => {
                             if is_contiguous(&reference.global_shape, &reference.handle.strides) {
-                                set_ref_as_concrete(block)
+                                set_ref_as_concrete(block);
                             } else {
-                                set_ref_as_virtual(block)
+                                set_ref_as_virtual(block);
                             }
                         }
                     }
@@ -227,14 +227,14 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 InputReference::Reshaped { reshape_pos } => {
                     block.reference = ReferenceSelection::Reshaped { reshape_pos };
                 }
-            };
+            }
         } else {
             block.reference = ReferenceSelection::NotFound;
         }
     }
 
     fn add_layout_info_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput<R>]) {
-        for hi in handle_inputs.iter() {
+        for hi in handle_inputs {
             if let ReferenceSelection::Concrete { strides, shape, .. }
             | ReferenceSelection::VirtualShape { strides, shape, .. } = &block.reference
             {
@@ -285,8 +285,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     && pi.strides == strides
                     && block.reference.compatible_strides_for_inplace(strides)
             })
-            .map(|(pos, _)| OutputKind::Inplace { input_pos: pos })
-            .unwrap_or(OutputKind::Normal);
+            .map_or(OutputKind::Normal, |(pos, _)| OutputKind::Inplace {
+                input_pos: pos,
+            });
 
         (kind, block_idx)
     }
@@ -304,7 +305,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         let potential_inplace = block.potential_inplaces.remove(input_index);
         let handle_input = plan.handle_inputs.get(potential_inplace.input_pos).unwrap();
 
-        if !block.reference.is_found() {
+        if block.reference.is_found() {
+            // Already validated, necessary for correctness.
+            if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
+                op.out.add_layout_info(LayoutInfo::SameAsRef);
+            }
+        } else {
             let index_input = self
                 .resources
                 .inputs
@@ -321,18 +327,13 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 for op in ops.iter_mut() {
                     if let FuseOp::Assign(op) = op {
                         op.input.add_layout_info(LayoutInfo::IsRef);
-                    };
+                    }
                 }
             }
 
             if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
                 op.out.add_layout_info(LayoutInfo::IsRef);
-            };
-        } else {
-            // Already validated, necessary for correctness.
-            if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
-                op.out.add_layout_info(LayoutInfo::SameAsRef);
-            };
+            }
         }
 
         context
@@ -382,7 +383,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             // Sometimes outputs that are manually handled don't have any write registered.
             if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
                 op.out.add_layout_info(LayoutInfo::IsRef);
-            };
+            }
         } else if let ReferenceSelection::Concrete {
             shape: ref_shape,
             strides: ref_strides,
@@ -394,7 +395,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     block.writes.get_mut(&output.tensor_relative.id).unwrap()
                 {
                     op.out.add_layout_info(LayoutInfo::SameAsRef);
-                };
+                }
             }
         }
 

@@ -319,13 +319,15 @@ impl FusedMatmul {
                 lhs_shape[..lhs_shape.len() - 2].to_vec(),
                 rhs_shape[..rhs_shape.len() - 2].to_vec(),
             ),
-            lhs_layout: match lhs_transposed {
-                true => components::MatrixLayout::ColMajor,
-                false => components::MatrixLayout::RowMajor,
+            lhs_layout: if lhs_transposed {
+                components::MatrixLayout::ColMajor
+            } else {
+                components::MatrixLayout::RowMajor
             },
-            rhs_layout: match rhs_transposed {
-                true => components::MatrixLayout::ColMajor,
-                false => components::MatrixLayout::RowMajor,
+            rhs_layout: if rhs_transposed {
+                components::MatrixLayout::ColMajor
+            } else {
+                components::MatrixLayout::RowMajor
             },
             lhs_line_size,
             rhs_line_size,
@@ -353,7 +355,7 @@ impl FusedMatmul {
                     problem,
                     plane_size,
                 ) {
-                    Ok(_) => Ok(()),
+                    Ok(()) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
@@ -365,7 +367,7 @@ impl FusedMatmul {
                     problem,
                     plane_size,
                 ) {
-                    Ok(_) => Ok(()),
+                    Ok(()) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }

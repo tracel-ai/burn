@@ -206,7 +206,7 @@ impl StructModuleCodegen {
         let mut body = quote! {};
         let mut names = Vec::new();
 
-        for field in self.fields.iter() {
+        for field in &self.fields {
             let name = field.ident();
 
             names.push(name.clone());
@@ -222,7 +222,7 @@ impl StructModuleCodegen {
     {
         let mut body = quote! {};
 
-        for field in self.fields.iter() {
+        for field in &self.fields {
             body.extend(func(field.ident()));
         }
 

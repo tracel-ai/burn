@@ -1,5 +1,6 @@
 use crate::ir::{ArgType, Node, TensorType};
 
+#[must_use]
 pub fn one_hot_config(curr: &Node) -> (usize, [f32; 2], i64) {
     let depth = curr.inputs[1]
         .value
@@ -18,13 +19,12 @@ pub fn one_hot_config(curr: &Node) -> (usize, [f32; 2], i64) {
     let axis = curr
         .attrs
         .get("axis")
-        .map(|val| val.clone().into_i64())
-        .unwrap_or(-1);
+        .map_or(-1, |val| val.clone().into_i64());
 
     (depth as usize, values.try_into().unwrap(), axis)
 }
 
-/// Update output rank for OneHot (input rank + 1).
+/// Update output rank for `OneHot` (input rank + 1).
 pub fn one_hot_output_shape(node: &mut Node) {
     log::debug!("OneHot rank inference for node {}", node.name);
 

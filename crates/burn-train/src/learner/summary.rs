@@ -141,10 +141,10 @@ impl Display for LearnerSummary {
         let split_valid = "Valid";
         let max_split_len = "Split".len().max(split_train.len()).max(split_valid.len());
         let mut max_metric_len = "Metric".len();
-        for metric in self.metrics.train.iter() {
+        for metric in &self.metrics.train {
             max_metric_len = max_metric_len.max(metric.name.len());
         }
-        for metric in self.metrics.valid.iter() {
+        for metric in &self.metrics.valid {
             max_metric_len = max_metric_len.max(metric.name.len());
         }
 
@@ -187,15 +187,15 @@ impl Display for LearnerSummary {
         fn fmt_val(val: f64) -> String {
             if val < 1e-2 {
                 // Use scientific notation for small values which would otherwise be truncated
-                format!("{:<9.3e}", val)
+                format!("{val:<9.3e}")
             } else {
-                format!("{:<9.3}", val)
+                format!("{val:<9.3}")
             }
         }
 
         let mut write_metrics_summary =
             |metrics: &[MetricSummary], split: &str| -> std::fmt::Result {
-                for metric in metrics.iter() {
+                for metric in metrics {
                     if metric.entries.is_empty() {
                         continue; // skip metrics with no recorded values
                     }

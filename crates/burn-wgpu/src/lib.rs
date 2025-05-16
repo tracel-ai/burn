@@ -55,7 +55,7 @@ pub use cubecl::wgpu::vulkan::VkSpirvCompiler;
 ///
 /// # Notes
 ///
-/// This version of the wgpu backend uses [burn_fusion] to compile and optimize streams of tensor
+/// This version of the wgpu backend uses [`burn_fusion`] to compile and optimize streams of tensor
 /// operations for improved performance.
 ///
 /// You can disable the `fusion` feature flag to remove that functionality, which might be

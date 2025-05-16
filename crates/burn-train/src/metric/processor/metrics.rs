@@ -29,7 +29,7 @@ impl<T: ItemLazy, V: ItemLazy> Metrics<T, V> {
         T::ItemSync: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
-        self.train.push(Box::new(metric))
+        self.train.push(Box::new(metric));
     }
 
     /// Register a validation metric.
@@ -38,7 +38,7 @@ impl<T: ItemLazy, V: ItemLazy> Metrics<T, V> {
         V::ItemSync: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
-        self.valid.push(Box::new(metric))
+        self.valid.push(Box::new(metric));
     }
 
     /// Register a numeric training metric.
@@ -49,7 +49,7 @@ impl<T: ItemLazy, V: ItemLazy> Metrics<T, V> {
         T::ItemSync: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
-        self.train_numeric.push(Box::new(metric))
+        self.train_numeric.push(Box::new(metric));
     }
 
     /// Register a numeric validation metric.
@@ -60,7 +60,7 @@ impl<T: ItemLazy, V: ItemLazy> Metrics<T, V> {
         V::ItemSync: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
-        self.valid_numeric.push(Box::new(metric))
+        self.valid_numeric.push(Box::new(metric));
     }
 
     /// Update the training information from the training item.
@@ -72,12 +72,12 @@ impl<T: ItemLazy, V: ItemLazy> Metrics<T, V> {
         let mut entries = Vec::with_capacity(self.train.len());
         let mut entries_numeric = Vec::with_capacity(self.train_numeric.len());
 
-        for metric in self.train.iter_mut() {
+        for metric in &mut self.train {
             let state = metric.update(item, metadata);
             entries.push(state);
         }
 
-        for metric in self.train_numeric.iter_mut() {
+        for metric in &mut self.train_numeric {
             let (state, value) = metric.update(item, metadata);
             entries_numeric.push((state, value));
         }
@@ -94,12 +94,12 @@ impl<T: ItemLazy, V: ItemLazy> Metrics<T, V> {
         let mut entries = Vec::with_capacity(self.valid.len());
         let mut entries_numeric = Vec::with_capacity(self.valid_numeric.len());
 
-        for metric in self.valid.iter_mut() {
+        for metric in &mut self.valid {
             let state = metric.update(item, metadata);
             entries.push(state);
         }
 
-        for metric in self.valid_numeric.iter_mut() {
+        for metric in &mut self.valid_numeric {
             let (state, value) = metric.update(item, metadata);
             entries_numeric.push((state, value));
         }
@@ -109,20 +109,20 @@ impl<T: ItemLazy, V: ItemLazy> Metrics<T, V> {
 
     /// Signal the end of a training epoch.
     pub(crate) fn end_epoch_train(&mut self) {
-        for metric in self.train.iter_mut() {
+        for metric in &mut self.train {
             metric.clear();
         }
-        for metric in self.train_numeric.iter_mut() {
+        for metric in &mut self.train_numeric {
             metric.clear();
         }
     }
 
     /// Signal the end of a validation epoch.
     pub(crate) fn end_epoch_valid(&mut self) {
-        for metric in self.valid.iter_mut() {
+        for metric in &mut self.valid {
             metric.clear();
         }
-        for metric in self.valid_numeric.iter_mut() {
+        for metric in &mut self.valid_numeric {
             metric.clear();
         }
     }
@@ -180,7 +180,7 @@ where
     }
 
     fn clear(&mut self) {
-        self.metric.clear()
+        self.metric.clear();
     }
 }
 
@@ -195,6 +195,6 @@ where
     }
 
     fn clear(&mut self) {
-        self.metric.clear()
+        self.metric.clear();
     }
 }

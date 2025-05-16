@@ -81,7 +81,7 @@ impl FileMetricLogger {
     }
 
     fn epoch_directory(&self, epoch: usize) -> PathBuf {
-        let name = format!("{}{}", EPOCH_PREFIX, epoch);
+        let name = format!("{EPOCH_PREFIX}{epoch}");
         self.directory.join(name)
     }
 
@@ -103,20 +103,19 @@ impl MetricLogger for FileMetricLogger {
         let key = &item.name;
         let value = &item.serialize;
 
-        let logger = match self.loggers.get_mut(key) {
-            Some(val) => val,
-            None => {
-                self.create_directory(self.epoch);
+        let logger = if let Some(val) = self.loggers.get_mut(key) {
+            val
+        } else {
+            self.create_directory(self.epoch);
 
-                let file_path = self.file_path(key, self.epoch);
-                let logger = FileLogger::new(file_path);
-                let logger = AsyncLogger::new(logger);
+            let file_path = self.file_path(key, self.epoch);
+            let logger = FileLogger::new(file_path);
+            let logger = AsyncLogger::new(logger);
 
-                self.loggers.insert(key.clone(), logger);
-                self.loggers
-                    .get_mut(key)
-                    .expect("Can get the previously saved logger.")
-            }
+            self.loggers.insert(key.clone(), logger);
+            self.loggers
+                .get_mut(key)
+                .expect("Can get the previously saved logger.")
         };
 
         logger.log(value.clone());
@@ -129,7 +128,7 @@ impl MetricLogger for FileMetricLogger {
 
     fn read_numeric(&mut self, name: &str, epoch: usize) -> Result<Vec<NumericEntry>, String> {
         if let Some(value) = self.loggers.get(name) {
-            value.sync()
+            value.sync();
         }
 
         let file_path = self.file_path(name, epoch);
@@ -171,6 +170,7 @@ pub struct InMemoryMetricLogger {
 
 impl InMemoryMetricLogger {
     /// Create a new in-memory metric logger.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -188,7 +188,7 @@ impl MetricLogger for InMemoryMetricLogger {
     }
 
     fn end_epoch(&mut self, _epoch: usize) {
-        for (_, values) in self.values.iter_mut() {
+        for values in self.values.values_mut() {
             values.push(InMemoryLogger::default());
         }
     }

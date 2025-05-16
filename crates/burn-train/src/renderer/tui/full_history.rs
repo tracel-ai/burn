@@ -120,7 +120,7 @@ impl FullHistoryPoints {
             self.max_y = y;
         }
         if y < self.min_y {
-            self.min_y = y
+            self.min_y = y;
         }
 
         self.points.push((x, y));
@@ -192,10 +192,10 @@ mod tests {
         chart.update_max_sample_valid(0.6);
 
         for i in 0..100 {
-            chart.push_train(i as f64);
+            chart.push_train(f64::from(i));
         }
         for i in 0..60 {
-            chart.push_valid(i as f64);
+            chart.push_valid(f64::from(i));
         }
 
         let expected_train = vec![

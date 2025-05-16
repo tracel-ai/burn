@@ -26,11 +26,9 @@ pub fn coalesce(
 
 /// This function converts a Gemm node into a Linear node
 ///
-/// PyTorch and other frameworks use Gemm node to represent Linear layer.
+/// `PyTorch` and other frameworks use Gemm node to represent Linear layer.
 pub(crate) fn convert_gemm_to_linear(node: &mut Node) {
-    if node.outputs.len() != 1 {
-        panic!("Gemm node must have 1 output");
-    }
+    assert!((node.outputs.len() == 1), "Gemm node must have 1 output");
     let straight_linear = match (
         node.attrs.get("alpha"),
         node.attrs.get("beta"),
@@ -121,20 +119,18 @@ fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec
     transposed
 }
 
-/// This function converts a MatMul node into a Linear node if possible.
+/// This function converts a `MatMul` node into a Linear node if possible.
 ///
-/// PyTorch and other frameworks use MatMul node to represent Linear layer.
+/// `PyTorch` and other frameworks use `MatMul` node to represent Linear layer.
 ///
 /// This function also converts the following Add node into a Linear node if possible.
-/// Add node is used to represent bias in PyTorch.
+/// Add node is used to represent bias in `PyTorch`.
 pub(crate) fn convert_matmul_to_linear(
     node: &mut Node,
     iter_mut: &mut Peekable<Iter<NodeProto>>,
     graph_data: &GraphData,
 ) {
-    if node.inputs.len() != 2 {
-        panic!("MatMul node must have 2 inputs");
-    }
+    assert!((node.inputs.len() == 2), "MatMul node must have 2 inputs");
 
     // if the second input does not have a value, it is not a weight, then proceed to the next node
     if node.inputs[1].value.is_none() {

@@ -1,6 +1,6 @@
 use crate::ir::Node;
 
-/// Configuration for LayerNorm operations
+/// Configuration for `LayerNorm` operations
 #[derive(Debug, Clone)]
 pub struct LayerNormConfig {
     /// Number of features/model dimension
@@ -10,7 +10,8 @@ pub struct LayerNormConfig {
 }
 
 impl LayerNormConfig {
-    /// Create a new LayerNormConfig
+    /// Create a new `LayerNormConfig`
+    #[must_use]
     pub fn new(d_model: usize) -> Self {
         Self {
             d_model,
@@ -19,13 +20,15 @@ impl LayerNormConfig {
     }
 
     /// Set the epsilon value
+    #[must_use]
     pub fn with_epsilon(mut self, epsilon: f64) -> Self {
         self.epsilon = epsilon;
         self
     }
 }
 
-/// Create a LayerNormConfig from the attributes of the node
+/// Create a `LayerNormConfig` from the attributes of the node
+#[must_use]
 pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
     let weight_shape = node.inputs[1]
         .value
@@ -42,7 +45,7 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
     let mut axis = -1;
     let mut epsilon = 1e-5;
 
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         match key.as_str() {
             "axis" => axis = value.clone().into_i64(),
             "epsilon" => epsilon = value.clone().into_f32(),
@@ -51,12 +54,13 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
         }
     }
 
-    if axis != -1 && axis != weight_shape.len() as i64 - 1 {
-        panic!("LayerNorm: normalization is only supported on the last axis right now")
-    }
+    assert!(
+        !(axis != -1 && axis != weight_shape.len() as i64 - 1),
+        "LayerNorm: normalization is only supported on the last axis right now"
+    );
 
     (
-        LayerNormConfig::new(num_features).with_epsilon(epsilon as f64),
+        LayerNormConfig::new(num_features).with_epsilon(f64::from(epsilon)),
         stash_type == 1,
     )
 }

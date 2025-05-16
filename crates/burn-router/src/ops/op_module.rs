@@ -46,7 +46,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let desc = Conv1dOpIr {
             x: x.into_ir(),
             weight: weight.into_ir(),
-            bias: bias.map(|bias| bias.into_ir()),
+            bias: bias.map(super::super::tensor::RouterTensor::into_ir),
             options: options.into(),
             out: out.to_ir_out(),
         };
@@ -84,7 +84,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let desc = Conv2dOpIr {
             x: x.into_ir(),
             weight: weight.into_ir(),
-            bias: bias.map(|bias| bias.into_ir()),
+            bias: bias.map(super::super::tensor::RouterTensor::into_ir),
             options: options.into(),
             out: out.to_ir_out(),
         };
@@ -129,7 +129,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let desc = Conv3dOpIr {
             x: x.into_ir(),
             weight: weight.into_ir(),
-            bias: bias.map(|bias| bias.into_ir()),
+            bias: bias.map(super::super::tensor::RouterTensor::into_ir),
             options: options.into(),
             out: out.to_ir_out(),
         };
@@ -161,7 +161,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let desc = ConvTranspose1dOpIr {
             x: x.into_ir(),
             weight: weight.into_ir(),
-            bias: bias.map(|bias| bias.into_ir()),
+            bias: bias.map(super::super::tensor::RouterTensor::into_ir),
             options: options.into(),
             out: out.to_ir_out(),
         };
@@ -203,7 +203,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let desc = ConvTranspose2dOpIr {
             x: x.into_ir(),
             weight: weight.into_ir(),
-            bias: bias.map(|bias| bias.into_ir()),
+            bias: bias.map(super::super::tensor::RouterTensor::into_ir),
             options: options.into(),
             out: out.to_ir_out(),
         };
@@ -259,7 +259,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let desc = ConvTranspose3dOpIr {
             x: x.into_ir(),
             weight: weight.into_ir(),
-            bias: bias.map(|bias| bias.into_ir()),
+            bias: bias.map(super::super::tensor::RouterTensor::into_ir),
             options: options.into(),
             out: out.to_ir_out(),
         };
@@ -741,8 +741,8 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             x: x.into_ir(),
             offset: offset.into_ir(),
             weight: weight.into_ir(),
-            mask: mask.map(|mask| mask.into_ir()),
-            bias: bias.map(|bias| bias.into_ir()),
+            mask: mask.map(super::super::tensor::RouterTensor::into_ir),
+            bias: bias.map(super::super::tensor::RouterTensor::into_ir),
             options: options.into(),
             out: out.to_ir_out(),
         };
@@ -779,15 +779,19 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             x: x.into_ir(),
             offset: offset.into_ir(),
             weight: weight.into_ir(),
-            mask: mask.map(|mask| mask.into_ir()),
-            bias: bias.map(|bias| bias.into_ir()),
+            mask: mask.map(super::super::tensor::RouterTensor::into_ir),
+            bias: bias.map(super::super::tensor::RouterTensor::into_ir),
             options: options.into(),
             out_grad: output_grad.into_ir(),
             input_grad: input_grad.to_ir_out(),
             offset_grad: offset_grad.to_ir_out(),
             weight_grad: weight_grad.to_ir_out(),
-            mask_grad: mask_grad.as_ref().map(|mask_grad| mask_grad.to_ir_out()),
-            bias_grad: bias_grad.as_ref().map(|bias_grad| bias_grad.to_ir_out()),
+            mask_grad: mask_grad
+                .as_ref()
+                .map(super::super::tensor::RouterTensor::to_ir_out),
+            bias_grad: bias_grad
+                .as_ref()
+                .map(super::super::tensor::RouterTensor::to_ir_out),
         };
 
         client.register(OperationIr::Module(

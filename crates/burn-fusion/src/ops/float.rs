@@ -7,7 +7,13 @@ use crate::{
     stream::{StreamId, execution::Operation},
     unary_float_ops,
 };
-use burn_ir::*;
+use burn_ir::{
+    BackendIr, BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr,
+    FloatOperationIr, GatherOpIr, HandleContainer, InitOperationIr, MaskFillOpIr, MaskWhereOpIr,
+    NumericOperationIr, OperationIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr,
+    ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr,
+    SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr,
+};
 use burn_tensor::{
     Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor, binary_ops_shape},
@@ -1632,14 +1638,17 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = tensors.iter().map(|tensor| tensor.stream).collect();
         let mut shape: Vec<usize> = tensor_first.shape.clone();
         shape[dim] = 0;
-        for tensor in tensors.iter() {
+        for tensor in &tensors {
             shape[dim] += tensor.shape[dim];
         }
 
         let out = client.tensor_uninitialized(shape, dtype);
 
         let desc = CatOpIr {
-            tensors: tensors.into_iter().map(|t| t.into_ir()).collect(),
+            tensors: tensors
+                .into_iter()
+                .map(super::super::tensor::FusionTensor::into_ir)
+                .collect(),
             dim,
             out: out.to_ir_out(),
         };

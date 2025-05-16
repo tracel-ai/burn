@@ -29,7 +29,7 @@ impl<G: RecordItemCodegen> RecordCodegen<G> {
         let param: syn::Generics = parse_quote! { <S: burn::record::PrecisionSettings >};
         let mut generics = self.ty.generics.clone();
 
-        for param in param.params.into_iter() {
+        for param in param.params {
             generics.params.push(param);
         }
 
@@ -87,7 +87,7 @@ impl<G: RecordItemCodegen> RecordCodegen<G> {
     fn record_item_generics(&self) -> Generics {
         let param: syn::Generics = parse_quote! { <S: burn::record::PrecisionSettings >};
         let mut generics = self.ty.generics.clone();
-        for param in param.params.into_iter() {
+        for param in param.params {
             generics.params.push(param);
         }
 
@@ -122,7 +122,7 @@ struct RecordType {
 impl RecordType {
     fn from_ast(ast: &syn::DeriveInput) -> Self {
         let name = ast.ident.clone();
-        let item = Ident::new(format!("{}Item", name).as_str(), name.span());
+        let item = Ident::new(format!("{name}Item").as_str(), name.span());
         let has_backend = ast
             .generics
             .type_params()

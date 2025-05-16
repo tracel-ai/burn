@@ -80,10 +80,10 @@ impl SystemInfo {
                     _ => {}
                 }
                 if let Some(path) = line.strip_prefix("LIBTORCH_INCLUDE: ") {
-                    libtorch_include_dirs.push(PathBuf::from(path))
+                    libtorch_include_dirs.push(PathBuf::from(path));
                 }
                 if let Some(path) = line.strip_prefix("LIBTORCH_LIB: ") {
-                    libtorch_lib_dir = Some(PathBuf::from(path))
+                    libtorch_lib_dir = Some(PathBuf::from(path));
                 }
             }
             match cxx11_abi {
@@ -92,12 +92,10 @@ impl SystemInfo {
             }
         } else {
             let libtorch = Self::prepare_libtorch_dir(os)?;
-            let includes = env_var_rerun("LIBTORCH_INCLUDE")
-                .map(PathBuf::from)
-                .unwrap_or_else(|_| libtorch.clone());
-            let lib = env_var_rerun("LIBTORCH_LIB")
-                .map(PathBuf::from)
-                .unwrap_or_else(|_| libtorch.clone());
+            let includes =
+                env_var_rerun("LIBTORCH_INCLUDE").map_or_else(|_| libtorch.clone(), PathBuf::from);
+            let lib =
+                env_var_rerun("LIBTORCH_LIB").map_or_else(|_| libtorch.clone(), PathBuf::from);
             libtorch_include_dirs.push(includes.join("include"));
             libtorch_include_dirs.push(includes.join("include/torch/csrc/api/include"));
             if lib.ends_with("lib") {
@@ -144,7 +142,7 @@ impl SystemInfo {
         } else {
             "src/cuda_hack/fake_cuda_dependency.cpp"
         };
-        println!("cargo:rerun-if-changed={}", cuda_dependency);
+        println!("cargo:rerun-if-changed={cuda_dependency}");
 
         match self.os {
             Os::Linux | Os::Macos => {
@@ -169,12 +167,12 @@ impl SystemInfo {
                     .files(&[cuda_dependency])
                     .compile("burn-tch");
             }
-        };
+        }
     }
 
     fn make_cpu() {
         let cuda_dependency = "src/cuda_hack/fake_cuda_dependency.cpp";
-        println!("cargo:rerun-if-changed={}", cuda_dependency);
+        println!("cargo:rerun-if-changed={cuda_dependency}");
 
         let os = env::var("CARGO_CFG_TARGET_OS").expect("Unable to get TARGET_OS");
 
@@ -197,7 +195,7 @@ impl SystemInfo {
                     .files(&[cuda_dependency])
                     .compile("tch");
             }
-        };
+        }
     }
 }
 
@@ -229,14 +227,14 @@ fn main() {
     if gpu_found {
         fs::write(check_file, "#[allow(clippy::no_effect)]\n()").unwrap();
     } else {
-        let message = if !found_dir {
-            r#"Could not find libtorch dir.
+        let message = if found_dir {
+            "No libtorch_cuda or libtorch_hip found. Download the GPU version of libtorch to use a GPU device"
+        } else {
+            r"Could not find libtorch dir.
 
         If you are trying to use the automatically downloaded version, the path is not directly available on Windows. Instead, try setting the `LIBTORCH` environment variable for the manual download instructions.
 
-        If the library has already been downloaded in the torch-sys OUT_DIR, you can point the variable to this path (or move the downloaded lib and point to it)."#
-        } else {
-            "No libtorch_cuda or libtorch_hip found. Download the GPU version of libtorch to use a GPU device"
+        If the library has already been downloaded in the torch-sys OUT_DIR, you can point the variable to this path (or move the downloaded lib and point to it)."
         };
         fs::write(check_file, format!("panic!(\"{message}\")")).unwrap();
     }

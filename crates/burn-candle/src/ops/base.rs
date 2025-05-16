@@ -90,7 +90,7 @@ pub fn slice(tensor: CandleTensor, ranges: &[std::ops::Range<usize>]) -> CandleT
     for (i, range) in ranges.iter().enumerate().take(ranges.len()) {
         narrow_tensor = narrow_tensor
             .narrow(i, range.start, range.end - range.start)
-            .unwrap()
+            .unwrap();
     }
     CandleTensor::new(narrow_tensor)
 }

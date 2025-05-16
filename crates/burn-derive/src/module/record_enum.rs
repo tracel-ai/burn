@@ -17,7 +17,7 @@ impl ModuleRecordCodegen for EnumModuleRecordCodegen {
         let vis = &self.vis;
 
         // Capture the Record enum variant types
-        for variant in self.variants.iter() {
+        for variant in &self.variants {
             let ty = &variant.ty;
             let name = &variant.ident;
 

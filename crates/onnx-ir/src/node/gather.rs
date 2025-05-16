@@ -4,9 +4,10 @@ use crate::ir::{ArgType, ElementType, Node, TensorType};
 pub fn gather_update_outputs(node: &mut Node) {
     log::debug!("Gather rank inference for node {}", node.name);
 
-    if node.inputs.len() != 2 {
-        panic!("Gather requires two inputs: data and indices");
-    }
+    assert!(
+        (node.inputs.len() == 2),
+        "Gather requires two inputs: data and indices"
+    );
 
     let indices_rank = match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => tensor.rank,
@@ -69,31 +70,33 @@ pub fn gather_update_outputs(node: &mut Node) {
                 );
             }
         }
-        ty => panic!("Only tensor/shape input is valid but received: {:?}", ty),
+        ty => panic!("Only tensor/shape input is valid but received: {ty:?}"),
     }
 }
 
-/// Create a GatherConfig from the attributes of the node
+/// Create a `GatherConfig` from the attributes of the node
+#[must_use]
 pub fn gather_config(curr: &Node) -> usize {
     // Default: 0 per ONNX spec
     let mut dim: i64 = 0;
 
     // check if the node has only one input
-    if curr.inputs.len() != 2 {
-        panic!("Gather: index tensor must be present");
-    }
+    assert!(
+        (curr.inputs.len() == 2),
+        "Gather: index tensor must be present"
+    );
 
     // extract the shape of the input tensor
     let input_dim = match curr.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor.rank as i64,
         ArgType::Shape(_shape) => 1, // Shape is always 1-D
-        other => panic!("Only tensor or shape input is valid, got {:?}", other),
+        other => panic!("Only tensor or shape input is valid, got {other:?}"),
     };
 
     // extract the attributes
-    for (key, value) in curr.attrs.iter() {
+    for (key, value) in &curr.attrs {
         if key.as_str() == "axis" {
-            dim = value.clone().into_i64()
+            dim = value.clone().into_i64();
         }
     }
 

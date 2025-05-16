@@ -107,28 +107,28 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
 
             match (padded, strided, grouped) {
                 (true, true, true) => {
-                    conv2d_launch::<E, true, true, true>(x, w, &bias, &mut out, &options, ob)
+                    conv2d_launch::<E, true, true, true>(x, w, &bias, &mut out, &options, ob);
                 }
                 (true, false, true) => {
-                    conv2d_launch::<E, true, false, true>(x, w, &bias, &mut out, &options, ob)
+                    conv2d_launch::<E, true, false, true>(x, w, &bias, &mut out, &options, ob);
                 }
                 (false, true, true) => {
-                    conv2d_launch::<E, false, true, true>(x, w, &bias, &mut out, &options, ob)
+                    conv2d_launch::<E, false, true, true>(x, w, &bias, &mut out, &options, ob);
                 }
                 (false, false, true) => {
-                    conv2d_launch::<E, false, false, true>(x, w, &bias, &mut out, &options, ob)
+                    conv2d_launch::<E, false, false, true>(x, w, &bias, &mut out, &options, ob);
                 }
                 (true, true, false) => {
-                    conv2d_launch::<E, true, true, false>(x, w, &bias, &mut out, &options, ob)
+                    conv2d_launch::<E, true, true, false>(x, w, &bias, &mut out, &options, ob);
                 }
                 (true, false, false) => {
-                    conv2d_launch::<E, true, false, false>(x, w, &bias, &mut out, &options, ob)
+                    conv2d_launch::<E, true, false, false>(x, w, &bias, &mut out, &options, ob);
                 }
                 (false, true, false) => {
-                    conv2d_launch::<E, false, true, false>(x, w, &bias, &mut out, &options, ob)
+                    conv2d_launch::<E, false, true, false>(x, w, &bias, &mut out, &options, ob);
                 }
                 (false, false, false) => {
-                    conv2d_launch::<E, false, false, false>(x, w, &bias, &mut out, &options, ob)
+                    conv2d_launch::<E, false, false, false>(x, w, &bias, &mut out, &options, ob);
                 }
             }
         });

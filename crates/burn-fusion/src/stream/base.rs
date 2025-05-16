@@ -30,6 +30,7 @@ impl<R: FusionRuntime> Default for OperationQueue<R> {
 
 impl<R: FusionRuntime> OperationQueue<R> {
     /// Create a new empty queue.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             global: Vec::new(),
@@ -56,11 +57,13 @@ impl<R: FusionRuntime> OperationQueue<R> {
     }
 
     /// The size of the queue.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.global.len()
     }
 
     /// If the queue is empty.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

@@ -21,6 +21,7 @@ pub struct MetricMetadata {
 impl MetricMetadata {
     /// Fake metric metadata
     #[cfg(test)]
+    #[must_use]
     pub fn fake() -> Self {
         Self {
             progress: Progress {
@@ -132,11 +133,13 @@ impl NumericEntry {
 }
 
 /// Format a float with the given precision. Will use scientific notation if necessary.
+#[must_use]
 pub fn format_float(float: f64, precision: usize) -> String {
     let scientific_notation_threshold = 0.1_f64.powf(precision as f64 - 1.0);
 
-    match scientific_notation_threshold >= float {
-        true => format!("{float:.precision$e}"),
-        false => format!("{float:.precision$}"),
+    if scientific_notation_threshold >= float {
+        format!("{float:.precision$e}")
+    } else {
+        format!("{float:.precision$}")
     }
 }

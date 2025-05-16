@@ -21,7 +21,8 @@ pub struct Conv2dConfig {
 }
 
 impl Conv2dConfig {
-    /// Create a new Conv2dConfig
+    /// Create a new `Conv2dConfig`
+    #[must_use]
     pub fn new(
         channels: [usize; 2],
         kernel_size: [usize; 2],
@@ -43,7 +44,8 @@ impl Conv2dConfig {
     }
 }
 
-/// Create a Conv2dConfig from the attributes of the node
+/// Create a `Conv2dConfig` from the attributes of the node
+#[must_use]
 pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
     let mut kernel_shape = Vec::new(); // TODO default inferred from weight tensor per spec
     let mut strides = vec![1, 1];
@@ -61,7 +63,7 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
     // check if the bias is present
     let bias = curr.inputs.len() == 3;
 
-    for (key, value) in curr.attrs.iter() {
+    for (key, value) in &curr.attrs {
         match key.as_str() {
             "kernel_shape" => kernel_shape = value.clone().into_i64s(),
             "strides" => strides = value.clone().into_i64s(),

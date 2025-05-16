@@ -3,7 +3,7 @@ use burn_tensor::ops::ActivationOps;
 
 impl<E: TchElement, Q: QuantElement> ActivationOps<Self> for LibTorch<E, Q> {
     fn relu(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.relu_(), |tensor| tensor.relu())
+        tensor.unary_ops(|mut tensor| tensor.relu_(), tch::Tensor::relu)
     }
 
     fn gelu(tensor: TchTensor) -> TchTensor {
@@ -21,7 +21,7 @@ impl<E: TchElement, Q: QuantElement> ActivationOps<Self> for LibTorch<E, Q> {
     }
 
     fn sigmoid(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.sigmoid_(), |tensor| tensor.sigmoid())
+        tensor.unary_ops(|mut tensor| tensor.sigmoid_(), tch::Tensor::sigmoid)
     }
 
     fn log_sigmoid(tensor: TchTensor) -> TchTensor {

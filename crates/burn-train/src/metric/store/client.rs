@@ -40,6 +40,7 @@ impl EventStoreClient {
     }
 
     /// Find the epoch following the given criteria from the collected data.
+    #[must_use]
     pub fn find_epoch(
         &self,
         name: &str,
@@ -60,11 +61,12 @@ impl EventStoreClient {
 
         match receiver.recv() {
             Ok(value) => value,
-            Err(err) => panic!("Event store thread crashed: {:?}", err),
+            Err(err) => panic!("Event store thread crashed: {err:?}"),
         }
     }
 
     /// Find the metric value for the current epoch following the given criteria.
+    #[must_use]
     pub fn find_metric(
         &self,
         name: &str,
@@ -85,7 +87,7 @@ impl EventStoreClient {
 
         match receiver.recv() {
             Ok(value) => value,
-            Err(err) => panic!("Event store thread crashed: {:?}", err),
+            Err(err) => panic!("Event store thread crashed: {err:?}"),
         }
     }
 }
@@ -101,7 +103,7 @@ where
     C: EventStore,
 {
     fn run(mut self) {
-        for item in self.receiver.iter() {
+        for item in &self.receiver {
             match item {
                 Message::End => {
                     return;

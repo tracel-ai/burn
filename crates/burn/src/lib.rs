@@ -26,7 +26,7 @@
 //! with an ergonomic dashboard, and run inference everywhere from embedded devices to large GPU clusters.
 //!
 //! Burn was built from the ground up with training and inference in mind. It's also worth noting how Burn,
-//! in comparison to frameworks like PyTorch, simplifies the transition from training to deployment,
+//! in comparison to frameworks like `PyTorch`, simplifies the transition from training to deployment,
 //! eliminating the need for code changes.
 //!
 //! ## Backends
@@ -42,8 +42,8 @@
 //!
 //! - WGPU (WebGPU): Cross-Platform GPU Backend
 //! - Candle: Backend using the Candle bindings
-//! - LibTorch: Backend using the LibTorch bindings
-//! - NdArray: Backend using the NdArray primitive as data structure
+//! - `LibTorch`: Backend using the `LibTorch` bindings
+//! - `NdArray`: Backend using the `NdArray` primitive as data structure
 //! - Autodiff: Backend decorator that brings backpropagation to any backend
 //! - Fusion: Backend decorator that brings kernel fusion to backends that support it
 //!
@@ -70,19 +70,19 @@
 //!   - `metrics`: Includes system info metrics (CPU/GPU usage, etc.)
 //! - Dataset
 //!   - `dataset`: Includes a datasets library
-//!   - `audio`: Enables audio datasets (SpeechCommandsDataset)
-//!   - `sqlite`: Stores datasets in SQLite database
-//!   - `sqlite_bundled`: Use bundled version of SQLite
-//!   - `vision`: Enables vision datasets (MnistDataset)
+//!   - `audio`: Enables audio datasets (`SpeechCommandsDataset`)
+//!   - `sqlite`: Stores datasets in `SQLite` database
+//!   - `sqlite_bundled`: Use bundled version of `SQLite`
+//!   - `vision`: Enables vision datasets (`MnistDataset`)
 //! - Backends
 //!   - `wgpu`: Makes available the WGPU backend
 //!   - `webgpu`: Makes available the `wgpu` backend with the WebGPU Shading Language (WGSL) compiler
 //!   - `vulkan`: Makes available the `wgpu` backend with the alternative SPIR-V compiler
 //!   - `cuda`: Makes available the CUDA backend
-//!   - `rocm`: Makes available the ROCm backend
+//!   - `rocm`: Makes available the `ROCm` backend
 //!   - `candle`: Makes available the Candle backend
-//!   - `tch`: Makes available the LibTorch backend
-//!   - `ndarray`: Makes available the NdArray backend
+//!   - `tch`: Makes available the `LibTorch` backend
+//!   - `ndarray`: Makes available the `NdArray` backend
 //! - Backend specifications
 //!   - `accelerate`: If supported, Accelerate will be used
 //!   - `blas-netlib`: If supported, Blas Netlib will be use
@@ -93,7 +93,7 @@
 //! - Backend decorators
 //!   - `autodiff`: Makes available the Autodiff backend
 //! - Others:
-//!   - `std`: Activates the standard library (deactivate for no_std)
+//!   - `std`: Activates the standard library (deactivate for `no_std`)
 //!   - `server`: Enables the remote server.
 //!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
 //!   - `experimental-named-tensor`: Enables named tensors (experimental)

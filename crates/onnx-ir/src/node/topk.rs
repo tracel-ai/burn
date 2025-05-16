@@ -1,6 +1,6 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 
-/// Update output rank for TopK (same as input rank).
+/// Update output rank for `TopK` (same as input rank).
 pub fn top_k_update_output(node: &mut Node) {
     log::debug!("TopK rank inference for node {}", node.name);
 
@@ -28,7 +28,7 @@ pub fn top_k_update_output(node: &mut Node) {
     );
 }
 
-/// Configuration for the TopK operation.
+/// Configuration for the `TopK` operation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TopKConfig {
     /// The axis along which to perform the top-k selection.
@@ -38,13 +38,15 @@ pub struct TopKConfig {
 }
 
 impl TopKConfig {
-    /// Creates a new TopKConfig.
+    /// Creates a new `TopKConfig`.
+    #[must_use]
     pub fn new(axis: usize, k: usize) -> Self {
         Self { axis, k }
     }
 }
 
-/// Creates a TopKConfig from the node attributes and inputs.
+/// Creates a `TopKConfig` from the node attributes and inputs.
+#[must_use]
 pub fn top_k_config(node: &Node) -> TopKConfig {
     // Extract the shape of the input data tensor
     let data_tensor = match node.inputs.first().unwrap().clone().ty {
@@ -81,13 +83,13 @@ pub fn top_k_config(node: &Node) -> TopKConfig {
         if largest.clone().into_i64() != 1 {
             unimplemented!("TopK: only largest elements is supported")
         }
-    };
+    }
 
     if let Some(sorted) = node.attrs.get("sorted") {
         if sorted.clone().into_i64() != 1 {
             unimplemented!("TopK: only sorted elements is supported")
         }
-    };
+    }
 
     TopKConfig::new(axis as usize, k as usize)
 }

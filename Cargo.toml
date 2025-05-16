@@ -27,7 +27,7 @@ version = "0.18.0"
 [workspace.lints.clippy]
 suspicious = "deny"
 perf = "deny"
-pedantic = "deny"
+# pedantic = "deny"
 
 [workspace.dependencies]
 atomic_float = "1"

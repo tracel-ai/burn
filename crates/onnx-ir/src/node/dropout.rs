@@ -8,23 +8,26 @@ pub struct DropoutConfig {
 }
 
 impl DropoutConfig {
-    /// Create a new DropoutConfig
+    /// Create a new `DropoutConfig`
+    #[must_use]
     pub fn new(prob: f64) -> Self {
         Self { prob }
     }
 }
 
-/// Create a DropoutConfig from an attribute and state of the node
+/// Create a `DropoutConfig` from an attribute and state of the node
+#[must_use]
 pub fn dropout_config(node: &Node) -> DropoutConfig {
     // Opset 7 and older store probability as an attribute
     if node.attrs.contains_key("ratio") {
         let prob = node.attrs.get("ratio").unwrap().clone().into_f32();
-        return DropoutConfig::new(prob as f64);
+        return DropoutConfig::new(f64::from(prob));
     }
 
-    if node.inputs.len() < 2 {
-        panic!("Dropout configuration must have at least 2 inputs");
-    }
+    assert!(
+        (node.inputs.len() >= 2),
+        "Dropout configuration must have at least 2 inputs"
+    );
 
     let ratio = node.inputs[1]
         .value
@@ -35,7 +38,7 @@ pub fn dropout_config(node: &Node) -> DropoutConfig {
 
     let prob = match ratio {
         Data::Float16(ratio) => f64::from(f32::from(ratio)),
-        Data::Float32(ratio) => ratio as f64,
+        Data::Float32(ratio) => f64::from(ratio),
         Data::Float64(ratio) => ratio,
         _ => panic!("Dropout ratio must be a float"),
     };

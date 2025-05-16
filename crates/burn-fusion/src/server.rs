@@ -29,11 +29,11 @@ where
         operation: Box<dyn Operation<R>>,
     ) {
         self.streams
-            .register(streams, repr, operation, &mut self.handles)
+            .register(streams, repr, operation, &mut self.handles);
     }
 
     pub fn drain_stream(&mut self, id: StreamId) {
-        self.streams.drain(&mut self.handles, id)
+        self.streams.drain(&mut self.handles, id);
     }
 
     pub fn create_empty_handle(&mut self) -> Arc<TensorId> {

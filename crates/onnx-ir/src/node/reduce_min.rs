@@ -1,6 +1,7 @@
 use crate::ir::{ArgType, AttributeValue, Node, TensorType};
 
-/// Create a ReduceMinConfig from the attributes of the node
+/// Create a `ReduceMinConfig` from the attributes of the node
+#[must_use]
 pub fn reduce_min_config(node: &Node) -> Option<usize> {
     let mut axes = Vec::new();
     let mut keepdims = 1;
@@ -11,7 +12,7 @@ pub fn reduce_min_config(node: &Node) -> Option<usize> {
     };
 
     // Extract the attributes
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         match key.as_str() {
             "axes" => axes = value.clone().into_i64s(),
             "keepdims" => keepdims = value.clone().into_i64(),
@@ -19,17 +20,20 @@ pub fn reduce_min_config(node: &Node) -> Option<usize> {
         }
     }
 
-    if axes.len() > 1 {
-        panic!("ReduceMin: reducing on multiple dimensions is not supported")
-    }
+    assert!(
+        (axes.len() <= 1),
+        "ReduceMin: reducing on multiple dimensions is not supported"
+    );
 
-    if axes.is_empty() && keepdims == 1 {
-        panic!("ReduceMin: axes must be provided with keepdims")
-    }
+    assert!(
+        !(axes.is_empty() && keepdims == 1),
+        "ReduceMin: axes must be provided with keepdims"
+    );
 
-    if !axes.is_empty() && keepdims == 0 {
-        panic!("ReduceMin: the reduce operation must preserve the reduced dimension")
-    }
+    assert!(
+        !(!axes.is_empty() && keepdims == 0),
+        "ReduceMin: the reduce operation must preserve the reduced dimension"
+    );
 
     if axes.is_empty() {
         None
@@ -43,13 +47,14 @@ pub fn reduce_min_config(node: &Node) -> Option<usize> {
     }
 }
 
-/// Update output rank for ReduceMin based on axes.
+/// Update output rank for `ReduceMin` based on axes.
 pub fn reduce_min_update_outputs(node: &mut Node) {
     log::debug!("ReduceMin rank inference for node {}", node.name);
 
-    if node.inputs.len() != 1 {
-        panic!("ReduceMin: multiple inputs are not supported");
-    }
+    assert!(
+        (node.inputs.len() == 1),
+        "ReduceMin: multiple inputs are not supported"
+    );
     let tensor = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),

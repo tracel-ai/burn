@@ -72,9 +72,10 @@ mod tests {
         let mut items_original_2 = HashSet::new();
         let mut items_partial = HashSet::new();
         dataset_original.iter().enumerate().for_each(|(i, item)| {
-            match i >= 10 {
-                true => items_original_2.insert(item),
-                false => items_original_1.insert(item),
+            if i >= 10 {
+                items_original_2.insert(item)
+            } else {
+                items_original_1.insert(item)
             };
         });
 
@@ -99,9 +100,10 @@ mod tests {
         let mut items_partial = HashSet::new();
 
         dataset_original.iter().enumerate().for_each(|(i, item)| {
-            match !(10..20).contains(&i) {
-                true => items_original_2.insert(item),
-                false => items_original_1.insert(item),
+            if !(10..20).contains(&i) {
+                items_original_2.insert(item)
+            } else {
+                items_original_1.insert(item)
             };
         });
 

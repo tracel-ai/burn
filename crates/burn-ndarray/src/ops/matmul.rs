@@ -60,7 +60,7 @@ where
                     &rhs_slice,
                     beta,
                     &mut out_slice,
-                )
+                );
             }
         });
 
@@ -82,7 +82,7 @@ impl Strides {
     fn unflatten(&self, linear_index: usize) -> Vec<usize> {
         let mut coord = Vec::with_capacity(self.strides.len());
         let mut rem = linear_index;
-        for stride in self.strides.iter() {
+        for stride in &self.strides {
             coord.push(rem / stride);
             rem %= stride;
         }
@@ -113,18 +113,20 @@ impl Strides {
 ///   one dim is equal to 1 is broadcast.)
 fn output_shape(lsh: &Shape, rsh: &Shape) -> (Shape, Strides, Strides, Strides) {
     let ndims = lsh.num_dims();
-    if ndims < 2 {
-        panic!("Matrix multiplication requires an array with at least 2 dimensions.");
-    }
+    assert!(
+        (ndims >= 2),
+        "Matrix multiplication requires an array with at least 2 dimensions."
+    );
 
     // Fetch matrix dimensions and check compatibility.
     let l_rows = lsh.dims[ndims - 2];
     let l_cols = lsh.dims[ndims - 1];
     let r_rows = rsh.dims[ndims - 2];
     let r_cols = rsh.dims[ndims - 1];
-    if l_cols != r_rows {
-        panic!("Dimensions are incompatible for matrix multiplication.");
-    }
+    assert!(
+        (l_cols == r_rows),
+        "Dimensions are incompatible for matrix multiplication."
+    );
     // Set matrix dimensions of the output shape.
     let mut osh = vec![0; ndims];
     osh[ndims - 2] = l_rows;
@@ -253,7 +255,7 @@ mod tests {
                 Strides::new(vec![3, 1, 0]),
                 Strides::new(vec![12, 4, 1])
             )
-        )
+        );
     }
 
     #[test]

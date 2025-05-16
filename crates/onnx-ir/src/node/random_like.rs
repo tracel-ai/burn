@@ -2,15 +2,13 @@ use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
-/// Update output rank for RandomLike operations based on input rank.
+/// Update output rank for `RandomLike` operations based on input rank.
 pub fn random_like_update_output(node: &mut Node) {
     log::debug!("RandomLike rank inference for node {}", node.name);
 
-    let dtype = node
-        .attrs
-        .get("dtype")
-        .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
-        .unwrap_or(DataType::FLOAT);
+    let dtype = node.attrs.get("dtype").map_or(DataType::FLOAT, |val| {
+        DataType::from_i32(val.clone().into_i32()).unwrap()
+    });
     log::debug!("RandomLike dtype for {}: {:?}", node.name, dtype);
 
     let elem_type = match dtype {
@@ -46,7 +44,7 @@ mod tests {
         NodeBuilder::new(NodeType::RandomNormalLike, "test_random_like")
             .input_tensor_f32("input", input_rank, static_shape)
             .output_tensor_f32("output", 0, None) // Rank 0 will be updated
-            .attr_int("dtype", dtype as i64)
+            .attr_int("dtype", i64::from(dtype))
             .build()
     }
 

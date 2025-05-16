@@ -20,7 +20,7 @@ mod ops;
 mod server;
 mod tensor;
 
-pub(crate) use server::*;
+pub(crate) use server::FusionServer;
 
 pub use backend::*;
 pub use fusion::*;

@@ -30,7 +30,7 @@ impl RecordItemCodegen for EnumRecordItemCodegen {
         let vis = &self.vis;
 
         // Capture the Record enum variant types and names to transpose them in RecordItem
-        for variant in self.variants.iter() {
+        for variant in &self.variants {
             let ty = &variant.ty;
             let name = &variant.ident;
 
@@ -47,13 +47,13 @@ impl RecordItemCodegen for EnumRecordItemCodegen {
         let bound = bounds.to_string();
 
         // Capture the type's generics and bounds in where clauses
-        let (generics, generics_where) = if !has_backend {
-            let mut generics = generics.clone();
-            let param: syn::TypeParam = parse_quote! { B: burn::tensor::backend::Backend };
-            generics.params.push(syn::GenericParam::Type(param));
+        let (generics, generics_where) = if has_backend {
             let (generics, _, generics_where) = generics.split_for_impl();
             (quote! { #generics }, quote! { #generics_where })
         } else {
+            let mut generics = generics.clone();
+            let param: syn::TypeParam = parse_quote! { B: burn::tensor::backend::Backend };
+            generics.params.push(syn::GenericParam::Type(param));
             let (generics, _, generics_where) = generics.split_for_impl();
             (quote! { #generics }, quote! { #generics_where })
         };
@@ -74,7 +74,7 @@ impl RecordItemCodegen for EnumRecordItemCodegen {
     fn gen_into_item(&self, _item_name: &Ident) -> TokenStream {
         let mut into_item_match_arms = quote! {};
 
-        for variant in self.variants.iter() {
+        for variant in &self.variants {
             let name = &variant.ident;
 
             into_item_match_arms.extend(quote! {
@@ -94,7 +94,7 @@ impl RecordItemCodegen for EnumRecordItemCodegen {
     fn gen_from_item(&self) -> TokenStream {
         let mut from_item_match_arms = quote! {};
 
-        for variant in self.variants.iter() {
+        for variant in &self.variants {
             let name = &variant.ident;
 
             from_item_match_arms.extend(quote! {

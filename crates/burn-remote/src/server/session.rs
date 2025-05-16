@@ -120,13 +120,12 @@ impl<B: BackendIr> Session<B> {
     /// Select the current [stream](Stream) based on the given task.
     fn select(&mut self, stream_id: StreamId) -> Stream<B> {
         // We return the stream.
-        match self.streams.get(&stream_id) {
-            Some(stream) => stream.clone(),
-            None => {
-                let stream = Stream::<B>::new(self.runner.clone(), self.sender.clone());
-                self.streams.insert(stream_id, stream.clone());
-                stream
-            }
+        if let Some(stream) = self.streams.get(&stream_id) {
+            stream.clone()
+        } else {
+            let stream = Stream::<B>::new(self.runner.clone(), self.sender.clone());
+            self.streams.insert(stream_id, stream.clone());
+            stream
         }
     }
 

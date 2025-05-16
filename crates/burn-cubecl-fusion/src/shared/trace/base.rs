@@ -49,7 +49,7 @@ impl<R: Runtime> TuneOutput<R> {
             TuneOutput::Checked { handles } => match other {
                 TuneOutput::UnChecked(..) => {}
                 TuneOutput::Checked { handles: o } => {
-                    for (k, v) in o.into_iter() {
+                    for (k, v) in o {
                         handles.insert(k, v);
                     }
                 }
@@ -73,7 +73,7 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
         ) = (self, &other)
         {
             let mut num_checked = 0;
-            for (id, (shape, handle)) in handles_ref.iter() {
+            for (id, (shape, handle)) in handles_ref {
                 if let Some((shape_other, other)) = handles.get(id) {
                     assert_eq!(
                         handle.strides, other.strides,
@@ -88,7 +88,7 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
 
                     match handle.dtype {
                         DType::F64 => {
-                            data_ref.assert_approx_eq::<f64>(&data_other, Tolerance::permissive())
+                            data_ref.assert_approx_eq::<f64>(&data_other, Tolerance::permissive());
                         }
                         DType::F32 => {
                             data_ref.assert_approx_eq::<f32>(&data_other, Tolerance::permissive())

@@ -127,7 +127,7 @@ where
         self
     }
 
-    /// Update the checkpointing_strategy.
+    /// Update the `checkpointing_strategy`.
     pub fn with_checkpointing_strategy<CS>(mut self, strategy: CS) -> Self
     where
         CS: CheckpointingStrategy + 'static,
@@ -177,6 +177,7 @@ where
     ///
     /// The effect is similar to increasing the `batch size` and the `learning rate` by the `accumulation`
     /// amount.
+    #[must_use]
     pub fn grads_accumulation(mut self, accumulation: usize) -> Self {
         self.grad_accumulation = Some(accumulation);
         self
@@ -207,24 +208,28 @@ where
     }
 
     /// The number of epochs the training should last.
+    #[must_use]
     pub fn num_epochs(mut self, num_epochs: usize) -> Self {
         self.num_epochs = num_epochs;
         self
     }
 
     /// Run the training loop on multiple devices.
+    #[must_use]
     pub fn devices(mut self, devices: Vec<B::Device>) -> Self {
         self.devices = devices;
         self
     }
 
     /// The epoch from which the training must resume.
+    #[must_use]
     pub fn checkpoint(mut self, checkpoint: usize) -> Self {
         self.checkpoint = Some(checkpoint);
         self
     }
 
     /// Provides a handle that can be used to interrupt training.
+    #[must_use]
     pub fn interrupter(&self) -> TrainingInterrupter {
         self.interrupter.clone()
     }
@@ -242,6 +247,7 @@ where
     /// By default, Rust logs are captured and written into
     /// `experiment.log`. If disabled, standard Rust log handling
     /// will apply.
+    #[must_use]
     pub fn with_application_logger(
         mut self,
         logger: Option<Box<dyn ApplicationLoggerInstaller>>,
@@ -279,6 +285,7 @@ where
     /// Enable the training summary report.
     ///
     /// The summary will be displayed at the end of `.fit()`.
+    #[must_use]
     pub fn summary(mut self) -> Self {
         self.summary = true;
         self
@@ -314,7 +321,7 @@ where
     {
         if self.tracing_logger.is_some() {
             if let Err(e) = self.tracing_logger.as_ref().unwrap().install() {
-                log::warn!("Failed to install the experiment logger: {}", e);
+                log::warn!("Failed to install the experiment logger: {e}");
             }
         }
         let renderer = self

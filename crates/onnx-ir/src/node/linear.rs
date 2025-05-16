@@ -12,7 +12,8 @@ pub struct LinearConfig {
 }
 
 impl LinearConfig {
-    /// Create a new LinearConfig
+    /// Create a new `LinearConfig`
+    #[must_use]
     pub fn new(d_input: usize, d_output: usize) -> Self {
         Self {
             d_input,
@@ -22,6 +23,7 @@ impl LinearConfig {
     }
 
     /// Set whether bias is used
+    #[must_use]
     pub fn with_bias(mut self, bias: bool) -> Self {
         self.bias = bias;
         self
@@ -47,11 +49,10 @@ pub fn linear_update_outputs(node: &mut Node) {
     }
 }
 
-/// Create a LinearConfig from the attributes of the node
+/// Create a `LinearConfig` from the attributes of the node
+#[must_use]
 pub fn linear_config(node: &Node) -> LinearConfig {
-    if node.inputs.len() < 2 {
-        panic!("Linear: missing weight tensor");
-    }
+    assert!((node.inputs.len() >= 2), "Linear: missing weight tensor");
 
     let weight_shape = node.inputs[1]
         .value
@@ -61,12 +62,11 @@ pub fn linear_config(node: &Node) -> LinearConfig {
         .clone();
 
     // check if the weight tensor has at least 2 dimensions
-    if weight_shape.len() < 2 {
-        panic!(
-            "Linear: weight tensor must have at least 2 dimensions (got {:?})",
-            weight_shape.len()
-        );
-    }
+    assert!(
+        (weight_shape.len() >= 2),
+        "Linear: weight tensor must have at least 2 dimensions (got {:?})",
+        weight_shape.len()
+    );
 
     let (in_size, out_size) = (weight_shape[0], weight_shape[1]);
 

@@ -38,15 +38,15 @@ impl ConfigStructAnalyzer {
     fn names(&self) -> Vec<FieldTypeAnalyzer> {
         let mut names = Vec::new();
 
-        for field in self.fields_required.iter() {
+        for field in &self.fields_required {
             names.push(field.clone());
         }
 
-        for field in self.fields_option.iter() {
+        for field in &self.fields_option {
             names.push(field.clone());
         }
 
-        for (field, _) in self.fields_default.iter() {
+        for (field, _) in &self.fields_default {
             names.push(field.clone());
         }
 
@@ -56,7 +56,7 @@ impl ConfigStructAnalyzer {
     fn name_types(&self, names: &[FieldTypeAnalyzer]) -> Vec<TokenStream> {
         let mut name_types = Vec::new();
 
-        for field in names.iter() {
+        for field in names {
             let name = field.ident();
             let ty = &field.field.ty;
 
@@ -152,7 +152,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
         let mut body = quote! {};
         let mut names = Vec::new();
 
-        for field in self.fields_required.iter() {
+        for field in &self.fields_required {
             let name = field.ident();
             let ty = &field.field.ty;
 
@@ -164,7 +164,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
             });
         }
 
-        for field in self.fields_option.iter() {
+        for field in &self.fields_option {
             let name = field.ident();
 
             body.extend(quote! {
@@ -172,7 +172,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
             });
         }
 
-        for (field, attribute) in self.fields_default.iter() {
+        for (field, attribute) in &self.fields_default {
             let name = field.ident();
             let value = &attribute.value;
             match value {
@@ -188,7 +188,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
                         #name: #value,
                     });
                 }
-            };
+            }
         }
 
         let body = quote! {
@@ -205,7 +205,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
     fn gen_builder_fns(&self) -> TokenStream {
         let mut body = quote! {};
 
-        for (field, _) in self.fields_default.iter() {
+        for (field, _) in &self.fields_default {
             let name = field.ident();
             let doc = field.doc().unwrap_or_else(|| {
                 quote! {
@@ -224,7 +224,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
             });
         }
 
-        for field in self.fields_option.iter() {
+        for field in &self.fields_option {
             let name = field.ident();
             let ty = &field.field.ty;
             let fn_name = Ident::new(&format!("with_{name}"), name.span());

@@ -34,6 +34,7 @@ pub enum Storage {
 
 impl Storage {
     /// Check if the storage can be used inplace.
+    #[must_use]
     pub fn can_mut(&self) -> bool {
         match self {
             Storage::View {
@@ -47,6 +48,7 @@ impl Storage {
     }
 
     /// Get the whole buffer reference.
+    #[must_use]
     pub fn buffer_ref(&self) -> &StorageRef {
         match self {
             Storage::View {
@@ -98,8 +100,9 @@ impl TchTensor {
     /// Create a new tensor.
     ///
     /// Note that if the tensor was created from an operation that may reuse the same tensor
-    /// storage as the parent, you should use [from_existing](TchTensor::from_existing)
+    /// storage as the parent, you should use [`from_existing`](TchTensor::from_existing)
     /// instead.
+    #[must_use]
     pub fn new(tensor: tch::Tensor) -> Self {
         #[allow(clippy::arc_with_non_send_sync)]
         let storage = Storage::Owned {
@@ -113,6 +116,7 @@ impl TchTensor {
     ///
     /// If the child tensor shared the same storage as its parent, it will be cloned, effectively
     /// tracking how much tensors point to the same memory space.
+    #[must_use]
     pub fn from_existing(tensor: tch::Tensor, storage_parent: Storage) -> Self {
         let storage_child = tensor.data_ptr();
         let mut is_a_new_tensor = true;
@@ -133,20 +137,22 @@ impl TchTensor {
                     is_a_new_tensor = false;
                 }
             }
-        };
+        }
 
-        let storage = match is_a_new_tensor {
-            true => Storage::Owned {
+        let storage = if is_a_new_tensor {
+            Storage::Owned {
                 #[allow(clippy::arc_with_non_send_sync)]
                 buffer_ref: Arc::new(storage_child),
-            },
-            false => storage_parent.clone(),
+            }
+        } else {
+            storage_parent.clone()
         };
 
         Self { tensor, storage }
     }
 
     /// Create a tensor that uses a part of its parent tensor such as slice and narrow.
+    #[must_use]
     pub fn partial(tensor: tch::Tensor, storage_parent: Storage) -> Self {
         let storage = Storage::View {
             buffer_ref: storage_parent.buffer_ref().clone(),
@@ -168,6 +174,7 @@ impl TchTensor {
     ///
     /// Returns `true` if the tensor's stride does not contain zero (no broadcasting)
     /// and the storage can be mutated.
+    #[must_use]
     pub fn can_mut(&self) -> bool {
         let stride_contains_zero = self.tensor.stride().contains(&0);
 
@@ -256,7 +263,7 @@ impl Clone for TchTensor {
     }
 }
 
-/// A shape that can be used by LibTorch.
+/// A shape that can be used by `LibTorch`.
 #[derive(Debug)]
 pub struct TchShape {
     /// The shape's dimensions.
@@ -290,6 +297,7 @@ impl TchTensor {
     /// # Returns
     ///
     /// A new tensor.
+    #[must_use]
     pub fn from_data<E: TchElement>(data: TensorData, device: tch::Device) -> Self {
         let shape_tch = TchShape::from(data.shape.as_slice());
         let tensor = tch::Tensor::from_slice(data.as_slice::<E>().unwrap()).to(device);
@@ -310,6 +318,7 @@ impl TchTensor {
     /// # Returns
     ///
     /// A new empty tensor.
+    #[must_use]
     pub fn empty<E: tch::kind::Element>(shape: Shape, device: LibTorchDevice) -> Self {
         let shape_tch = TchShape::from(shape);
         let tensor = tch::Tensor::empty(shape_tch.dims, (E::KIND, device.into()));
@@ -329,6 +338,7 @@ pub struct TchQTensor {
 
 impl TchQTensor {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
+    #[must_use]
     pub fn strategy(&self) -> QuantizationStrategy {
         match &self.scheme {
             QuantScheme {

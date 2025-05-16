@@ -573,13 +573,13 @@ where
         );
         let batch_size = Self::gather_batch_size(&shape_tensor, &shape_indices);
 
-        if shape_value != shape_indices {
-            panic!(
-                "Invalid dimension: the shape of the index tensor should be the same as the value \
+        assert!(
+            !(shape_value != shape_indices),
+            "Invalid dimension: the shape of the index tensor should be the same as the value \
                  tensor: Index {:?} value {:?}",
-                shape_indices.dims, shape_value.dims
-            );
-        }
+            shape_indices.dims,
+            shape_value.dims
+        );
 
         let indices = NdArrayOps::reshape(indices, Shape::new([batch_size, size_index])).array;
         let value = NdArrayOps::reshape(value, Shape::new([batch_size, size_value])).array;
@@ -641,13 +641,13 @@ where
         let mut batch_size = 1;
 
         for i in 0..ndims - 1 {
-            if shape_tensor.dims[i] != shape_indices.dims[i] {
-                panic!(
-                    "Unsupported dimension, only the last dimension can differ: Tensor {:?} Index \
+            assert!(
+                (shape_tensor.dims[i] == shape_indices.dims[i]),
+                "Unsupported dimension, only the last dimension can differ: Tensor {:?} Index \
                      {:?}",
-                    shape_tensor.dims, shape_indices.dims
-                );
-            }
+                shape_tensor.dims,
+                shape_indices.dims
+            );
             batch_size *= shape_indices.dims[i];
         }
 
@@ -714,10 +714,7 @@ where
             f64
         );
 
-        tensor.array.mapv_inplace(|x| match x < min {
-            true => min,
-            false => x,
-        });
+        tensor.array.mapv_inplace(|x| if x < min { min } else { x });
 
         tensor
     }
@@ -740,10 +737,7 @@ where
             f64
         );
 
-        tensor.array.mapv_inplace(|x| match x > max {
-            true => max,
-            false => x,
-        });
+        tensor.array.mapv_inplace(|x| if x > max { max } else { x });
 
         tensor
     }
@@ -766,12 +760,14 @@ where
             f64
         );
 
-        tensor.array.mapv_inplace(|x| match x < min {
-            true => min,
-            false => match x > max {
-                true => max,
-                false => x,
-            },
+        tensor.array.mapv_inplace(|x| {
+            if x < min {
+                min
+            } else if x > max {
+                max
+            } else {
+                x
+            }
         });
 
         tensor
@@ -823,7 +819,10 @@ where
     pub(crate) fn abs(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let tensor = dispatch_unary_simd!(E, VecAbs, tensor, i8, i16, i32, f32, f64);
 
-        let array = tensor.array.mapv_into(|a| a.abs_elem()).into_shared();
+        let array = tensor
+            .array
+            .mapv_into(super::super::element::ExpElement::abs_elem)
+            .into_shared();
 
         NdArrayTensor::new(array)
     }

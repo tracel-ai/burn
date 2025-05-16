@@ -21,6 +21,7 @@ pub struct LossInput<B: Backend> {
 
 impl<B: Backend> LossMetric<B> {
     /// Create the metric.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -48,7 +49,7 @@ impl<B: Backend> Metric for LossMetric<B> {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> String {

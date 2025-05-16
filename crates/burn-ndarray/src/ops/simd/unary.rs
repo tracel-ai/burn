@@ -182,7 +182,7 @@ fn unary_slice<
         .iter()
         .zip(chunks_out.into_remainder())
     {
-        *out = Op::apply(*input)
+        *out = Op::apply(*input);
     }
 }
 
@@ -212,11 +212,11 @@ unsafe fn unary_slice_inplace<
             // Load a full vector from the aligned portion of the buffer.
             // SAFETY: `align_to_mut` guarantees we're aligned to `T::Vector`'s size, and there is
             // always a full vector in bounds.
-            let s~N = unsafe { vload(&elem[N] as *const _ as *const T) };
+            let s~N = unsafe { vload((&raw const elem[N]).cast::<T>()) };
             let s~N = Op::apply_vec::<S>(s~N);
             // Store a full vector at the same position as the input. Cast is safe because `Out` is
             // size and align compatible
-            unsafe { vstore(&mut elem[N] as *mut _ as *mut Out, s~N) };
+            unsafe { vstore((&raw mut elem[N]).cast::<Out>(), s~N) };
         });
     }
 
@@ -224,11 +224,11 @@ unsafe fn unary_slice_inplace<
         // Load a full vector from the aligned portion of the buffer.
         // SAFETY: `align_to_mut` guarantees we're aligned to `T::Vector`'s size, and there is
         // always a full vector in bounds.
-        let s0 = unsafe { vload(elem as *const _ as *const T) };
+        let s0 = unsafe { vload(std::ptr::from_ref(elem).cast::<T>()) };
 
         let s0 = Op::apply_vec::<S>(s0);
         // Store a full vector at the same position as the input. Cast is safe because `Out` is
         // size and align compatible
-        unsafe { vstore(elem as *mut _ as *mut Out, s0) };
+        unsafe { vstore(std::ptr::from_mut(elem).cast::<Out>(), s0) };
     }
 }

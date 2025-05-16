@@ -90,7 +90,7 @@ pub struct OptimizationProperties {
 /// the speed and efficiency of the computational graph. It doesn't mean that all registered
 /// operations should be fused, but that another way of executing them is more efficient.
 ///
-/// Also, it is important to return (OptimizationStatus::Closed) when no more registered operation can
+/// Also, it is important to return (`OptimizationStatus::Closed`) when no more registered operation can
 /// improve the performance.
 pub trait OptimizationBuilder<O>: Send {
     /// Register a new [tensor operation](OperationIr).

@@ -120,12 +120,11 @@ impl<B: BackendIr> WsServer<B> {
 
         loop {
             let packet = socket.recv().await;
-            let msg = match packet {
-                Some(msg) => msg,
-                None => {
-                    log::info!("Still no message");
-                    continue;
-                }
+            let msg = if let Some(msg) = packet {
+                msg
+            } else {
+                log::info!("Still no message");
+                continue;
             };
 
             if let Ok(ws::Message::Binary(bytes)) = msg {
@@ -142,13 +141,13 @@ impl<B: BackendIr> WsServer<B> {
                     break;
                 }
 
-                let (stream, connection_id, task) = match self.state.stream(&mut session_id, task) {
-                    Some(val) => val,
-                    None => {
+                let (stream, connection_id, task) =
+                    if let Some(val) = self.state.stream(&mut session_id, task) {
+                        val
+                    } else {
                         log::info!("Ops session activated {session_id:?}");
                         continue;
-                    }
-                };
+                    };
 
                 match task {
                     ComputeTask::RegisterOperation(op) => {
@@ -170,7 +169,7 @@ impl<B: BackendIr> WsServer<B> {
             } else {
                 log::info!("Not a binary message, closing, received {msg:?}");
                 break;
-            };
+            }
         }
 
         log::info!("Closing connection");

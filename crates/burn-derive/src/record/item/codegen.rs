@@ -12,7 +12,7 @@ pub(crate) trait RecordItemCodegen {
         generics: &Generics,
         has_backend: bool,
     ) -> TokenStream;
-    /// Generate the into_item function.
+    /// Generate the `into_item` function.
     fn gen_into_item(&self, item_name: &Ident) -> TokenStream;
     /// Generate the from item function.
     fn gen_from_item(&self) -> TokenStream;

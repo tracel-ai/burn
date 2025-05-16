@@ -59,7 +59,10 @@ mod nhwc {
 
     use crate::ops::simd::lanes;
 
-    use super::*;
+    use super::{
+        Array4, Element, ElementConversion, NdArrayTensor, TensorMetadata, UnsafeSharedRef, VAdd,
+        VDiv, Zeroable, iter_range_par, run_par, s,
+    };
 
     // Until you can use associated constants as array size, we need to hardcode this.
     // The most common config (x86-v3) has 16 registers, so use half of them for accumulators.

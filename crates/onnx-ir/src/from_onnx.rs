@@ -120,10 +120,7 @@ impl GraphData {
                 if let Some(init_arg) = self.initializers.get(proto_str) {
                     init_arg.clone()
                 } else {
-                    log::warn!(
-                        "Input {} not found, should only happen when peeking",
-                        proto_str
-                    );
+                    log::warn!("Input {proto_str} not found, should only happen when peeking");
                     Argument::new(proto_str.to_string())
                 }
             }
@@ -132,7 +129,7 @@ impl GraphData {
         }
     }
 
-    /// Mark the graph_inputs to a node as passed, unless they are also initializers
+    /// Mark the `graph_inputs` to a node as passed, unless they are also initializers
     fn mark_input_passed(&mut self, node: &Node) {
         // we have to double map the inputs because the input might be replaced by an initializer
         node.inputs.iter().for_each(|node_input| {
@@ -157,7 +154,7 @@ impl GraphData {
         log::debug!("adding node {:?}", &node.name);
         self.mark_input_passed(&node);
         let mut out_count = 1;
-        for output in node.outputs.iter_mut() {
+        for output in &mut node.outputs {
             self.input_name_map.insert(
                 output.name.clone(),
                 IOEntry::Node(self.processed_nodes.len(), out_count - 1),
@@ -280,7 +277,7 @@ impl OnnxGraphBuilder {
         } else if self.constants_types.contains(&node.node_type) {
             log::debug!("checking node {} for constants", &node.name);
             for input in node.inputs.iter_mut().skip(1) {
-                log::debug!("checking input {:?} for const", input);
+                log::debug!("checking input {input:?} for const");
                 if let Some(const_idx) = self.constants_map.get(&input.name) {
                     let constant = &graph_data.processed_nodes[*const_idx];
                     log::debug!(
@@ -354,8 +351,9 @@ impl OnnxGraphBuilder {
 ///
 /// * If the file cannot be opened or read
 /// * If the ONNX model cannot be parsed
-/// * If the model uses an unsupported opset version (must be >= MIN_OPSET_VERSION)
+/// * If the model uses an unsupported opset version (must be >= `MIN_OPSET_VERSION`)
 /// * If the nodes in the graph are not topologically sorted
+#[must_use]
 pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     log::info!("Parsing ONNX file: {}", onnx_path.display());
 
@@ -366,14 +364,12 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
         Message::parse_from_reader(&mut file).expect("Unable to parse ONNX file");
 
     // Check opset versions - must be >= MIN_OPSET_VERSION
-    if !verify_opsets(&onnx_model.opset_import, MIN_OPSET_VERSION) {
-        panic!(
-            "Unsupported ONNX opset version. This implementation requires opset {} or higher. \
+    assert!(
+        verify_opsets(&onnx_model.opset_import, MIN_OPSET_VERSION),
+        "Unsupported ONNX opset version. This implementation requires opset {MIN_OPSET_VERSION} or higher. \
             Please upgrade your model using the ONNX shape inference tool. \
-            See documentation (https://burn.dev/burn-book/import/onnx-model.html) for details.",
-            MIN_OPSET_VERSION
-        );
-    }
+            See documentation (https://burn.dev/burn-book/import/onnx-model.html) for details."
+    );
 
     // ONNX nodes must be topologically sorted per spec:
     // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
@@ -489,6 +485,7 @@ impl TopologicalSortable for Vec<NodeProto> {
 }
 
 /// Get the value of a constant node from its attributes
+#[must_use]
 pub fn convert_constant_value(node: &Node) -> Argument {
     // A value can be stored in any of these attributes
     let keys = [

@@ -23,7 +23,7 @@ where
     L: Logger<T>,
 {
     fn run(mut self) {
-        for item in self.receiver.iter() {
+        for item in &self.receiver {
             match item {
                 Message::Log(item) => {
                     self.logger.log(item);

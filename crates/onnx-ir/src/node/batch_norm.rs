@@ -1,6 +1,6 @@
 use crate::ir::Node;
 
-/// Configuration for BatchNorm operations
+/// Configuration for `BatchNorm` operations
 #[derive(Debug, Clone)]
 pub struct BatchNormConfig {
     /// Number of features (channels)
@@ -12,7 +12,8 @@ pub struct BatchNormConfig {
 }
 
 impl BatchNormConfig {
-    /// Create a new BatchNormConfig
+    /// Create a new `BatchNormConfig`
+    #[must_use]
     pub fn new(num_features: usize, epsilon: f64, momentum: f64) -> Self {
         Self {
             num_features,
@@ -22,7 +23,8 @@ impl BatchNormConfig {
     }
 }
 
-/// Create a BatchNormConfig from the attributes of the node
+/// Create a `BatchNormConfig` from the attributes of the node
+#[must_use]
 pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
     let weight_shape = node.inputs[1]
         .value
@@ -36,7 +38,7 @@ pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
     let mut epsilon = 0f32;
     let mut momentum = 0f32;
 
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         match key.as_str() {
             "momentum" => momentum = value.clone().into_f32(),
             "epsilon" => epsilon = value.clone().into_f32(),
@@ -44,7 +46,7 @@ pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
         }
     }
 
-    BatchNormConfig::new(num_features, epsilon as f64, momentum as f64)
+    BatchNormConfig::new(num_features, f64::from(epsilon), f64::from(momentum))
 }
 
 #[cfg(test)]

@@ -70,7 +70,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
         {
             let mut is_a_view = false;
             // For each view we try to see if it's not possible to set it as a reference input.
-            for view in self.resources.views.iter() {
+            for view in &self.resources.views {
                 for (block_plan, block) in plan.blocks.iter_mut().zip(self.blocks) {
                     is_a_view = is_a_view
                         || Self::analyze_view(pos, tensor_relative, block, block_plan, view);
@@ -194,7 +194,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     return true;
                 }
             }
-        };
+        }
 
         false
     }

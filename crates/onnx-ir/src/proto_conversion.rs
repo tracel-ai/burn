@@ -20,7 +20,7 @@ pub enum ParseError {
     VariantNotFound,
 }
 
-/// Convert a vector of AttributeProto to a HashMap of AttributeValue
+/// Convert a vector of `AttributeProto` to a `HashMap` of `AttributeValue`
 impl TryFrom<TensorProto> for TensorData {
     type Error = ParseError;
     fn try_from(tensor: TensorProto) -> Result<TensorData, Self::Error> {
@@ -28,10 +28,10 @@ impl TryFrom<TensorProto> for TensorData {
             DataType::FLOAT => (
                 ElementType::Float32,
                 // Convert the raw data to a vector of floats
-                if !tensor.raw_data.is_empty() {
-                    Data::Float32s(cast_slice(&tensor.raw_data[..]).to_vec())
-                } else {
+                if tensor.raw_data.is_empty() {
                     Data::Float32s(tensor.float_data)
+                } else {
+                    Data::Float32s(cast_slice(&tensor.raw_data[..]).to_vec())
                 },
             ),
             DataType::INT16 => {
@@ -41,28 +41,28 @@ impl TryFrom<TensorProto> for TensorData {
             DataType::INT32 => (
                 ElementType::Int32,
                 // Convert the raw data to a vector of ints
-                if !tensor.raw_data.is_empty() {
-                    Data::Int32s(cast_slice(&tensor.raw_data[..]).to_vec())
-                } else {
+                if tensor.raw_data.is_empty() {
                     Data::Int32s(tensor.int32_data)
+                } else {
+                    Data::Int32s(cast_slice(&tensor.raw_data[..]).to_vec())
                 },
             ),
             DataType::INT64 => (
                 ElementType::Int64,
                 // Convert the raw data to a vector of ints
-                if !tensor.raw_data.is_empty() {
-                    Data::Int64s(cast_slice(&tensor.raw_data[..]).to_vec())
-                } else {
+                if tensor.raw_data.is_empty() {
                     Data::Int64s(tensor.int64_data)
+                } else {
+                    Data::Int64s(cast_slice(&tensor.raw_data[..]).to_vec())
                 },
             ),
             DataType::DOUBLE => (
                 ElementType::Float64,
                 // Convert the raw data to a vector of floats
-                if !tensor.raw_data.is_empty() {
-                    Data::Float64s(cast_slice(&tensor.raw_data[..]).to_vec())
-                } else {
+                if tensor.raw_data.is_empty() {
                     Data::Float64s(tensor.double_data)
+                } else {
+                    Data::Float64s(cast_slice(&tensor.raw_data[..]).to_vec())
                 },
             ),
             DataType::BOOL => (ElementType::Bool, {
@@ -76,7 +76,7 @@ impl TryFrom<TensorProto> for TensorData {
         };
         let shape = convert_shape(tensor.dims);
 
-        Ok(TensorData { shape, data })
+        Ok(TensorData { data, shape })
     }
 }
 
@@ -103,7 +103,7 @@ fn convert_vec_tensor_proto(tensors: Vec<TensorProto>) -> Result<Vec<TensorData>
     Ok(result)
 }
 
-/// Convert a vector of AttributeProto to a HashMap of AttributeValue
+/// Convert a vector of `AttributeProto` to a `HashMap` of `AttributeValue`
 impl TryFrom<AttributeProto> for AttributeValue {
     type Error = ParseError;
 
@@ -136,7 +136,7 @@ impl TryFrom<AttributeProto> for AttributeValue {
     }
 }
 
-/// Convert a vector of AttributeProto to a HashMap of AttributeValue
+/// Convert a vector of `AttributeProto` to a `HashMap` of `AttributeValue`
 pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
     let mut result = Attributes::new();
     for attr in attrs {
@@ -190,9 +190,10 @@ impl TryFrom<ValueInfoProto> for Argument {
         let name = value.name.clone();
         let proto_type = value.type_.unwrap();
 
-        if !proto_type.has_tensor_type() {
-            panic!("Unsupported argument type {:?}", proto_type);
-        }
+        assert!(
+            proto_type.has_tensor_type(),
+            "Unsupported argument type {proto_type:?}"
+        );
 
         let tensor_proto = proto_type.tensor_type();
 

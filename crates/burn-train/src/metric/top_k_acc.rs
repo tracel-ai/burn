@@ -22,14 +22,15 @@ pub struct TopKAccuracyMetric<B: Backend> {
 /// The [top-k accuracy metric](TopKAccuracyMetric) input type.
 #[derive(new)]
 pub struct TopKAccuracyInput<B: Backend> {
-    /// The outputs (batch_size, num_classes)
+    /// The outputs (`batch_size`, `num_classes`)
     outputs: Tensor<B, 2>,
-    /// The labels (batch_size)
+    /// The labels (`batch_size`)
     targets: Tensor<B, 1, Int>,
 }
 
 impl<B: Backend> TopKAccuracyMetric<B> {
     /// Creates the metric.
+    #[must_use]
     pub fn new(k: usize) -> Self {
         Self {
             k,
@@ -38,6 +39,7 @@ impl<B: Backend> TopKAccuracyMetric<B> {
     }
 
     /// Sets the pad token.
+    #[must_use]
     pub fn with_pad_token(mut self, index: usize) -> Self {
         self.pad_token = Some(index);
         self
@@ -88,7 +90,7 @@ impl<B: Backend> Metric for TopKAccuracyMetric<B> {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> String {

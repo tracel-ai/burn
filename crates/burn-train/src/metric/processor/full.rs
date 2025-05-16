@@ -52,7 +52,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessor for FullEventProcessor<T, V> {
                     .into_iter()
                     .for_each(|(entry, value)| {
                         self.renderer
-                            .update_train(MetricState::Numeric(entry, value))
+                            .update_train(MetricState::Numeric(entry, value));
                     });
 
                 self.renderer.render_train(progress);
@@ -90,7 +90,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessor for FullEventProcessor<T, V> {
                     .into_iter()
                     .for_each(|(entry, value)| {
                         self.renderer
-                            .update_valid(MetricState::Numeric(entry, value))
+                            .update_valid(MetricState::Numeric(entry, value));
                     });
 
                 self.renderer.render_valid(progress);

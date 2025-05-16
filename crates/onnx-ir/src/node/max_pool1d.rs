@@ -2,7 +2,7 @@ use crate::{ir::Node, node::padding::padding_config_1d};
 
 use super::padding::PaddingConfig1d;
 
-/// Configuration for MaxPool1d operations extracted from ONNX nodes
+/// Configuration for `MaxPool1d` operations extracted from ONNX nodes
 #[derive(Debug, Clone)]
 pub struct MaxPool1dConfig {
     /// Kernel size
@@ -16,7 +16,8 @@ pub struct MaxPool1dConfig {
 }
 
 impl MaxPool1dConfig {
-    /// Create a new MaxPool1dConfig
+    /// Create a new `MaxPool1dConfig`
+    #[must_use]
     pub fn new(kernel_size: usize) -> Self {
         Self {
             kernel_size,
@@ -27,32 +28,36 @@ impl MaxPool1dConfig {
     }
 
     /// Set the stride
+    #[must_use]
     pub fn with_stride(mut self, stride: usize) -> Self {
         self.stride = stride;
         self
     }
 
     /// Set the padding configuration
+    #[must_use]
     pub fn with_padding(mut self, padding: PaddingConfig1d) -> Self {
         self.padding = padding;
         self
     }
 
     /// Set the dilation
+    #[must_use]
     pub fn with_dilation(mut self, dilation: usize) -> Self {
         self.dilation = dilation;
         self
     }
 }
 
-/// Create a MaxPool1dConfig from the attributes of the node
+/// Create a `MaxPool1dConfig` from the attributes of the node
+#[must_use]
 pub fn max_pool1d_config(curr: &Node) -> MaxPool1dConfig {
     let mut kernel_shape = Vec::new();
     let mut stride = vec![1];
     let mut pads = vec![0, 0];
     let mut dilation = vec![1];
 
-    for (key, value) in curr.attrs.iter() {
+    for (key, value) in &curr.attrs {
         match key.as_str() {
             "kernel_shape" => kernel_shape = value.clone().into_i64s(),
             "strides" => stride = value.clone().into_i64s(),

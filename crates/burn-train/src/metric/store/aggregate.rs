@@ -36,7 +36,7 @@ impl NumericMetricsAggregate {
                 match logger.read_numeric(name, epoch) {
                     Ok(points) => return Ok(points),
                     Err(err) => errors.push(err),
-                };
+                }
             }
 
             Err(errors.join(" "))

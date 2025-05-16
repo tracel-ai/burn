@@ -36,7 +36,7 @@ pub struct TextClassificationInferenceBatch<B: Backend> {
     pub mask_pad: Tensor<B, 2, Bool>, // Padding mask for the tokenized text
 }
 
-/// Implement Batcher trait for TextClassificationBatcher struct for training
+/// Implement Batcher trait for `TextClassificationBatcher` struct for training
 impl<B: Backend> Batcher<B, TextClassificationItem, TextClassificationTrainingBatch<B>>
     for TextClassificationBatcher
 {
@@ -75,7 +75,7 @@ impl<B: Backend> Batcher<B, TextClassificationItem, TextClassificationTrainingBa
     }
 }
 
-/// Implement Batcher trait for TextClassificationBatcher struct for inference
+/// Implement Batcher trait for `TextClassificationBatcher` struct for inference
 impl<B: Backend> Batcher<B, String, TextClassificationInferenceBatch<B>>
     for TextClassificationBatcher
 {

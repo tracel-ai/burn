@@ -9,18 +9,18 @@ use burn::{
 /// LSTM Cell implementation with layer normalization.
 ///
 /// Mathematical formulation of LSTM:
-/// f_t = σ(W_f · [h_{t-1}, x_t] + b_f)      # Forget gate
-/// i_t = σ(W_i · [h_{t-1}, x_t] + b_i]      # Input gate
-/// g_t = tanh(W_g · [h_{t-1}, x_t] + b_g]   # Candidate cell state
-/// o_t = σ(W_o · [h_{t-1}, x_t] + b_o)      # Output gate
+/// `f_t` = `σ(W_f` · [h_{t-1}, `x_t`] + `b_f`)      # Forget gate
+/// `i_t` = `σ(W_i` · [h_{t-1}, `x_t`] + `b_i`]      # Input gate
+/// `g_t` = `tanh(W_g` · [h_{t-1}, `x_t`] + `b_g`]   # Candidate cell state
+/// `o_t` = `σ(W_o` · [h_{t-1}, `x_t`] + `b_o`)      # Output gate
 ///
-/// c_t = f_t ⊙ c_{t-1} + i_t ⊙ g_t            # New cell state
-/// h_t = o_t ⊙ tanh(c_t)                       # New hidden state
+/// `c_t` = `f_t` ⊙ c_{t-1} + `i_t` ⊙ `g_t`            # New cell state
+/// `h_t` = `o_t` ⊙ `tanh(c_t)`                       # New hidden state
 ///
 /// where:
 /// - σ is the sigmoid function
 /// - ⊙ is the element-wise multiplication
-/// - [h_{t-1}, x_t] represents concatenation
+/// - [h_{t-1}, `x_t`] represents concatenation
 
 #[derive(Module, Debug)]
 pub struct LstmCell<B: Backend> {
@@ -95,10 +95,10 @@ impl LstmCellConfig {
 impl<B: Backend> LstmCell<B> {
     /// Forward pass of LSTM cell.
     /// Args:
-    ///     x: Input tensor of shape (batch_size, input_size)
-    ///     state: Tuple of (h_{t-1}, c_{t-1}) each of shape (batch_size, hidden_size)
+    ///     x: Input tensor of shape (`batch_size`, `input_size`)
+    ///     state: Tuple of (h_{t-1}, c_{t-1}) each of shape (`batch_size`, `hidden_size`)
     /// Returns:
-    ///  Tuple of (h_t, c_t) representing new hidden and cell states
+    ///  Tuple of (`h_t`, `c_t`) representing new hidden and cell states
     pub fn forward(&self, x: Tensor<B, 2>, state: LstmState<B, 2>) -> LstmState<B, 2> {
         let (h_prev, c_prev) = (state.hidden, state.cell);
 
@@ -200,12 +200,12 @@ impl<B: Backend> StackedLstm<B> {
     /// Process input sequence through stacked LSTM layers.
     ///
     /// Args:
-    ///     x: Input tensor of shape (batch_size, seq_length, input_size)
+    ///     x: Input tensor of shape (`batch_size`, `seq_length`, `input_size`)
     ///     states: Optional initial states for each layer
     ///
     /// Returns:
-    ///     Tuple of (output, states) where output has shape (batch_size, seq_length, hidden_size)
-    ///     and states is a vector of length num_layers, both cell and hidden state in each element have shape (batch_size, hidden_size)
+    ///     Tuple of (output, states) where output has shape (`batch_size`, `seq_length`, `hidden_size`)
+    ///     and states is a vector of length `num_layers`, both cell and hidden state in each element have shape (`batch_size`, `hidden_size`)
     pub fn forward(
         &self,
         x: Tensor<B, 3>,
@@ -217,7 +217,7 @@ impl<B: Backend> StackedLstm<B> {
         let mut states = match states {
             None => {
                 let mut temp: Vec<LstmState<B, 2>> = vec![];
-                for layer in self.layers.iter() {
+                for layer in &self.layers {
                     temp.push(layer.init_state(batch_size, &device));
                 }
                 temp
@@ -227,7 +227,7 @@ impl<B: Backend> StackedLstm<B> {
 
         let mut layer_outputs = vec![];
         for t in 0..seq_length {
-            let mut input_t = x.clone().slice(s![.., t..t + 1, ..]).squeeze::<2>(1);
+            let mut input_t = x.clone().slice(s![.., t..=t, ..]).squeeze::<2>(1);
             for (i, lstm_cell) in self.layers.iter().enumerate() {
                 let mut state: LstmState<B, 2> =
                     LstmState::new(states[i].cell.clone(), states[i].hidden.clone());
@@ -324,11 +324,11 @@ impl<B: Backend> LstmNetwork<B> {
     /// 4. Apply final linear transformation
     ///
     /// Args:
-    ///     x: Input tensor of shape (batch_size, seq_length, input_size)
+    ///     x: Input tensor of shape (`batch_size`, `seq_length`, `input_size`)
     ///     states: Optional initial states
     ///
     /// Returns:
-    ///     Output tensor of shape (batch_size, output_size)
+    ///     Output tensor of shape (`batch_size`, `output_size`)
     pub fn forward(&self, x: Tensor<B, 3>, states: Option<Vec<LstmState<B, 2>>>) -> Tensor<B, 2> {
         let seq_length = x.dims()[1];
         // Forward direction

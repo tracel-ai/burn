@@ -1,7 +1,7 @@
 use crate::ir::{ArgType, Node, TensorType};
 use core::cmp::max;
 
-/// Update output rank for MatMul based on input ranks.
+/// Update output rank for `MatMul` based on input ranks.
 pub fn matmul_update_outputs(node: &mut Node) {
     log::debug!("MatMul rank inference for node {}", node.name);
 

@@ -1,17 +1,17 @@
 use crate::ir::{ArgType, Node};
 
-/// Create log_softmax config from the attributes of the node
+/// Create `log_softmax` config from the attributes of the node
+#[must_use]
 pub fn log_softmax_config(node: &Node) -> usize {
     // the axis is the last dimension (Default: 1 per ONNX spec)
     let mut axis: i64 = -1;
 
     // check if the node has only one input
-    if node.inputs.len() != 1 {
-        panic!(
-            "LogSoftmax: multiple inputs are not supported (got {:?})",
-            node.inputs.len()
-        );
-    }
+    assert!(
+        (node.inputs.len() == 1),
+        "LogSoftmax: multiple inputs are not supported (got {:?})",
+        node.inputs.len()
+    );
 
     // extract the shape of the input tensor
     let tensor = match node.inputs.first().unwrap().clone().ty {
@@ -20,9 +20,9 @@ pub fn log_softmax_config(node: &Node) -> usize {
     };
 
     // extract the attributes
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         if key.as_str() == "axis" {
-            axis = value.clone().into_i64()
+            axis = value.clone().into_i64();
         }
     }
 

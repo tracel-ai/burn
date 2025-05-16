@@ -121,7 +121,7 @@ impl RecentHistoryPoints {
             self.max_y = y;
         }
         if y < self.min_y {
-            self.min_y = y
+            self.min_y = y;
         }
         self.points.push((x, y));
     }
@@ -141,7 +141,7 @@ impl RecentHistoryPoints {
             }
 
             if *y == self.max_y {
-                update_y_max = true
+                update_y_max = true;
             }
             if *y == self.min_y {
                 update_y_min = true;

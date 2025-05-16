@@ -136,15 +136,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        let lhs_contiguous = if !lhs.tensor.is_contiguous() {
-            lhs.tensor.contiguous().unwrap()
-        } else {
+        let lhs_contiguous = if lhs.tensor.is_contiguous() {
             lhs.tensor
-        };
-        let rhs_contiguous = if !rhs.tensor.is_contiguous() {
-            rhs.tensor.contiguous().unwrap()
         } else {
+            lhs.tensor.contiguous().unwrap()
+        };
+        let rhs_contiguous = if rhs.tensor.is_contiguous() {
             rhs.tensor
+        } else {
+            rhs.tensor.contiguous().unwrap()
         };
         CandleTensor::new(lhs_contiguous.broadcast_matmul(&rhs_contiguous).unwrap())
     }

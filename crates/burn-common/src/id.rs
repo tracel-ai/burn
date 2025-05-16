@@ -5,6 +5,7 @@ pub struct IdGenerator {}
 
 impl IdGenerator {
     /// Generates a new ID.
+    #[must_use]
     pub fn generate() -> u64 {
         // Generate a random u64 (18,446,744,073,709,551,615 combinations)
         let random_bytes: [u8; 8] = gen_random();

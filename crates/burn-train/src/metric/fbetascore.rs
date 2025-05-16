@@ -31,6 +31,7 @@ impl<B: Backend> FBetaScoreMetric<B> {
     /// * `beta` - Positive real factor to weight recall's importance.
     /// * `threshold` - The threshold to transform a probability into a binary prediction.
     #[allow(dead_code)]
+    #[must_use]
     pub fn binary(beta: f64, threshold: f64) -> Self {
         Self {
             config: ClassificationMetricConfig {
@@ -51,6 +52,7 @@ impl<B: Backend> FBetaScoreMetric<B> {
     /// * `top_k` - The number of highest predictions considered to find the correct label (typically `1`).
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
+    #[must_use]
     pub fn multiclass(beta: f64, top_k: usize, class_reduction: ClassReduction) -> Self {
         Self {
             config: ClassificationMetricConfig {
@@ -72,6 +74,7 @@ impl<B: Backend> FBetaScoreMetric<B> {
     /// * `threshold` - The threshold to transform a probability into a binary prediction.
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
+    #[must_use]
     pub fn multilabel(beta: f64, threshold: f64, class_reduction: ClassReduction) -> Self {
         Self {
             config: ClassificationMetricConfig {
@@ -97,7 +100,7 @@ impl<B: Backend> FBetaScoreMetric<B> {
                     let nan_mask = aggregated_metric.is_nan();
                     aggregated_metric = aggregated_metric
                         .clone()
-                        .select(0, nan_mask.bool_not().argwhere().squeeze(1))
+                        .select(0, nan_mask.bool_not().argwhere().squeeze(1));
                 }
                 aggregated_metric.mean()
             }
@@ -129,7 +132,7 @@ impl<B: Backend> Metric for FBetaScoreMetric<B> {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> String {
@@ -169,7 +172,7 @@ mod tests {
         let mut metric = FBetaScoreMetric::binary(beta, threshold);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
-            .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
+            .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default());
     }
 
     #[rstest]
@@ -191,7 +194,7 @@ mod tests {
         let mut metric = FBetaScoreMetric::multiclass(beta, top_k, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
-            .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
+            .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default());
     }
 
     #[rstest]
@@ -209,7 +212,7 @@ mod tests {
         let mut metric = FBetaScoreMetric::multilabel(beta, threshold, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
-            .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
+            .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default());
     }
 
     #[test]

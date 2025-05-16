@@ -69,7 +69,7 @@ impl<O> Explorer<O> {
 
     /// Reset the state of the explorer to the provided list of operations.
     pub(crate) fn reset(&mut self, operations: &[OperationIr]) {
-        for operation in self.builders.iter_mut() {
+        for operation in &mut self.builders {
             operation.reset();
         }
         self.num_explored = 0;
@@ -86,7 +86,7 @@ impl<O> Explorer<O> {
             let index = operations.len() - 1 - i;
             let relative = &operations[index];
 
-            for builder in self.builders.iter_mut() {
+            for builder in &mut self.builders {
                 builder.register(relative);
             }
             self.num_explored += 1;
@@ -103,9 +103,9 @@ impl<O> Explorer<O> {
 fn still_optimizing<O>(optimizations: &[Box<dyn OptimizationBuilder<O>>]) -> bool {
     let mut num_stopped = 0;
 
-    for optimization in optimizations.iter() {
+    for optimization in optimizations {
         if let OptimizationStatus::Closed = optimization.status() {
-            num_stopped += 1
+            num_stopped += 1;
         }
     }
 

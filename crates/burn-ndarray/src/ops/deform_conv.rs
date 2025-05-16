@@ -36,9 +36,7 @@ fn deform_im2col_kernel<F: FloatNdArrayElement>(
 
     for kernel_y in 0..kernel_h {
         for kernel_x in 0..kernel_w {
-            let mask_value = mask
-                .map(|it| it[[kernel_y, kernel_x]])
-                .unwrap_or_else(|| F::from_elem(1.0));
+            let mask_value = mask.map_or_else(|| F::from_elem(1.0), |it| it[[kernel_y, kernel_x]]);
 
             let offset = offset.slice(s![kernel_y, kernel_x, ..]);
             let y = F::from_elem(out_y * args.stride[0] + kernel_y * args.dilation[0])
@@ -158,7 +156,7 @@ pub(crate) fn deform_conv2d<F: FloatNdArrayElement>(
     let columns = deform_im2col(
         input.view(),
         offset.view(),
-        mask.as_ref().map(|it| it.view()),
+        mask.as_ref().map(ndarray::ArrayBase::view),
         args,
         out_dims,
         (kernel_h, kernel_w),
@@ -260,7 +258,11 @@ pub mod backward {
     use atomic_float::AtomicF32;
     use ndarray::{Array1, Array5, ArrayView4, ArrayView6, Ix4};
 
-    use super::*;
+    use super::{
+        Array4, ArrayView2, ArrayView3, Axis, DeformConvOptions, FloatNdArrayElement,
+        NdArrayTensor, TensorMetadata, Zip, bilinear_interpolate, deform_im2col, iter_par, matmul,
+        run_par, s,
+    };
 
     pub(crate) type DeformConv2dBackward<F> = (
         NdArrayTensor<F>,
@@ -321,7 +323,7 @@ pub mod backward {
             input.view(),
             weight,
             offset.view(),
-            mask.as_ref().map(|it| it.view()),
+            mask.as_ref().map(ndarray::ArrayBase::view),
             out_grad.view(),
             &args,
             (kernel_h, kernel_w),
@@ -330,7 +332,7 @@ pub mod backward {
         let weight_grad = compute_weight_grad(
             input.view(),
             offset.view(),
-            mask.as_ref().map(|it| it.view()),
+            mask.as_ref().map(ndarray::ArrayBase::view),
             out_grad.view(),
             args,
             (kernel_h, kernel_w),
@@ -615,7 +617,7 @@ pub mod backward {
         #[cfg(feature = "std")]
         run_par!(|| {
             iter_par!(Zip::indexed(columns))
-                .for_each(|(args0, args1)| compute_for_each(args0, args1))
+                .for_each(|(args0, args1)| compute_for_each(args0, args1));
         });
 
         #[cfg(not(feature = "std"))]

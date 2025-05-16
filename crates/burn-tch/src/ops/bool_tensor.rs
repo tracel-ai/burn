@@ -74,9 +74,9 @@ impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
         TchTensor::binary_ops_tensor(
             lhs,
             rhs,
-            |lhs, rhs| lhs.logical_and_(rhs),
+            tch::Tensor::logical_and_,
             |lhs, rhs| rhs.logical_and_(lhs),
-            |lhs, rhs| lhs.logical_and(rhs),
+            tch::Tensor::logical_and,
         )
     }
 
@@ -84,9 +84,9 @@ impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
         TchTensor::binary_ops_tensor(
             lhs,
             rhs,
-            |lhs, rhs| lhs.logical_or_(rhs),
+            tch::Tensor::logical_or_,
             |lhs, rhs| rhs.logical_or_(lhs),
-            |lhs, rhs| lhs.logical_or(rhs),
+            tch::Tensor::logical_or,
         )
     }
 

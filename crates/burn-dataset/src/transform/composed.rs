@@ -13,7 +13,7 @@ where
 {
     fn get(&self, index: usize) -> Option<I> {
         let mut current_index = 0;
-        for dataset in self.datasets.iter() {
+        for dataset in &self.datasets {
             if index < dataset.len() + current_index {
                 return dataset.get(index - current_index);
             }
@@ -23,7 +23,7 @@ where
     }
     fn len(&self) -> usize {
         let mut total = 0;
-        for dataset in self.datasets.iter() {
+        for dataset in &self.datasets {
             total += dataset.len();
         }
         total

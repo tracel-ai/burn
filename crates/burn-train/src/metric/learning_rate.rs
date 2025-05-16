@@ -11,6 +11,7 @@ pub struct LearningRateMetric {
 
 impl LearningRateMetric {
     /// Creates a new learning rate metric.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             state: NumericMetricState::new(),
@@ -35,7 +36,7 @@ impl Metric for LearningRateMetric {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> String {

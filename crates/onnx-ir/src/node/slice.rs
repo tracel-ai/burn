@@ -5,6 +5,7 @@ use crate::ir::{ArgType, Data, Node, TensorData};
 ///
 /// Note: we leave the negative indices as is, but we need to handle them properly when slicing
 /// during the actual slicing operation using the dynamic shape information.
+#[must_use]
 pub fn slice_config(node: &Node) -> Vec<Option<(i64, i64)>> {
     /// Extracts int64 values from a node's input at the specified index.
     /// Returns an empty vector if the input is not provided.
@@ -30,7 +31,7 @@ pub fn slice_config(node: &Node) -> Vec<Option<(i64, i64)>> {
 
     // Reference: https://burn.dev/docs/burn/prelude/struct.Tensor.html#method.slice
     // TODO: Default missing axes ranges to the full range of the corresponding axis
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         match key.as_str() {
             "starts" => starts = value.clone().into_i64s(),
             "ends" => ends = value.clone().into_i64s(),
@@ -40,9 +41,10 @@ pub fn slice_config(node: &Node) -> Vec<Option<(i64, i64)>> {
         }
     }
 
-    if !steps.is_empty() && steps.iter().any(|&x| x != 1) {
-        panic!("Slice: steps other than 1 are not supported");
-    }
+    assert!(
+        !(!steps.is_empty() && steps.iter().any(|&x| x != 1)),
+        "Slice: steps other than 1 are not supported"
+    );
 
     // Extract the rank of the input tensor
     let input_rank = match node.inputs.first().unwrap().clone().ty {
@@ -57,9 +59,10 @@ pub fn slice_config(node: &Node) -> Vec<Option<(i64, i64)>> {
     }
 
     // Validate input dimensions
-    if starts.len() != ends.len() || starts.len() != axes.len() {
-        panic!("Slice: starts, ends, and axes must have the same length");
-    }
+    assert!(
+        !(starts.len() != ends.len() || starts.len() != axes.len()),
+        "Slice: starts, ends, and axes must have the same length"
+    );
 
     // Convert negative axes indices to positive (counting from the end)
     for axis in &mut axes {
@@ -146,7 +149,15 @@ mod tests {
             .input_tensor_f32("data", 3, None)
             .output_default("output");
 
-        if !use_attrs {
+        if use_attrs {
+            // Add attributes
+            builder = builder.attr_ints("starts", starts);
+            builder = builder.attr_ints("ends", ends);
+
+            if let Some(axes_vec) = axes {
+                builder = builder.attr_ints("axes", axes_vec);
+            }
+        } else {
             // Add inputs as tensors
             builder = builder.input_tensor_i64_data("starts", starts.clone(), vec![starts.len()]);
             builder = builder.input_tensor_i64_data("ends", ends.clone(), vec![ends.len()]);
@@ -154,14 +165,6 @@ mod tests {
             if let Some(axes_vec) = axes.clone() {
                 builder =
                     builder.input_tensor_i64_data("axes", axes_vec.clone(), vec![axes_vec.len()]);
-            }
-        } else {
-            // Add attributes
-            builder = builder.attr_ints("starts", starts);
-            builder = builder.attr_ints("ends", ends);
-
-            if let Some(axes_vec) = axes {
-                builder = builder.attr_ints("axes", axes_vec);
             }
         }
 

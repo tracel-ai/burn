@@ -123,6 +123,6 @@ fn elemwise_fuse(
     let length = ref_len(inputs, outputs, &locals, config);
 
     if pos < length {
-        fuse_on_write::<f32>(inputs, outputs, &mut locals, pos, values, args, config)
+        fuse_on_write::<f32>(inputs, outputs, &mut locals, pos, values, args, config);
     }
 }

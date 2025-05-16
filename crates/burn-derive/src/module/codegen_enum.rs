@@ -178,12 +178,12 @@ impl EnumModuleCodegen {
     {
         let mut match_arms = quote! {};
 
-        for variant in self.variants.iter() {
+        for variant in &self.variants {
             let name = &variant.ident;
             let arm_pattern = quote! {Self::#name(module)};
             let arm_code = func(name.clone());
 
-            match_arms.extend(quote! {#arm_pattern => #arm_code,})
+            match_arms.extend(quote! {#arm_pattern => #arm_code,});
         }
 
         quote! {

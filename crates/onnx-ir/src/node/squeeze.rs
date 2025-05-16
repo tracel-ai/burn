@@ -35,7 +35,10 @@ pub fn squeeze_update_output(node: &mut Node) {
             None => None,
         }
     } else {
-        node.attrs.get("axes").cloned().map(|v| v.into_i64s())
+        node.attrs
+            .get("axes")
+            .cloned()
+            .map(super::super::ir::AttributeValue::into_i64s)
     };
 
     let axes = axes.unwrap_or_else(|| panic!("Squeeze must specify an axis"));
@@ -43,7 +46,7 @@ pub fn squeeze_update_output(node: &mut Node) {
 
     let input_rank = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
-        ty => panic!("Squeeze: invalid input type: {:?}", ty),
+        ty => panic!("Squeeze: invalid input type: {ty:?}"),
     };
 
     log::debug!("Squeeze input rank for {}: {}", node.name, input_rank);
@@ -65,7 +68,7 @@ mod tests {
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(axes: Option<Vec<i64>>, rank: usize) -> Node {
-        let output_rank = rank - (axes.as_ref().map_or(0, |a| a.len()));
+        let output_rank = rank - (axes.as_ref().map_or(0, std::vec::Vec::len));
 
         let mut builder = NodeBuilder::new(NodeType::Squeeze, "test_squeeze")
             .input_tensor_f32("data", rank, None)

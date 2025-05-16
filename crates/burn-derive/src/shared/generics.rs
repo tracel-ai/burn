@@ -43,7 +43,7 @@ impl GenericsHelper {
     - The default backend trait is `burn::tensor::backend::Backend`.
     - Any backend trait is supported.";
 
-        for param in self.generics.params.iter() {
+        for param in &self.generics.params {
             if let syn::GenericParam::Type(ty) = &param {
                 if ty.ident == "B" {
                     let bound = ty

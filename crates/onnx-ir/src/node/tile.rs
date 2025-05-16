@@ -8,12 +8,14 @@ pub struct TileConfig {
 }
 
 impl TileConfig {
+    #[must_use]
     pub fn new(repeats: Vec<usize>) -> Self {
         TileConfig { repeats }
     }
 }
 
-/// Creates a TileConfig from the node attributes and inputs.
+/// Creates a `TileConfig` from the node attributes and inputs.
+#[must_use]
 pub fn tile_config(node: &Node) -> TileConfig {
     let repeat = node
         .inputs

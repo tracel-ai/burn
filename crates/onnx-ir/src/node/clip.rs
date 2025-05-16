@@ -1,19 +1,20 @@
 use crate::ir::{Data, Node};
 
+#[must_use]
 pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
     let mut min_result: Option<f64> = None;
     let mut max_result: Option<f64> = None;
 
     // For Clip Opset 6+ , the min and max values are attributes
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         match key.as_str() {
             "min" => {
-                let min = value.clone().into_f32() as f64;
+                let min = f64::from(value.clone().into_f32());
                 min_result = Some(min);
             }
             "max" => {
                 let max = value.clone().into_f32();
-                max_result = Some(max as f64);
+                max_result = Some(f64::from(max));
             }
             _ => {}
         }
@@ -28,8 +29,8 @@ pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
         if min_result.is_none() && min.is_some() {
             let min = min.unwrap().data.into_scalar();
             min_result = match min {
-                Data::Float16(min) => Some(f32::from(min) as f64),
-                Data::Float32(min) => Some(min as f64),
+                Data::Float16(min) => Some(f64::from(f32::from(min))),
+                Data::Float32(min) => Some(f64::from(min)),
                 Data::Float64(min) => Some(min),
                 _ => panic!("Clip: only float min is supported"),
             };
@@ -38,17 +39,18 @@ pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
         if max_result.is_none() && max.is_some() {
             let max = max.unwrap().data.into_scalar();
             max_result = match max {
-                Data::Float16(max) => Some(f32::from(max) as f64),
-                Data::Float32(max) => Some(max as f64),
+                Data::Float16(max) => Some(f64::from(f32::from(max))),
+                Data::Float32(max) => Some(f64::from(max)),
                 Data::Float64(max) => Some(max),
                 _ => panic!("Clip: only float max is supported"),
             };
         }
     }
 
-    if min_result.is_none() && max_result.is_none() {
-        panic!("Clip: min and max values must be either attributes or inputs");
-    }
+    assert!(
+        !(min_result.is_none() && max_result.is_none()),
+        "Clip: min and max values must be either attributes or inputs"
+    );
 
     (min_result, max_result)
 }

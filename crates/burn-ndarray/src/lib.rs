@@ -22,7 +22,7 @@ mod tensor;
 
 pub use backend::*;
 pub use element::*;
-pub(crate) use sharing::*;
+pub(crate) use sharing::UnsafeSharedRef;
 pub use tensor::*;
 
 extern crate alloc;

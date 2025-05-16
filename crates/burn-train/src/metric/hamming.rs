@@ -22,17 +22,20 @@ pub struct HammingScoreInput<B: Backend> {
 
 impl<B: Backend> HammingScore<B> {
     /// Creates the metric.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Sets the threshold.
+    #[must_use]
     pub fn with_threshold(mut self, threshold: f32) -> Self {
         self.threshold = threshold;
         self
     }
 
     /// Sets the sigmoid activation function usage.
+    #[must_use]
     pub fn with_sigmoid(mut self, sigmoid: bool) -> Self {
         self.sigmoid = sigmoid;
         self
@@ -81,7 +84,7 @@ impl<B: Backend> Metric for HammingScore<B> {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> String {

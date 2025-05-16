@@ -58,7 +58,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .build(MnistDataset::test());
 
     // Iterate over our training and validation loop for X epochs.
-    for epoch in 1..config.num_epochs + 1 {
+    for epoch in 1..=config.num_epochs {
         // Implement our training loop.
         for (iteration, batch) in dataloader_train.iter().enumerate() {
             let output = model.forward(batch.images);

@@ -32,14 +32,14 @@ pub struct MetricEarlyStoppingStrategy {
 
 impl EarlyStoppingStrategy for MetricEarlyStoppingStrategy {
     fn should_stop(&mut self, epoch: usize, store: &EventStoreClient) -> bool {
-        let current_value =
-            match store.find_metric(&self.metric_name, epoch, self.aggregate, self.split) {
-                Some(value) => value,
-                None => {
-                    log::warn!("Can't find metric for early stopping.");
-                    return false;
-                }
-            };
+        let current_value = if let Some(value) =
+            store.find_metric(&self.metric_name, epoch, self.aggregate, self.split)
+        {
+            value
+        } else {
+            log::warn!("Can't find metric for early stopping.");
+            return false;
+        };
 
         let is_best = match self.direction {
             Direction::Lowest => current_value < self.best_value,
@@ -205,7 +205,7 @@ mod tests {
 
         let mut epoch = 1;
         for (points, should_start, comment) in data {
-            for point in points.iter() {
+            for point in *points {
                 process_train(&mut processor, *point, epoch);
             }
             end_epoch(&mut processor, epoch);

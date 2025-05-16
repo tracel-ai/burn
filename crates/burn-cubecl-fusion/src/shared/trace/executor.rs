@@ -52,7 +52,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         scalars: &mut ScalarIds,
     ) -> Result<TuneOutput<R>, ExecutionError<R, Runner>> {
         let mut num_writes = 0;
-        for b in plan.blocks.iter() {
+        for b in &plan.blocks {
             num_writes += b.writes.len();
         }
 
@@ -88,7 +88,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             let reference = match block_plan.reference {
                 ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
                 ReferenceSelection::VirtualShape { original, .. } => {
-                    RefLayout::Virtual(VirtualLayout::Shape(original, block_plan.width as u32))
+                    RefLayout::Virtual(VirtualLayout::Shape(original, u32::from(block_plan.width)))
                 }
                 ReferenceSelection::SwapDims { original, dims } => {
                     RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
@@ -113,7 +113,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 }
             }
 
-            for op in block.ops.iter() {
+            for op in &block.ops {
                 ops.push(op.clone());
             }
 
@@ -146,7 +146,7 @@ fn register_inputs<'h, R: Runtime>(
     handle_inputs: &'h [HandleInput<R>],
     inputs: &mut GlobalArgsLaunch<'h, R>,
 ) {
-    for hi in handle_inputs.iter() {
+    for hi in handle_inputs {
         let arg = hi.handle.as_tensor_arg(&hi.global_shape, hi.vectorization);
         inputs.tensors.push(GlobalTensorArg::new(
             arg,
@@ -161,7 +161,7 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
     outputs: &mut GlobalArgsLaunch<'s, R>,
     #[allow(unused_variables)] tune_output: &mut TuneOutput<R>,
 ) {
-    for item in handle_outputs.iter() {
+    for item in handle_outputs {
         match item {
             HandleOutput::Alias {
                 input_pos,
@@ -315,7 +315,7 @@ fn register_scalars<'h, R: Runtime>(
         if let TensorView::Reshape { reshaped, .. } = relative {
             let global = context.tensors.get(reshaped).unwrap();
 
-            for shape in global.shape.iter() {
+            for shape in &global.shape {
                 inputs.reshapes.push(ScalarArg::new(*shape as u32));
             }
         }

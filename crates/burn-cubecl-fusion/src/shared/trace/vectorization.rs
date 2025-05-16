@@ -37,8 +37,8 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
     ) {
         let has_multiple_read = |tensor: &TensorId| {
             let mut read_count = 0;
-            for block in plan.blocks.iter() {
-                read_count += block.reads.get(tensor).map(|a| a.len()).unwrap_or(0);
+            for block in &plan.blocks {
+                read_count += block.reads.get(tensor).map_or(0, std::vec::Vec::len);
             }
             read_count > 1
         };
@@ -69,7 +69,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
 
         let mut ref_elem = (Elem::UInt(UIntKind::U64), 8);
 
-        for r in plan.global_inputs.iter() {
+        for r in &plan.global_inputs {
             let elem: Elem = r.dtype.into();
             let elem_size = elem.size();
 
@@ -77,7 +77,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 ref_elem = (elem, elem_size);
             }
         }
-        for r in plan.global_outputs.iter() {
+        for r in &plan.global_outputs {
             let elem: Elem = r.dtype.into();
             let elem_size = elem.size();
 

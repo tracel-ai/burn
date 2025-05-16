@@ -270,13 +270,16 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         // Calculate the output shape
         let mut shape = tensor_first.shape.clone();
         shape[dim] = 0;
-        for tensor in tensors.iter() {
+        for tensor in &tensors {
             shape[dim] += tensor.shape[dim];
         }
         let out = client.register_empty_tensor(shape, dtype);
 
         let desc = CatOpIr {
-            tensors: tensors.into_iter().map(|t| t.into_ir()).collect(),
+            tensors: tensors
+                .into_iter()
+                .map(super::super::tensor::RouterTensor::into_ir)
+                .collect(),
             dim,
             out: out.to_ir_out(),
         };

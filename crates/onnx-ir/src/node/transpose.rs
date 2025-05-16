@@ -1,12 +1,12 @@
 use crate::ir::{ArgType, Node};
 
+#[must_use]
 pub fn transpose_config(curr: &Node) -> Vec<i64> {
-    if curr.inputs.len() != 1 {
-        panic!(
-            "Transpose: multiple inputs are not supported (got {:?})",
-            curr.inputs.len()
-        );
-    }
+    assert!(
+        (curr.inputs.len() == 1),
+        "Transpose: multiple inputs are not supported (got {:?})",
+        curr.inputs.len()
+    );
 
     // Extract the shape of the input tensor
     let tensor = match curr.inputs.first().unwrap().clone().ty {

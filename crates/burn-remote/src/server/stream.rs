@@ -37,13 +37,13 @@ impl<B: BackendIr> Stream<B> {
     pub fn register_tensor(&self, tensor_id: TensorId, data: TensorData) {
         self.compute_sender
             .send(ProcessorTask::RegisterTensor(tensor_id, data))
-            .unwrap()
+            .unwrap();
     }
 
     pub fn register_orphan(&self, tensor_id: TensorId) {
         self.compute_sender
             .send(ProcessorTask::RegisterOrphan(tensor_id))
-            .unwrap()
+            .unwrap();
     }
 
     pub fn read_tensor(&self, id: ConnectionId, desc: TensorIr) {

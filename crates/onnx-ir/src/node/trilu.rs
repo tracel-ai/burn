@@ -10,19 +10,21 @@ pub struct TriluConfig {
 }
 
 impl TriluConfig {
-    /// Creates a TriluConfig from the node attributes and inputs.
+    /// Creates a `TriluConfig` from the node attributes and inputs.
+    #[must_use]
     pub fn new(upper: bool, diagonal: i64) -> Self {
         Self { upper, diagonal }
     }
 }
 
-/// Creates a TriluConfig from the node attributes and inputs.
+/// Creates a `TriluConfig` from the node attributes and inputs.
+#[must_use]
 pub fn trilu_config(node: &Node) -> TriluConfig {
     let mut upper = true;
     let mut diagonal = 0;
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         if key.as_str() == "upper" {
-            upper = value.clone().into_i64() != 0
+            upper = value.clone().into_i64() != 0;
         }
     }
     // The second input of the Trilu node is the diagonal value, coming from a constant node

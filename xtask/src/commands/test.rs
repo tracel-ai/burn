@@ -58,7 +58,7 @@ pub(crate) fn handle_command(
                             // "burn-router" uses "burn-wgpu" for the tests.
                             "burn-router".to_string(),
                         ]);
-                    };
+                    }
                 }
                 CiTestType::GcpCudaRunner => {
                     args.target = Target::AllPackages;

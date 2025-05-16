@@ -23,6 +23,7 @@ pub struct AurocInput<B: Backend> {
 
 impl<B: Backend> AurocMetric<B> {
     /// Creates the metric.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -35,9 +36,9 @@ impl<B: Backend> AurocMetric<B> {
         // Early return if we don't have both positive and negative samples
         if n_pos == 0 || n_pos == n {
             if n_pos == 0 {
-                log::warn!("Metric cannot be computed because all target values are negative.")
+                log::warn!("Metric cannot be computed because all target values are negative.");
             } else {
-                log::warn!("Metric cannot be computed because all target values are positive.")
+                log::warn!("Metric cannot be computed because all target values are positive.");
             }
             return 0.0;
         }
@@ -95,7 +96,7 @@ impl<B: Backend> Metric for AurocMetric<B> {
     }
 
     fn clear(&mut self) {
-        self.state.reset()
+        self.state.reset();
     }
 
     fn name(&self) -> String {

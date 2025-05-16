@@ -13,6 +13,7 @@ pub struct CpuUse {
 
 impl CpuUse {
     /// Creates a new CPU metric
+    #[must_use]
     pub fn new() -> Self {
         let mut sys = System::new();
         let current = Self::refresh(&mut sys);
@@ -32,7 +33,7 @@ impl CpuUse {
 
         let cpus = sys.cpus();
         let num_cpus = cpus.len();
-        let use_percentage = cpus.iter().fold(0.0, |acc, cpu| acc + cpu.cpu_usage()) as f64;
+        let use_percentage = f64::from(cpus.iter().fold(0.0, |acc, cpu| acc + cpu.cpu_usage()));
 
         use_percentage / num_cpus as f64
     }

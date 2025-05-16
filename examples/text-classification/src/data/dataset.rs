@@ -50,16 +50,19 @@ impl Dataset<TextClassificationItem> for AgNewsDataset {
 // Implement methods for constructing the AG News dataset
 impl AgNewsDataset {
     /// Returns the training portion of the dataset
+    #[must_use]
     pub fn train() -> Self {
         Self::new("train")
     }
 
     /// Returns the testing portion of the dataset
+    #[must_use]
     pub fn test() -> Self {
         Self::new("test")
     }
 
     /// Constructs the dataset from a split (either "train" or "test")
+    #[must_use]
     pub fn new(split: &str) -> Self {
         let dataset: SqliteDataset<AgNewsItem> = HuggingfaceDatasetLoader::new("ag_news")
             .dataset(split)
@@ -68,7 +71,7 @@ impl AgNewsDataset {
     }
 }
 
-/// Implements the TextClassificationDataset trait for the AG News dataset
+/// Implements the `TextClassificationDataset` trait for the AG News dataset
 impl TextClassificationDataset for AgNewsDataset {
     /// Returns the number of unique classes in the dataset
     fn num_classes() -> usize {
@@ -88,7 +91,7 @@ impl TextClassificationDataset for AgNewsDataset {
     }
 }
 
-/// Struct for items in the DbPedia dataset
+/// Struct for items in the `DbPedia` dataset
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct DbPediaItem {
     pub title: String,   // The title of the item
@@ -96,12 +99,12 @@ pub struct DbPediaItem {
     pub label: usize,    // The label of the item (classification category)
 }
 
-/// Struct for the DbPedia dataset
+/// Struct for the `DbPedia` dataset
 pub struct DbPediaDataset {
     dataset: SqliteDataset<DbPediaItem>, // Underlying SQLite dataset
 }
 
-/// Implements the Dataset trait for the DbPedia dataset
+/// Implements the Dataset trait for the `DbPedia` dataset
 impl Dataset<TextClassificationItem> for DbPediaDataset {
     /// Returns a specific item from the dataset
     fn get(&self, index: usize) -> Option<TextClassificationItem> {
@@ -119,19 +122,22 @@ impl Dataset<TextClassificationItem> for DbPediaDataset {
     }
 }
 
-/// Implement methods for constructing the DbPedia dataset
+/// Implement methods for constructing the `DbPedia` dataset
 impl DbPediaDataset {
     /// Returns the training portion of the dataset
+    #[must_use]
     pub fn train() -> Self {
         Self::new("train")
     }
 
     /// Returns the testing portion of the dataset
+    #[must_use]
     pub fn test() -> Self {
         Self::new("test")
     }
 
     /// Constructs the dataset from a split (either "train" or "test")
+    #[must_use]
     pub fn new(split: &str) -> Self {
         let dataset: SqliteDataset<DbPediaItem> = HuggingfaceDatasetLoader::new("dbpedia_14")
             .dataset(split)
@@ -140,7 +146,7 @@ impl DbPediaDataset {
     }
 }
 
-/// Implement the TextClassificationDataset trait for the DbPedia dataset
+/// Implement the `TextClassificationDataset` trait for the `DbPedia` dataset
 impl TextClassificationDataset for DbPediaDataset {
     /// Returns the number of unique classes in the dataset
     fn num_classes() -> usize {

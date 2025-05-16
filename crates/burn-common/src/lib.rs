@@ -34,6 +34,7 @@ pub mod tensor {
     /// of all dimensions greater than `k`.
     ///
     /// This means that strides increase as you move from the rightmost to the leftmost dimension.
+    #[must_use]
     pub fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
         if shape.is_empty() {
             return true;
@@ -52,6 +53,7 @@ pub mod tensor {
     ///
     /// In a contiguous row-major tensor, the stride for each dimension
     /// equals the product of all dimension sizes to its right.
+    #[must_use]
     pub fn contiguous_strides(shape: &[usize]) -> Vec<usize> {
         let mut strides = Vec::with_capacity(shape.len());
         let mut current = 1;

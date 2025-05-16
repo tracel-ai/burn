@@ -55,6 +55,7 @@ pub enum CandleDevice {
 impl CandleDevice {
     /// Create a Cuda device with the given index.
     /// The index is the index of the Cuda device in the list of all Cuda devices found on the system.
+    #[must_use]
     pub fn cuda(index: usize) -> Self {
         CandleDevice::Cuda(CudaDevice {
             device: candle_core::CudaDevice::new(index).unwrap(),
@@ -64,6 +65,7 @@ impl CandleDevice {
 
     /// Create a Metal device with the given index.
     /// The index is the index of the Metal device in the list of all Metal devices found on the system.
+    #[must_use]
     pub fn metal(index: usize) -> Self {
         CandleDevice::Metal(MetalDevice {
             device: candle_core::MetalDevice::new(index).unwrap(),

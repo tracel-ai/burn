@@ -1,14 +1,15 @@
 use crate::ir::Node;
 
-/// Create a HardSigmoidConfig from the alpha and beta attributes of the node
+/// Create a `HardSigmoidConfig` from the alpha and beta attributes of the node
+#[must_use]
 pub fn hard_sigmoid_config(node: &Node) -> (f64, f64) {
     let mut alpha = 0.2;
     let mut beta = 0.5;
 
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         match key.as_str() {
-            "alpha" => alpha = value.clone().into_f32() as f64,
-            "beta" => beta = value.clone().into_f32() as f64,
+            "alpha" => alpha = f64::from(value.clone().into_f32()),
+            "beta" => beta = f64::from(value.clone().into_f32()),
             _ => {}
         }
     }

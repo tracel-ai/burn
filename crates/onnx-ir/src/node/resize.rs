@@ -1,7 +1,8 @@
 use crate::ir::{ArgType, Node, TensorData};
 
+#[must_use]
 pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
-    let mut mode: String = "".to_string();
+    let mut mode: String = String::new();
 
     let mut scales: Vec<f32>;
     let mut sizes: Vec<usize>;
@@ -22,7 +23,7 @@ pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
     // However, some attributes are important to be checked and we are checking
     // against the default values of the attributes.
     // TODO revisit this when we have more Resize operators in the model
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         match key.as_str() {
             "antialias" => assert_eq!(
                 value.clone().into_i32(),
@@ -31,7 +32,7 @@ pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
             ),
             "axes" => panic!("Resize: custom axes attribute is not supported"),
             "coordinate_transformation_mode" => {
-                log::warn!("Resize: coordinate_transformation_mode is ignored")
+                log::warn!("Resize: coordinate_transformation_mode is ignored");
             }
 
             "cubic_coeff_a" => log::warn!("Resize: cubic_coeff_a is ignored"),
@@ -50,7 +51,7 @@ pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
                     value.clone().into_string().to_lowercase(),
                     "stretch",
                     "Resize: keep_aspect_ratio_policy other than 'stretch' is not supported"
-                )
+                );
             }
             "mode" => mode = value.clone().into_string().to_lowercase(),
             "nearest_mode" => log::warn!("Resize: nearest_mode is ignored"),
@@ -99,30 +100,27 @@ pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
         })
         .unwrap_or_default();
 
-    if mode.is_empty() {
-        panic!("Resize: mode attribute is required")
-    }
+    assert!(!mode.is_empty(), "Resize: mode attribute is required");
 
-    if !roi.is_empty() {
-        panic!("Resize: roi input is not supported")
-    }
+    assert!(roi.is_empty(), "Resize: roi input is not supported");
 
-    if scales.is_empty() && sizes.is_empty() {
-        panic!("Resize: either scales or sizes input is required")
-    }
+    assert!(
+        !(scales.is_empty() && sizes.is_empty()),
+        "Resize: either scales or sizes input is required"
+    );
 
     if !scales.is_empty() {
         assert!(scales.len() == input.rank);
         // ignore the fist two items from scales
         // because they are the batch and channel dimensions
-        scales = scales.iter().skip(2).cloned().collect();
+        scales = scales.iter().skip(2).copied().collect();
     }
 
     if !sizes.is_empty() {
         assert!(sizes.len() == input.rank);
         // ignore the fist two items from sizes
         // because they are the batch and channel dimensions
-        sizes = sizes.iter().skip(2).cloned().collect();
+        sizes = sizes.iter().skip(2).copied().collect();
     }
 
     (mode, scales, sizes)

@@ -86,6 +86,7 @@ pub struct FusedReduce {
 }
 
 impl FusedReduce {
+    #[must_use]
     pub fn with_strategy(&self, strategy: ReduceStrategy) -> Self {
         Self {
             input: self.input.clone(),
@@ -323,17 +324,18 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
             .map(|(i, s)| if i == self.axis { 1 } else { *s as u32 })
             .product();
 
-        let line_mode = match self.axis == config_read.rank as usize - 1 {
-            true => LineMode::Parallel,
-            false => LineMode::Perpendicular,
+        let line_mode = if self.axis == config_read.rank as usize - 1 {
+            LineMode::Parallel
+        } else {
+            LineMode::Perpendicular
         };
 
         let config_reduce = ReduceConfig {
             cube_count: CubeCount::new_single(),
             cube_dim: CubeDim::new_single(),
             line_mode,
-            line_size_input: config_read.width as u32,
-            line_size_output: config_write.width as u32,
+            line_size_input: u32::from(config_read.width),
+            line_size_output: u32::from(config_write.width),
             bound_checks: false,
             bound_checks_inner: if strategy.use_planes {
                 BoundChecksInner::Branch
@@ -407,7 +409,7 @@ fn launch_reduce_mixed_precision<Run: Runtime>(
         ReduceInstruction::Min => ReduceFnConfig::Min,
         ReduceInstruction::MaxAbs => ReduceFnConfig::MaxAbs,
     };
-    launch_reduce::<Run, ReduceFn>(kwargs, config, dtype_input, dtype_output, dtype_acc)
+    launch_reduce::<Run, ReduceFn>(kwargs, config, dtype_input, dtype_output, dtype_acc);
 }
 
 fn launch_reduce<Run: Runtime, Rd: ReduceFamily>(

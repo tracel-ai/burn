@@ -1,12 +1,13 @@
 use crate::ir::Node;
 
-/// Create a LeakyReluConfig from the alpha attribute of the node
+/// Create a `LeakyReluConfig` from the alpha attribute of the node
+#[must_use]
 pub fn leaky_relu_config(node: &Node) -> f64 {
     let mut alpha = 0.01;
 
-    for (key, value) in node.attrs.iter() {
+    for (key, value) in &node.attrs {
         if key.as_str() == "alpha" {
-            alpha = value.clone().into_f32() as f64
+            alpha = f64::from(value.clone().into_f32());
         }
     }
 

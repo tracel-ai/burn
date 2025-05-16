@@ -6,11 +6,9 @@ use protobuf::Enum;
 pub fn random_update_output(node: &mut Node) {
     log::debug!("Random rank inference for node {}", node.name);
 
-    let dtype = node
-        .attrs
-        .get("dtype")
-        .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
-        .unwrap_or(DataType::FLOAT);
+    let dtype = node.attrs.get("dtype").map_or(DataType::FLOAT, |val| {
+        DataType::from_i32(val.clone().into_i32()).unwrap()
+    });
     log::debug!("Random dtype for {}: {:?}", node.name, dtype);
 
     let shape = node
@@ -47,7 +45,7 @@ mod tests {
     fn create_test_node(dtype: i32, shape: Vec<i64>) -> Node {
         NodeBuilder::new(NodeType::RandomNormal, "test_random")
             .output_tensor_f32("output", 0, None) // Rank 0 will be updated
-            .attr_int("dtype", dtype as i64)
+            .attr_int("dtype", i64::from(dtype))
             .attr_ints("shape", shape)
             .build()
     }

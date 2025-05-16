@@ -11,6 +11,7 @@ pub struct CpuTemperature {
 
 impl CpuTemperature {
     /// Creates a new CPU temp metric
+    #[must_use]
     pub fn new() -> Self {
         Self {
             temp_celsius: 0.,
@@ -34,9 +35,10 @@ impl Metric for CpuTemperature {
             Err(_) => self.temp_celsius = f32::NAN,
         }
 
-        let formatted = match self.temp_celsius.is_nan() {
-            true => format!("{}: NaN °C", self.name()),
-            false => format!("{}: {:.2} °C", self.name(), self.temp_celsius),
+        let formatted = if self.temp_celsius.is_nan() {
+            format!("{}: NaN °C", self.name())
+        } else {
+            format!("{}: {:.2} °C", self.name(), self.temp_celsius)
         };
         let raw = format!("{:.2}", self.temp_celsius);
 
@@ -52,6 +54,6 @@ impl Metric for CpuTemperature {
 
 impl Numeric for CpuTemperature {
     fn value(&self) -> f64 {
-        self.temp_celsius as f64
+        f64::from(self.temp_celsius)
     }
 }

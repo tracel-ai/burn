@@ -30,7 +30,7 @@ pub struct TuneInput<R: Runtime, O> {
 /// The wrapper removes the context lifetime.
 ///
 /// For it to be correct, the context must not be used after the invocation of the
-/// [cubecl::tune::LocalTuner::execute] function. This is the case, since autotune functions are
+/// [`cubecl::tune::LocalTuner::execute`] function. This is the case, since autotune functions are
 /// tuned using a cloned version of the input; therefore, a fork of the context will be used to find
 /// the best kernel to use, which can be async.
 enum UnsafeTuneContext<R: Runtime> {
@@ -71,7 +71,7 @@ impl<R: Runtime> UnsafeTuneContext<R> {
 
         // It is necessary for the lifetime.
         #[allow(clippy::unnecessary_cast)]
-        Self::Original(ptr as *mut Context<'static, _>)
+        Self::Original(ptr.cast::<Context<'static, _>>())
     }
 
     fn get(&self) -> TuneContext<'static, R> {

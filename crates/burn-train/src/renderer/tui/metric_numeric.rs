@@ -87,7 +87,7 @@ impl NumericMetricsState {
         }
 
         if let Some(num_sample_train) = self.num_samples_train {
-            for (_, (_recent, full)) in self.data.iter_mut() {
+            for (_recent, full) in self.data.values_mut() {
                 let ratio = progress.progress.items_total as f64 / num_sample_train as f64;
                 full.update_max_sample_valid(ratio);
             }
@@ -98,9 +98,10 @@ impl NumericMetricsState {
 
     /// Create a view to display the numeric metrics.
     pub(crate) fn view(&self) -> NumericMetricView<'_> {
-        match self.names.is_empty() {
-            true => NumericMetricView::None,
-            false => NumericMetricView::Plots(&self.names, self.selected, self.chart(), self.kind),
+        if self.names.is_empty() {
+            NumericMetricView::None
+        } else {
+            NumericMetricView::Plots(&self.names, self.selected, self.chart(), self.kind)
         }
     }
 
@@ -164,13 +165,23 @@ impl NumericMetricsState {
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
                     .title("Iteration")
-                    .labels(axes.labels_x.clone().into_iter().map(|s| s.bold()))
+                    .labels(
+                        axes.labels_x
+                            .clone()
+                            .into_iter()
+                            .map(ratatui::prelude::Stylize::bold),
+                    )
                     .bounds(axes.bounds_x),
             )
             .y_axis(
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
-                    .labels(axes.labels_y.clone().into_iter().map(|s| s.bold()))
+                    .labels(
+                        axes.labels_y
+                            .clone()
+                            .into_iter()
+                            .map(ratatui::prelude::Stylize::bold),
+                    )
                     .bounds(axes.bounds_y),
             )
     }
@@ -230,6 +241,6 @@ impl NumericMetricView<'_> {
                 frame.render_widget(chart, chunks[2]);
             }
             Self::None => {}
-        };
+        }
     }
 }

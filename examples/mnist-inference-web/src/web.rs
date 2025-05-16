@@ -25,8 +25,9 @@ pub struct Mnist {
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Mnist {
-    /// Constructor called by JavaScripts with the new keyword.
+    /// Constructor called by `JavaScripts` with the new keyword.
     #[cfg_attr(target_family = "wasm", wasm_bindgen(constructor))]
+    #[must_use]
     pub fn new() -> Self {
         console_error_panic_hook::set_once();
         Self { model: None }

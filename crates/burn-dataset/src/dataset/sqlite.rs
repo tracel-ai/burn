@@ -62,11 +62,11 @@ impl From<&'static str> for SqliteDatasetError {
     }
 }
 
-/// This struct represents a dataset where all items are stored in an SQLite database.
-/// Each instance of this struct corresponds to a specific table within the SQLite database,
+/// This struct represents a dataset where all items are stored in an `SQLite` database.
+/// Each instance of this struct corresponds to a specific table within the `SQLite` database,
 /// and allows for interaction with the data stored in the table in a structured and typed manner.
 ///
-/// The SQLite database must contain a table with the same name as the `split` field. This table should
+/// The `SQLite` database must contain a table with the same name as the `split` field. This table should
 /// have a primary key column named `row_id`, which is used to index the rows in the table. The `row_id`
 /// should start at 1, while the corresponding dataset `index` should start at 0, i.e., `row_id` = `index` + 1.
 ///
@@ -82,7 +82,7 @@ impl From<&'static str> for SqliteDatasetError {
 ///
 /// 2. The fields in the `I` struct can be serialized into a single column `item` in the table. In this case, the table
 ///    should have a single column named `item` of type `BLOB`. This is useful when the `I` struct contains complex fields
-///    that cannot be mapped to a SQLite type, such as nested structs, vectors, etc. The serialization is done using
+///    that cannot be mapped to a `SQLite` type, such as nested structs, vectors, etc. The serialization is done using
 ///    [MessagePack](https://msgpack.org/).
 ///
 /// Note: The code automatically figures out which of the above two cases is applicable, and uses the appropriate
@@ -100,7 +100,7 @@ pub struct SqliteDataset<I> {
 }
 
 impl<I> SqliteDataset<I> {
-    /// Initializes a `SqliteDataset` from a SQLite database file and a split name.
+    /// Initializes a `SqliteDataset` from a `SQLite` database file and a split name.
     pub fn from_db_file<P: AsRef<Path>>(db_file: P, split: &str) -> Result<Self> {
         // Create a connection pool
         let conn_pool = create_conn_pool(&db_file, false)?;
@@ -130,7 +130,7 @@ impl<I> SqliteDataset<I> {
         })
     }
 
-    /// Returns true if table has two columns: row_id (integer) and item (blob).
+    /// Returns true if table has two columns: `row_id` (integer) and item (blob).
     ///
     /// This is used to determine if the table is row serialized or not.
     fn check_if_row_serialized(
@@ -170,23 +170,25 @@ impl<I> SqliteDataset<I> {
             columns.push(column?);
         }
 
-        if columns.len() != 2 {
-            Ok(false)
-        } else {
+        if columns.len() == 2 {
             // Check if the column names and types match the expected values
             Ok(columns[0].name == "row_id"
                 && columns[0].ty == "integer"
                 && columns[1].name == "item"
                 && columns[1].ty == "blob")
+        } else {
+            Ok(false)
         }
     }
 
     /// Get the database file name.
+    #[must_use]
     pub fn db_file(&self) -> PathBuf {
         self.db_file.clone()
     }
 
     /// Get the split name.
+    #[must_use]
     pub fn split(&self) -> &str {
         self.split.as_str()
     }
@@ -278,7 +280,7 @@ fn create_conn_pool<P: AsRef<Path>>(
     Pool::new(manager).map_err(SqliteDatasetError::ConnectionPool)
 }
 
-/// The `SqliteDatasetStorage` struct represents a SQLite database for storing datasets.
+/// The `SqliteDatasetStorage` struct represents a `SQLite` database for storing datasets.
 /// It consists of an optional name, a database file path, and a base directory for storage.
 #[derive(Clone, Debug)]
 pub struct SqliteDatasetStorage {
@@ -293,6 +295,7 @@ impl SqliteDatasetStorage {
     /// # Arguments
     ///
     /// * `name` - A string slice that holds the name of the dataset.
+    #[must_use]
     pub fn from_name(name: &str) -> Self {
         SqliteDatasetStorage {
             name: Some(name.to_string()),
@@ -329,6 +332,7 @@ impl SqliteDatasetStorage {
     /// # Returns
     ///
     /// * A boolean value indicating whether the file exists or not.
+    #[must_use]
     pub fn exists(&self) -> bool {
         self.db_file().exists()
     }
@@ -338,13 +342,13 @@ impl SqliteDatasetStorage {
     /// # Returns
     ///
     /// * A `PathBuf` instance representing the file path.
+    #[must_use]
     pub fn db_file(&self) -> PathBuf {
-        match &self.db_file {
-            Some(db_file) => db_file.clone(),
-            None => {
-                let name = sanitize(self.name.as_ref().expect("Name is not set"));
-                Self::base_dir(self.base_dir.to_owned()).join(format!("{name}.db"))
-            }
+        if let Some(db_file) = &self.db_file {
+            db_file.clone()
+        } else {
+            let name = sanitize(self.name.as_ref().expect("Name is not set"));
+            Self::base_dir(self.base_dir.clone()).join(format!("{name}.db"))
         }
     }
 
@@ -357,18 +361,18 @@ impl SqliteDatasetStorage {
     /// # Returns
     ///
     /// * A `PathBuf` instance representing the base directory.
+    #[must_use]
     pub fn base_dir(base_dir: Option<PathBuf>) -> PathBuf {
-        match base_dir {
-            Some(base_dir) => base_dir,
-            None => {
-                let home_dir = dirs::home_dir().expect("Could not get home directory");
+        if let Some(base_dir) = base_dir {
+            base_dir
+        } else {
+            let home_dir = dirs::home_dir().expect("Could not get home directory");
 
-                home_dir.join(".cache").join("burn-dataset")
-            }
+            home_dir.join(".cache").join("burn-dataset")
         }
     }
 
-    /// Provides a writer instance for the SQLite dataset.
+    /// Provides a writer instance for the `SQLite` dataset.
     ///
     /// # Arguments
     ///
@@ -384,7 +388,7 @@ impl SqliteDatasetStorage {
         SqliteDatasetWriter::new(self.db_file(), overwrite)
     }
 
-    /// Provides a reader instance for the SQLite dataset.
+    /// Provides a reader instance for the `SQLite` dataset.
     ///
     /// # Arguments
     ///
@@ -397,15 +401,13 @@ impl SqliteDatasetStorage {
     where
         I: Clone + Send + Sync + Serialize + DeserializeOwned,
     {
-        if !self.exists() {
-            panic!("The database file does not exist");
-        }
+        assert!(self.exists(), "The database file does not exist");
 
         SqliteDataset::from_db_file(self.db_file(), split)
     }
 }
 
-/// This `SqliteDatasetWriter` struct is a SQLite database writer dedicated to storing datasets.
+/// This `SqliteDatasetWriter` struct is a `SQLite` database writer dedicated to storing datasets.
 /// It retains the current writer's state and its database connection.
 ///
 /// Being thread-safe, this writer can be concurrently used across multiple threads.
@@ -544,7 +546,7 @@ where
         pragma_update_with_error_handling(&conn, "journal_mode", "OFF")?;
 
         // Insert the serialized item into the database
-        let insert_statement = format!("insert into {split} (item) values (?)", split = split);
+        let insert_statement = format!("insert into {split} (item) values (?)");
         conn.execute(insert_statement.as_str(), [serialized_item])?;
 
         // Get the primary key of the last inserted row and convert to index (row_id-1)
@@ -613,7 +615,7 @@ where
 
 /// Runs a pragma update and ignores the `ExecuteReturnedResults` error.
 ///
-/// Sometimes ExecuteReturnedResults is returned when running a pragma update. This is not an error
+/// Sometimes `ExecuteReturnedResults` is returned when running a pragma update. This is not an error
 /// and can be ignored. This function runs the pragma update and ignores the error if it is
 /// `ExecuteReturnedResults`.
 fn pragma_update_with_error_handling(
@@ -684,7 +686,7 @@ mod tests {
         let mut match_count = 0;
         for (_index, result) in indices.iter().zip(results.iter()) {
             if let Some(_val) = result {
-                match_count += 1
+                match_count += 1;
             }
         }
 
@@ -822,7 +824,7 @@ mod tests {
         (0..record_count).into_par_iter().for_each(|index: i64| {
             let thread_id: std::thread::ThreadId = std::thread::current().id();
             let sample = Complex {
-                column_str: format!("test_{:?}_{}", thread_id, index),
+                column_str: format!("test_{thread_id:?}_{index}"),
                 column_bytes: vec![index as u8, 2, 3],
                 column_int: index,
                 column_bool: true,

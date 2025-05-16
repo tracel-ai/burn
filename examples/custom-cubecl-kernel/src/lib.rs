@@ -13,7 +13,7 @@ pub trait Backend: burn::tensor::backend::Backend {
     ) -> FloatTensor<Self>;
 }
 
-/// We create our own AutodiffBackend trait that extends the Burn autodiff backend trait.
+/// We create our own `AutodiffBackend` trait that extends the Burn autodiff backend trait.
 pub trait AutodiffBackend: Backend + burn::tensor::backend::AutodiffBackend {}
 
 /// We define our custom implementation using the added function on our custom backend.

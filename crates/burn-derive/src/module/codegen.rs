@@ -44,7 +44,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
     let clone_fn = codegen.gen_clone();
 
     let record = codegen.record_codegen();
-    let record_name = Ident::new(format!("{}Record", name).as_str(), name.span());
+    let record_name = Ident::new(format!("{name}Record").as_str(), name.span());
     let record_type = record.gen_record_type(&record_name, &generics.module);
 
     let (generics_module, generics_ty_module, generics_where_module) =
@@ -121,10 +121,10 @@ pub(crate) fn generate_module_const(ast: &syn::DeriveInput) -> TokenStream {
     let mut generics_module = ast.generics.clone();
     let mut generics_module_autodiff = ast.generics.clone();
 
-    for param in backend.params.into_iter() {
+    for param in backend.params {
         generics_module.params.push(param);
     }
-    for param in backend_ad.params.into_iter() {
+    for param in backend_ad.params {
         generics_module_autodiff.params.push(param);
     }
     let (generics_module, _, _) = generics_module.split_for_impl();

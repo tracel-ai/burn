@@ -268,7 +268,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
 
     fn int_into_float(tensor: NdArrayTensor<I>) -> FloatTensor<Self> {
         new_tensor_float!(NdArrayTensor {
-            array: tensor.array.mapv(|a| a.elem()).into_shared()
+            array: tensor
+                .array
+                .mapv(burn_tensor::ElementConversion::elem)
+                .into_shared()
         })
     }
 

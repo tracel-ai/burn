@@ -31,6 +31,7 @@ impl TensorMetadata for CandleTensor {
 
 impl CandleTensor {
     /// Create a new tensor.
+    #[must_use]
     pub fn new(tensor: candle_core::Tensor) -> Self {
         Self { tensor }
     }
@@ -45,6 +46,7 @@ impl CandleTensor {
     /// # Returns
     ///
     /// A new tensor.
+    #[must_use]
     pub fn from_data<E: CandleElement>(data: TensorData, device: CandleDevice) -> Self {
         let candle_shape: candle_core::Shape = data.shape.clone().into();
         let tensor = candle_core::Tensor::from_slice(

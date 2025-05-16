@@ -16,7 +16,7 @@ impl ModuleRecordCodegen for StructModuleRecordCodegen {
         let mut fields = quote! {};
         let vis = &self.vis;
 
-        for field in self.fields.iter() {
+        for field in &self.fields {
             let ty = &field.field.ty;
             let name = &field.field.ident;
 

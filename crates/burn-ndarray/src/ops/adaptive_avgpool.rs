@@ -45,7 +45,7 @@ pub(crate) fn adaptive_avg_pool2d<E: FloatNdArrayElement>(
                     output[[b, c, h, w]] = sum_val / count.elem();
                 }
             }
-        })
+        });
     });
 
     NdArrayTensor::new(output.into_dyn().into_shared())
@@ -86,7 +86,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<E: FloatNdArrayElement>(
                     }
                 }
             }
-        })
+        });
     });
 
     NdArrayTensor::new(output_grad.into_dyn().into_shared())

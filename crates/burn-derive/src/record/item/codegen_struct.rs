@@ -31,7 +31,7 @@ impl RecordItemCodegen for StructRecordItemCodegen {
         let mut bounds = quote! {};
         let vis = &self.vis;
 
-        for field in self.fields.iter() {
+        for field in &self.fields {
             let ty = &field.field.ty;
             let name = &field.field.ident;
 
@@ -46,13 +46,13 @@ impl RecordItemCodegen for StructRecordItemCodegen {
         }
         let bound = bounds.to_string();
 
-        let (generics, generics_where) = if !has_backend {
-            let mut generics = generics.clone();
-            let param: syn::TypeParam = parse_quote! { B: burn::tensor::backend::Backend };
-            generics.params.push(syn::GenericParam::Type(param));
+        let (generics, generics_where) = if has_backend {
             let (generics, _, generics_where) = generics.split_for_impl();
             (quote! { #generics }, quote! { #generics_where })
         } else {
+            let mut generics = generics.clone();
+            let param: syn::TypeParam = parse_quote! { B: burn::tensor::backend::Backend };
+            generics.params.push(syn::GenericParam::Type(param));
             let (generics, _, generics_where) = generics.split_for_impl();
             (quote! { #generics }, quote! { #generics_where })
         };
@@ -72,7 +72,7 @@ impl RecordItemCodegen for StructRecordItemCodegen {
     fn gen_into_item(&self, item_name: &Ident) -> TokenStream {
         let mut body_into_item = quote! {};
 
-        for field in self.fields.iter() {
+        for field in &self.fields {
             let name = &field.field.ident;
 
             body_into_item.extend(quote! {
@@ -92,7 +92,7 @@ impl RecordItemCodegen for StructRecordItemCodegen {
     fn gen_from_item(&self) -> TokenStream {
         let mut body_from_item = quote! {};
 
-        for field in self.fields.iter() {
+        for field in &self.fields {
             let name = &field.field.ident;
 
             body_from_item.extend(quote! {

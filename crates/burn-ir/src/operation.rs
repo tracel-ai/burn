@@ -29,6 +29,7 @@ pub struct CustomOpIr {
 
 impl CustomOpIr {
     /// Create a new custom operation intermediate representation.
+    #[must_use]
     pub fn new(id: &'static str, inputs: &[TensorIr], outputs: &[TensorIr]) -> Self {
         Self {
             id: id.to_owned(),
@@ -38,6 +39,7 @@ impl CustomOpIr {
     }
 
     /// Cast the intermediate representation, and get the in and output tensors.
+    #[must_use]
     pub fn as_fixed<const N_IN: usize, const N_OUT: usize>(
         &self,
     ) -> (&[TensorIr; N_IN], &[TensorIr; N_OUT]) {
@@ -94,7 +96,7 @@ pub enum FloatOperationIr {
     Log1p(UnaryOpIr),
     /// Operation corresponding to [erf](burn_tensor::ops::FloatTensorOps::float_erf).
     Erf(UnaryOpIr),
-    /// Operation corresponding to [powf_scalar](burn_tensor::ops::FloatTensorOps::float_powf_scalar).
+    /// Operation corresponding to [`powf_scalar`](burn_tensor::ops::FloatTensorOps::float_powf_scalar).
     PowfScalar(ScalarOpIr<f32>),
     /// Operation corresponding to [sqrt](burn_tensor::ops::FloatTensorOps::float_sqrt).
     Sqrt(UnaryOpIr),
@@ -110,7 +112,7 @@ pub enum FloatOperationIr {
     Floor(UnaryOpIr),
     /// Operation corresponding to [ceil](burn_tensor::ops::FloatTensorOps::float_ceil).
     Ceil(UnaryOpIr),
-    /// Operation corresponding to [into_int](burn_tensor::ops::FloatTensorOps::float_into_int).
+    /// Operation corresponding to [`into_int`](burn_tensor::ops::FloatTensorOps::float_into_int).
     IntoInt(UnaryOpIr),
     /// Operation corresponding to [matmul](burn_tensor::ops::FloatTensorOps::float_matmul).
     Matmul(BinaryOpIr),
@@ -129,7 +131,7 @@ pub enum FloatOperationIr {
 pub enum ModuleOperationIr {
     /// Operation corresponding to [embedding](burn_tensor::ops::ModuleOps::embedding).
     Embedding(EmbeddingOpIr),
-    /// Operation corresponding to [embedding_backward](burn_tensor::ops::ModuleOps::embedding_backward).
+    /// Operation corresponding to [`embedding_backward`](burn_tensor::ops::ModuleOps::embedding_backward).
     EmbeddingBackward(EmbeddingBackwardOpIr),
     /// Operation corresponding to [conv1d](burn_tensor::ops::ModuleOps::conv1d).
     Conv1d(Conv1dOpIr),
@@ -137,9 +139,9 @@ pub enum ModuleOperationIr {
     Conv2d(Conv2dOpIr),
     /// Operation corresponding to [conv3d](burn_tensor::ops::ModuleOps::conv3d).
     Conv3d(Conv3dOpIr),
-    /// Operation corresponding to [deform_conv2d](burn_tensor::ops::ModuleOps::deform_conv2d)
+    /// Operation corresponding to [`deform_conv2d`](burn_tensor::ops::ModuleOps::deform_conv2d)
     DeformableConv2d(Box<DeformConv2dOpIr>),
-    /// Operation corresponding to [deform_conv2d_backward](burn_tensor::ops::ModuleOps::deform_conv2d_backward)
+    /// Operation corresponding to [`deform_conv2d_backward`](burn_tensor::ops::ModuleOps::deform_conv2d_backward)
     DeformableConv2dBackward(Box<DeformConv2dBackwardOpIr>),
     /// Operation corresponding to [conv transpose 1d](burn_tensor::ops::ModuleOps::conv_transpose1d).
     ConvTranspose1d(ConvTranspose1dOpIr),
@@ -211,9 +213,9 @@ pub enum BaseOperationIr {
 
     /// Operation corresponding to:
     ///
-    /// Float => [swap_dims](burn_tensor::ops::FloatTensorOps::float_swap_dims).
-    /// Int => [swap_dims](burn_tensor::ops::IntTensorOps::int_swap_dims).
-    /// Bool => [swap_dims](burn_tensor::ops::BoolTensorOps::bool_swap_dims).
+    /// Float => [`swap_dims`](burn_tensor::ops::FloatTensorOps::float_swap_dims).
+    /// Int => [`swap_dims`](burn_tensor::ops::IntTensorOps::int_swap_dims).
+    /// Bool => [`swap_dims`](burn_tensor::ops::BoolTensorOps::bool_swap_dims).
     SwapDims(SwapDimsOpIr),
 
     /// Operation corresponding to:
@@ -500,13 +502,13 @@ pub enum NumericOperationIr<E> {
     MinDim(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [max_abs](burn_tensor::ops::FloatTensorOps::float_max_abs).
-    /// Int => [max_abs](burn_tensor::ops::IntTensorOps::int_max_abs).
+    /// Float => [`max_abs`](burn_tensor::ops::FloatTensorOps::float_max_abs).
+    /// Int => [`max_abs`](burn_tensor::ops::IntTensorOps::int_max_abs).
     MaxAbs(UnaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [max_abs dim](burn_tensor::ops::FloatTensorOps::float_max_abs_dim).
-    /// Int => [max_abs dim](burn_tensor::ops::IntTensorOps::int_max_abs_dim).
+    /// Float => [`max_abs` dim](burn_tensor::ops::FloatTensorOps::float_max_abs_dim).
+    /// Int => [`max_abs` dim](burn_tensor::ops::IntTensorOps::int_max_abs_dim).
     MaxAbsDim(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
@@ -1372,6 +1374,7 @@ pub struct InterpolateBackwardOpIr {
 
 impl OperationIr {
     /// Cleanup the remaining tensor handles that have not been used.
+    #[must_use]
     pub fn nodes(&self) -> Vec<&TensorIr> {
         match self {
             OperationIr::BaseFloat(repr) => repr.nodes(),

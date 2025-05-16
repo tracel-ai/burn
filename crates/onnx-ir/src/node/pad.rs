@@ -10,6 +10,7 @@ pub struct PadConfig {
 }
 
 impl PadConfig {
+    #[must_use]
     pub fn new(pads: Vec<usize>, constant_value: f32) -> Self {
         PadConfig {
             pads,
@@ -18,7 +19,8 @@ impl PadConfig {
     }
 }
 
-/// Creates a PadConfig from the node attributes and inputs.
+/// Creates a `PadConfig` from the node attributes and inputs.
+#[must_use]
 pub fn pad_config(node: &Node) -> PadConfig {
     fn get_pads_input(node: &Node) -> Vec<i64> {
         if node.inputs.len() <= 1 {
@@ -31,12 +33,8 @@ pub fn pad_config(node: &Node) -> PadConfig {
         }
     }
     fn get_pads(node: &Node) -> Vec<usize> {
-        if node.inputs.is_empty() {
-            panic!("Pad: must provide data as input")
-        }
-        if node.inputs.len() >= 4 {
-            panic!("Pad: axes input is not supported")
-        }
+        assert!(!node.inputs.is_empty(), "Pad: must provide data as input");
+        assert!((node.inputs.len() < 4), "Pad: axes input is not supported");
 
         let input_dim = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.rank,
@@ -49,7 +47,7 @@ pub fn pad_config(node: &Node) -> PadConfig {
             .map(|x| x as usize)
             .collect();
 
-        for (key, value) in node.attrs.iter() {
+        for (key, value) in &node.attrs {
             match key.as_str() {
                 "pads" => {
                     pads = value
@@ -57,35 +55,37 @@ pub fn pad_config(node: &Node) -> PadConfig {
                         .into_i64s()
                         .iter()
                         .map(|&x| {
-                            if x < 0 {
-                                panic!("Pad: Negative pad is not supported");
-                            }
+                            assert!((x >= 0), "Pad: Negative pad is not supported");
                             x as usize
                         })
-                        .collect()
+                        .collect();
                 }
                 "mode" => {
                     let mode = value.clone().into_string();
-                    if mode != "constant" {
-                        panic!("only constant mode is supported, given mode is {}", mode);
-                    }
+                    assert!(
+                        (mode == "constant"),
+                        "only constant mode is supported, given mode is {mode}"
+                    );
                 }
 
                 _ => {}
             }
         }
 
-        if pads.is_empty() {
-            panic!("Pad: pads should be given as attribute or as input");
-        }
+        assert!(
+            !pads.is_empty(),
+            "Pad: pads should be given as attribute or as input"
+        );
 
-        if pads.len() != input_dim * 2 {
-            panic!("Pad: pads should be a 1D tensor of shape [2 * num_axes]");
-        }
+        assert!(
+            (pads.len() == input_dim * 2),
+            "Pad: pads should be a 1D tensor of shape [2 * num_axes]"
+        );
         // TODO: Burn's pad should support 1D tensor
-        if input_dim < 2 {
-            panic!("Pad: input tensor should be rank 2 or higher");
-        }
+        assert!(
+            (input_dim >= 2),
+            "Pad: input tensor should be rank 2 or higher"
+        );
 
         let left_index = input_dim - 1;
         let top_index = input_dim - 2;
@@ -94,11 +94,10 @@ pub fn pad_config(node: &Node) -> PadConfig {
         let index_list = [left_index, top_index, right_index, bottom_index];
 
         for (index, &item) in pads.iter().enumerate() {
-            if !index_list.contains(&index) && item != 0 {
-                panic!(
-                    "Pad: padding will only be applied to the last two dimensions but found non zero padding for other dimensions"
-                );
-            }
+            assert!(
+                !(!index_list.contains(&index) && item != 0),
+                "Pad: padding will only be applied to the last two dimensions but found non zero padding for other dimensions"
+            );
         }
 
         let left = pads[left_index];

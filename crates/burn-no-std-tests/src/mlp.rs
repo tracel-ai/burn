@@ -56,7 +56,7 @@ impl<B: Backend> Mlp<B> {
     pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
         let mut x = input;
 
-        for linear in self.linears.iter() {
+        for linear in &self.linears {
             x = linear.forward(x);
             x = self.dropout.forward(x);
             x = self.activation.forward(x);

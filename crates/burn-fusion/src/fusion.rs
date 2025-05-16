@@ -3,7 +3,7 @@ use burn_tensor::backend::{DeviceId, DeviceOps};
 
 use crate::{Client, FusionDevice, FusionRuntime, client::FusionClient};
 
-use std::{any::Any, collections::HashMap, ops::DerefMut};
+use std::{any::Any, collections::HashMap};
 
 /// Type alias for [representation backend handle](burn_ir::BackendIr::Handle).
 pub type Handle<B> = <B as BackendIr>::Handle;
@@ -34,19 +34,18 @@ impl FusionClientLocator {
             Self::register_inner::<R>(client_id, client, &mut clients);
         }
 
-        match clients.deref_mut() {
-            Some(clients) => match clients.get(&client_id) {
-                Some(client) => {
+        match &mut *clients {
+            Some(clients) => {
+                if let Some(client) = clients.get(&client_id) {
                     let client: &Client<R> = client.downcast_ref().unwrap();
                     client.clone()
-                }
-                None => {
+                } else {
                     let client = Client::<R>::new(device.clone());
                     let any = Box::new(client.clone());
                     clients.insert(client_id, any);
                     client
                 }
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -61,9 +60,10 @@ impl FusionClientLocator {
         }
 
         if let Some(clients) = clients {
-            if clients.contains_key(&key) {
-                panic!("Client already created for device {:?}", key);
-            }
+            assert!(
+                !clients.contains_key(&key),
+                "Client already created for device {key:?}"
+            );
 
             clients.insert(key, Box::new(client));
         }

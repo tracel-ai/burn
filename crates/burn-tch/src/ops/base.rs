@@ -51,7 +51,7 @@ impl TchOps {
         let tch_shape = TchShape::from(tensor.shape());
 
         // Copy the input tensor if we can't mutate it.
-        let tensor_original: TchTensor = tensor.unary_ops(|tensor| tensor, |tensor| tensor.copy());
+        let tensor_original: TchTensor = tensor.unary_ops(|tensor| tensor, tch::Tensor::copy);
         let tensor_original = tensor_original.tensor;
 
         let mut tensor = tensor_original.view_(tch_shape.dims);
@@ -124,7 +124,7 @@ impl TchOps {
             rhs,
             |lhs, rhs| lhs.eq_tensor_(rhs).to_kind(tch::Kind::Bool),
             |lhs, rhs| rhs.eq_tensor_(lhs).to_kind(tch::Kind::Bool),
-            |lhs, rhs| lhs.eq_tensor(rhs),
+            tch::Tensor::eq_tensor,
         )
     }
 
@@ -141,7 +141,7 @@ impl TchOps {
             rhs,
             |lhs, rhs| lhs.greater_tensor_(rhs).to_kind(tch::Kind::Bool),
             |lhs, rhs| rhs.less_tensor_(lhs).to_kind(tch::Kind::Bool),
-            |lhs, rhs| lhs.greater_tensor(rhs),
+            tch::Tensor::greater_tensor,
         )
     }
 
@@ -158,7 +158,7 @@ impl TchOps {
             rhs,
             |lhs, rhs| lhs.greater_equal_tensor_(rhs).to_kind(tch::Kind::Bool),
             |lhs, rhs| rhs.less_equal_tensor_(lhs).to_kind(tch::Kind::Bool),
-            |lhs, rhs| lhs.greater_equal_tensor(rhs),
+            tch::Tensor::greater_equal_tensor,
         )
     }
 
@@ -179,7 +179,7 @@ impl TchOps {
             rhs,
             |lhs, rhs| lhs.less_tensor_(rhs).to_kind(tch::Kind::Bool),
             |lhs, rhs| rhs.greater_tensor_(lhs).to_kind(tch::Kind::Bool),
-            |lhs, rhs| lhs.less_tensor(rhs),
+            tch::Tensor::less_tensor,
         )
     }
 
@@ -196,7 +196,7 @@ impl TchOps {
             rhs,
             |lhs, rhs| lhs.less_equal_tensor_(rhs).to_kind(tch::Kind::Bool),
             |lhs, rhs| rhs.greater_equal_tensor_(lhs).to_kind(tch::Kind::Bool),
-            |lhs, rhs| lhs.less_equal_tensor(rhs),
+            tch::Tensor::less_equal_tensor,
         )
     }
 
@@ -410,7 +410,7 @@ impl TchOps {
     }
 
     pub fn sign(tensor: TchTensor) -> TchTensor {
-        tensor.unary_ops(|mut tensor| tensor.sign_(), |tensor| tensor.sign())
+        tensor.unary_ops(|mut tensor| tensor.sign_(), tch::Tensor::sign)
     }
 
     pub fn expand(tensor: TchTensor, shape: Shape) -> TchTensor {
