@@ -12,9 +12,9 @@ mod tests {
         let tensor_2 = TestTensorInt::<2>::from_ints([[4, 7, 5], [2, 3, 5]], &device);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
-        let expected = TensorData::from([[18 as i64, 28, 40], [14, 23, 25], [14, 22, 30]]);
+        let expected = TensorData::from([[18, 28, 40], [14, 23, 25], [14, 22, 30]]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -37,9 +37,9 @@ mod tests {
         let tensor_2 = TestTensorInt::from_ints([[[4, 7], [2, 3]]], &device);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
-        let expected = TensorData::from([[[18 as i64, 28], [14, 23]]]);
+        let expected = TensorData::from([[[18, 28], [14, 23]]]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -61,9 +61,9 @@ mod tests {
         let tensor_2 = TestTensorInt::from_ints([[[4, 7], [2, 3]], [[2, 5], [6, 3]]], &device);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
-        let expected = TensorData::from([[[18 as i64, 28], [14, 23]], [[44, 26], [22, 19]]]);
+        let expected = TensorData::from([[[18, 28], [14, 23]], [[44, 26], [22, 19]]]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -94,11 +94,11 @@ mod tests {
         // [2, 1, 2, 2] @ [1, 2, 2, 2] -> [2, 2, 2, 2]
         let tensor_3 = tensor_1.matmul(tensor_2);
         let expected = TensorData::from([
-            [[[16 as i64, 36], [21, 28]], [[23, 42], [13, 29]]],
+            [[[16, 36], [21, 28]], [[23, 42], [13, 29]]],
             [[[23, 36], [57, 60]], [[19, 39], [21, 57]]],
         ]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -132,9 +132,9 @@ mod tests {
         let tensor_2 = TestTensorInt::from_ints([[3, 4, 5], [0, 1, 2]], &device);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
-        let expected = TensorData::from([[15 as i64, 34, 53], [42, 106, 170]]);
+        let expected = TensorData::from([[15, 34, 53], [42, 106, 170]]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -158,9 +158,9 @@ mod tests {
             TestTensorInt::from_ints([[0, 1, 2], [4, 5, 6], [8, 9, 10], [12, 13, 14]], &device);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
-        let expected = TensorData::from([[56 as i64, 62, 68], [152, 174, 196], [248, 286, 324]]);
+        let expected = TensorData::from([[56, 62, 68], [152, 174, 196], [248, 286, 324]]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -191,12 +191,12 @@ mod tests {
 
         tensor_3.into_data().assert_eq(
             &TensorData::from([
-                [56 as i64, 62, 68, 74],
+                [56, 62, 68, 74],
                 [152, 174, 196, 218],
                 [248, 286, 324, 362],
                 [344, 398, 452, 506],
             ]),
-            true,
+            false,
         );
     }
 
@@ -231,12 +231,12 @@ mod tests {
 
         tensor_3.into_data().assert_eq(
             &TensorData::from([
-                [14 as i64, 38, 62, 86],
+                [14, 38, 62, 86],
                 [38, 126, 214, 302],
                 [62, 214, 366, 518],
                 [86, 302, 518, 734],
             ]),
-            true,
+            false,
         );
     }
 
@@ -271,12 +271,12 @@ mod tests {
 
         tensor_3.into_data().assert_eq(
             &TensorData::from([
-                [140 as i64, 364, 588, 812],
+                [140, 364, 588, 812],
                 [364, 1100, 1836, 2572],
                 [588, 1836, 3084, 4332],
                 [812, 2572, 4332, 6092],
             ]),
-            true,
+            false,
         );
     }
 
@@ -308,9 +308,9 @@ mod tests {
         let tensor_2 = TestTensorInt::from_ints([[3], [4], [5], [6]], &device);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
-        let expected = TensorData::from([[50 as i64]]);
+        let expected = TensorData::from([[50]]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -335,13 +335,13 @@ mod tests {
 
         let tensor_3 = tensor_1.matmul(tensor_2);
         let expected = TensorData::from([
-            [9 as i64, 18, 27, 36],
+            [9, 18, 27, 36],
             [12, 24, 36, 48],
             [15, 30, 45, 60],
             [18, 36, 54, 72],
         ]);
 
-        tensor_3.into_data().assert_eq(&expected, true);
+        tensor_3.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -377,7 +377,7 @@ mod tests {
 
         let tensor_3 = tensor_1.matmul(tensor_2);
         let expected = TensorData::from([
-            [9 as i64, 18, 27, 36],
+            [9, 18, 27, 36],
             [12, 24, 36, 48],
             [15, 30, 45, 60],
             [18, 36, 54, 72],
