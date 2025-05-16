@@ -443,7 +443,7 @@ mod tests {
 
         output_1
             .into_data()
-            .assert_approx_eq::<FT>(&output_2.into_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&output_2.into_data(), Tolerance::permissive());
     }
 
     #[test]

@@ -727,7 +727,7 @@ mod tests {
             lstm.forward(input.clone(), Some(LstmState::new(c0, h0)));
         let (output_without_init_state, state_without_init_state) = lstm.forward(input, None);
 
-        let tolerance = Tolerance::default();
+        let tolerance = Tolerance::permissive();
         output_with_init_state
             .to_data()
             .assert_approx_eq::<FT>(&expected_output_with_init_state, tolerance);

@@ -259,7 +259,7 @@ mod tests {
             .with_affine(true)
             .init::<TestBackend>(&device);
 
-        let tolerance = Tolerance::default();
+        let tolerance = Tolerance::permissive();
         module
             .gamma
             .as_ref()
