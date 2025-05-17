@@ -41,11 +41,9 @@ pub fn cosine_similarity<B: Backend, const D: usize, E: ElementConversion + Clon
     let norm_x1 = l2_norm(x1, dim_idx);
     let norm_x2 = l2_norm(x2, dim_idx);
 
-    // Compute cosine similarity: dot_product / (||x1|| * ||x2||)
-    // Use clamp to ensure the norms are never zero to avoid division by zero
-    let denominator = norm_x1.clamp_max(eps.clone()) * norm_x2.clamp_max(eps);
-    let cosine_sim = dot_product / denominator;
+    // Calculate the denominator (product of the norms) with epsilon to avoid division by zero
+    let denominator = norm_x1.clamp_min(eps.clone()) * norm_x2.clamp_min(eps);
 
-    // Ensure output is in [-1, 1] by clamping (handles numerical errors)
-    cosine_sim.clamp(-1.0, 1.0)
+    // Return the cosine similarity (dot product divided by the product of norms)
+    dot_product / denominator
 }
