@@ -19,7 +19,7 @@ mod tests {
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         // Test with explicit epsilon
-        linalg::cosine_similarity(x1.clone(), x2.clone(), 1, Some(1e-8f32))
+        linalg::cosine_similarity(x1.clone(), x2.clone(), 1, Some(1e-8))
             .into_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
