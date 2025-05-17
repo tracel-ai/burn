@@ -2,8 +2,8 @@ use burn_tensor::linalg::l2_norm;
 
 use crate as burn;
 
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::nn::loss::reduction::Reduction;
-
 use crate::module::Module;
 use crate::tensor::{Int, Tensor, activation::relu, backend::Backend};
 
@@ -12,6 +12,7 @@ use crate::tensor::{Int, Tensor, activation::relu, backend::Backend};
 /// The cosine embedding loss measures the cosine distance between two tensors.
 /// It can be used for tasks like learning nonlinear embeddings or learning similarity.
 #[derive(Module, Clone, Debug)]
+#[module(custom_display)]
 pub struct CosineEmbeddingLoss {
     /// Margin value in the loss calculation. Default: 0.0
     margin: f32,
@@ -20,6 +21,20 @@ pub struct CosineEmbeddingLoss {
 impl Default for CosineEmbeddingLoss {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl ModuleDisplay for CosineEmbeddingLoss {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("margin", &self.margin)
+            .optional()
     }
 }
 
@@ -274,6 +289,15 @@ mod tests {
     #[test]
     fn display() {
         let loss = CosineEmbeddingLoss::new();
-        assert_eq!(alloc::format!("{}", loss), "CosineEmbeddingLoss");
+        assert_eq!(
+            alloc::format!("{}", loss),
+            "CosineEmbeddingLoss {margin: 0}"
+        );
+
+        let loss_with_margin = CosineEmbeddingLoss::with_margin(0.5);
+        assert_eq!(
+            alloc::format!("{}", loss_with_margin),
+            "CosineEmbeddingLoss {margin: 0.5}"
+        );
     }
 }
