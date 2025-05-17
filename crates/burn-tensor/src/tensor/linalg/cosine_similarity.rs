@@ -5,7 +5,7 @@ use crate::tensor::Tensor;
 use super::l2_norm;
 
 /// Default epsilon value to avoid division by zero
-pub const DEFAULT_EPSILON: f32 = 1e-8;
+pub const DEFAULT_EPSILON: f64 = 1e-8;
 
 /// Computes the cosine similarity between two tensors along a specified dimension.
 ///
@@ -23,13 +23,13 @@ pub const DEFAULT_EPSILON: f32 = 1e-8;
 /// # Returns
 ///
 /// Tensor containing the cosine similarity between x1 and x2
-pub fn cosine_similarity<B: Backend, const D: usize, E: ElementConversion + Clone>(
+pub fn cosine_similarity<B: Backend, const D: usize>(
     x1: Tensor<B, D>,
     x2: Tensor<B, D>,
     dim: i32,
-    eps: Option<E>,
+    eps: Option<B::FloatElem>,
 ) -> Tensor<B, D> {
-    let eps = eps.unwrap_or_else(|| E::from_elem(DEFAULT_EPSILON));
+    let eps = eps.unwrap_or_else(|| B::FloatElem::from_elem(DEFAULT_EPSILON));
 
     // Convert negative dimension to positive
     let dim_idx = if dim < 0 { D as i32 + dim } else { dim } as usize;
