@@ -2,25 +2,51 @@ use burn_tensor::linalg::l2_norm;
 
 use crate as burn;
 
+use crate::config::Config;
+use crate::module::Module;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::nn::loss::reduction::Reduction;
-use crate::module::Module;
 use crate::tensor::{Int, Tensor, activation::relu, backend::Backend};
+
+/// Configuration to create a [Cosine Embedding loss](CosineEmbeddingLoss) using the [init function](CosineEmbeddingLossConfig::init).
+#[derive(Config, Debug)]
+pub struct CosineEmbeddingLossConfig {
+    /// Margin in the loss calculation for negative samples.
+    ///
+    /// The cosine embedding loss is computed as:
+    /// - target = 1: 1 - cos_sim
+    /// - target = -1: max(0, cos_sim - margin)
+    ///
+    /// Default: 0.0
+    #[config(default = 0.0)]
+    pub margin: f32,
+}
+
+impl CosineEmbeddingLossConfig {
+    /// Initialize [Cosine Embedding loss](CosineEmbeddingLoss).
+    pub fn init(&self) -> CosineEmbeddingLoss {
+        CosineEmbeddingLoss {
+            margin: self.margin,
+        }
+    }
+}
 
 /// Calculate the cosine embedding loss between two tensors.
 ///
 /// The cosine embedding loss measures the cosine distance between two tensors.
 /// It can be used for tasks like learning nonlinear embeddings or learning similarity.
+///
+/// Should be created using [CosineEmbeddingLossConfig]
 #[derive(Module, Clone, Debug)]
 #[module(custom_display)]
 pub struct CosineEmbeddingLoss {
     /// Margin value in the loss calculation. Default: 0.0
-    margin: f32,
+    pub margin: f32,
 }
 
 impl Default for CosineEmbeddingLoss {
     fn default() -> Self {
-        Self::new()
+        CosineEmbeddingLossConfig::new().init()
     }
 }
 
@@ -32,21 +58,23 @@ impl ModuleDisplay for CosineEmbeddingLoss {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        content
-            .add("margin", &self.margin)
-            .optional()
+        content.add("margin", &self.margin).optional()
     }
 }
 
 impl CosineEmbeddingLoss {
     /// Create the criterion with default margin of 0.0.
+    ///
+    /// For backward compatibility.
     pub fn new() -> Self {
-        Self { margin: 0.0 }
+        CosineEmbeddingLossConfig::new().init()
     }
 
     /// Create the criterion with a specified margin.
+    ///
+    /// For backward compatibility.
     pub fn with_margin(margin: f32) -> Self {
-        Self { margin }
+        CosineEmbeddingLossConfig::new().with_margin(margin).init()
     }
 
     /// Compute the criterion on the input tensors.
@@ -165,7 +193,7 @@ mod tests {
         // Target 1 means that inputs should be similar
         let target = Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([1, 1]), &device);
 
-        let loss = CosineEmbeddingLoss::new();
+        let loss = CosineEmbeddingLossConfig::new().init();
         let loss_no_reduction =
             loss.forward_no_reduction(input1.clone(), input2.clone(), target.clone());
         let loss_mean = loss.forward(
@@ -212,7 +240,7 @@ mod tests {
         let target = Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([-1, -1]), &device);
 
         // With margin 0.0, max(0, cos_sim - margin) = max(0, 1 - 0) = 1
-        let loss = CosineEmbeddingLoss::new();
+        let loss = CosineEmbeddingLossConfig::new().init();
         let loss_no_reduction =
             loss.forward_no_reduction(input1.clone(), input2.clone(), target.clone());
         let loss_mean = loss.forward(
@@ -244,7 +272,7 @@ mod tests {
             .assert_approx_eq::<FT>(&expected_sum, Tolerance::default());
 
         // With margin 0.5, max(0, cos_sim - margin) = max(0, 1 - 0.5) = 0.5
-        let loss_with_margin = CosineEmbeddingLoss::with_margin(0.5);
+        let loss_with_margin = CosineEmbeddingLossConfig::new().with_margin(0.5).init();
         let loss_with_margin = loss_with_margin.forward(input1, input2, target, Reduction::Mean);
 
         let expected = TensorData::from([0.5]);
@@ -270,7 +298,7 @@ mod tests {
         // Mixed targets
         let target = Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([1, -1]), &device);
 
-        let loss = CosineEmbeddingLoss::new();
+        let loss = CosineEmbeddingLossConfig::new().init();
         let loss_no_reduction =
             loss.forward_no_reduction(input1.clone(), input2.clone(), target.clone());
         let loss_mean = loss.forward(input1, input2, target, Reduction::Mean);
@@ -288,15 +316,11 @@ mod tests {
 
     #[test]
     fn display() {
-        let loss = CosineEmbeddingLoss::new();
+        let config = CosineEmbeddingLossConfig::new().with_margin(0.5);
+        let loss = config.init();
+
         assert_eq!(
             alloc::format!("{}", loss),
-            "CosineEmbeddingLoss {margin: 0}"
-        );
-
-        let loss_with_margin = CosineEmbeddingLoss::with_margin(0.5);
-        assert_eq!(
-            alloc::format!("{}", loss_with_margin),
             "CosineEmbeddingLoss {margin: 0.5}"
         );
     }
