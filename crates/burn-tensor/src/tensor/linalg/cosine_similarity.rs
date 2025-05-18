@@ -9,7 +9,7 @@ pub const DEFAULT_EPSILON: f64 = 1e-8;
 /// Computes the cosine similarity between two tensors along a specified dimension.
 ///
 /// Calculates the cosine of the angle between inputs as their dot product divided
-/// by the product of their L2 norms, clamped to the range [-1, 1].
+/// by the product of their L2 norms.
 ///
 /// # Arguments
 ///
