@@ -42,7 +42,7 @@ pub fn cosine_similarity<B: Backend, const D: usize>(
     let norm_x2 = l2_norm(x2, dim_idx);
 
     // Calculate the denominator (product of the norms) with epsilon to avoid division by zero
-    let denominator = norm_x1.clamp_min(eps.clone()) * norm_x2.clamp_min(eps);
+    let denominator = norm_x1.clamp_min(eps) * norm_x2.clamp_min(eps);
 
     // Return the cosine similarity (dot product divided by the product of norms)
     dot_product / denominator
