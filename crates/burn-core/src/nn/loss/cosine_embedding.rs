@@ -12,12 +12,6 @@ use crate::tensor::{Int, Tensor, activation::relu, backend::Backend};
 #[derive(Config, Debug)]
 pub struct CosineEmbeddingLossConfig {
     /// Margin for negative samples.
-    ///
-    /// Loss computation:
-    /// - target = 1: 1 - cos_sim
-    /// - target = -1: max(0, cos_sim - margin)
-    ///
-    /// Default: 0.0
     #[config(default = 0.0)]
     pub margin: f32,
 
@@ -64,7 +58,10 @@ impl ModuleDisplay for CosineEmbeddingLoss {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        content.add("margin", &self.margin).optional()
+        content
+            .add("margin", &self.margin)
+            .add("reduction", format!("{:?}", &self.reduction.0).as_str())
+            .optional()
     }
 }
 
@@ -99,7 +96,17 @@ impl CosineEmbeddingLoss {
         }
     }
 
-    /// Returns a tensor with per-element losses.
+    /// Compute loss without applying reduction.
+    ///
+    /// # Arguments
+    ///
+    /// * `input1` - First input tensor of shape [batch_size, embedding_dim]
+    /// * `input2` - Second input tensor of shape [batch_size, embedding_dim]
+    /// * `target` - Target tensor of shape [batch_size] with values 1 or -1
+    ///
+    /// # Returns
+    ///
+    /// Tensor of per-element losses with shape [batch_size]
     pub fn forward_no_reduction<B: Backend>(
         &self,
         input1: Tensor<B, 2>,
@@ -108,7 +115,9 @@ impl CosineEmbeddingLoss {
     ) -> Tensor<B, 1> {
         self.assertions(&input1, &input2, &target);
 
+        // cos_sim shape: [batch_size, 1]
         let cos_sim = cosine_similarity(input1, input2, 1, None);
+        // cos_sim shape: [batch_size]
         let cos_sim: Tensor<B, 1> = cos_sim.squeeze(1);
 
         let mut loss = cos_sim.zeros_like();
@@ -123,6 +132,7 @@ impl CosineEmbeddingLoss {
         let dissimilar_loss = relu(cos_sim.clone().sub_scalar(self.margin));
         loss = loss.mask_where(dissimilar_mask, dissimilar_loss);
 
+        // return loss shape: [batch_size]
         loss
     }
 
@@ -155,7 +165,6 @@ impl CosineEmbeddingLoss {
         );
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,7 +174,7 @@ mod tests {
     type FT = FloatElem<TestBackend>;
 
     #[test]
-    fn test_cosine_embedding_loss_positive_target() {
+    fn cosine_embedding_loss_positive_target() {
         let device = Default::default();
 
         // Two identical vectors should have cosine similarity of 1
@@ -187,7 +196,6 @@ mod tests {
             loss.forward_no_reduction(input1.clone(), input2.clone(), target.clone());
         let loss_mean = loss.forward(input1.clone(), input2.clone(), target.clone());
 
-        // TODO use sum reduction in the configuration
         let loss_sum = loss.forward(input1, input2, target);
 
         // For identical vectors, 1 - cos_sim = 1 - 1 = 0
@@ -208,7 +216,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cosine_embedding_loss_negative_target() {
+    fn cosine_embedding_loss_negative_target() {
         let device = Default::default();
 
         // Two identical vectors should have cosine similarity of 1
@@ -230,7 +238,13 @@ mod tests {
         let loss_no_reduction =
             loss.forward_no_reduction(input1.clone(), input2.clone(), target.clone());
         let loss_mean = loss.forward(input1.clone(), input2.clone(), target.clone());
-        let loss_sum = loss.forward(input1.clone(), input2.clone(), target.clone());
+
+        // Create a loss with Sum reduction for testing
+        let loss_sum_config = CosineEmbeddingLossConfig::new().with_reduction(Reduction::Sum);
+        let loss_sum =
+            loss_sum_config
+                .init()
+                .forward(input1.clone(), input2.clone(), target.clone());
 
         let expected_no_reduction = TensorData::from([1.0, 1.0]);
         loss_no_reduction
@@ -258,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cosine_embedding_loss_mixed_targets() {
+    fn cosine_embedding_loss_mixed_targets() {
         let device = Default::default();
 
         let input1 = Tensor::<TestBackend, 2>::from_data(
@@ -297,7 +311,7 @@ mod tests {
 
         assert_eq!(
             alloc::format!("{}", loss),
-            "CosineEmbeddingLoss {margin: 0.5}"
+            "CosineEmbeddingLoss {margin: 0.5, reduction: Mean}"
         );
     }
 }
