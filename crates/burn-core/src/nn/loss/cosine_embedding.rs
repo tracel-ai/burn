@@ -165,6 +165,7 @@ impl CosineEmbeddingLoss {
         );
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
