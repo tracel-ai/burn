@@ -6,7 +6,6 @@ use super::l2_norm;
 
 /// Default epsilon value to avoid division by zero
 pub const DEFAULT_EPSILON: f64 = 1e-8;
-
 /// Computes the cosine similarity between two tensors along a specified dimension.
 ///
 /// Calculates the cosine of the angle between inputs as their dot product divided
@@ -17,7 +16,7 @@ pub const DEFAULT_EPSILON: f64 = 1e-8;
 /// * `x1` - First input tensor
 /// * `x2` - Second input tensor
 /// * `dim` - Dimension along which to compute the similarity
-///           (negative indices allowed: -1 for last dimension)
+///   (negative indices allowed: -1 for last dimension)
 /// * `eps` - Small value to avoid division by zero (default: 1e-8)
 ///
 /// # Returns
