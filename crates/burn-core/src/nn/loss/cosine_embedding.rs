@@ -1,3 +1,5 @@
+use alloc::format;
+
 use burn_tensor::linalg::cosine_similarity;
 
 use crate as burn;
