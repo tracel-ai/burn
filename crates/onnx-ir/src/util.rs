@@ -45,23 +45,20 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
 /// # Arguments
 ///
 /// * `opset` - The operator set to check
-/// * `min_version` - The minimum supported version
+/// * `min_version` - The minimum supported version for standard model
 ///
 /// # Returns
 ///
 /// * `bool` - True if the opset version is supported, false otherwise
-///
-/// # Panics
-///
-/// * If the domain is not the empty ONNX domain
 pub fn check_opset_version(opset: &OperatorSetIdProto, min_version: i64) -> bool {
-    // For now, only empty domain (standard ONNX operators) is supported
-    if !opset.domain.is_empty() {
-        panic!("Only the standard ONNX domain is supported");
+    // Only check version for the standard ONNX domain (empty domain)
+    if opset.domain.is_empty() {
+        // Return true if the opset version is greater than or equal to min_version
+        return opset.version >= min_version;
     }
 
-    // Return true if the opset version is greater than or equal to min_version
-    opset.version >= min_version
+    // For non-standard domains, return true to skip version checking
+    true
 }
 
 /// Verify that all operator sets in a model are supported.
