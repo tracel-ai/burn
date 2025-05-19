@@ -3868,9 +3868,9 @@ dependencies = [
 
 [[package]]
 name = "macerator"
-version = "0.2.6"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f684f0f95ca0724667e4baf9bf60dc662cb2f6235fd9402d754f5512440efe0e"
+checksum = "86b9b4b76a4593e53b4eb6dff09738263b27225963ca76b380801413e0d4b241"
 dependencies = [
  "bytemuck",
  "half",
