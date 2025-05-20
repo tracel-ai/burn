@@ -198,8 +198,8 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
                     shape.swap(dims.0 as usize, dims.1 as usize);
                     shape
                 }
-                VirtualLayout::Reshaped(start) => {
-                    let start = *start as usize;
+                VirtualLayout::Reshaped(reshape_pos) => {
+                    let start = *reshape_pos as usize * rank;
                     let end = start + rank;
                     self.reshapes.values[start..end]
                         .iter()

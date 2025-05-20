@@ -33,9 +33,11 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
             let status = &tensor_relative.status;
             let mut handle = context.handles.get_handle(&tensor_global.id, status);
 
+            println!("Global {:?}", tensor_global.shape);
             self.analyze(plan, pos, tensor_relative, &handle);
 
             if tensor_global.shape.len() < plan.rank {
+                println!("Rank difference");
                 let num_elem: usize = tensor_global.shape.iter().product();
                 for _ in 0..(plan.rank - tensor_global.shape.len()) {
                     tensor_global.shape.insert(0, 1);
@@ -124,15 +126,14 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
             }
 
             let block_plan = &mut plan.blocks[idx];
-            if tensor_relative.status == TensorStatus::ReadWrite
-                && handle.handle.can_mut()
-                && self.blocks[idx].settings.inplace
-            {
-                block_plan.potential_inplaces.push(PotentialInplace {
-                    input_pos: pos,
-                    tensor_relative,
-                    strides: handle.strides.clone(),
-                });
+            if tensor_relative.status == TensorStatus::ReadWrite {
+                if self.blocks[idx].settings.inplace && handle.handle.can_mut() {
+                    block_plan.potential_inplaces.push(PotentialInplace {
+                        input_pos: pos,
+                        tensor_relative,
+                        strides: handle.strides.clone(),
+                    });
+                }
                 // Inplace tensors are normally really good as the reference layout, since
                 // it's normally better to be based on writes rather than on reads.
                 block_plan.potential_reference_input =
@@ -164,6 +165,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     if block_plan.potential_reference_input.is_none()
                         && shape_relative == &block.shape_ref
                     {
+                        println!("{:?} reshape pos {}", block.shape_ref, reshape_pos);
                         block_plan.potential_reference_input = Some(InputReference::Reshaped {
                             reshape_pos: *reshape_pos as usize,
                         });

@@ -146,8 +146,9 @@ pub fn init_locals(
                     layout.tensor.line_size(),
                 )
             }
-            VirtualLayout::Reshaped(start) => {
+            VirtualLayout::Reshaped(reshape_pos) => {
                 let mut stride_curr = 1u32;
+                let start = reshape_pos * config.rank;
 
                 #[unroll]
                 #[allow(clippy::clone_on_copy)]
