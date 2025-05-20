@@ -6,6 +6,9 @@ name = "text-classification"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = []
 f16 = []

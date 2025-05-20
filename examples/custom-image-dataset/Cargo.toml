@@ -7,6 +7,9 @@ description = "Example implementation for loading a custom image dataset from di
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = ["burn/default"]
 tch-gpu = ["burn/tch"]
