@@ -31,3 +31,5 @@ pub type Rocm<F = f32, I = i32, B = u8> = burn_fusion::Fusion<CubeBackend<HipRun
 //     // TODO: Add tests for bf16
 //     burn_cubecl::testgen_all!([f16, f32], [i8, i16, i32, i64], [u8, u32]);
 // }
+
+// Dummy change
