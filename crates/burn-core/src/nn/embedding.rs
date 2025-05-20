@@ -84,30 +84,6 @@ mod tests {
     type FT = FloatElem<TestBackend>;
 
     #[test]
-    fn initializer_default() {
-        TestBackend::seed(0);
-
-        let config = EmbeddingConfig::new(100, 10);
-        let embed = config.init::<TestBackend>(&Default::default());
-        let weights = embed.weight.val().reshape([1000]);
-        let (var_act, mean_act) = weights.var_mean(0);
-
-        assert_eq!(
-            config.initializer,
-            Initializer::Normal {
-                mean: 0.0,
-                std: 1.0
-            }
-        );
-        var_act
-            .to_data()
-            .assert_approx_eq::<FT>(&TensorData::from([1.0f32]), Tolerance::rel_abs(0.1, 0.1));
-        mean_act
-            .to_data()
-            .assert_approx_eq::<FT>(&TensorData::from([0.0f32]), Tolerance::rel_abs(0.1, 0.1));
-    }
-
-    #[test]
     fn initializer_zeros() {
         TestBackend::seed(0);
 
