@@ -161,6 +161,7 @@ macro_rules! testgen_with_float_param {
 
         // test linalg
         burn_tensor::testgen_vector_norm!();
+        burn_tensor::testgen_cosine_similarity!();
 
         // test module
         burn_tensor::testgen_module_conv1d!();
