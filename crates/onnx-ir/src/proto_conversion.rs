@@ -146,8 +146,7 @@ pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
 }
 
 pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphData) -> Node {
-    // Sanitize the node name to ensure it's a valid Rust identifier
-    let name = graph_data.sanitize_name(&node.name);
+    let name = node.name.clone();
 
     log::debug!("Converting ONNX node with type {:?}", node.op_type.as_str());
 
@@ -156,7 +155,7 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphData) -> Node {
     let outputs = node
         .output
         .iter()
-        .map(|x| Argument::new(graph_data.sanitize_name(x)))
+        .map(|x| Argument::new(x.to_string()))
         .collect();
 
     let attrs = convert_vec_attrs_proto(node.attribute.clone());

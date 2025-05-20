@@ -113,35 +113,22 @@ impl GraphData {
 
     /// Get the value of an input from the original input name. Used during proto conversion
     pub(crate) fn init_in(&self, proto_str: &str) -> Argument {
-        // Sanitize the input name to ensure it's a valid Rust identifier
-        let sanitized_str = self.sanitize_name(proto_str);
-
         match self.input_name_map.get(proto_str) {
             None => {
                 //NOTE: if initializers are guaranteed to be unique, (I think they are
                 //need to confirm) then we could pop the initializer from the map
                 if let Some(init_arg) = self.initializers.get(proto_str) {
-                    let mut arg = init_arg.clone();
-                    arg.name = sanitized_str; // Use the sanitized name
-                    arg
+                    init_arg.clone()
                 } else {
                     log::warn!(
                         "Input {} not found, should only happen when peeking",
                         proto_str
                     );
-                    Argument::new(sanitized_str)
+                    Argument::new(proto_str.to_string())
                 }
             }
-            Some(IOEntry::In(i)) => {
-                let mut arg = self.inputs[*i].clone();
-                arg.name = sanitized_str; // Use the sanitized name
-                arg
-            }
-            Some(IOEntry::Node(i, j)) => {
-                let mut arg = self.processed_nodes[*i].outputs[*j].clone();
-                arg.name = sanitized_str; // Use the sanitized name
-                arg
-            }
+            Some(IOEntry::In(i)) => self.inputs[*i].clone(),
+            Some(IOEntry::Node(i, j)) => self.processed_nodes[*i].outputs[*j].clone(),
         }
     }
 
@@ -171,13 +158,10 @@ impl GraphData {
         self.mark_input_passed(&node);
         let mut out_count = 1;
         for output in node.outputs.iter_mut() {
-            let original_name = output.name.clone();
-            // We map using the original name to ensure lookups work correctly
             self.input_name_map.insert(
-                original_name,
+                output.name.clone(),
                 IOEntry::Node(self.processed_nodes.len(), out_count - 1),
             );
-            // Format node name with the sanitized output name
             output.name = format!("{}_out{}", node.name, out_count);
             out_count += 1;
         }
@@ -207,12 +191,6 @@ impl GraphData {
     /// Get the current index of the processed nodes. Useful when lifting values or marking nodes for removal
     pub fn get_current_index(&self) -> usize {
         self.processed_nodes.len()
-    }
-
-    /// Sanitize a string to make it a valid Rust identifier
-    /// This is used to ensure that node names and input/output names are valid Rust identifiers
-    pub fn sanitize_name(&self, name: &str) -> String {
-        OnnxGraphBuilder::sanitize_ident(name)
     }
 }
 
@@ -289,38 +267,6 @@ impl OnnxGraphBuilder {
         )
         .to_lowercase();
         node.name.clone_from(&new_name);
-    }
-
-    /// Sanitize a string to make it a valid Rust identifier
-    /// Replaces invalid characters with underscores and ensures it starts with a letter or underscore
-    pub fn sanitize_ident(name: &str) -> String {
-        let mut result = String::new();
-        let mut chars = name.chars();
-
-        // Handle the first character - must be a letter or underscore
-        if let Some(first) = chars.next() {
-            if first.is_alphabetic() || first == '_' {
-                result.push(first);
-            } else {
-                result.push('_');
-                if first.is_numeric() {
-                    result.push(first);
-                }
-            }
-        } else {
-            return "_empty".to_string(); // Handle empty strings
-        }
-
-        // Process remaining characters
-        for c in chars {
-            if c.is_alphanumeric() || c == '_' {
-                result.push(c);
-            } else {
-                result.push('_');
-            }
-        }
-
-        result
     }
 
     fn check_constants(&mut self, node: &mut Node, graph_data: &GraphData) {
