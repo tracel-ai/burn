@@ -1,8 +1,9 @@
 use alloc::vec::Vec;
 
-use crate::{alloc::borrow::ToOwned, cast::ToElement};
+use crate::{TensorMetadata, alloc::borrow::ToOwned, cast::ToElement};
 
 use crate::TensorPrimitive;
+use crate::quantization::QTensorPrimitive;
 use crate::{
     BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
     TensorKind,
@@ -2262,6 +2263,16 @@ where
         // Check if the sum is NaN by comparing it to itself
         Tensor::new(K::not_equal(sum.clone(), sum))
     }
+
+    /// Applies the matrix multiplication operation.
+    ///
+    /// ```math
+    /// C = AB
+    /// ```
+    pub fn matmul(self, other: Tensor<B, D, K>) -> Tensor<B, D, K> {
+        check!(TensorCheck::matmul(&self, &other));
+        Tensor::new(K::matmul(self.primitive, other.primitive))
+    }
 }
 
 impl<B, K> Tensor<B, 2, K>
@@ -3567,6 +3578,13 @@ where
         dim: usize,
         descending: bool,
     ) -> <Int as TensorKind<B>>::Primitive;
+
+    /// Applies the matrix multiplication operation.
+    ///
+    /// ```math
+    /// C = AB
+    /// ```
+    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 }
 
 impl<B: Backend> Numeric<B> for Int {
@@ -3830,6 +3848,37 @@ impl<B: Backend> Numeric<B> for Int {
         descending: bool,
     ) -> <Int as TensorKind<B>>::Primitive {
         B::int_argsort(tensor, dim, descending)
+    }
+
+    /// Applies the matrix multiplication operation.
+    ///
+    /// `C = AB`
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have a compatible shape.
+    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        let mut lhs_shape: Vec<usize> = lhs.shape().dims.clone();
+        lhs_shape.push(1);
+        let lhs_shape: Shape = Shape::from(lhs_shape);
+        let lhs = B::int_reshape(lhs, lhs_shape);
+
+        let mut rhs_shape: Vec<usize> = rhs.shape().dims.clone();
+        rhs_shape.insert(rhs_shape.len() - 2, 1);
+        let rhs_shape: Shape = Shape::from(rhs_shape);
+        let rhs = B::int_reshape(rhs, rhs_shape);
+
+        let p = B::int_mul(lhs, rhs);
+
+        let k = p.shape().num_dims();
+
+        let s = B::int_sum_dim(p, k - 2);
+
+        let mut s_shape = s.shape().dims.clone();
+        s_shape.remove(k - 2);
+        let s_shape = Shape::from(s_shape);
+
+        B::int_reshape(s, s_shape)
     }
 }
 
@@ -4294,6 +4343,35 @@ impl<B: Backend> Numeric<B> for Float {
             }
             TensorPrimitive::QFloat(tensor) => {
                 TensorPrimitive::QFloat(B::q_max_abs_dim(tensor, dim))
+            }
+        }
+    }
+
+    /// Applies the matrix multiplication operation.
+    ///
+    /// `C = AB`
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have a compatible shape.
+    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        match (lhs, rhs) {
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_matmul(lhs, rhs),
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_matmul(B::dequantize(lhs), rhs))
+            }
+            (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
+                // NOTE: in a typical workflow with linear layers (e.g., transformers), the rhs
+                // represents the weights.
+                //
+                // Since `q_matmul(lhs_f16, rhs_quant)` isn't currently supported, in practice it makes
+                // more sense to re-quantize the input back. Better usability.
+                //
+                // This might change in the future (dequantize on read in fusion?).
+                B::q_matmul(B::quantize_dynamic(lhs, rhs.scheme()), rhs)
+            }
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_matmul(lhs, rhs))
             }
         }
     }

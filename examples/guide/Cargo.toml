@@ -6,6 +6,9 @@ name = "guide"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = ["burn/default"]
 

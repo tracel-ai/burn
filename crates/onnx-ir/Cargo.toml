@@ -12,6 +12,9 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/onnx-ir"
 documentation = "https://docs.rs/onnx-ir"
 version.workspace = true
 
+[lints]
+workspace = true
+
 
 [dependencies]
 bytemuck = { workspace = true }
