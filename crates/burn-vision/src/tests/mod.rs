@@ -4,6 +4,7 @@ use burn_tensor::{Shape, Tensor, TensorData, backend::Backend};
 use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 
 mod connected_components;
+mod layers;
 mod morphology;
 
 #[macro_export]
@@ -22,6 +23,8 @@ macro_rules! testgen_all {
 
             burn_vision::testgen_connected_components!();
             burn_vision::testgen_morphology!();
+
+            burn_vision::testgen_layers_drop!();
         }
     };
 }

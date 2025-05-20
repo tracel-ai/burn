@@ -36,6 +36,7 @@ test-wgpu = ["cubecl-backend", "export-tests"]
 
 [dependencies]
 bon = { workspace = true }
+burn-core = { path = "../burn-core", version = "0.18.0"}
 burn-candle = { path = "../burn-candle", version = "0.18.0", optional = true }
 burn-cubecl = { path = "../burn-cubecl", version = "0.18.0", optional = true }
 burn-fusion = { path = "../burn-fusion", version = "0.18.0", optional = true }
