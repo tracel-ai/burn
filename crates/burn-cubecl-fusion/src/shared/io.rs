@@ -158,6 +158,8 @@ pub fn read_input<C: CubePrimitive>(
     #[comptime] transform: Option<Transform>,
 ) -> Line<C> {
     let tensor = inputs.tensors.index(pos);
+    comptime! {println!("POS {}", pos)};
+    comptime! {println!("POS LINE SIZE => {}", tensor.tensor.line_size())};
     let offset = match layout {
         LayoutInfo::SameAsRef => ref_pos,
         LayoutInfo::IsRef => ref_pos,
@@ -430,7 +432,7 @@ pub fn ref_buffer_len(
             Arg::Output(index, _, _) => global_buffer_len(outputs, index),
             _ => panic!("Invalid concrete ref layout."),
         },
-        RefLayout::Virtual(VirtualLayout::Reshaped(..)) => num_elements(locals, config),
+        RefLayout::Virtual(VirtualLayout::Reshaped { .. }) => num_elements(locals, config),
         RefLayout::Virtual(VirtualLayout::Shape(..)) => num_elements(locals, config),
     }
 }

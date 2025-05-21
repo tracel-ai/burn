@@ -304,6 +304,10 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
         outputs: GlobalArgsLaunch<'a, R>,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedReduceError> {
+        // println!("=== Fuse reduce ===");
+        // println!("{:?}", self.strategy);
+        // println!("{configs:?}");
+        // println!("Axis: {:?}", self.axis);
         let [config_read, config_write] = [&configs[0], &configs[1]];
         self.strategy
             .validate::<R>(client)
@@ -316,7 +320,6 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
             }
             _ => inputs.shape_ref(&config_read.ref_layout, config_read.rank as usize),
         };
-
         let reduce_count: u32 = shape
             .iter()
             .enumerate()
@@ -327,6 +330,12 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
             true => LineMode::Parallel,
             false => LineMode::Perpendicular,
         };
+        // let line_mode = match strides[self.axis] == 1 {
+        //     true => LineMode::Parallel,
+        //     false => LineMode::Perpendicular,
+        // };
+        // println!("LineMode: {line_mode:?}");
+        // println!("===================");
 
         let config_reduce = ReduceConfig {
             cube_count: CubeCount::new_single(),

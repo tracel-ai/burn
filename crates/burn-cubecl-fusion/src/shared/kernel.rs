@@ -146,7 +146,10 @@ pub fn init_locals(
                     layout.tensor.line_size(),
                 )
             }
-            VirtualLayout::Reshaped(reshape_pos) => {
+            VirtualLayout::Reshaped {
+                reshape_pos,
+                line_size,
+            } => {
                 let mut stride_curr = 1u32;
                 let start = reshape_pos * config.rank;
 
@@ -163,7 +166,7 @@ pub fn init_locals(
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
 
-                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), 1u32)
+                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), line_size)
             }
             VirtualLayout::Shape(original, line_size) => {
                 let layout = match comptime![original.clone()] {

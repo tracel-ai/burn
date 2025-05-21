@@ -198,7 +198,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
                     shape.swap(dims.0 as usize, dims.1 as usize);
                     shape
                 }
-                VirtualLayout::Reshaped(reshape_pos) => {
+                VirtualLayout::Reshaped { reshape_pos, .. } => {
                     let start = *reshape_pos as usize * rank;
                     let end = start + rank;
                     self.reshapes.values[start..end]
@@ -446,7 +446,7 @@ pub enum RefLayout {
 /// tensor with swap dimensions.
 pub enum VirtualLayout {
     /// Virtual tensor with the provided shape id and contiguous strides.
-    Reshaped(u32),
+    Reshaped { reshape_pos: u32, line_size: u32 },
     /// Virtual tensor with the same shape as the given input, but with swap dims and contiguous
     /// strides.
     SwapDims(Arg, (u32, u32)),
