@@ -178,7 +178,6 @@ mod tests {
                     static_shape: None,
                 }),
                 value: None,
-                passed: true,
             });
         }
 
@@ -190,7 +189,6 @@ mod tests {
                 static_shape: None,
             }),
             value: None,
-            passed: true,
         }];
 
         Node {
@@ -238,7 +236,6 @@ mod tests {
             name: "scalar_input".to_string(),
             ty: ArgType::Scalar(ElementType::Float32),
             value: None,
-            passed: true,
         });
 
         same_as_input_broadcast(&mut node);

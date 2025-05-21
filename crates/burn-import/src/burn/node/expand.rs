@@ -125,7 +125,6 @@ mod tests {
                 name: "shape1".to_string(),
                 ty: ArgType::Shape(4),
                 value: None,
-                passed: false,
             }),
         ));
 
@@ -185,7 +184,6 @@ mod tests {
                     static_shape: None,
                 }),
                 value: None,
-                passed: false,
             }),
         ));
 

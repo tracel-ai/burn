@@ -128,25 +128,7 @@ impl GraphData {
                 }
             }
             Some(IOEntry::In(i)) => self.inputs[*i].clone(),
-            Some(IOEntry::Node(i, j)) => self.processed_nodes[*i].outputs[*j].clone(),
-        }
-    }
-
-    /// Mark the graph_inputs to a node as passed, unless they are also initializers
-    fn mark_input_passed(&mut self, node: &Node) {
-        // we have to double map the inputs because the input might be replaced by an initializer
-        node.inputs.iter().for_each(|node_input| {
-            if let Some(old_input_name) = self.input_key_map.get(&node_input.name) {
-                if !self.initializers.contains_key(old_input_name) {
-                    match self.input_name_map.get(old_input_name) {
-                        Some(IOEntry::In(i)) => self.inputs[*i].passed = true,
-                        _ => {
-                            panic!("Should not happen, please report this error");
-                        }
-                    }
-                }
             }
-        });
     }
 
     /// This function does three things:
@@ -155,7 +137,6 @@ impl GraphData {
     ///     3. renames the node output
     fn add_node(&mut self, mut node: Node) {
         log::debug!("adding node {:?}", &node.name);
-        self.mark_input_passed(&node);
         let mut out_count = 1;
         for output in node.outputs.iter_mut() {
             self.input_name_map.insert(
@@ -170,7 +151,6 @@ impl GraphData {
 
     /// Consumes the graph data and returns the processed nodes, filtered inputs and outputs
     fn consume(mut self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
-        self.inputs.retain(|x| x.passed);
         let outputs = self
             .outputs
             .into_iter()
@@ -437,7 +417,6 @@ pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
                 static_shape: Some(vec![shape_len]),
             }),
             value: new_rhs_value,
-            passed: false,
         };
         // ? should this replace the old input (reuse the old key) or should it be a new key
         // going with new key for now
