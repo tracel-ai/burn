@@ -127,8 +127,19 @@ impl GraphData {
                     Argument::new(proto_str.to_string())
                 }
             }
-            Some(IOEntry::In(i)) => self.inputs[*i].clone(),
+            Some(IOEntry::In(i)) => {
+                // Clone input but sanitize name
+                let mut arg = self.inputs[*i].clone();
+                arg.name = sanitize_ident(&arg.name);
+                arg
             }
+            Some(IOEntry::Node(i, j)) => {
+                // Clone output but sanitize name
+                let mut arg = self.processed_nodes[*i].outputs[*j].clone();
+                arg.name = sanitize_ident(&arg.name);
+                arg
+            }
+        }
     }
 
     /// This function does three things:
@@ -247,8 +258,57 @@ impl OnnxGraphBuilder {
         )
         .to_lowercase();
         node.name.clone_from(&new_name);
+
+        // Always sanitize all input argument names to ensure valid identifiers
+        for input in node.inputs.iter_mut() {
+            input.name = sanitize_ident(&input.name);
+        }
+    }
+}
+
+/// Sanitize a string to make it a valid Rust identifier
+/// Replaces invalid characters with underscores and ensures it starts with a letter or underscore
+pub fn sanitize_ident(name: &str) -> String {
+    // Trim leading slashes or other common prefix characters that might cause issues
+    let trimmed_name = name.trim_start_matches(|c| c == '/' || c == '_');
+
+    let mut result = String::new();
+
+    // Handle empty string after trimming
+    if trimmed_name.is_empty() {
+        return "empty_name".to_string();
     }
 
+    let mut chars = trimmed_name.chars();
+
+    // Handle the first character - must be a letter or underscore
+    if let Some(first) = chars.next() {
+        if first.is_alphabetic() || first == '_' {
+            result.push(first);
+        } else {
+            result.push('_');
+            if first.is_numeric() {
+                result.push(first);
+            }
+        }
+    }
+
+    // Process remaining characters
+    for c in chars {
+        if c.is_alphanumeric() || c == '_' {
+            result.push(c);
+        } else {
+            result.push('_');
+        }
+    }
+
+    // Ensure we don't have any double underscores which might be confusing
+    let result = result.replace("__", "_");
+
+    result
+}
+
+impl OnnxGraphBuilder {
     fn check_constants(&mut self, node: &mut Node, graph_data: &GraphData) {
         if node.node_type == NodeType::Constant
             || (node.node_type == NodeType::Identity && node.inputs[0].value.is_some())
