@@ -112,7 +112,6 @@ fn vectorization_default<'a, R: Runtime>(
     };
 
     let vectorization_reshape = |reshaped: &TensorIr, original: &TensorIr, multi_reads: bool| {
-        // println!("Reshaped {reshaped:?} original {original:?}");
         let axis = axis.unwrap_or_else(|| reshaped.shape.len() - 1);
         let reshape_shape_axis = reshaped.shape[axis];
 
@@ -214,7 +213,6 @@ fn vectorization_default<'a, R: Runtime>(
     }
 
     for (reshaped, original, multi_reads) in reshaped {
-        println!("Reshaped {:?} Original {:?}", reshaped.id, original.id);
         let val = vectorization_reshape(reshaped, original, multi_reads);
         multi_reads_vectorization_update(vectorizations, original.id, val);
     }
@@ -223,7 +221,6 @@ fn vectorization_default<'a, R: Runtime>(
         let val = vectorization_output(tensor);
         vectorizations.insert(tensor.id, val);
     }
-    println!("{:?}", vectorizations);
 }
 
 fn multi_reads_vectorization_update(

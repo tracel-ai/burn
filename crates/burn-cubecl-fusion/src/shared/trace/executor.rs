@@ -150,7 +150,6 @@ fn register_inputs<'h, R: Runtime>(
     inputs: &mut GlobalArgsLaunch<'h, R>,
 ) {
     for hi in handle_inputs.iter() {
-        println!("HI {hi:?}");
         let arg = hi.handle.as_tensor_arg(&hi.global_shape, hi.vectorization);
         inputs.tensors.push(GlobalTensorArg::new(
             arg,

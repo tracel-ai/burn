@@ -158,8 +158,6 @@ pub fn read_input<C: CubePrimitive>(
     #[comptime] transform: Option<Transform>,
 ) -> Line<C> {
     let tensor = inputs.tensors.index(pos);
-    comptime! {println!("POS {}", pos)};
-    comptime! {println!("POS LINE SIZE => {}", tensor.tensor.line_size())};
     let offset = match layout {
         LayoutInfo::SameAsRef => ref_pos,
         LayoutInfo::IsRef => ref_pos,
