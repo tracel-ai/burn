@@ -12,7 +12,7 @@ use cubecl::linalg::{
     matmul::components::{
         MatmulPrecision,
         global::args::{ConcreteOutputFactory, MatmulArgs},
-        tile::accelerated::Accelerated,
+        tile::accelerated_matmul::AcceleratedMatmul,
     },
 };
 
@@ -33,7 +33,9 @@ pub fn conv_gemm_cyclic<R: CubeRuntime, F: FloatElement, const N: usize>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    conv_gemm_with_algo::<R, F, SimpleConvAlgorithm<Accelerated>, N>(input, weight, bias, options)
+    conv_gemm_with_algo::<R, F, SimpleConvAlgorithm<AcceleratedMatmul>, N>(
+        input, weight, bias, options,
+    )
 }
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -50,7 +52,7 @@ pub fn conv_gemm_tma<R: CubeRuntime, F: FloatElement, const N: usize>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    conv_gemm_with_algo::<R, F, SimpleTmaConvAlgorithm<Accelerated>, N>(
+    conv_gemm_with_algo::<R, F, SimpleTmaConvAlgorithm<AcceleratedMatmul>, N>(
         input, weight, bias, options,
     )
 }
@@ -69,7 +71,7 @@ pub fn conv_gemm_tma_multi_stage<R: CubeRuntime, F: FloatElement, const N: usize
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    conv_gemm_with_algo::<R, F, MultiStageTmaConvAlgorithm<Accelerated>, N>(
+    conv_gemm_with_algo::<R, F, MultiStageTmaConvAlgorithm<AcceleratedMatmul>, N>(
         input, weight, bias, options,
     )
 }

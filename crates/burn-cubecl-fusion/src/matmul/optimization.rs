@@ -15,7 +15,7 @@ use cubecl::linalg::matmul::components;
 use cubecl::linalg::matmul::components::MatmulPrecision;
 use cubecl::linalg::matmul::components::MatmulProblem;
 use cubecl::linalg::matmul::components::tile::TileMatmulFamily;
-use cubecl::linalg::matmul::components::tile::accelerated::Accelerated;
+use cubecl::linalg::matmul::components::tile::accelerated_matmul::AcceleratedMatmul;
 use cubecl::linalg::matmul::kernels::matmul::Algorithm;
 use cubecl::linalg::matmul::kernels::matmul::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::linalg::matmul::kernels::matmul::select_kernel_virtual;
@@ -346,7 +346,7 @@ impl FusedMatmul {
 
         match self.selector {
             FusedMatmulSelector::Simple => {
-                match matmul_launch_kernel::<R, EG, SimpleAlgorithm<Accelerated>>(
+                match matmul_launch_kernel::<R, EG, SimpleAlgorithm<AcceleratedMatmul>>(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,
@@ -358,7 +358,7 @@ impl FusedMatmul {
                 }
             }
             FusedMatmulSelector::DoubleBuffering => {
-                match matmul_launch_kernel::<R, EG, CyclicDoubleBufferingAlgorithm<Accelerated>>(
+                match matmul_launch_kernel::<R, EG, CyclicDoubleBufferingAlgorithm<AcceleratedMatmul>>(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,

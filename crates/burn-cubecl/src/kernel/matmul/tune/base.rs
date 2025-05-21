@@ -2,10 +2,9 @@ use burn_tensor::Element;
 use cubecl::{
     linalg::matmul::{
         Strategy, SyncLoadingStrategy,
+        components::MatmulKind,
         kernels::tiling2d::Tiling2dConfig,
-        tune_key::{
-            MatmulAutotuneKey, MatmulGlobalScale, MatmulKind, should_tune_double_buffering,
-        },
+        tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
     },
     tune::{LocalTuner, TunableSet, local_tuner},
 };
