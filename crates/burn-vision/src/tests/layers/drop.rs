@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(layers_drop)]
 mod tests {
     use super::*;
-    use crate::layers::drop::*;
+    use burn_vision::layers::drop::*;
 
     #[test]
     fn test_drop_path() {
@@ -9,7 +9,7 @@ mod tests {
         let drop_prob = 0.5;
         let scale_by_keep = true;
 
-        let config = crate::layers::drop::DropPathConfig {
+        let config = DropPathConfig {
             drop_prob,
             scale_by_keep,
         };
@@ -39,7 +39,7 @@ mod tests {
         let training = false;
         let drop_prob = 0.0;
         let scale_by_keep = false;
-        let res = crate::layers::drop::_drop_path_sample(
+        let res = _drop_path_sample(
             x.clone(),
             drop_prob,
             training,
@@ -54,7 +54,7 @@ mod tests {
         let training = true;
         let drop_prob = 0.0;
         let scale_by_keep = false;
-        let res = crate::layers::drop::_drop_path_sample(
+        let res = _drop_path_sample(
             x.clone(),
             drop_prob,
             training,
@@ -69,7 +69,7 @@ mod tests {
         let training = true;
         let drop_prob = 0.5;
         let scale_by_keep = false;
-        let res = crate::layers::drop::_drop_path_sample(
+        let res = _drop_path_sample(
             x.clone(),
             drop_prob,
             training,
@@ -90,7 +90,7 @@ mod tests {
         let drop_prob = 0.5;
         let keep_prob = 1.0 - drop_prob;
         let scale_by_keep = true;
-        let res = crate::layers::drop::_drop_path_sample(
+        let res = _drop_path_sample(
             x.clone(),
             drop_prob,
             training,
@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn test_droppath_module() {
         let drop_prob = 0.2;
-        let config = crate::layers::drop::DropPathConfig::new().with_drop_prob(drop_prob);
+        let config = DropPathConfig::new().with_drop_prob(drop_prob);
 
         assert_eq!(config.drop_prob(), 0.2);
         assert_eq!(config.keep_prob(), 1.0 - drop_prob);

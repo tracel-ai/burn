@@ -98,19 +98,26 @@ fn _drop_path_sample<B: Backend, const D: usize>(
 
 /// Common introspection interface for DropPath modules.
 pub trait DropPathMeta {
+    /// Probability of dropping a path.
     fn drop_prob(&self) -> f64;
+
+    /// Probability of keeping a path; the complement of `drop_prob`.
     fn keep_prob(&self) -> f64 {
         1.0 - self.drop_prob()
     }
+
+    /// Whether to scale the output by `1 / (1 - drop_prob)`.
     fn scale_by_keep(&self) -> bool;
 }
 
 /// Configuration for the DropPath module.
 #[derive(Config, Debug)]
 pub struct DropPathConfig {
+    /// Probability of dropping a path.
     #[config(default = 0.0)]
     pub drop_prob: f64,
 
+    /// Whether to scale the output by `1 / (1 - drop_prob)`.
     #[config(default = true)]
     pub scale_by_keep: bool,
 }
