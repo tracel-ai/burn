@@ -33,11 +33,9 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
             let status = &tensor_relative.status;
             let mut handle = context.handles.get_handle(&tensor_global.id, status);
 
-            println!("Global {:?}", tensor_global.shape);
             self.analyze(plan, pos, tensor_relative, &handle);
 
             if tensor_global.shape.len() < plan.rank {
-                println!("Rank difference");
                 let num_elem: usize = tensor_global.shape.iter().product();
                 for _ in 0..(plan.rank - tensor_global.shape.len()) {
                     tensor_global.shape.insert(0, 1);
@@ -79,17 +77,14 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 }
             }
 
-            // Views can't be used inplace.
-            if is_a_view {
-                return;
+            if !is_a_view {
+                self.analyze_normal(plan, pos, tensor_relative, handle);
             }
-
-            self.analyze_potential_inplace(plan, pos, tensor_relative, handle);
         }
     }
 
     /// Analyzes if the given tensor can be used inplace in one of the block.
-    fn analyze_potential_inplace(
+    fn analyze_normal(
         &self,
         plan: &mut LaunchPlan<'a, R>,
         pos: usize,
@@ -165,7 +160,6 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     if block_plan.potential_reference_input.is_none()
                         && shape_relative == &block.shape_ref
                     {
-                        println!("{:?} reshape pos {}", block.shape_ref, reshape_pos);
                         block_plan.potential_reference_input = Some(InputReference::Reshaped {
                             reshape_pos: *reshape_pos as usize,
                         });

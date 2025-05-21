@@ -32,7 +32,7 @@ impl<R: Runtime> ReduceBuilder<R> {
         let settings_read = FuseSettings {
             broadcast: true,
             output_shape_updates: true,
-            inplace: true,
+            inplace: false,
             vectorization: VectorizationSetting::Activated,
             ref_layout: RefLayoutSetting::OnlyContiguous,
         };

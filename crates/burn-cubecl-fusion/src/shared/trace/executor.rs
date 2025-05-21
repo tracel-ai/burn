@@ -55,7 +55,6 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         for b in plan.blocks.iter() {
             num_writes += b.writes.len();
         }
-        println!("Plan {plan:?}");
 
         #[cfg(feature = "autotune-checks")]
         let mut tune_output = TuneOutput::Checked {
@@ -316,12 +315,9 @@ fn register_scalars<'h, R: Runtime>(
         if let TensorView::Reshape { reshaped, .. } = relative {
             let global = context.tensors.get(reshaped).unwrap();
 
-            println!("[");
             for shape in global.shape.iter() {
-                println!("{shape:?},");
                 inputs.reshapes.push(ScalarArg::new(*shape as u32));
             }
-            println!("]");
         }
     }
 }
