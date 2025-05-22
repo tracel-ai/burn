@@ -12,6 +12,7 @@ use crate::shared::trace::Vectorization;
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
 use cubecl::linalg::matmul::components;
+use cubecl::linalg::matmul::components::MatmulLineSizes;
 use cubecl::linalg::matmul::components::MatmulPrecision;
 use cubecl::linalg::matmul::components::MatmulProblem;
 use cubecl::linalg::matmul::components::tile::TileMatmulFamily;
@@ -296,18 +297,20 @@ impl FusedMatmul {
         let k = lhs_shape[rank - 1] as u32;
         let n = rhs_shape[rank - 1] as u32;
 
-        let lhs_line_size = inputs.line_size(&self.lhs);
-        let rhs_line_size = inputs.line_size(&self.rhs);
-        let out_line_size = match &config.ref_layout {
-            RefLayout::Concrete(arg) => match arg {
-                Arg::Input(..) => inputs.line_size(arg),
-                Arg::Output(..) => outputs.line_size(arg),
-                _ => panic!("Invalid ref layout"),
+        let line_sizes = MatmulLineSizes {
+            lhs: inputs.line_size(&self.lhs),
+            rhs: inputs.line_size(&self.rhs),
+            out: match &config.ref_layout {
+                RefLayout::Concrete(arg) => match arg {
+                    Arg::Input(..) => inputs.line_size(arg),
+                    Arg::Output(..) => outputs.line_size(arg),
+                    _ => panic!("Invalid ref layout"),
+                },
+                RefLayout::Virtual(_) => 1,
             },
-            RefLayout::Virtual(_) => 1,
         };
 
-        if out_line_size == 1 && (lhs_line_size > 1 || rhs_line_size > 1) {
+        if line_sizes.out == 1 && (line_sizes.lhs > 1 || line_sizes.rhs > 1) {
             return Err(FusedMatmulError::InvalidInput);
         }
 
@@ -327,9 +330,6 @@ impl FusedMatmul {
                 true => components::MatrixLayout::ColMajor,
                 false => components::MatrixLayout::RowMajor,
             },
-            lhs_line_size,
-            rhs_line_size,
-            out_line_size,
         };
 
         let plane_size = client.properties().hardware.defined_plane_size();
@@ -351,6 +351,7 @@ impl FusedMatmul {
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,
                     problem,
+                    line_sizes,
                     plane_size,
                 ) {
                     Ok(_) => Ok(()),
@@ -363,6 +364,7 @@ impl FusedMatmul {
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,
                     problem,
+                    line_sizes,
                     plane_size,
                 ) {
                     Ok(_) => Ok(()),
@@ -378,6 +380,7 @@ fn matmul_launch_kernel<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
     input: FusedMatmulInputLaunch<'a, R>,
     output: GlobalArgsLaunch<'a, R>,
     problem: MatmulProblem,
+    line_sizes: MatmulLineSizes,
     plane_size: u32,
 ) -> Result<(), MatmulLaunchError> {
     if <A::TileMatmul as TileMatmulFamily>::requires_tensor_cores()
@@ -385,11 +388,21 @@ fn matmul_launch_kernel<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
         && tf32::is_supported(client)
     {
         select_kernel_virtual::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
-            client, input, output, problem, plane_size,
+            client,
+            input,
+            output,
+            problem,
+            Some(line_sizes),
+            plane_size,
         )
     } else {
         select_kernel_virtual::<FusedMatmulSpec<EG>, R, A>(
-            client, input, output, problem, plane_size,
+            client,
+            input,
+            output,
+            problem,
+            Some(line_sizes),
+            plane_size,
         )
     }
 }
