@@ -94,7 +94,10 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                     RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
                 }
                 ReferenceSelection::Reshaped { reshape_pos } => {
-                    RefLayout::Virtual(VirtualLayout::Reshaped(reshape_pos as u32))
+                    RefLayout::Virtual(VirtualLayout::Reshaped {
+                        reshape_pos: reshape_pos as u32,
+                        line_size: block_plan.width as u32,
+                    })
                 }
                 ReferenceSelection::NotFound | ReferenceSelection::Searching => {
                     return Err(ExecutionError::new(

@@ -316,7 +316,6 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
             }
             _ => inputs.shape_ref(&config_read.ref_layout, config_read.rank as usize),
         };
-
         let reduce_count: u32 = shape
             .iter()
             .enumerate()

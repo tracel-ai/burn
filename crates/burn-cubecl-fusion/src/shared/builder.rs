@@ -622,6 +622,7 @@ impl FuseOptimizationBuilder {
         if updated != out.shape {
             return false;
         }
+
         self.current_output_shape.clone_from_slice(&out.shape);
 
         true
