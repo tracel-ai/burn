@@ -15,7 +15,8 @@ use serde::{Deserialize, Deserializer};
 use serde::{Serialize, Serializer};
 
 use crate::{
-    Bool, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check, ops::Device,
+    Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check,
+    ops::Device,
 };
 use crate::{DType, Element, TensorPrimitive};
 use crate::{cast::ToElement, check::TensorCheck};
@@ -964,9 +965,13 @@ where
     ///   println!("{:?}", tensor_sliced.dims()); // [2, 3, 3]
     /// }
     /// ```
-    pub fn slice_fill<const D2: usize>(self, ranges: [Range<usize>; D2], value: K::Elem) -> Self {
+    pub fn slice_fill<const D2: usize, E: ElementConversion>(
+        self,
+        ranges: [Range<usize>; D2],
+        value: E,
+    ) -> Self {
         check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
-        Self::new(K::slice_fill(self.primitive, &ranges, value))
+        Self::new(K::slice_fill(self.primitive, &ranges, value.elem()))
     }
 
     /// Returns the device of the current tensor.
