@@ -121,6 +121,32 @@ mod tests {
     }
 
     #[test]
+    fn should_support_slice_fill_1d() {
+        let data = TensorData::from([0.0, 1.0, 2.0]);
+
+        let device = Default::default();
+        let tensor = TestTensor::<1>::from_data(data, &device);
+
+        let output = tensor.slice_fill([0..2], -1.0);
+        let expected = TensorData::from([-1.0, -1.0, 2.0]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_support_slice_fill_2d() {
+        let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+
+        let device = Default::default();
+        let tensor = TestTensor::<2>::from_data(data, &device);
+
+        let output = tensor.slice_fill([1..2, 0..2], -1.0);
+        let expected = TensorData::from([[0.0, 1.0, 2.0], [-1.0, -1.0, 5.0]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
     fn slice_should_not_corrupt_potentially_inplace_operations() {
         let tensor = TestTensorInt::<1>::from_data([1, 2, 3, 4, 5], &Default::default());
         let tensor = tensor.clone().slice([0..3]) + tensor.clone().slice([2..5]);
