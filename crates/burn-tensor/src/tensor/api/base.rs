@@ -15,7 +15,8 @@ use serde::{Deserialize, Deserializer};
 use serde::{Serialize, Serializer};
 
 use crate::{
-    Bool, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check, ops::Device,
+    Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check,
+    ops::Device,
 };
 use crate::{DType, Element, TensorPrimitive};
 use crate::{cast::ToElement, check::TensorCheck};
@@ -934,13 +935,58 @@ where
     ///     println!("{:?}", tensor_sliced.dims()); // [2, 3, 3]
     /// }
     /// ```
-    pub fn slice_assign<const D2: usize>(self, ranges: [Range<usize>; D2], values: Self) -> Self {
+    ///
+    /// # Note
+    ///
+    /// This function uses the `RangesArg` trait for flexible range specification. The trait
+    /// handles the conversion of various range formats and applies clamping and negative
+    /// index handling internally.
+    pub fn slice_assign<const D2: usize, R: RangesArg<D2>>(self, ranges: R, values: Self) -> Self {
+        let ranges = ranges.into_ranges(self.shape());
         check!(TensorCheck::slice_assign::<D, D2>(
             &self.shape(),
             &values.shape(),
             &ranges
         ));
         Self::new(K::slice_assign(self.primitive, &ranges, values.primitive))
+    }
+
+    /// Returns a copy of the current tensor with the selected elements changed to the new ones at
+    /// the selected indices.
+    ///
+    /// # Panics
+    ///
+    /// - If a range exceeds the number of elements on a dimension.
+    /// - If the given values don't match the given ranges.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///   let device = B::Device::default();
+    ///   let tensor = Tensor::<B, 3>::ones([2, 3, 3], &device);
+    ///   let tensor_sliced = tensor.slice_fill([0..1, 0..1, 0..1], 2.0);
+    ///   println!("{:?}", tensor_sliced.dims()); // [2, 3, 3]
+    /// }
+    /// ```
+    ///
+    /// # Note
+    ///
+    /// This function uses the `RangesArg` trait for flexible range specification. The trait
+    /// handles the conversion of various range formats and applies clamping and negative
+    /// index handling internally.
+    pub fn slice_fill<const D2: usize, R: RangesArg<D2>, E: ElementConversion>(
+        self,
+        ranges: R,
+        value: E,
+    ) -> Self {
+        let ranges = ranges.into_ranges(self.shape());
+        check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
+
+        Self::new(K::slice_fill(self.primitive, &ranges, value.elem()))
     }
 
     /// Returns the device of the current tensor.
@@ -2182,6 +2228,38 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         ranges: &[Range<usize>],
         value: Self::Primitive,
     ) -> Self::Primitive;
+
+    /// Fills the tensor elements corresponding for the given ranges with the given value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `ranges` - The ranges of the elements to fill.
+    /// * `value` - The value to fill.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the filled values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For filling values in a tensor, users should prefer the [Tensor::slice_fill](Tensor::slice_fill) function,
+    /// which is more high-level and designed for public use.
+    fn slice_fill(
+        tensor: Self::Primitive,
+        ranges: &[Range<usize>],
+        value: Self::Elem,
+    ) -> Self::Primitive {
+        let slice_shape = Self::slice(tensor.clone(), ranges).shape();
+
+        let value = Self::from_data(TensorData::from([value]), &Self::device(&tensor));
+        let value = Self::expand(value, slice_shape);
+        Self::slice_assign(tensor, ranges, value)
+    }
 
     /// Returns the device on which the tensor is allocated.
     ///
