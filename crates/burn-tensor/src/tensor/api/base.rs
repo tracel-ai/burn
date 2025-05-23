@@ -935,7 +935,14 @@ where
     ///     println!("{:?}", tensor_sliced.dims()); // [2, 3, 3]
     /// }
     /// ```
-    pub fn slice_assign<const D2: usize>(self, ranges: [Range<usize>; D2], values: Self) -> Self {
+    ///
+    /// # Note
+    ///
+    /// This function uses the `RangesArg` trait for flexible range specification. The trait
+    /// handles the conversion of various range formats and applies clamping and negative
+    /// index handling internally.
+    pub fn slice_assign<const D2: usize, R: RangesArg<D2>>(self, ranges: R, values: Self) -> Self {
+        let ranges = ranges.into_ranges(self.shape());
         check!(TensorCheck::slice_assign::<D, D2>(
             &self.shape(),
             &values.shape(),
@@ -965,12 +972,20 @@ where
     ///   println!("{:?}", tensor_sliced.dims()); // [2, 3, 3]
     /// }
     /// ```
-    pub fn slice_fill<const D2: usize, E: ElementConversion>(
+    ///
+    /// # Note
+    ///
+    /// This function uses the `RangesArg` trait for flexible range specification. The trait
+    /// handles the conversion of various range formats and applies clamping and negative
+    /// index handling internally.
+    pub fn slice_fill<const D2: usize, R: RangesArg<D2>, E: ElementConversion>(
         self,
-        ranges: [Range<usize>; D2],
+        ranges: R,
         value: E,
     ) -> Self {
+        let ranges = ranges.into_ranges(self.shape());
         check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
+
         Self::new(K::slice_fill(self.primitive, &ranges, value.elem()))
     }
 

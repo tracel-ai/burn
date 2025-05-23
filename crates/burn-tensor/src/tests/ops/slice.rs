@@ -134,6 +134,19 @@ mod tests {
     }
 
     #[test]
+    fn should_support_slice_fill_1d_neg() {
+        let data = TensorData::from([0.0, 1.0, 2.0]);
+
+        let device = Default::default();
+        let tensor = TestTensor::<1>::from_data(data, &device);
+
+        let output = tensor.slice_fill([-1..], -1.0);
+        let expected = TensorData::from([0.0, 1.0, -1.0]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
     fn should_support_slice_fill_2d() {
         let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
