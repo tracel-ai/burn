@@ -4,4 +4,4 @@ pub(crate) mod stream;
 
 mod base;
 
-pub use base::start;
+pub use base::{start, start_async};

@@ -4,7 +4,10 @@ use burn_tensor::{
     DType, TensorData,
     backend::{DeviceId, DeviceOps},
 };
-use std::sync::Arc;
+use std::{
+    hash::{DefaultHasher, Hash, Hasher},
+    sync::Arc,
+};
 
 use crate::shared::{ComputeTask, TaskResponseContent};
 
@@ -92,6 +95,8 @@ impl RunnerClient for WsClient {
 /// The device contains the connection information of the server.
 pub struct WsDevice {
     pub(crate) address: Arc<String>,
+    // Unique ID generated from hash of the address
+    pub(crate) id: u32,
 }
 
 impl WsDevice {
@@ -106,8 +111,13 @@ impl WsDevice {
             address += url;
         };
 
+        let mut hasher = DefaultHasher::new();
+        address.hash(&mut hasher);
+        let id = hasher.finish() as u32;
+
         Self {
             address: Arc::new(address),
+            id,
         }
     }
 }
@@ -119,9 +129,7 @@ impl Default for WsDevice {
             Err(_) => String::from("ws://127.0.0.1:3000"),
         };
 
-        Self {
-            address: Arc::new(address),
-        }
+        Self::new(&address)
     }
 }
 
@@ -129,7 +137,7 @@ impl DeviceOps for WsDevice {
     fn id(&self) -> DeviceId {
         DeviceId {
             type_id: 0,
-            index_id: 0,
+            index_id: self.id,
         }
     }
 }
