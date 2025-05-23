@@ -1,6 +1,6 @@
 use crate::{CubeRuntime, element::CubeElement, tensor::CubeTensor};
 use burn_common::ExecutionMode;
-use cubecl::{Compiler, KernelId, compute::CubeTask, prelude::*};
+use cubecl::{Compiler, compute::CubeTask, prelude::*};
 
 use super::SourceTemplate;
 
@@ -40,7 +40,7 @@ impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
     }
 }
 
-impl<K: KernelSource> Kernel for SourceKernel<K> {
+impl<K: KernelSource> KernelMetadata for SourceKernel<K> {
     fn id(&self) -> KernelId {
         self.kernel_source.id()
     }
