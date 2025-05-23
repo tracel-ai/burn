@@ -25,7 +25,6 @@ pub enum ProcessorTask {
 impl<B: BackendIr> Processor<B> {
     pub fn start(runner: Runner<B>) -> SyncSender<ProcessorTask> {
         let (sender, rec) = std::sync::mpsc::sync_channel(1);
-
         std::thread::spawn(move || {
             for item in rec.iter() {
                 match item {
