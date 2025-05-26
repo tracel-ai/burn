@@ -101,7 +101,7 @@ ratatui = "0.29.0"
 
 # WGPU stuff
 text_placeholder = "0.5.1"
-wgpu = "25.0.0"
+wgpu = "25.0.2"
 
 # Benchmarks and Burnbench
 arboard = "3.5.0"
