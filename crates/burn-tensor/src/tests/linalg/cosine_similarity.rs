@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::TensorData;
     use burn_tensor::linalg;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn_tensor::{Tolerance, ops::FloatElem, ElementConversion};
     type FT = FloatElem<TestBackend>;
 
     #[test]
@@ -19,7 +19,7 @@ mod tests {
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         // Test with explicit epsilon
-        linalg::cosine_similarity(x1.clone(), x2.clone(), 1, Some(1e-8))
+        linalg::cosine_similarity(x1.clone(), x2.clone(), 1, Some(1e-8.elem::<FT>()))
             .into_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
