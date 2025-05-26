@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::TensorData;
     use burn_tensor::linalg;
-    use burn_tensor::{Tolerance, ops::FloatElem, ElementConversion};
+    use burn_tensor::{ElementConversion, Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]
