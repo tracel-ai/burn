@@ -165,6 +165,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.slice(ranges)`                       | `tensor[(*ranges,)]`                                                       |
 | `tensor.slice_assign(ranges, values)`        | `tensor[(*ranges,)] = values`                                              |
 | `tensor.slice_fill(ranges, value)`           | `tensor[(*ranges,)] = value`                                               |
+| `tensor.slice_dim(dim, range)`               | N/A                                                                        |
 | `tensor.squeeze(dim)`                        | `tensor.squeeze(dim)`                                                      |
 | `tensor.swap_dims(dim1, dim2)`               | `tensor.transpose(dim1, dim2)`                                             |
 | `tensor.to_data()`                           | N/A                                                                        |
