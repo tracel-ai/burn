@@ -1009,9 +1009,12 @@ where
     /// This function uses the `RangeArg` trait for flexible range specification. The trait
     /// handles the conversion of various range formats and applies clamping and negative
     /// index handling internally.
-    pub fn slice_dim<R: RangeArg>(self, dim: usize, range: R) -> Self {
+    pub fn slice_dim<R>(self, dim: usize, range: R) -> Self
+    where
+        R: RangeArg,
+    {
+        check!(TensorCheck::check_dim::<D>(dim));
         let range = range.into_range(self.shape().dims[dim]);
-        check!(TensorCheck::slice_dim::<D>(&self.shape(), dim, &range));
 
         Self::new(K::slice_dim(self.primitive, dim, &range))
     }

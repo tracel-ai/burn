@@ -858,31 +858,15 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn slice_dim<const D1: usize>(
-        shape: &Shape,
-        dim: usize,
-        range: &Range<usize>,
-    ) -> Self {
+    pub(crate) fn check_dim<const D: usize>(dim: usize) -> Self {
         let mut check = Self::Ok;
 
-        if dim >= D1 {
+        if dim >= D {
             check = check.register(
-                "Slice Dim",
+                "Check Dim",
                 TensorError::new("The provided dimension exceeds the tensor dimensions.").details(
-                    format!("Tensor has {D1} dimensions, but the provided dimension is {dim}."),
+                    format!("Tensor has {D} dimensions, but the provided dimension is {dim}."),
                 ),
-            );
-        }
-
-        let d_size = shape.dims[dim];
-        if range.end > d_size {
-            check = check.register(
-                "Slice Dim",
-                TensorError::new("The provided range exceeds the tensor size.").details(format!(
-                    "The range ({}..{}) exceeds the size of the tensor ({}) at dimension {}. \
-                         Tensor shape {:?}, provided range {:?}.",
-                    range.start, range.end, d_size, dim, shape.dims, range,
-                )),
             );
         }
 

@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(slice)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, Tensor, TensorData, as_type, s};
+    use burn_tensor::{Int, Slice, Tensor, TensorData, as_type, s};
 
     #[test]
     fn should_support_slice_dim_1d() {
@@ -12,6 +12,15 @@ mod tests {
         output
             .into_data()
             .assert_eq(&TensorData::from([1.0, 2.0]), false);
+    }
+
+    #[test]
+    #[should_panic(expected = "The provided dimension exceeds the tensor dimensions")]
+    fn should_panic_when_slice_dim_1d_bad_dim() {
+        let data = TensorData::from([0.0, 1.0, 2.0]);
+        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
+
+        let _output = tensor.slice_dim(1, 1..);
     }
 
     #[test]
