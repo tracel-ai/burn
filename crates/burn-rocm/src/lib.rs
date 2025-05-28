@@ -5,7 +5,7 @@ extern crate alloc;
 use burn_cubecl::CubeBackend;
 
 #[cfg(target_os = "linux")]
-pub use cubecl::hip::HipDevice;
+pub use cubecl::hip::HipDevice as RocmDevice;
 
 #[cfg(target_os = "linux")]
 use cubecl::hip::HipRuntime;
@@ -18,16 +18,14 @@ pub type Rocm<F = f32, I = i32, B = u8> = CubeBackend<HipRuntime, F, I, B>;
 #[cfg(feature = "fusion")]
 pub type Rocm<F = f32, I = i32, B = u8> = burn_fusion::Fusion<CubeBackend<HipRuntime, F, I, B>>;
 
-// TODO: Hang the computer when AMD isn't available.
-//
-// #[cfg(target_os = "linux")]
-// #[cfg(test)]
-// mod tests {
-//     use burn_cubecl::CubeBackend;
-//
-//     pub type TestRuntime = cubecl::hip::HipRuntime;
-//     pub use half::f16;
-//
-//     // TODO: Add tests for bf16
-//     burn_cubecl::testgen_all!([f16, f32], [i8, i16, i32, i64], [u8, u32]);
-// }
+#[cfg(test)]
+mod tests {
+    use burn_cubecl::CubeBackend;
+
+    pub type TestRuntime = cubecl::hip::HipRuntime;
+    use half::f16;
+
+    // TODO: Add tests for bf16
+    // burn_cubecl::testgen_all!([f16, f32], [i8, i16, i32, i64], [u8, u32]);
+    burn_cubecl::testgen_all!([f16, f32], [i32], [u32]);
+}
