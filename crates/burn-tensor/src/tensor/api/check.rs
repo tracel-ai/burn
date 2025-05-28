@@ -858,6 +858,21 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn check_dim<const D: usize>(dim: usize) -> Self {
+        let mut check = Self::Ok;
+
+        if dim >= D {
+            check = check.register(
+                "Check Dim",
+                TensorError::new("The provided dimension exceeds the tensor dimensions.").details(
+                    format!("Tensor has {D} dimensions, but the provided dimension is {dim}."),
+                ),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn gather<const D: usize>(dim: usize, shape: &Shape, shape_indices: &Shape) -> Self {
         Self::check_gather_scatter_indices::<D>(Self::Ok, "Gather", dim, shape, shape_indices)
     }

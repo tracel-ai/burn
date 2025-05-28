@@ -989,6 +989,36 @@ where
         Self::new(K::slice_fill(self.primitive, &ranges, value.elem()))
     }
 
+    /// Returns a new tensor with the specified dimension sliced.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim`: The dimension to slice.
+    /// * `range`: The range to slice the dimension with.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the specified dimension sliced.
+    ///
+    /// # Panics
+    ///
+    /// If the range is out of bounds for the specified dimension.
+    ///
+    /// # Note
+    ///
+    /// This function uses the `RangeArg` trait for flexible range specification. The trait
+    /// handles the conversion of various range formats and applies clamping and negative
+    /// index handling internally.
+    pub fn slice_dim<R>(self, dim: usize, range: R) -> Self
+    where
+        R: RangeArg,
+    {
+        check!(TensorCheck::check_dim::<D>(dim));
+        let range = range.into_range(self.shape().dims[dim]);
+
+        Self::new(K::slice_dim(self.primitive, dim, &range))
+    }
+
     /// Returns the device of the current tensor.
     pub fn device(&self) -> B::Device {
         K::device(&self.primitive)
@@ -2261,6 +2291,30 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         Self::slice_assign(tensor, ranges, value)
     }
 
+    /// Slices the tensor along a given dimension with the specified range.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to slice.
+    /// * `dim` - The dimension along which to slice.
+    /// * `range` - The range of indices to slice along the specified dimension.
+    ///
+    /// # Returns
+    ///
+    /// The sliced tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    fn slice_dim(tensor: Self::Primitive, dim: usize, range: &Range<usize>) -> Self::Primitive {
+        let mut ranges: Vec<Range<usize>> = tensor.shape().dims.iter().map(|&s| 0..s).collect();
+        ranges[dim] = range.clone();
+
+        Self::slice(tensor, &ranges)
+    }
+
     /// Returns the device on which the tensor is allocated.
     ///
     /// # Arguments
@@ -2993,6 +3047,18 @@ impl MovedimArgs for i32 {
         set.push(dim);
 
         set
+    }
+}
+
+/// Trait used for slice dim arguments.
+pub trait RangeArg {
+    /// Converts into a range for the `tensor.slice_dim()` function
+    fn into_range(self, shape_dim: usize) -> Range<usize>;
+}
+
+impl<T: Into<Slice>> RangeArg for T {
+    fn into_range(self, shape_dim: usize) -> Range<usize> {
+        self.into().into_range(shape_dim)
     }
 }
 
