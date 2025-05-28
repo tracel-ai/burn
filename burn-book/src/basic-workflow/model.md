@@ -221,6 +221,7 @@ impl ModelConfig {
 At a glance, you can view the model configuration by printing the model instance:
 
 ```rust , ignore
+#![recursion_limit = "256"]
 mod model;
 
 use crate::model::ModelConfig;

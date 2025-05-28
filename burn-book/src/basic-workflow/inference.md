@@ -46,6 +46,7 @@ By running the infer function, you should see the predictions of your model!
 Add the call to `infer` to the `main.rs` file after the `train` function call:
 
 ```rust , ignore
+# #![recursion_limit = "256"]
 # mod data;
 # mod inference;
 # mod model;
