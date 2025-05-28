@@ -477,7 +477,14 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
 
     let props = &client.properties().hardware;
 
-    if props.plane_size_min < 32 {
+    if props.plane_size_min == 32 && props.plane_size_max == 32 {
+        return Err("Requires plane size of at least 32".into());
+    }
+
+    // Somehow the kernel doesn't work on AMD and Apple Silicon.
+    //
+    // The check invalidates those, but probably not for the right reason.
+    if props.plane_size_max != 32 {
         return Err("Requires plane size of at least 32".into());
     }
 
