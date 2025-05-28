@@ -58,6 +58,7 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::ConvTranspose2d => same_as_input(node),
         NodeType::InstanceNormalization => same_as_input(node),
         NodeType::LayerNormalization => same_as_input(node),
+        NodeType::GroupNormalization => same_as_input(node),
         NodeType::LeakyRelu => same_as_input(node),
         NodeType::Less => elementwise_comparison_outputs(node),
         NodeType::LessOrEqual => elementwise_comparison_outputs(node),

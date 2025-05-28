@@ -31,6 +31,7 @@ pub mod expand;
 pub mod flatten;
 pub mod gather;
 pub mod gemm;
+pub mod group_norm;
 pub mod hard_sigmoid;
 pub mod instance_norm;
 pub mod layer_norm;
