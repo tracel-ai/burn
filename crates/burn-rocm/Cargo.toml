@@ -25,7 +25,7 @@ compilation-cache = ["cubecl/compilation-cache"]
 
 [dependencies]
 cubecl = { workspace = true, features = ["hip"] }
-burn-cubecl = { path = "../burn-cubecl", version = "0.18.0", default-features = false }
+burn-cubecl = { path = "../burn-cubecl", version = "0.18.0", default-features = true }
 burn-tensor = { path = "../burn-tensor", version = "0.18.0", features = [
     "cubecl-hip",
 ] }
