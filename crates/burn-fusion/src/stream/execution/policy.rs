@@ -294,12 +294,12 @@ mod tests {
         let id_1 = store.add(ExecutionPlan {
             operations: stream.operations[0..2].to_vec(),
             triggers: Vec::new(),
-            strategy: ExecutionStrategy::Operations,
+            strategy: ExecutionStrategy::Operations(2),
         });
         let _id_2 = store.add(ExecutionPlan {
             operations: stream.operations[0..3].to_vec(),
             triggers: Vec::new(),
-            strategy: ExecutionStrategy::Operations,
+            strategy: ExecutionStrategy::Operations(3),
         });
 
         stream.assert_updates(
@@ -325,7 +325,7 @@ mod tests {
                 .iter()
                 .map(|desc| ExecutionTrigger::OnOperations(vec![desc.clone()]))
                 .collect(),
-            strategy: ExecutionStrategy::Operations,
+            strategy: ExecutionStrategy::Operations(2),
         });
 
         stream.assert_updates(
@@ -363,7 +363,7 @@ mod tests {
                 ExecutionTrigger::OnOperations(vec![stream_1.operations[2].clone()]),
                 ExecutionTrigger::OnOperations(vec![stream_2.operations[2].clone()]),
             ],
-            strategy: ExecutionStrategy::Operations,
+            strategy: ExecutionStrategy::Operations(2),
         });
 
         stream_1.assert_updates(
@@ -415,7 +415,7 @@ mod tests {
                 .iter()
                 .map(|desc| ExecutionTrigger::OnOperations(vec![desc.clone()]))
                 .collect(),
-            strategy: ExecutionStrategy::Operations,
+            strategy: ExecutionStrategy::Operations(3),
         });
         let optimization_stream_2 = store.add(ExecutionPlan {
             operations: stream_2.operations[0..3].to_vec(),
@@ -423,7 +423,7 @@ mod tests {
                 .iter()
                 .map(|desc| ExecutionTrigger::OnOperations(vec![desc.clone()]))
                 .collect(),
-            strategy: ExecutionStrategy::Operations,
+            strategy: ExecutionStrategy::Operations(3),
         });
         assert_ne!(optimization_stream_1, optimization_stream_2);
 
@@ -468,7 +468,7 @@ mod tests {
                 .iter()
                 .map(|desc| ExecutionTrigger::OnOperations(vec![desc.clone()]))
                 .collect(),
-            strategy: ExecutionStrategy::Operations,
+            strategy: ExecutionStrategy::Operations(3),
         });
 
         let mut policy = Policy::new();

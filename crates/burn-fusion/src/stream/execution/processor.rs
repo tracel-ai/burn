@@ -205,11 +205,16 @@ impl<O> Processor<O> {
                 store.add_trigger(id, trigger);
                 id
             }
-            _ => store.add(ExecutionPlan {
-                operations: relative.to_vec(),
-                triggers: vec![trigger],
-                strategy: ExecutionStrategy::Operations,
-            }),
+            _ => {
+                let operations = relative.to_vec();
+                let size = relative.len();
+
+                store.add(ExecutionPlan {
+                    operations,
+                    triggers: vec![trigger],
+                    strategy: ExecutionStrategy::Operations(size),
+                })
+            }
         }
     }
 }

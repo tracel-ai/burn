@@ -15,7 +15,9 @@ pub(crate) enum ExecutionStrategy<O> {
     /// An optimization was found, and therefore should be executed.
     Optimization(O),
     /// No optimization was found, each operation should be executed individually.
-    Operations,
+    Operations(usize),
+    /// A composition of multiple execution strategies.
+    Composed(Vec<Box<Self>>),
 }
 
 /// The trigger that indicates when to stop exploring.

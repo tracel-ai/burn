@@ -29,11 +29,25 @@ impl<R: FusionRuntime> OperationQueue<R> {
         handles: &mut HandleContainer<R::FusionHandle>,
         store: &mut ExecutionPlanStore<R::Optimization>,
     ) {
-        match &mut store.get_mut_unchecked(id).strategy {
+        let plan = store.get_mut_unchecked(id);
+        self.execute_strategy(&mut plan.strategy, handles);
+    }
+
+    fn execute_strategy(
+        &mut self,
+        strategy: &mut ExecutionStrategy<R::Optimization>,
+        handles: &mut HandleContainer<R::FusionHandle>,
+    ) {
+        match strategy {
             ExecutionStrategy::Optimization(optimization) => {
                 self.execute_optimization(handles, optimization)
             }
-            ExecutionStrategy::Operations => self.execute_operations(handles),
+            ExecutionStrategy::Operations(size) => self.execute_operations(handles, *size),
+            ExecutionStrategy::Composed(strategies) => {
+                for s in strategies {
+                    self.execute_strategy(s, handles);
+                }
+            }
         };
     }
 
@@ -55,14 +69,12 @@ impl<R: FusionRuntime> OperationQueue<R> {
 
     /// Execute all the operations in the [`OperationQueue`] sequentially
     /// without applying any optimization.
-    fn execute_operations(&mut self, handles: &mut HandleContainer<R::FusionHandle>) {
-        let num_drained = self.operations.len();
-
-        for operation in self.operations.drain(..) {
+    fn execute_operations(&mut self, handles: &mut HandleContainer<R::FusionHandle>, size: usize) {
+        for operation in self.operations.drain(0..size) {
             operation.execute(handles);
         }
 
-        self.drain_queue(num_drained, handles);
+        self.drain_queue(size, handles);
     }
 
     /// Bookkeeping after executing `num_drained` operations from the queue.
