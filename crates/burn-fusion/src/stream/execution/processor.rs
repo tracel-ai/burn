@@ -1,11 +1,9 @@
 use burn_ir::OperationIr;
 
-use super::{ExecutionMode, Exploration, Explorer};
+use super::{ExecutionMode, Exploration, ExplorationAction, Explorer};
 use crate::OptimizationBuilder;
 use crate::stream::execution::{Action, Policy};
-use crate::stream::store::{
-    ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
-};
+use crate::stream::store::{ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger};
 
 /// Process a [stream segment](StreamSegment) following a [policy](Policy).
 pub(crate) struct Processor<O> {
@@ -96,8 +94,8 @@ impl<O> Processor<O> {
         mode: ExecutionMode,
     ) {
         match self.explorer.explore(item.operations(), mode) {
-            Exploration::Found(optim) => {
-                let id = Self::on_optimization_found(
+            ExplorationAction::Completed(optim) => {
+                let id = Self::on_exploration_completed(
                     &self.policy,
                     item.operations(),
                     store,
@@ -107,19 +105,7 @@ impl<O> Processor<O> {
                 item.execute(id, store);
                 self.reset(store, item.operations());
             }
-            Exploration::NotFound { num_explored } => {
-                let id = Self::on_optimization_not_found(
-                    &self.policy,
-                    item.operations(),
-                    store,
-                    mode,
-                    num_explored,
-                );
-
-                item.execute(id, store);
-                self.reset(store, item.operations());
-            }
-            Exploration::Continue => {
+            ExplorationAction::Continue => {
                 if let ExecutionMode::Sync = mode {
                     panic!("Can't continue exploring when sync.")
                 }
@@ -139,19 +125,19 @@ impl<O> Processor<O> {
 
     /// We found an optimization (i.e. a new execution plan).
     /// Cache it in the store.
-    fn on_optimization_found(
+    fn on_exploration_completed(
         policy: &Policy<O>,
         operations: &[OperationIr],
         store: &mut ExecutionPlanStore<O>,
-        builder: &dyn OptimizationBuilder<O>,
+        exploration: Exploration<O>,
         mode: ExecutionMode,
     ) -> ExecutionPlanId {
-        let num_fused = builder.len();
-        let relative = &operations[0..num_fused];
+        let num_optimized = exploration.num_optimized;
+        let relative = &operations[0..num_optimized];
 
         match mode {
             ExecutionMode::Lazy => {
-                let next_ops = &operations[num_fused..operations.len()];
+                let next_ops = &operations[num_optimized..operations.len()];
 
                 let trigger = if next_ops.is_empty() {
                     // Happens if the next ops is included in the fused operation, and there is no
@@ -169,7 +155,7 @@ impl<O> Processor<O> {
                     _ => store.add(ExecutionPlan {
                         operations: relative.to_vec(),
                         triggers: vec![trigger],
-                        strategy: ExecutionStrategy::Optimization(builder.build()),
+                        strategy: exploration.strategy,
                     }),
                 }
             }
@@ -181,40 +167,9 @@ impl<O> Processor<O> {
                 _ => store.add(ExecutionPlan {
                     operations: relative.to_vec(),
                     triggers: vec![ExecutionTrigger::OnSync],
-                    strategy: ExecutionStrategy::Optimization(builder.build()),
+                    strategy: exploration.strategy,
                 }),
             },
-        }
-    }
-
-    fn on_optimization_not_found(
-        policy: &Policy<O>,
-        operations: &[OperationIr],
-        store: &mut ExecutionPlanStore<O>,
-        mode: ExecutionMode,
-        num_explored: usize,
-    ) -> ExecutionPlanId {
-        let relative = &operations[0..num_explored];
-        let trigger = match mode {
-            ExecutionMode::Lazy => ExecutionTrigger::Always,
-            ExecutionMode::Sync => ExecutionTrigger::OnSync,
-        };
-
-        match policy.action(store, relative, ExecutionMode::Sync) {
-            Action::Execute(id) => {
-                store.add_trigger(id, trigger);
-                id
-            }
-            _ => {
-                let operations = relative.to_vec();
-                let size = relative.len();
-
-                store.add(ExecutionPlan {
-                    operations,
-                    triggers: vec![trigger],
-                    strategy: ExecutionStrategy::Operations(size),
-                })
-            }
         }
     }
 }

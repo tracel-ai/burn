@@ -1,7 +1,7 @@
 use burn_ir::OperationIr;
 
 use super::ExecutionMode;
-use crate::{OptimizationBuilder, OptimizationStatus};
+use crate::{OptimizationBuilder, OptimizationStatus, stream::store::ExecutionStrategy};
 
 /// Explore and create new optimization.
 pub struct Explorer<O> {
@@ -14,13 +14,16 @@ pub struct Explorer<O> {
 }
 
 /// The result of an exploration done by the [explorer](Explorer).
-pub enum Exploration<'a, O> {
+pub enum ExplorationAction<O> {
     /// Found a new optimization.
-    Found(&'a dyn OptimizationBuilder<O>),
-    /// No optimization is found.
-    NotFound { num_explored: usize },
+    Completed(Exploration<O>),
     /// We should continue exploring before arriving at a conclusion.
     Continue,
+}
+
+pub struct Exploration<O> {
+    pub strategy: ExecutionStrategy<O>,
+    pub num_optimized: usize,
 }
 
 impl<O> Explorer<O> {
@@ -45,25 +48,34 @@ impl<O> Explorer<O> {
     }
 
     /// Explore the provided operations.
-    pub(crate) fn explore<'a>(
-        &'a mut self,
+    pub(crate) fn explore(
+        &mut self,
         operations: &[OperationIr],
         mode: ExecutionMode,
-    ) -> Exploration<'a, O> {
+    ) -> ExplorationAction<O> {
         self.update(operations);
 
         // Can only continue exploration when not sync.
         if let ExecutionMode::Lazy = mode {
             if self.is_still_optimizing {
-                return Exploration::Continue;
+                return ExplorationAction::Continue;
             }
         }
 
         match find_best_optimization_index(&mut self.builders) {
-            Some(index) => Exploration::Found(self.builders[index].as_ref()),
-            None => Exploration::NotFound {
-                num_explored: self.num_explored,
-            },
+            Some(index) => {
+                let num_explored = self.builders[index].len();
+                let opt = self.builders[index].build();
+
+                ExplorationAction::Completed(Exploration {
+                    strategy: ExecutionStrategy::Optimization(opt),
+                    num_optimized: num_explored,
+                })
+            }
+            None => ExplorationAction::Completed(Exploration {
+                strategy: ExecutionStrategy::Operations(self.num_explored),
+                num_optimized: self.num_explored,
+            }),
         }
     }
 
