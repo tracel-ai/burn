@@ -109,6 +109,9 @@ pub trait OptimizationBuilder<O>: Send {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<O>> {
+        todo!();
+    }
 }
 
 /// The operation created from the [builder](OptimizationBuilder).
