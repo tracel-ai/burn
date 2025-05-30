@@ -3,11 +3,11 @@ use cubecl::{calculate_cube_count_elemwise, linalg::tensor::index_offset_with_la
 use crate::{
     BoolElement, CubeRuntime,
     element::CubeElement,
-    ops::{max_vectorization, numeric::empty_device},
+    ops::{max_line_size_many, numeric::empty_device},
     tensor::CubeTensor,
 };
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 fn mask_fill_readonly_kernel<T: Numeric, B: Int>(
     input: &Tensor<Line<T>>,
     mask: &Tensor<Line<B>>,
@@ -15,33 +15,40 @@ fn mask_fill_readonly_kernel<T: Numeric, B: Int>(
     value: T,
     #[comptime] rank: u32,
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    let pos = ABSOLUTE_POS;
+
+    if pos >= output.len() {
         terminate!();
     }
 
-    let index_input = index_offset_with_layout(input, output, ABSOLUTE_POS, 0, rank, true);
-    let index_mask = index_offset_with_layout(mask, output, ABSOLUTE_POS, 0, rank, true);
+    let index_input = index_offset_with_layout(input, output, pos, 0, rank, false);
+    let index_mask = index_offset_with_layout(mask, output, pos, 0, rank, false);
 
     let mask = Line::cast_from(mask[index_mask]);
+    let input = input[index_input];
+    let value = Line::new(value);
 
-    output[ABSOLUTE_POS] = select_many(mask, Line::new(value), input[index_input]);
+    output[pos] = select_many(mask, value, input);
 }
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 fn mask_fill_inplace_kernel<T: Numeric, B: Int>(
     input: &mut Tensor<Line<T>>,
     mask: &Tensor<Line<B>>,
     value: T,
     #[comptime] rank: u32,
 ) {
-    if ABSOLUTE_POS >= input.len() {
+    let pos = ABSOLUTE_POS;
+
+    if pos >= input.len() {
         terminate!();
     }
 
-    let index_mask = index_offset_with_layout(mask, input, ABSOLUTE_POS, 0, rank, true);
+    let index_mask = index_offset_with_layout(mask, input, pos, 0, rank, false);
     let mask = Line::cast_from(mask[index_mask]);
+    let value = Line::new(value);
 
-    input[ABSOLUTE_POS] = select_many(mask, Line::new(value), input[ABSOLUTE_POS]);
+    input[pos] = select_many(mask, value, input[pos]);
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -83,19 +90,24 @@ fn mask_fill_readonly<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
     );
 
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
-    let vectorization = max_vectorization(&input);
-
-    mask_fill_readonly_kernel::launch::<EI, EM, R>(
-        &input.client,
-        cube_count,
+    let vectorization = max_line_size_many(&[&input, &mask], ndims - 1);
+    let cube_count = calculate_cube_count_elemwise(
+        input.shape.num_elements() / vectorization as usize,
         cube_dim,
-        input.as_tensor_arg::<EI>(vectorization),
-        mask.as_tensor_arg::<EM>(vectorization),
-        output.as_tensor_arg::<EI>(vectorization),
-        ScalarArg::new(value),
-        ndims as u32,
     );
+
+    unsafe {
+        mask_fill_readonly_kernel::launch_unchecked::<EI, EM, R>(
+            &input.client,
+            cube_count,
+            cube_dim,
+            input.as_tensor_arg::<EI>(vectorization),
+            mask.as_tensor_arg::<EM>(vectorization),
+            output.as_tensor_arg::<EI>(vectorization),
+            ScalarArg::new(value),
+            ndims as u32,
+        );
+    }
 
     output
 }
@@ -107,18 +119,23 @@ fn mask_fill_inplace<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
 ) -> CubeTensor<R> {
     let ndims = input.shape.num_dims();
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
-    let vectorization = max_vectorization(&input);
-
-    mask_fill_inplace_kernel::launch::<EI, EM, R>(
-        &input.client,
-        cube_count,
+    let vectorization = max_line_size_many(&[&input, &mask], ndims - 1);
+    let cube_count = calculate_cube_count_elemwise(
+        input.shape.num_elements() / vectorization as usize,
         cube_dim,
-        input.as_tensor_arg::<EI>(vectorization),
-        mask.as_tensor_arg::<EM>(vectorization),
-        ScalarArg::new(value),
-        ndims as u32,
     );
+
+    unsafe {
+        mask_fill_inplace_kernel::launch_unchecked::<EI, EM, R>(
+            &input.client,
+            cube_count,
+            cube_dim,
+            input.as_tensor_arg::<EI>(vectorization),
+            mask.as_tensor_arg::<EM>(vectorization),
+            ScalarArg::new(value),
+            ndims as u32,
+        );
+    }
 
     input
 }
