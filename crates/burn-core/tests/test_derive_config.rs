@@ -24,6 +24,24 @@ pub enum TestEnumConfig {
     Named { first: f32, second: String },
 }
 
+/// A test struct for verifying documentation generation.
+#[derive(Config, Debug)]
+pub struct TestDocConfig {
+    /// This is a required integer field.
+    pub required_int: i32,
+
+    /// This is an optional string field.
+    pub optional_string: Option<String>,
+
+    /// This is a field with a default value.
+    #[config(default = 42)]
+    pub default_int: i32,
+
+    /// This is a field with a default string value.
+    #[config(default = "\"hello\"")]
+    pub default_string: String,
+}
+
 #[cfg(feature = "std")]
 #[inline(always)]
 fn file_path(file_name: &str) -> std::path::PathBuf {
@@ -110,4 +128,77 @@ fn struct_config_can_load_binary() {
 
     let config_loaded = TestStructConfig::load_binary(&binary).unwrap();
     assert_eq!(config, config_loaded);
+}
+
+#[test]
+fn test_config_documentation() {
+    let config = TestDocConfig::new(123);
+
+    // Get the type information using syn
+    let source = quote::quote! {
+        #[derive(Config, Debug)]
+        pub struct TestDocConfig {
+            /// This is a required integer field.
+            pub required_int: i32,
+
+            /// This is an optional string field.
+            pub optional_string: Option<String>,
+
+            /// This is a field with a default value.
+            #[config(default = 42)]
+            pub default_int: i32,
+
+            /// This is a field with a default string value.
+            #[config(default = "\"hello\"")]
+            pub default_string: String,
+        }
+    };
+
+    let ast: syn::DeriveInput = syn::parse2(source).unwrap();
+    let fields = match ast.data {
+        syn::Data::Struct(data) => data.fields,
+        _ => panic!("Expected struct"),
+    };
+
+    // Verify field documentation
+    let fields: Vec<_> = fields.into_iter().collect();
+    assert_eq!(fields.len(), 4);
+
+    // Check required field
+    let required_docs = fields[0]
+        .attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("doc"))
+        .count();
+    assert_eq!(required_docs, 1);
+
+    // Check optional field
+    let optional_docs = fields[1]
+        .attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("doc"))
+        .count();
+    assert_eq!(optional_docs, 1);
+
+    // Check default field
+    let default_docs = fields[2]
+        .attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("doc"))
+        .count();
+    assert_eq!(default_docs, 1);
+
+    // Check default string field
+    let default_string_docs = fields[3]
+        .attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("doc"))
+        .count();
+    assert_eq!(default_string_docs, 1);
+
+    // Test builder methods
+    let config = config.clone();
+    let config = config.with_default_int(100);
+    let config = config.with_default_string("world".to_string());
+    let _config = config.with_optional_string(Some("optional".to_string()));
 }
