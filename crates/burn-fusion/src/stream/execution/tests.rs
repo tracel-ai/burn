@@ -13,7 +13,7 @@ use burn_ir::{
 use burn_tensor::DType;
 
 use crate::{
-    OptimizationBuilder, OptimizationProperties, OptimizationStatus,
+    NumOperations, OptimizationBuilder, OptimizationProperties, OptimizationStatus,
     stream::store::{
         ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
     },
@@ -33,6 +33,7 @@ struct TestStream {
 ///
 /// The optimizer tries to fuse only the `expected_operations` if they appear
 /// in the operations queue
+#[derive(Clone)]
 struct TestOptimizationBuilder {
     builder_id: usize,
     expected_operations: Vec<OperationIr>,
@@ -44,6 +45,12 @@ struct TestOptimizationBuilder {
 struct TestOptimization {
     builder_id: usize,
     size: usize,
+}
+
+impl NumOperations for TestOptimization {
+    fn len(&self) -> usize {
+        self.size
+    }
 }
 
 /// A fake [stream segment](StreamSegment) for testing purpose.
@@ -494,6 +501,9 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
     // The number of operations that should be handle by the optimization.
     fn len(&self) -> usize {
         self.expected_operations.len()
+    }
+    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<TestOptimization>> {
+        Box::new(self.clone())
     }
 }
 

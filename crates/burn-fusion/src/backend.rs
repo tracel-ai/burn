@@ -109,25 +109,29 @@ pub trait OptimizationBuilder<O>: Send {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
-    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<O>> {
-        todo!();
+    /// Clone the optimization builder.
+    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<O>>;
+}
+
+/// The number of operations contained in the data strusture.
+pub trait NumOperations {
+    /// The number of registered operations.
+    fn len(&self) -> usize;
+    /// If the current optimization is empty.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
 /// The operation created from the [builder](OptimizationBuilder).
-pub trait Optimization<R: FusionRuntime>: Send {
+pub trait Optimization<R: FusionRuntime>: Send + NumOperations {
     /// Execute the operation.
     fn execute(
         &mut self,
         context: &mut Context<'_, R::FusionHandle>,
         operations: &[Box<dyn Operation<R>>],
     );
-    /// The number of registered operations in this optimization.
-    fn len(&self) -> usize;
-    /// If the current optimization is empty.
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
+
     /// Returns the state that can be serialized.
     fn to_state(&self) -> R::OptimizationState;
     /// Create the optimization from the state.

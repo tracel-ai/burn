@@ -1,9 +1,9 @@
 use burn_ir::OperationIr;
 
 use super::{ExecutionMode, Exploration, ExplorationAction, Explorer};
-use crate::OptimizationBuilder;
 use crate::stream::execution::{Action, Policy};
 use crate::stream::store::{ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger};
+use crate::{NumOperations, OptimizationBuilder};
 
 /// Process a [stream segment](StreamSegment) following a [policy](Policy).
 pub(crate) struct Processor<O> {
@@ -19,7 +19,7 @@ pub(crate) trait StreamSegment<O> {
     fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<O>);
 }
 
-impl<O> Processor<O> {
+impl<O: NumOperations> Processor<O> {
     /// Create a new stream processor.
     pub fn new(optimizations: Vec<Box<dyn OptimizationBuilder<O>>>) -> Self {
         Self {

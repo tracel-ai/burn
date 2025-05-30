@@ -1,13 +1,16 @@
 use burn_ir::OperationIr;
 
 use super::ExecutionMode;
-use crate::{OptimizationBuilder, OptimizationStatus, stream::store::ExecutionStrategy};
+use crate::{
+    NumOperations, OptimizationBuilder, graph::MultiGraphs, stream::store::ExecutionStrategy,
+};
 
 /// Explore and create new optimization.
 pub struct Explorer<O> {
     /// The optimization builders, one for each type of optimization that
     /// we want to explore.
-    builders: Vec<Box<dyn OptimizationBuilder<O>>>,
+    // builders: Vec<Box<dyn OptimizationBuilder<O>>>,
+    multi_graph: MultiGraphs<O>,
     num_deferred: usize,
     num_explored: usize,
     is_still_optimizing: bool,
@@ -26,11 +29,12 @@ pub struct Exploration<O> {
     pub num_optimized: usize,
 }
 
-impl<O> Explorer<O> {
+impl<O: NumOperations> Explorer<O> {
     /// Create a new explorer.
     pub(crate) fn new(optimizations: Vec<Box<dyn OptimizationBuilder<O>>>) -> Self {
         Self {
-            builders: optimizations,
+            // builders: optimizations,
+            multi_graph: MultiGraphs::new(optimizations),
             num_deferred: 0,
             num_explored: 0,
             is_still_optimizing: true,
@@ -62,28 +66,33 @@ impl<O> Explorer<O> {
             }
         }
 
-        match find_best_optimization_index(&mut self.builders) {
-            Some(index) => {
-                let num_explored = self.builders[index].len();
-                let opt = self.builders[index].build();
+        let (strategy, size) = self.multi_graph.strategy();
 
-                ExplorationAction::Completed(Exploration {
-                    strategy: ExecutionStrategy::Optimization(opt),
-                    num_optimized: num_explored,
-                })
-            }
-            None => ExplorationAction::Completed(Exploration {
-                strategy: ExecutionStrategy::Operations(self.num_explored),
-                num_optimized: self.num_explored,
-            }),
-        }
+        ExplorationAction::Completed(Exploration {
+            strategy,
+            num_optimized: size,
+        })
+
+        // match find_best_optimization_index(&mut self.builders) {
+        //     Some(index) => {
+        //         let num_explored = self.builders[index].len();
+        //         let opt = self.builders[index].build();
+
+        //         ExplorationAction::Completed(Exploration {
+        //             strategy: ExecutionStrategy::Optimization(opt),
+        //             num_optimized: num_explored,
+        //         })
+        //     }
+        //     None => ExplorationAction::Completed(Exploration {
+        //         strategy: ExecutionStrategy::Operations(self.num_explored),
+        //         num_optimized: self.num_explored,
+        //     }),
+        // }
     }
 
     /// Reset the state of the explorer to the provided list of operations.
     pub(crate) fn reset(&mut self, operations: &[OperationIr]) {
-        for operation in self.builders.iter_mut() {
-            operation.reset();
-        }
+        self.multi_graph.reset();
         self.num_explored = 0;
         self.num_deferred = operations.len();
         self.is_still_optimizing = true;
@@ -98,46 +107,15 @@ impl<O> Explorer<O> {
             let index = operations.len() - 1 - i;
             let relative = &operations[index];
 
-            for builder in self.builders.iter_mut() {
-                builder.register(relative);
-            }
+            self.multi_graph.register(relative);
+            // for builder in self.builders.iter_mut() {
+            //     builder.register(relative);
+            // }
             self.num_explored += 1;
 
-            self.is_still_optimizing = still_optimizing(&self.builders);
+            self.is_still_optimizing = self.multi_graph.still_optimizing();
         }
 
         self.num_deferred = 0;
     }
-}
-
-/// Returns false if all optimization builders are closed, which means that no more
-/// optimizations are possible.
-fn still_optimizing<O>(optimizations: &[Box<dyn OptimizationBuilder<O>>]) -> bool {
-    let mut num_stopped = 0;
-
-    for optimization in optimizations.iter() {
-        if let OptimizationStatus::Closed = optimization.status() {
-            num_stopped += 1
-        }
-    }
-
-    num_stopped < optimizations.len()
-}
-
-fn find_best_optimization_index<O>(
-    optimizations: &mut [Box<dyn OptimizationBuilder<O>>],
-) -> Option<usize> {
-    let mut best_index = None;
-    let mut best_score = 0;
-
-    for (i, optimization) in optimizations.iter().enumerate() {
-        let properties = optimization.properties();
-
-        if properties.ready && properties.score >= best_score {
-            best_index = Some(i);
-            best_score = properties.score;
-        }
-    }
-
-    best_index
 }

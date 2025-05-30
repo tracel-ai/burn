@@ -41,14 +41,6 @@ where
         }
     }
 
-    fn len(&self) -> usize {
-        match self {
-            Self::ElementWise(op) => op.num_ops_fused(),
-            Self::Matmul(op) => op.num_ops_fused(),
-            Self::Reduce(op) => op.num_ops_fused(),
-        }
-    }
-
     fn to_state(&self) -> CubeOptimizationState {
         match self {
             Self::ElementWise(value) => CubeOptimizationState::ElementWise(value.to_state()),

@@ -24,6 +24,16 @@ pub enum CubeOptimization<R: Runtime> {
     Reduce(ReduceOptimization<R>),
 }
 
+impl<R: Runtime> burn_fusion::NumOperations for CubeOptimization<R> {
+    fn len(&self) -> usize {
+        match self {
+            Self::ElementWise(op) => op.num_ops_fused(),
+            Self::Matmul(op) => op.num_ops_fused(),
+            Self::Reduce(op) => op.num_ops_fused(),
+        }
+    }
+}
+
 /// Fusion optimization state type for cubecl.
 ///
 /// More optimization variants should be added here.
