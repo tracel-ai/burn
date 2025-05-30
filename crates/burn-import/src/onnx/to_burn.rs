@@ -21,6 +21,7 @@ use crate::{
             avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
             binary::BinaryNode,
+            ceil::CeilNode,
             clip::ClipNode,
             concat::ConcatNode,
             constant::{ConstantNode, ConstantValue},
@@ -55,6 +56,7 @@ use crate::{
             range::RangeNode,
             reshape::ReshapeNode,
             resize::ResizeNode,
+            round::RoundNode,
             slice::SliceNode,
             split::SplitNode,
             squeeze::SqueezeNode,
@@ -292,6 +294,7 @@ impl ParsedOnnxGraph {
                 NodeType::Exp => graph.register(Self::exp_conversion(node)),
                 NodeType::Expand => graph.register(Self::expand_conversion(node)),
                 NodeType::Floor => graph.register(Self::floor_conversion(node)),
+                NodeType::Ceil => graph.register(Self::ceil_conversion(node)),
                 NodeType::Clip => graph.register(Self::clip_conversion(node)),
                 NodeType::Cos => graph.register(Self::cos_conversion(node)),
                 NodeType::Cosh => graph.register(Self::cosh_conversion(node)),
@@ -350,6 +353,7 @@ impl ParsedOnnxGraph {
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Resize => graph.register(Self::resize_conversion(node)),
                 NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
+                NodeType::Round => graph.register(Self::round_conversion(node)),
                 NodeType::Shape => graph.register(Self::shape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Sin => graph.register(Self::sin_conversion(node)),
@@ -1416,6 +1420,20 @@ impl ParsedOnnxGraph {
         let output = TensorType::from(node.outputs.first().unwrap());
 
         FloorNode::new(input, output)
+    }
+
+    fn ceil_conversion(node: Node) -> CeilNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        CeilNode::new(input, output)
+    }
+
+    fn round_conversion(node: Node) -> RoundNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        RoundNode::new(input, output)
     }
 
     fn gemm_conversion(node: Node) -> GemmNode {

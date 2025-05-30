@@ -2046,9 +2046,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(preps) => preps.finish(
                 (tensor.primitive.shape(), B::float_device(&tensor.primitive)),
-                B::float_floor(tensor.primitive),
+                B::float_ceil(tensor.primitive),
             ),
-            OpsKind::UnTracked(preps) => preps.finish(B::float_floor(tensor.primitive)),
+            OpsKind::UnTracked(preps) => preps.finish(B::float_ceil(tensor.primitive)),
         }
     }
 
