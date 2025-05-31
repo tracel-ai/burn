@@ -301,7 +301,6 @@ mod tests {
                 data: Data::Int64s(vec![0, 1]),
                 shape: vec![],
             }),
-            passed: true,
         });
         let _ = pad_config(&node);
     }

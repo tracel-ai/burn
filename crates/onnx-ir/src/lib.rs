@@ -10,4 +10,5 @@ pub mod util;
 
 pub use from_onnx::convert_constant_value;
 pub use from_onnx::parse_onnx;
+pub use from_onnx::sanitize_ident;
 pub use ir::*;
