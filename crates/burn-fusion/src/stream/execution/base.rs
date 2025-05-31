@@ -74,6 +74,15 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
                 converter,
                 num_drained,
             } => match strategy {
+                ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks) => {
+                    let mut context = converter.context(handles);
+                    *num_drained += Self::execute_optimization_with_fallbacks(
+                        opt,
+                        &mut context,
+                        operations,
+                        fallbacks,
+                    );
+                }
                 ExecutionStrategy::Optimization(opt) => {
                     let mut context = converter.context(handles);
                     *num_drained += Self::execute_optimization(opt, &mut context, operations);
@@ -91,6 +100,11 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
             } => match strategy {
                 ExecutionStrategy::Optimization(opt) => {
                     *num_drained += Self::execute_optimization(opt, context, operations);
+                }
+                ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks) => {
+                    *num_drained += Self::execute_optimization_with_fallbacks(
+                        opt, context, operations, fallbacks,
+                    );
                 }
                 ExecutionStrategy::Operations(size) => {
                     Self::execute_operations(&mut context.handles, operations, *size);
@@ -113,6 +127,24 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
         let num_drained = optimization.len();
         optimization.execute(context, operations);
         operations.drain(0..num_drained);
+        num_drained
+    }
+
+    fn execute_optimization_with_fallbacks(
+        optimization: &mut R::Optimization,
+        context: &mut Context<'_, R::FusionHandle>,
+        operations: &mut Vec<Box<dyn Operation<R>>>,
+        fallbacks: &mut Vec<usize>,
+    ) -> usize {
+        let num_drained = optimization.len() + fallbacks.len();
+
+        optimization.execute(context, operations);
+
+        for (i, op) in operations.drain(0..num_drained).enumerate() {
+            if fallbacks.contains(&i) {
+                op.execute(context.handles);
+            }
+        }
         num_drained
     }
     fn execute_operations(

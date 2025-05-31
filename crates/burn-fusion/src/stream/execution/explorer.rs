@@ -66,7 +66,7 @@ impl<O: NumOperations> Explorer<O> {
             }
         }
 
-        let (strategy, size) = self.multi_graph.strategy();
+        let (strategy, size) = self.multi_graph.compile();
 
         ExplorationAction::Completed(Exploration {
             strategy,
