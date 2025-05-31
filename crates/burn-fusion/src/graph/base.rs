@@ -17,15 +17,14 @@ pub struct Graph<O> {
     builders: Vec<Box<dyn OptimizationBuilder<O>>>,
     operations: Vec<OperationIr>,
     ids: HashSet<TensorId>,
-    start_pos: usize,
-    end_pos: usize,
+    operations_positions: Vec<usize>,
 }
 
 impl<O> core::fmt::Debug for Graph<O> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
-            "Graph {{ start_pos: {:?}, end_pos: {:?} }}",
-            self.start_pos, self.end_pos,
+            "Graph {{ pos: {:?}, }}",
+            self.operations_positions,
         ))
     }
 }
@@ -35,8 +34,7 @@ impl<O> Clone for Graph<O> {
             builders: self.builders.iter().map(|b| b.clone_dyn()).collect(),
             operations: self.operations.clone(),
             ids: self.ids.clone(),
-            start_pos: self.start_pos.clone(),
-            end_pos: self.end_pos.clone(),
+            operations_positions: self.operations_positions.clone(),
         }
     }
 }
@@ -73,7 +71,7 @@ impl<O: NumOperations> MultiGraphs<O> {
         let mut added_count = 0;
 
         for graph in self.graphs.iter_mut() {
-            match graph.register(operation, false, self.length + 1) {
+            match graph.register(operation, false, self.length) {
                 Registration::Accepted => {
                     added_count += 1;
                 }
@@ -96,21 +94,24 @@ impl<O: NumOperations> MultiGraphs<O> {
     }
 
     pub fn strategy(&mut self) -> (ExecutionStrategy<O>, usize) {
-        self.graphs.sort_by(|a, b| a.start_pos.cmp(&b.start_pos));
+        self.graphs
+            .sort_by(|a, b| a.operations_positions[0].cmp(&b.operations_positions[0]));
 
         let mut strategies = Vec::with_capacity(self.graphs.len());
-        let mut num_fused = 0;
+
+        let mut all_positions = Vec::new();
 
         for graph in self.graphs.iter() {
             let strategy = graph.clone().into_strategy();
             match strategy {
-                IntoStrategy::Full(execution_strategy, size) => {
-                    num_fused += size;
+                IntoStrategy::Full(execution_strategy, positions) => {
+                    all_positions.append(&mut positions.clone());
                     strategies.push(Box::new(execution_strategy));
                 }
-                IntoStrategy::Partial(execution_strategy, size) => {
-                    num_fused += size;
+                IntoStrategy::Partial(execution_strategy, positions) => {
+                    all_positions.append(&mut positions.clone());
                     strategies.push(Box::new(execution_strategy));
+                    // Check if positions are OK before breaking.
                     break;
                 }
             }
@@ -120,7 +121,11 @@ impl<O: NumOperations> MultiGraphs<O> {
             panic!("Whoo");
         }
 
-        (ExecutionStrategy::Composed(strategies), num_fused)
+        let end = all_positions.len();
+        all_positions.sort();
+        assert_eq!(all_positions, (0..end).collect::<Vec<_>>());
+
+        (ExecutionStrategy::Composed(strategies), all_positions.len())
     }
 
     pub fn still_optimizing(&self) -> bool {
@@ -195,11 +200,10 @@ impl<O: NumOperations> MultiGraphs<O> {
             builders: self.builders.iter().map(|o| o.clone_dyn()).collect(),
             operations: Vec::new(),
             ids: HashSet::new(),
-            start_pos: self.length.clone(),
-            end_pos: self.length.clone(),
+            operations_positions: Vec::new(),
         };
 
-        graph.register(operation, true, self.length + 1);
+        graph.register(operation, true, self.length);
         self.graphs.push(graph);
     }
 }
@@ -210,8 +214,8 @@ pub enum GraphMergingResult {
 }
 
 pub enum IntoStrategy<O> {
-    Full(ExecutionStrategy<O>, usize),
-    Partial(ExecutionStrategy<O>, usize),
+    Full(ExecutionStrategy<O>, Vec<usize>),
+    Partial(ExecutionStrategy<O>, Vec<usize>),
 }
 
 impl<O: NumOperations> Graph<O> {
@@ -223,14 +227,15 @@ impl<O: NumOperations> Graph<O> {
                 let opt = ExecutionStrategy::Optimization(opt);
 
                 if opt_len < self.operations.len() {
-                    IntoStrategy::Partial(opt, opt_len)
+                    self.operations_positions.drain(opt_len..);
+                    IntoStrategy::Partial(opt, self.operations_positions)
                 } else {
-                    IntoStrategy::Full(opt, opt_len)
+                    IntoStrategy::Full(opt, self.operations_positions)
                 }
             }
             None => {
                 let strategy = ExecutionStrategy::Operations(self.operations.len());
-                IntoStrategy::Full(strategy, self.operations.len())
+                IntoStrategy::Full(strategy, self.operations_positions)
             }
         }
     }
@@ -245,11 +250,9 @@ impl<O: NumOperations> Graph<O> {
     }
 
     pub fn merge(&mut self, other: &Graph<O>) -> GraphMergingResult {
-        for op in &other.operations {
-            let end_pos = usize::max(other.end_pos, self.end_pos);
-            self.register(op, true, end_pos);
+        for (op, pos) in other.operations.iter().zip(&other.operations_positions) {
+            self.register(op, true, *pos);
         }
-        self.start_pos = usize::min(self.start_pos, other.start_pos);
 
         match self.still_optimizing() {
             false => GraphMergingResult::Fail,
@@ -259,8 +262,7 @@ impl<O: NumOperations> Graph<O> {
 
     pub fn register(&mut self, operation: &OperationIr, force: bool, pos: usize) -> Registration {
         if self.ids.is_empty() {
-            self.register_op(operation);
-            self.end_pos = pos;
+            self.register_op(operation, pos);
             return Registration::Accepted;
         }
         let mut contains = false;
@@ -276,13 +278,13 @@ impl<O: NumOperations> Graph<O> {
             return Registration::NotPartOfTheGraph;
         }
 
-        self.register_op(operation);
-        self.end_pos = pos;
+        self.register_op(operation, pos);
         Registration::Accepted
     }
 
-    fn register_op(&mut self, operation: &OperationIr) {
+    fn register_op(&mut self, operation: &OperationIr, pos: usize) {
         self.operations.push(operation.clone());
+        self.operations_positions.push(pos);
 
         for builder in self.builders.iter_mut() {
             builder.register(operation);
@@ -307,32 +309,30 @@ impl<O: NumOperations> Graph<O> {
 }
 
 fn generate_combinations(digits: usize, n: usize) -> Vec<Vec<usize>> {
-    let total = n.pow(digits as u32); // Total combinations: n^digits
+    // TODO: Optimize that.
+    let total = n.pow(digits as u32);
     let mut result = Vec::with_capacity(total);
 
     for i in 0..total {
         let mut combination = Vec::with_capacity(digits);
         let mut num = i;
         for _ in 0..digits {
-            combination.push(num % n); // Get the next digit (0 to n-1)
+            combination.push(num % n);
             num /= n;
         }
-        // Reverse to match the expected order (most significant digit first)
         combination.reverse();
 
-        // Check if all elements in the combination are unique
-        let mut seen = vec![false; n]; // Boolean vector to track seen numbers
+        let mut seen = vec![false; n];
         let mut unique = true;
         for &x in &combination {
             if seen[x] {
-                // If we've seen this number before, it's a repeat
                 unique = false;
-                break; // Stop checking further
+                break;
             }
-            seen[x] = true; // Mark this number as seen
+            seen[x] = true;
         }
         if unique {
-            result.push(combination); // Include only if all numbers are distinct
+            result.push(combination);
         }
     }
 

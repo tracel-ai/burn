@@ -210,17 +210,17 @@ impl<H: Clone> HandleContainer<H> {
 
     /// Remove tensor handle from container if not in use
     pub fn free_orphans(&mut self, remaining: &[&TensorId]) {
-        // let mut handles_orphan = Vec::new();
+        let mut handles_orphan = Vec::new();
 
-        // // TODO: Optimization => Change the for loop order depending of the length of each.
-        // for id in self.handles_orphan.drain(..) {
-        //     if remaining.contains(&&id) {
-        //         handles_orphan.push(id);
-        //     } else {
-        //         self.handles.remove(&id);
-        //     }
-        // }
+        // TODO: Optimization => Change the for loop order depending of the length of each.
+        for id in self.handles_orphan.drain(..) {
+            if remaining.contains(&&id) {
+                handles_orphan.push(id);
+            } else {
+                self.handles.remove(&id);
+            }
+        }
 
-        // self.handles_orphan = handles_orphan;
+        self.handles_orphan = handles_orphan;
     }
 }

@@ -72,22 +72,6 @@ impl<O: NumOperations> Explorer<O> {
             strategy,
             num_optimized: size,
         })
-
-        // match find_best_optimization_index(&mut self.builders) {
-        //     Some(index) => {
-        //         let num_explored = self.builders[index].len();
-        //         let opt = self.builders[index].build();
-
-        //         ExplorationAction::Completed(Exploration {
-        //             strategy: ExecutionStrategy::Optimization(opt),
-        //             num_optimized: num_explored,
-        //         })
-        //     }
-        //     None => ExplorationAction::Completed(Exploration {
-        //         strategy: ExecutionStrategy::Operations(self.num_explored),
-        //         num_optimized: self.num_explored,
-        //     }),
-        // }
     }
 
     /// Reset the state of the explorer to the provided list of operations.
@@ -108,9 +92,6 @@ impl<O: NumOperations> Explorer<O> {
             let relative = &operations[index];
 
             self.multi_graph.register(relative);
-            // for builder in self.builders.iter_mut() {
-            //     builder.register(relative);
-            // }
             self.num_explored += 1;
 
             self.is_still_optimizing = self.multi_graph.still_optimizing();
