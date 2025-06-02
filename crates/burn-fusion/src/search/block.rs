@@ -6,21 +6,31 @@ use crate::{
     NumOperations, OptimizationBuilder, OptimizationStatus, stream::store::ExecutionStrategy,
 };
 
-pub struct Graph<O> {
+/// A block represents a list of operations, not necessary in the same order as the execution
+/// stream. The start and end position of the relative execution stream is tracked in the block.
+pub struct Block<O> {
     builders: Vec<Box<dyn OptimizationBuilder<O>>>,
     operations: Vec<OperationIr>,
     ids: HashSet<TensorId>,
     positions: Vec<usize>,
+    /// The start position in the relative execution stream.
     pub start_pos: usize,
+    /// The end position in the relative execution stream.
     pub end_pos: usize,
 }
 
-impl<O> core::fmt::Debug for Graph<O> {
+impl<O> core::fmt::Debug for Block<O> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("Graph {{ pos: {:?}, }}", self.positions,))
+        f.write_fmt(format_args!(
+            "Block {{ pos: [{:?}, {:?}; {:?}], }}",
+            self.start_pos,
+            self.end_pos,
+            self.positions.len()
+        ))
     }
 }
-impl<O> Clone for Graph<O> {
+
+impl<O> Clone for Block<O> {
     fn clone(&self) -> Self {
         Self {
             builders: self.builders.iter().map(|b| b.clone_dyn()).collect(),
@@ -43,7 +53,7 @@ pub enum GraphMergingResult {
     Succeed,
 }
 
-impl<O: NumOperations> Graph<O> {
+impl<O: NumOperations> Block<O> {
     pub fn new(builders: &[Box<dyn OptimizationBuilder<O>>]) -> Self {
         Self {
             builders: builders.iter().map(|o| o.clone_dyn()).collect(),
@@ -75,6 +85,7 @@ impl<O: NumOperations> Graph<O> {
             }
         }
     }
+
     pub fn should_include_nodes(&self, nodes: &[&TensorIr]) -> bool {
         for node in nodes {
             if self.ids.contains(&node.id) {
@@ -85,7 +96,7 @@ impl<O: NumOperations> Graph<O> {
         false
     }
 
-    pub fn merge(&mut self, other: &Graph<O>) -> GraphMergingResult {
+    pub fn merge(&mut self, other: &Block<O>) -> GraphMergingResult {
         for (op, pos) in other.operations.iter().zip(&other.positions) {
             self.register(op, true, *pos);
         }
@@ -125,8 +136,8 @@ impl<O: NumOperations> Graph<O> {
         if pos < self.start_pos {
             self.start_pos = pos;
         }
-        if pos > self.end_pos {
-            self.end_pos = pos;
+        if pos + 1 > self.end_pos {
+            self.end_pos = pos + 1;
         }
 
         for builder in self.builders.iter_mut() {

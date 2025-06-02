@@ -2,7 +2,8 @@ use burn_ir::OperationIr;
 
 use super::ExecutionMode;
 use crate::{
-    NumOperations, OptimizationBuilder, graph::MultiGraphs, stream::store::ExecutionStrategy,
+    NumOperations, OptimizationBuilder, search::OptimizationSearch,
+    stream::store::ExecutionStrategy,
 };
 
 /// Explore and create new optimization.
@@ -10,7 +11,7 @@ pub struct Explorer<O> {
     /// The optimization builders, one for each type of optimization that
     /// we want to explore.
     // builders: Vec<Box<dyn OptimizationBuilder<O>>>,
-    multi_graph: MultiGraphs<O>,
+    search: OptimizationSearch<O>,
     num_deferred: usize,
     num_explored: usize,
     is_still_optimizing: bool,
@@ -34,7 +35,7 @@ impl<O: NumOperations> Explorer<O> {
     pub(crate) fn new(optimizations: Vec<Box<dyn OptimizationBuilder<O>>>) -> Self {
         Self {
             // builders: optimizations,
-            multi_graph: MultiGraphs::new(optimizations),
+            search: OptimizationSearch::new(optimizations),
             num_deferred: 0,
             num_explored: 0,
             is_still_optimizing: true,
@@ -66,17 +67,17 @@ impl<O: NumOperations> Explorer<O> {
             }
         }
 
-        let (strategy, size) = self.multi_graph.compile();
+        let compiled = self.search.execute();
 
         ExplorationAction::Completed(Exploration {
-            strategy,
-            num_optimized: size,
+            strategy: compiled.strategy,
+            num_optimized: compiled.num_operations,
         })
     }
 
     /// Reset the state of the explorer to the provided list of operations.
     pub(crate) fn reset(&mut self, operations: &[OperationIr]) {
-        self.multi_graph.reset();
+        self.search.reset();
         self.num_explored = 0;
         self.num_deferred = operations.len();
         self.is_still_optimizing = true;
@@ -91,10 +92,10 @@ impl<O: NumOperations> Explorer<O> {
             let index = operations.len() - 1 - i;
             let relative = &operations[index];
 
-            self.multi_graph.register(relative);
+            self.search.register(relative);
             self.num_explored += 1;
 
-            self.is_still_optimizing = self.multi_graph.still_optimizing();
+            self.is_still_optimizing = self.search.still_optimizing();
         }
 
         self.num_deferred = 0;

@@ -1,38 +1,40 @@
 use crate::{NumOperations, stream::store::ExecutionStrategy};
 
-use super::{Graph, merging::merge_graphs};
+use super::{Block, OptimizationSearchResult, merging::merge_blocks};
 
-pub struct Compilation<O> {
-    graphs: Vec<Graph<O>>,
+/// What we know here is that every block is independent at that time and can be executed
+/// in any order.
+///
+/// The contract is that the length of operations executed must include all operations.
+pub struct Searcher<O> {
+    blocks: Vec<Block<O>>,
     resolved: Vec<bool>,
     last_checked: usize,
 }
 
-impl<O: NumOperations> Compilation<O> {
-    pub fn new(mut graphs: Vec<Graph<O>>) -> Self {
-        graphs.sort_by(|a, b| a.start_pos.cmp(&b.start_pos));
-        let num_ops: usize = graphs.iter().map(|g| g.end_pos).max().unwrap();
+impl<O: NumOperations> Searcher<O> {
+    pub fn new(blocks: Vec<Block<O>>) -> Self {
+        let num_ops: usize = blocks.iter().map(|g| g.end_pos).max().unwrap();
 
         Self {
-            graphs,
+            blocks,
             resolved: vec![false; num_ops],
             last_checked: 0,
         }
     }
 
-    pub fn compile(mut self) -> (ExecutionStrategy<O>, usize) {
+    pub fn search(mut self) -> OptimizationSearchResult<O> {
         self = self.merging_pass();
 
-        let mut strategies = Vec::with_capacity(self.graphs.len());
-
-        let mut graphs = Vec::new();
-        core::mem::swap(&mut graphs, &mut self.graphs);
-
+        let mut strategies = Vec::with_capacity(self.blocks.len());
+        let mut blocks = Vec::new();
         let mut num_optimized = 0;
 
-        for graph in graphs {
-            let last_index = graph.end_pos;
-            let (strategy, positions) = graph.compile();
+        core::mem::swap(&mut blocks, &mut self.blocks);
+
+        for block in blocks {
+            let last_index = block.end_pos;
+            let (strategy, positions) = block.compile();
             let opt_size = positions.len();
 
             for pos in positions {
@@ -41,7 +43,7 @@ impl<O: NumOperations> Compilation<O> {
 
             if self.last_checked != num_optimized + opt_size {
                 if num_optimized > 0 {
-                    // Don't include that graph and need furthur exploring.
+                    // Don't include that block and need furthur exploring.
                     break;
                 } else {
                     num_optimized += opt_size;
@@ -62,7 +64,14 @@ impl<O: NumOperations> Compilation<O> {
             strategies.push(Box::new(strategy));
         }
 
-        (ExecutionStrategy::Composed(strategies), num_optimized)
+        OptimizationSearchResult {
+            strategy: ExecutionStrategy::Composed(strategies),
+            num_operations: num_optimized,
+        }
+    }
+
+    fn sort_blocks(&mut self) {
+        self.blocks.sort_by(|a, b| a.start_pos.cmp(&b.start_pos));
     }
 
     fn update_check(&mut self, pos: usize) {
@@ -94,12 +103,26 @@ impl<O: NumOperations> Compilation<O> {
     }
 
     fn merging_pass(mut self) -> Self {
-        if self.graphs.len() == 1 {
+        if self.blocks.len() == 1 {
             return self;
         }
-        // TODO: Can be slow.
-        if let Some(graph) = merge_graphs(&self.graphs.iter().collect::<Vec<_>>()) {
-            self.graphs = vec![graph];
+
+        self.sort_blocks();
+        let blocks = self.blocks.iter().collect::<Vec<_>>();
+
+        match merge_blocks(&blocks) {
+            super::merging::MergeBlockResult::Full(block) => {
+                self.blocks = vec![block];
+            }
+            super::merging::MergeBlockResult::Partial {
+                mut merged,
+                mut failed,
+            } => {
+                merged.append(&mut failed);
+                self.blocks = merged;
+                self.sort_blocks();
+            }
+            super::merging::MergeBlockResult::Fail => {}
         }
 
         self

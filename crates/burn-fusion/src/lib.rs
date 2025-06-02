@@ -14,8 +14,8 @@ pub mod client;
 /// Stream module exposing all tensor operations that can be optimized.
 pub mod stream;
 
-/// Graph module for graph optimizations.
-pub(crate) mod graph;
+/// Search module for stream optimizations.
+pub(crate) mod search;
 
 mod backend;
 mod fusion;
