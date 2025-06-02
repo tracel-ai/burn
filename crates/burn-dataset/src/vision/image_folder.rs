@@ -142,7 +142,7 @@ fn segmentation_mask_to_vec_usize(mask_path: &PathBuf) -> Vec<usize> {
 
     // Image as Vec<PixelDepth>
     // if rgb8 or rgb16, keep only the first channel assuming all channels are the same
-    let img_vec = match image.color() {
+    match image.color() {
         ColorType::L8 => image.into_luma8().iter().map(|&x| x as usize).collect(),
         ColorType::L16 => image.into_luma16().iter().map(|&x| x as usize).collect(),
         ColorType::Rgb8 => image
@@ -158,9 +158,7 @@ fn segmentation_mask_to_vec_usize(mask_path: &PathBuf) -> Vec<usize> {
             .map(|&x| x as usize)
             .collect(),
         _ => panic!("Unrecognized image color type"),
-    };
-
-    img_vec
+    }
 }
 
 /// Parse the image annotation to the corresponding type.

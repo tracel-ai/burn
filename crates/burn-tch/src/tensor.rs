@@ -169,7 +169,7 @@ impl TchTensor {
     /// Returns `true` if the tensor's stride does not contain zero (no broadcasting)
     /// and the storage can be mutated.
     pub fn can_mut(&self) -> bool {
-        let stride_contains_zero = self.tensor.stride().iter().any(|&s| s == 0);
+        let stride_contains_zero = self.tensor.stride().contains(&0);
 
         !stride_contains_zero && self.storage.can_mut()
     }
