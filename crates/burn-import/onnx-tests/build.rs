@@ -58,6 +58,7 @@ fn main() {
         .input("tests/greater/greater_scalar.onnx")
         .input("tests/greater_or_equal/greater_or_equal.onnx")
         .input("tests/greater_or_equal/greater_or_equal_scalar.onnx")
+        .input("tests/group_norm/group_norm.onnx")
         .input("tests/hard_sigmoid/hard_sigmoid.onnx")
         .input("tests/instance_norm1d/instance_norm1d.onnx")
         .input("tests/instance_norm2d/instance_norm2d.onnx")
