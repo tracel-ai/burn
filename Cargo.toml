@@ -22,7 +22,7 @@ exclude = [
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.17.0"
+version = "0.17.1"
 
 [workspace.dependencies]
 atomic_float = "1"

@@ -17,7 +17,7 @@ std = []
 doc = ["tch/doc-only"]
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.17.0" }
+burn-tensor = { path = "../burn-tensor", version = "0.17.1" }
 
 half = { workspace = true, features = ["std"] }
 libc = { workspace = true }
@@ -27,10 +27,10 @@ torch-sys = { workspace = true } # for build script lib dir detection
 
 
 [dev-dependencies]
-burn-autodiff = { path = "../burn-autodiff", version = "0.17.0", default-features = false, features = [
+burn-autodiff = { path = "../burn-autodiff", version = "0.17.1", default-features = false, features = [
   "export_tests",
 ] }
-burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false, features = [
+burn-tensor = { path = "../burn-tensor", version = "0.17.1", default-features = false, features = [
   "export_tests",
 ] }
 rand = { workspace = true, features = ["thread_rng"] }
