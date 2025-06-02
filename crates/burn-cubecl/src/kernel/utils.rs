@@ -1,4 +1,4 @@
-use cubecl::{linalg::tensor::StridedLayoutArgs, prelude::SequenceArg};
+use cubecl::{prelude::SequenceArg, std::tensor::StridedLayoutArgs};
 use cubecl_std::{FastDivmod, FastDivmodArgs};
 
 use crate::{CubeRuntime, tensor::CubeTensor};

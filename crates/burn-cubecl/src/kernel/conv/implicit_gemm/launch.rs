@@ -1,5 +1,5 @@
 use burn_tensor::ops::{ConvOptions, conv::calculate_conv_output_sizes};
-use cubecl::linalg::{
+use cubecl::{
     convolution::{
         ConvLaunchError, ConvolutionArgs,
         algorithm::{

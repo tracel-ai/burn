@@ -6,9 +6,9 @@ use burn_tensor::quantization::QTensorPrimitive;
 use burn_tensor::{DType, Shape, TensorMetadata};
 use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
-use cubecl::linalg::tensor::TensorHandle;
 use cubecl::prelude::{TensorHandleRef, *};
 use cubecl::server::Handle;
+use cubecl_std::tensor::TensorHandle;
 use std::marker::PhantomData;
 
 /// The basic tensor primitive struct.

@@ -4,12 +4,11 @@ use burn_tensor::{
 };
 use core::iter;
 use cubecl::{
-    calculate_cube_count_elemwise, intrinsic,
-    linalg::{
-        convolution::ConvLaunchError,
-        tensor::{TensorHandle, into_contiguous_pitched},
-    },
+    calculate_cube_count_elemwise,
+    convolution::ConvLaunchError,
+    intrinsic,
     prelude::*,
+    std::tensor::{TensorHandle, into_contiguous_pitched},
 };
 use cubecl_std::{FastDivmod, FastDivmodArgs};
 
@@ -107,7 +106,7 @@ pub(crate) fn batches_per_run(
     batch_size: usize,
     out_shape: usize,
 ) -> Result<usize, ConvLaunchError> {
-    use cubecl::linalg::matmul::kernels::MatmulAvailabilityError;
+    use cubecl::matmul::kernels::MatmulAvailabilityError;
 
     let cube_count_per_batch = out_shape.div_ceil(cubecl::PLANE_DIM_APPROX);
     let max_cube_count = u16::MAX as usize;
