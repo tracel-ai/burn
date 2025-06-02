@@ -30,7 +30,7 @@ version = "0.18.0"
 atomic_float = "1"
 bytemuck = "1.21.0"
 candle-core = { version = "0.8.4" }
-clap = { version = "4.5.38", features = ["derive"] }
+clap = { version = "4.5.39", features = ["derive"] }
 colored = "3.0.0"
 console_error_panic_hook = "0.1.7"
 csv = "1.3.1"
