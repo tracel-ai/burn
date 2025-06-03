@@ -6,7 +6,7 @@ use crate::{
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
-    linalg::matmul::tune_key::{MatmulAutotuneKey, should_tune_double_buffering},
+    matmul::tune_key::{MatmulAutotuneKey, should_tune_double_buffering},
     tune::{LocalTuner, TunableSet, local_tuner},
 };
 use serde::{Deserialize, Serialize};

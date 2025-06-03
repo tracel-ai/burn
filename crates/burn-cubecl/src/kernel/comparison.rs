@@ -5,7 +5,7 @@ use crate::{
 };
 use burn_tensor::Shape;
 use cubecl::{
-    calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
+    calculate_cube_count_elemwise, prelude::*, std::tensor::index_offset_with_layout,
     tensor_vectorization_factor,
 };
 
