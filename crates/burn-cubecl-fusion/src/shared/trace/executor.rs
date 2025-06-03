@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use burn_fusion::stream::Context;
+use burn_fusion::stream::{Context, ScalarId, ScalarValue};
 use burn_tensor::DType;
 use cubecl::{
     CubeElement, Runtime,
@@ -49,7 +49,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         runner: &Runner,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
-        scalars: &mut ScalarIds,
+        // scalars: &mut ScalarIds,
     ) -> Result<TuneOutput<R>, ExecutionError<R, Runner>> {
         let mut num_writes = 0;
         for b in plan.blocks.iter() {
@@ -78,7 +78,6 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             self.resources.views.iter(),
             context,
             &mut inputs,
-            scalars,
         );
         register_outputs::<BT, R>(&plan.handle_outputs, &mut outputs, &mut tune_output);
 
@@ -217,98 +216,101 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
     }
 }
 
-#[derive(Default)]
-/// Scalars are stored in contiguous vectors in the [Context].
-///
-/// We have to keep track of the position of each scalar kind in their respective vector.
-pub struct ScalarIds {
-    pub index_f32: u8,
-    pub index_f16: u8,
-    pub index_bf16: u8,
-    pub index_u64: u8,
-    pub index_u32: u8,
-    pub index_u16: u8,
-    pub index_u8: u8,
-    pub index_i64: u8,
-    pub index_i32: u8,
-    pub index_i16: u8,
-    pub index_i8: u8,
-}
-
 fn register_scalars<'h, R: Runtime>(
-    scalars: impl Iterator<Item = &'h (FusePrecision, u32)>,
+    scalars: impl Iterator<Item = &'h (FusePrecision, u64)>,
     views: impl DoubleEndedIterator<Item = &'h TensorView>,
     context: &mut Context<'_, CubeFusionHandle<R>>,
     inputs: &mut GlobalArgsLaunch<'h, R>,
-    scalar_ids: &mut ScalarIds,
 ) {
-    for (precision, _pos) in scalars {
+    for (precision, id) in scalars {
         match precision {
             FusePrecision::F32 | FusePrecision::Flex32 => {
                 inputs.scalars.push(GlobalScalar::F32(
-                    context.scalar_f32[scalar_ids.index_f32 as usize],
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::F32(val)) => *val,
+                        _ => panic!(),
+                    },
                 ));
-                scalar_ids.index_f32 += 1;
             }
             FusePrecision::F16 => {
                 inputs.scalars.push(GlobalScalar::F16(
-                    context.scalar_f16[scalar_ids.index_f16 as usize],
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::F16(val)) => *val,
+                        _ => panic!(),
+                    },
                 ));
-                scalar_ids.index_f16 += 1;
             }
             FusePrecision::BF16 => {
                 inputs.scalars.push(GlobalScalar::BF16(
-                    context.scalar_bf16[scalar_ids.index_bf16 as usize],
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::BF16(val)) => *val,
+                        _ => panic!(),
+                    },
                 ));
-                scalar_ids.index_bf16 += 1;
             }
             FusePrecision::I64 => {
                 inputs.scalars.push(GlobalScalar::I64(
-                    context.scalar_i64[scalar_ids.index_i64 as usize],
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::I64(val)) => *val,
+                        _ => panic!(),
+                    },
                 ));
-                scalar_ids.index_i64 += 1;
             }
             FusePrecision::I32 => {
                 inputs.scalars.push(GlobalScalar::I32(
-                    context.scalar_i32[scalar_ids.index_i32 as usize],
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::I32(val)) => *val,
+                        _ => panic!(),
+                    },
                 ));
-                scalar_ids.index_i32 += 1;
             }
             FusePrecision::I16 => {
                 inputs.scalars.push(GlobalScalar::I16(
-                    context.scalar_i16[scalar_ids.index_i16 as usize],
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::I16(val)) => *val,
+                        _ => panic!(),
+                    },
                 ));
-                scalar_ids.index_i16 += 1;
             }
             FusePrecision::I8 => {
                 inputs.scalars.push(GlobalScalar::I8(
-                    context.scalar_i8[scalar_ids.index_i8 as usize],
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::I8(val)) => *val,
+                        _ => panic!(),
+                    },
                 ));
-                scalar_ids.index_i8 += 1;
             }
             FusePrecision::U64 => {
                 inputs.scalars.push(GlobalScalar::U64(
-                    context.scalar_u64[scalar_ids.index_u64 as usize],
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::U64(val)) => *val,
+                        _ => panic!(),
+                    },
                 ));
-                scalar_ids.index_u64 += 1;
             }
             FusePrecision::U32 => {
                 inputs.scalars.push(GlobalScalar::U32(
-                    context.scalar_u32[scalar_ids.index_u32 as usize],
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::U32(val)) => *val,
+                        _ => panic!(),
+                    },
                 ));
-                scalar_ids.index_u32 += 1;
             }
             FusePrecision::U16 => {
                 inputs.scalars.push(GlobalScalar::U16(
-                    context.scalar_u16[scalar_ids.index_u16 as usize],
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::U16(val)) => *val,
+                        _ => panic!(),
+                    },
                 ));
-                scalar_ids.index_u16 += 1;
             }
             FusePrecision::U8 => {
                 inputs.scalars.push(GlobalScalar::U8(
-                    context.scalar_u8[scalar_ids.index_u8 as usize],
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::U8(val)) => *val,
+                        _ => panic!(),
+                    },
                 ));
-                scalar_ids.index_u8 += 1;
             }
             FusePrecision::Bool => todo!(),
         }

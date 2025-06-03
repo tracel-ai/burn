@@ -50,22 +50,6 @@ mod tests {
     }
 
     #[test]
-    fn not_sure_why() {
-        let device = Default::default();
-        let shape = [3, 5];
-        // Initialize the output tensor with the off_value
-        let output = TestTensorInt::<2>::full([3, 5], 0, &device);
-
-        // Prepare scatter tensor for on_value and off_value adjustments
-        let scatter_on_values = TestTensorInt::<2>::full([3, 1], 1, &device)
-            - TestTensorInt::<2>::full([3, 1], 0, &device);
-
-        TestBackend::sync(&device);
-        // panic!("False");
-        panic!("{scatter_on_values}");
-    }
-
-    #[test]
     #[should_panic]
     fn int_one_hot_should_panic_when_index_exceeds_number_of_classes() {
         let tensor = TestTensorInt::<1>::from([5]);

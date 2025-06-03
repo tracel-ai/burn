@@ -4,11 +4,8 @@ use crate::{
 };
 
 use super::{
-    HandleInput, HandleOutput, LaunchPlan, TraceRunner,
-    block::FuseBlock,
-    executor::{LaunchPlanExecutor, ScalarIds},
-    input::InputPlanner,
-    output::OutputPlanner,
+    HandleInput, HandleOutput, LaunchPlan, TraceRunner, block::FuseBlock,
+    executor::LaunchPlanExecutor, input::InputPlanner, output::OutputPlanner,
     vectorization::VectorizationPlanner,
 };
 use burn_fusion::stream::Context;
@@ -124,7 +121,7 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
 pub struct FuseResources {
     pub outputs: RegisteredTensors,
     pub inputs: RegisteredTensors,
-    pub scalars: Vec<(FusePrecision, u32)>,
+    pub scalars: Vec<(FusePrecision, u64)>,
     pub views: Vec<TensorView>,
     pub indexed: BTreeMap<TensorId, Arg>,
     pub inputs_unhandled: Vec<TensorId>,
@@ -161,7 +158,6 @@ impl FuseTrace {
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         runner: &Runner,
-        scalars: &mut ScalarIds,
     ) -> Result<TuneOutput<R>, TraceError<Runner::Error>> {
         let mut plan = LaunchPlan::<R>::new(&self.blocks);
 
@@ -174,7 +170,7 @@ impl FuseTrace {
             .run(runner, context, &mut plan);
 
         match LaunchPlanExecutor::<R>::new(&self.resources, &self.blocks)
-            .execute::<_, BT>(client, runner, context, plan, scalars)
+            .execute::<_, BT>(client, runner, context, plan)
         {
             Err(err) => {
                 self.rollback(context, err.handles_input, err.handles_output);

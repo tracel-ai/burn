@@ -146,7 +146,6 @@ impl<R: Runtime> MatmulOptimization<R> {
             &self.device,
             context,
             &self.matmul_simple,
-            &mut Default::default(),
         )
     }
 
@@ -159,7 +158,6 @@ impl<R: Runtime> MatmulOptimization<R> {
             &self.device,
             context,
             &self.matmul_double_buffering,
-            &mut Default::default(),
         )
     }
 
@@ -194,13 +192,7 @@ impl<R: Runtime> MatmulOptimization<R> {
 
         let output_write = self
             .trace_fallback
-            .run::<R, BT, ElemwiseRunner>(
-                &self.client,
-                &self.device,
-                context,
-                &ElemwiseRunner,
-                &mut Default::default(),
-            )
+            .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
 
         output.merge(output_write)
