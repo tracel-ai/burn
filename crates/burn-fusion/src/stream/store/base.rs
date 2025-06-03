@@ -13,11 +13,15 @@ pub(crate) struct ExecutionPlanStore<O> {
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub(crate) enum ExecutionStrategy<O> {
     /// An optimization was found, and therefore should be executed.
-    Optimization(O),
+    Optimization { opt: O, positions: Vec<usize> },
     /// No optimization was found, each operation should be executed individually.
     Operations(usize),
     /// An optimization was found, and therefore should be executed.
-    OptimizationWithFallbacks(O, Vec<usize>),
+    OptimizationWithFallbacks {
+        opt: O,
+        fallbacks: Vec<usize>,
+        positions: Vec<usize>,
+    },
     /// A composition of multiple execution strategies.
     Composed(Vec<Box<Self>>),
 }

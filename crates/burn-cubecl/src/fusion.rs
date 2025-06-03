@@ -29,13 +29,16 @@ where
             <FusionCubeRuntime<R, BT> as FusionRuntime>::FusionHandle,
         >,
         operations: &[Box<dyn Operation<FusionCubeRuntime<R, BT>>>],
+        positions: &[usize],
     ) {
         match self {
             Self::ElementWise(op) => op.execute::<BT>(context),
             Self::Matmul(op) => op.execute::<BT>(context, |index| {
+                let index = positions[index];
                 Box::new(FallbackOperationUnsafe::new(operations, index))
             }),
             Self::Reduce(op) => op.execute::<BT>(context, |index| {
+                let index = positions[index];
                 Box::new(FallbackOperationUnsafe::new(operations, index))
             }),
         }

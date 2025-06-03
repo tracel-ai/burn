@@ -47,16 +47,25 @@ impl<O: NumOperations> Searcher<O> {
                     break;
                 } else {
                     num_optimized += opt_size;
+
                     match strategy {
-                        ExecutionStrategy::Optimization(opt) => {
+                        ExecutionStrategy::Optimization { opt, mut positions } => {
                             let fallbacks = self.add_missing_ops(last_index);
-                            let strategy =
-                                ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks);
+                            num_optimized += fallbacks.len();
+                            positions.append(&mut fallbacks.clone());
+                            let strategy = ExecutionStrategy::OptimizationWithFallbacks {
+                                opt,
+                                fallbacks,
+                                positions,
+                            };
+
                             strategies.push(Box::new(strategy));
                             break;
                         }
                         ExecutionStrategy::Operations(size) => {
                             let fallbacks = self.add_missing_ops(last_index);
+                            num_optimized += fallbacks.len();
+
                             let strategy = ExecutionStrategy::Operations(fallbacks.len() + size);
                             strategies.push(Box::new(strategy));
                             break;
@@ -64,9 +73,10 @@ impl<O: NumOperations> Searcher<O> {
                         _ => unreachable!(),
                     };
                 }
+            } else {
+                num_optimized += opt_size;
             }
 
-            num_optimized += opt_size;
             strategies.push(Box::new(strategy));
         }
 
@@ -83,10 +93,6 @@ impl<O: NumOperations> Searcher<O> {
         }
     }
 
-    fn sort_blocks(&mut self) {
-        Block::sort(&mut self.blocks);
-    }
-
     fn update_check(&mut self, pos: usize) {
         self.resolved[pos] = true;
 
@@ -97,9 +103,6 @@ impl<O: NumOperations> Searcher<O> {
                 break;
             }
         }
-
-        println!("Resolved {:?}", self.resolved);
-        println!("Last checked {:?}", self.last_checked);
     }
 
     fn add_missing_ops(&self, last: usize) -> Vec<usize> {
@@ -119,7 +122,7 @@ impl<O: NumOperations> Searcher<O> {
             return self;
         }
 
-        self.sort_blocks();
+        Block::sort(&mut self.blocks);
         let blocks = self.blocks.iter().collect::<Vec<_>>();
 
         match merge_blocks(&blocks, false) {
@@ -132,7 +135,7 @@ impl<O: NumOperations> Searcher<O> {
             } => {
                 merged.append(&mut failed);
                 self.blocks = merged;
-                self.sort_blocks();
+                Block::sort(&mut self.blocks);
             }
             super::merging::MergeBlockResult::Fail => {}
         }

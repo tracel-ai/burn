@@ -61,7 +61,7 @@ pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
     fn run(&self, context: &mut Context<'_, CubeFusionHandle<R>>);
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct ReduceOptimizationState {
     trace: FuseTrace,
     trace_read_fallback: FuseTrace,
@@ -71,6 +71,15 @@ pub struct ReduceOptimizationState {
     pub(crate) reduce_shared_plane: FusedReduce,
     len: usize,
     len_read: usize,
+}
+
+impl core::fmt::Debug for ReduceOptimizationState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "{{ len_read: {}, len_total: {} }}",
+            self.len_read, self.len
+        ))
+    }
 }
 
 #[derive(new, Clone, Serialize, Deserialize, Debug)]
@@ -146,6 +155,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
+        println!("Execute reduce");
         // The index of the fallback reduce is the number of ops fused as read.
         self.fallback = Some(fallback(self.len_read));
 
@@ -156,6 +166,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         if self.execute_fused_reduce::<BT>(context).is_err() {
             self.execute_fallback::<BT>(context);
         }
+        println!("Executed reduce");
     }
 
     pub fn num_output_buffers(&self) -> usize {

@@ -114,7 +114,10 @@ fn should_support_complex_stream() {
         ExecutionPlan {
             operations: vec![operation_1(), operation_2()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+            strategy: ExecutionStrategy::Optimization {
+                opt: TestOptimization::new(builder_id_1, 2),
+                positions: vec![0, 1],
+            },
         },
     );
 
@@ -133,7 +136,10 @@ fn should_support_complex_stream() {
         ExecutionPlan {
             operations: vec![operation_2(), operation_2()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_2, 2)),
+            strategy: ExecutionStrategy::Optimization {
+                opt: TestOptimization::new(builder_id_2, 2),
+                positions: vec![0, 1],
+            },
         },
     );
 
@@ -152,7 +158,10 @@ fn should_support_complex_stream() {
         ExecutionPlan {
             operations: vec![operation_1(), operation_2()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+            strategy: ExecutionStrategy::Optimization {
+                opt: TestOptimization::new(builder_id_1, 2),
+                positions: vec![0, 1],
+            },
         },
     );
 
@@ -268,7 +277,10 @@ fn should_support_overlapping_optimizations() {
                 operation_1(),
                 operation_2(),
             ])],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+            strategy: ExecutionStrategy::Optimization {
+                opt: TestOptimization::new(builder_id_1, 2),
+                positions: vec![0, 1],
+            },
         },
     );
 
@@ -283,7 +295,10 @@ fn should_support_overlapping_optimizations() {
                 ExecutionTrigger::OnOperations(vec![operation_1(), operation_2()]),
                 ExecutionTrigger::OnOperations(vec![operation_2()]),
             ],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+            strategy: ExecutionStrategy::Optimization {
+                opt: TestOptimization::new(builder_id_1, 2),
+                positions: vec![0, 1],
+            },
         },
     );
     stream.assert_plan(
@@ -316,7 +331,10 @@ fn should_support_overlapping_optimizations() {
         ExecutionPlan {
             operations: vec![operation_1(), operation_2(), operation_1(), operation_1()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 4)),
+            strategy: ExecutionStrategy::Optimization {
+                opt: TestOptimization::new(builder_id_1, 4),
+                positions: vec![0, 1, 2, 3],
+            },
         },
     );
 
@@ -344,7 +362,10 @@ fn should_support_overlapping_optimizations() {
                 ExecutionTrigger::OnOperations(vec![operation_2()]),
                 ExecutionTrigger::OnSync,
             ],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+            strategy: ExecutionStrategy::Optimization {
+                opt: TestOptimization::new(builder_id_1, 2),
+                positions: vec![0, 1],
+            },
         },
     );
     stream.assert_plan(
@@ -526,11 +547,11 @@ impl StreamSegment<TestOptimization> for TestSegment<'_> {
 impl TestSegment<'_> {
     fn execute_strategy(&mut self, strategy: &ExecutionStrategy<TestOptimization>) {
         match strategy {
-            ExecutionStrategy::OptimizationWithFallbacks(op, fallbacks) => {
-                self.operations.drain(0..op.size + fallbacks.len());
+            ExecutionStrategy::OptimizationWithFallbacks { opt, fallbacks, .. } => {
+                self.operations.drain(0..opt.size + fallbacks.len());
             }
-            ExecutionStrategy::Optimization(op) => {
-                self.operations.drain(0..op.size);
+            ExecutionStrategy::Optimization { opt, .. } => {
+                self.operations.drain(0..opt.size);
             }
             ExecutionStrategy::Operations(size) => {
                 self.operations.drain(0..*size);

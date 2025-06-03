@@ -82,18 +82,24 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
                 converter,
                 num_drained,
             } => match strategy {
-                ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks) => {
+                ExecutionStrategy::OptimizationWithFallbacks {
+                    opt,
+                    fallbacks,
+                    positions,
+                } => {
                     let mut context = converter.context(handles);
                     *num_drained += Self::execute_optimization_with_fallbacks(
                         opt,
                         &mut context,
                         operations,
                         fallbacks,
+                        &positions,
                     );
                 }
-                ExecutionStrategy::Optimization(opt) => {
+                ExecutionStrategy::Optimization { opt, positions } => {
                     let mut context = converter.context(handles);
-                    *num_drained += Self::execute_optimization(opt, &mut context, operations);
+                    *num_drained +=
+                        Self::execute_optimization(opt, &mut context, operations, positions);
                 }
                 ExecutionStrategy::Operations(size) => {
                     Self::execute_operations(handles, operations, *size);
@@ -106,12 +112,16 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
                 operations,
                 num_drained,
             } => match strategy {
-                ExecutionStrategy::Optimization(opt) => {
-                    *num_drained += Self::execute_optimization(opt, context, operations);
+                ExecutionStrategy::Optimization { opt, positions } => {
+                    *num_drained += Self::execute_optimization(opt, context, operations, positions);
                 }
-                ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks) => {
+                ExecutionStrategy::OptimizationWithFallbacks {
+                    opt,
+                    fallbacks,
+                    positions,
+                } => {
                     *num_drained += Self::execute_optimization_with_fallbacks(
-                        opt, context, operations, fallbacks,
+                        opt, context, operations, fallbacks, positions,
                     );
                 }
                 ExecutionStrategy::Operations(size) => {
@@ -131,9 +141,10 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
         optimization: &mut R::Optimization,
         context: &mut Context<'_, R::FusionHandle>,
         operations: &mut Vec<Box<dyn Operation<R>>>,
+        positions: &[usize],
     ) -> usize {
         let num_drained = optimization.len();
-        optimization.execute(context, operations);
+        optimization.execute(context, operations, positions);
         operations.drain(0..num_drained);
         num_drained
     }
@@ -143,10 +154,11 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
         context: &mut Context<'_, R::FusionHandle>,
         operations: &mut Vec<Box<dyn Operation<R>>>,
         fallbacks: &mut Vec<usize>,
+        positions: &[usize],
     ) -> usize {
         let num_drained = optimization.len() + fallbacks.len();
 
-        optimization.execute(context, operations);
+        optimization.execute(context, operations, positions);
 
         for (i, op) in operations.drain(0..num_drained).enumerate() {
             if fallbacks.contains(&i) {

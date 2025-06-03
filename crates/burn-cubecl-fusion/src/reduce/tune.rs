@@ -133,6 +133,7 @@ fn tune_reduce_shared_plane<R: Runtime, BT: CubeElement>(
 fn tune_fallback<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceOptimization<R>>,
 ) -> Result<TuneOutput<R>, String> {
+    println!("Reduce Fallback");
     let optimization = input.optimization();
     let context = input.context();
 
