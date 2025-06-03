@@ -55,6 +55,12 @@ impl<O: NumOperations> Searcher<O> {
                             strategies.push(Box::new(strategy));
                             break;
                         }
+                        ExecutionStrategy::Operations(size) => {
+                            let fallbacks = self.add_missing_ops(last_index);
+                            let strategy = ExecutionStrategy::Operations(fallbacks.len() + size);
+                            strategies.push(Box::new(strategy));
+                            break;
+                        }
                         _ => unreachable!(),
                     };
                 }
@@ -84,17 +90,16 @@ impl<O: NumOperations> Searcher<O> {
     fn update_check(&mut self, pos: usize) {
         self.resolved[pos] = true;
 
-        if pos == self.last_checked {
-            self.last_checked += 1;
-
-            for i in self.last_checked..self.resolved.len() {
-                if self.resolved[i] {
-                    self.last_checked += 1;
-                } else {
-                    return;
-                }
+        for i in self.last_checked..self.resolved.len() {
+            if self.resolved[i] {
+                self.last_checked += 1;
+            } else {
+                break;
             }
         }
+
+        println!("Resolved {:?}", self.resolved);
+        println!("Last checked {:?}", self.last_checked);
     }
 
     fn add_missing_ops(&self, last: usize) -> Vec<usize> {

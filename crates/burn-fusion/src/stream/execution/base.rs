@@ -153,6 +153,7 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
                 op.execute(context.handles);
             }
         }
+
         num_drained
     }
     fn execute_operations(
