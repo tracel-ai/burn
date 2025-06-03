@@ -110,7 +110,7 @@ impl<O: NumOperations> OptimizationSearch<O> {
                 false => None,
             })
             .collect::<Vec<_>>();
-        let merged = merge_blocks(&blocks_to_merge);
+        let merged = merge_blocks(&blocks_to_merge, false);
 
         let clear_blocks = || {
             let mut num_removed = 0;

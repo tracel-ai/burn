@@ -19,6 +19,17 @@ pub struct Block<O> {
     pub end_pos: usize,
 }
 
+impl<O> PartialEq for Block<O> {
+    fn eq(&self, other: &Self) -> bool {
+        let mut sorted_a = self.positions.clone();
+        let mut sorted_b = other.positions.clone();
+        sorted_a.sort();
+        sorted_b.sort();
+
+        sorted_a == sorted_b
+    }
+}
+
 impl<O> core::fmt::Debug for Block<O> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
@@ -54,6 +65,9 @@ pub enum GraphMergingResult {
 }
 
 impl<O: NumOperations> Block<O> {
+    pub fn sort(blocks: &mut Vec<Self>) {
+        blocks.sort_by(|a, b| a.start_pos.cmp(&b.start_pos));
+    }
     pub fn new(builders: &[Box<dyn OptimizationBuilder<O>>]) -> Self {
         Self {
             builders: builders.iter().map(|o| o.clone_dyn()).collect(),

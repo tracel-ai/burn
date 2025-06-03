@@ -11,4 +11,4 @@ pub(crate) use policy::*;
 pub(crate) use processor::*;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

@@ -71,7 +71,7 @@ impl<O: NumOperations> Searcher<O> {
     }
 
     fn sort_blocks(&mut self) {
-        self.blocks.sort_by(|a, b| a.start_pos.cmp(&b.start_pos));
+        Block::sort(&mut self.blocks);
     }
 
     fn update_check(&mut self, pos: usize) {
@@ -110,7 +110,7 @@ impl<O: NumOperations> Searcher<O> {
         self.sort_blocks();
         let blocks = self.blocks.iter().collect::<Vec<_>>();
 
-        match merge_blocks(&blocks) {
+        match merge_blocks(&blocks, false) {
             super::merging::MergeBlockResult::Full(block) => {
                 self.blocks = vec![block];
             }

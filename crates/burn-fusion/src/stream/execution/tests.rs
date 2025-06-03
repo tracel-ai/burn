@@ -22,7 +22,7 @@ use crate::{
 use super::*;
 
 /// A fake stream of operations for testing purpose.
-struct TestStream {
+pub struct TestStream {
     processor: Processor<TestOptimization>,
     store: ExecutionPlanStore<TestOptimization>,
     executed: Vec<ExecutionPlanId>,
@@ -34,7 +34,7 @@ struct TestStream {
 /// The optimizer tries to fuse only the `expected_operations` if they appear
 /// in the operations queue
 #[derive(Clone)]
-struct TestOptimizationBuilder {
+pub struct TestOptimizationBuilder {
     builder_id: usize,
     expected_operations: Vec<OperationIr>,
     actual: Vec<OperationIr>,
@@ -42,7 +42,7 @@ struct TestOptimizationBuilder {
 
 /// A fake optimization for testing purpose.
 #[derive(new, Debug, PartialEq)]
-struct TestOptimization {
+pub struct TestOptimization {
     builder_id: usize,
     size: usize,
 }
@@ -55,7 +55,7 @@ impl NumOperations for TestOptimization {
 
 /// A fake [stream segment](StreamSegment) for testing purpose.
 #[derive(new)]
-struct TestSegment<'i> {
+pub struct TestSegment<'i> {
     operations: &'i mut Vec<OperationIr>,
     executed: &'i mut Vec<ExecutionPlanId>,
 }
@@ -429,7 +429,7 @@ impl TestStream {
 
 impl TestOptimizationBuilder {
     /// Create a new optimization builder that follows a pattern with a trigger.
-    fn new(builder_id: usize, operations: Vec<OperationIr>) -> Self {
+    pub fn new(builder_id: usize, operations: Vec<OperationIr>) -> Self {
         Self {
             builder_id,
             expected_operations: operations,
@@ -545,7 +545,7 @@ impl TestSegment<'_> {
 }
 
 /// Just a simple operation.
-fn operation_1() -> OperationIr {
+pub fn operation_1() -> OperationIr {
     OperationIr::NumericFloat(
         DType::F32,
         NumericOperationIr::Add(BinaryOpIr {
@@ -572,7 +572,7 @@ fn operation_1() -> OperationIr {
 }
 
 /// Just a simple operation.
-fn operation_2() -> OperationIr {
+pub fn operation_2() -> OperationIr {
     OperationIr::NumericFloat(
         DType::F32,
         NumericOperationIr::AddScalar(ScalarOpIr {
@@ -594,7 +594,7 @@ fn operation_2() -> OperationIr {
 }
 
 /// Just a simple operation.
-fn operation_3() -> OperationIr {
+pub fn operation_3() -> OperationIr {
     OperationIr::Float(
         DType::F32,
         FloatOperationIr::Log(UnaryOpIr {
