@@ -42,11 +42,7 @@ where
     }
 
     fn to_state(&self) -> CubeOptimizationState {
-        match self {
-            Self::ElementWise(value) => CubeOptimizationState::ElementWise(value.to_state()),
-            Self::Matmul(value) => CubeOptimizationState::Matmul(value.to_state()),
-            Self::Reduce(value) => CubeOptimizationState::Reduce(value.to_state()),
-        }
+        self.to_opt_state()
     }
 
     fn from_state(device: &R::Device, state: CubeOptimizationState) -> Self {

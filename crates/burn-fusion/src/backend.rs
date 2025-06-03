@@ -114,7 +114,7 @@ pub trait OptimizationBuilder<O>: Send {
 }
 
 /// The number of operations contained in the data strusture.
-pub trait NumOperations {
+pub trait NumOperations: core::fmt::Debug {
     /// The number of registered operations.
     fn len(&self) -> usize;
     /// If the current optimization is empty.

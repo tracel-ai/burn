@@ -24,6 +24,23 @@ pub enum CubeOptimization<R: Runtime> {
     Reduce(ReduceOptimization<R>),
 }
 
+impl<R: Runtime> core::fmt::Debug for CubeOptimization<R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let value = self.to_opt_state();
+        f.write_fmt(format_args!("{value:?}"))
+    }
+}
+
+impl<R: Runtime> CubeOptimization<R> {
+    pub fn to_opt_state(&self) -> CubeOptimizationState {
+        match self {
+            Self::ElementWise(value) => CubeOptimizationState::ElementWise(value.to_state()),
+            Self::Matmul(value) => CubeOptimizationState::Matmul(value.to_state()),
+            Self::Reduce(value) => CubeOptimizationState::Reduce(value.to_state()),
+        }
+    }
+}
+
 impl<R: Runtime> burn_fusion::NumOperations for CubeOptimization<R> {
     fn len(&self) -> usize {
         match self {
@@ -38,7 +55,7 @@ impl<R: Runtime> burn_fusion::NumOperations for CubeOptimization<R> {
 ///
 /// More optimization variants should be added here.
 #[allow(clippy::large_enum_variant)]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum CubeOptimizationState {
     /// Element wise state.
     ElementWise(ElemwiseOptimizationState),

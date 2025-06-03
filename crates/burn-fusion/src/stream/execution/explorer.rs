@@ -67,11 +67,11 @@ impl<O: NumOperations> Explorer<O> {
             }
         }
 
-        let compiled = self.search.execute();
+        let found = self.search.execute();
 
         ExplorationAction::Completed(Exploration {
-            strategy: compiled.strategy,
-            num_optimized: compiled.num_operations,
+            strategy: found.strategy,
+            num_optimized: found.num_operations,
         })
     }
 

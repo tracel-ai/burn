@@ -22,7 +22,7 @@ pub struct ElemwiseOptimization<R: Runtime> {
     len: usize,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 /// State for the [elemwise optimization](ElemwiseOptimization).
 pub struct ElemwiseOptimizationState {
     trace: FuseTrace,

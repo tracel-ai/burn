@@ -15,10 +15,20 @@ pub struct OptimizationSearch<O> {
     stop: bool,
 }
 
+#[derive(Debug)]
 pub struct OptimizationSearchResult<O> {
     pub strategy: ExecutionStrategy<O>,
     pub num_operations: usize,
 }
+
+// impl<O> core::fmt::Debug for OptimizationSearchResult<O> {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         f.write_fmt(format_args!(
+//             "OptimizationSearchResult {{ num_operations: {:?}, strategy: {:?} }}",
+//             self.num_operations, self.strategy,
+//         ))
+//     }
+// }
 
 impl<O: NumOperations> OptimizationSearch<O> {
     pub fn new(builders: Vec<Box<dyn OptimizationBuilder<O>>>) -> Self {

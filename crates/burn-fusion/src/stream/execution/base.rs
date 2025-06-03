@@ -35,7 +35,7 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
         converter: &'a mut OperationConverter,
         handles: &'a mut HandleContainer<R::FusionHandle>,
         operations: Vec<Box<dyn Operation<R>>>,
-    ) -> usize {
+    ) -> (Vec<Box<dyn Operation<R>>>, usize) {
         if matches!(&strategy, ExecutionStrategy::Composed(..)) {
             let mut context = converter.context(handles);
             let mut this = Execution::Multiple {
@@ -47,7 +47,11 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
             this = this.execute_step(strategy);
 
             match this {
-                Execution::Multiple { num_drained, .. } => num_drained,
+                Execution::Multiple {
+                    num_drained,
+                    operations,
+                    ..
+                } => (operations, num_drained),
                 _ => unreachable!(),
             }
         } else {
@@ -60,7 +64,11 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
             this = this.execute_step(strategy);
 
             match this {
-                Execution::Single { num_drained, .. } => num_drained,
+                Execution::Single {
+                    operations,
+                    num_drained,
+                    ..
+                } => (operations, num_drained),
                 _ => unreachable!(),
             }
         }
@@ -183,7 +191,10 @@ impl<R: FusionRuntime> OperationQueue<R> {
     ) {
         let mut operations = Vec::new();
         core::mem::swap(&mut operations, &mut self.operations);
-        let num_drained = Execution::execute(strategy, &mut self.converter, handles, operations);
+        let (operations, num_drained) =
+            Execution::execute(strategy, &mut self.converter, handles, operations);
+
+        self.operations = operations;
         self.drain_queue(num_drained, handles);
     }
 
@@ -196,6 +207,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
 
         self.global.drain(0..num_drained);
         self.reset_relative();
+        assert_eq!(self.global.len(), self.operations.len());
     }
 
     fn reset_relative(&mut self) {
