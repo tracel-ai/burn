@@ -13,17 +13,23 @@ pub(crate) struct ExecutionPlanStore<O> {
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub(crate) enum ExecutionStrategy<O> {
     /// An optimization was found, and therefore should be executed.
-    Optimization { opt: O, positions: Vec<usize> },
+    Optimization(O),
     /// No optimization was found, each operation should be executed individually.
     Operations(usize),
     /// An optimization was found, and therefore should be executed.
-    OptimizationWithFallbacks {
-        opt: O,
-        fallbacks: Vec<usize>,
-        positions: Vec<usize>,
-    },
+    OptimizationWithFallbacks(O, Vec<usize>),
     /// A composition of multiple execution strategies.
     Composed(Vec<Box<Self>>),
+}
+
+#[derive(new, PartialEq, Debug, Serialize, Deserialize, Clone)]
+/// The group of operations that is going to be executed with the given strategy and ordering.
+pub(crate) struct ExecutionStep<O> {
+    /// The strategy that should be used when executing this block.
+    pub(crate) strategy: ExecutionStrategy<O>,
+    /// The positions of the global operations list in which the operations are going to be
+    /// executed.
+    pub(crate) ordering: Vec<usize>,
 }
 
 /// The trigger that indicates when to stop exploring.
@@ -45,7 +51,7 @@ pub(crate) struct ExecutionPlan<O> {
     /// The criteria that signal when this plan should be executed. Only one trigger is necessary.
     pub(crate) triggers: Vec<ExecutionTrigger>,
     /// The strategy that should be used when executing this plan.
-    pub(crate) strategy: ExecutionStrategy<O>,
+    pub(crate) execution: ExecutionStep<O>,
 }
 
 impl<O> ExecutionPlanStore<O> {

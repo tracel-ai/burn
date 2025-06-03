@@ -84,10 +84,7 @@ impl<O: NumOperations> Block<O> {
             Some(index) => {
                 let opt = self.builders[index].build();
                 let opt_len = opt.len();
-                let opt = ExecutionStrategy::Optimization {
-                    opt,
-                    positions: self.positions.clone(),
-                };
+                let opt = ExecutionStrategy::Optimization(opt);
 
                 if opt_len < self.operations.len() {
                     self.positions.drain(opt_len..);

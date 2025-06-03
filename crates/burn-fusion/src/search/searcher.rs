@@ -29,41 +29,45 @@ impl<O: NumOperations> Searcher<O> {
         let mut strategies = Vec::with_capacity(self.blocks.len());
         let mut blocks = Vec::new();
         let mut num_optimized = 0;
+        let mut ordering = Vec::new();
 
         core::mem::swap(&mut blocks, &mut self.blocks);
 
         for block in blocks {
             let last_index = block.end_pos;
-            let (strategy, positions) = block.compile();
+            let (strategy, mut positions) = block.compile();
             let opt_size = positions.len();
 
-            for pos in positions {
-                self.update_check(pos);
+            for pos in positions.iter() {
+                self.update_check(*pos);
             }
 
             if self.last_checked != num_optimized + opt_size {
                 if num_optimized > 0 {
                     // Don't include that block and need furthur exploring.
+                    println!("Don't include");
                     break;
                 } else {
                     num_optimized += opt_size;
+                    ordering.append(&mut positions);
+                    println!("Last Ordering {ordering:?}");
+                    println!("with {strategy:?}");
 
                     match strategy {
-                        ExecutionStrategy::Optimization { opt, mut positions } => {
+                        ExecutionStrategy::Optimization(opt) => {
                             let fallbacks = self.add_missing_ops(last_index);
+                            ordering.append(&mut fallbacks.clone());
                             num_optimized += fallbacks.len();
                             positions.append(&mut fallbacks.clone());
-                            let strategy = ExecutionStrategy::OptimizationWithFallbacks {
-                                opt,
-                                fallbacks,
-                                positions,
-                            };
+                            let strategy =
+                                ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks);
 
                             strategies.push(Box::new(strategy));
                             break;
                         }
                         ExecutionStrategy::Operations(size) => {
                             let fallbacks = self.add_missing_ops(last_index);
+                            ordering.append(&mut fallbacks.clone());
                             num_optimized += fallbacks.len();
 
                             let strategy = ExecutionStrategy::Operations(fallbacks.len() + size);
@@ -75,8 +79,12 @@ impl<O: NumOperations> Searcher<O> {
                 }
             } else {
                 num_optimized += opt_size;
+                println!("Full Ordering {ordering:?}");
+                println!("with {strategy:?}");
+                ordering.append(&mut positions);
             }
 
+            println!("Add opt {strategy:?}, {opt_size}");
             strategies.push(Box::new(strategy));
         }
 
@@ -84,11 +92,13 @@ impl<O: NumOperations> Searcher<O> {
             OptimizationSearchResult {
                 strategy: ExecutionStrategy::Composed(strategies),
                 num_operations: num_optimized,
+                ordering,
             }
         } else {
             OptimizationSearchResult {
                 strategy: *strategies.remove(0),
                 num_operations: num_optimized,
+                ordering,
             }
         }
     }

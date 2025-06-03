@@ -15,7 +15,8 @@ use burn_tensor::DType;
 use crate::{
     NumOperations, OptimizationBuilder, OptimizationProperties, OptimizationStatus,
     stream::store::{
-        ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
+        ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStep, ExecutionStrategy,
+        ExecutionTrigger,
     },
 };
 
@@ -95,7 +96,7 @@ fn should_support_complex_stream() {
         ExecutionPlan {
             operations: vec![operation_1(), operation_1()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Operations(2),
+            execution: ExecutionStep::new(ExecutionStrategy::Operations(2), Vec::new()),
         },
     );
 
@@ -114,10 +115,10 @@ fn should_support_complex_stream() {
         ExecutionPlan {
             operations: vec![operation_1(), operation_2()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Optimization {
-                opt: TestOptimization::new(builder_id_1, 2),
-                positions: vec![0, 1],
-            },
+            execution: ExecutionStep::new(
+                ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+                vec![0, 1],
+            ),
         },
     );
 
@@ -538,7 +539,7 @@ impl StreamSegment<TestOptimization> for TestSegment<'_> {
     fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<TestOptimization>) {
         let execution_plan = store.get_unchecked(id);
 
-        self.execute_strategy(&execution_plan.strategy);
+        self.execute_strategy(&execution_plan.execution);
 
         self.executed.push(id);
     }
@@ -547,10 +548,10 @@ impl StreamSegment<TestOptimization> for TestSegment<'_> {
 impl TestSegment<'_> {
     fn execute_strategy(&mut self, strategy: &ExecutionStrategy<TestOptimization>) {
         match strategy {
-            ExecutionStrategy::OptimizationWithFallbacks { opt, fallbacks, .. } => {
+            ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks) => {
                 self.operations.drain(0..opt.size + fallbacks.len());
             }
-            ExecutionStrategy::Optimization { opt, .. } => {
+            ExecutionStrategy::Optimization(opt) => {
                 self.operations.drain(0..opt.size);
             }
             ExecutionStrategy::Operations(size) => {

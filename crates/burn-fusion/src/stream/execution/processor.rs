@@ -2,7 +2,9 @@ use burn_ir::OperationIr;
 
 use super::{ExecutionMode, Exploration, ExplorationAction, Explorer};
 use crate::stream::execution::{Action, Policy};
-use crate::stream::store::{ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger};
+use crate::stream::store::{
+    ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStep, ExecutionTrigger,
+};
 use crate::{NumOperations, OptimizationBuilder};
 
 /// Process a [stream segment](StreamSegment) following a [policy](Policy).
@@ -155,7 +157,7 @@ impl<O: NumOperations> Processor<O> {
                     _ => store.add(ExecutionPlan {
                         operations: relative.to_vec(),
                         triggers: vec![trigger],
-                        strategy: exploration.strategy,
+                        execution: ExecutionStep::new(exploration.strategy, exploration.ordering),
                     }),
                 }
             }
@@ -167,7 +169,7 @@ impl<O: NumOperations> Processor<O> {
                 _ => store.add(ExecutionPlan {
                     operations: relative.to_vec(),
                     triggers: vec![ExecutionTrigger::OnSync],
-                    strategy: exploration.strategy,
+                    execution: ExecutionStep::new(exploration.strategy, exploration.ordering),
                 }),
             },
         }

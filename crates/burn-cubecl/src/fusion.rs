@@ -28,17 +28,17 @@ where
             '_,
             <FusionCubeRuntime<R, BT> as FusionRuntime>::FusionHandle,
         >,
-        operations: &[Box<dyn Operation<FusionCubeRuntime<R, BT>>>],
-        positions: &[usize],
+        operations: &[Option<Box<dyn Operation<FusionCubeRuntime<R, BT>>>>],
+        ordering: &[usize],
     ) {
         match self {
             Self::ElementWise(op) => op.execute::<BT>(context),
             Self::Matmul(op) => op.execute::<BT>(context, |index| {
-                let index = positions[index];
+                let index = ordering[index];
                 Box::new(FallbackOperationUnsafe::new(operations, index))
             }),
             Self::Reduce(op) => op.execute::<BT>(context, |index| {
-                let index = positions[index];
+                let index = ordering[index];
                 Box::new(FallbackOperationUnsafe::new(operations, index))
             }),
         }
@@ -69,16 +69,16 @@ where
 /// escape the lifetime of the context's execution, which doesn't make sense since
 /// its only goal is to modify the context it operates on.
 struct FallbackOperationUnsafe<O> {
-    operation: *const O,
+    operation: *const Option<O>,
 }
 
 unsafe impl<O> Send for FallbackOperationUnsafe<O> {}
 unsafe impl<O> Sync for FallbackOperationUnsafe<O> {}
 
 impl<O> FallbackOperationUnsafe<O> {
-    fn new(operations: &[O], index: usize) -> Self {
-        let operation = operations.get(index).unwrap();
-        let ptr = core::ptr::from_ref(operation);
+    fn new(operations: &[Option<O>], index: usize) -> Self {
+        let op = operations.get(index).expect("Index should be valid");
+        let ptr = core::ptr::from_ref(op);
 
         Self { operation: ptr }
     }
@@ -89,7 +89,12 @@ impl<R: CubeRuntime, BT: BoolElement> FallbackOperation<R>
 {
     fn run(&self, context: &mut burn_fusion::stream::Context<'_, CubeFusionHandle<R>>) {
         unsafe {
-            self.operation.as_ref().unwrap().execute(context.handles);
+            match self.operation.as_ref().unwrap() {
+                Some(op) => {
+                    op.execute(context.handles);
+                }
+                None => panic!(),
+            }
         }
     }
 }

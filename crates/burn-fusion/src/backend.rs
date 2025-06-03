@@ -129,8 +129,8 @@ pub trait Optimization<R: FusionRuntime>: Send + NumOperations {
     fn execute(
         &mut self,
         context: &mut Context<'_, R::FusionHandle>,
-        operations: &[Box<dyn Operation<R>>],
-        positions: &[usize],
+        operations: &[Option<Box<dyn Operation<R>>>],
+        ordering: &[usize],
     );
 
     /// Returns the state that can be serialized.

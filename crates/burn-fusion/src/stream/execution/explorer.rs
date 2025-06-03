@@ -28,6 +28,7 @@ pub enum ExplorationAction<O> {
 pub struct Exploration<O> {
     pub strategy: ExecutionStrategy<O>,
     pub num_optimized: usize,
+    pub ordering: Vec<usize>,
 }
 
 impl<O: NumOperations> Explorer<O> {
@@ -74,6 +75,7 @@ impl<O: NumOperations> Explorer<O> {
         ExplorationAction::Completed(Exploration {
             strategy: found.strategy,
             num_optimized: found.num_operations,
+            ordering: found.ordering,
         })
     }
 

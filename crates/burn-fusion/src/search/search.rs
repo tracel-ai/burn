@@ -19,6 +19,7 @@ pub struct OptimizationSearch<O> {
 pub struct OptimizationSearchResult<O> {
     pub strategy: ExecutionStrategy<O>,
     pub num_operations: usize,
+    pub ordering: Vec<usize>,
 }
 
 impl<O: NumOperations> OptimizationSearch<O> {
