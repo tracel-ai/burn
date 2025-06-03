@@ -64,9 +64,16 @@ impl<O: NumOperations> Searcher<O> {
             strategies.push(Box::new(strategy));
         }
 
-        OptimizationSearchResult {
-            strategy: ExecutionStrategy::Composed(strategies),
-            num_operations: num_optimized,
+        if strategies.len() > 1 {
+            OptimizationSearchResult {
+                strategy: ExecutionStrategy::Composed(strategies),
+                num_operations: num_optimized,
+            }
+        } else {
+            OptimizationSearchResult {
+                strategy: *strategies.remove(0),
+                num_operations: num_optimized,
+            }
         }
     }
 

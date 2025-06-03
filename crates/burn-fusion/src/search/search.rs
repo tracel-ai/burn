@@ -21,15 +21,6 @@ pub struct OptimizationSearchResult<O> {
     pub num_operations: usize,
 }
 
-// impl<O> core::fmt::Debug for OptimizationSearchResult<O> {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         f.write_fmt(format_args!(
-//             "OptimizationSearchResult {{ num_operations: {:?}, strategy: {:?} }}",
-//             self.num_operations, self.strategy,
-//         ))
-//     }
-// }
-
 impl<O: NumOperations> OptimizationSearch<O> {
     pub fn new(builders: Vec<Box<dyn OptimizationBuilder<O>>>) -> Self {
         Self {
@@ -40,6 +31,10 @@ impl<O: NumOperations> OptimizationSearch<O> {
         }
     }
     pub fn register(&mut self, operation: &OperationIr) {
+        if self.stop {
+            return;
+        }
+
         match self.merge_blocks(operation) {
             MergeBlockStep::Full | MergeBlockStep::NoNeed => {}
             MergeBlockStep::Fail | MergeBlockStep::Partial => {
@@ -79,11 +74,11 @@ impl<O: NumOperations> OptimizationSearch<O> {
     }
 
     pub fn still_optimizing(&self) -> bool {
-        if self.blocks.is_empty() {
-            return true;
-        }
         if self.stop {
             return false;
+        }
+        if self.blocks.is_empty() {
+            return true;
         }
 
         let mut num_stopped = 0;
@@ -121,20 +116,25 @@ impl<O: NumOperations> OptimizationSearch<O> {
             })
             .collect::<Vec<_>>();
         let merged = merge_blocks(&blocks_to_merge, false);
+        println!("Merge block during register. {blocks_to_merge:?} => {merged:?}");
 
-        let clear_blocks = || {
-            let mut num_removed = 0;
-            // If ordered it's fine
-            for g in block_merges {
-                self.blocks.remove(g - num_removed);
-                num_removed += 1;
+        let mut clear_blocks = || {
+            println!("Clear blocks from {:?}", self.blocks);
+            let mut indices = block_merges.to_vec();
+            indices.sort();
+
+            for g in indices.into_iter().rev() {
+                self.blocks.remove(g);
             }
+            println!("Clear blocks into {:?}", self.blocks);
         };
 
         match merged {
             MergeBlockResult::Full(block) => {
                 clear_blocks();
                 self.blocks.push(block);
+                Block::sort(&mut self.blocks);
+                println!("Full {:?}", self.blocks);
                 MergeBlockStep::Full
             }
             MergeBlockResult::Partial {
@@ -144,6 +144,8 @@ impl<O: NumOperations> OptimizationSearch<O> {
                 clear_blocks();
                 self.blocks.append(&mut merged);
                 self.blocks.append(&mut failed);
+                Block::sort(&mut self.blocks);
+                println!("Partial {:?}", self.blocks);
                 MergeBlockStep::Partial
             }
             MergeBlockResult::Fail => MergeBlockStep::Fail,

@@ -68,6 +68,7 @@ impl<O: NumOperations> Explorer<O> {
         }
 
         let found = self.search.execute();
+        println!("{found:?}");
 
         ExplorationAction::Completed(Exploration {
             strategy: found.strategy,
