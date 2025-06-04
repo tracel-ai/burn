@@ -192,7 +192,6 @@ fn merge_accumulator<O: NumOperations>(
     let mut merged_success = false;
 
     for block in blocks {
-        println!("Merging {base:?} with {block:?}");
         let mut base_current = base.clone();
         match base_current.merge(block) {
             super::GraphMergingResult::Fail => {

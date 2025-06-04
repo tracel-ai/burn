@@ -155,7 +155,6 @@ impl<R: Runtime> ReduceOptimization<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
-        println!("Execute reduce");
         // The index of the fallback reduce is the number of ops fused as read.
         self.fallback = Some(fallback(self.len_read));
 
@@ -166,7 +165,6 @@ impl<R: Runtime> ReduceOptimization<R> {
         if self.execute_fused_reduce::<BT>(context).is_err() {
             self.execute_fallback::<BT>(context);
         }
-        println!("Executed reduce");
     }
 
     pub fn num_output_buffers(&self) -> usize {

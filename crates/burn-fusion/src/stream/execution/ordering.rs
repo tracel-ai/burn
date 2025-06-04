@@ -30,7 +30,6 @@ impl<R: FusionRuntime> OrderedExecution<R> {
     }
 
     pub(crate) fn finish(mut self) -> (Vec<Box<dyn Operation<R>>>, usize) {
-        println!("Executed {:?}", &self.ordering[0..self.cursor]);
         self.operations.drain(0..self.cursor);
         (self.operations, self.cursor)
     }
@@ -40,11 +39,9 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         optimization: &mut R::Optimization,
         context: &mut Context<'_, R::FusionHandle>,
     ) {
-        println!("Execute optimization");
         let num_drained = optimization.len();
         optimization.execute(context, self);
         self.cursor += num_drained;
-        println!("Executed optimization");
     }
 
     pub(crate) fn execute_optimization_with_fallbacks(
@@ -53,10 +50,6 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         context: &mut Context<'_, R::FusionHandle>,
         fallbacks: &Vec<usize>,
     ) {
-        println!("Execute optimization with fallbacks");
-        println!("Ordering {:?}", self.ordering);
-        println!("Cursor {:?}", self.cursor);
-        println!("Fallbacks {:?}", fallbacks);
         assert_eq!(fallbacks.is_empty(), false, "No fallbacks");
         let num_drained = optimization.len() + fallbacks.len();
 
@@ -68,7 +61,6 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         }
 
         self.cursor += num_drained;
-        println!("Executed optimization with fallbacks");
     }
 
     pub(crate) fn execute_operations(
@@ -76,15 +68,12 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         handles: &mut HandleContainer<R::FusionHandle>,
         size: usize,
     ) {
-        println!("Execute operations");
         for _ in 0..size {
             // let index = self.cursor;
             let index = self.ordering[self.cursor];
-            println!("Execute op {index}");
             let op = &self.operations[index];
             op.execute(handles);
             self.cursor += 1;
         }
-        println!("Executed operations");
     }
 }

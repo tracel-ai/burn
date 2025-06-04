@@ -1,7 +1,7 @@
 use crate::{
     FusionClientLocator, FusionTensor,
     client::FusionClient,
-    stream::{Context, Operation, OrderedExecution},
+    stream::{Context, OrderedExecution},
 };
 use burn_ir::{BackendIr, OperationIr, TensorHandle};
 use burn_tensor::{

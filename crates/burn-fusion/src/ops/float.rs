@@ -50,7 +50,6 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for RandomOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                println!("Float random {:?}", self.desc);
                 let shape = Shape::from(self.desc.out.shape.clone());
                 let output: B::FloatTensorPrimitive =
                     B::float_random(shape, self.desc.distribution, &self.device);

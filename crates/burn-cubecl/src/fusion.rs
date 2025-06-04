@@ -144,14 +144,14 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
         device: R::Device,
     ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
         vec![
-            // Box::new(ElementWiseBuilder::<R>::new(
-            //     device.clone(),
-            //     BT::as_elem_native_unchecked().into(),
-            // )),
-            // Box::new(MatmulBuilder::<R>::new(
-            //     device.clone(),
-            //     BT::as_elem_native_unchecked().into(),
-            // )),
+            Box::new(ElementWiseBuilder::<R>::new(
+                device.clone(),
+                BT::as_elem_native_unchecked().into(),
+            )),
+            Box::new(MatmulBuilder::<R>::new(
+                device.clone(),
+                BT::as_elem_native_unchecked().into(),
+            )),
             Box::new(ReduceBuilder::<R>::new(
                 device.clone(),
                 BT::as_elem_native_unchecked().into(),

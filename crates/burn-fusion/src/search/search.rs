@@ -32,21 +32,15 @@ impl<O: NumOperations> OptimizationSearch<O> {
         }
     }
     pub fn register(&mut self, operation: &OperationIr) {
-        // println!("Register {operation:?}");
         if self.last_merged_failed {
             return;
         }
 
         match self.merge_blocks(operation) {
-            MergeBlockStep::Full => {
-                println!("Full merge");
-            }
-            MergeBlockStep::NoNeed => {
-                println!("No Need");
-            }
+            MergeBlockStep::Full => {}
+            MergeBlockStep::NoNeed => {}
             MergeBlockStep::Fail | MergeBlockStep::Partial => {
                 // With the given operation, blocks are no longer independent.
-                println!("Merge fail");
                 self.last_merged_failed = true;
                 return;
             }
@@ -110,8 +104,6 @@ impl<O: NumOperations> OptimizationSearch<O> {
             }
         }
 
-        println!("{:?}", self.blocks);
-        println!("Merge blocks {block_merges:?}");
         if block_merges.len() <= 1 {
             return MergeBlockStep::NoNeed;
         }
@@ -126,17 +118,14 @@ impl<O: NumOperations> OptimizationSearch<O> {
             })
             .collect::<Vec<_>>();
         let merged = merge_blocks(&blocks_to_merge, false);
-        println!("Merge block during register. {blocks_to_merge:?} => {merged:?}");
 
         let mut clear_blocks = || {
-            println!("Clear blocks from {:?}", self.blocks);
             let mut indices = block_merges.to_vec();
             indices.sort();
 
             for g in indices.into_iter().rev() {
                 self.blocks.remove(g);
             }
-            println!("Clear blocks into {:?}", self.blocks);
         };
 
         match merged {
@@ -144,7 +133,6 @@ impl<O: NumOperations> OptimizationSearch<O> {
                 clear_blocks();
                 self.blocks.push(block);
                 Block::sort(&mut self.blocks);
-                println!("Full {:?}", self.blocks);
                 MergeBlockStep::Full
             }
             MergeBlockResult::Partial {
@@ -155,7 +143,6 @@ impl<O: NumOperations> OptimizationSearch<O> {
                 self.blocks.append(&mut merged);
                 self.blocks.append(&mut failed);
                 Block::sort(&mut self.blocks);
-                println!("Partial {:?}", self.blocks);
                 MergeBlockStep::Partial
             }
             MergeBlockResult::Fail => MergeBlockStep::Fail,
