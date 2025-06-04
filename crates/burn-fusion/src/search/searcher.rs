@@ -79,12 +79,10 @@ impl<O: NumOperations> Searcher<O> {
                 }
             } else {
                 num_optimized += opt_size;
-                println!("Full Ordering {ordering:?}");
-                println!("with {strategy:?}");
                 ordering.append(&mut positions);
             }
 
-            println!("Add opt {strategy:?}, {opt_size}");
+            println!("Add str {strategy:?}, {opt_size}");
             strategies.push(Box::new(strategy));
         }
 

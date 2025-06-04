@@ -15,19 +15,86 @@ pub(crate) enum ExecutionMode {
     Sync,
 }
 
+/// Manage the execution of potentially multiple optimizations and operations out of order.
+pub struct OrderedExecution<R: FusionRuntime> {
+    operations: Vec<Box<dyn Operation<R>>>,
+    ordering: Vec<usize>,
+    cursor: usize,
+}
+
+impl<R: FusionRuntime> OrderedExecution<R> {
+    fn new(operations: Vec<Box<dyn Operation<R>>>, ordering: Vec<usize>) -> Self {
+        Self {
+            operations,
+            ordering,
+            cursor: 0,
+        }
+    }
+
+    fn finish(mut self) -> (Vec<Box<dyn Operation<R>>>, usize) {
+        println!("Executed {:?}", &self.ordering[0..self.cursor]);
+        self.operations.drain(0..self.cursor);
+        (self.operations, self.cursor)
+    }
+
+    fn execute_optimization(
+        &mut self,
+        optimization: &mut R::Optimization,
+        context: &mut Context<'_, R::FusionHandle>,
+    ) {
+        let num_drained = optimization.len();
+        optimization.execute(context, self);
+        self.cursor += num_drained;
+    }
+
+    /// Returns the operation that can be executed without impacting the state of the execution.
+    ///
+    /// This is usefull to implement fallback for optimizations.
+    pub fn operation_within_optimization(&self, index: usize) -> &Box<dyn Operation<R>> {
+        let position = self.cursor + index;
+        let index = self.ordering[position];
+        &self.operations[index]
+    }
+
+    fn execute_optimization_with_fallbacks(
+        &mut self,
+        optimization: &mut R::Optimization,
+        context: &mut Context<'_, R::FusionHandle>,
+        fallbacks: &mut Vec<usize>,
+    ) {
+        let num_drained = optimization.len() + fallbacks.len();
+
+        optimization.execute(context, self);
+
+        for _ in 0..num_drained {
+            let index = self.ordering[self.cursor];
+
+            if fallbacks.contains(&self.cursor) {
+                let op = &self.operations[index];
+                op.execute(context.handles);
+            }
+            self.cursor += 1;
+        }
+    }
+    fn execute_operations(&mut self, handles: &mut HandleContainer<R::FusionHandle>, size: usize) {
+        for _ in 0..size {
+            let index = self.ordering[self.cursor];
+            let op = &self.operations[index];
+            op.execute(handles);
+            self.cursor += 1;
+        }
+    }
+}
+
 enum Execution<'a, R: FusionRuntime> {
     Single {
         handles: &'a mut HandleContainer<R::FusionHandle>,
         converter: &'a mut OperationConverter,
-        operations: Vec<Option<Box<dyn Operation<R>>>>,
-        ordering: Vec<usize>,
-        num_drained: usize,
+        execution: OrderedExecution<R>,
     },
     Multiple {
         context: &'a mut Context<'a, R::FusionHandle>,
-        operations: Vec<Option<Box<dyn Operation<R>>>>,
-        ordering: Vec<usize>,
-        num_drained: usize,
+        execution: OrderedExecution<R>,
     },
 }
 
@@ -39,56 +106,31 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
         operations: Vec<Box<dyn Operation<R>>>,
     ) -> (Vec<Box<dyn Operation<R>>>, usize) {
         let ordering = step.ordering.clone();
-        let operations = operations.into_iter().map(|a| Some(a)).collect();
+        let execution = OrderedExecution::new(operations, ordering);
 
         if matches!(&step.strategy, ExecutionStrategy::Composed(..)) {
             let mut context = converter.context(handles);
             let mut this = Execution::Multiple {
                 context: &mut context,
-                operations,
-                ordering,
-                num_drained: 0,
+                execution,
             };
 
             this = this.execute_strategy(&mut step.strategy);
 
             match this {
-                Execution::Multiple {
-                    num_drained,
-                    mut operations,
-                    ..
-                } => {
-                    let operations = operations
-                        .drain(num_drained..)
-                        .map(|a| a.expect("Should not be consumed"))
-                        .collect();
-                    (operations, num_drained)
-                }
+                Execution::Multiple { execution, .. } => execution.finish(),
                 _ => unreachable!(),
             }
         } else {
             let mut this = Execution::Single {
                 handles,
                 converter,
-                ordering,
-                operations,
-                num_drained: 0,
+                execution,
             };
             this = this.execute_strategy(&mut step.strategy);
 
             match this {
-                Execution::Single {
-                    mut operations,
-                    num_drained,
-                    ..
-                } => {
-                    let operations = operations
-                        .drain(num_drained..)
-                        .into_iter()
-                        .map(|a| a.expect("Should not be consumed"))
-                        .collect();
-                    (operations, num_drained)
-                }
+                Execution::Single { execution, .. } => execution.finish(),
                 _ => unreachable!(),
             }
         }
@@ -98,49 +140,29 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
         match &mut self {
             Execution::Single {
                 handles,
-                operations,
                 converter,
-                num_drained,
-                ordering,
+                execution,
             } => match strategy {
                 ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks) => {
                     let mut context = converter.context(handles);
-                    *num_drained += Self::execute_optimization_with_fallbacks(
-                        opt,
-                        &mut context,
-                        operations,
-                        fallbacks,
-                        ordering,
-                    );
+                    execution.execute_optimization_with_fallbacks(opt, &mut context, fallbacks)
                 }
                 ExecutionStrategy::Optimization(opt) => {
                     let mut context = converter.context(handles);
-                    *num_drained +=
-                        Self::execute_optimization(opt, &mut context, operations, ordering);
+                    execution.execute_optimization(opt, &mut context)
                 }
-                ExecutionStrategy::Operations(size) => {
-                    Self::execute_operations(handles, operations, *size, ordering);
-                    *num_drained += *size;
-                }
+                ExecutionStrategy::Operations(size) => execution.execute_operations(handles, *size),
                 ExecutionStrategy::Composed(_) => unreachable!(),
             },
-            Execution::Multiple {
-                context,
-                operations,
-                num_drained,
-                ordering,
-            } => match strategy {
+            Execution::Multiple { context, execution } => match strategy {
                 ExecutionStrategy::Optimization(opt) => {
-                    *num_drained += Self::execute_optimization(opt, context, operations, ordering);
+                    execution.execute_optimization(opt, context);
                 }
                 ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks) => {
-                    *num_drained += Self::execute_optimization_with_fallbacks(
-                        opt, context, operations, fallbacks, ordering,
-                    );
+                    execution.execute_optimization_with_fallbacks(opt, context, fallbacks);
                 }
                 ExecutionStrategy::Operations(size) => {
-                    Self::execute_operations(&mut context.handles, operations, *size, ordering);
-                    *num_drained += *size;
+                    execution.execute_operations(&mut context.handles, *size);
                 }
                 ExecutionStrategy::Composed(items) => {
                     for item in items.iter_mut() {
@@ -150,60 +172,6 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
             },
         };
         self
-    }
-    fn execute_optimization(
-        optimization: &mut R::Optimization,
-        context: &mut Context<'_, R::FusionHandle>,
-        operations: &mut Vec<Option<Box<dyn Operation<R>>>>,
-        ordering: &mut Vec<usize>,
-    ) -> usize {
-        let num_drained = optimization.len();
-        optimization.execute(context, operations, ordering);
-
-        for i in 0..num_drained {
-            let index = ordering[i];
-            let _ = operations[index].take().unwrap();
-        }
-
-        ordering.drain(0..num_drained);
-        num_drained
-    }
-
-    fn execute_optimization_with_fallbacks(
-        optimization: &mut R::Optimization,
-        context: &mut Context<'_, R::FusionHandle>,
-        operations: &mut Vec<Option<Box<dyn Operation<R>>>>,
-        fallbacks: &mut Vec<usize>, // TODO: Check maybe if can be out of order.
-        ordering: &mut Vec<usize>,
-    ) -> usize {
-        let num_drained = optimization.len() + fallbacks.len();
-
-        optimization.execute(context, operations, &ordering);
-
-        for i in 0..num_drained {
-            let index = ordering[i];
-            let op = operations[index].take().unwrap();
-            if fallbacks.contains(&i) {
-                op.execute(context.handles);
-            }
-        }
-
-        ordering.drain(0..num_drained);
-
-        num_drained
-    }
-    fn execute_operations(
-        handles: &mut HandleContainer<R::FusionHandle>,
-        operations: &mut Vec<Option<Box<dyn Operation<R>>>>,
-        size: usize,
-        ordering: &mut Vec<usize>,
-    ) {
-        for i in 0..size {
-            let index = ordering[i];
-            let op = operations[index].take().unwrap();
-            op.execute(handles);
-        }
-        ordering.drain(0..size);
     }
 }
 

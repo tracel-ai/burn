@@ -10,7 +10,7 @@ use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation};
 use burn_cubecl_fusion::{
     CubeOptimization, CubeOptimizationState, elemwise::builder::ElementWiseBuilder,
 };
-use burn_fusion::stream::Operation;
+use burn_fusion::stream::{Operation, OrderedExecution};
 use burn_fusion::{FusionBackend, FusionRuntime, client::MutexFusionClient};
 use burn_ir::{BackendIr, TensorHandle};
 use burn_tensor::{DType, Shape};
@@ -28,18 +28,17 @@ where
             '_,
             <FusionCubeRuntime<R, BT> as FusionRuntime>::FusionHandle,
         >,
-        operations: &[Option<Box<dyn Operation<FusionCubeRuntime<R, BT>>>>],
-        ordering: &[usize],
+        execution: &OrderedExecution<FusionCubeRuntime<R, BT>>,
     ) {
         match self {
             Self::ElementWise(op) => op.execute::<BT>(context),
             Self::Matmul(op) => op.execute::<BT>(context, |index| {
-                let index = ordering[index];
-                Box::new(FallbackOperationUnsafe::new(operations, index))
+                let operation = execution.operation_within_optimization(index);
+                Box::new(FallbackOperationUnsafe::new(operation))
             }),
             Self::Reduce(op) => op.execute::<BT>(context, |index| {
-                let index = ordering[index];
-                Box::new(FallbackOperationUnsafe::new(operations, index))
+                let operation = execution.operation_within_optimization(index);
+                Box::new(FallbackOperationUnsafe::new(operation))
             }),
         }
     }
@@ -69,15 +68,14 @@ where
 /// escape the lifetime of the context's execution, which doesn't make sense since
 /// its only goal is to modify the context it operates on.
 struct FallbackOperationUnsafe<O> {
-    operation: *const Option<O>,
+    operation: *const O,
 }
 
 unsafe impl<O> Send for FallbackOperationUnsafe<O> {}
 unsafe impl<O> Sync for FallbackOperationUnsafe<O> {}
 
 impl<O> FallbackOperationUnsafe<O> {
-    fn new(operations: &[Option<O>], index: usize) -> Self {
-        let op = operations.get(index).expect("Index should be valid");
+    fn new(op: &O) -> Self {
         let ptr = core::ptr::from_ref(op);
 
         Self { operation: ptr }
@@ -89,12 +87,7 @@ impl<R: CubeRuntime, BT: BoolElement> FallbackOperation<R>
 {
     fn run(&self, context: &mut burn_fusion::stream::Context<'_, CubeFusionHandle<R>>) {
         unsafe {
-            match self.operation.as_ref().unwrap() {
-                Some(op) => {
-                    op.execute(context.handles);
-                }
-                None => panic!(),
-            }
+            self.operation.as_ref().unwrap().execute(context.handles);
         }
     }
 }

@@ -1,7 +1,7 @@
 use crate::{
     FusionClientLocator, FusionTensor,
     client::FusionClient,
-    stream::{Context, Operation},
+    stream::{Context, Operation, OrderedExecution},
 };
 use burn_ir::{BackendIr, OperationIr, TensorHandle};
 use burn_tensor::{
@@ -129,8 +129,7 @@ pub trait Optimization<R: FusionRuntime>: Send + NumOperations {
     fn execute(
         &mut self,
         context: &mut Context<'_, R::FusionHandle>,
-        operations: &[Option<Box<dyn Operation<R>>>],
-        ordering: &[usize],
+        execution: &OrderedExecution<R>,
     );
 
     /// Returns the state that can be serialized.
