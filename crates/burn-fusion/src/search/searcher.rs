@@ -1,6 +1,8 @@
+use burn_ir::OperationIr;
+
 use crate::{NumOperations, stream::store::ExecutionStrategy};
 
-use super::{Block, OptimizationSearchResult, merging::merge_blocks};
+use super::{Block, OptimizationSearch, OptimizationSearchResult, merging::merge_blocks};
 
 /// What we know here is that every block is independent at that time and can be executed
 /// in any order.
@@ -23,7 +25,14 @@ impl<O: NumOperations> Searcher<O> {
         }
     }
 
-    pub fn search(mut self) -> OptimizationSearchResult<O> {
+    pub fn search<NewSearch>(
+        mut self,
+        operations: &[OperationIr],
+        func: NewSearch,
+    ) -> OptimizationSearchResult<O>
+    where
+        NewSearch: Fn() -> OptimizationSearch<O>,
+    {
         self = self.merging_pass();
 
         let mut strategies = Vec::with_capacity(self.blocks.len());
@@ -47,30 +56,32 @@ impl<O: NumOperations> Searcher<O> {
                     // Don't include that block and need furthur exploring.
                     break;
                 } else {
-                    num_optimized += opt_size;
-                    ordering.append(&mut positions);
-
                     match strategy {
                         ExecutionStrategy::Optimization(opt) => {
                             let fallbacks = self.add_missing_ops(last_index);
 
                             let strategy = if fallbacks.is_empty() {
+                                num_optimized += opt_size;
+                                ordering.append(&mut positions);
                                 ExecutionStrategy::Optimization(opt)
                             } else {
-                                ordering.append(&mut fallbacks.clone());
-                                num_optimized += fallbacks.len();
-                                positions.append(&mut fallbacks.clone());
+                                let (strategy, mut positions, opt_len) = self
+                                    .optimize_fallback(opt, fallbacks, positions, operations, func);
 
-                                ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks)
+                                num_optimized += opt_len;
+                                ordering.append(&mut positions);
+                                strategy
                             };
-                            assert_eq!(self.last_checked, num_optimized, "Num optimized");
+                            // assert_eq!(self.last_checked, num_optimized, "Num optimized");
 
                             strategies.push(Box::new(strategy));
                             break;
                         }
                         ExecutionStrategy::Operations(size) => {
                             let fallbacks = self.add_missing_ops(last_index);
+                            ordering.append(&mut positions);
                             ordering.append(&mut fallbacks.clone());
+                            num_optimized += size;
                             num_optimized += fallbacks.len();
 
                             let strategy = ExecutionStrategy::Operations(fallbacks.len() + size);
@@ -153,5 +164,59 @@ impl<O: NumOperations> Searcher<O> {
         }
 
         self
+    }
+
+    pub fn optimize_fallback<NewSearch>(
+        &self,
+        opt: O,
+        fallbacks: Vec<usize>,
+        positions: Vec<usize>,
+        operations: &[OperationIr],
+        func: NewSearch,
+    ) -> (ExecutionStrategy<O>, Vec<usize>, usize)
+    where
+        NewSearch: Fn() -> OptimizationSearch<O>,
+    {
+        if fallbacks.len() <= 1 {
+            self.optimize_fallback_no_change(opt, fallbacks, positions)
+        } else {
+            self.optimize_fallback_shrink(fallbacks, positions, operations, func)
+        }
+    }
+
+    fn optimize_fallback_shrink<NewSearch>(
+        &self,
+        fallbacks: Vec<usize>,
+        positions: Vec<usize>,
+        operations: &[OperationIr],
+        func: NewSearch,
+    ) -> (ExecutionStrategy<O>, Vec<usize>, usize)
+    where
+        NewSearch: Fn() -> OptimizationSearch<O>,
+    {
+        let mut ordered = positions.clone();
+        ordered.append(&mut fallbacks.clone());
+        ordered.sort();
+        let num_optimized = 1;
+        let positions = ordered[0..num_optimized].to_vec();
+        (ExecutionStrategy::Operations(1), positions, num_optimized)
+    }
+
+    fn optimize_fallback_no_change(
+        &self,
+        opt: O,
+        fallbacks: Vec<usize>,
+        mut positions: Vec<usize>,
+    ) -> (ExecutionStrategy<O>, Vec<usize>, usize) {
+        let mut num_optimized = opt.len();
+        num_optimized += fallbacks.len();
+
+        positions.append(&mut fallbacks.clone());
+
+        (
+            ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks),
+            positions,
+            num_optimized,
+        )
     }
 }

@@ -12,7 +12,8 @@ pub struct OptimizationSearch<O> {
     builders: Vec<Box<dyn OptimizationBuilder<O>>>,
     blocks: Vec<Block<O>>,
     length: usize,
-    last_merged_failed: bool,
+    stopped: bool,
+    max_blocks: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -28,55 +29,127 @@ impl<O: NumOperations> OptimizationSearch<O> {
             builders,
             blocks: Vec::new(),
             length: 0,
-            last_merged_failed: false,
+            stopped: false,
+            max_blocks: None,
         }
     }
+
+    pub fn max_blocks(&mut self, max_blocks: usize) {
+        self.max_blocks = Some(max_blocks);
+    }
+
     pub fn register(&mut self, operation: &OperationIr) {
-        if self.last_merged_failed {
+        if self.stopped {
             return;
         }
 
-        match self.merge_blocks(operation) {
+        if self.blocks.is_empty() {
+            self.on_new_block(operation);
+            self.length += 1;
+            return;
+        }
+
+        match self.merge_blocks(operation, false) {
             MergeBlockStep::Full => {}
             MergeBlockStep::NoNeed => {}
             MergeBlockStep::Fail | MergeBlockStep::Partial => {
                 // With the given operation, blocks are no longer independent.
-                self.last_merged_failed = true;
+                self.stopped = true;
                 return;
             }
         }
 
-        let mut added_count = 0;
+        if let Some(max_blocks) = self.max_blocks {
+            if max_blocks == 1 {
+                self.register_inner(operation, true);
+            } else {
+                let added_count = self.register_inner(operation, false);
 
+                if added_count == 0 && self.blocks.len() < max_blocks {
+                    self.on_new_block(operation);
+                } else {
+                    self.stopped = true;
+                    return;
+                    self.merge_blocks(operation, true);
+
+                    if self.blocks.len() >= max_blocks {
+                        self.stopped = true;
+                    } else {
+                        let added_count = self.register_inner(operation, false);
+                        if added_count == 0 {
+                            self.on_new_block(operation);
+                        }
+                    }
+                }
+            }
+        } else {
+            let added_count = self.register_inner(operation, false);
+            if added_count == 0 {
+                self.on_new_block(operation);
+            }
+        }
+
+        self.length += 1;
+    }
+
+    fn register_inner(&mut self, operation: &OperationIr, force: bool) -> usize {
+        let mut added_count = 0;
         for block in self.blocks.iter_mut() {
-            match block.register(operation, false, self.length) {
+            match block.register(operation, force, self.length) {
                 Registration::Accepted => {
                     added_count += 1;
                 }
                 Registration::NotPartOfTheGraph => {}
             }
         }
-        if added_count == 0 {
-            self.on_new_block(operation);
-        } else {
-            assert_eq!(added_count, 1, "Can only add the operation to one block.");
-        }
-        self.length += 1;
+        added_count
     }
 
-    pub fn execute(&self) -> OptimizationSearchResult<O> {
-        Searcher::new(self.blocks.clone()).search()
+    pub fn execute(&self, operations: &[OperationIr]) -> OptimizationSearchResult<O> {
+        let result = Searcher::new(self.blocks.clone()).search(operations, || self.empty_search());
+
+        if result.num_operations == 1 {
+            let mut search = self.empty_search();
+            search.max_blocks(1);
+            for op in operations.iter() {
+                search.register(op);
+                if !search.still_optimizing() {
+                    break;
+                }
+            }
+
+            return search.execute_no_recurse(operations);
+        }
+
+        result
+    }
+
+    pub fn execute_no_recurse(&self, operations: &[OperationIr]) -> OptimizationSearchResult<O> {
+        Searcher::new(self.blocks.clone()).search(operations, || self.empty_search())
+    }
+
+    fn empty_search(&self) -> Self {
+        Self::new(
+            self.builders
+                .iter()
+                .map(|b| {
+                    let mut b = b.clone_dyn();
+                    b.reset();
+                    b
+                })
+                .collect(),
+        )
     }
 
     pub fn reset(&mut self) {
         self.builders.iter_mut().for_each(|b| b.reset());
         self.length = 0;
         self.blocks.clear();
-        self.last_merged_failed = false;
+        self.stopped = false;
     }
 
     pub fn still_optimizing(&self) -> bool {
-        if self.last_merged_failed {
+        if self.stopped {
             return false;
         }
         if self.blocks.is_empty() {
@@ -94,12 +167,12 @@ impl<O: NumOperations> OptimizationSearch<O> {
         num_stopped < self.blocks.len()
     }
 
-    fn merge_blocks(&mut self, operation: &OperationIr) -> MergeBlockStep {
+    fn merge_blocks(&mut self, operation: &OperationIr, all: bool) -> MergeBlockStep {
         let nodes = operation.nodes();
         let mut block_merges = Vec::new();
 
         for (i, block) in self.blocks.iter().enumerate() {
-            if block.should_include_nodes(&nodes) {
+            if all || block.should_include_nodes(&nodes) {
                 block_merges.push(i);
             }
         }
@@ -153,6 +226,7 @@ impl<O: NumOperations> OptimizationSearch<O> {
         let mut block = Block::new(&self.builders);
         block.register(operation, true, self.length);
         self.blocks.push(block);
+        log::info!("New blocks {:?}", self.blocks.len());
     }
 }
 

@@ -82,6 +82,7 @@ impl<O: NumOperations> Block<O> {
     }
 
     pub fn compile(mut self) -> (ExecutionStrategy<O>, Vec<usize>) {
+        // TODO: Fix that.
         match find_best_optimization_index(&mut self.builders) {
             Some(index) => {
                 let opt = self.builders[index].build();

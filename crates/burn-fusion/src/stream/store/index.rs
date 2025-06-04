@@ -48,6 +48,7 @@ impl ExecutionPlanIndex {
     pub fn insert(&mut self, query: InsertQuery<'_>) {
         match query {
             InsertQuery::NewPlan { operations, id } => {
+                log::info!("Insert new plan {operations:?} {id:?}");
                 if let Some(operation) = operations.first() {
                     self.insert_new_operation(operation, id)
                 }

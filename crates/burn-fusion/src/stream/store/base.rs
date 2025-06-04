@@ -98,11 +98,12 @@ impl<O> ExecutionPlanStore<O> {
     }
 
     /// Add a new end condition for an optimization.
-    pub fn add_trigger(&mut self, id: ExecutionPlanId, criterion: ExecutionTrigger) {
+    pub fn add_trigger(&mut self, id: ExecutionPlanId, trigger: ExecutionTrigger) {
+        log::info!("Add trigger {trigger:?} to plan {id:?}");
         let criteria = &mut self.plans[id].triggers;
 
-        if !criteria.contains(&criterion) {
-            criteria.push(criterion);
+        if !criteria.contains(&trigger) {
+            criteria.push(trigger);
         }
     }
 }

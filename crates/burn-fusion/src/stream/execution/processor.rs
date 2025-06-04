@@ -49,7 +49,10 @@ impl<O: NumOperations> Processor<O> {
                 break;
             }
 
-            match self.policy.action(store, segment.operations(), mode) {
+            let action = self.policy.action(store, segment.operations(), mode);
+            log::info!("{action:?}");
+
+            match action {
                 Action::Explore => {
                     self.explore(&mut segment, store, mode);
 
@@ -134,6 +137,7 @@ impl<O: NumOperations> Processor<O> {
         exploration: Exploration<O>,
         mode: ExecutionMode,
     ) -> ExecutionPlanId {
+        log::info!("On exploration completed.");
         let num_optimized = exploration.num_optimized;
         let relative = &operations[0..num_optimized];
 
@@ -148,9 +152,11 @@ impl<O: NumOperations> Processor<O> {
                 } else {
                     ExecutionTrigger::OnOperations(next_ops.to_vec())
                 };
+                log::info!("Lazy trigger {trigger:?}");
 
                 match policy.action(store, relative, ExecutionMode::Sync) {
                     Action::Execute(id) => {
+                        log::info!("Execute existing ?");
                         store.add_trigger(id, trigger);
                         id
                     }
@@ -163,7 +169,10 @@ impl<O: NumOperations> Processor<O> {
             }
             ExecutionMode::Sync => match policy.action(store, relative, ExecutionMode::Sync) {
                 Action::Execute(id) => {
+                    log::info!("Sync trigger");
                     store.add_trigger(id, ExecutionTrigger::OnSync);
+                    // TODO: Bug the cache doesn't work with on sync triggers.
+                    // store.add_trigger(id, ExecutionTrigger::Always);
                     id
                 }
                 _ => store.add(ExecutionPlan {

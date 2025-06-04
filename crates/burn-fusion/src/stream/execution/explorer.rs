@@ -68,7 +68,8 @@ impl<O: NumOperations> Explorer<O> {
             }
         }
 
-        let found = self.search.execute();
+        let found = self.search.execute(operations);
+        log::info!("Found optimization {found:?}");
 
         ExplorationAction::Completed(Exploration {
             strategy: found.strategy,
