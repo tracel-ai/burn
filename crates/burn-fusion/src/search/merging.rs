@@ -99,7 +99,7 @@ fn post_process_partial<O: NumOperations>(
                 merged_partial = merged;
                 merged_failed.append(&mut failed);
             }
-            MergeBlockResult::Fail => todo!(),
+            MergeBlockResult::Fail => {}
         }
     }
 

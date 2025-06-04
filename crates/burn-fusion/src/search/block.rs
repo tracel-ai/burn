@@ -33,10 +33,12 @@ impl<O> PartialEq for Block<O> {
 impl<O> core::fmt::Debug for Block<O> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
-            "Block {{ pos: [{:?}, {:?}; {:?}], }}",
+            "Block {{ pos: [{:?}, {:?}; {:?}], ids: {:?}, ops: {:?}}}",
             self.start_pos,
             self.end_pos,
-            self.positions.len()
+            self.positions.len(),
+            self.ids,
+            self.operations
         ))
     }
 }

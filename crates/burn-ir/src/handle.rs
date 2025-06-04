@@ -68,7 +68,6 @@ impl<H: Clone> HandleContainer<H> {
 
     /// Register a handle for the given [tensor id](TensorId).
     pub fn register_handle(&mut self, id: TensorId, handle: H) {
-        println!("Register tensor {id:?}");
         self.handles.insert(id, Handle::Existing(handle));
     }
 
@@ -156,7 +155,6 @@ impl<H: Clone> HandleContainer<H> {
         B: BackendIr<Handle = H>,
     {
         let handle = B::float_tensor_handle(tensor);
-        println!("Register float tensor {id:?}");
         self.handles.insert(*id, Handle::Existing(handle));
     }
 

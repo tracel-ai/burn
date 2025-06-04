@@ -12,7 +12,7 @@ pub struct OptimizationSearch<O> {
     builders: Vec<Box<dyn OptimizationBuilder<O>>>,
     blocks: Vec<Block<O>>,
     length: usize,
-    stop: bool,
+    last_merged_failed: bool,
 }
 
 #[derive(Debug)]
@@ -28,19 +28,26 @@ impl<O: NumOperations> OptimizationSearch<O> {
             builders,
             blocks: Vec::new(),
             length: 0,
-            stop: false,
+            last_merged_failed: false,
         }
     }
     pub fn register(&mut self, operation: &OperationIr) {
-        if self.stop {
+        // println!("Register {operation:?}");
+        if self.last_merged_failed {
             return;
         }
 
         match self.merge_blocks(operation) {
-            MergeBlockStep::Full | MergeBlockStep::NoNeed => {}
+            MergeBlockStep::Full => {
+                println!("Full merge");
+            }
+            MergeBlockStep::NoNeed => {
+                println!("No Need");
+            }
             MergeBlockStep::Fail | MergeBlockStep::Partial => {
                 // With the given operation, blocks are no longer independent.
-                self.stop = true;
+                println!("Merge fail");
+                self.last_merged_failed = true;
                 return;
             }
         }
@@ -71,11 +78,11 @@ impl<O: NumOperations> OptimizationSearch<O> {
         self.builders.iter_mut().for_each(|b| b.reset());
         self.length = 0;
         self.blocks.clear();
-        self.stop = false;
+        self.last_merged_failed = false;
     }
 
     pub fn still_optimizing(&self) -> bool {
-        if self.stop {
+        if self.last_merged_failed {
             return false;
         }
         if self.blocks.is_empty() {
@@ -103,6 +110,8 @@ impl<O: NumOperations> OptimizationSearch<O> {
             }
         }
 
+        println!("{:?}", self.blocks);
+        println!("Merge blocks {block_merges:?}");
         if block_merges.len() <= 1 {
             return MergeBlockStep::NoNeed;
         }

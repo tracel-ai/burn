@@ -45,22 +45,25 @@ impl<O: NumOperations> Searcher<O> {
             if self.last_checked != num_optimized + opt_size {
                 if num_optimized > 0 {
                     // Don't include that block and need furthur exploring.
-                    println!("Don't include");
                     break;
                 } else {
                     num_optimized += opt_size;
                     ordering.append(&mut positions);
-                    println!("Last Ordering {ordering:?}");
-                    println!("with {strategy:?}");
 
                     match strategy {
                         ExecutionStrategy::Optimization(opt) => {
                             let fallbacks = self.add_missing_ops(last_index);
-                            ordering.append(&mut fallbacks.clone());
-                            num_optimized += fallbacks.len();
-                            positions.append(&mut fallbacks.clone());
-                            let strategy =
-                                ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks);
+
+                            let strategy = if fallbacks.is_empty() {
+                                ExecutionStrategy::Optimization(opt)
+                            } else {
+                                ordering.append(&mut fallbacks.clone());
+                                num_optimized += fallbacks.len();
+                                positions.append(&mut fallbacks.clone());
+
+                                ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks)
+                            };
+                            assert_eq!(self.last_checked, num_optimized, "Num optimized");
 
                             strategies.push(Box::new(strategy));
                             break;
@@ -82,7 +85,6 @@ impl<O: NumOperations> Searcher<O> {
                 ordering.append(&mut positions);
             }
 
-            println!("Add str {strategy:?}, {opt_size}");
             strategies.push(Box::new(strategy));
         }
 
@@ -113,13 +115,15 @@ impl<O: NumOperations> Searcher<O> {
         }
     }
 
-    fn add_missing_ops(&self, last: usize) -> Vec<usize> {
+    fn add_missing_ops(&mut self, last: usize) -> Vec<usize> {
         let mut fallbacks = Vec::new();
 
         for i in self.last_checked..last {
             if !self.resolved[i] {
                 fallbacks.push(i);
+                self.resolved[i] = true;
             }
+            self.last_checked += 1;
         }
 
         fallbacks
