@@ -7,14 +7,14 @@ use burn_ir::OperationIr;
 use serde::{Deserialize, Serialize};
 
 /// The store that contains all explorations done on a device.
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default)]
 pub(crate) struct ExecutionPlanStore<O> {
     plans: Vec<ExecutionPlan<O>>,
     index: ExecutionPlanIndex,
 }
 
 /// How a list of operations should be executed.
-#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub(crate) enum ExecutionStrategy<O> {
     /// An optimization was found, and therefore should be executed.
     Optimization { opt: O, ordering: Arc<Vec<usize>> },
@@ -24,12 +24,15 @@ pub(crate) enum ExecutionStrategy<O> {
     Composed(Vec<Box<Self>>),
 }
 
+/// How a list of operations should be executed.
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct HoledExecution<O> {
-    pub strategy: ExecutionStrategy<O>,
-    pub holes_strategy: ExecutionStrategy<O>,
-    /// Index in the original execution that maps to the original operation vector.
-    pub holes_mapping: Vec<usize>,
+pub(crate) enum ExecutionStrategyState<O> {
+    /// An optimization was found, and therefore should be executed.
+    Optimization { opt: O, ordering: Vec<usize> },
+    /// No optimization was found, each operation should be executed individually.
+    Operations { ordering: Vec<usize> },
+    /// A composition of multiple execution strategies.
+    Composed(Vec<Box<Self>>),
 }
 
 /// The trigger that indicates when to stop exploring.
@@ -44,7 +47,6 @@ pub(crate) enum ExecutionTrigger {
 pub(crate) type ExecutionPlanId = usize;
 
 /// The outcome of an exploration that can be stored.
-#[derive(Serialize, Deserialize)]
 pub(crate) struct ExecutionPlan<O> {
     /// The operations on which the exploration is related to.
     pub(crate) operations: Vec<OperationIr>,
