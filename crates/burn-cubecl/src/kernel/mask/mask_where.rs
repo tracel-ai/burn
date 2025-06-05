@@ -1,4 +1,4 @@
-use cubecl::{calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::index_offset_with_layout};
 
 use crate::{
     BoolElement, CubeRuntime,

@@ -21,6 +21,7 @@ use crate::{
             avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
             binary::BinaryNode,
+            ceil::CeilNode,
             clip::ClipNode,
             concat::ConcatNode,
             constant::{ConstantNode, ConstantValue},
@@ -38,6 +39,7 @@ use crate::{
             gather_elements::GatherElementsNode,
             gemm::GemmNode,
             global_avg_pool::GlobalAvgPoolNode,
+            group_norm::GroupNormNode,
             instance_norm::InstanceNormNode,
             layer_norm::LayerNormNode,
             linear::LinearNode,
@@ -55,6 +57,7 @@ use crate::{
             range::RangeNode,
             reshape::ReshapeNode,
             resize::ResizeNode,
+            round::RoundNode,
             slice::SliceNode,
             split::SplitNode,
             squeeze::SqueezeNode,
@@ -83,11 +86,11 @@ use onnx_ir::{
         conv_transpose3d::conv_transpose3d_config, conv1d::conv1d_config, conv2d::conv2d_config,
         conv3d::conv3d_config, dropout::dropout_config, expand::expand_config,
         flatten::flatten_config, gather::gather_config, gemm::gemm_config,
-        hard_sigmoid::hard_sigmoid_config, instance_norm::instance_norm_config,
-        layer_norm::layer_norm_config, leaky_relu::leaky_relu_config, linear::linear_config,
-        log_softmax::log_softmax_config, max_pool1d::max_pool1d_config,
-        max_pool2d::max_pool2d_config, one_hot::one_hot_config, pad::pad_config,
-        reduce_max::reduce_max_config, reduce_mean::reduce_mean_config,
+        group_norm::group_norm_config, hard_sigmoid::hard_sigmoid_config,
+        instance_norm::instance_norm_config, layer_norm::layer_norm_config,
+        leaky_relu::leaky_relu_config, linear::linear_config, log_softmax::log_softmax_config,
+        max_pool1d::max_pool1d_config, max_pool2d::max_pool2d_config, one_hot::one_hot_config,
+        pad::pad_config, reduce_max::reduce_max_config, reduce_mean::reduce_mean_config,
         reduce_min::reduce_min_config, reduce_prod::reduce_prod_config,
         reduce_sum::reduce_sum_config, reshape::reshape_config, resize::resize_config,
         slice::slice_config, softmax::softmax_config, split::split_config, squeeze::squeeze_config,
@@ -292,6 +295,7 @@ impl ParsedOnnxGraph {
                 NodeType::Exp => graph.register(Self::exp_conversion(node)),
                 NodeType::Expand => graph.register(Self::expand_conversion(node)),
                 NodeType::Floor => graph.register(Self::floor_conversion(node)),
+                NodeType::Ceil => graph.register(Self::ceil_conversion(node)),
                 NodeType::Clip => graph.register(Self::clip_conversion(node)),
                 NodeType::Cos => graph.register(Self::cos_conversion(node)),
                 NodeType::Cosh => graph.register(Self::cosh_conversion(node)),
@@ -326,6 +330,9 @@ impl ParsedOnnxGraph {
                 NodeType::BatchNormalization => {
                     graph.register(Self::batch_norm_conversion::<PS>(node))
                 }
+                NodeType::GroupNormalization => {
+                    graph.register(Self::group_norm_conversion::<PS>(node))
+                }
                 NodeType::Relu => graph.register(Self::relu_conversion(node)),
                 NodeType::Gelu => graph.register(Self::gelu_conversion(node)),
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
@@ -350,6 +357,7 @@ impl ParsedOnnxGraph {
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Resize => graph.register(Self::resize_conversion(node)),
                 NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
+                NodeType::Round => graph.register(Self::round_conversion(node)),
                 NodeType::Shape => graph.register(Self::shape_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Sin => graph.register(Self::sin_conversion(node)),
@@ -1049,6 +1057,21 @@ impl ParsedOnnxGraph {
         InstanceNormNode::new(name, input, output, gamma, beta, config)
     }
 
+    fn group_norm_conversion<PS: PrecisionSettings>(node: Node) -> GroupNormNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        // Get configuration from onnx-ir
+        let (config, full_precision) = group_norm_config(&node);
+        // Scale tensor (aka gamma)
+        let gamma = extract_data_serialize::<PS::FloatElem>(1, &node).expect("Gamma is required");
+        // Bias (B) optional tensor
+        let beta = extract_data_serialize::<PS::FloatElem>(2, &node).expect("Beta is required");
+
+        let name = &node.name;
+        GroupNormNode::new(name, input, output, gamma, beta, config, full_precision)
+    }
+
     fn conv1d_conversion<PS: PrecisionSettings>(node: Node) -> Conv1dNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
@@ -1416,6 +1439,20 @@ impl ParsedOnnxGraph {
         let output = TensorType::from(node.outputs.first().unwrap());
 
         FloorNode::new(input, output)
+    }
+
+    fn ceil_conversion(node: Node) -> CeilNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        CeilNode::new(input, output)
+    }
+
+    fn round_conversion(node: Node) -> RoundNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        RoundNode::new(input, output)
     }
 
     fn gemm_conversion(node: Node) -> GemmNode {

@@ -232,9 +232,14 @@ fn import(
         command.arg("True");
     }
     let mut handle = command.spawn().unwrap();
-    handle
+
+    let exit_status = handle
         .wait()
         .map_err(|err| ImporterError::Unknown(format!("{err:?}")))?;
+
+    if !exit_status.success() {
+        return Err(ImporterError::Unknown(format!("{exit_status}")));
+    }
 
     Ok(())
 }

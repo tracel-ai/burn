@@ -2,41 +2,41 @@ use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
-    nn::LayerNormRecord,
+    nn::GroupNormRecord,
     record::{PrecisionSettings, Record},
     tensor::{Tensor, TensorData},
 };
-use onnx_ir::node::layer_norm::LayerNormConfig;
+use onnx_ir::node::group_norm::GroupNormConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
 
 #[derive(Debug, Clone)]
-pub struct LayerNormNode {
+pub struct GroupNormNode {
     pub field: OtherType,
     pub input: TensorType,
     pub output: TensorType,
-    pub gamma: TensorData,        // Scale
-    pub beta: Option<TensorData>, // Bias (B)
-    pub config: LayerNormConfig,
+    pub gamma: TensorData, // Scale
+    pub beta: TensorData,  // Bias (B)
+    pub config: GroupNormConfig,
     pub full_precision: bool,
 }
 
-impl LayerNormNode {
+impl GroupNormNode {
     pub fn new<S: AsRef<str>>(
         name: S,
         input: TensorType,
         output: TensorType,
         gamma: TensorData,
-        beta: Option<TensorData>,
-        config: LayerNormConfig,
+        beta: TensorData,
+        config: GroupNormConfig,
         full_precision: bool,
     ) -> Self {
         Self {
             field: OtherType::new(
                 name,
                 quote! {
-                    LayerNorm<B>
+                    GroupNorm<B>
                 },
             ),
             input,
@@ -49,7 +49,7 @@ impl LayerNormNode {
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode {
+impl<PS: PrecisionSettings> NodeCodegen<PS> for GroupNormNode {
     fn input_types(&self) -> Vec<Type> {
         vec![Type::Tensor(self.input.clone())]
     }
@@ -62,11 +62,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode {
 
     fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
-        let num_features = self.config.d_model.to_tokens();
+        let num_features = self.config.num_features.to_tokens();
+        let num_groups = self.config.num_groups.to_tokens();
         let epsilon = self.config.epsilon;
 
         let tokens = quote! {
-            let #name = LayerNormConfig::new(#num_features)
+            let #name = GroupNormConfig::new(#num_groups, #num_features)
                 .with_epsilon(#epsilon)
                 .init(device);
         };
@@ -76,19 +77,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode {
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let device = Default::default();
-        let record = LayerNormRecord::<SerializationBackend> {
-            gamma: Param::initialized(
+        let record = GroupNormRecord::<SerializationBackend> {
+            gamma: Some(Param::initialized(
                 ParamId::new(),
                 Tensor::from_data(self.gamma.clone().convert::<PS::FloatElem>(), &device),
-            ),
-            beta: Param::initialized(
+            )),
+            beta: Some(Param::initialized(
                 ParamId::new(),
-                if let Some(beta) = self.beta.clone() {
-                    Tensor::from_data(beta.convert::<PS::FloatElem>(), &device)
-                } else {
-                    Tensor::zeros([self.config.d_model], &device)
-                },
-            ),
+                Tensor::from_data(self.beta.clone().convert::<PS::FloatElem>(), &device),
+            )),
+            affine: ConstantRecord::new(),
+            num_groups: ConstantRecord::new(),
+            num_channels: ConstantRecord::new(),
             epsilon: ConstantRecord::new(),
         };
 
@@ -115,12 +115,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode {
         }
     }
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::nn::LayerNorm");
-        imports.register("burn::nn::LayerNormConfig");
+        imports.register("burn::nn::GroupNorm");
+        imports.register("burn::nn::GroupNormConfig");
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::LayerNorm(self)
+        Node::GroupNorm(self)
     }
 }
 
@@ -134,13 +134,13 @@ mod tests {
     fn test_codegen() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        graph.register(LayerNormNode::new(
+        graph.register(GroupNormNode::new(
             "norm",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
             TensorData::from([2f32]),
-            Some(TensorData::from([2f32])),
-            LayerNormConfig::new(128),
+            TensorData::from([2f32]),
+            GroupNormConfig::new(128, 6, 1e-5),
             false,
         ));
 
@@ -151,12 +151,12 @@ mod tests {
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
-            use burn::nn::LayerNorm;
-            use burn::nn::LayerNormConfig;
+            use burn::nn::GroupNorm;
+            use burn::nn::GroupNormConfig;
 
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
-                norm: LayerNorm<B>,
+                norm: GroupNorm<B>,
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,
             }
@@ -164,9 +164,9 @@ mod tests {
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
                 pub fn new(device: &B::Device) -> Self {
-                    let norm = LayerNormConfig::new(128)
-                        .with_epsilon(0.00001f64)
-                        .init(device);
+                    let norm = GroupNormConfig::new(6, 128).
+                        with_epsilon(0.00001f64).
+                        init(device);
 
                     Self {
                         norm,
@@ -190,13 +190,13 @@ mod tests {
     fn test_codegen_full_precision() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        graph.register(LayerNormNode::new(
+        graph.register(GroupNormNode::new(
             "norm",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
             TensorData::from([2f32]),
-            Some(TensorData::from([2f32])),
-            LayerNormConfig::new(128),
+            TensorData::from([2f32]),
+            GroupNormConfig::new(128, 6, 1e-5),
             true,
         ));
 
@@ -207,12 +207,12 @@ mod tests {
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
-            use burn::nn::LayerNorm;
-            use burn::nn::LayerNormConfig;
+            use burn::nn::GroupNorm;
+            use burn::nn::GroupNormConfig;
 
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
-                norm: LayerNorm<B>,
+                norm: GroupNorm<B>,
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,
             }
@@ -220,9 +220,9 @@ mod tests {
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
                 pub fn new(device: &B::Device) -> Self {
-                    let norm = LayerNormConfig::new(128)
-                        .with_epsilon(0.00001f64)
-                        .init(device);
+                    let norm = GroupNormConfig::new(6, 128).
+                        with_epsilon(0.00001f64).
+                        init(device);
 
                     Self {
                         norm,

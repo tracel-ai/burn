@@ -171,3 +171,19 @@ pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {
         tensor.shape.num_dims() - 1,
     )
 }
+
+pub(crate) fn max_line_size_many<R: CubeRuntime>(tensors: &[&CubeTensor<R>], dim: usize) -> u8 {
+    let vec = tensors
+        .iter()
+        .map(|tensor| {
+            tensor_vectorization_factor(
+                R::supported_line_sizes(),
+                &tensor.shape.dims,
+                &tensor.strides,
+                dim,
+            )
+        })
+        .min();
+
+    vec.unwrap_or(0)
+}

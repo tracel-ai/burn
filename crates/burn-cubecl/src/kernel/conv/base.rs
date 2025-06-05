@@ -1,5 +1,5 @@
 use burn_tensor::ops::ConvOptions;
-use cubecl::linalg::convolution::ConvLaunchError;
+use cubecl::convolution::ConvLaunchError;
 
 use crate::{
     CubeRuntime, FloatElement,

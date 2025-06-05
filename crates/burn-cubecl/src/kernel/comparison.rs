@@ -5,11 +5,9 @@ use crate::{
 };
 use burn_tensor::Shape;
 use cubecl::{
-    calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
+    calculate_cube_count_elemwise, prelude::*, std::tensor::index_offset_with_layout,
     tensor_vectorization_factor,
 };
-
-use super::into_contiguous;
 
 #[cube]
 pub(crate) trait ComparisonOp<C: Numeric>: 'static + Send + Sync {
@@ -73,7 +71,7 @@ impl<C: Numeric, B: Numeric> ScalarOpSpec for Spec<C, B> {
     type B = B;
 }
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 pub(crate) fn kernel_scalar_cmp<SS: ScalarOpSpec, O: ComparisonOp<SS::C>>(
     input: &Tensor<Line<SS::C>>,
     scalar: SS::C,
@@ -85,7 +83,10 @@ pub(crate) fn kernel_scalar_cmp<SS: ScalarOpSpec, O: ComparisonOp<SS::C>>(
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = Line::cast_from(O::execute(input[ABSOLUTE_POS], Line::new(scalar)));
+    let index_input =
+        index_offset_with_layout(input, output, offset_output, 0, output.rank(), false);
+
+    output[offset_output] = Line::cast_from(O::execute(input[index_input], Line::new(scalar)));
 }
 
 #[cube(launch)]
@@ -230,13 +231,9 @@ pub(crate) fn launch_scalar_cmp<
     BT: BoolElement,
     O: ComparisonOp<E>,
 >(
-    mut tensor: CubeTensor<R>,
+    tensor: CubeTensor<R>,
     scalar: E,
 ) -> CubeTensor<R> {
-    if !tensor.is_contiguous_buffer() {
-        tensor = into_contiguous(tensor);
-    }
-
     let ndims = tensor.shape.num_dims();
     // Vectorization is only enabled when the last dimension is contiguous.
     let vectorization_factor =
@@ -250,14 +247,16 @@ pub(crate) fn launch_scalar_cmp<
 
     let same_tensor_type = core::any::TypeId::of::<E>() == core::any::TypeId::of::<BT>();
     if same_tensor_type && tensor.can_mut() {
-        kernel_scalar_cmp::launch::<Spec<E, BT>, O, R>(
-            &client,
-            cube_count,
-            cube_dim,
-            tensor.as_tensor_arg::<E>(vectorization_factor),
-            ScalarArg::new(scalar),
-            TensorArg::alias(0),
-        );
+        unsafe {
+            kernel_scalar_cmp::launch_unchecked::<Spec<E, BT>, O, R>(
+                &client,
+                cube_count,
+                cube_dim,
+                tensor.as_tensor_arg::<E>(vectorization_factor),
+                ScalarArg::new(scalar),
+                TensorArg::alias(0),
+            );
+        }
 
         CubeTensor::new(
             tensor.client,
@@ -274,14 +273,16 @@ pub(crate) fn launch_scalar_cmp<
             tensor.shape.clone(),
         );
 
-        kernel_scalar_cmp::launch::<Spec<E, BT>, O, R>(
-            &client,
-            cube_count,
-            CubeDim::default(),
-            tensor.as_tensor_arg::<E>(vectorization_factor),
-            ScalarArg::new(scalar),
-            output.as_tensor_arg::<BT>(vectorization_factor),
-        );
+        unsafe {
+            kernel_scalar_cmp::launch_unchecked::<Spec<E, BT>, O, R>(
+                &client,
+                cube_count,
+                CubeDim::default(),
+                tensor.as_tensor_arg::<E>(vectorization_factor),
+                ScalarArg::new(scalar),
+                output.as_tensor_arg::<BT>(vectorization_factor),
+            );
+        }
 
         output
     }

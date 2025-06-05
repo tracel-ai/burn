@@ -1,9 +1,7 @@
 use burn_tensor::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubecl::{
-    calculate_cube_count_elemwise,
-    linalg::{convolution::ConvLaunchError, tensor::StridedLayout},
-    prelude::*,
-    tensor_line_size_parallel,
+    calculate_cube_count_elemwise, convolution::ConvLaunchError, prelude::*,
+    std::tensor::StridedLayout, tensor_line_size_parallel,
 };
 use cubecl_std::{CubeOption, CubeOptionExpand, FastDivmod};
 

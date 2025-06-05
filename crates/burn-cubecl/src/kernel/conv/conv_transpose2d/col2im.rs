@@ -2,7 +2,7 @@ use burn_tensor::{
     Shape,
     ops::{ConvTransposeOptions, conv::calculate_conv_transpose_output_size},
 };
-use cubecl::{calculate_cube_count_elemwise, linalg::convolution::ConvLaunchError, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, convolution::ConvLaunchError, prelude::*};
 
 use crate::{
     CubeElement, CubeRuntime, FloatElement,
