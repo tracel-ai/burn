@@ -3,8 +3,8 @@ use burn_ir::OperationIr;
 use crate::{NumOperations, OptimizationBuilder, stream::store::ExecutionStrategy};
 
 use super::{
-    Block, Registration,
-    merging::{MergeBlockResult, merge_blocks},
+    Block, RegistrationResult,
+    merging::{MergeBlocksResult, merge_blocks},
     searcher::Searcher,
 };
 
@@ -112,11 +112,11 @@ impl<O: NumOperations> OptimizationSearch<O> {
     fn register_inner(&mut self, operation: &OperationIr, force: bool) -> usize {
         let mut added_count = 0;
         for block in self.blocks.iter_mut() {
-            match block.register(operation, force, self.length) {
-                Registration::Accepted => {
+            match block.register(operation, self.length, force) {
+                RegistrationResult::Accepted => {
                     added_count += 1;
                 }
-                Registration::NotPartOfTheGraph => {}
+                RegistrationResult::NotPartOfTheGraph => {}
             }
         }
         added_count
@@ -208,7 +208,7 @@ impl<O: NumOperations> OptimizationSearch<O> {
         let mut block_merges = Vec::new();
 
         for (i, block) in self.blocks.iter().enumerate() {
-            if all || block.should_include_nodes(&nodes) {
+            if all || block.contains_tensors(&nodes) {
                 block_merges.push(i);
             }
         }
@@ -238,13 +238,13 @@ impl<O: NumOperations> OptimizationSearch<O> {
         };
 
         match merged {
-            MergeBlockResult::Full(block) => {
+            MergeBlocksResult::Full(block) => {
                 clear_blocks();
                 self.blocks.push(block);
                 Block::sort(&mut self.blocks);
                 MergeBlockStep::Full
             }
-            MergeBlockResult::Partial {
+            MergeBlocksResult::Partial {
                 mut merged,
                 mut failed,
             } => {
@@ -254,13 +254,13 @@ impl<O: NumOperations> OptimizationSearch<O> {
                 Block::sort(&mut self.blocks);
                 MergeBlockStep::Partial
             }
-            MergeBlockResult::Fail => MergeBlockStep::Fail,
+            MergeBlocksResult::Fail => MergeBlockStep::Fail,
         }
     }
 
     fn on_new_block(&mut self, operation: &OperationIr) {
         let mut block = Block::new(&self.builders);
-        block.register(operation, true, self.length);
+        block.register(operation, self.length, true);
         self.blocks.push(block);
     }
 }

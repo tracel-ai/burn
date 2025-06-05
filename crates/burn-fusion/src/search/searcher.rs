@@ -39,10 +39,10 @@ impl<O: NumOperations> Searcher<O> {
 
         for block in blocks {
             let last_index = block.end_pos;
-            let (strategy, mut positions) = block.compile();
-            let opt_size = positions.len();
+            let mut block_optimization = block.optimize();
+            let opt_size = block_optimization.ordering.len();
 
-            for pos in positions.iter() {
+            for pos in block_optimization.ordering.iter() {
                 self.update_check(*pos);
             }
 
@@ -51,17 +51,20 @@ impl<O: NumOperations> Searcher<O> {
                     // Don't include that block and need furthur exploring.
                     break;
                 } else {
-                    match strategy {
+                    match block_optimization.strategy {
                         ExecutionStrategy::Optimization(opt) => {
                             let fallbacks = self.add_missing_ops(last_index);
 
                             let strategy = if fallbacks.is_empty() {
                                 num_optimized += opt_size;
-                                ordering.append(&mut positions);
+                                ordering.append(&mut block_optimization.ordering);
                                 ExecutionStrategy::Optimization(opt)
                             } else {
-                                let (strategy, mut positions, opt_len) =
-                                    self.optimize_fallback(opt, fallbacks, positions)?;
+                                let (strategy, mut positions, opt_len) = self.optimize_fallback(
+                                    opt,
+                                    fallbacks,
+                                    block_optimization.ordering,
+                                )?;
 
                                 num_optimized += opt_len;
                                 ordering.append(&mut positions);
@@ -74,7 +77,7 @@ impl<O: NumOperations> Searcher<O> {
                         }
                         ExecutionStrategy::Operations(size) => {
                             let fallbacks = self.add_missing_ops(last_index);
-                            ordering.append(&mut positions);
+                            ordering.append(&mut block_optimization.ordering);
                             ordering.append(&mut fallbacks.clone());
                             num_optimized += size;
                             num_optimized += fallbacks.len();
@@ -88,10 +91,10 @@ impl<O: NumOperations> Searcher<O> {
                 }
             } else {
                 num_optimized += opt_size;
-                ordering.append(&mut positions);
+                ordering.append(&mut block_optimization.ordering);
             }
 
-            strategies.push(Box::new(strategy));
+            strategies.push(Box::new(block_optimization.strategy));
         }
 
         Ok(if strategies.len() > 1 {
@@ -144,10 +147,10 @@ impl<O: NumOperations> Searcher<O> {
         let blocks = self.blocks.iter().collect::<Vec<_>>();
 
         match merge_blocks(&blocks, false) {
-            super::merging::MergeBlockResult::Full(block) => {
+            super::merging::MergeBlocksResult::Full(block) => {
                 self.blocks = vec![block];
             }
-            super::merging::MergeBlockResult::Partial {
+            super::merging::MergeBlocksResult::Partial {
                 mut merged,
                 mut failed,
             } => {
@@ -155,7 +158,7 @@ impl<O: NumOperations> Searcher<O> {
                 self.blocks = merged;
                 Block::sort(&mut self.blocks);
             }
-            super::merging::MergeBlockResult::Fail => {}
+            super::merging::MergeBlocksResult::Fail => {}
         }
 
         self

@@ -2,21 +2,43 @@ use super::Block;
 use crate::NumOperations;
 
 #[derive(Debug, PartialEq)]
-pub enum MergeBlockResult<O> {
+/// The result of [merging](merge_blocks) [blocks](Block).
+pub enum MergeBlocksResult<O> {
+    /// All [blocks](Block) merged into one.
     Full(Block<O>),
+    /// Some [blocks](Block) merged and some failed.
     Partial {
         merged: Vec<Block<O>>,
         failed: Vec<Block<O>>,
     },
+    /// All [blocks](Block) failed to merge.
     Fail,
 }
 
-pub fn merge_blocks<O: NumOperations>(blocks: &[&Block<O>], sorted: bool) -> MergeBlockResult<O> {
+/// Merge multiple [block](Block) together.
+///
+/// The resulting [blocks](Block) might be sorted if the flag is true, otherwise the order isn't
+/// garantee. This is mostly usefull for testing.
+///
+/// # Strategy
+///
+/// The merging strategy is in two steps:
+///
+/// 1. The first step is to recursively try to merge adjacent blocks. This has the advantage or
+///    trying multiple blocks ordering, therefore trying multiple permutation of the blocks.
+///    However, it has the downside of not trying to merge blocks that are further away in the list
+///    of blocks. Since trying all combinations possible is exponention, therefore not possible, we
+///    fallback on the second strategy.
+/// 2. The second step is to reduce blocks by setting an accumulator block, then sequentially
+///    trying to merge the remaining blocks. We try some permutations based on the result from
+///    step1.
+pub fn merge_blocks<O: NumOperations>(blocks: &[&Block<O>], sorted: bool) -> MergeBlocksResult<O> {
     if blocks.is_empty() {
-        return MergeBlockResult::Fail;
+        return MergeBlocksResult::Fail;
     }
+
     if blocks.len() == 1 {
-        return MergeBlockResult::Full(blocks[0].clone());
+        return MergeBlocksResult::Full(blocks[0].clone());
     }
 
     if blocks.len() == 2 {
@@ -24,161 +46,179 @@ pub fn merge_blocks<O: NumOperations>(blocks: &[&Block<O>], sorted: bool) -> Mer
         let block1 = blocks[1];
 
         return match merge_two(block0, block1) {
-            Some(result) => MergeBlockResult::Full(result),
-            None => MergeBlockResult::Fail,
+            Some(result) => MergeBlocksResult::Full(result),
+            None => MergeBlocksResult::Fail,
         };
     }
 
-    let step_size = blocks.len() / 2;
-    let num_steps = f32::ceil(blocks.len() as f32 / step_size as f32) as usize;
+    let mut step1 = merge_blocks_step1(blocks);
 
-    let mut merged_full = Vec::new();
-    let mut merged_partial = Vec::new();
-    let mut failed_result = Vec::new();
-
-    for i in 0..num_steps {
-        let start = i * step_size;
-        let end = usize::min(start + step_size, blocks.len());
-
-        match merge_blocks(&blocks[start..end], false) {
-            MergeBlockResult::Full(block) => {
-                merged_full.push(block);
-            }
-            MergeBlockResult::Partial {
-                mut merged,
-                mut failed,
-            } => {
-                merged_partial.append(&mut merged);
-                failed_result.append(&mut failed);
-            }
-            MergeBlockResult::Fail => {
-                for b in &blocks[start..end] {
-                    failed_result.push((*b).clone());
-                }
-            }
-        }
-    }
-
-    if merged_full.len() == 1 && failed_result.len() == 0 {
-        MergeBlockResult::Full(merged_full.remove(0))
+    if step1.full.len() == 1 && step1.failed.is_empty() && step1.partial.is_empty() {
+        MergeBlocksResult::Full(step1.full.remove(0))
+    } else if step1.partial.len() == 1 && step1.failed.is_empty() && step1.full.is_empty() {
+        MergeBlocksResult::Full(step1.partial.remove(0))
     } else {
-        let result = post_process_partial(merged_full, merged_partial, failed_result);
+        let result = merge_blocks_step2(step1);
 
         if !sorted {
             return result;
         }
 
         match result {
-            MergeBlockResult::Full(block) => MergeBlockResult::Full(block),
-            MergeBlockResult::Partial {
+            MergeBlocksResult::Full(block) => MergeBlocksResult::Full(block),
+            MergeBlocksResult::Partial {
                 mut merged,
                 mut failed,
             } => {
                 Block::sort(&mut merged);
                 Block::sort(&mut failed);
 
-                MergeBlockResult::Partial { merged, failed }
+                MergeBlocksResult::Partial { merged, failed }
             }
-            MergeBlockResult::Fail => MergeBlockResult::Fail,
+            MergeBlocksResult::Fail => MergeBlocksResult::Fail,
         }
     }
 }
 
-fn post_process_partial<O: NumOperations>(
-    mut merged_full: Vec<Block<O>>,
-    mut merged_partial: Vec<Block<O>>,
-    mut merged_failed: Vec<Block<O>>,
-) -> MergeBlockResult<O> {
+struct MergeBlockStep1<O> {
+    full: Vec<Block<O>>,
+    partial: Vec<Block<O>>,
+    failed: Vec<Block<O>>,
+}
+
+impl<O> Default for MergeBlockStep1<O> {
+    fn default() -> Self {
+        Self {
+            full: Default::default(),
+            partial: Default::default(),
+            failed: Default::default(),
+        }
+    }
+}
+
+fn merge_blocks_step1<O: NumOperations>(blocks: &[&Block<O>]) -> MergeBlockStep1<O> {
+    let step_size = blocks.len() / 2;
+    let num_steps = f32::ceil(blocks.len() as f32 / step_size as f32) as usize;
+
+    let mut result = MergeBlockStep1::default();
+
+    for i in 0..num_steps {
+        let start = i * step_size;
+        let end = usize::min(start + step_size, blocks.len());
+
+        match merge_blocks(&blocks[start..end], false) {
+            MergeBlocksResult::Full(block) => {
+                result.full.push(block);
+            }
+            MergeBlocksResult::Partial {
+                mut merged,
+                mut failed,
+            } => {
+                result.partial.append(&mut merged);
+                result.failed.append(&mut failed);
+            }
+            MergeBlocksResult::Fail => {
+                for b in &blocks[start..end] {
+                    result.failed.push((*b).clone());
+                }
+            }
+        }
+    }
+
+    result
+}
+
+fn merge_blocks_step2<O: NumOperations>(mut step1: MergeBlockStep1<O>) -> MergeBlocksResult<O> {
     // First let's try to merge partial graphs.
-    if merged_partial.len() > 1 {
-        match merge_accumulator(&merged_partial[0], &merged_partial[1..]) {
-            MergeBlockResult::Full(block) => {
-                merged_partial = vec![block];
+    if step1.partial.len() > 1 {
+        match merge_accumulator(&step1.partial[0], &step1.partial[1..]) {
+            MergeBlocksResult::Full(block) => {
+                step1.partial = vec![block];
             }
-            MergeBlockResult::Partial { merged, mut failed } => {
-                merged_partial = merged;
-                merged_failed.append(&mut failed);
+            MergeBlocksResult::Partial { merged, mut failed } => {
+                step1.partial = merged;
+                step1.failed.append(&mut failed);
             }
-            MergeBlockResult::Fail => {}
+            MergeBlocksResult::Fail => {}
         }
     }
 
     // Then let's try to merge partial graphs with failed merges.
-    if !merged_failed.is_empty() {
-        merged_partial.append(&mut merged_failed);
-        match merge_accumulator(&merged_partial[0], &merged_partial[1..]) {
-            MergeBlockResult::Full(block) => {
-                merged_partial = vec![block];
+    if !step1.failed.is_empty() {
+        step1.partial.append(&mut step1.failed);
+        match merge_accumulator(&step1.partial[0], &step1.partial[1..]) {
+            MergeBlocksResult::Full(block) => {
+                step1.partial = vec![block];
             }
-            MergeBlockResult::Partial { merged, mut failed } => {
-                merged_partial = merged;
-                merged_failed.append(&mut failed);
+            MergeBlocksResult::Partial { merged, mut failed } => {
+                step1.partial = merged;
+                step1.failed.append(&mut failed);
             }
-            MergeBlockResult::Fail => {}
+            MergeBlocksResult::Fail => {}
         }
     }
 
     // Then let's try to merge full graphs.
-    if merged_full.len() > 1 {
-        match merge_accumulator(&merged_full[0], &merged_full[1..]) {
-            MergeBlockResult::Full(block) => {
-                merged_full = vec![block];
+    if step1.full.len() > 1 {
+        match merge_accumulator(&step1.full[0], &step1.full[1..]) {
+            MergeBlocksResult::Full(block) => {
+                step1.full = vec![block];
             }
-            MergeBlockResult::Partial { merged, mut failed } => {
-                merged_full = merged;
-                merged_failed.append(&mut failed);
+            MergeBlocksResult::Partial { merged, mut failed } => {
+                step1.full = merged;
+                step1.failed.append(&mut failed);
             }
-            MergeBlockResult::Fail => {}
+            MergeBlocksResult::Fail => {}
         }
     }
 
     // Then let's try to merge full graphs with failed graphs.
-    if !merged_full.is_empty() {
-        merged_full.append(&mut merged_failed);
-        match merge_accumulator(&merged_full[0], &merged_full[1..]) {
-            MergeBlockResult::Full(block) => {
-                merged_full = vec![block];
+    if !step1.full.is_empty() {
+        step1.full.append(&mut step1.failed);
+        match merge_accumulator(&step1.full[0], &step1.full[1..]) {
+            MergeBlocksResult::Full(block) => {
+                step1.full = vec![block];
             }
-            MergeBlockResult::Partial { merged, mut failed } => {
-                merged_full = merged;
-                merged_failed.append(&mut failed);
+            MergeBlocksResult::Partial { merged, mut failed } => {
+                step1.full = merged;
+                step1.failed.append(&mut failed);
             }
-            MergeBlockResult::Fail => {}
+            MergeBlocksResult::Fail => {}
         }
     }
 
     // Then let's try to merge full graphs with partial graphs.
-    if !merged_full.is_empty() || !merged_partial.is_empty() {
-        merged_full.append(&mut merged_partial);
-        match merge_accumulator(&merged_full[0], &merged_full[1..]) {
-            MergeBlockResult::Full(block) => {
-                merged_full = vec![block];
+    if !step1.full.is_empty() || !step1.partial.is_empty() {
+        step1.full.append(&mut step1.partial);
+        match merge_accumulator(&step1.full[0], &step1.full[1..]) {
+            MergeBlocksResult::Full(block) => {
+                step1.full = vec![block];
             }
-            MergeBlockResult::Partial { merged, mut failed } => {
-                merged_full = merged;
-                merged_failed.append(&mut failed);
+            MergeBlocksResult::Partial { merged, mut failed } => {
+                step1.full = merged;
+                step1.failed.append(&mut failed);
             }
-            MergeBlockResult::Fail => {
+            MergeBlocksResult::Fail => {
                 // We do nothing.
             }
         }
     }
 
-    if merged_full.is_empty() {
-        MergeBlockResult::Fail
-    } else if merged_failed.is_empty() {
-        if merged_full.len() == 1 {
-            MergeBlockResult::Full(merged_full.remove(0))
+    if step1.full.is_empty() {
+        MergeBlocksResult::Fail
+    } else if step1.failed.is_empty() {
+        if step1.full.len() == 1 {
+            MergeBlocksResult::Full(step1.full.remove(0))
         } else {
-            MergeBlockResult::Partial {
-                merged: merged_full,
+            MergeBlocksResult::Partial {
+                merged: step1.full,
                 failed: vec![],
             }
         }
     } else {
-        MergeBlockResult::Partial {
-            merged: merged_full,
-            failed: merged_failed,
+        MergeBlocksResult::Partial {
+            merged: step1.full,
+            failed: step1.failed,
         }
     }
 }
@@ -186,7 +226,7 @@ fn post_process_partial<O: NumOperations>(
 fn merge_accumulator<O: NumOperations>(
     base: &Block<O>,
     blocks: &[Block<O>],
-) -> MergeBlockResult<O> {
+) -> MergeBlocksResult<O> {
     let mut base = base.clone();
     let mut merged_failed = Vec::<Block<O>>::new();
     let mut merged_success = false;
@@ -194,10 +234,10 @@ fn merge_accumulator<O: NumOperations>(
     for block in blocks {
         let mut base_current = base.clone();
         match base_current.merge(block) {
-            super::GraphMergingResult::Fail => {
+            false => {
                 merged_failed.push((*block).clone());
             }
-            super::GraphMergingResult::Succeed => {
+            true => {
                 merged_success = true;
                 base = base_current;
             }
@@ -206,30 +246,30 @@ fn merge_accumulator<O: NumOperations>(
 
     if merged_success {
         if merged_failed.is_empty() {
-            MergeBlockResult::Full(base)
+            MergeBlocksResult::Full(base)
         } else {
-            MergeBlockResult::Partial {
+            MergeBlocksResult::Partial {
                 merged: vec![base],
                 failed: merged_failed,
             }
         }
     } else {
-        MergeBlockResult::Fail
+        MergeBlocksResult::Fail
     }
 }
 
 fn merge_two<O: NumOperations>(a: &Block<O>, b: &Block<O>) -> Option<Block<O>> {
     let mut base = a.clone();
 
-    if let super::GraphMergingResult::Succeed = base.merge(b) {
+    if base.merge(b) {
         return Some(base);
     }
 
     let mut base = b.clone();
 
     match base.merge(a) {
-        super::GraphMergingResult::Succeed => Some(base),
-        super::GraphMergingResult::Fail => None,
+        true => Some(base),
+        false => None,
     }
 }
 
@@ -246,7 +286,7 @@ mod tests {
     fn test_merge_blocks_no_block() {
         let actual = merge_blocks::<TestOptimization>(&[], true);
 
-        assert_eq!(actual, MergeBlockResult::Fail);
+        assert_eq!(actual, MergeBlocksResult::Fail);
     }
 
     #[test]
@@ -255,7 +295,7 @@ mod tests {
         let block = Block::new(&builders);
         let actual = merge_blocks::<TestOptimization>(&[&block], true);
 
-        assert_eq!(actual, MergeBlockResult::Full(block));
+        assert_eq!(actual, MergeBlocksResult::Full(block));
     }
 
     #[test]
@@ -263,20 +303,20 @@ mod tests {
         let builders = builders();
         let mut block1 = Block::new(&builders);
         let mut block2 = Block::new(&builders);
-        block1.register(&operation_1(), false, 0);
-        block1.register(&operation_1(), false, 1);
-        block2.register(&operation_1(), false, 2);
-        block2.register(&operation_1(), false, 3);
+        block1.register(&operation_1(), 0, false);
+        block1.register(&operation_1(), 1, false);
+        block2.register(&operation_1(), 2, false);
+        block2.register(&operation_1(), 3, false);
 
         let actual = merge_blocks::<TestOptimization>(&[&block1, &block2], true);
 
         let mut expected = Block::new(&builders);
-        expected.register(&operation_1(), false, 0);
-        expected.register(&operation_1(), false, 1);
-        expected.register(&operation_1(), false, 2);
-        expected.register(&operation_1(), false, 3);
+        expected.register(&operation_1(), 0, false);
+        expected.register(&operation_1(), 1, false);
+        expected.register(&operation_1(), 2, false);
+        expected.register(&operation_1(), 3, false);
 
-        assert_eq!(actual, MergeBlockResult::Full(expected));
+        assert_eq!(actual, MergeBlocksResult::Full(expected));
     }
 
     #[test]
@@ -285,18 +325,18 @@ mod tests {
         let mut block1 = Block::new(&builders);
         let mut block2 = Block::new(&builders);
         let mut block3 = Block::new(&builders);
-        block1.register(&operation_1(), false, 0);
-        block2.register(&operation_1(), false, 1);
-        block3.register(&operation_1(), false, 2);
+        block1.register(&operation_1(), 0, false);
+        block2.register(&operation_1(), 1, false);
+        block3.register(&operation_1(), 2, false);
 
         let actual = merge_blocks::<TestOptimization>(&[&block1, &block2, &block3], true);
 
         let mut expected = Block::new(&builders);
-        expected.register(&operation_1(), false, 0);
-        expected.register(&operation_1(), false, 1);
-        expected.register(&operation_1(), false, 2);
+        expected.register(&operation_1(), 0, false);
+        expected.register(&operation_1(), 1, false);
+        expected.register(&operation_1(), 2, false);
 
-        assert_eq!(actual, MergeBlockResult::Full(expected));
+        assert_eq!(actual, MergeBlocksResult::Full(expected));
     }
 
     #[test]
@@ -305,21 +345,21 @@ mod tests {
         let mut block1 = Block::new(&builders);
         let mut block2 = Block::new(&builders);
         let mut block3 = Block::new(&builders);
-        block1.register(&operation_1(), false, 0);
-        block2.register(&operation_2(), false, 1);
-        block3.register(&operation_1(), false, 2);
+        block1.register(&operation_1(), 0, false);
+        block2.register(&operation_2(), 1, false);
+        block3.register(&operation_1(), 2, false);
 
         let actual = merge_blocks::<TestOptimization>(&[&block1, &block2, &block3], true);
 
         let mut expected1 = Block::new(&builders);
         let mut expected2 = Block::new(&builders);
-        expected1.register(&operation_1(), false, 0);
-        expected1.register(&operation_1(), false, 2);
-        expected2.register(&operation_2(), false, 1);
+        expected1.register(&operation_1(), 0, false);
+        expected1.register(&operation_1(), 2, false);
+        expected2.register(&operation_2(), 1, false);
 
         assert_eq!(
             actual,
-            MergeBlockResult::Partial {
+            MergeBlocksResult::Partial {
                 merged: vec![expected1, expected2],
                 failed: vec![]
             }
@@ -333,24 +373,24 @@ mod tests {
         let mut block2 = Block::new(&builders);
         let mut block3 = Block::new(&builders);
         let mut block4 = Block::new(&builders);
-        block1.register(&operation_1(), false, 0);
-        block2.register(&operation_2(), false, 1);
-        block3.register(&operation_1(), false, 2);
-        block4.register(&operation_3(), false, 3);
+        block1.register(&operation_1(), 0, false);
+        block2.register(&operation_2(), 1, false);
+        block3.register(&operation_1(), 2, false);
+        block4.register(&operation_3(), 3, false);
 
         let actual = merge_blocks::<TestOptimization>(&[&block1, &block2, &block3, &block4], true);
 
         let mut expected1 = Block::new(&builders);
         let mut expected2 = Block::new(&builders);
         let mut failed = Block::new(&builders);
-        expected1.register(&operation_1(), false, 0);
-        expected1.register(&operation_1(), false, 2);
-        expected2.register(&operation_2(), false, 1);
-        failed.register(&operation_3(), false, 3);
+        expected1.register(&operation_1(), 0, false);
+        expected1.register(&operation_1(), 2, false);
+        expected2.register(&operation_2(), 1, false);
+        failed.register(&operation_3(), 3, false);
 
         assert_eq!(
             actual,
-            MergeBlockResult::Partial {
+            MergeBlocksResult::Partial {
                 merged: vec![expected1],
                 failed: vec![expected2, failed]
             }
@@ -365,11 +405,11 @@ mod tests {
         let mut block3 = Block::new(&builders);
         let mut block4 = Block::new(&builders);
         let mut block5 = Block::new(&builders);
-        block1.register(&operation_1(), false, 0);
-        block2.register(&operation_2(), false, 1);
-        block3.register(&operation_1(), false, 2);
-        block4.register(&operation_3(), false, 3);
-        block5.register(&operation_2(), false, 4);
+        block1.register(&operation_1(), 0, false);
+        block2.register(&operation_2(), 1, false);
+        block3.register(&operation_1(), 2, false);
+        block4.register(&operation_3(), 3, false);
+        block5.register(&operation_2(), 4, false);
 
         let actual =
             merge_blocks::<TestOptimization>(&[&block1, &block2, &block3, &block4, &block5], true);
@@ -377,15 +417,15 @@ mod tests {
         let mut expected1 = Block::new(&builders);
         let mut expected2 = Block::new(&builders);
         let mut failed = Block::new(&builders);
-        expected1.register(&operation_1(), false, 0);
-        expected1.register(&operation_1(), false, 2);
-        expected2.register(&operation_2(), false, 1);
-        expected2.register(&operation_2(), false, 4);
-        failed.register(&operation_3(), false, 3);
+        expected1.register(&operation_1(), 0, false);
+        expected1.register(&operation_1(), 2, false);
+        expected2.register(&operation_2(), 1, false);
+        expected2.register(&operation_2(), 4, false);
+        failed.register(&operation_3(), 3, false);
 
         assert_eq!(
             actual,
-            MergeBlockResult::Partial {
+            MergeBlocksResult::Partial {
                 merged: vec![expected1, expected2],
                 failed: vec![failed]
             }
