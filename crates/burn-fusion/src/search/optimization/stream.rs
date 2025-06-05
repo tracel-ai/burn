@@ -117,50 +117,6 @@ impl<O: NumOperations> StreamOptimizer<O> {
                 BlockOptimization::new(ExecutionStrategy::Composed(strategies), ordering)
             }
         }
-
-        // if let Ok(result) = result {
-        //     if let Some(max_blocks) = self.max_blocks {
-        //         log::info!("Found optmization using multi-blocks with max_blocks={max_blocks}");
-        //     } else {
-        //         log::info!("Found optmization using multi-blocks with no max_blocks");
-        //     }
-        //     return result;
-        // }
-
-        // let max_blocks_tries = if let Some(max_blocks) = self.max_blocks {
-        //     Self::max_blocks_retries(max_blocks)
-        // } else {
-        //     vec![1]
-        // };
-
-        // for max_blocks in max_blocks_tries {
-        //     let mut search = self.new_empty_search();
-        //     search.max_blocks(max_blocks);
-
-        //     for op in operations.iter() {
-        //         search.register(op);
-        //         if !search.still_optimizing() {
-        //             break;
-        //         }
-        //     }
-        //     match BlocksOptimizer::new(search.blocks.clone()).optimize() {
-        //         Ok(result) => {
-        //             log::info!(
-        //                 "Found optmization using multi-blocks fallback with max_blocks={max_blocks}"
-        //             );
-        //             return result;
-        //         }
-        //         Err(_) => {
-        //             // Continue
-        //         }
-        //     }
-        // }
-
-        // log::info!("No optimization found");
-        // BlockOptimization {
-        //     strategy: ExecutionStrategy::Operations(1),
-        //     ordering: vec![0],
-        // }
     }
 
     /// Reset the state of the optimizer.
