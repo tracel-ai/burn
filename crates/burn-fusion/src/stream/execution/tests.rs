@@ -14,9 +14,9 @@ use burn_tensor::DType;
 
 use crate::{
     NumOperations, OptimizationBuilder, OptimizationProperties, OptimizationStatus,
+    search::BlockOptimization,
     stream::store::{
-        ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStep, ExecutionStrategy,
-        ExecutionTrigger,
+        ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
     },
 };
 
@@ -96,7 +96,7 @@ fn should_support_complex_stream() {
         ExecutionPlan {
             operations: vec![operation_1(), operation_1()],
             triggers: vec![ExecutionTrigger::Always],
-            execution: ExecutionStep::new(ExecutionStrategy::Operations(2), Vec::new()),
+            optimization: BlockOptimization::new(ExecutionStrategy::Operations(2), Vec::new()),
         },
     );
 
@@ -115,7 +115,7 @@ fn should_support_complex_stream() {
         ExecutionPlan {
             operations: vec![operation_1(), operation_2()],
             triggers: vec![ExecutionTrigger::Always],
-            execution: ExecutionStep::new(
+            optimization: BlockOptimization::new(
                 ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
                 vec![0, 1],
             ),
@@ -137,7 +137,7 @@ fn should_support_complex_stream() {
         ExecutionPlan {
             operations: vec![operation_2(), operation_2()],
             triggers: vec![ExecutionTrigger::Always],
-            execution: ExecutionStep {
+            optimization: BlockOptimization {
                 strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_2, 2)),
                 ordering: vec![0, 1],
             },
@@ -159,7 +159,7 @@ fn should_support_complex_stream() {
         ExecutionPlan {
             operations: vec![operation_1(), operation_2()],
             triggers: vec![ExecutionTrigger::Always],
-            execution: ExecutionStep {
+            optimization: BlockOptimization {
                 strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
                 ordering: vec![0, 1],
             },
@@ -196,7 +196,7 @@ fn should_reuse_basic_operations() {
         ExecutionPlan {
             operations: vec![operation_3()],
             triggers: vec![ExecutionTrigger::Always],
-            execution: ExecutionStep {
+            optimization: BlockOptimization {
                 strategy: ExecutionStrategy::Operations(1),
                 ordering: vec![0],
             },
@@ -211,7 +211,7 @@ fn should_reuse_basic_operations() {
         ExecutionPlan {
             operations: vec![operation_3()],
             triggers: vec![ExecutionTrigger::Always],
-            execution: ExecutionStep {
+            optimization: BlockOptimization {
                 strategy: ExecutionStrategy::Operations(1),
                 ordering: vec![0],
             },
@@ -229,7 +229,7 @@ fn should_reuse_basic_operations() {
         ExecutionPlan {
             operations: vec![operation_1(), operation_3()],
             triggers: vec![ExecutionTrigger::Always],
-            execution: ExecutionStep {
+            optimization: BlockOptimization {
                 strategy: ExecutionStrategy::Operations(2),
                 ordering: vec![0],
             },
@@ -287,7 +287,7 @@ fn should_support_overlapping_optimizations() {
                 operation_1(),
                 operation_2(),
             ])],
-            execution: ExecutionStep {
+            optimization: BlockOptimization {
                 strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
                 ordering: vec![0, 1],
             },
@@ -305,7 +305,7 @@ fn should_support_overlapping_optimizations() {
                 ExecutionTrigger::OnOperations(vec![operation_1(), operation_2()]),
                 ExecutionTrigger::OnOperations(vec![operation_2()]),
             ],
-            execution: ExecutionStep {
+            optimization: BlockOptimization {
                 strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
                 ordering: vec![0, 1],
             },
@@ -316,7 +316,7 @@ fn should_support_overlapping_optimizations() {
         ExecutionPlan {
             operations: vec![operation_2()],
             triggers: vec![ExecutionTrigger::Always],
-            execution: ExecutionStep {
+            optimization: BlockOptimization {
                 strategy: ExecutionStrategy::Operations(1),
                 ordering: vec![0],
             },
@@ -344,7 +344,7 @@ fn should_support_overlapping_optimizations() {
         ExecutionPlan {
             operations: vec![operation_1(), operation_2(), operation_1(), operation_1()],
             triggers: vec![ExecutionTrigger::Always],
-            execution: ExecutionStep {
+            optimization: BlockOptimization {
                 strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 4)),
                 ordering: vec![0],
             },
@@ -375,7 +375,7 @@ fn should_support_overlapping_optimizations() {
                 ExecutionTrigger::OnOperations(vec![operation_2()]),
                 ExecutionTrigger::OnSync,
             ],
-            execution: ExecutionStep {
+            optimization: BlockOptimization {
                 strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
                 ordering: vec![0, 1],
             },
@@ -386,7 +386,7 @@ fn should_support_overlapping_optimizations() {
         ExecutionPlan {
             operations: vec![operation_1()],
             triggers: vec![ExecutionTrigger::OnSync],
-            execution: ExecutionStep {
+            optimization: BlockOptimization {
                 strategy: ExecutionStrategy::Operations(1),
                 ordering: vec![0],
             },
@@ -400,7 +400,7 @@ fn should_support_overlapping_optimizations() {
         ExecutionPlan {
             operations: vec![operation_3()],
             triggers: vec![ExecutionTrigger::Always],
-            execution: ExecutionStep {
+            optimization: BlockOptimization {
                 strategy: ExecutionStrategy::Operations(1),
                 ordering: vec![0],
             },
@@ -557,7 +557,7 @@ impl StreamSegment<TestOptimization> for TestSegment<'_> {
     fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<TestOptimization>) {
         let execution_plan = store.get_unchecked(id);
 
-        self.execute_strategy(&execution_plan.execution.strategy);
+        self.execute_strategy(&execution_plan.optimization.strategy);
 
         self.executed.push(id);
     }
