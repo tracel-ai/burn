@@ -24,17 +24,6 @@ pub(crate) enum ExecutionStrategy<O> {
     Composed(Vec<Box<Self>>),
 }
 
-/// How a list of operations should be executed.
-#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
-pub(crate) enum ExecutionStrategyState<O> {
-    /// An optimization was found, and therefore should be executed.
-    Optimization { opt: O, ordering: Vec<usize> },
-    /// No optimization was found, each operation should be executed individually.
-    Operations { ordering: Vec<usize> },
-    /// A composition of multiple execution strategies.
-    Composed(Vec<Box<Self>>),
-}
-
 /// The trigger that indicates when to stop exploring.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) enum ExecutionTrigger {
