@@ -37,6 +37,17 @@ pub enum BlocksOptimizerResult<O> {
     },
 }
 
+enum BlockOptimizationStep<O> {
+    Contiguous {
+        strategy: ExecutionStrategy<O>,
+    },
+    WithHoles {
+        strategy: ExecutionStrategy<O>,
+        holes: Vec<usize>,
+    },
+    Stop,
+}
+
 impl<O: NumOperations> BlocksOptimizer<O> {
     /// Create a new optimizer with the given blocks.
     pub fn new(blocks: Vec<Block<O>>) -> Self {
@@ -63,24 +74,22 @@ impl<O: NumOperations> BlocksOptimizer<O> {
         core::mem::swap(&mut blocks, &mut self.blocks);
 
         for block in blocks {
-            let result = match self.optimize_block(block, &mut ordering) {
-                Ok(val) => val,
-                Err((strategy, holes)) => {
+            match self.optimize_block(block, &mut ordering) {
+                BlockOptimizationStep::Contiguous { strategy } => {
+                    strategies.push(Box::new(strategy));
+                }
+                BlockOptimizationStep::WithHoles { strategy, holes } => {
                     strategies.push(Box::new(strategy));
 
                     return BlocksOptimizerResult::WithHoles {
                         strategies,
                         ordering,
-                        holes: holes,
+                        holes,
                     };
                 }
-            };
-
-            match result {
-                Some(strategy) => {
-                    strategies.push(Box::new(strategy));
+                BlockOptimizationStep::Stop => {
+                    break;
                 }
-                None => break,
             }
         }
 
@@ -103,7 +112,7 @@ impl<O: NumOperations> BlocksOptimizer<O> {
         &mut self,
         block: Block<O>,
         ordering: &mut Vec<usize>,
-    ) -> Result<Option<ExecutionStrategy<O>>, (ExecutionStrategy<O>, Vec<usize>)> {
+    ) -> BlockOptimizationStep<O> {
         let last_index = block.end_pos;
         let mut block_optimization = block.optimize();
         let opt_size = block_optimization.ordering.len();
@@ -115,15 +124,16 @@ impl<O: NumOperations> BlocksOptimizer<O> {
         if self.last_checked != ordering.len() + opt_size {
             if !ordering.is_empty() {
                 // Don't include that block and need furthur exploring.
-                return Ok(None);
+                return BlockOptimizationStep::Stop;
             }
 
-            let strategy = self.optimize_holes(block_optimization, last_index, ordering)?;
-            return Ok(Some(strategy));
+            return self.optimize_holes(block_optimization, last_index, ordering);
         }
 
         ordering.append(&mut block_optimization.ordering);
-        Ok(Some(block_optimization.strategy))
+        BlockOptimizationStep::Contiguous {
+            strategy: block_optimization.strategy,
+        }
     }
 
     /// The provided optimization has holes.
@@ -132,30 +142,31 @@ impl<O: NumOperations> BlocksOptimizer<O> {
         mut optimization: BlockOptimization<O>,
         last_index: usize,
         ordering_global: &mut Vec<usize>,
-    ) -> Result<ExecutionStrategy<O>, (ExecutionStrategy<O>, Vec<usize>)> {
+    ) -> BlockOptimizationStep<O> {
         ordering_global.append(&mut optimization.ordering);
 
-        let strategy = match optimization.strategy {
+        match optimization.strategy {
             ExecutionStrategy::Optimization { opt, ordering } => {
                 let holes = self.find_holes(last_index);
 
                 if holes.is_empty() {
-                    ExecutionStrategy::Optimization { opt, ordering }
+                    let strategy = ExecutionStrategy::Optimization { opt, ordering };
+                    BlockOptimizationStep::Contiguous { strategy }
                 } else {
-                    return Err((ExecutionStrategy::Optimization { opt, ordering }, holes));
+                    let strategy = ExecutionStrategy::Optimization { opt, ordering };
+                    BlockOptimizationStep::WithHoles { strategy, holes }
                 }
             }
             ExecutionStrategy::Operations { ordering } => {
                 let min = ordering.iter().min().unwrap();
 
-                ExecutionStrategy::Operations {
+                let strategy = ExecutionStrategy::Operations {
                     ordering: Arc::new(vec![*min]),
-                }
+                };
+                BlockOptimizationStep::Contiguous { strategy }
             }
             _ => unreachable!(),
-        };
-
-        Ok(strategy)
+        }
     }
 
     fn update_check(&mut self, pos: usize) {

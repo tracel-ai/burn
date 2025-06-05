@@ -85,7 +85,7 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
                     execution.execute_optimization(opt, &mut context, ordering.clone())
                 }
                 ExecutionStrategy::Operations { ordering } => {
-                    execution.execute_operations(handles, &ordering)
+                    execution.execute_operations(handles, ordering)
                 }
                 ExecutionStrategy::Composed(_) => unreachable!(),
             },
@@ -94,7 +94,7 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
                     execution.execute_optimization(opt, context, ordering.clone());
                 }
                 ExecutionStrategy::Operations { ordering } => {
-                    execution.execute_operations(context.handles, &ordering);
+                    execution.execute_operations(context.handles, ordering);
                 }
                 ExecutionStrategy::Composed(items) => {
                     for item in items.iter_mut() {
