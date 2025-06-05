@@ -17,7 +17,7 @@ pub struct OptimizationSearch<O> {
 }
 
 #[derive(Debug)]
-pub struct OptimizationSearchResult<O> {
+pub struct OptimizationFound<O> {
     pub strategy: ExecutionStrategy<O>,
     pub num_operations: usize,
     pub ordering: Vec<usize>,
@@ -30,7 +30,8 @@ impl<O: NumOperations> OptimizationSearch<O> {
             blocks: Vec::new(),
             length: 0,
             stopped: false,
-            max_blocks: None,
+            max_blocks: Some(5), // Too high and it may breaks the fusion cache always retriggering
+                                 // explorations.
         }
     }
 
@@ -60,36 +61,52 @@ impl<O: NumOperations> OptimizationSearch<O> {
         }
 
         if let Some(max_blocks) = self.max_blocks {
-            if max_blocks == 1 {
-                self.register_inner(operation, true);
+            if self.register_max_block(operation, max_blocks) {
+                self.length += 1;
             } else {
-                let added_count = self.register_inner(operation, false);
-
-                if added_count == 0 && self.blocks.len() < max_blocks {
-                    self.on_new_block(operation);
-                } else {
-                    self.stopped = true;
-                    return;
-                    self.merge_blocks(operation, true);
-
-                    if self.blocks.len() >= max_blocks {
-                        self.stopped = true;
-                    } else {
-                        let added_count = self.register_inner(operation, false);
-                        if added_count == 0 {
-                            self.on_new_block(operation);
-                        }
-                    }
-                }
+                self.stopped = true;
             }
-        } else {
-            let added_count = self.register_inner(operation, false);
-            if added_count == 0 {
-                self.on_new_block(operation);
-            }
+            return;
         }
 
+        let added_count = self.register_inner(operation, false);
+        if added_count == 0 {
+            self.on_new_block(operation);
+        }
         self.length += 1;
+    }
+
+    fn register_max_block(&mut self, operation: &OperationIr, max_blocks: usize) -> bool {
+        if max_blocks == 1 {
+            // Register in the single block with a force.
+            self.register_inner(operation, true);
+            return true;
+        }
+        let added_count = self.register_inner(operation, false);
+
+        if added_count > 0 {
+            return true;
+        }
+
+        if added_count == 0 && self.blocks.len() < max_blocks {
+            self.on_new_block(operation);
+            return true;
+        }
+
+        self.merge_blocks(operation, true);
+
+        if self.blocks.len() >= max_blocks {
+            self.stopped = true;
+            return false;
+        }
+
+        let added_count = self.register_inner(operation, false);
+
+        if added_count == 0 {
+            self.on_new_block(operation);
+        }
+
+        true
     }
 
     fn register_inner(&mut self, operation: &OperationIr, force: bool) -> usize {
@@ -105,27 +122,46 @@ impl<O: NumOperations> OptimizationSearch<O> {
         added_count
     }
 
-    pub fn execute(&self, operations: &[OperationIr]) -> OptimizationSearchResult<O> {
-        let result = Searcher::new(self.blocks.clone()).search(operations, || self.empty_search());
+    pub fn execute(&self, operations: &[OperationIr]) -> OptimizationFound<O> {
+        let result = Searcher::new(self.blocks.clone()).search();
 
-        if result.num_operations == 1 {
-            let mut search = self.empty_search();
-            search.max_blocks(1);
-            for op in operations.iter() {
-                search.register(op);
-                if !search.still_optimizing() {
-                    break;
-                }
+        match result {
+            Ok(result) => {
+                log::info!("Found optmization using multi-blocks");
+                return result;
             }
-
-            return search.execute_no_recurse(operations);
+            Err(_) => {}
         }
 
-        result
+        let mut search = self.empty_search();
+        // The fallback is with only a single block.
+        search.max_blocks(1);
+
+        for op in operations.iter() {
+            search.register(op);
+            if !search.still_optimizing() {
+                break;
+            }
+        }
+
+        search.execute_no_recurse()
     }
 
-    pub fn execute_no_recurse(&self, operations: &[OperationIr]) -> OptimizationSearchResult<O> {
-        Searcher::new(self.blocks.clone()).search(operations, || self.empty_search())
+    pub fn execute_no_recurse(&self) -> OptimizationFound<O> {
+        match Searcher::new(self.blocks.clone()).search() {
+            Ok(val) => {
+                log::info!("Found optmization using single-block");
+                val
+            }
+            Err(_) => {
+                log::info!("No optimization found");
+                OptimizationFound {
+                    strategy: ExecutionStrategy::Operations(1),
+                    num_operations: 1,
+                    ordering: vec![0],
+                }
+            }
+        }
     }
 
     fn empty_search(&self) -> Self {
@@ -226,7 +262,6 @@ impl<O: NumOperations> OptimizationSearch<O> {
         let mut block = Block::new(&self.builders);
         block.register(operation, true, self.length);
         self.blocks.push(block);
-        log::info!("New blocks {:?}", self.blocks.len());
     }
 }
 

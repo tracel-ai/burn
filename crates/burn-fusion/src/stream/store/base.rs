@@ -72,12 +72,6 @@ impl<O> ExecutionPlanStore<O> {
         }
 
         let id = self.plans.len();
-        log::trace!(
-            "New execution plan {} - Operations: {:?} - Triggers {:?}",
-            id,
-            exploration.operations.len(),
-            exploration.triggers.len(),
-        );
 
         self.index.insert(InsertQuery::NewPlan {
             operations: &exploration.operations,
@@ -99,7 +93,6 @@ impl<O> ExecutionPlanStore<O> {
 
     /// Add a new end condition for an optimization.
     pub fn add_trigger(&mut self, id: ExecutionPlanId, trigger: ExecutionTrigger) {
-        log::info!("Add trigger {trigger:?} to plan {id:?}");
         let criteria = &mut self.plans[id].triggers;
 
         if !criteria.contains(&trigger) {
