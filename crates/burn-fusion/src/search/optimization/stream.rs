@@ -68,6 +68,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
         if added_count == 0 {
             self.on_new_block(operation);
         }
+
         self.length += 1;
     }
 
@@ -83,7 +84,11 @@ impl<O: NumOperations> StreamOptimizer<O> {
 
         match result {
             Ok(result) => {
-                log::info!("Found optmization using multi-blocks");
+                if let Some(max_blocks) = self.max_blocks {
+                    log::info!("Found optmization using multi-blocks with max_blocks={max_blocks}");
+                } else {
+                    log::info!("Found optmization using multi-blocks with no max_blocks");
+                }
                 return result;
             }
             Err(_) => {}
@@ -106,7 +111,12 @@ impl<O: NumOperations> StreamOptimizer<O> {
                 }
             }
             match BlocksOptimizer::new(search.blocks.clone()).optimize() {
-                Ok(result) => return result,
+                Ok(result) => {
+                    log::info!(
+                        "Found optmization using multi-blocks fallback with max_blocks={max_blocks}"
+                    );
+                    return result;
+                }
                 Err(_) => {
                     // Continue
                 }
