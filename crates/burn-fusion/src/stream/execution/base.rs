@@ -2,9 +2,10 @@ use burn_ir::HandleContainer;
 
 use crate::{
     FusionRuntime,
+    search::BlockOptimization,
     stream::{
         Context, OperationConverter, OperationQueue, RelativeOps,
-        store::{ExecutionPlanId, ExecutionPlanStore, ExecutionStep, ExecutionStrategy},
+        store::{ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy},
     },
 };
 
@@ -37,22 +38,22 @@ enum Execution<'a, R: FusionRuntime> {
 
 impl<'a, R: FusionRuntime> Execution<'a, R> {
     fn execute(
-        step: &mut ExecutionStep<R::Optimization>,
+        optimization: &mut BlockOptimization<R::Optimization>,
         converter: &'a mut OperationConverter,
         handles: &'a mut HandleContainer<R::FusionHandle>,
         operations: Vec<Box<dyn Operation<R>>>,
     ) -> (Vec<Box<dyn Operation<R>>>, usize) {
-        let ordering = step.ordering.clone();
+        let ordering = optimization.ordering.clone();
         let execution = OrderedExecution::new(operations, ordering);
 
-        if matches!(&step.strategy, ExecutionStrategy::Composed(..)) {
+        if matches!(&optimization.strategy, ExecutionStrategy::Composed(..)) {
             let mut context = converter.context(handles);
             let mut this = Execution::Multiple {
                 context: &mut context,
                 execution,
             };
 
-            this = this.execute_strategy(&mut step.strategy);
+            this = this.execute_strategy(&mut optimization.strategy);
 
             match this {
                 Execution::Multiple { execution, .. } => execution.finish(),
@@ -64,7 +65,7 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
                 converter,
                 execution,
             };
-            this = this.execute_strategy(&mut step.strategy);
+            this = this.execute_strategy(&mut optimization.strategy);
 
             match this {
                 Execution::Single { execution, .. } => execution.finish(),
@@ -121,12 +122,12 @@ impl<R: FusionRuntime> OperationQueue<R> {
         store: &mut ExecutionPlanStore<R::Optimization>,
     ) {
         let plan = store.get_mut_unchecked(id);
-        self.execute_step(&mut plan.execution, handles);
+        self.execute_block_optimization(&mut plan.optimization, handles);
     }
 
-    fn execute_step(
+    fn execute_block_optimization(
         &mut self,
-        step: &mut ExecutionStep<R::Optimization>,
+        step: &mut BlockOptimization<R::Optimization>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
         let mut operations = Vec::new();

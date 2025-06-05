@@ -1,10 +1,9 @@
 use burn_ir::OperationIr;
 
-use super::{ExecutionMode, Exploration, ExplorationAction, Explorer};
+use super::{ExecutionMode, ExplorationAction, Explorer};
+use crate::search::BlockOptimization;
 use crate::stream::execution::{Action, Policy};
-use crate::stream::store::{
-    ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStep, ExecutionTrigger,
-};
+use crate::stream::store::{ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger};
 use crate::{NumOperations, OptimizationBuilder};
 
 /// Process a [stream segment](StreamSegment) following a [policy](Policy).
@@ -133,10 +132,10 @@ impl<O: NumOperations> Processor<O> {
         policy: &Policy<O>,
         operations: &[OperationIr],
         store: &mut ExecutionPlanStore<O>,
-        exploration: Exploration<O>,
+        optimization: BlockOptimization<O>,
         mode: ExecutionMode,
     ) -> ExecutionPlanId {
-        let num_optimized = exploration.num_optimized;
+        let num_optimized = optimization.ordering.len();
         let relative = &operations[0..num_optimized];
 
         match mode {
@@ -159,7 +158,7 @@ impl<O: NumOperations> Processor<O> {
                     _ => store.add(ExecutionPlan {
                         operations: relative.to_vec(),
                         triggers: vec![trigger],
-                        execution: ExecutionStep::new(exploration.strategy, exploration.ordering),
+                        optimization,
                     }),
                 }
             }
@@ -173,7 +172,7 @@ impl<O: NumOperations> Processor<O> {
                 _ => store.add(ExecutionPlan {
                     operations: relative.to_vec(),
                     triggers: vec![ExecutionTrigger::OnSync],
-                    execution: ExecutionStep::new(exploration.strategy, exploration.ordering),
+                    optimization,
                 }),
             },
         }

@@ -2,6 +2,7 @@ use crate::{
     NumOperations, OptimizationBuilder, OptimizationStatus, stream::store::ExecutionStrategy,
 };
 use burn_ir::{OperationIr, TensorId, TensorIr};
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 /// A block represents a list of operations, not necessary in the same order as the execution
@@ -31,7 +32,7 @@ pub enum RegistrationResult {
 }
 
 /// The optimization found for a [block](Block).
-#[derive(Debug, new)]
+#[derive(Debug, new, Serialize, Deserialize)]
 pub struct BlockOptimization<O> {
     /// The [execution strategy](ExecutionStrategy) to be used to execute the [block](Block).
     pub strategy: ExecutionStrategy<O>,

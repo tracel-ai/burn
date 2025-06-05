@@ -2,16 +2,13 @@ use burn_ir::OperationIr;
 
 use super::ExecutionMode;
 use crate::{
-    NumOperations, OptimizationBuilder, search::OptimizationSearch,
-    stream::store::ExecutionStrategy,
+    NumOperations, OptimizationBuilder,
+    search::{BlockOptimization, StreamOptimizer},
 };
 
 /// Explore and create new optimization.
 pub struct Explorer<O> {
-    /// The optimization builders, one for each type of optimization that
-    /// we want to explore.
-    // builders: Vec<Box<dyn OptimizationBuilder<O>>>,
-    search: OptimizationSearch<O>,
+    optimizer: StreamOptimizer<O>,
     num_deferred: usize,
     num_explored: usize,
     is_still_optimizing: bool,
@@ -20,23 +17,16 @@ pub struct Explorer<O> {
 /// The result of an exploration done by the [explorer](Explorer).
 pub enum ExplorationAction<O> {
     /// Found a new optimization.
-    Completed(Exploration<O>),
+    Completed(BlockOptimization<O>),
     /// We should continue exploring before arriving at a conclusion.
     Continue,
-}
-
-pub struct Exploration<O> {
-    pub strategy: ExecutionStrategy<O>,
-    pub num_optimized: usize,
-    pub ordering: Vec<usize>,
 }
 
 impl<O: NumOperations> Explorer<O> {
     /// Create a new explorer.
     pub(crate) fn new(optimizations: Vec<Box<dyn OptimizationBuilder<O>>>) -> Self {
         Self {
-            // builders: optimizations,
-            search: OptimizationSearch::new(optimizations),
+            optimizer: StreamOptimizer::new(optimizations),
             num_deferred: 0,
             num_explored: 0,
             is_still_optimizing: true,
@@ -68,19 +58,15 @@ impl<O: NumOperations> Explorer<O> {
             }
         }
 
-        let found = self.search.execute(operations);
+        let optimization = self.optimizer.optimize(operations);
         // log::info!("Found optimization {found:?}");
 
-        ExplorationAction::Completed(Exploration {
-            strategy: found.strategy,
-            num_optimized: found.num_operations,
-            ordering: found.ordering,
-        })
+        ExplorationAction::Completed(optimization)
     }
 
     /// Reset the state of the explorer to the provided list of operations.
     pub(crate) fn reset(&mut self, operations: &[OperationIr]) {
-        self.search.reset();
+        self.optimizer.reset();
         self.num_explored = 0;
         self.num_deferred = operations.len();
         self.is_still_optimizing = true;
@@ -95,10 +81,10 @@ impl<O: NumOperations> Explorer<O> {
             let index = operations.len() - 1 - i;
             let relative = &operations[index];
 
-            self.search.register(relative);
+            self.optimizer.register(relative);
             self.num_explored += 1;
 
-            self.is_still_optimizing = self.search.still_optimizing();
+            self.is_still_optimizing = self.optimizer.still_optimizing();
         }
 
         self.num_deferred = 0;

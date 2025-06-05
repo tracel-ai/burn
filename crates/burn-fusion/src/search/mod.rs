@@ -1,8 +1,7 @@
 mod block;
-mod search;
+mod optimization;
 
 pub(super) mod merging;
-pub(super) mod searcher;
-
 pub(super) use block::*;
-pub use search::*;
+
+pub use optimization::*;

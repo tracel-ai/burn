@@ -1,14 +1,16 @@
+use super::blocks::BlocksOptimizer;
+use crate::{
+    NumOperations, OptimizationBuilder,
+    search::{
+        Block, BlockOptimization, RegistrationResult,
+        merging::{MergeBlocksResult, merge_blocks},
+    },
+    stream::store::ExecutionStrategy,
+};
 use burn_ir::OperationIr;
 
-use crate::{NumOperations, OptimizationBuilder, stream::store::ExecutionStrategy};
-
-use super::{
-    Block, RegistrationResult,
-    merging::{MergeBlocksResult, merge_blocks},
-    searcher::Searcher,
-};
-
-pub struct OptimizationSearch<O> {
+/// Optimize a stream of [operations](OperationIr) using a list of [builders](OptimizationBuilder).
+pub struct StreamOptimizer<O> {
     builders: Vec<Box<dyn OptimizationBuilder<O>>>,
     blocks: Vec<Block<O>>,
     length: usize,
@@ -16,29 +18,23 @@ pub struct OptimizationSearch<O> {
     max_blocks: Option<usize>,
 }
 
-#[derive(Debug)]
-pub struct OptimizationFound<O> {
-    pub strategy: ExecutionStrategy<O>,
-    pub num_operations: usize,
-    pub ordering: Vec<usize>,
-}
-
-impl<O: NumOperations> OptimizationSearch<O> {
+impl<O: NumOperations> StreamOptimizer<O> {
+    /// Create a new stream optimizer.
     pub fn new(builders: Vec<Box<dyn OptimizationBuilder<O>>>) -> Self {
         Self {
             builders,
             blocks: Vec::new(),
             length: 0,
             stopped: false,
-            max_blocks: Some(5), // Too high and it may breaks the fusion cache always retriggering
-                                 // explorations.
+            // Too high and it may breaks the fusion cache always retriggering explorations.
+            max_blocks: Some(8),
         }
     }
 
-    pub fn max_blocks(&mut self, max_blocks: usize) {
-        self.max_blocks = Some(max_blocks);
-    }
-
+    /// Register a new [operation](OperationIr) in the optimizer.
+    ///
+    /// You can use the function [Self::still_optimizing] to know if the operations are actually
+    /// being registered.
     pub fn register(&mut self, operation: &OperationIr) {
         if self.stopped {
             return;
@@ -51,8 +47,7 @@ impl<O: NumOperations> OptimizationSearch<O> {
         }
 
         match self.merge_blocks(operation, false) {
-            MergeBlockStep::Full => {}
-            MergeBlockStep::NoNeed => {}
+            MergeBlockStep::Full | MergeBlockStep::NoNeed => {}
             MergeBlockStep::Fail | MergeBlockStep::Partial => {
                 // With the given operation, blocks are no longer independent.
                 self.stopped = true;
@@ -74,6 +69,108 @@ impl<O: NumOperations> OptimizationSearch<O> {
             self.on_new_block(operation);
         }
         self.length += 1;
+    }
+
+    /// Optimize the current stream on the given [operations](OperationIr).
+    ///
+    /// # Notes
+    ///
+    /// The operations provided are the same as the ones used in the [register](Self::register)
+    /// method, this simply remove the need for the current type to also keep track of the list of
+    /// operations.
+    pub fn optimize(&self, operations: &[OperationIr]) -> BlockOptimization<O> {
+        let result = BlocksOptimizer::new(self.blocks.clone()).optimize();
+
+        match result {
+            Ok(result) => {
+                log::info!("Found optmization using multi-blocks");
+                return result;
+            }
+            Err(_) => {}
+        }
+
+        let max_blocks_tries = if let Some(max_blocks) = self.max_blocks {
+            Self::max_blocks_retries(max_blocks)
+        } else {
+            vec![1]
+        };
+
+        for max_blocks in max_blocks_tries {
+            let mut search = self.new_empty_search();
+            search.max_blocks(max_blocks);
+
+            for op in operations.iter() {
+                search.register(op);
+                if !search.still_optimizing() {
+                    break;
+                }
+            }
+            match BlocksOptimizer::new(search.blocks.clone()).optimize() {
+                Ok(result) => return result,
+                Err(_) => {
+                    // Continue
+                }
+            }
+        }
+
+        log::info!("No optimization found");
+        BlockOptimization {
+            strategy: ExecutionStrategy::Operations(1),
+            ordering: vec![0],
+        }
+    }
+
+    /// Reset the state of the optimizer.
+    pub fn reset(&mut self) {
+        self.builders.iter_mut().for_each(|b| b.reset());
+        self.length = 0;
+        self.blocks.clear();
+        self.stopped = false;
+    }
+
+    /// Returns if some optimizations are still possible within the stream.
+    pub fn still_optimizing(&self) -> bool {
+        if self.stopped {
+            return false;
+        }
+        if self.blocks.is_empty() {
+            return true;
+        }
+
+        let mut num_stopped = 0;
+
+        for block in self.blocks.iter() {
+            if !block.still_optimizing() {
+                num_stopped += 1
+            }
+        }
+
+        num_stopped < self.blocks.len()
+    }
+
+    /// Set the max blocks for the current optimization.
+    pub fn max_blocks(&mut self, max_blocks: usize) {
+        self.max_blocks = Some(max_blocks);
+    }
+
+    fn max_blocks_retries(max_blocks: usize) -> Vec<usize> {
+        if max_blocks == 1 {
+            return vec![];
+        }
+
+        let mut tries = Vec::new();
+        let mut current = max_blocks;
+
+        loop {
+            current /= 2;
+            tries.push(current);
+
+            if current == 1 {
+                break;
+            }
+        }
+
+        tries
     }
 
     fn register_max_block(&mut self, operation: &OperationIr, max_blocks: usize) -> bool {
@@ -122,49 +219,7 @@ impl<O: NumOperations> OptimizationSearch<O> {
         added_count
     }
 
-    pub fn execute(&self, operations: &[OperationIr]) -> OptimizationFound<O> {
-        let result = Searcher::new(self.blocks.clone()).search();
-
-        match result {
-            Ok(result) => {
-                log::info!("Found optmization using multi-blocks");
-                return result;
-            }
-            Err(_) => {}
-        }
-
-        let mut search = self.empty_search();
-        // The fallback is with only a single block.
-        search.max_blocks(1);
-
-        for op in operations.iter() {
-            search.register(op);
-            if !search.still_optimizing() {
-                break;
-            }
-        }
-
-        search.execute_no_recurse()
-    }
-
-    pub fn execute_no_recurse(&self) -> OptimizationFound<O> {
-        match Searcher::new(self.blocks.clone()).search() {
-            Ok(val) => {
-                log::info!("Found optmization using single-block");
-                val
-            }
-            Err(_) => {
-                log::info!("No optimization found");
-                OptimizationFound {
-                    strategy: ExecutionStrategy::Operations(1),
-                    num_operations: 1,
-                    ordering: vec![0],
-                }
-            }
-        }
-    }
-
-    fn empty_search(&self) -> Self {
+    fn new_empty_search(&self) -> Self {
         Self::new(
             self.builders
                 .iter()
@@ -175,32 +230,6 @@ impl<O: NumOperations> OptimizationSearch<O> {
                 })
                 .collect(),
         )
-    }
-
-    pub fn reset(&mut self) {
-        self.builders.iter_mut().for_each(|b| b.reset());
-        self.length = 0;
-        self.blocks.clear();
-        self.stopped = false;
-    }
-
-    pub fn still_optimizing(&self) -> bool {
-        if self.stopped {
-            return false;
-        }
-        if self.blocks.is_empty() {
-            return true;
-        }
-
-        let mut num_stopped = 0;
-
-        for block in self.blocks.iter() {
-            if !block.still_optimizing() {
-                num_stopped += 1
-            }
-        }
-
-        num_stopped < self.blocks.len()
     }
 
     fn merge_blocks(&mut self, operation: &OperationIr, all: bool) -> MergeBlockStep {
@@ -226,6 +255,7 @@ impl<O: NumOperations> OptimizationSearch<O> {
                 false => None,
             })
             .collect::<Vec<_>>();
+
         let merged = merge_blocks(&blocks_to_merge, false);
 
         let mut clear_blocks = || {
