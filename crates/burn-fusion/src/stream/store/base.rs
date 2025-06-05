@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::search::BlockOptimization;
 
 use super::{ExecutionPlanIndex, InsertQuery, SearchQuery};
@@ -15,13 +17,19 @@ pub(crate) struct ExecutionPlanStore<O> {
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub(crate) enum ExecutionStrategy<O> {
     /// An optimization was found, and therefore should be executed.
-    Optimization(O),
+    Optimization { opt: O, ordering: Arc<Vec<usize>> },
     /// No optimization was found, each operation should be executed individually.
-    Operations(usize),
-    /// An optimization was found, and therefore should be executed.
-    OptimizationWithFallbacks(O, Vec<usize>),
+    Operations { ordering: Arc<Vec<usize>> },
     /// A composition of multiple execution strategies.
     Composed(Vec<Box<Self>>),
+}
+
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct HoledExecution<O> {
+    pub strategy: ExecutionStrategy<O>,
+    pub holes_strategy: ExecutionStrategy<O>,
+    /// Index in the original execution that maps to the original operation vector.
+    pub holes_mapping: Vec<usize>,
 }
 
 /// The trigger that indicates when to stop exploring.

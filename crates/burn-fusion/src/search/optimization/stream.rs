@@ -4,6 +4,7 @@ use crate::{
     search::{
         Block, BlockOptimization, RegistrationResult,
         merging::{MergeBlocksResult, merge_blocks},
+        optimization::blocks::BlocksOptimizerResult,
     },
     stream::store::ExecutionStrategy,
 };
@@ -27,7 +28,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
             length: 0,
             stopped: false,
             // Too high and it may breaks the fusion cache always retriggering explorations.
-            max_blocks: Some(8),
+            max_blocks: Some(5),
         }
     }
 
@@ -82,49 +83,84 @@ impl<O: NumOperations> StreamOptimizer<O> {
     pub fn optimize(&self, operations: &[OperationIr]) -> BlockOptimization<O> {
         let result = BlocksOptimizer::new(self.blocks.clone()).optimize();
 
-        if let Ok(result) = result {
-            if let Some(max_blocks) = self.max_blocks {
-                log::info!("Found optmization using multi-blocks with max_blocks={max_blocks}");
-            } else {
-                log::info!("Found optmization using multi-blocks with no max_blocks");
-            }
-            return result;
-        }
+        match result {
+            BlocksOptimizerResult::Full(block_optimization) => block_optimization,
+            BlocksOptimizerResult::WithHoles {
+                mut strategies,
+                mut ordering,
+                mut holes,
+            } => {
+                loop {
+                    let mut search = self.new_empty_search();
 
-        let max_blocks_tries = if let Some(max_blocks) = self.max_blocks {
-            Self::max_blocks_retries(max_blocks)
-        } else {
-            vec![1]
-        };
+                    let mut operations_holes = Vec::with_capacity(holes.len());
 
-        for max_blocks in max_blocks_tries {
-            let mut search = self.new_empty_search();
-            search.max_blocks(max_blocks);
+                    for index in holes.iter() {
+                        let op = &operations[*index];
+                        operations_holes.push(op.clone());
+                        search.register(op);
+                    }
 
-            for op in operations.iter() {
-                search.register(op);
-                if !search.still_optimizing() {
-                    break;
+                    let mut optimization_of_holes = search.optimize(&operations_holes);
+
+                    optimization_of_holes.map_ordering(&holes);
+
+                    strategies.push(Box::new(optimization_of_holes.strategy));
+                    holes.drain(0..optimization_of_holes.ordering.len());
+                    ordering.append(&mut optimization_of_holes.ordering);
+
+                    if holes.is_empty() {
+                        break;
+                    }
                 }
-            }
-            match BlocksOptimizer::new(search.blocks.clone()).optimize() {
-                Ok(result) => {
-                    log::info!(
-                        "Found optmization using multi-blocks fallback with max_blocks={max_blocks}"
-                    );
-                    return result;
-                }
-                Err(_) => {
-                    // Continue
-                }
+
+                BlockOptimization::new(ExecutionStrategy::Composed(strategies), ordering)
             }
         }
 
-        log::info!("No optimization found");
-        BlockOptimization {
-            strategy: ExecutionStrategy::Operations(1),
-            ordering: vec![0],
-        }
+        // if let Ok(result) = result {
+        //     if let Some(max_blocks) = self.max_blocks {
+        //         log::info!("Found optmization using multi-blocks with max_blocks={max_blocks}");
+        //     } else {
+        //         log::info!("Found optmization using multi-blocks with no max_blocks");
+        //     }
+        //     return result;
+        // }
+
+        // let max_blocks_tries = if let Some(max_blocks) = self.max_blocks {
+        //     Self::max_blocks_retries(max_blocks)
+        // } else {
+        //     vec![1]
+        // };
+
+        // for max_blocks in max_blocks_tries {
+        //     let mut search = self.new_empty_search();
+        //     search.max_blocks(max_blocks);
+
+        //     for op in operations.iter() {
+        //         search.register(op);
+        //         if !search.still_optimizing() {
+        //             break;
+        //         }
+        //     }
+        //     match BlocksOptimizer::new(search.blocks.clone()).optimize() {
+        //         Ok(result) => {
+        //             log::info!(
+        //                 "Found optmization using multi-blocks fallback with max_blocks={max_blocks}"
+        //             );
+        //             return result;
+        //         }
+        //         Err(_) => {
+        //             // Continue
+        //         }
+        //     }
+        // }
+
+        // log::info!("No optimization found");
+        // BlockOptimization {
+        //     strategy: ExecutionStrategy::Operations(1),
+        //     ordering: vec![0],
+        // }
     }
 
     /// Reset the state of the optimizer.
@@ -153,31 +189,6 @@ impl<O: NumOperations> StreamOptimizer<O> {
         }
 
         num_stopped < self.blocks.len()
-    }
-
-    /// Set the max blocks for the current optimization.
-    pub fn max_blocks(&mut self, max_blocks: usize) {
-        self.max_blocks = Some(max_blocks);
-    }
-
-    fn max_blocks_retries(max_blocks: usize) -> Vec<usize> {
-        if max_blocks == 1 {
-            return vec![];
-        }
-
-        let mut tries = Vec::new();
-        let mut current = max_blocks;
-
-        loop {
-            current /= 2;
-            tries.push(current);
-
-            if current == 1 {
-                break;
-            }
-        }
-
-        tries
     }
 
     fn register_max_block(&mut self, operation: &OperationIr, max_blocks: usize) -> bool {

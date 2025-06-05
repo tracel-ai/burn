@@ -566,7 +566,7 @@ impl StreamSegment<TestOptimization> for TestSegment<'_> {
 impl TestSegment<'_> {
     fn execute_strategy(&mut self, strategy: &ExecutionStrategy<TestOptimization>) {
         match strategy {
-            ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks) => {
+            ExecutionStrategy::OptimizationWithHoles(opt, fallbacks) => {
                 self.operations.drain(0..opt.size + fallbacks.len());
             }
             ExecutionStrategy::Optimization(opt) => {

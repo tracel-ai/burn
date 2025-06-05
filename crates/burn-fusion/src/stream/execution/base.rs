@@ -43,8 +43,7 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
         handles: &'a mut HandleContainer<R::FusionHandle>,
         operations: Vec<Box<dyn Operation<R>>>,
     ) -> (Vec<Box<dyn Operation<R>>>, usize) {
-        let ordering = optimization.ordering.clone();
-        let execution = OrderedExecution::new(operations, ordering);
+        let execution = OrderedExecution::new(operations);
 
         if matches!(&optimization.strategy, ExecutionStrategy::Composed(..)) {
             let mut context = converter.context(handles);
@@ -81,26 +80,21 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
                 converter,
                 execution,
             } => match strategy {
-                ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks) => {
+                ExecutionStrategy::Optimization { ordering, opt } => {
                     let mut context = converter.context(handles);
-                    execution.execute_optimization_with_fallbacks(opt, &mut context, fallbacks)
+                    execution.execute_optimization(opt, &mut context, ordering.clone())
                 }
-                ExecutionStrategy::Optimization(opt) => {
-                    let mut context = converter.context(handles);
-                    execution.execute_optimization(opt, &mut context)
+                ExecutionStrategy::Operations { ordering } => {
+                    execution.execute_operations(handles, &ordering)
                 }
-                ExecutionStrategy::Operations(size) => execution.execute_operations(handles, *size),
                 ExecutionStrategy::Composed(_) => unreachable!(),
             },
             Execution::Multiple { context, execution } => match strategy {
-                ExecutionStrategy::Optimization(opt) => {
-                    execution.execute_optimization(opt, context);
+                ExecutionStrategy::Optimization { opt, ordering } => {
+                    execution.execute_optimization(opt, context, ordering.clone());
                 }
-                ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks) => {
-                    execution.execute_optimization_with_fallbacks(opt, context, fallbacks);
-                }
-                ExecutionStrategy::Operations(size) => {
-                    execution.execute_operations(context.handles, *size);
+                ExecutionStrategy::Operations { ordering } => {
+                    execution.execute_operations(context.handles, &ordering);
                 }
                 ExecutionStrategy::Composed(items) => {
                     for item in items.iter_mut() {

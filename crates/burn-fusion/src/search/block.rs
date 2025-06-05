@@ -3,7 +3,7 @@ use crate::{
 };
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 /// A block represents a list of operations, not necessary in the same order as the execution
 /// stream.
@@ -40,6 +40,44 @@ pub struct BlockOptimization<O> {
     pub ordering: Vec<usize>,
 }
 
+impl<O> BlockOptimization<O> {
+    pub fn map_ordering(&mut self, mapping: &[usize]) {
+        for i in self.ordering.iter_mut() {
+            *i = mapping[*i];
+        }
+        self.strategy.map_ordering(mapping);
+    }
+}
+
+impl<O> ExecutionStrategy<O> {
+    pub fn map_ordering(&mut self, mapping: &[usize]) {
+        match self {
+            ExecutionStrategy::Optimization { ordering, .. } => {
+                let mut ordering_mapped = ordering.to_vec();
+
+                for o in ordering_mapped.iter_mut() {
+                    *o = mapping[*o];
+                }
+                *ordering = Arc::new(ordering_mapped);
+            }
+            ExecutionStrategy::Operations { ordering } => {
+                let mut ordering_mapped = ordering.to_vec();
+
+                for o in ordering_mapped.iter_mut() {
+                    *o = mapping[*o];
+                }
+
+                *ordering = Arc::new(ordering_mapped);
+            }
+            ExecutionStrategy::Composed(items) => {
+                for item in items.iter_mut() {
+                    item.map_ordering(mapping);
+                }
+            }
+        }
+    }
+}
+
 impl<O: NumOperations> Block<O> {
     /// Create a new block that will be optimized with the provided [optimization builders](OptimizationBuilder).
     pub fn new(builders: &[Box<dyn OptimizationBuilder<O>>]) -> Self {
@@ -64,16 +102,20 @@ impl<O: NumOperations> Block<O> {
             Some(index) => {
                 let opt = self.builders[index].build();
                 let opt_len = opt.len();
-                let opt = ExecutionStrategy::Optimization(opt);
-
                 if opt_len < self.operations.len() {
                     self.ordering.drain(opt_len..);
                 }
 
-                BlockOptimization::new(opt, self.ordering)
+                let strategy = ExecutionStrategy::Optimization {
+                    ordering: Arc::new(self.ordering.clone()),
+                    opt,
+                };
+                BlockOptimization::new(strategy, self.ordering)
             }
             None => {
-                let strategy = ExecutionStrategy::Operations(self.operations.len());
+                let strategy = ExecutionStrategy::Operations {
+                    ordering: Arc::new(self.ordering.clone()),
+                };
                 BlockOptimization::new(strategy, self.ordering)
             }
         }

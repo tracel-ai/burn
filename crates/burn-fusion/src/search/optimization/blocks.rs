@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     NumOperations,
     search::{
@@ -24,10 +26,15 @@ pub struct BlocksOptimizer<O> {
 }
 
 /// When we can't find a proper optimization for the provided list of [blocks](Block).
-pub enum BlocksOptimizerError {
-    /// When there is too much fallback operations to execute in order to not have wholes in the
-    /// execution stream.
-    TooMuchFallbacksOperations,
+pub enum BlocksOptimizerResult<O> {
+    /// When an optimization fill the hole stream.
+    Full(BlockOptimization<O>),
+    /// The optimization found with the holes indices.
+    WithHoles {
+        strategies: Vec<Box<ExecutionStrategy<O>>>,
+        ordering: Vec<usize>,
+        holes: Vec<usize>,
+    },
 }
 
 impl<O: NumOperations> BlocksOptimizer<O> {
@@ -46,8 +53,8 @@ impl<O: NumOperations> BlocksOptimizer<O> {
     ///
     /// The strategy is quite simple. We try to merge as much [blocks](Block) together as we can,
     /// then we iterate over them in order composing optimizations with the remaining blocks, all
-    /// while minimizing fallbacks operations to avoid having wholes in the optimization stream.
-    pub fn optimize(mut self) -> Result<BlockOptimization<O>, BlocksOptimizerError> {
+    /// while minimizing fallbacks operations to avoid having holes in the optimization stream.
+    pub fn optimize(mut self) -> BlocksOptimizerResult<O> {
         self = self.merging_pass();
 
         let mut strategies = Vec::with_capacity(self.blocks.len());
@@ -56,7 +63,20 @@ impl<O: NumOperations> BlocksOptimizer<O> {
         core::mem::swap(&mut blocks, &mut self.blocks);
 
         for block in blocks {
-            match self.optimize_block(block, &mut ordering)? {
+            let result = match self.optimize_block(block, &mut ordering) {
+                Ok(val) => val,
+                Err((strategy, holes)) => {
+                    strategies.push(Box::new(strategy));
+
+                    return BlocksOptimizerResult::WithHoles {
+                        strategies,
+                        ordering,
+                        holes: holes,
+                    };
+                }
+            };
+
+            match result {
                 Some(strategy) => {
                     strategies.push(Box::new(strategy));
                 }
@@ -75,7 +95,7 @@ impl<O: NumOperations> BlocksOptimizer<O> {
             },
         };
 
-        Ok(optimization)
+        BlocksOptimizerResult::Full(optimization)
     }
 
     /// Optimize a single block.
@@ -83,7 +103,7 @@ impl<O: NumOperations> BlocksOptimizer<O> {
         &mut self,
         block: Block<O>,
         ordering: &mut Vec<usize>,
-    ) -> Result<Option<ExecutionStrategy<O>>, BlocksOptimizerError> {
+    ) -> Result<Option<ExecutionStrategy<O>>, (ExecutionStrategy<O>, Vec<usize>)> {
         let last_index = block.end_pos;
         let mut block_optimization = block.optimize();
         let opt_size = block_optimization.ordering.len();
@@ -98,7 +118,7 @@ impl<O: NumOperations> BlocksOptimizer<O> {
                 return Ok(None);
             }
 
-            let strategy = self.optimize_wholes(block_optimization, last_index, ordering)?;
+            let strategy = self.optimize_holes(block_optimization, last_index, ordering)?;
             return Ok(Some(strategy));
         }
 
@@ -106,34 +126,31 @@ impl<O: NumOperations> BlocksOptimizer<O> {
         Ok(Some(block_optimization.strategy))
     }
 
-    /// The provided optimization has wholes.
-    fn optimize_wholes(
+    /// The provided optimization has holes.
+    fn optimize_holes(
         &mut self,
         mut optimization: BlockOptimization<O>,
         last_index: usize,
-        ordering: &mut Vec<usize>,
-    ) -> Result<ExecutionStrategy<O>, BlocksOptimizerError> {
+        ordering_global: &mut Vec<usize>,
+    ) -> Result<ExecutionStrategy<O>, (ExecutionStrategy<O>, Vec<usize>)> {
+        ordering_global.append(&mut optimization.ordering);
+
         let strategy = match optimization.strategy {
-            ExecutionStrategy::Optimization(opt) => {
-                let fallbacks = self.add_missing_ops(last_index);
+            ExecutionStrategy::Optimization { opt, ordering } => {
+                let holes = self.find_holes(last_index);
 
-                if fallbacks.is_empty() {
-                    ordering.append(&mut optimization.ordering);
-                    ExecutionStrategy::Optimization(opt)
+                if holes.is_empty() {
+                    ExecutionStrategy::Optimization { opt, ordering }
                 } else {
-                    let mut optimization =
-                        self.optimize_wholes_opt(opt, fallbacks, optimization.ordering)?;
-
-                    ordering.append(&mut optimization.ordering);
-                    optimization.strategy
+                    return Err((ExecutionStrategy::Optimization { opt, ordering }, holes));
                 }
             }
-            ExecutionStrategy::Operations(size) => {
-                let fallbacks = self.add_missing_ops(last_index);
-                ordering.append(&mut optimization.ordering);
-                ordering.append(&mut fallbacks.clone());
+            ExecutionStrategy::Operations { ordering } => {
+                let min = ordering.iter().min().unwrap();
 
-                ExecutionStrategy::Operations(fallbacks.len() + size)
+                ExecutionStrategy::Operations {
+                    ordering: Arc::new(vec![*min]),
+                }
             }
             _ => unreachable!(),
         };
@@ -153,7 +170,7 @@ impl<O: NumOperations> BlocksOptimizer<O> {
         }
     }
 
-    fn add_missing_ops(&mut self, last: usize) -> Vec<usize> {
+    fn find_holes(&mut self, last: usize) -> Vec<usize> {
         let mut fallbacks = Vec::new();
 
         for i in self.last_checked..last {
@@ -192,34 +209,5 @@ impl<O: NumOperations> BlocksOptimizer<O> {
         }
 
         self
-    }
-
-    /// Optimize the wholes when an optimization was found.
-    fn optimize_wholes_opt(
-        &self,
-        opt: O,
-        fallbacks: Vec<usize>,
-        ordering: Vec<usize>,
-    ) -> Result<BlockOptimization<O>, BlocksOptimizerError> {
-        if fallbacks.len() <= 1 {
-            Ok(self.optimize_wholes_with_fallbacks(opt, fallbacks, ordering))
-        } else {
-            Err(BlocksOptimizerError::TooMuchFallbacksOperations)
-        }
-    }
-
-    /// We only execute operations alongside the optimization.
-    fn optimize_wholes_with_fallbacks(
-        &self,
-        opt: O,
-        fallbacks: Vec<usize>,
-        mut ordering: Vec<usize>,
-    ) -> BlockOptimization<O> {
-        ordering.append(&mut fallbacks.clone());
-
-        BlockOptimization::new(
-            ExecutionStrategy::OptimizationWithFallbacks(opt, fallbacks),
-            ordering,
-        )
     }
 }
