@@ -100,7 +100,7 @@ impl<'a, R: FusionRuntime> Execution<'a, R> {
                     execution.execute_optimization_with_fallbacks(opt, context, fallbacks);
                 }
                 ExecutionStrategy::Operations(size) => {
-                    execution.execute_operations(&mut context.handles, *size);
+                    execution.execute_operations(context.handles, *size);
                 }
                 ExecutionStrategy::Composed(items) => {
                     for item in items.iter_mut() {

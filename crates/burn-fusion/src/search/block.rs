@@ -54,7 +54,7 @@ impl<O: NumOperations> Block<O> {
     }
 
     /// Sort the [blocks](Block) based on the start position.
-    pub fn sort(blocks: &mut Vec<Self>) {
+    pub fn sort(blocks: &mut [Self]) {
         blocks.sort_by(|a, b| a.start_pos.cmp(&b.start_pos));
     }
 
@@ -219,8 +219,8 @@ impl<O> Clone for Block<O> {
             operations: self.operations.clone(),
             ids: self.ids.clone(),
             ordering: self.ordering.clone(),
-            start_pos: self.start_pos.clone(),
-            end_pos: self.end_pos.clone(),
+            start_pos: self.start_pos,
+            end_pos: self.end_pos,
         }
     }
 }

@@ -32,7 +32,7 @@ impl<R: Runtime> Clone for ReduceBuilder<R> {
             builder_write_fallback: self.builder_write_fallback.clone(),
             device: self.device.clone(),
             reduce: self.reduce.clone(),
-            status: self.status.clone(),
+            status: self.status,
         }
     }
 }

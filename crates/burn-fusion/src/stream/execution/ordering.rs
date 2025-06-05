@@ -15,6 +15,8 @@ impl<R: FusionRuntime> OrderedExecution<R> {
     /// Returns the operation that can be executed without impacting the state of the execution.
     ///
     /// This is usefull to implement fallback for optimizations.
+    ///
+    #[allow(clippy::borrowed_box)]
     pub fn operation_within_optimization(&self, index: usize) -> &Box<dyn Operation<R>> {
         let position = self.cursor + index;
         let index = self.ordering[position];
@@ -50,7 +52,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         context: &mut Context<'_, R::FusionHandle>,
         fallbacks: &Vec<usize>,
     ) {
-        assert_eq!(fallbacks.is_empty(), false, "No fallbacks");
+        assert!(!fallbacks.is_empty(), "No fallbacks");
         let num_drained = optimization.len() + fallbacks.len();
 
         optimization.execute(context, self);

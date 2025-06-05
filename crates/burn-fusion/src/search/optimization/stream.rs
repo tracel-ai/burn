@@ -82,16 +82,13 @@ impl<O: NumOperations> StreamOptimizer<O> {
     pub fn optimize(&self, operations: &[OperationIr]) -> BlockOptimization<O> {
         let result = BlocksOptimizer::new(self.blocks.clone()).optimize();
 
-        match result {
-            Ok(result) => {
-                if let Some(max_blocks) = self.max_blocks {
-                    log::info!("Found optmization using multi-blocks with max_blocks={max_blocks}");
-                } else {
-                    log::info!("Found optmization using multi-blocks with no max_blocks");
-                }
-                return result;
+        if let Ok(result) = result {
+            if let Some(max_blocks) = self.max_blocks {
+                log::info!("Found optmization using multi-blocks with max_blocks={max_blocks}");
+            } else {
+                log::info!("Found optmization using multi-blocks with no max_blocks");
             }
-            Err(_) => {}
+            return result;
         }
 
         let max_blocks_tries = if let Some(max_blocks) = self.max_blocks {
