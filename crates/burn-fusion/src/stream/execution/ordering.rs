@@ -17,7 +17,6 @@ impl<R: FusionRuntime> OrderedExecution<R> {
     /// Returns the operation that can be executed without impacting the state of the execution.
     ///
     /// This is useful to implement fallback for optimizations.
-    ///
     #[allow(clippy::borrowed_box)]
     pub fn operation_within_optimization(&self, index: usize) -> &Box<dyn Operation<R>> {
         match &self.ordering {
@@ -25,7 +24,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
                 let index = val[index];
                 &self.operations[index]
             }
-            None => panic!("No ordering setted"),
+            None => panic!("No ordering provided"),
         }
     }
 

@@ -39,44 +39,6 @@ pub struct BlockOptimization<O> {
     pub ordering: Vec<usize>,
 }
 
-impl<O> BlockOptimization<O> {
-    pub fn map_ordering(&mut self, mapping: &[usize]) {
-        for i in self.ordering.iter_mut() {
-            *i = mapping[*i];
-        }
-        self.strategy.map_ordering(mapping);
-    }
-}
-
-impl<O> ExecutionStrategy<O> {
-    pub fn map_ordering(&mut self, mapping: &[usize]) {
-        match self {
-            ExecutionStrategy::Optimization { ordering, .. } => {
-                let mut ordering_mapped = ordering.to_vec();
-
-                for o in ordering_mapped.iter_mut() {
-                    *o = mapping[*o];
-                }
-                *ordering = Arc::new(ordering_mapped);
-            }
-            ExecutionStrategy::Operations { ordering } => {
-                let mut ordering_mapped = ordering.to_vec();
-
-                for o in ordering_mapped.iter_mut() {
-                    *o = mapping[*o];
-                }
-
-                *ordering = Arc::new(ordering_mapped);
-            }
-            ExecutionStrategy::Composed(items) => {
-                for item in items.iter_mut() {
-                    item.map_ordering(mapping);
-                }
-            }
-        }
-    }
-}
-
 impl<O: NumOperations> Block<O> {
     /// Create a new block that will be optimized with the provided [optimization builders](OptimizationBuilder).
     pub fn new(builders: &[Box<dyn OptimizationBuilder<O>>]) -> Self {
@@ -211,6 +173,46 @@ impl<O: NumOperations> Block<O> {
 
         for node in operation.nodes() {
             self.ids.insert(node.id);
+        }
+    }
+}
+
+impl<O> BlockOptimization<O> {
+    /// Maps the ordering of the current block optimization using the given mapping.
+    pub fn map_ordering(&mut self, mapping: &[usize]) {
+        for i in self.ordering.iter_mut() {
+            *i = mapping[*i];
+        }
+        self.strategy.map_ordering(mapping);
+    }
+}
+
+impl<O> ExecutionStrategy<O> {
+    /// Maps the ordering of the current execution strategy using the given mapping.
+    pub fn map_ordering(&mut self, mapping: &[usize]) {
+        match self {
+            ExecutionStrategy::Optimization { ordering, .. } => {
+                let mut ordering_mapped = ordering.to_vec();
+
+                for o in ordering_mapped.iter_mut() {
+                    *o = mapping[*o];
+                }
+                *ordering = Arc::new(ordering_mapped);
+            }
+            ExecutionStrategy::Operations { ordering } => {
+                let mut ordering_mapped = ordering.to_vec();
+
+                for o in ordering_mapped.iter_mut() {
+                    *o = mapping[*o];
+                }
+
+                *ordering = Arc::new(ordering_mapped);
+            }
+            ExecutionStrategy::Composed(items) => {
+                for item in items.iter_mut() {
+                    item.map_ordering(mapping);
+                }
+            }
         }
     }
 }

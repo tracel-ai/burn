@@ -671,6 +671,8 @@ pub struct UnaryOpIr {
 #[allow(missing_docs)]
 pub struct ScalarOpIr<E> {
     pub lhs: TensorIr,
+    // TODO: Make that an enum with `Value` and `Id` variants for relative/global
+    // conversion.
     pub rhs: E,
     pub out: TensorIr,
 }

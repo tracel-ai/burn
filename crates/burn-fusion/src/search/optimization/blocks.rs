@@ -17,8 +17,8 @@ use crate::{
 /// in any order.
 ///
 /// The contract is that the length of operations executed must include all operations. If we don't
-/// find an optimization that can be executed with that constraint, we return an
-/// [error](BlocksOptimizerError).
+/// find an optimization that can be executed with that constraint, we return a
+/// [BlocksOptimizerResult::WithHoles].
 pub struct BlocksOptimizer<O> {
     blocks: Vec<Block<O>>,
     resolved: Vec<bool>,

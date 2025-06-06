@@ -165,8 +165,6 @@ impl<O: NumOperations> Processor<O> {
             ExecutionMode::Sync => match policy.action(store, relative, ExecutionMode::Sync) {
                 Action::Execute(id) => {
                     store.add_trigger(id, ExecutionTrigger::OnSync);
-                    // TODO: Bug the cache doesn't work with on sync triggers.
-                    // store.add_trigger(id, ExecutionTrigger::Always);
                     id
                 }
                 _ => store.add(ExecutionPlan {
