@@ -52,7 +52,7 @@ impl<R: FusionRuntime> MultiStream<R> {
             &mut self.optimizations,
             ExecutionMode::Lazy,
         );
-        if stream.queue.len() == 0 {
+        if stream.queue.is_empty() {
             self.streams.remove(&id);
         }
     }

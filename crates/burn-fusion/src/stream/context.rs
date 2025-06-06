@@ -1052,16 +1052,16 @@ impl RelativeOps for TensorIr {
 
 impl RelativeOps for TensorId {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
-        let relative_id = if let Some(value) = converter.tensors_global2relative.get(self) {
+        
+
+        if let Some(value) = converter.tensors_global2relative.get(self) {
             // If we already have the same tensor registered, we have to update its value, but not
             // its id.
             value.id
         } else {
             // We create a new relative id since we never seen this tensor in the graph before.
             TensorId::new(converter.tensors_relative2global.len() as u64)
-        };
-
-        relative_id
+        }
     }
 }
 
