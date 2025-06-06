@@ -671,6 +671,8 @@ pub struct UnaryOpIr {
 #[allow(missing_docs)]
 pub struct ScalarOpIr<E> {
     pub lhs: TensorIr,
+    // TODO: Make that an enum with `Value` and `Id` variants for relative/global
+    // conversion.
     pub rhs: E,
     pub out: TensorIr,
 }
@@ -1422,7 +1424,11 @@ impl BaseOperationIr {
             BaseOperationIr::RepeatDim(repr) => {
                 vec![&repr.tensor, &repr.out]
             }
-            BaseOperationIr::Cat(repr) => repr.tensors.iter().collect(),
+            BaseOperationIr::Cat(repr) => {
+                let mut tensors: Vec<_> = repr.tensors.iter().collect();
+                tensors.push(&repr.out);
+                tensors
+            }
             BaseOperationIr::Cast(repr) => vec![&repr.input, &repr.out],
             BaseOperationIr::Empty(repr) => vec![repr],
         }

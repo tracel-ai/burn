@@ -1,12 +1,15 @@
 use burn_ir::HandleContainer;
 
 use crate::{
-    FusionRuntime, Optimization,
+    FusionRuntime,
+    search::BlockOptimization,
     stream::{
-        OperationQueue, RelativeOps,
+        Context, OperationConverter, OperationQueue, RelativeOps,
         store::{ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy},
     },
 };
+
+use super::OrderedExecution;
 
 /// The mode in which the execution is done.
 #[derive(Clone, Copy, Debug)]
@@ -29,39 +32,21 @@ impl<R: FusionRuntime> OperationQueue<R> {
         handles: &mut HandleContainer<R::FusionHandle>,
         store: &mut ExecutionPlanStore<R::Optimization>,
     ) {
-        match &mut store.get_mut_unchecked(id).strategy {
-            ExecutionStrategy::Optimization(optimization) => {
-                self.execute_optimization(handles, optimization)
-            }
-            ExecutionStrategy::Operations => self.execute_operations(handles),
-        };
+        let plan = store.get_mut_unchecked(id);
+        self.execute_block_optimization(&mut plan.optimization, handles);
     }
 
-    /// Execute the optimization (fused operations) and remove all the corresponding
-    /// operations from the queue.
-    fn execute_optimization(
+    fn execute_block_optimization(
         &mut self,
+        step: &mut BlockOptimization<R::Optimization>,
         handles: &mut HandleContainer<R::FusionHandle>,
-        optimization: &mut R::Optimization,
     ) {
-        let num_drained = optimization.len();
+        let mut operations = Vec::new();
+        core::mem::swap(&mut operations, &mut self.operations);
+        let (operations, num_drained) =
+            QueueExecution::run(step, &mut self.converter, handles, operations);
 
-        let mut context = self.converter.context(handles);
-        optimization.execute(&mut context, &self.operations);
-
-        self.drain_queue(num_drained, handles);
-        self.operations.drain(0..num_drained);
-    }
-
-    /// Execute all the operations in the [`OperationQueue`] sequentially
-    /// without applying any optimization.
-    fn execute_operations(&mut self, handles: &mut HandleContainer<R::FusionHandle>) {
-        let num_drained = self.operations.len();
-
-        for operation in self.operations.drain(..) {
-            operation.execute(handles);
-        }
-
+        self.operations = operations;
         self.drain_queue(num_drained, handles);
     }
 
@@ -84,5 +69,90 @@ impl<R: FusionRuntime> OperationQueue<R> {
             let relative = node.to_relative(&mut self.converter);
             self.relative.push(relative);
         }
+    }
+}
+
+/// A queue execution has the responsability to run the provided
+/// [optimization](FusionRuntime::Optimization) without holes.
+enum QueueExecution<'a, R: FusionRuntime> {
+    Single {
+        handles: &'a mut HandleContainer<R::FusionHandle>,
+        converter: &'a mut OperationConverter,
+        execution: OrderedExecution<R>,
+    },
+    Multiple {
+        context: &'a mut Context<'a, R::FusionHandle>,
+        execution: OrderedExecution<R>,
+    },
+}
+
+impl<'a, R: FusionRuntime> QueueExecution<'a, R> {
+    fn run(
+        optimization: &mut BlockOptimization<R::Optimization>,
+        converter: &'a mut OperationConverter,
+        handles: &'a mut HandleContainer<R::FusionHandle>,
+        operations: Vec<Box<dyn Operation<R>>>,
+    ) -> (Vec<Box<dyn Operation<R>>>, usize) {
+        let execution = OrderedExecution::new(operations);
+
+        if matches!(&optimization.strategy, ExecutionStrategy::Composed(..)) {
+            let mut context = converter.context(handles);
+            let mut this = QueueExecution::Multiple {
+                context: &mut context,
+                execution,
+            };
+
+            this = this.execute_strategy(&mut optimization.strategy);
+
+            match this {
+                QueueExecution::Multiple { execution, .. } => execution.finish(),
+                _ => unreachable!(),
+            }
+        } else {
+            let mut this = QueueExecution::Single {
+                handles,
+                converter,
+                execution,
+            };
+            this = this.execute_strategy(&mut optimization.strategy);
+
+            match this {
+                QueueExecution::Single { execution, .. } => execution.finish(),
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    fn execute_strategy(mut self, strategy: &mut ExecutionStrategy<R::Optimization>) -> Self {
+        match &mut self {
+            QueueExecution::Single {
+                handles,
+                converter,
+                execution,
+            } => match strategy {
+                ExecutionStrategy::Optimization { ordering, opt } => {
+                    let mut context = converter.context(handles);
+                    execution.execute_optimization(opt, &mut context, ordering.clone())
+                }
+                ExecutionStrategy::Operations { ordering } => {
+                    execution.execute_operations(handles, ordering)
+                }
+                ExecutionStrategy::Composed(_) => unreachable!(),
+            },
+            QueueExecution::Multiple { context, execution } => match strategy {
+                ExecutionStrategy::Optimization { opt, ordering } => {
+                    execution.execute_optimization(opt, context, ordering.clone());
+                }
+                ExecutionStrategy::Operations { ordering } => {
+                    execution.execute_operations(context.handles, ordering);
+                }
+                ExecutionStrategy::Composed(items) => {
+                    for item in items.iter_mut() {
+                        self = self.execute_strategy(item);
+                    }
+                }
+            },
+        };
+        self
     }
 }

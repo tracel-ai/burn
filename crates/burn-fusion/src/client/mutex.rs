@@ -207,6 +207,7 @@ where
     }
 
     fn register_orphan(&self, id: &TensorId) {
+        // TODO: Make drop into a tensor operation so that optimizations can know about it.
         self.server.lock().drop_tensor_handle(*id);
     }
 

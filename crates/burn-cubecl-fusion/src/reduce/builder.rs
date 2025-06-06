@@ -24,6 +24,19 @@ pub struct ReduceBuilder<R: Runtime> {
     status: OptimizationStatus,
 }
 
+impl<R: Runtime> Clone for ReduceBuilder<R> {
+    fn clone(&self) -> Self {
+        Self {
+            builder: self.builder.clone(),
+            builder_read_fallback: self.builder_read_fallback.clone(),
+            builder_write_fallback: self.builder_write_fallback.clone(),
+            device: self.device.clone(),
+            reduce: self.reduce.clone(),
+            status: self.status,
+        }
+    }
+}
+
 impl<R: Runtime> ReduceBuilder<R> {
     pub fn new(device: R::Device, bool_precision: FusePrecision) -> Self {
         let client = R::client(&device);
@@ -268,5 +281,9 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
 
     fn len(&self) -> usize {
         self.builder.len() + if self.reduce.is_some() { 1 } else { 0 }
+    }
+
+    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<CubeOptimization<R>>> {
+        Box::new(self.clone())
     }
 }
