@@ -4,10 +4,10 @@ use crate::{
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use std::{collections::HashSet, sync::Arc};
 
-/// A block represents a list of operations, not necessary in the same order as the execution
+/// A block represents a list of operations, not necessarily in the same order as the execution
 /// stream.
 ///
-/// The start and end position of the relative execution stream is tracked in the block alonside
+/// The start and end position of the relative execution stream are tracked in the block alongside
 /// the ordering.
 pub struct Block<O> {
     builders: Vec<Box<dyn OptimizationBuilder<O>>>,
@@ -120,7 +120,7 @@ impl<O: NumOperations> Block<O> {
         }
     }
 
-    /// Returns if the block contains the provided [tensors](TensorIr).
+    /// Returns if the block contains any of the provided [tensors](TensorIr).
     pub fn contains_tensors(&self, tensors: &[&TensorIr]) -> bool {
         for node in tensors {
             if self.ids.contains(&node.id) {
@@ -148,8 +148,12 @@ impl<O: NumOperations> Block<O> {
     /// Register an [operation](OperationIr) in the current block.
     ///
     /// You need to provide the order of the operation as well as a force flag.
+    ///
     /// When the force flag is true, the builder will always accept the operation, otherwise it
     /// might refuse it if the operation [isn't part of the graph](RegistrationResult::NotPartOfTheGraph).
+    ///
+    /// Forcing is useful to fuse operations that are part of different graphs, but included
+    /// in the same optimization.
     pub fn register(
         &mut self,
         operation: &OperationIr,

@@ -245,8 +245,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> TuneOutput<R> {
-        // We have to share the same scalar ids between the two traces (read & write).
-        #[allow(unused_mut)] // It is used when #[cfg(test)] is true.
+        #[allow(unused_mut)] // It is used when `autotune-checks` is activated.
         let mut output_read = self
             .trace_read_fallback
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)

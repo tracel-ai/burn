@@ -59,7 +59,6 @@ impl<O: NumOperations> Explorer<O> {
         }
 
         let optimization = self.optimizer.optimize(operations);
-        // log::info!("Found optimization {found:?}");
 
         ExplorationAction::Completed(optimization)
     }

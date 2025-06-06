@@ -16,7 +16,7 @@ pub struct OrderedExecution<R: FusionRuntime> {
 impl<R: FusionRuntime> OrderedExecution<R> {
     /// Returns the operation that can be executed without impacting the state of the execution.
     ///
-    /// This is usefull to implement fallback for optimizations.
+    /// This is useful to implement fallback for optimizations.
     ///
     #[allow(clippy::borrowed_box)]
     pub fn operation_within_optimization(&self, index: usize) -> &Box<dyn Operation<R>> {

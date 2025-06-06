@@ -123,7 +123,7 @@ impl<O: NumOperations> BlocksOptimizer<O> {
 
         if self.last_checked != ordering.len() + opt_size {
             if !ordering.is_empty() {
-                // Don't include that block and need furthur exploring.
+                // Don't include that block and need further exploring.
                 return BlockOptimizationStep::Stop;
             }
 

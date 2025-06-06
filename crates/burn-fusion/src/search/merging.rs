@@ -18,16 +18,16 @@ pub enum MergeBlocksResult<O> {
 /// Merge multiple [block](Block) together.
 ///
 /// The resulting [blocks](Block) might be sorted if the flag is true, otherwise the order isn't
-/// garantee. This is mostly usefull for testing.
+/// guarantee. This is mostly useful for testing.
 ///
 /// # Strategy
 ///
 /// The merging strategy is in two steps:
 ///
-/// 1. The first step is to recursively try to merge adjacent blocks. This has the advantage or
+/// 1. The first step is to recursively try to merge adjacent blocks. This has the advantage of
 ///    trying multiple blocks ordering, therefore trying multiple permutation of the blocks.
 ///    However, it has the downside of not trying to merge blocks that are further away in the list
-///    of blocks. Since trying all combinations possible is exponention, therefore not possible, we
+///    of blocks. Since trying all combinations possible is exponential, therefore not possible, we
 ///    fallback on the second strategy.
 /// 2. The second step is to reduce blocks by setting an accumulator block, then sequentially
 ///    trying to merge the remaining blocks. We try some permutations based on the result from

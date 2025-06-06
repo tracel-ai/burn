@@ -49,7 +49,6 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         runner: &Runner,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
-        // scalars: &mut ScalarIds,
     ) -> Result<TuneOutput<R>, ExecutionError<R, Runner>> {
         let mut num_writes = 0;
         for b in plan.blocks.iter() {
