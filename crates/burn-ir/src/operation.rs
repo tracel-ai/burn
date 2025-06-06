@@ -1375,7 +1375,11 @@ pub struct InterpolateBackwardOpIr {
 }
 
 impl OperationIr {
-    /// Cleanup the remaining tensor handles that have not been used.
+    /// Get the nodes of the current optimization.
+    ///
+    /// # Notes
+    ///
+    /// The drop operation is excluded from the list.
     pub fn nodes(&self) -> Vec<&TensorIr> {
         match self {
             OperationIr::BaseFloat(repr) => repr.nodes(),
@@ -1389,7 +1393,7 @@ impl OperationIr {
             OperationIr::Module(repr) => repr.nodes(),
             OperationIr::Init(repr) => repr.nodes(),
             OperationIr::Custom(repr) => repr.nodes(),
-            OperationIr::Drop(id) => vec![id],
+            OperationIr::Drop(repr) => vec![repr],
         }
     }
 }

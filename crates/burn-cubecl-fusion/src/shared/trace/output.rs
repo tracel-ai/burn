@@ -164,6 +164,13 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 Self::add_layout_info_inputs(block, &plan.handle_inputs);
             }
         }
+
+        // Make sure dropped are correctly executed.
+        for id in self.resources.dropped.iter() {
+            if let Some(tensor_global) = context.tensors.get(id) {
+                context.handles.remove_handle(tensor_global.id);
+            }
+        }
     }
 
     fn select_reference_from_inputs(

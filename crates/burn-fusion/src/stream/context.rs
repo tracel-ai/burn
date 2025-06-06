@@ -208,7 +208,7 @@ impl RelativeOps for OperationIr {
             OperationIr::Module(ops) => OperationIr::Module(ops.to_relative(converter)),
             OperationIr::Custom(ops) => OperationIr::Custom(ops.to_relative(converter)),
             OperationIr::Init(ops) => OperationIr::Init(ops.to_relative(converter)),
-            OperationIr::Drop(tensor) => OperationIr::Drop(tensor.to_relative(converter)),
+            OperationIr::Drop(id) => OperationIr::Drop(id.to_relative(converter)),
         }
     }
 }
@@ -1013,14 +1013,7 @@ impl RelativeOps for InitOperationIr {
 
 impl RelativeOps for TensorIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
-        let relative_id = if let Some(value) = converter.tensors_global2relative.get(&self.id) {
-            // If we already have the same tensor registered, we have to update its value, but not
-            // its id.
-            value.id
-        } else {
-            // We create a new relative id since we never seen this tensor in the graph before.
-            TensorId::new(converter.tensors_relative2global.len() as u64)
-        };
+        let relative_id = self.id.to_relative(converter);
 
         // We can create relative shapes by mapping each shape found to an ID, which is a `usize`.
         let mut relative_shape = Vec::with_capacity(self.shape.len());
@@ -1054,6 +1047,21 @@ impl RelativeOps for TensorIr {
             .insert(self.id, relative_tensor.clone());
 
         relative_tensor
+    }
+}
+
+impl RelativeOps for TensorId {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+        let relative_id = if let Some(value) = converter.tensors_global2relative.get(self) {
+            // If we already have the same tensor registered, we have to update its value, but not
+            // its id.
+            value.id
+        } else {
+            // We create a new relative id since we never seen this tensor in the graph before.
+            TensorId::new(converter.tensors_relative2global.len() as u64)
+        };
+
+        relative_id
     }
 }
 

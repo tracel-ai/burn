@@ -87,6 +87,11 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
         let cube_dim = CubeDim::default();
         let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 
+        println!(
+            "Execute {cube_dim:?} {cube_count:?} inputs={:?} outputs={:?}",
+            inputs, outputs
+        );
+
         unsafe {
             elemwise_fuse::launch_unchecked(
                 client,
