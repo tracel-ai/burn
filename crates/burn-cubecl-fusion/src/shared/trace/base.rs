@@ -12,7 +12,10 @@ use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, marker::PhantomData};
+use std::{
+    collections::{BTreeMap, HashSet},
+    marker::PhantomData,
+};
 
 #[cfg(feature = "autotune-checks")]
 use burn_tensor::TensorData;
@@ -127,6 +130,7 @@ pub struct FuseResources {
     pub inputs_unhandled: Vec<TensorId>,
     pub outputs_unhandled: Vec<Arg>,
     pub num_reshaped: usize,
+    pub dropped: HashSet<TensorId>,
 }
 
 #[derive(Debug)]

@@ -81,6 +81,8 @@ pub enum OperationIr {
     Init(InitOperationIr),
     /// A custom operation.
     Custom(CustomOpIr),
+    /// A tensor is dropped.
+    Drop(TensorIr),
 }
 
 /// Operation intermediate representation specific to a float tensor.
@@ -1387,6 +1389,7 @@ impl OperationIr {
             OperationIr::Module(repr) => repr.nodes(),
             OperationIr::Init(repr) => repr.nodes(),
             OperationIr::Custom(repr) => repr.nodes(),
+            OperationIr::Drop(id) => vec![id],
         }
     }
 }

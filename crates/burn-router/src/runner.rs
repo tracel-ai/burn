@@ -1222,6 +1222,9 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
             OperationIr::Init(_) => {
                 // Nothing to do.
             }
+            OperationIr::Drop(tensor) => {
+                self.register_orphan(&tensor.id);
+            }
         }
     }
 
