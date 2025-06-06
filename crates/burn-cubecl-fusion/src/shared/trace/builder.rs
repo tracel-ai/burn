@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use super::{
     super::{
         ir::{Arg, FuseOp, FusePrecision, LayoutInfo},
