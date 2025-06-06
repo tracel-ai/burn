@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use super::{
     ir::{Arg, BinaryFuseArgs, FuseOp, FusePrecision, UnaryFuseArgs},
     settings::FuseSettings,
