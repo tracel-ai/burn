@@ -25,16 +25,6 @@ impl<B: BackendIr> RunnerContext<B> {
     fn create_empty_handle(&mut self) -> Arc<TensorId> {
         self.handles.create_tensor_uninit()
     }
-
-    fn free_orphans(&mut self) {
-        // Passing an empty "remaining" tensor identifiers will remove the orphan handles from the container
-        self.handles.free_orphans(&[])
-    }
-
-    /// Set a tensor handle to be removed.
-    fn drop_tensor_handle(&mut self, id: TensorId) {
-        self.handles.handles_orphan.push(id);
-    }
 }
 
 /// A runner is responsible for executing tensor operations for a given [intermediate backend](BackendIr).
@@ -160,7 +150,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
     fn register(&self, op: OperationIr) {
         // Remove unused tensor handles
         let mut ctx = self.context.lock().unwrap();
-        ctx.free_orphans();
 
         let handles = &mut ctx.handles;
         match op {
@@ -1222,6 +1211,9 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
             OperationIr::Init(_) => {
                 // Nothing to do.
             }
+            OperationIr::Drop(repr) => {
+                handles.remove_handle(repr.id);
+            }
         }
     }
 
@@ -1273,10 +1265,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
 
     fn device(&self) -> Self::Device {
         self.device.clone()
-    }
-
-    fn register_orphan(&self, id: &TensorId) {
-        self.context.lock().unwrap().drop_tensor_handle(*id)
     }
 
     fn sync(&self) {

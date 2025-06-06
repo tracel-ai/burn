@@ -47,7 +47,6 @@ pub enum Task {
 pub enum ComputeTask {
     RegisterOperation(Box<OperationIr>),
     RegisterTensor(TensorId, TensorData),
-    RegisterOrphan(TensorId),
     ReadTensor(TensorIr),
     SyncBackend,
 }

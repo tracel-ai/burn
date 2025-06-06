@@ -518,7 +518,10 @@ impl FuseBlockBuilder {
         for entry in local_tensor_ids_output {
             let is_read = local_tensor_ids_input.contains(&entry);
 
-            if !is_read && !self.local_outputs.contains(&entry.0) {
+            if !is_read
+                && !self.local_outputs.contains(&entry.0)
+                && !resources.dropped.contains(&entry.0)
+            {
                 let (tensor_id, precision) = entry;
                 let (tensor, _) = resources.outputs.get(tensor_id).unwrap();
                 result.insert(precision, tensor.clone());
@@ -529,7 +532,9 @@ impl FuseBlockBuilder {
         // are going to be used after the fused kernel by other operations.
         for (tensor, precision) in self.outputs.iter() {
             if let TensorStatus::ReadOnly = tensor.status {
-                result.insert(*precision, tensor.clone());
+                if !resources.dropped.contains(&tensor.id) {
+                    result.insert(*precision, tensor.clone());
+                }
             }
         }
 

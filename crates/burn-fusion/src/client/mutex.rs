@@ -3,7 +3,7 @@ use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
     stream::{StreamId, execution::Operation},
 };
-use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_ir::{OperationIr, TensorIr};
 use burn_tensor::{DType, TensorData};
 use spin::Mutex;
 use std::sync::Arc;
@@ -204,11 +204,6 @@ where
         core::mem::drop(server_current);
 
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
-    }
-
-    fn register_orphan(&self, id: &TensorId) {
-        // TODO: Make drop into a tensor operation so that optimizations can know about it.
-        self.server.lock().drop_tensor_handle(*id);
     }
 
     fn resolve_tensor_float<B>(&self, tensor: FusionTensor<R>) -> B::FloatTensorPrimitive

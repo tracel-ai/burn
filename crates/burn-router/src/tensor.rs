@@ -115,7 +115,17 @@ impl<C: RunnerClient> Drop for RouterTensor<C> {
 
         match self.status() {
             TensorStatus::ReadWrite => {
-                self.client.register_orphan(&self.id);
+                let id = *self.id.as_ref();
+                let mut shape = Vec::new();
+                core::mem::swap(&mut shape, &mut self.shape);
+
+                let ir = TensorIr {
+                    id,
+                    shape,
+                    status: TensorStatus::ReadWrite,
+                    dtype: self.dtype,
+                };
+                self.client.register(burn_ir::OperationIr::Drop(ir));
             }
             TensorStatus::ReadOnly => {}
             TensorStatus::NotInit => {}

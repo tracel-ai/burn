@@ -1,5 +1,9 @@
-use crate::{Client, FusionBackend, FusionRuntime, client::FusionClient, stream::StreamId};
-use burn_ir::{TensorId, TensorIr, TensorStatus};
+use crate::{
+    Client, FusionBackend, FusionRuntime,
+    client::FusionClient,
+    stream::{Operation, StreamId},
+};
+use burn_ir::{OperationIr, TensorId, TensorIr, TensorStatus};
 use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     quantization::{QTensorPrimitive, QuantScheme},
@@ -168,9 +172,32 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
             return;
         }
 
+        struct DropOp {
+            id: TensorId,
+        }
+
+        impl<RO: FusionRuntime> Operation<RO> for DropOp {
+            fn execute(&self, handles: &mut burn_ir::HandleContainer<RO::FusionHandle>) {
+                handles.remove_handle(self.id);
+            }
+        }
+
         match self.status() {
             TensorStatus::ReadWrite => {
-                self.client.register_orphan(&self.id);
+                let stream = StreamId::current();
+                let id = *self.id.as_ref();
+                let mut shape = Vec::new();
+                core::mem::swap(&mut shape, &mut self.shape);
+
+                let ir = TensorIr {
+                    id,
+                    shape,
+                    status: TensorStatus::ReadWrite,
+                    dtype: self.dtype,
+                };
+
+                self.client
+                    .register(vec![stream], OperationIr::Drop(ir), DropOp { id });
             }
             TensorStatus::ReadOnly => {}
             TensorStatus::NotInit => {}
