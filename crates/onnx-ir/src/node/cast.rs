@@ -114,7 +114,6 @@ mod tests {
                 static_shape: None,
             }),
             value: None,
-            passed: true,
         });
         cast_update_outputs(&mut node);
     }
