@@ -127,7 +127,7 @@ mod tests {
 
         graph.register(DepthToSpaceNode::new(
             TensorType::new_float("input", 4),
-            TensorType::new_float("output", 5),
+            TensorType::new_float("output", 4),
             DepthToSpaceConfig::new(DepthToSpaceMode::CRD, 2),
         ));
 

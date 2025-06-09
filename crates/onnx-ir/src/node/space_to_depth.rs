@@ -44,7 +44,7 @@ pub fn space_to_depth_update_outputs(node: &mut Node) {
     node.outputs[0].ty = ArgType::Tensor(TensorType {
         elem_type: tensor.elem_type.clone(),
         rank: tensor.rank,
-        static_shape: static_shape,
+        static_shape,
     });
 }
 

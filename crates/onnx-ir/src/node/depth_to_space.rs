@@ -44,7 +44,7 @@ pub fn depth_to_space_update_outputs(node: &mut Node) {
     node.outputs[0].ty = ArgType::Tensor(TensorType {
         elem_type: tensor.elem_type.clone(),
         rank: tensor.rank,
-        static_shape: static_shape,
+        static_shape,
     });
 }
 
@@ -104,9 +104,9 @@ pub fn depth_to_space_config(node: &Node) -> DepthToSpaceConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ElementType;
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
-    use crate::ElementType;
 
     /// Helper function to create test nodes with different repeat values
     fn create_test_node(
