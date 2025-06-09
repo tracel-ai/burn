@@ -10,7 +10,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::shared::{ComputeTask, TensorNetwork, TaskResponseContent};
+use crate::shared::{ComputeTask, TaskResponseContent, TensorNetwork};
 
 use super::{WsChannel, WsClient};
 

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use burn_ir::TensorIr;
-use burn_router::{get_client, RouterTensor, RunnerChannel};
+use burn_router::{RouterTensor, RunnerChannel, get_client};
 
 use super::{
     WsClient,
@@ -48,9 +48,9 @@ impl RunnerChannel for WsChannel {
     }
 
     fn change_client_backend(
-            tensor: RouterTensor<Self::Client>,
-            target_device: &Self::Device, // target device
-        ) -> RouterTensor<Self::Client> {
+        tensor: RouterTensor<Self::Client>,
+        target_device: &Self::Device, // target device
+    ) -> RouterTensor<Self::Client> {
         // Get tensor handle from current client
         let original_client = tensor.client.clone();
         let desc = tensor.into_ir();

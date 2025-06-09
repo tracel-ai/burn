@@ -4,7 +4,7 @@ use std::sync::{
     mpsc::{Receiver, SyncSender},
 };
 
-use crate::shared::{ConnectionId, TensorNetwork, TaskResponse};
+use crate::shared::{ConnectionId, TaskResponse, TensorNetwork};
 
 use super::{
     base::WsServerState,

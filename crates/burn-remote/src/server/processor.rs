@@ -16,7 +16,7 @@ use tokio_tungstenite::{
 };
 
 use crate::shared::{
-    ConnectionId, TensorNetwork, RemoteTensorReq, TaskResponse, TaskResponseContent,
+    ConnectionId, RemoteTensorReq, TaskResponse, TaskResponseContent, TensorNetwork,
 };
 
 use super::base::{TensorUploadState, WsServerState};
