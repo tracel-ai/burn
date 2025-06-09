@@ -17,6 +17,7 @@ use super::{
     resize::ResizeNode, round::RoundNode, slice::SliceNode, split::SplitNode, squeeze::SqueezeNode,
     sum::SumNode, tile::TileNode, top_k::TopKNode, trilu::TriluNode, unary::UnaryNode,
     unsqueeze::UnsqueezeNode,
+    depth_to_space::DepthToSpaceNode
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -99,6 +100,7 @@ pub enum Node<PS: PrecisionSettings> {
     ConvTranspose1d(ConvTranspose1dNode),
     ConvTranspose2d(ConvTranspose2dNode),
     ConvTranspose3d(ConvTranspose3dNode),
+    DepthToSpace(DepthToSpaceNode),
     PRelu(PReluNode),
     Dropout(DropoutNode),
     Expand(ExpandNode),
@@ -160,6 +162,7 @@ macro_rules! match_all {
             Node::ConvTranspose1d(node) => $func(node),
             Node::ConvTranspose2d(node) => $func(node),
             Node::ConvTranspose3d(node) => $func(node),
+            Node::DepthToSpace(node) => $func(node),
             Node::PRelu(node) => $func(node),
             Node::Dropout(node) => $func(node),
             Node::Expand(node) => $func(node),
@@ -229,6 +232,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::ConvTranspose1d(_) => "conv_transpose1d",
             Node::ConvTranspose2d(_) => "conv_transpose2d",
             Node::ConvTranspose3d(_) => "conv_transpose3d",
+            Node::DepthToSpace(_) => "depth_to_space",
             Node::PRelu(_) => "prelu",
             Node::Dropout(_) => "dropout",
             Node::Expand(_) => "expand",

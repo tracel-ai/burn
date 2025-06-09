@@ -23,6 +23,7 @@ pub mod dropout;
 pub mod equal;
 pub mod erf;
 pub mod exp;
+pub mod depth_to_space;
 pub mod expand;
 pub mod flatten;
 pub mod floor;

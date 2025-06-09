@@ -16,6 +16,7 @@ pub(crate) mod conv3d;
 pub(crate) mod conv_transpose_1d;
 pub(crate) mod conv_transpose_2d;
 pub(crate) mod conv_transpose_3d;
+pub(crate) mod depth_to_space;
 pub(crate) mod dropout;
 pub(crate) mod expand;
 pub(crate) mod floor;

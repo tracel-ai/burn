@@ -26,6 +26,7 @@ pub mod conv3d;
 pub mod conv_transpose1d;
 pub mod conv_transpose2d;
 pub mod conv_transpose3d;
+pub mod depth_to_space;
 pub mod dropout;
 pub mod expand;
 pub mod flatten;

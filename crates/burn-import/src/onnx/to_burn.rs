@@ -13,61 +13,9 @@ use log::warn;
 
 use crate::{
     burn::{
-        ScalarKind, ScalarType, ShapeType, TensorKind, TensorType, Type,
-        graph::BurnGraph,
-        node::{
-            argmax::ArgMaxNode,
-            avg_pool1d::AvgPool1dNode,
-            avg_pool2d::AvgPool2dNode,
-            batch_norm::BatchNormNode,
-            binary::BinaryNode,
-            ceil::CeilNode,
-            clip::ClipNode,
-            concat::ConcatNode,
-            constant::{ConstantNode, ConstantValue},
-            constant_of_shape::ConstantOfShapeNode,
-            conv_transpose_1d::ConvTranspose1dNode,
-            conv_transpose_2d::ConvTranspose2dNode,
-            conv_transpose_3d::ConvTranspose3dNode,
-            conv1d::Conv1dNode,
-            conv2d::Conv2dNode,
-            conv3d::Conv3dNode,
-            dropout::DropoutNode,
-            expand::ExpandNode,
-            floor::FloorNode,
-            gather::GatherNode,
-            gather_elements::GatherElementsNode,
-            gemm::GemmNode,
-            global_avg_pool::GlobalAvgPoolNode,
-            group_norm::GroupNormNode,
-            instance_norm::InstanceNormNode,
-            layer_norm::LayerNormNode,
-            linear::LinearNode,
-            mask_where::WhereNode,
-            matmul::MatmulNode,
-            max_pool1d::MaxPool1dNode,
-            max_pool2d::MaxPool2dNode,
-            one_hot::OneHotNode,
-            pad::PadNode,
-            prelu::PReluNode,
-            random_normal::RandomNormalNode,
-            random_normal_like::RandomNormalLikeNode,
-            random_uniform::RandomUniformNode,
-            random_uniform_like::RandomUniformLikeNode,
-            range::RangeNode,
-            reshape::ReshapeNode,
-            resize::ResizeNode,
-            round::RoundNode,
-            slice::SliceNode,
-            split::SplitNode,
-            squeeze::SqueezeNode,
-            sum::SumNode,
-            tile::TileNode,
-            top_k::TopKNode,
-            trilu::TriluNode,
-            unary::UnaryNode,
-            unsqueeze::UnsqueezeNode,
-        },
+        graph::BurnGraph, node::{
+            argmax::ArgMaxNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode, binary::BinaryNode, ceil::CeilNode, clip::ClipNode, concat::ConcatNode, constant::{ConstantNode, ConstantValue}, constant_of_shape::ConstantOfShapeNode, conv1d::Conv1dNode, conv2d::Conv2dNode, conv3d::Conv3dNode, conv_transpose_1d::ConvTranspose1dNode, conv_transpose_2d::ConvTranspose2dNode, conv_transpose_3d::ConvTranspose3dNode, depth_to_space::DepthToSpaceNode, dropout::DropoutNode, expand::ExpandNode, floor::FloorNode, gather::GatherNode, gather_elements::GatherElementsNode, gemm::GemmNode, global_avg_pool::GlobalAvgPoolNode, group_norm::GroupNormNode, instance_norm::InstanceNormNode, layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode, max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, one_hot::OneHotNode, pad::PadNode, prelu::PReluNode, random_normal::RandomNormalNode, random_normal_like::RandomNormalLikeNode, random_uniform::RandomUniformNode, random_uniform_like::RandomUniformLikeNode, range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, round::RoundNode, slice::SliceNode, split::SplitNode, squeeze::SqueezeNode, sum::SumNode, tile::TileNode, top_k::TopKNode, trilu::TriluNode, unary::UnaryNode, unsqueeze::UnsqueezeNode
+        }, ScalarKind, ScalarType, ShapeType, TensorKind, TensorType, Type
     },
     format_tokens,
     logger::init_log,
@@ -80,22 +28,7 @@ use onnx_ir::{
         TensorType as OnnxTensorType,
     },
     node::{
-        argmax::argmax_config, avg_pool1d::avg_pool1d_config, avg_pool2d::avg_pool2d_config,
-        batch_norm::batch_norm_config, clip::clip_config, concat::concat_config,
-        conv_transpose1d::conv_transpose1d_config, conv_transpose2d::conv_transpose2d_config,
-        conv_transpose3d::conv_transpose3d_config, conv1d::conv1d_config, conv2d::conv2d_config,
-        conv3d::conv3d_config, dropout::dropout_config, expand::expand_config,
-        flatten::flatten_config, gather::gather_config, gemm::gemm_config,
-        group_norm::group_norm_config, hard_sigmoid::hard_sigmoid_config,
-        instance_norm::instance_norm_config, layer_norm::layer_norm_config,
-        leaky_relu::leaky_relu_config, linear::linear_config, log_softmax::log_softmax_config,
-        max_pool1d::max_pool1d_config, max_pool2d::max_pool2d_config, one_hot::one_hot_config,
-        pad::pad_config, reduce_max::reduce_max_config, reduce_mean::reduce_mean_config,
-        reduce_min::reduce_min_config, reduce_prod::reduce_prod_config,
-        reduce_sum::reduce_sum_config, reshape::reshape_config, resize::resize_config,
-        slice::slice_config, softmax::softmax_config, split::split_config, squeeze::squeeze_config,
-        tile::tile_config, topk::top_k_config, transpose::transpose_config, trilu::trilu_config,
-        unsqueeze::unsqueeze_config,
+        argmax::argmax_config, avg_pool1d::avg_pool1d_config, avg_pool2d::avg_pool2d_config, batch_norm::batch_norm_config, clip::clip_config, concat::concat_config, conv1d::conv1d_config, conv2d::conv2d_config, conv3d::conv3d_config, conv_transpose1d::conv_transpose1d_config, conv_transpose2d::conv_transpose2d_config, conv_transpose3d::conv_transpose3d_config, depth_to_space::depth_to_space_config, dropout::dropout_config, expand::expand_config, flatten::flatten_config, gather::gather_config, gemm::gemm_config, group_norm::group_norm_config, hard_sigmoid::hard_sigmoid_config, instance_norm::instance_norm_config, layer_norm::layer_norm_config, leaky_relu::leaky_relu_config, linear::linear_config, log_softmax::log_softmax_config, max_pool1d::max_pool1d_config, max_pool2d::max_pool2d_config, one_hot::one_hot_config, pad::pad_config, reduce_max::reduce_max_config, reduce_mean::reduce_mean_config, reduce_min::reduce_min_config, reduce_prod::reduce_prod_config, reduce_sum::reduce_sum_config, reshape::reshape_config, resize::resize_config, slice::slice_config, softmax::softmax_config, split::split_config, squeeze::squeeze_config, tile::tile_config, topk::top_k_config, transpose::transpose_config, trilu::trilu_config, unsqueeze::unsqueeze_config
     },
     parse_onnx,
     util::shape_config,
@@ -302,6 +235,7 @@ impl ParsedOnnxGraph {
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
                 NodeType::Conv3d => graph.register(Self::conv3d_conversion::<PS>(node)),
+                NodeType::DepthToSpace => graph.register(Self::depth_to_space_conversion(node)),
                 NodeType::Max => graph.register(Self::max_conversion(node)),
                 NodeType::MaxPool1d => graph.register(Self::max_pool1d_conversion(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
@@ -1120,6 +1054,14 @@ impl ParsedOnnxGraph {
 
         let name = &node.name;
         Conv3dNode::new(name, input, output, weight, bias, config)
+    }
+
+    fn depth_to_space_conversion(node: Node) -> DepthToSpaceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = depth_to_space_config(&node);
+
+        DepthToSpaceNode::new(input, output, config)
     }
 
     fn max_pool1d_conversion(node: Node) -> MaxPool1dNode {

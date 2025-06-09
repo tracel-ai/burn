@@ -31,6 +31,8 @@ fn main() {
         .input("tests/conv_transpose3d/conv_transpose3d.onnx")
         .input("tests/cos/cos.onnx")
         .input("tests/cosh/cosh.onnx")
+        .input("tests/depth_to_space/depth_to_space_dcr.onnx")
+        .input("tests/depth_to_space/depth_to_space_crd.onnx")
         .input("tests/div/div.onnx")
         .input("tests/dropout/dropout.onnx")
         .input("tests/equal/equal.onnx")
