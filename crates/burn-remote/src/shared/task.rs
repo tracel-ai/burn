@@ -44,12 +44,27 @@ pub enum Task {
 
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
+pub struct TensorNetwork {
+    pub id: TensorId,
+    pub address: String,
+}
+
+#[allow(missing_docs)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ComputeTask {
     RegisterOperation(Box<OperationIr>),
     RegisterTensor(TensorId, TensorData),
     RegisterOrphan(TensorId),
+    RegisterTensorNetwork(TensorNetwork, TensorId),
+    ExposeTensorNetwork { tensor: TensorIr, count: u32 },
     ReadTensor(TensorIr),
     SyncBackend,
+}
+
+/// Used by a server to request a tensor from another server
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RemoteTensorReq {
+    pub id: TensorId,
 }
 
 #[allow(missing_docs)]

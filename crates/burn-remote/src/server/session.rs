@@ -5,12 +5,15 @@ use burn_router::Runner;
 use burn_tensor::Device;
 use std::{
     collections::HashMap,
-    sync::mpsc::{Receiver, SyncSender},
+    sync::{
+        Arc,
+        mpsc::{Receiver, SyncSender},
+    },
 };
 
 use crate::shared::{ComputeTask, ConnectionId, SessionId, Task, TaskResponse};
 
-use super::stream::Stream;
+use super::{base::WsServerState, stream::Stream};
 
 /// A session manager control the creation of sessions.
 ///
@@ -19,6 +22,7 @@ use super::stream::Stream;
 pub struct SessionManager<B: BackendIr> {
     runner: Runner<B>,
     sessions: Mutex<HashMap<SessionId, Session<B>>>,
+    server_state: Arc<WsServerState>,
 }
 
 struct Session<B: BackendIr> {
@@ -26,13 +30,15 @@ struct Session<B: BackendIr> {
     streams: HashMap<StreamId, Stream<B>>,
     sender: SyncSender<Receiver<TaskResponse>>,
     receiver: Option<Receiver<Receiver<TaskResponse>>>,
+    server_state: Arc<WsServerState>,
 }
 
 impl<B: BackendIr> SessionManager<B> {
-    pub fn new(device: Device<B>) -> Self {
+    pub fn new(device: Device<B>, server_state: Arc<WsServerState>) -> Self {
         Self {
             runner: Runner::new(device),
             sessions: Mutex::new(Default::default()),
+            server_state,
         }
     }
 
@@ -95,19 +101,20 @@ impl<B: BackendIr> SessionManager<B> {
         sessions.entry(id).or_insert_with(|| {
             log::info!("Creating a new session {id}");
 
-            Session::new(self.runner.clone())
+            Session::new(self.runner.clone(), self.server_state.clone())
         });
     }
 }
 
 impl<B: BackendIr> Session<B> {
-    fn new(runner: Runner<B>) -> Self {
+    fn new(runner: Runner<B>, server_state: Arc<WsServerState>) -> Self {
         let (sender, receiver) = std::sync::mpsc::sync_channel(1);
         Self {
             runner,
             streams: Default::default(),
             sender,
             receiver: Some(receiver),
+            server_state,
         }
     }
 
@@ -123,7 +130,11 @@ impl<B: BackendIr> Session<B> {
         match self.streams.get(&stream_id) {
             Some(stream) => stream.clone(),
             None => {
-                let stream = Stream::<B>::new(self.runner.clone(), self.sender.clone());
+                let stream = Stream::<B>::new(
+                    self.runner.clone(),
+                    self.sender.clone(),
+                    self.server_state.clone(),
+                );
                 self.streams.insert(stream_id, stream.clone());
                 stream
             }

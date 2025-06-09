@@ -1,5 +1,6 @@
 use burn_common::future::DynFut;
-use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient};
+use burn_ir::TensorIr;
+use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 use burn_tensor::{
     DType, TensorData,
     backend::{DeviceId, DeviceOps},
@@ -9,9 +10,9 @@ use std::{
     sync::Arc,
 };
 
-use crate::shared::{ComputeTask, TaskResponseContent};
+use crate::shared::{ComputeTask, TensorNetwork, TaskResponseContent};
 
-use super::WsClient;
+use super::{WsChannel, WsClient};
 
 // It is very important to block on any request made with the sender, since ordering is crucial
 // when registering operation or creating tensors.
@@ -144,31 +145,62 @@ impl DeviceOps for WsDevice {
 
 pub struct WsBridge;
 
+pub struct RemoteTensorHandle {
+    pub(crate) client: WsClient,
+    pub(crate) tensor: TensorIr,
+}
+
+impl RemoteTensorHandle {
+    pub(crate) fn change_backend(mut self, target_device: &WsDevice) -> Self {
+        self.client.sender.send(ComputeTask::ExposeTensorNetwork {
+            tensor: self.tensor.clone(),
+            count: 1,
+        });
+
+        let target_client: WsClient = get_client::<WsChannel>(target_device);
+
+        let new_id = target_client.sender.new_tensor_id();
+
+        let remote_tensor = TensorNetwork {
+            id: self.tensor.id,
+            address: self.client.device.address.to_string(),
+        };
+        target_client
+            .sender
+            .send(ComputeTask::RegisterTensorNetwork(remote_tensor, new_id));
+
+        self.tensor.id = new_id;
+        self.client = target_client;
+
+        self
+    }
+}
+
 impl MultiBackendBridge for WsBridge {
-    type TensorHandle = TensorData;
+    type TensorHandle = RemoteTensorHandle;
     type Device = WsDevice;
 
     fn change_backend_float(
         tensor: Self::TensorHandle,
         _shape: burn_tensor::Shape,
-        _target_device: &Self::Device,
+        target_device: &Self::Device,
     ) -> Self::TensorHandle {
-        tensor
+        tensor.change_backend(target_device)
     }
 
     fn change_backend_int(
         tensor: Self::TensorHandle,
         _shape: burn_tensor::Shape,
-        _target_device: &Self::Device,
+        target_device: &Self::Device,
     ) -> Self::TensorHandle {
-        tensor
+        tensor.change_backend(target_device)
     }
 
     fn change_backend_bool(
         tensor: Self::TensorHandle,
         _shape: burn_tensor::Shape,
-        _target_device: &Self::Device,
+        target_device: &Self::Device,
     ) -> Self::TensorHandle {
-        tensor
+        tensor.change_backend(target_device)
     }
 }

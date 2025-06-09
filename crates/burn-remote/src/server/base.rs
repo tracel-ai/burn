@@ -7,21 +7,36 @@ use axum::{
     response::IntoResponse,
     routing::any,
 };
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+};
 
-use burn_ir::BackendIr;
-use burn_tensor::Device;
+use burn_ir::{BackendIr, TensorId};
+use burn_tensor::{Device, TensorData};
 use tracing_core::{Level, LevelFilter};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{filter::filter_fn, registry};
 
-use crate::shared::{ComputeTask, Task};
+use crate::shared::{ComputeTask, RemoteTensorReq, Task};
 
 use super::session::SessionManager;
 
+pub struct TensorUploadState {
+    pub data: TensorData,
+    pub total_upload_count: u32,
+    pub cur_upload_count: u32,
+}
+
+pub struct WsServerState {
+    pub current_uploads: Mutex<HashMap<TensorId, TensorUploadState>>,
+}
+
 #[derive(Clone)]
 pub struct WsServer<B: BackendIr> {
-    state: Arc<SessionManager<B>>,
+    session_manager: Arc<SessionManager<B>>,
+    state: Arc<WsServerState>,
 }
 
 impl<B: BackendIr> WsServer<B> {
@@ -45,16 +60,20 @@ impl<B: BackendIr> WsServer<B> {
         let address = format!("0.0.0.0:{port}");
         log::info!("Start server {address} on device {device:?}");
 
-        let state = SessionManager::<B>::new(device);
-        let state = Self {
-            state: Arc::new(state),
+        let state = Arc::new(WsServerState {
+            current_uploads: Mutex::new(HashMap::new()),
+        });
+        let server = Self {
+            session_manager: Arc::new(SessionManager::<B>::new(device, state.clone())),
+            state,
         };
 
         // build our application with some routes
         let app = Router::new()
             .route("/response", any(Self::handler_response))
             .route("/request", any(Self::handler_request))
-            .with_state(state);
+            .route("/upload", any(Self::handler_upload))
+            .with_state(server);
 
         // run it with hyper
         let listener = tokio::net::TcpListener::bind(address).await.unwrap();
@@ -77,6 +96,10 @@ impl<B: BackendIr> WsServer<B> {
         ws.on_upgrade(move |socket| state.handle_socket_request(socket))
     }
 
+    async fn handler_upload(ws: WebSocketUpgrade, State(state): State<Self>) -> impl IntoResponse {
+        ws.on_upgrade(move |socket| state.handle_socket_upload(socket))
+    }
+
     async fn handle_socket_response(self, mut socket: WebSocket) {
         log::info!("[Response Handler] On new connection.");
 
@@ -97,7 +120,7 @@ impl<B: BackendIr> WsServer<B> {
                     _ => panic!("Response handler not initialized."),
                 };
 
-                let receiver = self.state.register_responder(id);
+                let receiver = self.session_manager.register_responder(id);
 
                 log::info!("Response handler connection active");
 
@@ -144,13 +167,14 @@ impl<B: BackendIr> WsServer<B> {
                     break;
                 }
 
-                let (stream, connection_id, task) = match self.state.stream(&mut session_id, task) {
-                    Some(val) => val,
-                    None => {
-                        log::info!("Ops session activated {session_id:?}");
-                        continue;
-                    }
-                };
+                let (stream, connection_id, task) =
+                    match self.session_manager.stream(&mut session_id, task) {
+                        Some(val) => val,
+                        None => {
+                            log::info!("Ops session activated {session_id:?}");
+                            continue;
+                        }
+                    };
 
                 match task {
                     ComputeTask::RegisterOperation(op) => {
@@ -168,6 +192,12 @@ impl<B: BackendIr> WsServer<B> {
                     ComputeTask::SyncBackend => {
                         stream.sync(connection_id);
                     }
+                    ComputeTask::RegisterTensorNetwork(tensor, new_id) => {
+                        stream.register_remote_tensor(tensor, new_id);
+                    }
+                    ComputeTask::ExposeTensorNetwork { tensor, count } => {
+                        stream.upload_tensor(tensor, count);
+                    }
                 }
             } else {
                 log::info!("Not a binary message, closing, received {msg:?}");
@@ -176,7 +206,57 @@ impl<B: BackendIr> WsServer<B> {
         }
 
         log::info!("Closing session {:?}", session_id);
-        self.state.close(session_id);
+        self.session_manager.close(session_id);
+    }
+
+    async fn handle_socket_upload(self, mut socket: WebSocket) {
+        log::info!("[Response Handler] On new connection for upload.");
+
+        let packet = socket.recv().await;
+        let msg = match packet {
+            Some(msg) => msg,
+            None => panic!("Still no message"),
+        };
+
+        match msg {
+            Ok(ws::Message::Binary(bytes)) => {
+                let id = match rmp_serde::from_slice::<RemoteTensorReq>(&bytes) {
+                    Ok(val) => val.id,
+                    Err(err) => panic!("Only bytes messages are supported {err:?}"),
+                };
+
+                log::info!("Response handler for upload active");
+
+                // Get the requested uploaded tensor info
+                let mut upload_state;
+                {
+                    let mut current_uploads = self.state.current_uploads.lock().unwrap();
+                    if current_uploads.contains_key(&id) {
+                        // take the upload out of the hashmap while we download
+                        upload_state = current_uploads.remove(&id).unwrap();
+                        log::info!("Tensor found (id: {id:?})");
+                    } else {
+                        panic!("A tensor was requested (id: {id:?}) that isn't being served");
+                    }
+                }
+
+                // Send tensor and increment it's counter
+                let bytes = rmp_serde::to_vec(&upload_state.data).unwrap();
+                socket
+                    .send(ws::Message::Binary(bytes.into()))
+                    .await
+                    .unwrap();
+                upload_state.cur_upload_count += 1;
+
+                // If it was not the last upload, put it back in the hash map
+                if upload_state.total_upload_count != upload_state.cur_upload_count {
+                    let mut current_uploads = self.state.current_uploads.lock().unwrap();
+                    current_uploads.insert(id, upload_state);
+                }
+            }
+            Err(err) => panic!("Can't start the response handler {err:?}"),
+            _ => panic!("Unsupported message type"),
+        }
     }
 }
 

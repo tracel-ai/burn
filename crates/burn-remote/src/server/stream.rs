@@ -1,9 +1,15 @@
 use core::marker::PhantomData;
-use std::sync::mpsc::{Receiver, SyncSender};
+use std::sync::{
+    Arc,
+    mpsc::{Receiver, SyncSender},
+};
 
-use crate::shared::{ConnectionId, TaskResponse};
+use crate::shared::{ConnectionId, TensorNetwork, TaskResponse};
 
-use super::processor::{Processor, ProcessorTask};
+use super::{
+    base::WsServerState,
+    processor::{Processor, ProcessorTask},
+};
 use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
 use burn_router::Runner;
 use burn_tensor::TensorData;
@@ -18,8 +24,12 @@ pub struct Stream<B: BackendIr> {
 }
 
 impl<B: BackendIr> Stream<B> {
-    pub fn new(runner: Runner<B>, writer_sender: SyncSender<Receiver<TaskResponse>>) -> Self {
-        let sender = Processor::start(runner);
+    pub fn new(
+        runner: Runner<B>,
+        writer_sender: SyncSender<Receiver<TaskResponse>>,
+        state: Arc<WsServerState>,
+    ) -> Self {
+        let sender = Processor::start(runner, state);
 
         Self {
             compute_sender: sender,
@@ -40,6 +50,18 @@ impl<B: BackendIr> Stream<B> {
             .unwrap()
     }
 
+    pub fn register_remote_tensor(&self, tensor: TensorNetwork, new_id: TensorId) {
+        self.compute_sender
+            .send(ProcessorTask::RegisterRemoteTensor(tensor, new_id))
+            .unwrap()
+    }
+
+    pub fn upload_tensor(&self, tensor: TensorIr, count: u32) {
+        self.compute_sender
+            .send(ProcessorTask::UploadTensor { tensor, count })
+            .unwrap();
+    }
+
     pub fn register_orphan(&self, tensor_id: TensorId) {
         self.compute_sender
             .send(ProcessorTask::RegisterOrphan(tensor_id))
@@ -51,7 +73,7 @@ impl<B: BackendIr> Stream<B> {
 
         self.compute_sender
             .send(ProcessorTask::ReadTensor(id, desc, callback_sender))
-            .unwrap();
+            .unwrap_or_else(|x| println!("{x:?}"));
 
         self.writer_sender.send(callback_rec).unwrap();
     }
@@ -61,7 +83,7 @@ impl<B: BackendIr> Stream<B> {
 
         self.compute_sender
             .send(ProcessorTask::Sync(id, callback_sender))
-            .unwrap();
+            .unwrap_or_else(|x| println!("{x:?}"));
 
         self.writer_sender.send(callback_rec).unwrap();
     }

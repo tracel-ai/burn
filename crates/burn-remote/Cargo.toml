@@ -15,10 +15,10 @@ version.workspace = true
 workspace = true
 
 [features]
-default = []
+default = ["client", "server"]
 doc = []
 client = ["tokio-tungstenite", "async-channel", "tokio/sync"]
-server = ["axum", "tracing-core", "tracing-subscriber"]
+server = ["tokio-tungstenite", "async-channel", "tokio/sync", "axum", "tracing-core", "tracing-subscriber"]
 
 
 [dependencies]

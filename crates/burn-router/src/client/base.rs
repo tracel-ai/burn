@@ -53,7 +53,8 @@ pub(crate) struct RunnerClientLocator {
     clients: Mutex<Option<HashMap<Key, Box<dyn core::any::Any + Send>>>>,
 }
 
-pub(crate) fn get_client<R: RunnerChannel>(device: &R::Device) -> Client<R> {
+/// Get the client for the given device
+pub fn get_client<R: RunnerChannel>(device: &R::Device) -> Client<R> {
     CLIENTS.client::<R>(device)
 }
 
