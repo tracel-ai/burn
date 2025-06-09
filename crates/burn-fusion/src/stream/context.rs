@@ -208,7 +208,7 @@ impl RelativeOps for OperationIr {
             OperationIr::Module(ops) => OperationIr::Module(ops.to_relative(converter)),
             OperationIr::Custom(ops) => OperationIr::Custom(ops.to_relative(converter)),
             OperationIr::Init(ops) => OperationIr::Init(ops.to_relative(converter)),
-            OperationIr::Drop(id) => OperationIr::Drop(id.to_relative(converter)),
+            OperationIr::Drop(tensor) => OperationIr::Drop(tensor.to_relative(converter)),
         }
     }
 }

@@ -60,6 +60,8 @@ impl<R: FusionRuntime> OrderedExecution<R> {
     ) {
         self.num_executed += ordering.len();
 
+        println!("{ordering:?}");
+        println!("Num Operations {:?}", self.operations.len());
         for id in ordering {
             let op = &self.operations[*id];
             op.execute(handles);

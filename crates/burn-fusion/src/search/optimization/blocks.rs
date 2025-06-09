@@ -41,6 +41,10 @@ enum BlockOptimizationStep<O> {
     Contiguous {
         strategy: ExecutionStrategy<O>,
     },
+    /// Only happen when we fallback on executing a single operation.
+    Operation {
+        strategy: ExecutionStrategy<O>,
+    },
     WithHoles {
         strategy: ExecutionStrategy<O>,
         holes: Vec<usize>,
@@ -77,6 +81,10 @@ impl<O: NumOperations> BlocksOptimizer<O> {
             match self.optimize_block(block, &mut ordering) {
                 BlockOptimizationStep::Contiguous { strategy } => {
                     strategies.push(Box::new(strategy));
+                }
+                BlockOptimizationStep::Operation { strategy } => {
+                    strategies.push(Box::new(strategy));
+                    break;
                 }
                 BlockOptimizationStep::WithHoles { strategy, holes } => {
                     strategies.push(Box::new(strategy));
@@ -143,10 +151,9 @@ impl<O: NumOperations> BlocksOptimizer<O> {
         last_index: usize,
         ordering_global: &mut Vec<usize>,
     ) -> BlockOptimizationStep<O> {
-        ordering_global.append(&mut optimization.ordering);
-
         match optimization.strategy {
             ExecutionStrategy::Optimization { opt, ordering } => {
+                ordering_global.append(&mut optimization.ordering);
                 let holes = self.find_holes(last_index);
 
                 if holes.is_empty() {
@@ -159,11 +166,12 @@ impl<O: NumOperations> BlocksOptimizer<O> {
             }
             ExecutionStrategy::Operations { ordering } => {
                 let min = ordering.iter().min().unwrap();
+                ordering_global.push(*min);
 
                 let strategy = ExecutionStrategy::Operations {
                     ordering: Arc::new(vec![*min]),
                 };
-                BlockOptimizationStep::Contiguous { strategy }
+                BlockOptimizationStep::Operation { strategy }
             }
             _ => unreachable!(),
         }

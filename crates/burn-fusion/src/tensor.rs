@@ -179,17 +179,17 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
 
         impl<RO: FusionRuntime> Operation<RO> for DropOp {
             fn execute(&self, handles: &mut burn_ir::HandleContainer<RO::FusionHandle>) {
-                // handles.remove_handle(self.id);
+                handles.remove_handle(self.id);
             }
         }
 
         match self.status() {
             TensorStatus::ReadWrite => {
-                let stream = StreamId::current();
                 let id = *self.id.as_ref();
                 let mut shape = Vec::new();
                 core::mem::swap(&mut shape, &mut self.shape);
 
+                let stream = self.stream;
                 let ir = TensorIr {
                     id,
                     shape,
@@ -197,7 +197,6 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
                     dtype: self.dtype,
                 };
 
-                println!("Dropping {id:?}");
                 self.client
                     .register(vec![stream], OperationIr::Drop(ir), DropOp { id });
             }
