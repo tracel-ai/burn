@@ -1,71 +1,104 @@
 use burn_tensor::Shape;
-use cubecl::{linalg::tensor::TensorHandle, prelude::*};
+use cubecl::prelude::*;
 
 use crate::{
     kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},
+    ops::numeric::empty_device,
     tensor::CubeTensor,
     CubeElement, CubeRuntime,
 };
 
-use super::{random, PrngArgs, PrngRuntime};
+use super::{get_seeds, prng_cube_count, N_VALUES_PER_THREAD};
 
-#[derive(CubeLaunch)]
-pub(crate) struct Multinomial<E: Numeric + CubeType> {
-    props: Tensor<E>,
+/// Pseudo-random generator
+fn random<R: CubeRuntime, E: CubeElement>(
+    shape: Shape,
+    device: &R::Device,
+    args: TensorArg<'_, R>,
+) -> CubeTensor<R> {
+    let client = R::client(device);
+    let output = empty_device::<R, E>(client.clone(), device.clone(), shape);
+    let seeds = get_seeds();
+
+    let cube_dim = CubeDim::default();
+    let cube_count = prng_cube_count(output.shape.num_elements(), cube_dim, N_VALUES_PER_THREAD);
+
+    prng_kernel::launch::<E, R>(
+        &client,
+        cube_count,
+        cube_dim,
+        output.as_tensor_arg::<E>(1),
+        ScalarArg::new(seeds[0]),
+        ScalarArg::new(seeds[1]),
+        ScalarArg::new(seeds[2]),
+        ScalarArg::new(seeds[3]),
+        args,
+        N_VALUES_PER_THREAD as u32,
+    );
+
+    output
 }
+#[cube(launch)]
+fn prng_kernel<E: CubeElement>(
+    output: &mut Tensor<E>,
+    seed_0: u32,
+    seed_1: u32,
+    seed_2: u32,
+    seed_3: u32,
+    args: Tensor<E>,
+    #[comptime] n_values_per_thread: u32,
+) {
+    let cube_offset = CUBE_POS * CUBE_DIM;
 
-#[cube]
-impl<E: CubeElement + CubeType> PrngRuntime<E> for Multinomial<E> {
-    fn inner_loop(
-        args: Multinomial<E>,
-        write_index_base: u32,
-        n_invocations: u32,
-        #[comptime] n_values_per_thread: u32,
-        state_0: &mut u32,
-        state_1: &mut u32,
-        state_2: &mut u32,
-        state_3: &mut u32,
-        output: &mut Tensor<E>,
-    ) {
-        let props = args.props;
+    let write_index_base = cube_offset * n_values_per_thread + UNIT_POS;
 
-        let should_unroll = n_values_per_thread <= 8;
-        let scale = upper_bound - lower_bound;
+    #[allow(arithmetic_overflow)]
+    let thread_seed = 1000000007u32 * ABSOLUTE_POS;
 
-        #[unroll(should_unroll)]
-        for i in 0..n_values_per_thread {
-            *state_0 = taus_step_0(*state_0);
-            *state_1 = taus_step_1(*state_1);
-            *state_2 = taus_step_2(*state_2);
-            *state_3 = lcg_step(*state_3);
+    let mut state_0 = thread_seed + seed_0;
+    let mut state_1 = thread_seed + seed_1;
+    let mut state_2 = thread_seed + seed_2;
+    let mut state_3 = thread_seed + seed_3;
+    let n_invocations = CUBE_DIM;
 
-            let int_random = *state_0 ^ *state_1 ^ *state_2 ^ *state_3;
-            let f32_random = cast_uint_to_float(int_random);
-            let random = E::cast_from(f32_random);
+    // Creation of n_values_per_thread values, specific to the distribution
+    let prob = 23.0; // TODO
+    let should_unroll = n_values_per_thread <= 8;
 
-            let uniform = random * scale + lower_bound;
+    #[unroll(should_unroll)]
+    for i in 0..n_values_per_thread {
+        state_0 = taus_step_0(state_0);
+        state_1 = taus_step_1(state_1);
+        state_2 = taus_step_2(state_2);
+        state_3 = lcg_step(state_3);
 
-            let write_index = i * n_invocations + write_index_base;
+        let int_random = state_0 ^ state_1 ^ state_2 ^ state_3;
+        let float_random = cast_uint_to_float(int_random);
+        let write_index = i * n_invocations + write_index_base;
 
-            output[write_index] = uniform;
-        }
+        output[write_index] = E::cast_from(float_random < prob);
     }
 }
 
+#[derive(CubeLaunch)]
+struct Multinomial<E: Numeric> {
+    probabilities: Tensor<E>,
+}
 
 /// Pseudo-random generator with uniform distribution
 pub fn random_multinomial<R: CubeRuntime, E: CubeElement>(
     shape: Shape,
     device: &R::Device,
-    props: Tensor<E>,
+    props: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    random(shape, device, Multinomial { props })
+    random::<R, E>(shape, device, props.as_tensor_arg::<E>(1))
 }
+
 /// Pseudo-random generator for uniform distribution, based on
 /// another tensor.
 pub fn random_like_multinomial<R: CubeRuntime, E: CubeElement>(
     tensor: &CubeTensor<R>,
-    props: Tensor<E>,
+    props: CubeTensor<R>,
 ) -> CubeTensor<R> {
     random_multinomial::<R, E>(tensor.shape.clone(), &tensor.device, props)
 }

@@ -1,5 +1,5 @@
 use super::{expand, numeric, permute};
-use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
+use crate::kernel::prng::{random_bernoulli, random_multinomial, random_normal, random_uniform};
 use crate::kernel::unary_basic::BasicFloatUnaryKind;
 use crate::kernel::{
     self, FloatUnaryOp, FloatUnaryOpFamily, launch_unary_float, reduce, unary_basic,
