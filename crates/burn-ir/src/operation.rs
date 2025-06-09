@@ -1376,10 +1376,6 @@ pub struct InterpolateBackwardOpIr {
 
 impl OperationIr {
     /// Get the nodes of the current optimization.
-    ///
-    /// # Notes
-    ///
-    /// The drop operation is excluded from the list.
     pub fn nodes(&self) -> Vec<&TensorIr> {
         match self {
             OperationIr::BaseFloat(repr) => repr.nodes(),
