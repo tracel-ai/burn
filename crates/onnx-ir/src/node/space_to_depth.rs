@@ -95,7 +95,7 @@ mod tests {
     #[test]
     fn test_static_shape_update_outputs() {
         let mut node = create_test_node(4, Some(vec![2, 1, 4, 6]), 2);
-        space_to_depth_config(&mut node);
+        space_to_depth_update_outputs(&mut node);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
