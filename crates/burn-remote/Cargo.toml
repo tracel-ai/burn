@@ -27,6 +27,8 @@ burn-tensor = { path = "../burn-tensor", version = "0.18.0", default-features = 
 burn-common = { path = "../burn-common", version = "0.18.0", default-features = true }
 burn-router = { path = "../burn-router", version = "0.18.0", default-features = true }
 
+bytes = { version = "1.0" }
+
 # Basic dependencies
 derive-new = { workspace = true }
 log = { workspace = true }

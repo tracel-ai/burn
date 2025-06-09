@@ -44,7 +44,7 @@ pub enum Task {
 
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
-pub struct TensorNetwork {
+pub struct TensorRemote {
     pub id: TensorId,
     pub address: String,
 }
@@ -55,8 +55,8 @@ pub enum ComputeTask {
     RegisterOperation(Box<OperationIr>),
     RegisterTensor(TensorId, TensorData),
     RegisterOrphan(TensorId),
-    RegisterTensorNetwork(TensorNetwork, TensorId),
-    ExposeTensorNetwork { tensor: TensorIr, count: u32 },
+    RegisterTensorRemote(TensorRemote, TensorId),
+    ExposeTensorRemote { tensor: TensorIr, count: u32 },
     ReadTensor(TensorIr),
     SyncBackend,
 }

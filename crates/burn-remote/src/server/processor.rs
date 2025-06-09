@@ -16,10 +16,10 @@ use tokio_tungstenite::{
 };
 
 use crate::shared::{
-    ConnectionId, RemoteTensorReq, TaskResponse, TaskResponseContent, TensorNetwork,
+    ConnectionId, RemoteTensorReq, TaskResponse, TaskResponseContent, TensorRemote,
 };
 
-use super::base::{TensorUploadState, WsServerState};
+use super::tensor_data_service::{TensorDataService, TensorExposeState};
 
 /// The goal of the processor is to asynchronously process compute tasks on it own thread.
 pub struct Processor<B: BackendIr> {
@@ -31,8 +31,8 @@ pub type Callback<M> = Sender<M>;
 pub enum ProcessorTask {
     RegisterOperation(Box<OperationIr>),
     RegisterTensor(TensorId, TensorData),
-    RegisterRemoteTensor(TensorNetwork, TensorId),
-    UploadTensor { tensor: TensorIr, count: u32 },
+    RegisterTensorRemote(TensorRemote, TensorId),
+    ExposeTensorRemote { tensor: TensorIr, count: u32 },
     ReadTensor(ConnectionId, TensorIr, Callback<TaskResponse>),
     Sync(ConnectionId, Callback<TaskResponse>),
     RegisterOrphan(TensorId),
@@ -40,7 +40,7 @@ pub enum ProcessorTask {
 }
 
 impl<B: BackendIr> Processor<B> {
-    pub fn start(runner: Runner<B>, state: Arc<WsServerState>) -> SyncSender<ProcessorTask> {
+    pub fn start(runner: Runner<B>, state: Arc<TensorDataService>) -> SyncSender<ProcessorTask> {
         // channel for tasks to execute
         let (task_sender, task_rec) = std::sync::mpsc::sync_channel(1);
 
@@ -65,7 +65,7 @@ impl<B: BackendIr> Processor<B> {
                     ProcessorTask::RegisterTensor(id, data) => {
                         runner.register_tensor_data_id(id, data);
                     }
-                    ProcessorTask::RegisterRemoteTensor(remote_tensor, new_id) => {
+                    ProcessorTask::RegisterTensorRemote(remote_tensor, new_id) => {
                         let rt = tokio::runtime::Runtime::new().unwrap();
                         let data = rt
                             .block_on(Self::download_tensor(remote_tensor))
@@ -73,19 +73,18 @@ impl<B: BackendIr> Processor<B> {
                         log::info!("Registering remote tensor...(id: {new_id:?})");
                         runner.register_tensor_data_id(new_id, data);
                     }
-                    ProcessorTask::UploadTensor { tensor, count } => {
+                    ProcessorTask::ExposeTensorRemote { tensor, count } => {
                         let id = tensor.id;
                         let fut = runner.read_tensor(tensor);
                         runner.register_orphan(&id); // 
                         let data = burn_common::future::block_on(fut);
+                        let bytes: bytes::Bytes = rmp_serde::to_vec(&data).unwrap().into();
 
-                        log::info!("Uploading tensor (id: {id:?})");
-
-                        let mut uploads = state.current_uploads.lock().unwrap();
+                        let mut uploads = state.exposed_tensors.lock().unwrap();
                         uploads.insert(
                             id,
-                            TensorUploadState {
-                                data,
+                            TensorExposeState {
+                                bytes,
                                 total_upload_count: count,
                                 cur_upload_count: 0,
                             },
@@ -115,8 +114,8 @@ impl<B: BackendIr> Processor<B> {
         task_sender
     }
 
-    async fn download_tensor(remote_tensor: TensorNetwork) -> Option<TensorData> {
-        let address_request = format!("{}/{}", remote_tensor.address.as_str(), "upload");
+    async fn download_tensor(remote_tensor: TensorRemote) -> Option<TensorData> {
+        let address_request = format!("{}/{}", remote_tensor.address.as_str(), "data");
         const MB: usize = 1024 * 1024;
 
         let (mut stream, _) = connect_async_with_config(

@@ -13,8 +13,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use burn_ir::{BackendIr, TensorId};
-use burn_tensor::{Device, TensorData};
+use burn_ir::BackendIr;
+use burn_tensor::Device;
 use tracing_core::{Level, LevelFilter};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{filter::filter_fn, registry};
@@ -22,21 +22,12 @@ use tracing_subscriber::{filter::filter_fn, registry};
 use crate::shared::{ComputeTask, RemoteTensorReq, Task};
 
 use super::session::SessionManager;
-
-pub struct TensorUploadState {
-    pub data: TensorData,
-    pub total_upload_count: u32,
-    pub cur_upload_count: u32,
-}
-
-pub struct WsServerState {
-    pub current_uploads: Mutex<HashMap<TensorId, TensorUploadState>>,
-}
+use super::tensor_data_service::TensorDataService;
 
 #[derive(Clone)]
 pub struct WsServer<B: BackendIr> {
     session_manager: Arc<SessionManager<B>>,
-    state: Arc<WsServerState>,
+    state: Arc<TensorDataService>,
 }
 
 impl<B: BackendIr> WsServer<B> {
@@ -60,8 +51,8 @@ impl<B: BackendIr> WsServer<B> {
         let address = format!("0.0.0.0:{port}");
         log::info!("Start server {address} on device {device:?}");
 
-        let state = Arc::new(WsServerState {
-            current_uploads: Mutex::new(HashMap::new()),
+        let state = Arc::new(TensorDataService {
+            exposed_tensors: Mutex::new(HashMap::new()),
         });
         let server = Self {
             session_manager: Arc::new(SessionManager::<B>::new(device, state.clone())),
@@ -72,7 +63,7 @@ impl<B: BackendIr> WsServer<B> {
         let app = Router::new()
             .route("/response", any(Self::handler_response))
             .route("/request", any(Self::handler_request))
-            .route("/upload", any(Self::handler_upload))
+            .route("/data", any(Self::handler_upload))
             .with_state(server);
 
         // run it with hyper
@@ -192,11 +183,11 @@ impl<B: BackendIr> WsServer<B> {
                     ComputeTask::SyncBackend => {
                         stream.sync(connection_id);
                     }
-                    ComputeTask::RegisterTensorNetwork(tensor, new_id) => {
-                        stream.register_remote_tensor(tensor, new_id);
+                    ComputeTask::RegisterTensorRemote(tensor, new_id) => {
+                        stream.register_tensor_remote(tensor, new_id);
                     }
-                    ComputeTask::ExposeTensorNetwork { tensor, count } => {
-                        stream.upload_tensor(tensor, count);
+                    ComputeTask::ExposeTensorRemote { tensor, count } => {
+                        stream.expose_tensor_remote(tensor, count);
                     }
                 }
             } else {
@@ -227,32 +218,31 @@ impl<B: BackendIr> WsServer<B> {
 
                 log::info!("Response handler for upload active");
 
-                // Get the requested uploaded tensor info
-                let mut upload_state;
-                {
-                    let mut current_uploads = self.state.current_uploads.lock().unwrap();
-                    if current_uploads.contains_key(&id) {
+                // Get the requested uploaded tensor data
+                let bytes: bytes::Bytes = {
+                    let mut exposed_tensors = self.state.exposed_tensors.lock().unwrap();
+                    if exposed_tensors.contains_key(&id) {
                         // take the upload out of the hashmap while we download
-                        upload_state = current_uploads.remove(&id).unwrap();
                         log::info!("Tensor found (id: {id:?})");
+                        let expose_state = exposed_tensors.get(&id).unwrap();
+                        let is_last_download =
+                            expose_state.total_upload_count == (expose_state.cur_upload_count + 1);
+
+                        // If it was the last download, remove it.
+                        if is_last_download {
+                            exposed_tensors.remove(&id).unwrap().bytes
+                        } else {
+                            let expose_state = exposed_tensors.get_mut(&id).unwrap();
+                            expose_state.cur_upload_count += 1;
+                            expose_state.bytes.clone()
+                        }
                     } else {
                         panic!("A tensor was requested (id: {id:?}) that isn't being served");
                     }
-                }
+                };
 
-                // Send tensor and increment it's counter
-                let bytes = rmp_serde::to_vec(&upload_state.data).unwrap();
-                socket
-                    .send(ws::Message::Binary(bytes.into()))
-                    .await
-                    .unwrap();
-                upload_state.cur_upload_count += 1;
-
-                // If it was not the last upload, put it back in the hash map
-                if upload_state.total_upload_count != upload_state.cur_upload_count {
-                    let mut current_uploads = self.state.current_uploads.lock().unwrap();
-                    current_uploads.insert(id, upload_state);
-                }
+                // Send tensor and increment its counter
+                socket.send(ws::Message::Binary(bytes)).await.unwrap();
             }
             Err(err) => panic!("Can't start the response handler {err:?}"),
             _ => panic!("Unsupported message type"),

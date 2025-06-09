@@ -10,7 +10,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::shared::{ComputeTask, TaskResponseContent, TensorNetwork};
+use crate::shared::{ComputeTask, TaskResponseContent, TensorRemote};
 
 use super::{WsChannel, WsClient};
 
@@ -151,8 +151,13 @@ pub struct RemoteTensorHandle {
 }
 
 impl RemoteTensorHandle {
+    /// Changes the backend of the tensor via a WebSocket.
+    /// We ask the original server to expose the tensor, then ask the target server to fetch
+    /// the tensor. The target server will open a new websocket connection to the original server
+    /// to download the data.
+    /// This way the client never sees the tensor's data, and we avoid a bottleneck.
     pub(crate) fn change_backend(mut self, target_device: &WsDevice) -> Self {
-        self.client.sender.send(ComputeTask::ExposeTensorNetwork {
+        self.client.sender.send(ComputeTask::ExposeTensorRemote {
             tensor: self.tensor.clone(),
             count: 1,
         });
@@ -161,13 +166,13 @@ impl RemoteTensorHandle {
 
         let new_id = target_client.sender.new_tensor_id();
 
-        let remote_tensor = TensorNetwork {
+        let remote_tensor = TensorRemote {
             id: self.tensor.id,
             address: self.client.device.address.to_string(),
         };
         target_client
             .sender
-            .send(ComputeTask::RegisterTensorNetwork(remote_tensor, new_id));
+            .send(ComputeTask::RegisterTensorRemote(remote_tensor, new_id));
 
         self.tensor.id = new_id;
         self.client = target_client;

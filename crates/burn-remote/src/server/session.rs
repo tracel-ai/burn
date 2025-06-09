@@ -13,7 +13,7 @@ use std::{
 
 use crate::shared::{ComputeTask, ConnectionId, SessionId, Task, TaskResponse};
 
-use super::{base::WsServerState, stream::Stream};
+use super::{stream::Stream, tensor_data_service::TensorDataService};
 
 /// A session manager control the creation of sessions.
 ///
@@ -22,7 +22,7 @@ use super::{base::WsServerState, stream::Stream};
 pub struct SessionManager<B: BackendIr> {
     runner: Runner<B>,
     sessions: Mutex<HashMap<SessionId, Session<B>>>,
-    server_state: Arc<WsServerState>,
+    server_state: Arc<TensorDataService>,
 }
 
 struct Session<B: BackendIr> {
@@ -30,11 +30,11 @@ struct Session<B: BackendIr> {
     streams: HashMap<StreamId, Stream<B>>,
     sender: SyncSender<Receiver<TaskResponse>>,
     receiver: Option<Receiver<Receiver<TaskResponse>>>,
-    server_state: Arc<WsServerState>,
+    server_state: Arc<TensorDataService>,
 }
 
 impl<B: BackendIr> SessionManager<B> {
-    pub fn new(device: Device<B>, server_state: Arc<WsServerState>) -> Self {
+    pub fn new(device: Device<B>, server_state: Arc<TensorDataService>) -> Self {
         Self {
             runner: Runner::new(device),
             sessions: Mutex::new(Default::default()),
@@ -107,7 +107,7 @@ impl<B: BackendIr> SessionManager<B> {
 }
 
 impl<B: BackendIr> Session<B> {
-    fn new(runner: Runner<B>, server_state: Arc<WsServerState>) -> Self {
+    fn new(runner: Runner<B>, server_state: Arc<TensorDataService>) -> Self {
         let (sender, receiver) = std::sync::mpsc::sync_channel(1);
         Self {
             runner,

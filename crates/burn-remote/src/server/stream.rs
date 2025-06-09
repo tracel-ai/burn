@@ -4,11 +4,11 @@ use std::sync::{
     mpsc::{Receiver, SyncSender},
 };
 
-use crate::shared::{ConnectionId, TaskResponse, TensorNetwork};
+use crate::shared::{ConnectionId, TaskResponse, TensorRemote};
 
 use super::{
-    base::WsServerState,
     processor::{Processor, ProcessorTask},
+    tensor_data_service::TensorDataService,
 };
 use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
 use burn_router::Runner;
@@ -27,7 +27,7 @@ impl<B: BackendIr> Stream<B> {
     pub fn new(
         runner: Runner<B>,
         writer_sender: SyncSender<Receiver<TaskResponse>>,
-        state: Arc<WsServerState>,
+        state: Arc<TensorDataService>,
     ) -> Self {
         let sender = Processor::start(runner, state);
 
@@ -50,15 +50,15 @@ impl<B: BackendIr> Stream<B> {
             .unwrap()
     }
 
-    pub fn register_remote_tensor(&self, tensor: TensorNetwork, new_id: TensorId) {
+    pub fn register_tensor_remote(&self, tensor: TensorRemote, new_id: TensorId) {
         self.compute_sender
-            .send(ProcessorTask::RegisterRemoteTensor(tensor, new_id))
+            .send(ProcessorTask::RegisterTensorRemote(tensor, new_id))
             .unwrap()
     }
 
-    pub fn upload_tensor(&self, tensor: TensorIr, count: u32) {
+    pub fn expose_tensor_remote(&self, tensor: TensorIr, count: u32) {
         self.compute_sender
-            .send(ProcessorTask::UploadTensor { tensor, count })
+            .send(ProcessorTask::ExposeTensorRemote { tensor, count })
             .unwrap();
     }
 
@@ -73,7 +73,7 @@ impl<B: BackendIr> Stream<B> {
 
         self.compute_sender
             .send(ProcessorTask::ReadTensor(id, desc, callback_sender))
-            .unwrap_or_else(|x| println!("{x:?}"));
+            .unwrap();
 
         self.writer_sender.send(callback_rec).unwrap();
     }
@@ -83,7 +83,7 @@ impl<B: BackendIr> Stream<B> {
 
         self.compute_sender
             .send(ProcessorTask::Sync(id, callback_sender))
-            .unwrap_or_else(|x| println!("{x:?}"));
+            .unwrap();
 
         self.writer_sender.send(callback_rec).unwrap();
     }
