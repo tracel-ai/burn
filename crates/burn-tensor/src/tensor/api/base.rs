@@ -1031,6 +1031,23 @@ where
 
     /// Converts the data of the current tensor.
     ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     // Create a 2D tensor with dimensions [3, 2]
+    ///     let tensor = Tensor::<B, 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///
+    ///     let data = tensor.into_data();
+    ///     println!("{:?}", data.into_vec::<f32>());
+    /// }
+    /// ```
+    ///
     /// # Note
     ///
     /// For better performance, prefer using a [Transaction](Transaction) when reading multiple
@@ -1045,7 +1062,24 @@ where
     }
 
     /// Converts the data of the current tensor.
+    /// 
+    /// # Example
+    /// 
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
     ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     // Create a 2D tensor with dimensions [3, 2]
+    ///     let tensor = Tensor::<B, 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///
+    ///     let data = tensor.to_data();
+    ///     println!("{:?}", data.into_vec::<f32>());
+    /// }
+    /// ```
+    /// 
     /// # Note
     ///
     /// For better performance, prefer using a [Transaction](Transaction) when reading multiple
@@ -1056,16 +1090,76 @@ where
     }
 
     /// Returns the data of the current tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// async fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     // Create a 2D tensor with dimensions [3, 2]
+    ///     let tensor = Tensor::<B, 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///
+    ///     let data = tensor.into_data_async();
+    ///     println!("{:?}", data.await.into_vec::<f32>());
+    /// }
+    /// ```
     pub async fn into_data_async(self) -> TensorData {
         K::into_data_async(self.primitive).await
     }
 
     /// Returns the data of the current tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// async fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     // Create a 2D tensor with dimensions [3, 2]
+    ///     let tensor = Tensor::<B, 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///
+    ///     let data = tensor.to_data_async();
+    ///     println!("{:?}", data.await.into_vec::<f32>());
+    ///     println!("{:?}", data.await.shape);
+    /// }
+    /// ```
     pub async fn to_data_async(&self) -> TensorData {
         self.clone().into_data_async().await
     }
 
     /// Create a tensor from the given data on the given device.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The data of the tensor.
+    /// * `device` - The device on which the tensor will be allocated.
+    ///
+    /// # Panics
+    ///
+    /// - If `data` is 0-dimensional.
+    /// - If the shape of `data` is incompatible with the Tensor rank requested.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     // Create a 2D tensor with dimensions [3, 2]
+    ///     let tensor = Tensor::<B, 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///     println!("{tensor}");
+    /// }
+    /// ```
     pub fn from_data<T>(data: T, device: &B::Device) -> Self
     where
         T: Into<TensorData>,
@@ -1079,6 +1173,33 @@ where
     }
 
     /// Create a tensor from the given data on the given device enforcing the given data type.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The data of the tensor.
+    /// * `device` - The device on which the tensor will be allocated.
+    /// * `dtype` - The data type to enforce
+    ///
+    /// # Panics
+    ///
+    /// - If `data` is 0-dimensional.
+    /// - If the shape of `data` is incompatible with the Tensor rank requested.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::DType;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     // Create a 2D tensor with dimensions [3, 2]
+    ///     let tensor = Tensor::<B, 2>::from_data_dtype([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device, DType::F64);
+    ///     println!("{tensor}");
+    /// }
+    /// ```
     pub fn from_data_dtype<T>(data: T, device: &B::Device, dtype: DType) -> Self
     where
         T: Into<TensorData>,
@@ -1140,7 +1261,6 @@ where
     /// # Example
     ///
     /// ```rust
-    ///
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
@@ -1385,10 +1505,10 @@ where
     }
 
     /// Attempts to split the tensor into a specified number of chunks along a given dimension.
-    /// May return less chunks than requested if the tensor size is not divisible by the number of chunks.
+    /// May return fewer chunks than requested if the tensor size is not divisible by the number of chunks.
     ///
     /// When the given dimension is evenly divisible by the number of chunks, the chunks will be of equal size.
-    /// Otherwise all chunks will be of equal size except for the last one.
+    /// Otherwise, all chunks will be of equal size except for the last one.
     ///
     /// # Panics
     ///
