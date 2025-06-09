@@ -54,7 +54,7 @@ functionality.
 | [Cosh][40]                       | ✅             | ✅           |
 | [CumSum][41]                     | ❌             | ❌           |
 | [DeformConv][196]                | ❌             | ❌           |
-| [DepthToSpace][42]               | ❌             | ❌           |
+| [DepthToSpace][42]               | ✅             | ✅           |
 | [DequantizeLinear][43]           | ❌             | ❌           |
 | [Det][44]                        | ❌             | ❌           |
 | [DFT][45]                        | ❌             | ❌           |
@@ -81,7 +81,7 @@ functionality.
 | [Greater][66]                    | ✅             | ✅           |
 | [GreaterOrEqual][67]             | ✅             | ✅           |
 | [GridSample][68]                 | ❌             | ❌           |
-| [GroupNormalization][69]         | ❌             | ✅           |
+| [GroupNormalization][69]         | ✅             | ✅           |
 | [GRU][70]                        | ❌             | ✅           |
 | [HammingWindow][71]              | ❌             | ❌           |
 | [HannWindow][72]                 | ❌             | ❌           |
@@ -183,7 +183,7 @@ functionality.
 | [SoftmaxCrossEntropyLoss][169]   | ❌             | ❌           |
 | [Softplus][170]                  | ❌             | ❌           |
 | [Softsign][171]                  | ❌             | ❌           |
-| [SpaceToDepth][172]              | ❌             | ❌           |
+| [SpaceToDepth][172]              | ✅             | ✅           |
 | [Split][173]                     | ✅             | ✅           |
 | [SplitToSequence][174]           | ❌             | ❌           |
 | [Sqrt][175]                      | ✅             | ✅           |
