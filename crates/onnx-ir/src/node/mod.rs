@@ -58,6 +58,7 @@ pub mod resize;
 pub mod shape;
 pub mod slice;
 pub mod softmax;
+pub mod space_to_depth;
 pub mod split;
 pub mod squeeze;
 pub mod tile;

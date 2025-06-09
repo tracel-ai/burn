@@ -45,6 +45,7 @@ pub(crate) mod reshape;
 pub(crate) mod resize;
 pub(crate) mod round;
 pub(crate) mod slice;
+pub(crate) mod space_to_depth;
 pub(crate) mod split;
 pub(crate) mod squeeze;
 pub(crate) mod sum;

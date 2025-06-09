@@ -80,7 +80,7 @@ mod tests {
 
         graph.register(DepthToSpaceNode::new(
             TensorType::new_float("input", 4),
-            TensorType::new_float("output", 5),
+            TensorType::new_float("output", 4),
             DepthToSpaceConfig::new(DepthToSpaceMode::DCR, 2),
         ));
 
@@ -105,7 +105,7 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 5> {
+                pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
                     let output = {
                         let [b, c, h, w] = input.shape().dims();
                         input
@@ -152,7 +152,7 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 5> {
+                pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
                     let output = {
                         let [b, c, h, w] = input.shape().dims();
                         input

@@ -6,8 +6,8 @@ use super::{
     concat::ConcatNode, constant::ConstantNode, constant_of_shape::ConstantOfShapeNode,
     conv_transpose_1d::ConvTranspose1dNode, conv_transpose_2d::ConvTranspose2dNode,
     conv_transpose_3d::ConvTranspose3dNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
-    conv3d::Conv3dNode, dropout::DropoutNode, expand::ExpandNode, floor::FloorNode,
-    gather::GatherNode, gather_elements::GatherElementsNode, gemm::GemmNode,
+    conv3d::Conv3dNode, depth_to_space::DepthToSpaceNode, dropout::DropoutNode, expand::ExpandNode,
+    floor::FloorNode, gather::GatherNode, gather_elements::GatherElementsNode, gemm::GemmNode,
     global_avg_pool::GlobalAvgPoolNode, group_norm::GroupNormNode, instance_norm::InstanceNormNode,
     layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
     max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, mean::MeanNode, one_hot::OneHotNode,
@@ -17,9 +17,8 @@ use super::{
     resize::ResizeNode, round::RoundNode, slice::SliceNode, split::SplitNode, squeeze::SqueezeNode,
     sum::SumNode, tile::TileNode, top_k::TopKNode, trilu::TriluNode, unary::UnaryNode,
     unsqueeze::UnsqueezeNode,
-    depth_to_space::DepthToSpaceNode
 };
-use crate::burn::{BurnImports, Scope, Type};
+use crate::burn::{BurnImports, Scope, Type, node::space_to_depth::SpaceToDepthNode};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use serde::Serialize;
@@ -126,6 +125,7 @@ pub enum Node<PS: PrecisionSettings> {
     Round(RoundNode),
     Slice(SliceNode),
     Squeeze(SqueezeNode),
+    SpaceToDepth(SpaceToDepthNode),
     Split(SplitNode),
     Sum(SumNode),
     Tile(TileNode),
@@ -187,6 +187,7 @@ macro_rules! match_all {
             Node::Resize(node) => $func(node),
             Node::Round(node) => $func(node),
             Node::Slice(node) => $func(node),
+            Node::SpaceToDepth(node) => $func(node),
             Node::Squeeze(node) => $func(node),
             Node::Sum(node) => $func(node),
             Node::Tile(node) => $func(node),
@@ -257,6 +258,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Resize(_) => "resize",
             Node::Round(_) => "round",
             Node::Slice(_) => "slice",
+            Node::SpaceToDepth(_) => "space_to_depth",
             Node::Squeeze(_) => "squeeze",
             Node::Sum(_) => "add",
             Node::Tile(_) => "tile",
@@ -399,10 +401,9 @@ pub(crate) mod tests {
             ),
         ));
 
-        graph.register_input_output(
-            vec!["tensor1".to_string(), "tensor2".to_string()],
-            vec!["tensor4".to_string()],
-        );
+        graph.register_input_output(vec!["tensor1".to_string(), "tensor2".to_string()], vec![
+            "tensor4".to_string(),
+        ]);
 
         let expected = quote! {
             use burn::{
@@ -485,10 +486,9 @@ pub(crate) mod tests {
             TensorType::new_float("output", 4),
         ));
 
-        graph.register_input_output(
-            vec!["tensor1".to_string(), "tensor2".to_string()],
-            vec!["output".to_string()],
-        );
+        graph.register_input_output(vec!["tensor1".to_string(), "tensor2".to_string()], vec![
+            "output".to_string(),
+        ]);
 
         let expected = quote! {
             use burn::{
