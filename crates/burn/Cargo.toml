@@ -83,8 +83,9 @@ audio = ["burn-core/audio"]
 vision = ["burn-core/vision"]
 
 # Backend
+ir = ["burn-ir"]
 autodiff = ["burn-autodiff"]
-fusion = ["burn-wgpu?/fusion", "burn-cuda?/fusion"]
+fusion = ["ir", "burn-wgpu?/fusion", "burn-cuda?/fusion"]
 
 ## Backend features
 accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
@@ -92,8 +93,8 @@ autotune = ["burn-wgpu?/autotune", "burn-cuda?/autotune", "burn-rocm?/autotune"]
 blas-netlib = ["burn-ndarray?/blas-netlib"]
 openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]
-remote = ["burn-remote/client"]
-router = ["burn-router"]
+remote = ["burn-remote/client", "ir"]
+router = ["burn-router", "ir"]
 server = ["burn-remote/server"]
 simd = ["burn-ndarray?/simd"]
 template = ["burn-wgpu?/template"]
@@ -132,4 +133,4 @@ burn-remote = { path = "../burn-remote", version = "0.18.0", default-features = 
 burn-router = { path = "../burn-router", version = "0.18.0", default-features = false, optional = true }
 burn-tch = { path = "../burn-tch", version = "0.18.0", optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "0.18.0", optional = true, default-features = false }
-burn-ir = { path = "../burn-ir", version = "0.18.0", default-features = false }
+burn-ir = { path = "../burn-ir", version = "0.18.0", optional = true, default-features = false }

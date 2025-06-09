@@ -60,4 +60,5 @@ pub use burn_router::Router;
 #[cfg(feature = "router")]
 pub use burn_router as router;
 
-pub use burn_ir::BackendIr;
+#[cfg(feature = "ir")]
+pub use burn_ir as ir;
