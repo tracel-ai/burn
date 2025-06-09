@@ -32,6 +32,12 @@ impl<R: FusionRuntime> MultiStream<R> {
         operation: Box<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
+        match &repr {
+            OperationIr::Drop(_) => {
+                self.resolve_streams(self.streams.keys().map(|k| *k).collect(), handles, &repr);
+            }
+            _ => {}
+        }
         let id = self.resolve_streams(streams, handles, &repr);
 
         let stream = match self.streams.get_mut(&id) {

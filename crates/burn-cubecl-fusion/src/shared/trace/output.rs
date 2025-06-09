@@ -171,6 +171,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 context.handles.remove_handle(tensor_global.id);
             }
         }
+        for id in plan.cleared.drain(..) {
+            context.handles.remove_handle(id);
+        }
     }
 
     fn select_reference_from_inputs(

@@ -171,6 +171,7 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
         if !self.is_orphan {
             return;
         }
+        self.is_orphan = false;
 
         struct DropOp {
             id: TensorId,
@@ -178,7 +179,7 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
 
         impl<RO: FusionRuntime> Operation<RO> for DropOp {
             fn execute(&self, handles: &mut burn_ir::HandleContainer<RO::FusionHandle>) {
-                handles.remove_handle(self.id);
+                // handles.remove_handle(self.id);
             }
         }
 
@@ -196,6 +197,7 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
                     dtype: self.dtype,
                 };
 
+                println!("Dropping {id:?}");
                 self.client
                     .register(vec![stream], OperationIr::Drop(ir), DropOp { id });
             }
