@@ -120,7 +120,7 @@ impl<B: Backend> ModuleDisplay for RotaryEncoding<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [max_sequence_length, d_model, _2] = self.freq_complex.shape().dims();
+        let [max_sequence_length, d_model, _] = self.freq_complex.shape().dims();
         content
             .add("d_model", &d_model)
             .add("max_sequence_length", &max_sequence_length)
