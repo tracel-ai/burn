@@ -10,6 +10,9 @@ readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-no-std-tests"
 version.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 
 # ** Please make sure all dependencies support no_std **

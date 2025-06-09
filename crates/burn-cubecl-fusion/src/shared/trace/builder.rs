@@ -7,6 +7,7 @@ use super::{
     block::FuseBlockBuilder,
 };
 use super::{FuseTrace, RegisteredTensors};
+use burn_fusion::stream::ScalarId;
 use burn_ir::TensorIr;
 use burn_tensor::{DType, Element};
 
@@ -166,8 +167,9 @@ impl FuseTraceBuilder {
     }
 
     /// Register a scalar value.
-    pub fn scalar<E: Element>(&mut self, _: &E, dtype: DType) -> Arg {
+    pub fn scalar<E: Element>(&mut self, id: &E, dtype: DType) -> Arg {
         let precision = dtype.into();
+        let id = ScalarId { value: id.elem() };
 
         // Bool scalars are encoded as bool_precision.
         let precision = match precision {
@@ -176,7 +178,7 @@ impl FuseTraceBuilder {
         };
         let new_index = self.resources.scalars.len() as u32;
 
-        self.resources.scalars.push((precision, new_index));
+        self.resources.scalars.push((precision, id.value));
         Arg::Scalar(new_index, precision)
     }
 

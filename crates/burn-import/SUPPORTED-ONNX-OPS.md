@@ -33,7 +33,7 @@ functionality.
 | [BlackmanWindow][21]             | ❌             | ❌           |
 | [Cast][22]                       | ✅             | ✅           |
 | [CastLike][23]                   | ❌             | ❌           |
-| [Ceil][24]                       | ❌             | ✅           |
+| [Ceil][24]                       | ✅             | ✅           |
 | [Celu][25]                       | ❌             | ❌           |
 | [CenterCropPad][26]              | ❌             | ❌           |
 | [Clip][27]                       | ✅             | ✅           |
@@ -158,7 +158,7 @@ functionality.
 | [ReverseSequence][144]           | ❌             | ❌           |
 | [RNN][145]                       | ❌             | ✅           |
 | [RoiAlign][146]                  | ❌             | ❌           |
-| [Round][147]                     | ❌             | ✅           |
+| [Round][147]                     | ✅             | ✅           |
 | [Scan][148]                      | ❌             | ❌           |
 | [Scatter][149]                   | ❌             | ✅           |
 | [ScatterElements][150]           | ❌             | ❌           |

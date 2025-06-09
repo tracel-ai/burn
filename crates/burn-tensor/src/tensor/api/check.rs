@@ -568,10 +568,13 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn matmul<B: Backend, const D: usize>(
-        lhs: &Tensor<B, D>,
-        rhs: &Tensor<B, D>,
-    ) -> Self {
+    pub(crate) fn matmul<B: Backend, const D: usize, K>(
+        lhs: &Tensor<B, D, K>,
+        rhs: &Tensor<B, D, K>,
+    ) -> Self
+    where
+        K: BasicOps<B>,
+    {
         let mut check = Self::Ok;
 
         check = check.binary_ops_device("Matmul", &lhs.device(), &rhs.device());
@@ -850,6 +853,21 @@ impl TensorCheck {
                     )),
                 );
             }
+        }
+
+        check
+    }
+
+    pub(crate) fn check_dim<const D: usize>(dim: usize) -> Self {
+        let mut check = Self::Ok;
+
+        if dim >= D {
+            check = check.register(
+                "Check Dim",
+                TensorError::new("The provided dimension exceeds the tensor dimensions.").details(
+                    format!("Tensor has {D} dimensions, but the provided dimension is {dim}."),
+                ),
+            );
         }
 
         check

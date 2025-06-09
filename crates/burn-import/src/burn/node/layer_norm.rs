@@ -101,9 +101,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode {
         let output = &self.output.name;
         let field = &self.field.name;
 
-        // TODO: handle self.full_precision
-        quote! {
-            let #output = self.#field.forward(#input);
+        if self.full_precision {
+            quote! {
+                let #output = {
+                    let dtype = #input.dtype();
+                    self.#field.forward(#input.cast(burn::tensor::DType::F32)).cast(dtype)
+                };
+            }
+        } else {
+            quote! {
+                let #output = self.#field.forward(#input);
+            }
         }
     }
     fn register_imports(&self, imports: &mut BurnImports) {
@@ -133,7 +141,7 @@ mod tests {
             TensorData::from([2f32]),
             Some(TensorData::from([2f32])),
             LayerNormConfig::new(128),
-            true, // full_precision isn't taken into account
+            false,
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
@@ -169,6 +177,67 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
                     let output = self.norm.forward(input);
+
+                    output
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_full_precision() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(LayerNormNode::new(
+            "norm",
+            TensorType::new_float("input", 4),
+            TensorType::new_float("output", 4),
+            TensorData::from([2f32]),
+            Some(TensorData::from([2f32])),
+            LayerNormConfig::new(128),
+            true,
+        ));
+
+        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+            use burn::nn::LayerNorm;
+            use burn::nn::LayerNormConfig;
+
+            #[derive(Module, Debug)]
+            pub struct Model <B: Backend> {
+                norm: LayerNorm<B>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    let norm = LayerNormConfig::new(128)
+                        .with_epsilon(0.00001f64)
+                        .init(device);
+
+                    Self {
+                        norm,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let output = {
+                        let dtype = input.dtype();
+                        self.norm
+                            .forward(input.cast(burn::tensor::DType::F32))
+                            .cast(dtype)
+                    };
 
                     output
                 }

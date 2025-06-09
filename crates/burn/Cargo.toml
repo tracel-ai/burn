@@ -12,6 +12,9 @@ repository = "https://github.com/tracel-ai/burn"
 rust-version = "1.85"
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = [
     "burn-core/default",
@@ -90,6 +93,11 @@ fusion = ["ir", "burn-wgpu?/fusion", "burn-cuda?/fusion"]
 ## Backend features
 accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
 autotune = ["burn-wgpu?/autotune", "burn-cuda?/autotune", "burn-rocm?/autotune"]
+autotune-checks = [
+    "burn-wgpu?/autotune-checks",
+    "burn-cuda?/autotune-checks",
+    "burn-rocm?/autotune-checks",
+]
 blas-netlib = ["burn-ndarray?/blas-netlib"]
 openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]

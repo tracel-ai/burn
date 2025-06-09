@@ -21,6 +21,17 @@ pub struct MatmulBuilder<R: Runtime> {
     matmul: Option<FusedMatmul>,
 }
 
+impl<R: Runtime> Clone for MatmulBuilder<R> {
+    fn clone(&self) -> Self {
+        Self {
+            builder: self.builder.clone(),
+            builder_fallback: self.builder_fallback.clone(),
+            device: self.device.clone(),
+            matmul: self.matmul.clone(),
+        }
+    }
+}
+
 impl<R: Runtime> MatmulBuilder<R> {
     pub fn new(device: R::Device, bool_precision: FusePrecision) -> Self {
         let client = R::client(&device);
@@ -113,5 +124,9 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
     fn len(&self) -> usize {
         // Matmul operation isn't registered in the builder
         self.builder.len() + 1
+    }
+
+    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<CubeOptimization<R>>> {
+        Box::new(self.clone())
     }
 }

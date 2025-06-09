@@ -5,10 +5,9 @@ use burn_tensor::{
     quantization::{QTensorPrimitive, QuantAccPrecision},
 };
 use cubecl::{
-    linalg::matmul::{components::Quantized, kernels::MatmulLaunchError},
+    matmul::{components::Quantized, kernels::MatmulLaunchError},
     prelude::TensorHandleRef,
 };
-use cubecl_std::size_of;
 
 #[cfg(feature = "autotune")]
 use super::matmul_autotune;
@@ -46,7 +45,7 @@ pub fn matmul<R: CubeRuntime, E: FloatElement>(
 
             let client = &lhs.client;
 
-            cubecl::linalg::matmul::launch_ref::<R, E>(
+            cubecl::matmul::launch_ref::<R, E>(
                 &Default::default(),
                 client,
                 &lhs.as_handle_ref(),
@@ -85,25 +84,15 @@ pub fn q_matmul<R: CubeRuntime>(
     rhs_scales.offset_end = None;
 
     let lhs_scales = unsafe {
-        TensorHandleRef::from_raw_parts(
-            &lhs_scales,
-            &[1],
-            &[1],
-            size_of::<f32>().try_into().unwrap(),
-        )
+        TensorHandleRef::from_raw_parts(&lhs_scales, &[1], &[1], core::mem::size_of::<f32>())
     };
     let rhs_scales = unsafe {
-        TensorHandleRef::from_raw_parts(
-            &rhs_scales,
-            &[1],
-            &[1],
-            size_of::<f32>().try_into().unwrap(),
-        )
+        TensorHandleRef::from_raw_parts(&rhs_scales, &[1], &[1], core::mem::size_of::<f32>())
     };
 
     match scheme.acc_precision {
         QuantAccPrecision::Full => {
-            cubecl::linalg::matmul::launch_ref::<R, (i8, half::f16, f32, half::f16, Quantized)>(
+            cubecl::matmul::launch_ref::<R, (i8, half::f16, f32, half::f16, Quantized)>(
                 &Default::default(),
                 client,
                 &lhs.as_handle_ref(),
@@ -114,10 +103,7 @@ pub fn q_matmul<R: CubeRuntime>(
             )?;
         }
         QuantAccPrecision::Half => {
-            cubecl::linalg::matmul::launch_ref::<
-                R,
-                (i8, half::f16, half::f16, half::f16, Quantized),
-            >(
+            cubecl::matmul::launch_ref::<R, (i8, half::f16, half::f16, half::f16, Quantized)>(
                 &Default::default(),
                 client,
                 &lhs.as_handle_ref(),

@@ -1,11 +1,10 @@
 use burn_tensor::Element;
 use cubecl::{
-    linalg::matmul::{
+    matmul::{
         Strategy, SyncLoadingStrategy,
+        components::MatmulKind,
         kernels::tiling2d::Tiling2dConfig,
-        tune_key::{
-            MatmulAutotuneKey, MatmulGlobalScale, MatmulKind, should_tune_double_buffering,
-        },
+        tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
     },
     tune::{LocalTuner, TunableSet, local_tuner},
 };
@@ -85,7 +84,7 @@ fn matmul_simple<R: CubeRuntime, E: FloatElement>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    cubecl::linalg::matmul::launch_ref::<R, E>(
+    cubecl::matmul::launch_ref::<R, E>(
         &Strategy::Simple(SyncLoadingStrategy::Cyclic),
         &lhs.client,
         &lhs.as_handle_ref(),
@@ -103,8 +102,8 @@ fn matmul_double_buffering<R: CubeRuntime, E: FloatElement>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    cubecl::linalg::matmul::launch_ref::<R, E>(
-        &Strategy::DoubleBuffering(cubecl::linalg::matmul::SyncBufferLoadingStrategy::Cyclic),
+    cubecl::matmul::launch_ref::<R, E>(
+        &Strategy::DoubleBuffering(cubecl::matmul::SyncBufferLoadingStrategy::Cyclic),
         &lhs.client,
         &lhs.as_handle_ref(),
         &None,
@@ -120,7 +119,7 @@ fn matmul_tiling2d<R: CubeRuntime, E: FloatElement>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    cubecl::linalg::matmul::launch_ref::<R, E>(
+    cubecl::matmul::launch_ref::<R, E>(
         &Strategy::Tiling2D(Tiling2dConfig::default()),
         &lhs.client,
         &lhs.as_handle_ref(),
@@ -137,7 +136,7 @@ fn matmul_naive<R: CubeRuntime, E: FloatElement>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    cubecl::linalg::matmul::launch_ref::<R, E>(
+    cubecl::matmul::launch_ref::<R, E>(
         &Strategy::Naive,
         &lhs.client,
         &lhs.as_handle_ref(),

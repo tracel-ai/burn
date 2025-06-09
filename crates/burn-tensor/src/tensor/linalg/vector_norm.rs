@@ -114,7 +114,8 @@ pub fn vector_normalize<B: Backend, const D: usize, E: ElementConversion>(
     dim: usize,
     eps: E,
 ) -> Tensor<B, D> {
-    x.clone() / vector_norm(x, norm, dim).clamp_min(eps)
+    let norm = vector_norm(x.clone(), norm, dim).clamp_min(eps);
+    x / norm
 }
 
 /// Computes the L0 norm of a tensor along a specified dimension.

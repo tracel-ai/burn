@@ -1,34 +1,15 @@
+use crate::FloatDType;
 use crate::Tensor;
-use crate::check::TensorCheck;
-use crate::quantization::{QTensorPrimitive, QuantScheme, QuantizationParameters};
+use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
-use crate::{FloatDType, check};
 use crate::{Int, TensorPrimitive};
 
 impl<const D: usize, B> Tensor<B, D>
 where
     B: Backend,
 {
-    /// Executes an operation on the tensor and modifies its value.
-    ///
-    /// # Notes
-    ///
-    /// This won't necessarily reuse the same tensor data/buffer, but it should if there is
-    /// no other reference pointing to the same tensor.
-    ///
-    /// Wrapping operations with inplace is not an optimization, it's mainly there if you
-    /// want to mutate a tensor by using owned operations. A plausible usage would be to
-    /// update the weights of a mutable model reference.
-    pub fn inplace<F: FnOnce(Self) -> Self>(&mut self, func: F) {
-        let mut tensor_owned = Tensor::empty([0; D], &self.device());
-        core::mem::swap(&mut tensor_owned, self);
-
-        let mut tensor_new = func(tensor_owned);
-        core::mem::swap(&mut tensor_new, self);
-    }
-
     /// Applies element wise exponential operation.
     ///
     /// `y = e^x`
@@ -193,38 +174,6 @@ where
             distribution,
             &self.device(),
         )))
-    }
-
-    /// Applies the matrix multiplication operation.
-    ///
-    /// `C = AB`
-    ///
-    /// # Panics
-    ///
-    /// If the two tensors don't have a compatible shape.
-    pub fn matmul(self, other: Self) -> Self {
-        check!(TensorCheck::matmul(&self, &other));
-        match (self.primitive, other.primitive) {
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
-                Self::new(B::q_matmul(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => Self::new(
-                TensorPrimitive::Float(B::float_matmul(B::dequantize(lhs), rhs)),
-            ),
-            (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
-                // NOTE: in a typical workflow with linear layers (e.g., transformers), the rhs
-                // represents the weights.
-                //
-                // Since `q_matmul(lhs_f16, rhs_quant)` isn't currently supported, in practice it makes
-                // more sense to re-quantize the input back. Better usability.
-                //
-                // This might change in the future (dequantize on read in fusion?).
-                Self::new(B::q_matmul(B::quantize_dynamic(lhs, rhs.scheme()), rhs))
-            }
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                Self::new(TensorPrimitive::Float(B::float_matmul(lhs, rhs)))
-            }
-        }
     }
 
     /// Calculate the variance along the given dimension.

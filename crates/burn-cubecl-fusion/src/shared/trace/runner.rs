@@ -113,29 +113,37 @@ fn vectorization_default<'a, R: Runtime>(
 
     let vectorization_reshape = |reshaped: &TensorIr, original: &TensorIr, multi_reads: bool| {
         let axis = axis.unwrap_or_else(|| reshaped.shape.len() - 1);
-        let reshape_axis = reshaped.shape[axis];
+        let reshape_shape_axis = reshaped.shape[axis];
 
-        if !multi_reads && reshape_axis == 1 {
+        if !multi_reads && reshape_shape_axis == 1 {
             return Vect::Broadcasted;
         }
 
+        // If the axis is not the last dim, didn't think of it, return Aligned(1) to be sure.
         if axis != reshaped.shape.len() - 1 {
             return Vect::Aligned(1);
         }
 
-        let shape_axis = original.shape[original.shape.len() - 1];
+        let original_shape_axis = original.shape[original.shape.len() - 1];
+
+        if original_shape_axis != reshape_shape_axis {
+            return Vect::Aligned(1);
+        }
 
         for s in R::line_size_elem(ref_elem) {
             if !multi_reads {
                 // The last dimension should be a multiple of the vector size or broadcated.
-                if reshape_axis % s as usize == 0 && s <= max {
+                if reshape_shape_axis % s as usize == 0 && s <= max {
                     return Vect::Aligned(s);
                 }
             } else {
                 // Since the original tensor must share the same vectorization factor as the
                 // reshaped tensor, they must have compatible shapes when both are access
                 // independently.
-                if reshape_axis % s as usize == 0 && shape_axis % s as usize == 0 && s <= max {
+                if reshape_shape_axis % s as usize == 0
+                    && original_shape_axis % s as usize == 0
+                    && s <= max
+                {
                     return Vect::Aligned(s);
                 }
             }

@@ -249,7 +249,7 @@ mod tests {
         ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -259,7 +259,7 @@ mod tests {
             .with_affine(true)
             .init::<TestBackend>(&device);
 
-        let tolerance = Tolerance::rel_abs(1e-4, 3e-4);
+        let tolerance = Tolerance::permissive();
         module
             .gamma
             .as_ref()

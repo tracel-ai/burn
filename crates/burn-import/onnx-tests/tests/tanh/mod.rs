@@ -22,6 +22,6 @@ mod tests {
         let expected = TensorData::from([[[[0.7616f32, 0.9640, 0.9951, 0.9993]]]]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, burn::tensor::Tolerance::rel_abs(1e-4, 1e-4));
+            .assert_approx_eq::<FT>(&expected, burn::tensor::Tolerance::default());
     }
 }

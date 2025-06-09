@@ -16,45 +16,40 @@ pub struct Context<'a, H> {
     pub tensors: &'a mut HashMap<TensorId, TensorIr>,
     /// Handle container to retrieve tensors based on their representation.
     pub handles: &'a mut HandleContainer<H>,
-    /// F32 scalars found in the graph in the order they appeared.
-    pub scalar_f32: &'a Vec<f32>,
-    /// F16 scalars found in the graph in the order they appeared.
-    pub scalar_f16: &'a Vec<f16>,
-    /// BF16 scalars found in the graph in the order they appeared.
-    pub scalar_bf16: &'a Vec<bf16>,
-    /// i64 scalars found in the graph in the order they appeared.
-    pub scalar_i64: &'a Vec<i64>,
-    /// i32 scalars found in the graph in the order they appeared.
-    pub scalar_i32: &'a Vec<i32>,
-    /// i16 scalars found in the graph in the order they appeared.
-    pub scalar_i16: &'a Vec<i16>,
-    /// i8 scalars found in the graph in the order they appeared.
-    pub scalar_i8: &'a Vec<i8>,
-    /// u64 scalars found in the graph in the order they appeared.
-    pub scalar_u64: &'a Vec<u64>,
-    /// u32 scalars found in the graph in the order they appeared.
-    pub scalar_u32: &'a Vec<u32>,
-    /// u16 scalars found in the graph in the order they appeared.
-    pub scalar_u16: &'a Vec<u16>,
-    /// u8 scalars found in the graph in the order they appeared.
-    pub scalar_u8: &'a Vec<u8>,
+    /// Scalars found in the graph in the order they appeared.
+    pub scalars: &'a mut HashMap<ScalarId, ScalarValue>,
+}
+
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
+/// Scalar unique identifier.
+pub struct ScalarId {
+    /// The value.
+    pub value: u64,
+}
+
+/// All scalar values possible.
+#[derive(Clone, Debug)]
+#[allow(missing_docs)]
+pub enum ScalarValue {
+    F64(f64),
+    F32(f32),
+    F16(f16),
+    BF16(bf16),
+    I64(i64),
+    I32(i32),
+    I16(i16),
+    I8(i8),
+    U64(u64),
+    U32(u32),
+    U16(u16),
+    U8(u8),
 }
 
 pub(crate) struct OperationConverter {
     tensors_relative2global: HashMap<TensorId, TensorIr>,
     tensors_global2relative: HashMap<TensorId, TensorIr>,
     shapes_global2relative: HashMap<usize, usize>,
-    scalar_f32: Vec<f32>,
-    scalar_f16: Vec<f16>,
-    scalar_bf16: Vec<bf16>,
-    scalar_i64: Vec<i64>,
-    scalar_i32: Vec<i32>,
-    scalar_i16: Vec<i16>,
-    scalar_i8: Vec<i8>,
-    scalar_u64: Vec<u64>,
-    scalar_u32: Vec<u32>,
-    scalar_u16: Vec<u16>,
-    scalar_u8: Vec<u8>,
+    scalars: HashMap<ScalarId, ScalarValue>,
 }
 
 impl Default for OperationConverter {
@@ -63,17 +58,7 @@ impl Default for OperationConverter {
             tensors_relative2global: Default::default(),
             tensors_global2relative: Default::default(),
             shapes_global2relative: Default::default(),
-            scalar_f32: Default::default(),
-            scalar_f16: Default::default(),
-            scalar_bf16: Default::default(),
-            scalar_i64: Default::default(),
-            scalar_i32: Default::default(),
-            scalar_i16: Default::default(),
-            scalar_i8: Default::default(),
-            scalar_u64: Default::default(),
-            scalar_u32: Default::default(),
-            scalar_u16: Default::default(),
-            scalar_u8: Default::default(),
+            scalars: Default::default(),
         };
 
         // global 1 is always shape id 0.
@@ -87,17 +72,7 @@ impl Default for OperationConverter {
 pub struct ContextOwned<H> {
     tensors: HashMap<TensorId, TensorIr>,
     handles: HandleContainer<H>,
-    scalar_f32: Vec<f32>,
-    scalar_f16: Vec<f16>,
-    scalar_bf16: Vec<bf16>,
-    scalar_i64: Vec<i64>,
-    scalar_i32: Vec<i32>,
-    scalar_i16: Vec<i16>,
-    scalar_i8: Vec<i8>,
-    scalar_u64: Vec<u64>,
-    scalar_u32: Vec<u32>,
-    scalar_u16: Vec<u16>,
-    scalar_u8: Vec<u8>,
+    scalars: HashMap<ScalarId, ScalarValue>,
 }
 
 impl<H: Clone> ContextOwned<H> {
@@ -106,17 +81,7 @@ impl<H: Clone> ContextOwned<H> {
         Context {
             tensors: &mut self.tensors,
             handles: &mut self.handles,
-            scalar_f32: &self.scalar_f32,
-            scalar_f16: &self.scalar_f16,
-            scalar_bf16: &self.scalar_bf16,
-            scalar_i64: &self.scalar_i64,
-            scalar_i32: &self.scalar_i32,
-            scalar_i16: &self.scalar_i16,
-            scalar_i8: &self.scalar_i8,
-            scalar_u64: &self.scalar_u64,
-            scalar_u32: &self.scalar_u32,
-            scalar_u16: &self.scalar_u16,
-            scalar_u8: &self.scalar_u8,
+            scalars: &mut self.scalars,
         }
     }
 
@@ -125,17 +90,7 @@ impl<H: Clone> ContextOwned<H> {
         ContextOwned {
             tensors: self.tensors.clone(),
             handles: self.handles.fork(),
-            scalar_f32: self.scalar_f32.clone(),
-            scalar_f16: self.scalar_f16.clone(),
-            scalar_bf16: self.scalar_bf16.clone(),
-            scalar_i64: self.scalar_i64.clone(),
-            scalar_i32: self.scalar_i32.clone(),
-            scalar_i16: self.scalar_i16.clone(),
-            scalar_i8: self.scalar_i8.clone(),
-            scalar_u64: self.scalar_u64.clone(),
-            scalar_u32: self.scalar_u32.clone(),
-            scalar_u16: self.scalar_u16.clone(),
-            scalar_u8: self.scalar_u8.clone(),
+            scalars: self.scalars.clone(),
         }
     }
 }
@@ -146,17 +101,7 @@ impl<H: Clone> Context<'_, H> {
         ContextOwned {
             tensors: self.tensors.clone(),
             handles: self.handles.fork(),
-            scalar_f32: self.scalar_f32.clone(),
-            scalar_f16: self.scalar_f16.clone(),
-            scalar_bf16: self.scalar_bf16.clone(),
-            scalar_i64: self.scalar_i64.clone(),
-            scalar_i32: self.scalar_i32.clone(),
-            scalar_i16: self.scalar_i16.clone(),
-            scalar_i8: self.scalar_i8.clone(),
-            scalar_u64: self.scalar_u64.clone(),
-            scalar_u32: self.scalar_u32.clone(),
-            scalar_u16: self.scalar_u16.clone(),
-            scalar_u8: self.scalar_u8.clone(),
+            scalars: self.scalars.clone(),
         }
     }
 }
@@ -187,17 +132,7 @@ impl OperationConverter {
         Context {
             handles,
             tensors: &mut self.tensors_relative2global,
-            scalar_f32: &self.scalar_f32,
-            scalar_f16: &self.scalar_f16,
-            scalar_bf16: &self.scalar_bf16,
-            scalar_i64: &self.scalar_i64,
-            scalar_i32: &self.scalar_i32,
-            scalar_i16: &self.scalar_i16,
-            scalar_i8: &self.scalar_i8,
-            scalar_u64: &self.scalar_u64,
-            scalar_u32: &self.scalar_u32,
-            scalar_u16: &self.scalar_u16,
-            scalar_u8: &self.scalar_u8,
+            scalars: &mut self.scalars,
         }
     }
 
@@ -209,48 +144,42 @@ impl OperationConverter {
         // global 1 is always shape id 0.
         self.shapes_global2relative.insert(1, 0);
 
-        self.scalar_f32.clear();
-        self.scalar_f16.clear();
-        self.scalar_bf16.clear();
-        self.scalar_i64.clear();
-        self.scalar_i32.clear();
-        self.scalar_i16.clear();
-        self.scalar_i8.clear();
-        self.scalar_u64.clear();
-        self.scalar_u32.clear();
-        self.scalar_u16.clear();
-        self.scalar_u8.clear();
+        self.scalars.clear();
     }
 
     pub(crate) fn relative_float<E: Element>(&mut self, elem: &E, dtype: &DType) -> E {
-        match dtype {
-            burn_tensor::DType::F32 => self.scalar_f32.push(elem.elem()),
-            burn_tensor::DType::F16 => self.scalar_f16.push(elem.elem()),
-            burn_tensor::DType::BF16 => self.scalar_bf16.push(elem.elem()),
-            burn_tensor::DType::Flex32 => self.scalar_f32.push(elem.elem()),
-            _ => todo!("Unsupported float dtype ({dtype:?}) for scalar ({elem:?})"),
-        }
+        let id = ScalarId {
+            value: self.scalars.len() as u64,
+        };
 
-        // We return 0 so that the id from a scalar operation is the same no matter its scalar
-        // value.
-        0.elem()
+        match dtype {
+            burn_tensor::DType::F32 => self.scalars.insert(id, ScalarValue::F32(elem.elem())),
+            burn_tensor::DType::F16 => self.scalars.insert(id, ScalarValue::F16(elem.elem())),
+            burn_tensor::DType::BF16 => self.scalars.insert(id, ScalarValue::BF16(elem.elem())),
+            burn_tensor::DType::Flex32 => self.scalars.insert(id, ScalarValue::F32(elem.elem())),
+            _ => todo!("Unsupported float dtype ({dtype:?}) for scalar ({elem:?})"),
+        };
+
+        id.value.elem()
     }
 
     pub(crate) fn relative_int<E: Element>(&mut self, elem: &E, dtype: &DType) -> E {
+        let id = ScalarId {
+            value: self.scalars.len() as u64,
+        };
         match dtype {
-            DType::I64 => self.scalar_i64.push(elem.elem()),
-            DType::I32 => self.scalar_i32.push(elem.elem()),
-            DType::I16 => self.scalar_i16.push(elem.elem()),
-            DType::I8 => self.scalar_i8.push(elem.elem()),
-            DType::U64 => self.scalar_u64.push(elem.elem()),
-            DType::U32 => self.scalar_u32.push(elem.elem()),
-            DType::U16 => self.scalar_u16.push(elem.elem()),
-            DType::U8 => self.scalar_u8.push(elem.elem()),
-            _ => todo!("Unsupported"),
-        }
-        // We return 0 so that the id from a scalar operation is the same no matter its scalar
-        // value.
-        0.elem()
+            burn_tensor::DType::I64 => self.scalars.insert(id, ScalarValue::I64(elem.elem())),
+            burn_tensor::DType::I32 => self.scalars.insert(id, ScalarValue::I32(elem.elem())),
+            burn_tensor::DType::I16 => self.scalars.insert(id, ScalarValue::I16(elem.elem())),
+            burn_tensor::DType::I8 => self.scalars.insert(id, ScalarValue::I8(elem.elem())),
+            burn_tensor::DType::U64 => self.scalars.insert(id, ScalarValue::U64(elem.elem())),
+            burn_tensor::DType::U32 => self.scalars.insert(id, ScalarValue::U32(elem.elem())),
+            burn_tensor::DType::U16 => self.scalars.insert(id, ScalarValue::U16(elem.elem())),
+            burn_tensor::DType::U8 => self.scalars.insert(id, ScalarValue::U8(elem.elem())),
+            _ => todo!("Unsupported float dtype ({dtype:?}) for scalar ({elem:?})"),
+        };
+
+        id.value.elem()
     }
 }
 

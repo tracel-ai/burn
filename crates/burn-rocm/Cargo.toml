@@ -11,17 +11,21 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-rocm"
 documentation = "https://docs.rs/burn-rocm"
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = ["fusion", "burn-cubecl/default", "cubecl/default"]
 fusion = ["burn-fusion", "burn-cubecl/fusion"]
 autotune = ["burn-cubecl/autotune"]
+autotune-checks = ["burn-cubecl/autotune-checks"]
 doc = ["burn-cubecl/doc"]
 std = ["burn-cubecl/std", "cubecl/std"]
 compilation-cache = ["cubecl/compilation-cache"]
 
 [dependencies]
 cubecl = { workspace = true, features = ["hip"] }
-burn-cubecl = { path = "../burn-cubecl", version = "0.18.0", default-features = false }
+burn-cubecl = { path = "../burn-cubecl", version = "0.18.0", default-features = true }
 burn-tensor = { path = "../burn-tensor", version = "0.18.0", features = [
     "cubecl-hip",
 ] }

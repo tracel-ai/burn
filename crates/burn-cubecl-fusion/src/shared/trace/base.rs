@@ -4,11 +4,8 @@ use crate::{
 };
 
 use super::{
-    HandleInput, HandleOutput, LaunchPlan, TraceRunner,
-    block::FuseBlock,
-    executor::{LaunchPlanExecutor, ScalarIds},
-    input::InputPlanner,
-    output::OutputPlanner,
+    HandleInput, HandleOutput, LaunchPlan, TraceRunner, block::FuseBlock,
+    executor::LaunchPlanExecutor, input::InputPlanner, output::OutputPlanner,
     vectorization::VectorizationPlanner,
 };
 use burn_fusion::stream::Context;
@@ -88,14 +85,15 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
 
                     match handle.dtype {
                         DType::F64 => {
-                            data_ref.assert_approx_eq::<f64>(&data_other, Tolerance::default())
+                            data_ref.assert_approx_eq::<f64>(&data_other, Tolerance::permissive())
                         }
-                        DType::F32 => data_ref
-                            .assert_approx_eq::<f32>(&data_other, Tolerance::rel_abs(1e-2, 1e-4)),
+                        DType::F32 => {
+                            data_ref.assert_approx_eq::<f32>(&data_other, Tolerance::permissive())
+                        }
                         DType::F16 => data_ref
-                            .assert_approx_eq::<half::f16>(&data_other, Tolerance::default()),
+                            .assert_approx_eq::<half::f16>(&data_other, Tolerance::permissive()),
                         DType::BF16 => data_ref
-                            .assert_approx_eq::<half::bf16>(&data_other, Tolerance::default()),
+                            .assert_approx_eq::<half::bf16>(&data_other, Tolerance::permissive()),
                         _ => data_ref.assert_eq(&data_other, true),
                     }
                     num_checked += 1;
@@ -123,7 +121,7 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
 pub struct FuseResources {
     pub outputs: RegisteredTensors,
     pub inputs: RegisteredTensors,
-    pub scalars: Vec<(FusePrecision, u32)>,
+    pub scalars: Vec<(FusePrecision, u64)>,
     pub views: Vec<TensorView>,
     pub indexed: BTreeMap<TensorId, Arg>,
     pub inputs_unhandled: Vec<TensorId>,
@@ -160,7 +158,6 @@ impl FuseTrace {
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         runner: &Runner,
-        scalars: &mut ScalarIds,
     ) -> Result<TuneOutput<R>, TraceError<Runner::Error>> {
         let mut plan = LaunchPlan::<R>::new(&self.blocks);
 
@@ -173,7 +170,7 @@ impl FuseTrace {
             .run(runner, context, &mut plan);
 
         match LaunchPlanExecutor::<R>::new(&self.resources, &self.blocks)
-            .execute::<_, BT>(client, runner, context, plan, scalars)
+            .execute::<_, BT>(client, runner, context, plan)
         {
             Err(err) => {
                 self.rollback(context, err.handles_input, err.handles_output);

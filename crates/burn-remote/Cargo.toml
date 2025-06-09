@@ -11,6 +11,9 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-router-rem
 documentation = "https://docs.rs/burn-router-remote"
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = []
 doc = []
@@ -29,7 +32,7 @@ derive-new = { workspace = true }
 log = { workspace = true }
 
 # Shared dependencies
-tokio = { version = "1.44", features = ["rt-multi-thread"] }
+tokio = { version = "1.45", features = ["rt-multi-thread"] }
 serde = { workspace = true, features = ["derive"] }
 serde_bytes = { workspace = true }
 rmp-serde = { workspace = true }

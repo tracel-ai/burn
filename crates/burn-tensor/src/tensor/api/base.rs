@@ -15,7 +15,8 @@ use serde::{Deserialize, Deserializer};
 use serde::{Serialize, Serializer};
 
 use crate::{
-    Bool, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check, ops::Device,
+    Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check,
+    ops::Device,
 };
 use crate::{DType, Element, TensorPrimitive};
 use crate::{cast::ToElement, check::TensorCheck};
@@ -93,6 +94,24 @@ where
     B: Backend,
     K: BasicOps<B>,
 {
+    /// Executes an operation on the tensor and modifies its value.
+    ///
+    /// # Notes
+    ///
+    /// This won't necessarily reuse the same tensor data/buffer, but it should if there is
+    /// no other reference pointing to the same tensor.
+    ///
+    /// Wrapping operations with inplace is not an optimization, it's mainly there if you
+    /// want to mutate a tensor by using owned operations. A plausible usage would be to
+    /// update the weights of a mutable model reference.
+    pub fn inplace<F: FnOnce(Self) -> Self>(&mut self, func: F) {
+        let mut tensor_owned = Tensor::empty([0; D], &self.device());
+        core::mem::swap(&mut tensor_owned, self);
+
+        let mut tensor_new = func(tensor_owned);
+        core::mem::swap(&mut tensor_new, self);
+    }
+
     /// Converts the tensor into a primitive tensor.
     pub fn into_primitive(self) -> K::Primitive {
         self.primitive
@@ -916,13 +935,88 @@ where
     ///     println!("{:?}", tensor_sliced.dims()); // [2, 3, 3]
     /// }
     /// ```
-    pub fn slice_assign<const D2: usize>(self, ranges: [Range<usize>; D2], values: Self) -> Self {
+    ///
+    /// # Note
+    ///
+    /// This function uses the `RangesArg` trait for flexible range specification. The trait
+    /// handles the conversion of various range formats and applies clamping and negative
+    /// index handling internally.
+    pub fn slice_assign<const D2: usize, R: RangesArg<D2>>(self, ranges: R, values: Self) -> Self {
+        let ranges = ranges.into_ranges(self.shape());
         check!(TensorCheck::slice_assign::<D, D2>(
             &self.shape(),
             &values.shape(),
             &ranges
         ));
         Self::new(K::slice_assign(self.primitive, &ranges, values.primitive))
+    }
+
+    /// Returns a copy of the current tensor with the selected elements changed to the new ones at
+    /// the selected indices.
+    ///
+    /// # Panics
+    ///
+    /// - If a range exceeds the number of elements on a dimension.
+    /// - If the given values don't match the given ranges.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///   let device = B::Device::default();
+    ///   let tensor = Tensor::<B, 3>::ones([2, 3, 3], &device);
+    ///   let tensor_sliced = tensor.slice_fill([0..1, 0..1, 0..1], 2.0);
+    ///   println!("{:?}", tensor_sliced.dims()); // [2, 3, 3]
+    /// }
+    /// ```
+    ///
+    /// # Note
+    ///
+    /// This function uses the `RangesArg` trait for flexible range specification. The trait
+    /// handles the conversion of various range formats and applies clamping and negative
+    /// index handling internally.
+    pub fn slice_fill<const D2: usize, R: RangesArg<D2>, E: ElementConversion>(
+        self,
+        ranges: R,
+        value: E,
+    ) -> Self {
+        let ranges = ranges.into_ranges(self.shape());
+        check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
+
+        Self::new(K::slice_fill(self.primitive, &ranges, value.elem()))
+    }
+
+    /// Returns a new tensor with the specified dimension sliced.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim`: The dimension to slice.
+    /// * `range`: The range to slice the dimension with.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the specified dimension sliced.
+    ///
+    /// # Panics
+    ///
+    /// If the range is out of bounds for the specified dimension.
+    ///
+    /// # Note
+    ///
+    /// This function uses the `RangeArg` trait for flexible range specification. The trait
+    /// handles the conversion of various range formats and applies clamping and negative
+    /// index handling internally.
+    pub fn slice_dim<R>(self, dim: usize, range: R) -> Self
+    where
+        R: RangeArg,
+    {
+        check!(TensorCheck::check_dim::<D>(dim));
+        let range = range.into_range(self.shape().dims[dim]);
+
+        Self::new(K::slice_dim(self.primitive, dim, &range))
     }
 
     /// Returns the device of the current tensor.
@@ -1633,8 +1727,8 @@ where
     /// If the tensor doesn't have one element.
     pub async fn into_scalar_async(self) -> K::Elem {
         check!(TensorCheck::into_scalar::<D>(&self.shape()));
-        let x = self.into_data_async().await.iter().next().unwrap();
-        x
+
+        self.into_data_async().await.iter().next().unwrap()
     }
 
     /// Broadcast the tensor to the given shape.
@@ -2164,6 +2258,62 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         ranges: &[Range<usize>],
         value: Self::Primitive,
     ) -> Self::Primitive;
+
+    /// Fills the tensor elements corresponding for the given ranges with the given value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `ranges` - The ranges of the elements to fill.
+    /// * `value` - The value to fill.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the filled values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For filling values in a tensor, users should prefer the [Tensor::slice_fill](Tensor::slice_fill) function,
+    /// which is more high-level and designed for public use.
+    fn slice_fill(
+        tensor: Self::Primitive,
+        ranges: &[Range<usize>],
+        value: Self::Elem,
+    ) -> Self::Primitive {
+        let slice_shape = Self::slice(tensor.clone(), ranges).shape();
+
+        let value = Self::from_data(TensorData::from([value]), &Self::device(&tensor));
+        let value = Self::expand(value, slice_shape);
+        Self::slice_assign(tensor, ranges, value)
+    }
+
+    /// Slices the tensor along a given dimension with the specified range.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to slice.
+    /// * `dim` - The dimension along which to slice.
+    /// * `range` - The range of indices to slice along the specified dimension.
+    ///
+    /// # Returns
+    ///
+    /// The sliced tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    fn slice_dim(tensor: Self::Primitive, dim: usize, range: &Range<usize>) -> Self::Primitive {
+        let mut ranges: Vec<Range<usize>> = tensor.shape().dims.iter().map(|&s| 0..s).collect();
+        ranges[dim] = range.clone();
+
+        Self::slice(tensor, &ranges)
+    }
 
     /// Returns the device on which the tensor is allocated.
     ///
@@ -2900,6 +3050,18 @@ impl MovedimArgs for i32 {
     }
 }
 
+/// Trait used for slice dim arguments.
+pub trait RangeArg {
+    /// Converts into a range for the `tensor.slice_dim()` function
+    fn into_range(self, shape_dim: usize) -> Range<usize>;
+}
+
+impl<T: Into<Slice>> RangeArg for T {
+    fn into_range(self, shape_dim: usize) -> Range<usize> {
+        self.into().into_range(shape_dim)
+    }
+}
+
 /// Trait used for slice arguments
 pub trait RangesArg<const D2: usize> {
     /// Converts into a set of ranges to `[Range<usize>; D2]` for the `tensor.slice()` function
@@ -3058,7 +3220,7 @@ impl<const D1: usize, const D2: usize, E: Element> BroadcastArgs<D1, D2> for [E;
             .rev()
             .collect();
 
-        if new_shape.iter().any(|&x| x == 0) {
+        if new_shape.contains(&0) {
             panic!("Cannot substitute -1 for a non-existing dimension");
         }
 

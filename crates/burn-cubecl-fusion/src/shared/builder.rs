@@ -18,7 +18,7 @@ use cubecl::ir::Elem;
 ///
 /// Since this builder supports fusing multiple blocks, you can fuse any compute-bound operations
 /// with the combination of fuse-on-read and fuse-on-write strategy.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct FuseOptimizationBuilder {
     builder: TryFuseBuilder,
     pub(crate) settings: FuseSettings,
@@ -112,6 +112,10 @@ impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
             ready,
             score: self.num_ops as u64,
         }
+    }
+
+    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<FuseTrace>> {
+        Box::new(self.clone())
     }
 }
 
@@ -622,13 +626,14 @@ impl FuseOptimizationBuilder {
         if updated != out.shape {
             return false;
         }
+
         self.current_output_shape.clone_from_slice(&out.shape);
 
         true
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// Builder wrapper to limit the number of bindings in generated kernels.
 struct TryFuseBuilder {
     builder: FuseTraceBuilder,

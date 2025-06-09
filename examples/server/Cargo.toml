@@ -6,6 +6,9 @@ name = "server"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = ["webgpu"]
 cuda = ["burn/cuda", "cubecl/compilation-cache"]

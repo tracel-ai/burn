@@ -5,6 +5,7 @@ explicitly designated the backend to be used at any point. This will be defined 
 entrypoint of our program, namely the `main` function defined in `src/main.rs`.
 
 ```rust , ignore
+# #![recursion_limit = "256"]
 # mod data;
 # mod model;
 # mod training;
@@ -33,7 +34,7 @@ fn main() {
 In this code snippet, we use the `Wgpu` backend which is compatible with any operating system and will
 use the GPU. For other options, see the Burn README. This backend type takes the graphics API, the
 float type and the int type as generic arguments that will be used during the training. The autodiff
-backend is simply the same backend, wrapped within the `Autodiff` struct which imparts differentiability \
+backend is simply the same backend, wrapped within the `Autodiff` struct which imparts differentiability 
 to any backend.
 
 We call the `train` function defined earlier with a directory for artifacts, the configuration of

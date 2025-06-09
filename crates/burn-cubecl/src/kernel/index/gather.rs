@@ -1,7 +1,7 @@
 use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
 use cubecl::CubeDim;
 use cubecl::frontend::{ABSOLUTE_POS, Numeric, Tensor};
-use cubecl::linalg::tensor::index_offset_with_layout;
+use cubecl::std::tensor::index_offset_with_layout;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch_unchecked)]
