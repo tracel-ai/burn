@@ -207,6 +207,7 @@ pub fn max_pool1d<B>(
     stride: usize,
     padding: usize,
     dilation: usize,
+    ceil: bool,
 ) -> Tensor<B, 3>
 where
     B: Backend,
@@ -217,6 +218,7 @@ where
         stride,
         padding,
         dilation,
+        ceil,
     )))
 }
 
@@ -227,6 +229,7 @@ pub fn max_pool2d<B>(
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    ceil: bool,
 ) -> Tensor<B, 4>
 where
     B: Backend,
@@ -237,6 +240,7 @@ where
         stride,
         padding,
         dilation,
+        ceil,
     )))
 }
 
@@ -247,6 +251,7 @@ pub fn avg_pool2d<B>(
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
+    ceil: bool,
 ) -> Tensor<B, 4>
 where
     B: Backend,
@@ -257,6 +262,7 @@ where
         stride,
         padding,
         count_include_pad,
+        ceil,
     )))
 }
 
@@ -267,6 +273,7 @@ pub fn avg_pool1d<B>(
     stride: usize,
     padding: usize,
     count_include_pad: bool,
+    ceil: bool,
 ) -> Tensor<B, 3>
 where
     B: Backend,
@@ -277,6 +284,7 @@ where
         stride,
         padding,
         count_include_pad,
+        ceil,
     )))
 }
 
@@ -287,12 +295,19 @@ pub fn max_pool1d_with_indices<B>(
     stride: usize,
     padding: usize,
     dilation: usize,
+    ceil: bool,
 ) -> (Tensor<B, 3>, Tensor<B, 3, Int>)
 where
     B: Backend,
 {
-    let output =
-        B::max_pool1d_with_indices(x.primitive.tensor(), kernel_size, stride, padding, dilation);
+    let output = B::max_pool1d_with_indices(
+        x.primitive.tensor(),
+        kernel_size,
+        stride,
+        padding,
+        dilation,
+        ceil,
+    );
 
     (
         Tensor::new(TensorPrimitive::Float(output.output)),
@@ -307,12 +322,19 @@ pub fn max_pool2d_with_indices<B>(
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    ceil: bool,
 ) -> (Tensor<B, 4>, Tensor<B, 4, Int>)
 where
     B: Backend,
 {
-    let output =
-        B::max_pool2d_with_indices(x.primitive.tensor(), kernel_size, stride, padding, dilation);
+    let output = B::max_pool2d_with_indices(
+        x.primitive.tensor(),
+        kernel_size,
+        stride,
+        padding,
+        dilation,
+        ceil,
+    );
 
     (
         Tensor::new(TensorPrimitive::Float(output.output)),

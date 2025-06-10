@@ -18,6 +18,7 @@ mod tests {
         let stride_2 = 1;
         let dilation_1 = 1;
         let dilation_2 = 1;
+        let ceil = false;
 
         let x = TestTensor::from([
             [
@@ -102,6 +103,7 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            ceil,
         );
 
         y.to_data()
@@ -120,6 +122,7 @@ mod tests {
         let stride_2 = 2;
         let dilation_1 = 1;
         let dilation_2 = 1;
+        let ceil = false;
 
         let x = TestTensor::from([[[
             [0.6309, 0.6112, 0.6998],
@@ -144,6 +147,7 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            ceil,
         );
 
         y.to_data()
@@ -162,6 +166,7 @@ mod tests {
         let stride_2 = 1;
         let dilation_1 = 1;
         let dilation_2 = 1;
+        let ceil = false;
 
         let x = TestTensor::from([[[
             [0.6309, 0.6112, 0.6998],
@@ -187,6 +192,7 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            ceil,
         );
 
         y.to_data()
@@ -205,6 +211,7 @@ mod tests {
         let stride_2 = 1;
         let dilation_1 = 2;
         let dilation_2 = 2;
+        let ceil = false;
 
         let x = TestTensor::from([[[
             [0.9861, 0.9861, 0.9490, 0.9490, 0.8221, 0.8221],
@@ -227,6 +234,7 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            ceil,
         );
 
         y.to_data()
@@ -244,6 +252,7 @@ mod tests {
         let stride_2 = 1;
         let dilation_1 = 1;
         let dilation_2 = 1;
+        let ceil = false;
 
         let x = TestTensor::from([[[
             [0.2479, 0.6386, 0.3166, 0.5742],
@@ -272,6 +281,7 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            ceil,
         );
 
         y.to_data()
@@ -291,6 +301,7 @@ mod tests {
         let stride_2 = 2;
         let dilation_1 = 1;
         let dilation_2 = 1;
+        let ceil = false;
 
         let x = TestTensor::from([[[
             [0.5388, 0.0676, 0.7122, 0.8316, 0.0653],
@@ -321,6 +332,7 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            ceil,
         );
 
         y.to_data()

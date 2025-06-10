@@ -6,7 +6,7 @@ use crate::{
 };
 
 use burn_common::{iter_range_par, run_par};
-use burn_tensor::{ElementConversion, TensorMetadata};
+use burn_tensor::{ElementConversion, TensorMetadata, ops::conv::calculate_pool_output_size};
 use ndarray::Array4;
 
 pub(crate) fn max_pool2d<E: FloatNdArrayElement>(
@@ -15,6 +15,7 @@ pub(crate) fn max_pool2d<E: FloatNdArrayElement>(
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    ceil: bool,
 ) -> NdArrayTensor<E> {
     let [kernel_height, kernel_width] = kernel_size;
     let [padding_height, padding_width] = padding;
@@ -23,12 +24,23 @@ pub(crate) fn max_pool2d<E: FloatNdArrayElement>(
     let [batch_size, channels, x_height, x_width] = x.shape().dims();
     let inf = (-f32::INFINITY).elem::<E>();
 
-    let out_height = ((x_height + 2 * padding_height - dilation_height * (kernel_height - 1) - 1)
-        / stride_height)
-        + 1;
-    let out_width = ((x_width + 2 * padding_width - dilation_width * (kernel_width - 1) - 1)
-        / stride_width)
-        + 1;
+    let out_height = calculate_pool_output_size(
+        kernel_height,
+        stride_height,
+        padding_height,
+        dilation_height,
+        x_height,
+        ceil,
+    );
+
+    let out_width = calculate_pool_output_size(
+        kernel_width,
+        stride_width,
+        padding_width,
+        dilation_width,
+        x_width,
+        ceil,
+    );
 
     let x = apply_padding_4d::<E>(x, padding, inf).array;
 
@@ -75,6 +87,7 @@ pub(crate) fn max_pool2d_with_indices<E: FloatNdArrayElement, I: IntNdArrayEleme
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    ceil: bool,
 ) -> (NdArrayTensor<E>, NdArrayTensor<I>) {
     let [kernel_height, kernel_width] = kernel_size;
     let [padding_height, padding_width] = padding;
@@ -83,12 +96,23 @@ pub(crate) fn max_pool2d_with_indices<E: FloatNdArrayElement, I: IntNdArrayEleme
     let [batch_size, channels, x_height, x_width] = x.shape().dims();
     let inf = (-f32::INFINITY).elem::<E>();
 
-    let out_height = ((x_height + 2 * padding_height - dilation_height * (kernel_height - 1) - 1)
-        / stride_height)
-        + 1;
-    let out_width = ((x_width + 2 * padding_width - dilation_width * (kernel_width - 1) - 1)
-        / stride_width)
-        + 1;
+    let out_height = calculate_pool_output_size(
+        kernel_height,
+        stride_height,
+        padding_height,
+        dilation_height,
+        x_height,
+        ceil,
+    );
+
+    let out_width = calculate_pool_output_size(
+        kernel_width,
+        stride_width,
+        padding_width,
+        dilation_width,
+        x_width,
+        ceil,
+    );
 
     let x = apply_padding_4d::<E>(x, padding, inf).array;
 

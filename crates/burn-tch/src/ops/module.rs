@@ -175,13 +175,14 @@ impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
         stride: usize,
         padding: usize,
         count_include_pad: bool,
+        ceil: bool,
     ) -> TchTensor {
         let tensor = tch::Tensor::avg_pool1d(
             &x.tensor,
             [kernel_size as i64],
             [stride as i64],
             [padding as i64],
-            false,
+            ceil,
             count_include_pad,
         );
 
@@ -193,13 +194,14 @@ impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil: bool,
     ) -> TchTensor {
         let tensor = tch::Tensor::avg_pool2d(
             &x.tensor,
             [kernel_size[0] as i64, kernel_size[1] as i64],
             [stride[0] as i64, stride[1] as i64],
             [padding[0] as i64, padding[1] as i64],
-            false,
+            ceil,
             count_include_pad,
             None,
         );
@@ -235,6 +237,7 @@ impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil: bool,
     ) -> TchTensor {
         let tensor = tch::Tensor::max_pool1d(
             &x.tensor,
@@ -242,7 +245,7 @@ impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
             stride as i64,
             padding as i64,
             dilation as i64,
-            false,
+            ceil,
         );
 
         TchTensor::new(tensor)
@@ -254,6 +257,7 @@ impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil: bool,
     ) -> MaxPool1dWithIndices<LibTorch<E, Q>> {
         let (tensor, indices) = tch::Tensor::max_pool1d_with_indices(
             &x.tensor,
@@ -261,7 +265,7 @@ impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
             stride as i64,
             padding as i64,
             dilation as i64,
-            false,
+            ceil,
         );
 
         MaxPool1dWithIndices::new(TchTensor::new(tensor), TchTensor::new(indices))
@@ -273,6 +277,7 @@ impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil: bool,
     ) -> TchTensor {
         let tensor = tch::Tensor::max_pool2d(
             &x.tensor,
@@ -280,7 +285,7 @@ impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
             [stride[0] as i64, stride[1] as i64],
             [padding[0] as i64, padding[1] as i64],
             [dilation[0] as i64, dilation[1] as i64],
-            false,
+            ceil,
         );
 
         TchTensor::new(tensor)
@@ -292,6 +297,7 @@ impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil: bool,
     ) -> MaxPool2dWithIndices<LibTorch<E, Q>> {
         let (tensor, indices) = tch::Tensor::max_pool2d_with_indices(
             &x.tensor,
@@ -299,7 +305,7 @@ impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
             [stride[0] as i64, stride[1] as i64],
             [padding[0] as i64, padding[1] as i64],
             [dilation[0] as i64, dilation[1] as i64],
-            false,
+            ceil,
         );
 
         MaxPool2dWithIndices::new(TchTensor::new(tensor), TchTensor::new(indices))

@@ -130,6 +130,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        _ceil: bool,
     ) -> FloatTensor<Self> {
         module_op!(inp(x), opt(), E, |x| {
             #[cfg(feature = "simd")]
@@ -166,6 +167,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil: bool,
     ) -> FloatTensor<Self> {
         module_op!(inp(x), opt(), E, |x| {
             #[cfg(feature = "simd")]
@@ -173,7 +175,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
                 Ok(out) => return out.into(),
                 Err(x) => x,
             };
-            max_pool2d::<E>(x, kernel_size, stride, padding, dilation).into()
+            max_pool2d::<E>(x, kernel_size, stride, padding, dilation, ceil).into()
         })
     }
 
@@ -183,10 +185,11 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil: bool,
     ) -> MaxPool2dWithIndices<NdArray<E, I, Q>> {
         module_op!(inp(x), opt(), E, |x| {
             let (output, indices) =
-                max_pool2d_with_indices::<E, I>(x, kernel_size, stride, padding, dilation);
+                max_pool2d_with_indices::<E, I>(x, kernel_size, stride, padding, dilation, ceil);
             MaxPool2dWithIndices::new(output.into(), indices)
         })
     }

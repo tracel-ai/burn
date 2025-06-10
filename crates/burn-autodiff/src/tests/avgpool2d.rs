@@ -18,6 +18,7 @@ mod tests {
             height: 6,
             width: 6,
             count_include_pad: true,
+            ceil: false,
         };
 
         test.assert_output(TestTensor::from_floats(
@@ -47,6 +48,7 @@ mod tests {
             height: 4,
             width: 6,
             count_include_pad: true,
+            ceil: false,
         };
 
         test.assert_output(TestTensor::from_floats(
@@ -74,6 +76,7 @@ mod tests {
             height: 4,
             width: 6,
             count_include_pad: false,
+            ceil: false,
         };
 
         test.assert_output(TestTensor::from_floats(
@@ -99,6 +102,7 @@ mod tests {
         height: usize,
         width: usize,
         count_include_pad: bool,
+        ceil: bool,
     }
 
     impl AvgPool2dTestCase {
@@ -118,6 +122,7 @@ mod tests {
                 [self.stride_1, self.stride_2],
                 [self.padding_1, self.padding_2],
                 self.count_include_pad,
+                self.ceil,
             );
             let grads = output.backward();
             let x_grad_actual = x.grad(&grads).unwrap();

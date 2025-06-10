@@ -28,6 +28,9 @@ pub struct AvgPool1dConfig {
     /// If the padding is counted in the denominator when computing the average.
     #[config(default = "true")]
     pub count_include_pad: bool,
+    /// Use ceil when calculating the output size.
+    #[config(default = "false")]
+    pub ceil: bool,
 }
 
 /// Applies a 1D avg pooling over input tensors.
@@ -52,6 +55,8 @@ pub struct AvgPool1d {
     pub padding: Ignored<PaddingConfig1d>,
     /// If the padding is counted in the denominator when computing the average.
     pub count_include_pad: bool,
+    /// Use ceil when calculating the pool size.
+    pub ceil: bool,
 }
 
 impl ModuleDisplay for AvgPool1d {
@@ -67,6 +72,7 @@ impl ModuleDisplay for AvgPool1d {
             .add("stride", &self.stride)
             .add("padding", &self.padding)
             .add("count_include_pad", &self.count_include_pad)
+            .add("ceil", &self.ceil)
             .optional()
     }
 }
@@ -82,6 +88,7 @@ impl AvgPool1dConfig {
             kernel_size: self.kernel_size,
             padding: Ignored(self.padding.clone()),
             count_include_pad: self.count_include_pad,
+            ceil: self.ceil,
         }
     }
 }
@@ -107,6 +114,7 @@ impl AvgPool1d {
             self.stride,
             padding,
             self.count_include_pad,
+            self.ceil,
         )
     }
 }
@@ -129,7 +137,7 @@ mod tests {
 
         assert_eq!(
             alloc::format!("{}", layer),
-            "AvgPool1d {kernel_size: 3, stride: 1, padding: Valid, count_include_pad: true}"
+            "AvgPool1d {kernel_size: 3, stride: 1, padding: Valid, count_include_pad: true, ceil: false}"
         );
     }
 }

@@ -634,6 +634,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: usize,
         padding: usize,
         count_include_pad: bool,
+        ceil: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             AvgPool1dOps,
@@ -646,6 +647,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.count_include_pad,
+                    args.ceil,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -653,7 +655,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         );
 
         let stream = x.stream;
-        let size = calculate_pool_output_size(kernel_size, stride, padding, 1, x.shape[2]);
+        let size = calculate_pool_output_size(kernel_size, stride, padding, 1, x.shape[2], ceil);
         let shape = vec![x.shape[0], x.shape[1], size];
         let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
 
@@ -663,6 +665,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             count_include_pad,
+            ceil,
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -680,6 +683,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             AvgPool2dOps,
@@ -692,6 +696,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.count_include_pad,
+                    args.ceil,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -699,9 +704,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         );
 
         let size_0 =
-            calculate_pool_output_size(kernel_size[0], stride[0], padding[0], 1, x.shape[2]);
+            calculate_pool_output_size(kernel_size[0], stride[0], padding[0], 1, x.shape[2], ceil);
         let size_1 =
-            calculate_pool_output_size(kernel_size[1], stride[1], padding[1], 1, x.shape[3]);
+            calculate_pool_output_size(kernel_size[1], stride[1], padding[1], 1, x.shape[3], ceil);
 
         let stream = x.stream;
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
@@ -713,6 +718,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             count_include_pad,
+            ceil,
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -832,6 +838,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             MaxPool1dOps,
@@ -844,13 +851,15 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
-        let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
+        let size =
+            calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2], ceil);
 
         let stream = x.stream;
         let shape = vec![x.shape[0], x.shape[1], size];
@@ -862,6 +871,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             dilation,
+            ceil,
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -879,6 +889,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             MaxPool2dOps,
@@ -891,6 +902,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -903,6 +915,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             padding[0],
             dilation[0],
             x.shape[2],
+            ceil,
         );
         let size_1 = calculate_pool_output_size(
             kernel_size[1],
@@ -910,6 +923,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             padding[1],
             dilation[1],
             x.shape[3],
+            ceil,
         );
 
         let stream = x.stream;
@@ -922,6 +936,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             dilation,
+            ceil,
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -939,6 +954,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil: bool,
     ) -> MaxPool1dWithIndices<Self> {
         make_ops!(
             MaxPool1dWithIndicesOps,
@@ -951,6 +967,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output.output);
@@ -959,7 +976,8 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         );
 
         let stream = x.stream;
-        let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
+        let size =
+            calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2], ceil);
         let shape = vec![x.shape[0], x.shape[1], size];
         let out = x
             .client
@@ -972,6 +990,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             dilation,
+            ceil,
             out: out.to_ir_out(),
             out_indices: out_indices.to_ir_out(),
         };
@@ -990,6 +1009,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil: bool,
     ) -> MaxPool2dWithIndices<Self> {
         make_ops!(
             MaxPool2dWithIndicesOps,
@@ -1002,6 +1022,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output.output);
@@ -1015,6 +1036,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             padding[0],
             dilation[0],
             x.shape[2],
+            ceil,
         );
         let size_1 = calculate_pool_output_size(
             kernel_size[1],
@@ -1022,6 +1044,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             padding[1],
             dilation[1],
             x.shape[3],
+            ceil,
         );
 
         let stream = x.stream;
@@ -1037,6 +1060,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             dilation,
+            ceil,
             out: out.to_ir_out(),
             out_indices: out_indices.to_ir_out(),
         };

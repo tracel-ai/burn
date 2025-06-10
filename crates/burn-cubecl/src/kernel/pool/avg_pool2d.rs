@@ -80,6 +80,7 @@ pub(crate) fn avg_pool2d<R: CubeRuntime, E: CubeElement>(
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
+    ceil: bool,
 ) -> CubeTensor<R> {
     let [batch_size, channels, _, _] = x.shape.dims();
     let dilation = 1;
@@ -90,6 +91,7 @@ pub(crate) fn avg_pool2d<R: CubeRuntime, E: CubeElement>(
         padding[0],
         dilation,
         x.shape.dims[2],
+        ceil,
     );
     let size_1 = calculate_pool_output_size(
         kernel_size[1],
@@ -97,6 +99,7 @@ pub(crate) fn avg_pool2d<R: CubeRuntime, E: CubeElement>(
         padding[1],
         dilation,
         x.shape.dims[3],
+        ceil,
     );
 
     let x = into_contiguous(permute_nchw_to_nhwc(x));

@@ -194,6 +194,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil: bool,
     ) -> FloatTensor<Self> {
         assert!(
             padding[0] == 0 && padding[1] == 0,
@@ -227,6 +228,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil: bool,
     ) -> FloatTensor<Self> {
         assert!(
             padding[0] == 0 && padding[1] == 0,
@@ -249,6 +251,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil: bool,
     ) -> MaxPool2dWithIndices<Candle<F, I>> {
         panic!("max_pool2d_with_indices is not supported by Candle")
     }
