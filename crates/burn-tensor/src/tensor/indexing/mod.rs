@@ -1,4 +1,4 @@
-///! A module for dimension indexing utility machinery.
+//! A module for dimension indexing utility machinery.
 
 /// A trait for types that can be used as dimension indices.
 pub trait ReflectableIndex: Copy + Sized {
