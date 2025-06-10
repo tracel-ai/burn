@@ -1,3 +1,5 @@
+use core::ops::Range;
+
 use crate as burn;
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
@@ -71,44 +73,23 @@ impl RotaryEncodingConfig {
         );
 
         // Calculate the rotation frequencies for positional embeddings based on the formula
-        // `theta_i = 1 / (theta ^ (2i / d_model)) for i in [0..d_model/2]`
+        // `theta = 1 / (theta ^ (2i / d_model)) for i in [0..d_model/2]`
         let exponent = Tensor::<B, 1, Int>::arange_step(0..self.d_model as i64, 2, device)
             .float()
             .div_scalar(self.d_model as f32);
 
         // Calculate (10000 ^ (2i / d_model)) by using the log base property `exp(log(10000) * (2i / d_model))`
         // This is done since burn doesn't support exponentiation of scalar to tensor
-        let theta_i = exponent.mul_scalar(self.theta.ln()).exp();
-        let theta_i = theta_i.recip();
+        let theta = exponent.mul_scalar(self.theta.ln()).exp().recip();
 
-        let theta_i = scaling(theta_i);
+        let theta = scaling(theta);
 
-        // Generate frequency values for positional embeddings
-        let frequencies: Tensor<B, 2> =
-            Tensor::<B, 1, Int>::arange(0..self.max_sequence_length as i64, device)
-                .float()
-                .unsqueeze()
-                .transpose()
-                .repeat_dim(1, self.d_model / 2)
-                * theta_i.unsqueeze();
-
-        // Convert frequency values to complex numbers (polar form)
-        let p_cos = frequencies.clone().cos();
-        let p_sin = frequencies.sin();
-
-        // Create the frequency tensor of shape (max_sequence_length, d_model, 2) with the real(cos)
-        // and imaginary(sin) components along last dimension
-        let freq_complex: Tensor<B, 3> = Tensor::cat(vec![p_cos, p_sin], 1)
-            .reshape([self.max_sequence_length, 2, self.d_model / 2])
-            .transpose()
-            .unsqueeze_dim::<4>(2)
-            .repeat_dim(2, 2)
-            .reshape([self.max_sequence_length, self.d_model, 2]);
+        let freq_complex =
+            RotaryEncoding::compute_rotary_frequencies(0..self.max_sequence_length, theta.clone());
 
         RotaryEncoding {
             freq_complex,
-            max_sequence_length: self.max_sequence_length,
-            theta: self.theta,
+            theta,
         }
     }
 }
@@ -124,12 +105,11 @@ impl RotaryEncodingConfig {
 #[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct RotaryEncoding<B: Backend> {
-    /// Frequency Tensor of shape (max_sequence_length, d_model, 2) with real and imaginary components
+    /// Complex frequency tensor of shape (max_sequence_length, d_model, 2) with real and imaginary components
+    // Essentially a cache of pre-computed RoPE values.
     pub freq_complex: Tensor<B, 3>,
-    /// Maximum sequence length of input
-    pub max_sequence_length: usize,
-    /// Scaling factor for frequency computation.
-    pub theta: f32,
+    /// Frequency vector used to compute/apply the complex rotations.
+    pub theta: Tensor<B, 1>,
 }
 
 impl<B: Backend> ModuleDisplay for RotaryEncoding<B> {
@@ -140,11 +120,10 @@ impl<B: Backend> ModuleDisplay for RotaryEncoding<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [_, _, d_model] = self.freq_complex.shape().dims();
+        let [max_sequence_length, d_model, _] = self.freq_complex.shape().dims();
         content
             .add("d_model", &d_model)
-            .add("max_sequence_length", &self.max_sequence_length)
-            .add("theta", &self.theta)
+            .add("max_sequence_length", &max_sequence_length)
             .optional()
     }
 }
@@ -153,31 +132,33 @@ impl<B: Backend> ModuleDisplay for RotaryEncoding<B> {
 impl<B: Backend> RotaryEncoding<B> {
     /// Applies rotary positional encoding to a tensor of dimensions (..., seq_len, d_model)
     ///
-    /// Arguments:
+    /// # Arguments:
     /// * `x` - Input tensor of shape (..., seq_len, d_model). Accommodate both 3D and 4D tensors
     ///   for (batch size, seq_len, hidden_dim) or (batch size, num_heads, seq_len, hidden_dim)
     ///   respectively.
     ///
-    /// Returns:
-    /// * Output tensor with the same shape as input tensor after applying rotary encoding.
+    /// # Returns:
+    /// Output tensor with the same shape as input tensor after applying rotary encoding.
     ///
-    /// Panics if the input tensor does not have at least 2 dimensions for sequence length and hidden dimension.
+    /// # Panics
+    /// If the input tensor does not have at least 2 dimensions for sequence length and hidden dimension.
     pub fn forward<const D: usize>(&self, x: Tensor<B, D>) -> Tensor<B, D> {
         self.apply(x, 0)
     }
 
     /// Applies rotary positional encoding to a tensor of dimensions (..., seq_len, d_model)
     ///
-    /// Arguments:
+    /// # Arguments:
     /// * `x` - Input tensor of shape (..., seq_len, d_model). Accommodate both 3D and 4D tensors
     ///   for (batch size, seq_len, hidden_dim) or (batch size, num_heads, seq_len, hidden_dim)
     ///   respectively.
     /// * `start` - Sequence start position index.
     ///
-    /// Returns:
-    /// * Output tensor with the same shape as input tensor after applying rotary encoding.
+    /// # Returns:
+    /// Output tensor with the same shape as input tensor after applying rotary encoding.
     ///
-    /// Panics if the input tensor does not have at least 2 dimensions for sequence length and hidden dimension.
+    /// # Panics
+    /// If the input tensor does not have at least 2 dimensions for sequence length and hidden dimension.
     pub fn apply<const D: usize>(&self, x: Tensor<B, D>, start: usize) -> Tensor<B, D> {
         assert!(
             D >= 2,
@@ -210,6 +191,51 @@ impl<B: Backend> RotaryEncoding<B> {
 
         // Sum the real and imaginary components to get output tensor and reshape to original shape
         out.sum_dim(D - 1).reshape(input_shape)
+    }
+
+    /// Shifts the pre-computed rotary frequency to cover a new range of positions.
+    ///
+    /// This method updates the internal frequency tensor `freq_complex` to store
+    /// the rotary positional encodings for a new window of positions starting at `start`.
+    pub fn shift(&mut self, start: usize) {
+        let max_sequence_length = self.freq_complex.dims()[0];
+        self.freq_complex = Self::compute_rotary_frequencies(
+            start..start + max_sequence_length,
+            self.theta.clone(),
+        );
+    }
+
+    /// Computes the positional rotation frequencies (cosine and sine values) used in RoPE.
+    ///
+    /// # Arguments
+    /// - `range`: Range of position indices `[start, end)`.
+    /// - `theta`: 1D tensor of shape `(d_model / 2)` containing base angular frequencies.
+    ///
+    /// # Returns
+    /// Tensor of shape `(range.len(), d_model, 2)` containing `[cos, sin]` pairs for each position and frequency.
+    fn compute_rotary_frequencies(range: Range<usize>, theta: Tensor<B, 1>) -> Tensor<B, 3> {
+        let d_model = theta.dims()[0] * 2;
+        let num_positions = range.end - range.start;
+
+        // Generate frequency values for positional embeddings
+        let frequencies: Tensor<B, 2> =
+            Tensor::<B, 1, Int>::arange(range.start as i64..range.end as i64, &theta.device())
+                .float()
+                .unsqueeze()
+                .transpose()
+                .repeat_dim(1, d_model / 2)
+                * theta.unsqueeze();
+
+        // Convert frequency values to complex numbers (polar form)
+        let p_cos = frequencies.clone().cos();
+        let p_sin = frequencies.sin();
+
+        Tensor::cat(vec![p_cos, p_sin], 1)
+            .reshape([num_positions, 2, d_model / 2])
+            .transpose()
+            .unsqueeze_dim::<4>(2)
+            .repeat_dim(2, 2)
+            .reshape([num_positions, d_model, 2])
     }
 }
 
@@ -402,13 +428,43 @@ mod tests {
     }
 
     #[test]
+    fn test_rotary_encoding_shift() {
+        let device = Default::default();
+        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init::<TestBackend>(&device);
+
+        // Input = [Batch size, Num of heads, Seq_len, d_model]
+        let input = Tensor::<TestBackend, 3>::from_floats(
+            [
+                [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]],
+                [[9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]],
+            ],
+            &device,
+        )
+        .unsqueeze::<4>();
+
+        // Initializing for a bigger cache (e.g., max_seq_len = 10) should give the same result
+        // as using a smaller cache of pre-computed RoPE frequencies that are shifted (recomputed)
+        // to the same initial position
+        let expected_output = rotary_encoding.apply(input.clone(), 6);
+
+        let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init::<TestBackend>(&device);
+        rotary_encoding.shift(6);
+
+        let output = rotary_encoding.apply(input, 0);
+
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected_output.into_data(), Tolerance::default());
+    }
+
+    #[test]
     fn display() {
         let config = RotaryEncodingConfig::new(10, 4);
         let pe = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
             alloc::format!("{}", pe),
-            "RotaryEncoding {d_model: 2, max_sequence_length: 10, theta: 10000}"
+            "RotaryEncoding {d_model: 4, max_sequence_length: 10}"
         );
     }
 }
