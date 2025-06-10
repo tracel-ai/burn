@@ -17,6 +17,34 @@ pub struct MultiStream<R: FusionRuntime> {
     shared_tensors_manual_drop: HashMap<TensorId, TensorIr>,
 }
 
+#[derive(Default, Debug)]
+/// Manage the streams used for the current [operation](OperationIr).
+pub struct OperationStreams {
+    streams: HashMap<TensorId, StreamId>,
+}
+
+impl OperationStreams {
+    /// Register a tensor in the list of streams used for the current [operation](OperationIr).
+    ///
+    /// You only need to register input tensors, not the outputs.
+    /// So init tensor operations should have no streams registered.
+    pub fn tensor<R: FusionRuntime>(&mut self, tensor: &crate::FusionTensor<R>) {
+        self.streams
+            .insert(tensor.id.as_ref().clone(), tensor.stream);
+    }
+
+    fn to_vec(&self) -> Vec<StreamId> {
+        let mut streams = Vec::new();
+        for stream in self.streams.values() {
+            if !streams.contains(stream) {
+                streams.push(*stream);
+            }
+        }
+
+        streams
+    }
+}
+
 impl<R: FusionRuntime> MultiStream<R> {
     pub(crate) fn new(device: R::FusionDevice) -> Self {
         Self {
@@ -31,7 +59,7 @@ impl<R: FusionRuntime> MultiStream<R> {
     /// Register a new tensor operation.
     pub(crate) fn register(
         &mut self,
-        streams: Vec<StreamId>,
+        streams: OperationStreams,
         mut repr: OperationIr,
         operation: Box<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
@@ -98,17 +126,17 @@ impl<R: FusionRuntime> MultiStream<R> {
     /// Returns the current stream id.
     fn resolve_streams(
         &mut self,
-        streams: Vec<StreamId>,
+        streams: OperationStreams,
         handles: &mut HandleContainer<R::FusionHandle>,
         op: &mut OperationIr,
     ) -> StreamId {
-        let streams = Self::remove_duplicated_streams(streams);
+        let streams_list = streams.to_vec();
         let current = StreamId::current();
         let nodes = op.nodes();
 
         self.register_shared_tensors(&nodes, &streams, current);
 
-        for id in streams {
+        for id in streams_list {
             if id != current {
                 self.resolve_stream(handles, id, &nodes);
             }
@@ -143,23 +171,27 @@ impl<R: FusionRuntime> MultiStream<R> {
     fn register_shared_tensors(
         &mut self,
         nodes: &[&TensorIr],
-        streams: &[StreamId],
+        streams: &OperationStreams,
         current: StreamId,
     ) {
+        let register = |state: &mut SharedTensor, node: &TensorIr| {
+            if let Some(stream_id) = streams.streams.get(&node.id) {
+                let stream = self.streams.get(stream_id);
+                state.register_new_stream(*stream_id, stream);
+
+                if stream_id != &current {
+                    let stream = self.streams.get(&current);
+                    state.register_new_stream(current, stream);
+                }
+            }
+        };
+
         for node in nodes.iter() {
             match self.shared_tensors.get_mut(&node.id) {
-                Some(state) => {
-                    for stream_id in streams.iter().chain(&[current]) {
-                        let stream = self.streams.get(stream_id);
-                        state.register_new_stream(*stream_id, stream);
-                    }
-                }
+                Some(state) => register(state, &node),
                 None => {
                     let mut state = SharedTensor::default();
-                    for stream_id in streams.iter().chain(&[current]) {
-                        let stream = self.streams.get(stream_id);
-                        state.register_new_stream(*stream_id, stream);
-                    }
+                    register(&mut state, &node);
                     self.shared_tensors.insert(node.id, state);
                 }
             }
@@ -191,27 +223,13 @@ impl<R: FusionRuntime> MultiStream<R> {
 
             if let Some(tensor) = self.shared_tensors_manual_drop.remove(&id) {
                 self.register(
-                    vec![],
+                    OperationStreams::default(),
                     OperationIr::Drop(tensor),
                     Box::new(DropOp { id }),
                     handles,
                 );
             }
         }
-    }
-
-    fn remove_duplicated_streams(items: Vec<StreamId>) -> Vec<StreamId> {
-        if items.len() == 1 {
-            return items;
-        }
-
-        let mut output = Vec::with_capacity(items.len());
-        for item in items {
-            if !output.contains(&item) {
-                output.push(item);
-            }
-        }
-        output
     }
 }
 

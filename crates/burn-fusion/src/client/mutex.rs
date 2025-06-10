@@ -1,7 +1,7 @@
 use super::FusionClient;
 use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
-    stream::{StreamId, execution::Operation},
+    stream::{OperationStreams, StreamId, execution::Operation},
 };
 use burn_ir::{OperationIr, TensorIr};
 use burn_tensor::{DType, TensorData};
@@ -37,7 +37,7 @@ where
         }
     }
 
-    fn register<O>(&self, streams: Vec<StreamId>, repr: OperationIr, operation: O)
+    fn register<O>(&self, streams: OperationStreams, repr: OperationIr, operation: O)
     where
         O: Operation<R> + 'static,
     {

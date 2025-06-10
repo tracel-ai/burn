@@ -1,6 +1,6 @@
 use crate::{
     FusionBackend, FusionRuntime,
-    stream::{MultiStream, StreamId, execution::Operation},
+    stream::{MultiStream, OperationStreams, StreamId, execution::Operation},
 };
 use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr};
 use burn_tensor::TensorData;
@@ -24,7 +24,7 @@ where
 
     pub fn register(
         &mut self,
-        streams: Vec<StreamId>,
+        streams: OperationStreams,
         repr: OperationIr,
         operation: Box<dyn Operation<R>>,
     ) {

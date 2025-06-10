@@ -13,7 +13,7 @@ use crate::{
     Fusion, FusionBackend,
     client::FusionClient,
     get_client,
-    stream::{StreamId, execution::Operation},
+    stream::{OperationStreams, StreamId, execution::Operation},
 };
 
 use super::NoOp;
@@ -33,14 +33,13 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = StreamId::current();
         let client = get_client::<B>(&device.clone());
         let out = client.tensor_uninitialized(shape.dims.clone(), B::BoolElem::dtype());
 
         let desc = out.to_ir_out();
 
         client.register(
-            vec![stream],
+            OperationStreams::default(),
             OperationIr::BaseBool(BaseOperationIr::Empty(desc.clone())),
             EmptyOps::<B>::new(desc, device.clone()),
         );
@@ -63,7 +62,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let desc = out.to_ir_out();
 
         client.register(
-            vec![stream],
+            OperationStreams::default(),
             OperationIr::Init(InitOperationIr { out: desc }),
             NoOp::<B>::new(),
         );
@@ -86,7 +85,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
         let out = tensor
             .client
             .tensor_uninitialized(tensor.shape.clone(), B::IntElem::dtype());
@@ -97,7 +98,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         };
 
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::Bool(BoolOperationIr::IntoInt(desc.clone())),
             IntoIntOps::<B>::new(desc),
         );
@@ -120,7 +121,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
         let out = tensor
             .client
             .tensor_uninitialized(tensor.shape.clone(), B::FloatElem::dtype());
@@ -130,7 +133,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             out: out.to_ir_out(),
         };
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::Bool(BoolOperationIr::IntoFloat(desc.clone())),
             IntoFloatOps::<B>::new(desc),
         );
@@ -174,7 +177,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
         let out = tensor
             .client
             .tensor_uninitialized(shape.dims, B::BoolElem::dtype());
@@ -184,7 +189,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             out: out.to_ir_out(),
         };
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::BaseBool(BaseOperationIr::Reshape(desc.clone())),
             ReshapeDimsOps::<B>::new(desc),
         );
@@ -216,7 +221,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             shape.push(tensor.shape[i]);
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
         let out = tensor
             .client
             .tensor_uninitialized(shape, B::BoolElem::dtype());
@@ -227,7 +234,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             out: out.to_ir_out(),
         };
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::BaseBool(BaseOperationIr::Slice(desc.clone())),
             SliceOps::<B>::new(desc),
         );
@@ -258,8 +265,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
-        let stream_1 = tensor.stream;
-        let stream_2 = value.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+        streams.tensor(&value);
+
         let out = tensor
             .client
             .tensor_uninitialized(shape, B::BoolElem::dtype());
@@ -272,7 +281,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         };
 
         out.client.register(
-            vec![stream_1, stream_2],
+            streams,
             OperationIr::BaseBool(BaseOperationIr::SliceAssign(desc.clone())),
             SliceAssignOps::<B>::new(desc),
         );
@@ -307,7 +316,8 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         // Calculate the output shape
         let mut shape: Vec<usize> = tensor_first.shape.clone();
-        let streams = tensors.iter().map(|t| t.stream).collect::<Vec<_>>();
+        let mut streams = OperationStreams::default();
+        tensors.iter().for_each(|t| streams.tensor(t));
 
         shape[dim] = 0;
         for tensor in tensors.iter() {
@@ -346,8 +356,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream_1 = lhs.stream;
-        let stream_2 = rhs.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&lhs);
+        streams.tensor(&rhs);
+
         let out = lhs.client.tensor_uninitialized(
             binary_ops_shape(&lhs.shape, &rhs.shape),
             B::BoolElem::dtype(),
@@ -359,7 +371,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             out: out.to_ir_out(),
         };
         out.client.register(
-            vec![stream_1, stream_2],
+            streams,
             OperationIr::BaseBool(BaseOperationIr::Equal(desc.clone())),
             EqualOps::<B>::new(desc),
         );
@@ -382,7 +394,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
         let out = tensor
             .client
             .tensor_uninitialized(tensor.shape.clone(), B::BoolElem::dtype());
@@ -393,7 +407,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         };
 
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::Bool(BoolOperationIr::Not(desc.clone())),
             NotOps::<B>::new(desc),
         );
@@ -417,8 +431,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream_1 = lhs.stream;
-        let stream_2 = rhs.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&lhs);
+        streams.tensor(&rhs);
+
         let out = lhs.client.tensor_uninitialized(
             binary_ops_shape(&lhs.shape, &rhs.shape),
             B::BoolElem::dtype(),
@@ -430,7 +446,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             out: out.to_ir_out(),
         };
         out.client.register(
-            vec![stream_1, stream_2],
+            streams,
             OperationIr::Bool(BoolOperationIr::And(desc.clone())),
             AndOps::<B>::new(desc),
         );
@@ -454,8 +470,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream_1 = lhs.stream;
-        let stream_2 = rhs.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&lhs);
+        streams.tensor(&rhs);
+
         let out = lhs.client.tensor_uninitialized(
             binary_ops_shape(&lhs.shape, &rhs.shape),
             B::BoolElem::dtype(),
@@ -467,7 +485,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             out: out.to_ir_out(),
         };
         out.client.register(
-            vec![stream_1, stream_2],
+            streams,
             OperationIr::Bool(BoolOperationIr::Or(desc.clone())),
             OrOps::<B>::new(desc),
         );
@@ -490,7 +508,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
         let mut shape = tensor.shape.clone();
         shape[dim1] = tensor.shape[dim2];
         shape[dim2] = tensor.shape[dim1];
@@ -506,7 +526,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             out: out.to_ir_out(),
         };
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::BaseBool(BaseOperationIr::SwapDims(desc.clone())),
             SwapDimsOps::<B>::new(desc),
         );
@@ -529,7 +549,8 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
 
         // Change the shape of the tensor to match the new axes
         let shape = axes.iter().map(|x| tensor.shape[*x]).collect();
@@ -545,7 +566,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         };
 
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::BaseInt(BaseOperationIr::Permute(desc.clone())),
             PermuteDimsOps::<B>::new(desc),
         );
@@ -569,7 +590,8 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
 
         let out = tensor
             .client
@@ -582,7 +604,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         };
 
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::BaseBool(BaseOperationIr::Expand(desc.clone())),
             ExpandOps::<B>::new(desc),
         );
@@ -605,7 +627,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
         let out = tensor
             .client
             .tensor_uninitialized(tensor.shape.clone(), B::BoolElem::dtype());
@@ -617,7 +641,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         };
 
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::BaseBool(BaseOperationIr::Flip(desc.clone())),
             FlipOps::<B>::new(desc),
         );
@@ -642,7 +666,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
         let mut shape = tensor.shape.clone();
         shape[dim] *= times;
         let out = tensor
@@ -656,7 +682,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             out: out.to_ir_out(),
         };
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::BaseBool(BaseOperationIr::RepeatDim(desc.clone())),
             RepeatDimOps::<B>::new(desc),
         );
