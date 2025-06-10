@@ -1,18 +1,31 @@
 use crate::backend::Backend;
 use crate::check::TensorCheck;
-use crate::{check, Tensor, TensorPrimitive};
+use crate::{Tensor, TensorPrimitive, check};
 
-/// Applies the rectified linear unit function as described in the paper [Deep Learning using
-/// Rectified Linear Units (ReLU)](https://arxiv.org/pdf/1803.08375).
+/// Applies the rectified linear unit function element-wise
+/// as described in the paper [Deep Learning using Rectified Linear Units (ReLU)](https://arxiv.org/pdf/1803.08375).
 ///
-/// `y = max(0, x)`
+/// $$\text{ReLU}\(x\) = \(x\)^+ = \max\(0, x\)$$
 pub fn relu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     tensor.relu()
 }
 
-/// Applies the leaky rectified linear unit function.
+/// Applies the leaky rectified linear unit function element-wise.
 ///
-/// f(x) = negative_slope * x for x < 0, f(x) = x for x >= 0
+/// $$
+/// \text{LeakyReLU}\(x\) = \max\(0,x\) + \text{negative\\_slope} \times \min\(0, x\)
+/// $$
+///
+/// or
+///
+/// $$
+///\text{LeakyReLU}(x) =
+/// \begin{cases}
+///     x & \text{if } x \geq 0 \newline
+///     \text{negative\\_slope} \times x & \text{otherwise}
+/// \end{cases}
+/// $$
+///
 pub fn leaky_relu<const D: usize, B: Backend>(
     tensor: Tensor<B, D>,
     negative_slope: f64,

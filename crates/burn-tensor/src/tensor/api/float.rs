@@ -43,7 +43,7 @@ where
     ///
     /// The error function is defined as:
     ///
-    /// $\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$
+    /// $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     pub fn erf(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_erf(
             self.primitive.tensor(),
