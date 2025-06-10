@@ -1,6 +1,6 @@
 use crate::backend::Backend;
 use crate::check::TensorCheck;
-use crate::{check, Tensor, TensorPrimitive};
+use crate::{Tensor, TensorPrimitive, check};
 
 /// Applies the rectified linear unit function element-wise
 /// as described in the paper [Deep Learning using Rectified Linear Units (ReLU)](https://arxiv.org/pdf/1803.08375).
