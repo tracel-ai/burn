@@ -599,8 +599,9 @@ pub trait ModuleOps<B: Backend> {
         stride: usize,
         padding: usize,
         count_include_pad: bool,
+        ceil: bool,
     ) -> FloatTensor<B> {
-        pool::avg_pool1d_from_2d::<B>(x, kernel_size, stride, padding, count_include_pad)
+        pool::avg_pool1d_from_2d::<B>(x, kernel_size, stride, padding, count_include_pad, ceil)
     }
     /// Backward pass for the [avg pooling 1d](ModuleOps::avg_pool1d) operation.
     fn avg_pool1d_backward(
@@ -631,6 +632,7 @@ pub trait ModuleOps<B: Backend> {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil: bool,
     ) -> FloatTensor<B>;
     /// Backward pass for the [avg pooling 2d](ModuleOps::avg_pool2d) operation.
     fn avg_pool2d_backward(
@@ -672,8 +674,9 @@ pub trait ModuleOps<B: Backend> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil: bool,
     ) -> FloatTensor<B> {
-        pool::max_pool1d_from_2d::<B>(x, kernel_size, stride, padding, dilation)
+        pool::max_pool1d_from_2d::<B>(x, kernel_size, stride, padding, dilation, ceil)
     }
 
     /// One dimensional max pooling with indices.
@@ -687,8 +690,9 @@ pub trait ModuleOps<B: Backend> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil: bool,
     ) -> MaxPool1dWithIndices<B> {
-        pool::max_pool1d_with_indices_from_2d::<B>(x, kernel_size, stride, padding, dilation)
+        pool::max_pool1d_with_indices_from_2d::<B>(x, kernel_size, stride, padding, dilation, ceil)
     }
     /// Backward pass for the [max pooling 1d](ModuleOps::max_pool1d_with_indices) operation.
     fn max_pool1d_with_indices_backward(
@@ -722,6 +726,7 @@ pub trait ModuleOps<B: Backend> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil: bool,
     ) -> FloatTensor<B>;
 
     /// Two dimensional max pooling with indices.
@@ -735,6 +740,7 @@ pub trait ModuleOps<B: Backend> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil: bool,
     ) -> MaxPool2dWithIndices<B>;
     /// Backward pass for the [max pooling 2d](ModuleOps::max_pool2d_with_indices) operation.
     fn max_pool2d_with_indices_backward(

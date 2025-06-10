@@ -309,6 +309,7 @@ impl RelativeOps for ModuleOperationIr {
                 stride: desc.stride,
                 padding: desc.padding,
                 count_include_pad: desc.count_include_pad,
+                ceil: desc.ceil,
                 out: desc.out.to_relative(converter),
             }),
             ModuleOperationIr::AvgPool2d(desc) => ModuleOperationIr::AvgPool2d(AvgPool2dOpIr {
@@ -317,6 +318,7 @@ impl RelativeOps for ModuleOperationIr {
                 stride: desc.stride,
                 padding: desc.padding,
                 count_include_pad: desc.count_include_pad,
+                ceil: desc.ceil,
                 out: desc.out.to_relative(converter),
             }),
             ModuleOperationIr::AvgPool1dBackward(desc) => {
@@ -375,6 +377,7 @@ impl RelativeOps for ModuleOperationIr {
                 stride: desc.stride,
                 padding: desc.padding,
                 dilation: desc.dilation,
+                ceil: desc.ceil,
                 out: desc.out.to_relative(converter),
             }),
             ModuleOperationIr::MaxPool1dWithIndices(desc) => {
@@ -384,6 +387,7 @@ impl RelativeOps for ModuleOperationIr {
                     stride: desc.stride,
                     padding: desc.padding,
                     dilation: desc.dilation,
+                    ceil: desc.ceil,
                     out: desc.out.to_relative(converter),
                     out_indices: desc.out_indices.to_relative(converter),
                 })
@@ -406,6 +410,7 @@ impl RelativeOps for ModuleOperationIr {
                 stride: desc.stride,
                 padding: desc.padding,
                 dilation: desc.dilation,
+                ceil: desc.ceil,
                 out: desc.out.to_relative(converter),
             }),
             ModuleOperationIr::MaxPool2dWithIndices(desc) => {
@@ -415,6 +420,7 @@ impl RelativeOps for ModuleOperationIr {
                     stride: desc.stride,
                     padding: desc.padding,
                     dilation: desc.dilation,
+                    ceil: desc.ceil,
                     out: desc.out.to_relative(converter),
                     out_indices: desc.out_indices.to_relative(converter),
                 })

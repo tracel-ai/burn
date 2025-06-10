@@ -1046,6 +1046,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         desc.stride,
                         desc.padding,
                         desc.count_include_pad,
+                        desc.ceil,
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
@@ -1058,6 +1059,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         desc.stride,
                         desc.padding,
                         desc.count_include_pad,
+                        desc.ceil,
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
@@ -1124,6 +1126,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         desc.stride,
                         desc.padding,
                         desc.dilation,
+                        desc.ceil,
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
@@ -1136,6 +1139,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         desc.stride,
                         desc.padding,
                         desc.dilation,
+                        desc.ceil,
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output.output);
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output.indices);
@@ -1165,6 +1169,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         desc.stride,
                         desc.padding,
                         desc.dilation,
+                        desc.ceil,
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
@@ -1177,6 +1182,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         desc.stride,
                         desc.padding,
                         desc.dilation,
+                        desc.ceil,
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output.output);
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output.indices);
