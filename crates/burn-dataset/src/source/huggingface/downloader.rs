@@ -214,7 +214,7 @@ fn import(
     let python_path = if use_python_venv {
         install_python_deps(&base_dir)?
     } else {
-        "python3".into()
+        get_python_name()?.into()
     };
 
     let mut command = Command::new(python_path);
