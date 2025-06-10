@@ -213,12 +213,12 @@ impl<B: BackendIr> WsServer<B> {
                     Err(err) => panic!("Only bytes messages are supported {err:?}"),
                 };
 
-                log::info!("Response handler for upload active");
+                log::info!("Response handler for data active");
 
-                // Get the requested uploaded tensor data
+                // Get the requested exposed tensor data
                 let bytes: bytes::Bytes = {
                     let mut exposed_tensors = self.state.exposed_tensors.lock().unwrap();
-                    // take the upload out of the hashmap while we download
+                    // take the tensor out of the hashmap while we download
                     if let Some(mut exposed_state) = exposed_tensors.remove(&id) {
                         log::info!("Tensor found (id: {id:?})");
 
