@@ -224,7 +224,7 @@ impl<B: BackendIr> WsServer<B> {
                     // take the upload out of the hashmap while we download
                     if let Some(mut exposed_state) = exposed_tensors.remove(&id) {
                         log::info!("Tensor found (id: {id:?})");
-                        
+
                         exposed_state.cur_download_count += 1;
                         if exposed_state.cur_download_count == exposed_state.max_downloads {
                             exposed_state.bytes

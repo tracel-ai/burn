@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use std::sync::Mutex;
 use burn_ir::TensorId;
+use std::sync::Mutex;
 
 pub struct TensorExposeState {
     pub bytes: bytes::Bytes,

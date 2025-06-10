@@ -55,9 +55,7 @@ pub(crate) fn handle_command(
                     // Burn remote tests don't work on windows for now
                     #[cfg(target_os = "windows")]
                     {
-                        args.exclude.extend(vec![
-                            "burn-remote".to_string(),
-                        ]);
+                        args.exclude.extend(vec!["burn-remote".to_string()]);
                     };
 
                     if disable_wgpu {
