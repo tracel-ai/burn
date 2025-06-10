@@ -27,11 +27,13 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
     pub fn run(self, context: &mut Context<'_, CubeFusionHandle<R>>, plan: &mut LaunchPlan<'a, R>) {
         for (pos, (tensor_relative, precision)) in self.resources.inputs.iter().enumerate() {
             let mut tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
-            // Important to take the status of the relative graph and not
-            // the global graph, since the status of the global graph
-            // might be of a later operation on the same tensor id.
-            let status = &tensor_relative.status;
-            let mut handle = context.handles.get_handle(&tensor_global.id, status);
+            let mut handle = context
+                .handles
+                .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
+
+            if let TensorStatus::ReadWrite = tensor_relative.status {
+                plan.cleared.push(tensor_global.id);
+            }
 
             self.analyze(plan, pos, tensor_relative, &handle);
 

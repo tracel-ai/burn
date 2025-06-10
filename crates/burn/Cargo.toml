@@ -88,7 +88,7 @@ vision = ["burn-core/vision"]
 # Backend
 ir = ["burn-ir"]
 autodiff = ["burn-autodiff"]
-fusion = ["ir", "burn-wgpu?/fusion", "burn-cuda?/fusion"]
+fusion = ["ir", "burn-wgpu?/fusion", "burn-cuda?/fusion", "burn-rocm?/fusion"]
 
 ## Backend features
 accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]

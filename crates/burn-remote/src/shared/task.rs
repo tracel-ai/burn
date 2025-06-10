@@ -54,7 +54,6 @@ pub struct TensorRemote {
 pub enum ComputeTask {
     RegisterOperation(Box<OperationIr>),
     RegisterTensor(TensorId, TensorData),
-    RegisterOrphan(TensorId),
     RegisterTensorRemote(TensorRemote, TensorId),
     ExposeTensorRemote { tensor: TensorIr, count: u32 },
     ReadTensor(TensorIr),

@@ -174,9 +174,6 @@ impl<B: BackendIr> WsServer<B> {
                     ComputeTask::RegisterTensor(id, data) => {
                         stream.register_tensor(id, data);
                     }
-                    ComputeTask::RegisterOrphan(id) => {
-                        stream.register_orphan(id);
-                    }
                     ComputeTask::ReadTensor(tensor) => {
                         stream.read_tensor(connection_id, tensor);
                     }

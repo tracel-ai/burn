@@ -62,12 +62,6 @@ impl<B: BackendIr> Stream<B> {
             .unwrap();
     }
 
-    pub fn register_orphan(&self, tensor_id: TensorId) {
-        self.compute_sender
-            .send(ProcessorTask::RegisterOrphan(tensor_id))
-            .unwrap()
-    }
-
     pub fn read_tensor(&self, id: ConnectionId, desc: TensorIr) {
         let (callback_sender, callback_rec) = std::sync::mpsc::channel();
 

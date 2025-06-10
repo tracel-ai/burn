@@ -35,7 +35,6 @@ pub enum ProcessorTask {
     ExposeTensorRemote { tensor: TensorIr, count: u32 },
     ReadTensor(ConnectionId, TensorIr, Callback<TaskResponse>),
     Sync(ConnectionId, Callback<TaskResponse>),
-    RegisterOrphan(TensorId),
     Close,
 }
 
@@ -49,9 +48,6 @@ impl<B: BackendIr> Processor<B> {
                 match item {
                     ProcessorTask::RegisterOperation(op) => {
                         runner.register(*op);
-                    }
-                    ProcessorTask::RegisterOrphan(id) => {
-                        runner.register_orphan(&id);
                     }
                     ProcessorTask::Sync(id, callback) => {
                         runner.sync();
