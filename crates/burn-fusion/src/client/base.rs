@@ -4,7 +4,7 @@ use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionTensor,
     stream::{StreamId, execution::Operation},
 };
-use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_ir::{OperationIr, TensorIr};
 use burn_tensor::{DType, TensorData};
 
 /// Define how to interact with the fusion server.
@@ -112,6 +112,4 @@ where
     ) -> FusionTensor<R>
     where
         B: FusionBackend<FusionRuntime = R>;
-    /// Drop the tensor with the given [tensor id](TensorId).
-    fn register_orphan(&self, id: &TensorId);
 }

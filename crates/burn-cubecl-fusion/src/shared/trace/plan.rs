@@ -20,6 +20,7 @@ pub(crate) struct LaunchPlan<'a, R: Runtime> {
     pub rank: usize,
     pub blocks: Vec<BlockPlan<'a>>,
     pub vectorizations: BTreeMap<TensorId, Vect>,
+    pub cleared: Vec<TensorId>,
 }
 
 #[derive(Debug)]
@@ -135,6 +136,7 @@ impl<R: Runtime> LaunchPlan<'_, R> {
             rank,
             blocks,
             vectorizations: Default::default(),
+            cleared: Default::default(),
         }
     }
 }

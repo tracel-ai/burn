@@ -8,7 +8,7 @@ use super::{
 };
 use super::{FuseTrace, RegisteredTensors};
 use burn_fusion::stream::ScalarId;
-use burn_ir::TensorIr;
+use burn_ir::{TensorId, TensorIr};
 use burn_tensor::{DType, Element};
 
 #[derive(Clone, Debug)]
@@ -34,6 +34,11 @@ impl FuseTraceBuilder {
             blocks_previous: Default::default(),
             resources: Default::default(),
         }
+    }
+
+    /// Tag a tensor as dropped.
+    pub fn register_dropped(&mut self, id: TensorId) {
+        self.resources.dropped.insert(id);
     }
 
     /// Register an operation.
