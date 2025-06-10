@@ -40,7 +40,9 @@ pub fn leaky_relu<const D: usize, B: Backend>(
 /// [Gaussian Error Linear Units (GELUs)](https://arxiv.org/pdf/1606.08415v3.pdf).
 ///
 /// $$
-/// \text{GELU}\(x\) = x * \Phi\(x\)
+/// \text{GELU}\(x\)
+/// = x \cdot \Phi\(x\)
+/// = x \cdot \frac{1}{2}\left(1 + \text{erf}\left(\frac{x}{\sqrt{2}}\right)\right)
 /// $$
 ///
 /// where $\Phi\(x\)$ is the cumulative distribution function for the Gaussian distribution.

@@ -110,7 +110,7 @@ where
     ///     let device = Default::default();
     ///
     ///     let tensor = Tensor::<B, 3>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.cosh()); // should be [1.0, 1.5430, 3.7621]
+    ///     println!("{}", tensor.cosh()); // [1.0, 1.5430, 3.7621]
     /// }
     /// ```
     pub fn cosh(self) -> Self {
@@ -133,7 +133,7 @@ where
     ///     let device = Default::default();
     ///
     ///     let tensor = Tensor::<B, 3>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.sinh()); // should be [0.0, -1.1752, 3.6269]
+    ///     println!("{}", tensor.sinh()); // [0.0, -1.1752, 3.6269]
     /// }
     /// ```
     pub fn sinh(self) -> Self {
@@ -156,7 +156,7 @@ where
     ///     let device = Default::default();
     ///
     ///     let tensor = Tensor::<B, 3>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.sinh()); // should be [0.0, -0.7616, 0.9640]
+    ///     println!("{}", tensor.sinh()); // [0.0, -0.7616, 0.9640]
     /// }
     /// ```
     pub fn tanh(self) -> Self {
