@@ -63,7 +63,7 @@ impl<B: BackendIr> WsServer<B> {
         let app = Router::new()
             .route("/response", any(Self::handler_response))
             .route("/request", any(Self::handler_request))
-            .route("/data", any(Self::handler_upload))
+            .route("/data", any(Self::handler_data))
             .with_state(server);
 
         // run it with hyper
@@ -87,8 +87,8 @@ impl<B: BackendIr> WsServer<B> {
         ws.on_upgrade(move |socket| state.handle_socket_request(socket))
     }
 
-    async fn handler_upload(ws: WebSocketUpgrade, State(state): State<Self>) -> impl IntoResponse {
-        ws.on_upgrade(move |socket| state.handle_socket_upload(socket))
+    async fn handler_data(ws: WebSocketUpgrade, State(state): State<Self>) -> impl IntoResponse {
+        ws.on_upgrade(move |socket| state.handle_socket_data(socket))
     }
 
     async fn handle_socket_response(self, mut socket: WebSocket) {
@@ -200,8 +200,8 @@ impl<B: BackendIr> WsServer<B> {
         self.session_manager.close(session_id);
     }
 
-    async fn handle_socket_upload(self, mut socket: WebSocket) {
-        log::info!("[Response Handler] On new connection for upload.");
+    async fn handle_socket_data(self, mut socket: WebSocket) {
+        log::info!("[Response Handler] On new connection for data.");
 
         let packet = socket.recv().await;
         let msg = match packet {
@@ -221,20 +221,17 @@ impl<B: BackendIr> WsServer<B> {
                 // Get the requested uploaded tensor data
                 let bytes: bytes::Bytes = {
                     let mut exposed_tensors = self.state.exposed_tensors.lock().unwrap();
-                    if exposed_tensors.contains_key(&id) {
-                        // take the upload out of the hashmap while we download
+                    // take the upload out of the hashmap while we download
+                    if let Some(mut exposed_state) = exposed_tensors.remove(&id) {
                         log::info!("Tensor found (id: {id:?})");
-                        let expose_state = exposed_tensors.get(&id).unwrap();
-                        let is_last_download =
-                            expose_state.total_upload_count == (expose_state.cur_upload_count + 1);
-
-                        // If it was the last download, remove it.
-                        if is_last_download {
-                            exposed_tensors.remove(&id).unwrap().bytes
+                        
+                        exposed_state.cur_download_count += 1;
+                        if exposed_state.cur_download_count == exposed_state.max_downloads {
+                            exposed_state.bytes
                         } else {
-                            let expose_state = exposed_tensors.get_mut(&id).unwrap();
-                            expose_state.cur_upload_count += 1;
-                            expose_state.bytes.clone()
+                            let bytes = exposed_state.bytes.clone();
+                            exposed_tensors.insert(id, exposed_state);
+                            bytes
                         }
                     } else {
                         panic!("A tensor was requested (id: {id:?}) that isn't being served");

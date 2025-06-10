@@ -66,6 +66,7 @@ impl<B: BackendIr> Processor<B> {
                         runner.register_tensor_data_id(id, data);
                     }
                     ProcessorTask::RegisterTensorRemote(remote_tensor, new_id) => {
+                        // downloading with a websocket requires a Tokio 1.x runtime
                         let rt = tokio::runtime::Runtime::new().unwrap();
                         let data = rt
                             .block_on(Self::download_tensor(remote_tensor))
@@ -76,17 +77,16 @@ impl<B: BackendIr> Processor<B> {
                     ProcessorTask::ExposeTensorRemote { tensor, count } => {
                         let id = tensor.id;
                         let fut = runner.read_tensor(tensor);
-                        runner.register_orphan(&id); // 
                         let data = burn_common::future::block_on(fut);
                         let bytes: bytes::Bytes = rmp_serde::to_vec(&data).unwrap().into();
 
-                        let mut uploads = state.exposed_tensors.lock().unwrap();
-                        uploads.insert(
+                        let mut exposed_tensors = state.exposed_tensors.lock().unwrap();
+                        exposed_tensors.insert(
                             id,
                             TensorExposeState {
                                 bytes,
-                                total_upload_count: count,
-                                cur_upload_count: 0,
+                                max_downloads: count,
+                                cur_download_count: 0,
                             },
                         );
                     }
@@ -114,6 +114,7 @@ impl<B: BackendIr> Processor<B> {
         task_sender
     }
 
+    /// Downloads a tensor that is exposed on another server. Requires a Tokio 1.x runtime
     async fn download_tensor(remote_tensor: TensorRemote) -> Option<TensorData> {
         let address_request = format!("{}/{}", remote_tensor.address.as_str(), "data");
         const MB: usize = 1024 * 1024;
