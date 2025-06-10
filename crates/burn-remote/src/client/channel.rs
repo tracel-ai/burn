@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use burn_ir::TensorIr;
-use burn_router::{get_client, RouterTensor, RunnerChannel, RunnerClient};
+use burn_router::{RouterTensor, RunnerChannel, get_client};
 
 use crate::shared::{ComputeTask, TensorRemote};
 
@@ -55,12 +55,7 @@ impl RunnerChannel for WsChannel {
             .sender
             .send(ComputeTask::RegisterTensorRemote(remote_tensor, new_id));
 
-        RouterTensor::new(
-            Arc::new(handle.tensor.id),
-            shape,
-            dtype,
-            client.clone(),
-        )
+        RouterTensor::new(Arc::new(handle.tensor.id), shape, dtype, client.clone())
     }
 
     fn change_client_backend(
