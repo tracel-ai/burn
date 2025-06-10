@@ -81,6 +81,8 @@ pub enum OperationIr {
     Init(InitOperationIr),
     /// A custom operation.
     Custom(CustomOpIr),
+    /// A tensor is dropped.
+    Drop(TensorIr),
 }
 
 /// Operation intermediate representation specific to a float tensor.
@@ -1373,7 +1375,7 @@ pub struct InterpolateBackwardOpIr {
 }
 
 impl OperationIr {
-    /// Cleanup the remaining tensor handles that have not been used.
+    /// Get the nodes of the current optimization.
     pub fn nodes(&self) -> Vec<&TensorIr> {
         match self {
             OperationIr::BaseFloat(repr) => repr.nodes(),
@@ -1387,6 +1389,7 @@ impl OperationIr {
             OperationIr::Module(repr) => repr.nodes(),
             OperationIr::Init(repr) => repr.nodes(),
             OperationIr::Custom(repr) => repr.nodes(),
+            OperationIr::Drop(repr) => vec![repr],
         }
     }
 }

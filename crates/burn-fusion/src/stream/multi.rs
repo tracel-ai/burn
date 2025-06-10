@@ -47,19 +47,12 @@ impl<R: FusionRuntime> MultiStream<R> {
 
         stream.queue.add(repr, operation);
 
-        let size_before = stream.queue.len();
         stream.processor.process(
             Segment::new(&mut stream.queue, handles),
             &mut self.optimizations,
             ExecutionMode::Lazy,
         );
-        let size_after = stream.queue.len();
-
-        if size_after != size_before {
-            self.free_orphans(handles);
-        }
-
-        if size_after == 0 {
+        if stream.queue.is_empty() {
             self.streams.remove(&id);
         }
     }
@@ -72,7 +65,6 @@ impl<R: FusionRuntime> MultiStream<R> {
                 &mut self.optimizations,
                 ExecutionMode::Sync,
             );
-            self.free_orphans(handles);
         }
     }
 
@@ -127,18 +119,6 @@ impl<R: FusionRuntime> MultiStream<R> {
             }
         }
         output
-    }
-
-    fn free_orphans(&self, handles: &mut HandleContainer<R::FusionHandle>) {
-        let nodes = self
-            .streams
-            .values()
-            .flat_map(|a| a.queue.global.iter())
-            .flat_map(|a| a.nodes())
-            .map(|tensor| &tensor.id)
-            .collect::<Vec<_>>();
-
-        handles.free_orphans(&nodes);
     }
 }
 

@@ -1,6 +1,6 @@
 use alloc::sync::Arc;
 use burn_common::future::DynFut;
-use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorId, TensorIr};
+use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorIr};
 use burn_tensor::{
     DType, Shape, TensorData,
     backend::{Backend, DeviceId, DeviceOps},
@@ -162,15 +162,6 @@ macro_rules! impl_multi_backend_types {
                         Self::$DefaultBackend(runner) => MultiDevice::$DefaultBackend(runner.device()),
                         $(
                             Self::$OtherBackend(runner) => MultiDevice::$OtherBackend(runner.device()),
-                        )+
-                    }
-                }
-
-                fn register_orphan(&self, id: &TensorId) {
-                    match self {
-                        Self::$DefaultBackend(runner) => runner.register_orphan(id),
-                        $(
-                            Self::$OtherBackend(runner) => runner.register_orphan(id),
                         )+
                     }
                 }

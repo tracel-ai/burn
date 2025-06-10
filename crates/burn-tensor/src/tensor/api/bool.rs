@@ -29,7 +29,7 @@ where
         Tensor::new(B::bool_into_int(self.primitive))
     }
 
-    /// Convert the bool tensor into an float tensor.
+    /// Convert the bool tensor into a float tensor.
     pub fn float(self) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::Float(B::bool_into_float(self.primitive)))
     }
