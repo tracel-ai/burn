@@ -48,9 +48,9 @@ mod tests {
         }
         println!("Dropping");
 
+        // core::mem::drop(tensor);
         let t = tensor * 2.0;
         let _t = t.into_data();
-        //core::mem::drop(tensor);
 
         for j in joined {
             j.join().unwrap();

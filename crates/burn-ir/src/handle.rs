@@ -82,6 +82,7 @@ impl<H: Clone> HandleContainer<H> {
             .handles
             .remove_entry(id)
             .unwrap_or_else(|| panic!("Should have handle for tensor {:?}", id));
+        println!("Get handle {}", self.handles.len());
 
         match handle {
             Handle::Existing(handle) => match status {
@@ -204,6 +205,6 @@ impl<H: Clone> HandleContainer<H> {
             TensorStatus::ReadWrite => {
                 self.handles.remove(&tensor.id);
             }
-        }
+        };
     }
 }
