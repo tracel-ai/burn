@@ -83,6 +83,7 @@ impl<H: Clone> HandleContainer<H> {
             .remove_entry(id)
             .unwrap_or_else(|| panic!("Should have handle for tensor {:?}", id));
 
+        println!("Get Handle {}", self.handles.len());
         match handle {
             Handle::Existing(handle) => match status {
                 TensorStatus::ReadOnly => {
@@ -193,6 +194,7 @@ impl<H: Clone> HandleContainer<H> {
 
     /// Remove tensor handle from container.
     pub fn remove_handle(&mut self, id: TensorId) -> Option<Handle<H>> {
+        println!("RH Num handles {}", self.handles.len());
         self.handles.remove(&id)
     }
 
@@ -205,5 +207,6 @@ impl<H: Clone> HandleContainer<H> {
                 self.handles.remove(&tensor.id);
             }
         }
+        println!("FREE Num handles {}", self.handles.len());
     }
 }

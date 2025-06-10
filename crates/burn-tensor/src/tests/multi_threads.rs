@@ -33,6 +33,7 @@ mod tests {
                     std::thread::sleep(Duration::from_secs(1));
                 }
                 let _data = base.into_data();
+                println!("Done.");
             });
             joined.push(handle);
         }

@@ -1409,6 +1409,7 @@ impl OperationIr {
             OperationIr::Float(_dtype, repr) => repr.readonly(),
             OperationIr::Module(repr) => repr.readonly(),
             OperationIr::Init(_) => Vec::new(),
+            OperationIr::Drop(_) => Vec::new(),
             OperationIr::Custom(repr) => {
                 let mut output = Vec::new();
 

@@ -166,22 +166,22 @@ impl<R: FusionRuntime> FusionTensor<R> {
     }
 }
 
+pub(crate) struct DropOp {
+    pub(crate) id: TensorId,
+}
+
+impl<RO: FusionRuntime> Operation<RO> for DropOp {
+    fn execute(&self, handles: &mut burn_ir::HandleContainer<RO::FusionHandle>) {
+        handles.remove_handle(self.id);
+    }
+}
+
 impl<R: FusionRuntime> Drop for FusionTensor<R> {
     fn drop(&mut self) {
         if !self.is_orphan {
             return;
         }
         self.is_orphan = false;
-
-        struct DropOp {
-            id: TensorId,
-        }
-
-        impl<RO: FusionRuntime> Operation<RO> for DropOp {
-            fn execute(&self, handles: &mut burn_ir::HandleContainer<RO::FusionHandle>) {
-                handles.remove_handle(self.id);
-            }
-        }
 
         match self.status() {
             TensorStatus::ReadWrite => {
