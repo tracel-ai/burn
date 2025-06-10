@@ -37,7 +37,7 @@ impl FuseTraceBuilder {
     }
 
     /// Tag a tensor as dropped.
-    pub fn tag_dropped(&mut self, id: TensorId) {
+    pub fn register_dropped(&mut self, id: TensorId) {
         self.resources.dropped.insert(id);
     }
 

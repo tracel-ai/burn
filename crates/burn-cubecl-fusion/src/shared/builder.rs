@@ -42,7 +42,7 @@ impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
                     return;
                 }
 
-                self.builder.builder.tag_dropped(tensor.id);
+                self.builder.builder.register_dropped(tensor.id);
             }
             OperationIr::BaseFloat(ops) => {
                 if !self.register_base(ops) {
