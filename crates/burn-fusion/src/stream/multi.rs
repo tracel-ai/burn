@@ -1,4 +1,4 @@
-use burn_ir::{HandleContainer, OperationIr, TensorIr};
+use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr};
 
 use super::{
     OperationQueue, StreamId,
@@ -6,13 +6,15 @@ use super::{
     store::{ExecutionPlanId, ExecutionPlanStore},
 };
 use crate::FusionRuntime;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 /// Keep track of multiple concurrent streams of operations.
 pub struct MultiStream<R: FusionRuntime> {
     streams: HashMap<StreamId, Stream<R>>,
     optimizations: ExecutionPlanStore<R::Optimization>,
     device: R::FusionDevice,
+    shared_tensors: HashMap<TensorId, Vec<StreamId>>,
+    to_dropped: BTreeSet<TensorId>,
 }
 
 impl<R: FusionRuntime> MultiStream<R> {
@@ -21,6 +23,8 @@ impl<R: FusionRuntime> MultiStream<R> {
             streams: HashMap::new(),
             optimizations: ExecutionPlanStore::new(),
             device,
+            shared_tensors: HashMap::new(),
+            to_dropped: BTreeSet::new(),
         }
     }
 
@@ -28,11 +32,11 @@ impl<R: FusionRuntime> MultiStream<R> {
     pub(crate) fn register(
         &mut self,
         streams: Vec<StreamId>,
-        repr: OperationIr,
+        mut repr: OperationIr,
         operation: Box<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
-        let id = self.resolve_streams(streams, handles, &repr);
+        let id = self.resolve_streams(streams, handles, &mut repr);
 
         let stream = match self.streams.get_mut(&id) {
             Some(stream) => stream,
@@ -83,15 +87,25 @@ impl<R: FusionRuntime> MultiStream<R> {
         &mut self,
         streams: Vec<StreamId>,
         handles: &mut HandleContainer<R::FusionHandle>,
-        op: &OperationIr,
+        op: &mut OperationIr,
     ) -> StreamId {
         let streams = Self::remove_duplicate(streams);
         let current = StreamId::current();
+        let nodes = op.nodes();
+
+        for node in nodes.iter() {
+            self.shared_tensors.insert(node.id, streams.clone());
+        }
 
         for id in streams {
             if id != current {
-                self.resolve_stream(handles, id, op.nodes());
+                self.resolve_stream(handles, id, &nodes);
             }
+        }
+
+        // Important when used by multiple lazy streams.
+        for tensor in op.readonly() {
+            self.to_dropped.insert(tensor.id);
         }
 
         current
@@ -103,7 +117,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         &mut self,
         handles: &mut HandleContainer<R::FusionHandle>,
         id: StreamId,
-        nodes: Vec<&TensorIr>,
+        nodes: &[&TensorIr],
     ) {
         if let Some(stream) = self.streams.get(&id) {
             for node in nodes {

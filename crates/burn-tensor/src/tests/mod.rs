@@ -3,6 +3,7 @@ mod clone_invariance;
 mod grid;
 mod linalg;
 mod module;
+mod multi_threads;
 mod ops;
 mod primitive;
 mod quantization;
@@ -338,6 +339,9 @@ macro_rules! testgen_no_param {
 
         // test primitive
         burn_tensor::testgen_primitive!();
+
+        // test multi threads
+        burn_tensor::testgen_multi_threads!();
     };
 }
 
