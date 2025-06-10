@@ -133,13 +133,18 @@ impl<R: FusionRuntime> MultiStream<R> {
         let streams_list = streams.to_vec();
         let current = StreamId::current();
 
-        if streams_list.len() == 0 || (streams_list.len() == 1 && streams_list.contains(&current)) {
+        if streams_list.len() == 0 {
             return current;
         }
+
+        // if (streams_list.len() == 1 && streams_list.contains(&current)) {
+        //     return current;
+        // }
 
         let nodes = op.nodes();
 
         let shared_tensors_op = self.register_shared_tensors(&nodes, &streams, current);
+        println!("Identified shared tensors: {shared_tensors_op:?}");
 
         for id in streams_list {
             if id != current {
@@ -149,6 +154,7 @@ impl<R: FusionRuntime> MultiStream<R> {
 
         // Important when used by multiple lazy streams.
         for tensor in op.readonly(&shared_tensors_op) {
+            println!("Tagged as manually drop {tensor:?}");
             self.shared_tensors_manual_drop.insert(tensor.id, tensor);
         }
 
@@ -181,26 +187,34 @@ impl<R: FusionRuntime> MultiStream<R> {
     ) -> Vec<TensorId> {
         let mut shared_tensors = Vec::new();
 
-        let mut register = |state: &mut SharedTensor, node: &TensorIr| {
-            if let Some(stream_id) = streams.streams.get(&node.id) {
-                if stream_id != &current {
-                    shared_tensors.push(node.id);
+        let register =
+            |state: &mut SharedTensor, node: &TensorIr, shared_tensors: &mut Vec<TensorId>| {
+                if let Some(stream_id) = streams.streams.get(&node.id) {
+                    if stream_id != &current {
+                        shared_tensors.push(node.id);
 
-                    let stream = self.streams.get(&current);
-                    state.register_new_stream(current, stream);
+                        let stream = self.streams.get(&current);
+                        state.register_new_stream(current, stream);
 
-                    let stream = self.streams.get(stream_id);
-                    state.register_new_stream(*stream_id, stream);
+                        let stream = self.streams.get(stream_id);
+                        state.register_new_stream(*stream_id, stream);
+                        return true;
+                    }
                 }
-            }
-        };
+
+                false
+            };
 
         for node in nodes.iter() {
             match self.shared_tensors.get_mut(&node.id) {
-                Some(state) => register(state, &node),
+                Some(state) => {
+                    if !register(state, &node, &mut shared_tensors) {
+                        shared_tensors.push(node.id);
+                    }
+                }
                 None => {
                     let mut state = SharedTensor::default();
-                    register(&mut state, &node);
+                    register(&mut state, &node, &mut shared_tensors);
 
                     if !state.streams.is_empty() {
                         self.shared_tensors.insert(node.id, state);
@@ -236,6 +250,7 @@ impl<R: FusionRuntime> MultiStream<R> {
             self.shared_tensors.remove(&id);
 
             if let Some(tensor) = self.shared_tensors_manual_drop.remove(&id) {
+                println!("Dropping shared tensor {tensor:?}");
                 self.register(
                     OperationStreams::default(),
                     OperationIr::Drop(tensor),
