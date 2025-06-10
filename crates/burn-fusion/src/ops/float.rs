@@ -1681,10 +1681,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let dtype = tensor_first.dtype;
         let client = tensor_first.client.clone();
 
-        // Calculate the output shape
         let mut streams = OperationStreams::default();
         tensors.iter().for_each(|tensor| streams.tensor(tensor));
 
+        // Calculate the output shape
         let mut shape: Vec<usize> = tensor_first.shape.clone();
         shape[dim] = 0;
         for tensor in tensors.iter() {
@@ -1867,6 +1867,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
+
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
         let dtype = tensor.dtype;

@@ -15,7 +15,7 @@ use crate::{
     Fusion, FusionBackend,
     client::FusionClient,
     get_client,
-    stream::{StreamId, execution::Operation},
+    stream::{OperationStreams, StreamId, execution::Operation},
 };
 
 use super::NoOp;
@@ -33,7 +33,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let desc = out.to_ir_out();
 
         client.register(
-            vec![stream],
+            OperationStreams::default(),
             OperationIr::Init(InitOperationIr { out: desc }),
             NoOp::<B>::new(),
         );
@@ -75,10 +75,12 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             .client
             .tensor_uninitialized(shape, DType::QFloat(*scheme));
 
-        let streams = if let Some(offset) = &qparams.offset {
-            vec![tensor.stream, qparams.scale.stream, offset.stream]
-        } else {
-            vec![tensor.stream, qparams.scale.stream]
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+        streams.tensor(&qparams.scale);
+
+        if let Some(offset) = &qparams.offset {
+            streams.tensor(offset);
         };
 
         let desc = QuantizeOpIr {
@@ -116,7 +118,9 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
         let shape: Vec<usize> = tensor.shape.clone();
         let dtype = B::FloatElem::dtype();
         let out = tensor.client.tensor_uninitialized(shape, dtype);
@@ -127,7 +131,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         };
 
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::Float(dtype, FloatOperationIr::Dequantize(desc.clone())),
             DequantizeOp::<B>::new(desc),
         );
@@ -169,7 +173,9 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
         let dtype = tensor.dtype;
         let out = tensor.client.tensor_uninitialized(shape.dims, dtype);
 
@@ -178,7 +184,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             out: out.to_ir_out(),
         };
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::BaseFloat(BaseOperationIr::Reshape(desc.clone())),
             ReshapeDimsOps::<B>::new(desc),
         );
@@ -209,7 +215,9 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
         shape[dim1] = tensor.shape[dim2];
@@ -224,11 +232,11 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             out: out.to_ir_out(),
         };
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::BaseFloat(BaseOperationIr::SwapDims(desc.clone())),
             SwapDimsOps::<B>::new(desc),
         );
-        out.stream = stream;
+        out.stream = StreamId::current();
 
         out
     }
@@ -248,7 +256,8 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
 
         // Change the shape of the tensor to match the new axes
         let shape = axes.iter().map(|x| tensor.shape[*x]).collect();
@@ -262,7 +271,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         };
 
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::BaseInt(BaseOperationIr::Permute(desc.clone())),
             PermuteDimsOps::<B>::new(desc),
         );
@@ -285,7 +294,8 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
         let out = tensor
             .client
             .tensor_uninitialized(tensor.shape.clone(), tensor.dtype);
@@ -297,7 +307,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         };
 
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::BaseInt(BaseOperationIr::Flip(desc.clone())),
             FlipOps::<B>::new(desc),
         );
@@ -326,8 +336,10 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream_1 = tensor.stream;
-        let stream_2 = indices.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+        streams.tensor(&indices);
+
         let dtype = tensor.dtype;
         let shape: Vec<usize> = indices.shape.clone();
         let out = tensor.client.tensor_uninitialized(shape, dtype);
@@ -339,7 +351,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             out: out.to_ir_out(),
         };
         out.client.register(
-            vec![stream_1, stream_2],
+            streams,
             OperationIr::NumericFloat(dtype, NumericOperationIr::Gather(desc.clone())),
             GatherOps::<B>::new(desc),
         );
@@ -369,8 +381,10 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream_1 = tensor.stream;
-        let stream_2 = indices.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+        streams.tensor(&indices);
+
         let dtype = tensor.dtype;
         let mut shape: Vec<usize> = tensor.shape.clone();
         shape[dim] = indices.shape[0];
@@ -382,7 +396,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             out: out.to_ir_out(),
         };
         out.client.register(
-            vec![stream_1, stream_2],
+            streams,
             OperationIr::NumericFloat(dtype, NumericOperationIr::Select(desc.clone())),
             SelectOps::<B>::new(desc),
         );
@@ -406,7 +420,8 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
             }
         }
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
         let dtype = tensor.dtype;
         let ndims = tensor.shape().num_dims();
         let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
@@ -423,7 +438,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             out: out.to_ir_out(),
         };
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::BaseFloat(BaseOperationIr::Slice(desc.clone())),
             SliceOps::<B>::new(desc),
         );
@@ -447,7 +462,8 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let stream = tensor.stream;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
 
         let out = tensor
             .client
@@ -460,7 +476,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         };
 
         out.client.register(
-            vec![stream],
+            streams,
             OperationIr::BaseFloat(BaseOperationIr::Expand(desc.clone())),
             ExpandOps::<B>::new(desc),
         );
