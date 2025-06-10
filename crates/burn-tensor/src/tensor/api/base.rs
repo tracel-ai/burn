@@ -135,8 +135,8 @@ where
     ///
     /// # Arguments
     ///
-    /// - shape: The shape of the tensor.
-    /// - device: The device where the tensor will be created.
+    /// - `shape`: The shape of the tensor.
+    /// - `device`: The device where the tensor will be created.
     ///
     /// # Example
     /// ```rust
