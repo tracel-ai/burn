@@ -14,14 +14,14 @@ use serde::{Deserialize, Deserializer};
 
 use serde::{Serialize, Serializer};
 
+use super::{Slice, TensorMetadata, Transaction};
+use crate::indexing::{ReflectableIndex, canonicalize_dim, wrap_idx};
 use crate::{
     Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check,
     ops::Device,
 };
 use crate::{DType, Element, TensorPrimitive};
 use crate::{cast::ToElement, check::TensorCheck};
-
-use super::{Slice, TensorMetadata, Transaction};
 
 /// A tensor with a given backend, shape and data type.
 ///
@@ -840,6 +840,223 @@ where
         //lastly, create the shape and reshape
         let shape = Shape::new(new_dims);
         self.reshape(shape)
+    }
+
+    /// Roll operation along a specific dimension.
+    ///
+    /// ## Parameters
+    ///
+    /// - `shift`: The number of positions to shift; supports negative values and wraps around.
+    /// - `dim`: The dimension to roll; supports negative indexing.
+    ///
+    /// ## Returns
+    ///
+    /// A new tensor with the specified dimension rolled by the given shift amount.
+    #[must_use]
+    pub fn roll_dim<I>(self, shift: I, dim: I) -> Self
+    where
+        I: ReflectableIndex,
+    {
+        let dim = canonicalize_dim(dim, D, false);
+        let size = self.shape().dims[dim];
+        let shift = wrap_idx(shift, size);
+
+        if size == 0 || shift == 0 {
+            return self;
+        }
+
+        self._unchecked_roll_dim(shift, dim)
+    }
+
+    /// Contract for the `_unchecked_roll_dim` operation.
+    ///
+    /// ## Parameters
+    ///
+    /// - `shift`: The number of positions to shift; must be (0 < shift < size).
+    /// - `dim`: The dimension to roll; must be a valid index for the tensor's shape.
+    /// - `size`: The size of the dimension to roll; must be greater than 0.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the contract conditions are not met.
+    #[inline(always)]
+    fn _unchecked_roll_dim_contract(shift: usize, dim: usize, size: usize) {
+        assert!(
+            0 < shift && shift < size,
+            "Expected: 0 < shift < size: found shift={}, size={}",
+            shift,
+            size,
+        );
+        assert!(
+            dim < size,
+            "Expected: dim < size: found dim={}, size={}",
+            dim,
+            size,
+        );
+    }
+
+    /// Internal implementation of `roll_dim` that does not canonicalize dimensions or shifts.
+    ///
+    /// ## Parameters
+    ///
+    /// - `x`: The input tensor.
+    /// - `shift`: The number of positions to shift; must be (0 < shift < size).
+    /// - `dim`: The dimension to roll; must be a valid index for the tensor's shape.
+    ///
+    /// ## Returns
+    ///
+    /// A new tensor with the specified dimension rolled by the given shift amount.
+    #[inline(always)]
+    #[must_use]
+    fn _unchecked_roll_dim(self, shift: usize, dim: usize) -> Self {
+        let size = self.shape().dims[dim];
+
+        #[cfg(debug_assertions)]
+        Self::_unchecked_roll_dim_contract(shift, dim, size);
+
+        let mut parts = self.split_with_sizes(vec![shift, size - shift], dim);
+        parts.rotate_right(1);
+
+        Tensor::cat(parts, dim)
+    }
+
+    /// Roll operation.
+    ///
+    /// Note: unlike ``pytorch``, `dims` and `shifts` must have the same length.
+    ///
+    /// A given `dim` may be rolled multiple times, and the shifts will be applied sequentially.
+    ///
+    /// ## Parameters
+    ///
+    /// - `shifts`: A slice of shifts corresponding to each dimension; supports negative values and wraps around.
+    /// - `dims`: A slice of dimensions to roll; supports negative indexing.
+    ///
+    /// ## Returns
+    ///
+    /// A new tensor with the specified dimensions rolled by the given shifts.
+    #[must_use]
+    pub fn roll<I>(self, shifts: &[I], dims: &[I]) -> Self
+    where
+        I: ReflectableIndex,
+    {
+        assert_eq!(
+            dims.len(),
+            shifts.len(),
+            "Dimensions and shifts must align; found {} dims and {} shifts",
+            dims.len(),
+            shifts.len()
+        );
+
+        // This is a fair amount of complexity, which could be replaced
+        // by a simple canonicalization of `dims` and wrapping of `shifts`.
+        // The work is done here to ensure that any roll operation
+        // which could be a no-op is a no-op; simplifying the accounting
+        // needed by backend-specific implementations of the inner roll op.
+
+        let item_count = dims.len();
+
+        let sizes = self.shape().dims;
+
+        // Accumulate the effective shifts for each dimension.
+        let mut shift_accum: Vec<isize> = vec![0; sizes.len()];
+        for i in 0..item_count {
+            let self1 = &dims[i];
+            let dim = canonicalize_dim(*self1, D, false);
+            shift_accum[dim] += shifts[i].as_isize_index();
+        }
+
+        // Do this after we've checked the validity of `dims` and `shifts`.
+        if self.shape().num_elements() == 0 {
+            // If the tensor is empty, return it as is.
+            return self;
+        }
+
+        // Wrap the accumulated shifts, and filter out empty dimensions.
+        let mut _dims: Vec<usize> = Vec::with_capacity(item_count);
+        let mut _shifts: Vec<usize> = Vec::with_capacity(item_count);
+        for dim in 0..item_count {
+            let self1 = &shift_accum[dim];
+            let size = sizes[dim];
+            let shift = wrap_idx(*self1, size);
+            if shift != 0 {
+                _shifts.push(shift);
+                _dims.push(dim);
+            }
+        }
+
+        // If no shifts are needed, return the original tensor.
+        if _shifts.is_empty() {
+            return self;
+        }
+
+        // At this point:
+        // - the roll is non-trivial (i.e., at least one accumulated shift is non-zero),
+        // - `dims` contains the effective dimensions to roll, in index order,
+        // - `shifts` contains the effective usize shifts for each dimension.
+        self._unchecked_roll(&_shifts, &_dims)
+    }
+
+    /// Contract for the `_unchecked_roll` operation.
+    ///
+    /// ## Parameters
+    ///
+    /// - `shifts`: A slice of shifts corresponding to each dimension; must not be empty.
+    /// - `dims`: A slice of dimensions to roll; must be the same length as `shifts`, and must not contain repeats.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the shifts and dimensions do not align, or if dimensions contain repeats.
+    #[inline(always)]
+    fn _unchecked_roll_contract(shifts: &[usize], dims: &[usize]) {
+        assert!(!shifts.is_empty());
+        assert_eq!(
+            shifts.len(),
+            dims.len(),
+            "Shifts and dimensions must align; found {} shifts and {} dims",
+            shifts.len(),
+            dims.len()
+        );
+
+        let mut _dims = dims.to_vec();
+        _dims.dedup();
+
+        assert_eq!(
+            _dims.len(),
+            dims.len(),
+            "Dimensions must not contain repeats; found {} unique dims and {} total dims",
+            _dims.len(),
+            dims.len()
+        )
+    }
+
+    /// `roll` internal implementation.
+    ///
+    /// ## Parameters
+    ///
+    /// - `shifts`: per-dimension shifts; must be non-empty,
+    ///   and contain only non-zero values.
+    /// - `dims`: indices for `shifts`. Must be the same length as `shifts`,
+    ///   must not contain repeats.
+    ///
+    /// ## Returns
+    ///
+    /// A new tensor with the specified dimensions rolled by the given shifts.
+    #[inline(always)]
+    #[must_use]
+    fn _unchecked_roll(self, shifts: &[usize], dims: &[usize]) -> Self {
+        #[cfg(debug_assertions)]
+        Self::_unchecked_roll_contract(shifts, dims);
+
+        if dims.is_empty() {
+            return self;
+        }
+
+        let x = self._unchecked_roll_dim(shifts[0], dims[0]);
+        if dims.len() == 1 {
+            return x;
+        }
+
+        x._unchecked_roll(&shifts[1..], &dims[1..])
     }
 
     /// Returns a tensor containing the elements selected from the given ranges.
