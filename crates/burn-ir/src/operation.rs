@@ -1393,28 +1393,28 @@ impl OperationIr {
         }
     }
 
-    /// Set all nodes that are [read write](super::TensorStatus::ReadWrite) to
-    /// [read only](super::TensorStatus::ReadOnly) when present in the input tensor id.
+    /// Set the given nodes that are [read write](super::TensorStatus::ReadWrite) to
+    /// [read only](super::TensorStatus::ReadOnly) in the current operation.
     ///
     /// Returns the tensor that were updated with their original representation.
-    pub fn readonly(&mut self, shared_tensor_op: &[TensorId]) -> Vec<TensorIr> {
+    pub fn readonly(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {
         match self {
-            OperationIr::BaseFloat(repr) => repr.readonly(shared_tensor_op),
-            OperationIr::BaseInt(repr) => repr.readonly(shared_tensor_op),
-            OperationIr::BaseBool(repr) => repr.readonly(shared_tensor_op),
-            OperationIr::NumericFloat(_dtype, repr) => repr.readonly(shared_tensor_op),
-            OperationIr::NumericInt(_dtype, repr) => repr.readonly(shared_tensor_op),
-            OperationIr::Bool(repr) => repr.readonly(shared_tensor_op),
-            OperationIr::Int(repr) => repr.readonly(shared_tensor_op),
-            OperationIr::Float(_dtype, repr) => repr.readonly(shared_tensor_op),
-            OperationIr::Module(repr) => repr.readonly(shared_tensor_op),
+            OperationIr::BaseFloat(repr) => repr.readonly(nodes),
+            OperationIr::BaseInt(repr) => repr.readonly(nodes),
+            OperationIr::BaseBool(repr) => repr.readonly(nodes),
+            OperationIr::NumericFloat(_dtype, repr) => repr.readonly(nodes),
+            OperationIr::NumericInt(_dtype, repr) => repr.readonly(nodes),
+            OperationIr::Bool(repr) => repr.readonly(nodes),
+            OperationIr::Int(repr) => repr.readonly(nodes),
+            OperationIr::Float(_dtype, repr) => repr.readonly(nodes),
+            OperationIr::Module(repr) => repr.readonly(nodes),
             OperationIr::Init(_) => Vec::new(),
             OperationIr::Drop(_) => Vec::new(),
             OperationIr::Custom(repr) => {
                 let mut output = Vec::new();
 
                 for input in repr.inputs.iter_mut() {
-                    input.readonly(shared_tensor_op, &mut output);
+                    input.readonly(nodes, &mut output);
                 }
 
                 output
@@ -1466,51 +1466,51 @@ impl BaseOperationIr {
         }
     }
 
-    fn readonly(&mut self, shared_tensor_op: &[TensorId]) -> Vec<TensorIr> {
+    fn readonly(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {
         let mut output = Vec::new();
 
         match self {
             BaseOperationIr::ToDevice(repr) => {
-                repr.readonly(shared_tensor_op, &mut output);
+                repr.readonly(nodes, &mut output);
             }
             BaseOperationIr::Reshape(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             BaseOperationIr::SwapDims(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             BaseOperationIr::Permute(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
 
             BaseOperationIr::Expand(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
 
             BaseOperationIr::Flip(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             BaseOperationIr::Slice(repr) => {
-                repr.tensor.readonly(shared_tensor_op, &mut output);
+                repr.tensor.readonly(nodes, &mut output);
             }
             BaseOperationIr::SliceAssign(repr) => {
-                repr.tensor.readonly(shared_tensor_op, &mut output);
-                repr.value.readonly(shared_tensor_op, &mut output);
+                repr.tensor.readonly(nodes, &mut output);
+                repr.value.readonly(nodes, &mut output);
             }
             BaseOperationIr::Equal(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             BaseOperationIr::RepeatDim(repr) => {
-                repr.tensor.readonly(shared_tensor_op, &mut output);
+                repr.tensor.readonly(nodes, &mut output);
             }
             BaseOperationIr::Cat(repr) => {
                 for t in repr.tensors.iter_mut() {
-                    t.readonly(shared_tensor_op, &mut output);
+                    t.readonly(nodes, &mut output);
                 }
             }
             BaseOperationIr::Cast(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             BaseOperationIr::Empty(_) => {}
         };
@@ -1662,164 +1662,164 @@ impl<E: Element> NumericOperationIr<E> {
             }
         }
     }
-    fn readonly(&mut self, shared_tensor_op: &[TensorId]) -> Vec<TensorIr> {
+    fn readonly(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {
         let mut output = Vec::new();
 
         match self {
             NumericOperationIr::Add(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::AddScalar(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::Sub(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::SubScalar(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::Mul(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::MulScalar(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::Div(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::DivScalar(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::Rem(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::RemScalar(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::Ones(_) => {}
             NumericOperationIr::Gather(repr) => {
-                repr.tensor.readonly(shared_tensor_op, &mut output);
-                repr.indices.readonly(shared_tensor_op, &mut output);
+                repr.tensor.readonly(nodes, &mut output);
+                repr.indices.readonly(nodes, &mut output);
             }
             NumericOperationIr::Scatter(repr) => {
-                repr.tensor.readonly(shared_tensor_op, &mut output);
-                repr.indices.readonly(shared_tensor_op, &mut output);
-                repr.value.readonly(shared_tensor_op, &mut output);
+                repr.tensor.readonly(nodes, &mut output);
+                repr.indices.readonly(nodes, &mut output);
+                repr.value.readonly(nodes, &mut output);
             }
             NumericOperationIr::Select(repr) => {
-                repr.tensor.readonly(shared_tensor_op, &mut output);
-                repr.indices.readonly(shared_tensor_op, &mut output);
+                repr.tensor.readonly(nodes, &mut output);
+                repr.indices.readonly(nodes, &mut output);
             }
             NumericOperationIr::SelectAssign(repr) => {
-                repr.tensor.readonly(shared_tensor_op, &mut output);
-                repr.indices.readonly(shared_tensor_op, &mut output);
-                repr.value.readonly(shared_tensor_op, &mut output);
+                repr.tensor.readonly(nodes, &mut output);
+                repr.indices.readonly(nodes, &mut output);
+                repr.value.readonly(nodes, &mut output);
             }
             NumericOperationIr::MaskWhere(repr) => {
-                repr.tensor.readonly(shared_tensor_op, &mut output);
-                repr.mask.readonly(shared_tensor_op, &mut output);
-                repr.value.readonly(shared_tensor_op, &mut output);
+                repr.tensor.readonly(nodes, &mut output);
+                repr.mask.readonly(nodes, &mut output);
+                repr.value.readonly(nodes, &mut output);
             }
             NumericOperationIr::MaskFill(repr) => {
-                repr.tensor.readonly(shared_tensor_op, &mut output);
-                repr.mask.readonly(shared_tensor_op, &mut output);
+                repr.tensor.readonly(nodes, &mut output);
+                repr.mask.readonly(nodes, &mut output);
             }
             NumericOperationIr::EqualElem(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::GreaterElem(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::GreaterEqualElem(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::LowerElem(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::LowerEqualElem(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::Greater(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::GreaterEqual(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::Lower(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::LowerEqual(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             NumericOperationIr::ArgMax(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             NumericOperationIr::ArgMin(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             NumericOperationIr::Clamp(repr) => {
-                repr.tensor.readonly(shared_tensor_op, &mut output);
+                repr.tensor.readonly(nodes, &mut output);
             }
             NumericOperationIr::Abs(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             NumericOperationIr::Zeros(_) => {}
             NumericOperationIr::Full(_) => {}
             NumericOperationIr::MeanDim(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             NumericOperationIr::Mean(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             NumericOperationIr::Sum(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             NumericOperationIr::SumDim(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             NumericOperationIr::Prod(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             NumericOperationIr::ProdDim(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             NumericOperationIr::Max(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             NumericOperationIr::MaxDimWithIndices(repr) => {
-                repr.tensor.readonly(shared_tensor_op, &mut output);
+                repr.tensor.readonly(nodes, &mut output);
             }
             NumericOperationIr::MinDimWithIndices(repr) => {
-                repr.tensor.readonly(shared_tensor_op, &mut output);
+                repr.tensor.readonly(nodes, &mut output);
             }
             NumericOperationIr::Min(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             NumericOperationIr::MaxDim(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             NumericOperationIr::MinDim(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             NumericOperationIr::MaxAbs(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             NumericOperationIr::MaxAbsDim(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             NumericOperationIr::IntRandom(_) => {}
             NumericOperationIr::Powf(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
         };
 
@@ -1859,63 +1859,63 @@ impl FloatOperationIr {
         }
     }
 
-    fn readonly(&mut self, shared_tensor_op: &[TensorId]) -> Vec<TensorIr> {
+    fn readonly(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {
         let mut output = Vec::new();
 
         match self {
             FloatOperationIr::Matmul(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             FloatOperationIr::Random(_) => {}
             FloatOperationIr::Exp(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             FloatOperationIr::Log(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             FloatOperationIr::Log1p(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             FloatOperationIr::Erf(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             FloatOperationIr::Recip(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             FloatOperationIr::PowfScalar(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
             FloatOperationIr::Sqrt(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             FloatOperationIr::Cos(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             FloatOperationIr::Sin(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             FloatOperationIr::Tanh(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             FloatOperationIr::Round(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             FloatOperationIr::Floor(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             FloatOperationIr::Ceil(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             FloatOperationIr::Quantize(repr) => {
-                repr.tensor.readonly(shared_tensor_op, &mut output);
-                repr.qparams.scale.readonly(shared_tensor_op, &mut output);
+                repr.tensor.readonly(nodes, &mut output);
+                repr.qparams.scale.readonly(nodes, &mut output);
             }
             FloatOperationIr::Dequantize(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             FloatOperationIr::IntoInt(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
         };
 
@@ -1963,50 +1963,50 @@ impl IntOperationIr {
         }
     }
 
-    fn readonly(&mut self, shared_tensor_op: &[TensorId]) -> Vec<TensorIr> {
+    fn readonly(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {
         let mut output = Vec::new();
 
         match self {
             IntOperationIr::IntoFloat(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             IntOperationIr::BitwiseAnd(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             IntOperationIr::BitwiseAndScalar(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
             IntOperationIr::BitwiseOr(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             IntOperationIr::BitwiseOrScalar(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
             IntOperationIr::BitwiseXor(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             IntOperationIr::BitwiseXorScalar(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
             IntOperationIr::BitwiseNot(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             IntOperationIr::BitwiseLeftShift(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             IntOperationIr::BitwiseLeftShiftScalar(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
             IntOperationIr::BitwiseRightShift(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             IntOperationIr::BitwiseRightShiftScalar(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
             }
         };
 
@@ -2024,26 +2024,26 @@ impl BoolOperationIr {
             BoolOperationIr::Or(repr) => vec![&repr.lhs, &repr.rhs, &repr.out],
         }
     }
-    fn readonly(&mut self, shared_tensor_op: &[TensorId]) -> Vec<TensorIr> {
+    fn readonly(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {
         let mut output = Vec::new();
 
         match self {
             BoolOperationIr::IntoFloat(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             BoolOperationIr::IntoInt(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             BoolOperationIr::Not(repr) => {
-                repr.input.readonly(shared_tensor_op, &mut output);
+                repr.input.readonly(nodes, &mut output);
             }
             BoolOperationIr::And(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
             BoolOperationIr::Or(repr) => {
-                repr.lhs.readonly(shared_tensor_op, &mut output);
-                repr.rhs.readonly(shared_tensor_op, &mut output);
+                repr.lhs.readonly(nodes, &mut output);
+                repr.rhs.readonly(nodes, &mut output);
             }
         };
 
@@ -2167,159 +2167,159 @@ impl ModuleOperationIr {
         }
     }
 
-    fn readonly(&mut self, shared_tensor_op: &[TensorId]) -> Vec<TensorIr> {
+    fn readonly(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {
         let mut output = Vec::new();
 
         match self {
             ModuleOperationIr::Embedding(repr) => {
-                repr.weights.readonly(shared_tensor_op, &mut output);
-                repr.indices.readonly(shared_tensor_op, &mut output);
+                repr.weights.readonly(nodes, &mut output);
+                repr.indices.readonly(nodes, &mut output);
             }
             ModuleOperationIr::EmbeddingBackward(repr) => {
-                repr.weights.readonly(shared_tensor_op, &mut output);
-                repr.out_grad.readonly(shared_tensor_op, &mut output);
-                repr.indices.readonly(shared_tensor_op, &mut output);
+                repr.weights.readonly(nodes, &mut output);
+                repr.out_grad.readonly(nodes, &mut output);
+                repr.indices.readonly(nodes, &mut output);
             }
             ModuleOperationIr::Conv1d(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
-                repr.weight.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
+                repr.weight.readonly(nodes, &mut output);
 
                 if let Some(bias) = &mut repr.bias {
-                    bias.readonly(shared_tensor_op, &mut output);
+                    bias.readonly(nodes, &mut output);
                 }
             }
             ModuleOperationIr::Conv2d(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
-                repr.weight.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
+                repr.weight.readonly(nodes, &mut output);
 
                 if let Some(bias) = &mut repr.bias {
-                    bias.readonly(shared_tensor_op, &mut output);
+                    bias.readonly(nodes, &mut output);
                 }
             }
             ModuleOperationIr::Conv3d(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
-                repr.weight.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
+                repr.weight.readonly(nodes, &mut output);
 
                 if let Some(bias) = &mut repr.bias {
-                    bias.readonly(shared_tensor_op, &mut output);
+                    bias.readonly(nodes, &mut output);
                 }
             }
             ModuleOperationIr::DeformableConv2d(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
-                repr.weight.readonly(shared_tensor_op, &mut output);
-                repr.offset.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
+                repr.weight.readonly(nodes, &mut output);
+                repr.offset.readonly(nodes, &mut output);
 
                 match (&mut repr.mask, &mut repr.bias) {
                     (Some(mask), Some(bias)) => {
-                        mask.readonly(shared_tensor_op, &mut output);
-                        bias.readonly(shared_tensor_op, &mut output);
+                        mask.readonly(nodes, &mut output);
+                        bias.readonly(nodes, &mut output);
                     }
                     (Some(mask), None) => {
-                        mask.readonly(shared_tensor_op, &mut output);
+                        mask.readonly(nodes, &mut output);
                     }
                     (None, Some(bias)) => {
-                        bias.readonly(shared_tensor_op, &mut output);
+                        bias.readonly(nodes, &mut output);
                     }
                     (None, None) => {}
                 };
             }
             ModuleOperationIr::DeformableConv2dBackward(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
-                repr.weight.readonly(shared_tensor_op, &mut output);
-                repr.offset.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
+                repr.weight.readonly(nodes, &mut output);
+                repr.offset.readonly(nodes, &mut output);
 
                 match (&mut repr.mask, &mut repr.bias) {
                     (Some(mask), Some(bias)) => {
-                        mask.readonly(shared_tensor_op, &mut output);
-                        bias.readonly(shared_tensor_op, &mut output);
+                        mask.readonly(nodes, &mut output);
+                        bias.readonly(nodes, &mut output);
                     }
                     (Some(mask), None) => {
-                        mask.readonly(shared_tensor_op, &mut output);
+                        mask.readonly(nodes, &mut output);
                     }
                     (None, Some(bias)) => {
-                        bias.readonly(shared_tensor_op, &mut output);
+                        bias.readonly(nodes, &mut output);
                     }
                     (None, None) => {}
                 };
             }
             ModuleOperationIr::ConvTranspose1d(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
-                repr.weight.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
+                repr.weight.readonly(nodes, &mut output);
 
                 if let Some(bias) = &mut repr.bias {
-                    bias.readonly(shared_tensor_op, &mut output);
+                    bias.readonly(nodes, &mut output);
                 }
             }
             ModuleOperationIr::ConvTranspose2d(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
-                repr.weight.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
+                repr.weight.readonly(nodes, &mut output);
 
                 if let Some(bias) = &mut repr.bias {
-                    bias.readonly(shared_tensor_op, &mut output);
+                    bias.readonly(nodes, &mut output);
                 }
             }
             ModuleOperationIr::ConvTranspose3d(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
-                repr.weight.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
+                repr.weight.readonly(nodes, &mut output);
 
                 if let Some(bias) = &mut repr.bias {
-                    bias.readonly(shared_tensor_op, &mut output);
+                    bias.readonly(nodes, &mut output);
                 }
             }
             ModuleOperationIr::AvgPool1d(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
             }
             ModuleOperationIr::AvgPool2d(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
             }
             ModuleOperationIr::AvgPool1dBackward(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
-                repr.grad.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
+                repr.grad.readonly(nodes, &mut output);
             }
             ModuleOperationIr::AvgPool2dBackward(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
-                repr.grad.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
+                repr.grad.readonly(nodes, &mut output);
             }
             ModuleOperationIr::AdaptiveAvgPool1d(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
             }
             ModuleOperationIr::AdaptiveAvgPool2d(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
             }
             ModuleOperationIr::AdaptiveAvgPool1dBackward(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
-                repr.grad.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
+                repr.grad.readonly(nodes, &mut output);
             }
             ModuleOperationIr::AdaptiveAvgPool2dBackward(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
-                repr.grad.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
+                repr.grad.readonly(nodes, &mut output);
             }
             ModuleOperationIr::MaxPool1d(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
             }
             ModuleOperationIr::MaxPool1dWithIndices(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
             }
             ModuleOperationIr::MaxPool1dWithIndicesBackward(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
-                repr.grad.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
+                repr.grad.readonly(nodes, &mut output);
             }
             ModuleOperationIr::MaxPool2d(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
             }
             ModuleOperationIr::MaxPool2dWithIndices(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
             }
             ModuleOperationIr::MaxPool2dWithIndicesBackward(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
-                repr.grad.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
+                repr.grad.readonly(nodes, &mut output);
             }
             ModuleOperationIr::Interpolate(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
             }
             ModuleOperationIr::InterpolateBackward(repr) => {
-                repr.x.readonly(shared_tensor_op, &mut output);
-                repr.grad.readonly(shared_tensor_op, &mut output);
+                repr.x.readonly(nodes, &mut output);
+                repr.grad.readonly(nodes, &mut output);
             }
         };
 
@@ -2340,10 +2340,10 @@ impl InitOperationIr {
 }
 
 impl TensorIr {
-    fn readonly(&mut self, shared_tensor_op: &[TensorId], output: &mut Vec<TensorIr>) {
+    fn readonly(&mut self, nodes: &[TensorId], output: &mut Vec<TensorIr>) {
         match self.status {
             TensorStatus::ReadWrite => {
-                if shared_tensor_op.contains(&self.id) {
+                if nodes.contains(&self.id) {
                     output.push(self.clone());
                     self.status = TensorStatus::ReadOnly;
                 }
