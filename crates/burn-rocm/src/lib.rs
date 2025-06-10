@@ -1,20 +1,15 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 extern crate alloc;
 
-#[cfg(target_os = "linux")]
 use burn_cubecl::CubeBackend;
 
-#[cfg(target_os = "linux")]
 pub use cubecl::hip::HipDevice as RocmDevice;
 
-#[cfg(target_os = "linux")]
 use cubecl::hip::HipRuntime;
 
-#[cfg(target_os = "linux")]
 #[cfg(not(feature = "fusion"))]
 pub type Rocm<F = f32, I = i32, B = u8> = CubeBackend<HipRuntime, F, I, B>;
 
-#[cfg(target_os = "linux")]
 #[cfg(feature = "fusion")]
 pub type Rocm<F = f32, I = i32, B = u8> = burn_fusion::Fusion<CubeBackend<HipRuntime, F, I, B>>;
 

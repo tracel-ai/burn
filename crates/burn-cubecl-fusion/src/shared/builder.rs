@@ -36,6 +36,14 @@ impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
         }
 
         match op {
+            OperationIr::Drop(tensor) => {
+                if self.num_ops == 0 {
+                    self.status = OptimizationStatus::Closed;
+                    return;
+                }
+
+                self.builder.builder.register_dropped(tensor.id);
+            }
             OperationIr::BaseFloat(ops) => {
                 if !self.register_base(ops) {
                     self.status = OptimizationStatus::Closed;

@@ -200,8 +200,4 @@ where
 
         id
     }
-
-    pub fn drop_tensor_handle(&mut self, id: TensorId) {
-        self.handles.handles_orphan.push(id);
-    }
 }
