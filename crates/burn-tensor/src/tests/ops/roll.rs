@@ -3,6 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::{Int, Slice, Tensor, TensorData, as_type, might_panic, s};
 
+    #[cfg(feature = "std")]
     #[might_panic(reason = "0 size resources are not yet supported")]
     #[test]
     fn test_roll_empty() {
