@@ -909,15 +909,16 @@ where
     #[inline(always)]
     #[must_use]
     fn _unchecked_roll_dim(self, shift: usize, dim: usize) -> Self {
-        let size = self.shape().dims[dim];
-
         #[cfg(debug_assertions)]
-        Self::_unchecked_roll_dim_contract(shift, dim, size);
+        Self::_unchecked_roll_dim_contract(shift, dim, self.shape().dims[dim]);
 
-        let mut parts = self.split_with_sizes(vec![shift, size - shift], dim);
-        parts.rotate_right(1);
-
-        Tensor::cat(parts, dim)
+        Tensor::cat(
+            vec![
+                self.clone().slice_dim(dim, shift..),
+                self.slice_dim(dim, 0..shift),
+            ],
+            dim,
+        )
     }
 
     /// Roll operation.
