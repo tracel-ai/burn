@@ -853,9 +853,10 @@ where
     ///
     /// A new tensor with the specified dimension rolled by the given shift amount.
     #[must_use]
-    pub fn roll_dim<I>(self, shift: I, dim: I) -> Self
+    pub fn roll_dim<I1, I2>(self, shift: I1, dim: I2) -> Self
     where
-        I: ReflectableIndex,
+        I1: ReflectableIndex,
+        I2: ReflectableIndex,
     {
         let dim = canonicalize_dim(dim, D, false);
         let size = self.shape().dims[dim];
@@ -868,7 +869,7 @@ where
         self._unchecked_roll_dim(shift, dim)
     }
 
-    /// Contract for the `_unchecked_roll_dim` operation.
+    /// Internal implementation of `roll_dim` that does not canonicalize dimensions or shifts.
     ///
     /// ## Parameters
     ///
@@ -879,29 +880,6 @@ where
     /// ## Panics
     ///
     /// Panics if the contract conditions are not met.
-    #[inline(always)]
-    fn _unchecked_roll_dim_contract(shift: usize, dim: usize, size: usize) {
-        assert!(
-            0 < shift && shift < size,
-            "Expected: 0 < shift < size: found shift={}, size={}",
-            shift,
-            size,
-        );
-        assert!(
-            dim < size,
-            "Expected: dim < size: found dim={}, size={}",
-            dim,
-            size,
-        );
-    }
-
-    /// Internal implementation of `roll_dim` that does not canonicalize dimensions or shifts.
-    ///
-    /// ## Parameters
-    ///
-    /// - `x`: The input tensor.
-    /// - `shift`: The number of positions to shift; must be (0 < shift < size).
-    /// - `dim`: The dimension to roll; must be a valid index for the tensor's shape.
     ///
     /// ## Returns
     ///
@@ -910,7 +888,21 @@ where
     #[must_use]
     fn _unchecked_roll_dim(self, shift: usize, dim: usize) -> Self {
         #[cfg(debug_assertions)]
-        Self::_unchecked_roll_dim_contract(shift, dim, self.shape().dims[dim]);
+        {
+            let size = self.shape().dims[dim];
+            assert!(
+                0 < shift && shift < size,
+                "Expected: 0 < shift < size: found shift={}, size={}",
+                shift,
+                size,
+            );
+            assert!(
+                dim < size,
+                "Expected: dim < size: found dim={}, size={}",
+                dim,
+                size,
+            );
+        }
 
         Tensor::cat(
             vec![
@@ -936,9 +928,10 @@ where
     ///
     /// A new tensor with the specified dimensions rolled by the given shifts.
     #[must_use]
-    pub fn roll<I>(self, shifts: &[I], dims: &[I]) -> Self
+    pub fn roll<I1, I2>(self, shifts: &[I1], dims: &[I2]) -> Self
     where
-        I: ReflectableIndex,
+        I1: ReflectableIndex,
+        I2: ReflectableIndex,
     {
         assert_eq!(
             dims.len(),
@@ -997,47 +990,17 @@ where
         self._unchecked_roll(&_shifts, &_dims)
     }
 
-    /// Contract for the `_unchecked_roll` operation.
-    ///
-    /// ## Parameters
-    ///
-    /// - `shifts`: A slice of shifts corresponding to each dimension; must not be empty.
-    /// - `dims`: A slice of dimensions to roll; must be the same length as `shifts`, and must not contain repeats.
-    ///
-    /// ## Panics
-    ///
-    /// Panics if the shifts and dimensions do not align, or if dimensions contain repeats.
-    #[inline(always)]
-    fn _unchecked_roll_contract(shifts: &[usize], dims: &[usize]) {
-        assert!(!shifts.is_empty());
-        assert_eq!(
-            shifts.len(),
-            dims.len(),
-            "Shifts and dimensions must align; found {} shifts and {} dims",
-            shifts.len(),
-            dims.len()
-        );
-
-        let mut _dims = dims.to_vec();
-        _dims.dedup();
-
-        assert_eq!(
-            _dims.len(),
-            dims.len(),
-            "Dimensions must not contain repeats; found {} unique dims and {} total dims",
-            _dims.len(),
-            dims.len()
-        )
-    }
-
     /// `roll` internal implementation.
     ///
     /// ## Parameters
     ///
-    /// - `shifts`: per-dimension shifts; must be non-empty,
-    ///   and contain only non-zero values.
-    /// - `dims`: indices for `shifts`. Must be the same length as `shifts`,
-    ///   must not contain repeats.
+    /// - `shifts`: A slice of shifts corresponding to each dimension; must not be empty.
+    /// - `dims`: A slice of dimensions to roll; must be the same length as `shifts`,
+    ///   and must not contain repeats.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the shifts and dimensions do not align, or if dimensions contain repeats.
     ///
     /// ## Returns
     ///
@@ -1046,18 +1009,39 @@ where
     #[must_use]
     fn _unchecked_roll(self, shifts: &[usize], dims: &[usize]) -> Self {
         #[cfg(debug_assertions)]
-        Self::_unchecked_roll_contract(shifts, dims);
+        {
+            assert!(!shifts.is_empty());
+            assert_eq!(
+                shifts.len(),
+                dims.len(),
+                "Shifts and dimensions must align; found {} shifts and {} dims",
+                shifts.len(),
+                dims.len()
+            );
+
+            let mut unique_dims = dims.to_vec();
+            unique_dims.dedup();
+
+            assert_eq!(
+                unique_dims.len(),
+                dims.len(),
+                "Dimensions must not contain repeats; found {} unique dims and {} total dims",
+                unique_dims.len(),
+                dims.len()
+            )
+        }
 
         if dims.is_empty() {
             return self;
         }
 
         let x = self._unchecked_roll_dim(shifts[0], dims[0]);
-        if dims.len() == 1 {
-            return x;
-        }
 
-        x._unchecked_roll(&shifts[1..], &dims[1..])
+        if dims.len() == 1 {
+            x
+        } else {
+            x._unchecked_roll(&shifts[1..], &dims[1..])
+        }
     }
 
     /// Returns a tensor containing the elements selected from the given ranges.
