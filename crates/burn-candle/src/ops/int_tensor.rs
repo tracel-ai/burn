@@ -1,6 +1,6 @@
 use burn_common::future::DynFut;
 use burn_tensor::{
-    Bool, Device, Distribution, ElementConversion, Shape, TensorData,
+    Bool, Device, Distribution, ElementConversion, IntDType, Shape, TensorData,
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
 };
 
@@ -369,6 +369,22 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     fn int_sign(tensor: IntTensor<Self>) -> IntTensor<Self> {
         sign(tensor)
     }
+
+    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
+        let dtype = match dtype {
+            IntDType::I64 => candle_core::DType::I64,
+            IntDType::U8 => candle_core::DType::U8,
+            IntDType::U32 => candle_core::DType::U32,
+            _ => panic!("candle doesn't support this dtype"),
+        };
+
+        if tensor.tensor.dtype() == dtype {
+            tensor
+        } else {
+            CandleTensor::new(tensor.tensor.to_dtype(dtype).unwrap())
+        }
+    }
+
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         unimplemented!("bitwise_and is not implemented for Candle IntTensor");
     }

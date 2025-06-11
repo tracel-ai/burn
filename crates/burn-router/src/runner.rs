@@ -4,7 +4,7 @@ use burn_ir::{
     BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer, IntOperationIr,
     ModuleOperationIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
 };
-use burn_tensor::{DType, ElementConversion, FloatDType, Shape, TensorData, backend::Backend};
+use burn_tensor::{DType, ElementConversion, FloatDType, IntDType, Shape, TensorData, backend::Backend};
 
 use super::{RouterTensor, RunnerClient};
 use crate::{
@@ -148,6 +148,15 @@ impl<B: BackendIr> Runner<B> {
         &self,
         shape: Vec<usize>,
         dtype: FloatDType,
+    ) -> TensorIr {
+        self.register_empty_tensor_desc(shape, dtype.into())
+    }
+
+
+    pub(crate) fn register_int_tensor_desc(
+        &self,
+        shape: Vec<usize>,
+        dtype: IntDType,
     ) -> TensorIr {
         self.register_empty_tensor_desc(shape, dtype.into())
     }
@@ -1268,6 +1277,11 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
 
     fn register_float_tensor(&self, shape: Vec<usize>, dtype: FloatDType) -> RouterTensor<Self> {
         let desc = self.register_float_tensor_desc(shape, dtype);
+        RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
+    }
+
+    fn register_int_tensor(&self, shape: Vec<usize>, dtype: burn_tensor::IntDType) -> RouterTensor<Self> {
+        let desc = self.register_int_tensor_desc(shape, dtype);
         RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
     }
 

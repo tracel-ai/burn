@@ -10,7 +10,7 @@ use spin::Mutex;
 
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::{
-    DType, FloatDType, TensorData,
+    DType, FloatDType, IntDType, TensorData,
     backend::{DeviceId, DeviceOps},
 };
 
@@ -40,6 +40,8 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     fn register_empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self>;
     /// Create a new float [RouterTensor] with no resources associated.
     fn register_float_tensor(&self, shape: Vec<usize>, dtype: FloatDType) -> RouterTensor<Self>;
+    /// Create a new interger [RouterTensor] with no resources associated.
+    fn register_int_tensor(&self, shape: Vec<usize>, dtype: IntDType) -> RouterTensor<Self>;
     /// Get the current device used by all operations handled by this client.
     fn device(&self) -> Self::Device;
     /// Drop the tensor with the given [tensor id](TensorId).

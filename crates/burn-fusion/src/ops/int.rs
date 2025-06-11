@@ -1901,6 +1901,39 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn int_cast(tensor: IntTensor<Self>, dtype: burn_tensor::IntDType) -> IntTensor<Self> {
+        #[derive(new)]
+        struct CastOps<B: FusionBackend> {
+            desc: UnaryOpIr,
+            dtype: burn_tensor::IntDType,
+            _b: PhantomData<B>,
+        }
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for CastOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_int_tensor::<B>(&self.desc.input);
+                let output: B::IntTensorPrimitive = B::int_cast(tensor, self.dtype);
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), dtype.into());
+
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationIr::BaseInt(BaseOperationIr::Cast(desc.clone())),
+            CastOps::<B>::new(desc, dtype),
+        );
+
+        out
+    }
+
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         binary_int_ops!(BitwiseAndOps, B::bitwise_and);
 

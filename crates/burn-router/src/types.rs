@@ -157,6 +157,21 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
+                fn register_int_tensor(&self, shape: Vec<usize>, dtype: burn_tensor::IntDType) -> RouterTensor<Self> {
+                    match self {
+                        Self::$DefaultBackend(runner) => {
+                            let desc = runner.register_int_tensor_desc(shape, dtype);
+                            RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
+                        }
+                        $(
+                            Self::$OtherBackend(runner) => {
+                            let desc = runner.register_int_tensor_desc(shape, dtype);
+                                RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
+                            }
+                        )+
+                    }
+                }
+
                 fn device(&self) -> Self::Device {
                     match self {
                         Self::$DefaultBackend(runner) => MultiDevice::$DefaultBackend(runner.device()),

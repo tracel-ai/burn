@@ -2,7 +2,7 @@ use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use crate::{Distribution, ElementConversion, Int, TensorData, backend::Backend, tensor::Shape};
-use crate::{TensorMetadata, argsort, sort, sort_with_indices};
+use crate::{IntDType, TensorMetadata, argsort, sort, sort_with_indices};
 use alloc::vec::Vec;
 use core::ops::Range;
 
@@ -379,6 +379,18 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The boolean tensor with the result of the comparison.
     fn int_lower_equal_elem(lhs: IntTensor<B>, rhs: IntElem<B>) -> BoolTensor<B>;
+
+    /// Converts a tensor to another integer point data type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to convert.
+    /// * `dtype` - The target data type.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same values as `tensor` but in the target integer data type.
+    fn int_cast(tensor: IntTensor<B>, dtype: IntDType) -> IntTensor<B>;
 
     // ====  NUMERIC ==== //
 

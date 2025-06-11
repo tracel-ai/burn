@@ -1433,7 +1433,6 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationIr::BaseFloat(BaseOperationIr::Cast(desc)));
-
         out
     }
 }

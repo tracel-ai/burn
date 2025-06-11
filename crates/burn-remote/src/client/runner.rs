@@ -63,6 +63,14 @@ impl RunnerClient for WsClient {
         self.register_empty_tensor(shape, DType::F32)
     }
 
+    fn register_int_tensor(
+        &self,
+        shape: Vec<usize>,
+        _dtype: burn_tensor::IntDType,
+    ) -> RouterTensor<Self> {
+        self.register_empty_tensor(shape, DType::I32)
+    }
+
     fn device(&self) -> Self::Device {
         self.device.clone()
     }

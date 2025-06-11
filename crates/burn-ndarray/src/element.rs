@@ -18,7 +18,7 @@ where
 }
 
 /// An int element for ndarray backend.
-pub trait IntNdArrayElement: NdArrayElement + Signed {}
+pub trait IntNdArrayElement: NdArrayElement + Signed{}
 
 /// A general element for ndarray backend.
 pub trait NdArrayElement:
@@ -64,6 +64,12 @@ impl FloatNdArrayElement for f32 {}
 
 impl IntNdArrayElement for i64 {}
 impl IntNdArrayElement for i32 {}
+impl IntNdArrayElement for i16 {}
+impl IntNdArrayElement for i8 {}
+impl IntNdArrayElement for u64 {}
+impl IntNdArrayElement for u32 {}
+impl IntNdArrayElement for u16 {}
+impl IntNdArrayElement for u8 {}
 
 macro_rules! make_elem {
     (

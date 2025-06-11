@@ -357,6 +357,75 @@ where
         kernel::flip::<R, I, BT>(tensor, axes)
     }
 
+    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
+        match (tensor.dtype, dtype) {
+            (Dtype::I8, IntDType::I8)
+            | (Dtype::I16, IntDType::I16)
+            | (Dtype::I32, IntDType::I32)
+            | (Dtype::I64, IntDType::I64)
+            | (Dtype::U8, IntDType::U8)
+            | (Dtype::U16, IntDType::I16)
+            | (Dtype::U32, IntDType::I32)
+            | (Dtype::U64, IntDType::I64) => tensor,
+            (Dtype::I64, IntDType::I32) => kernel::cast::<R, i64, i32>(tensor),
+            (Dtype::I64, IntDType::I16) => kernel::cast::<R, i64, i16>(tensor),
+            (Dtype::I64, IntDType::I8) => kernel::cast::<R, i64, i8>(tensor),
+            (Dtype::I32, IntDType::I64) => kernel::cast::<R, i32, i64>(tensor),
+            (Dtype::I32, IntDType::I16) => kernel::cast::<R, i32, i16>(tensor),
+            (Dtype::I32, IntDType::I8) => kernel::cast::<R, i32, i8>(tensor),
+            (Dtype::I16, IntDType::I64) => kernel::cast::<R, i16, i64>(tensor),
+            (Dtype::I16, IntDType::I32) => kernel::cast::<R, i16, i32>(tensor),
+            (Dtype::I16, IntDType::I8) => kernel::cast::<R, i16, i8>(tensor),
+            (Dtype::I8, IntDType::I64) => kernel::cast::<R, i8, i64>(tensor),
+            (Dtype::I8, IntDType::I32) => kernel::cast::<R, i8, i32>(tensor),
+            (Dtype::I8, IntDType::I16) => kernel::cast::<R, i8, i16>(tensor),
+            (Dtype::U64, IntDType::U32) => kernel::cast::<R, u64, u32>(tensor),
+            (Dtype::U64, IntDType::U16) => kernel::cast::<R, u64, u16>(tensor),
+            (Dtype::U64, IntDType::U8) => kernel::cast::<R, u64, u8>(tensor),
+            (Dtype::U32, IntDType::U64) => kernel::cast::<R, u32, u64>(tensor),
+            (Dtype::U32, IntDType::U16) => kernel::cast::<R, u32, u16>(tensor),
+            (Dtype::U32, IntDType::U8) => kernel::cast::<R, u32, u8>(tensor),
+            (Dtype::U16, IntDType::U64) => kernel::cast::<R, u16, u64>(tensor),
+            (Dtype::U16, IntDType::U32) => kernel::cast::<R, u16, u32>(tensor),
+            (Dtype::U16, IntDType::U8) => kernel::cast::<R, u16, u8>(tensor),
+            (Dtype::U8, IntDType::U64) => kernel::cast::<R, u8, u64>(tensor),
+            (Dtype::U8, IntDType::U32) => kernel::cast::<R, u8, u32>(tensor),
+            (Dtype::U8, IntDType::U16) => kernel::cast::<R, u8, u16>(tensor),
+            (Dtype::I64, IntDType::U64) => kernel::cast::<R, i64, u64>(tensor),
+            (Dtype::I64, IntDType::U32) => kernel::cast::<R, i64, u32>(tensor),
+            (Dtype::I64, IntDType::U16) => kernel::cast::<R, i64, u16>(tensor),
+            (Dtype::I64, IntDType::U8) => kernel::cast::<R, i64, u8>(tensor),
+            (Dtype::I32, IntDType::U64) => kernel::cast::<R, i32, u64>(tensor),
+            (Dtype::I32, IntDType::U32) => kernel::cast::<R, i32, u32>(tensor),
+            (Dtype::I32, IntDType::U16) => kernel::cast::<R, i32, u16>(tensor),
+            (Dtype::I32, IntDType::U8) => kernel::cast::<R, i32, U8>(tensor),
+            (Dtype::I16, IntDType::U64) => kernel::cast::<R, i16, U64>(tensor),
+            (Dtype::I16, IntDType::U32) => kernel::cast::<R, i16, u32>(tensor),
+            (Dtype::I16, IntDType::U16) => kernel::cast::<R, i16, u16>(tensor),
+            (Dtype::I16, IntDType::U8) => kernel::cast::<R, i16, u8>(tensor),
+            (Dtype::I8, IntDType::U64) => kernel::cast::<R, i8, u64>(tensor),
+            (Dtype::I8, IntDType::U32) => kernel::cast::<R, i8, u32>(tensor),
+            (Dtype::I8, IntDType::U16) => kernel::cast::<R, i8, u16>(tensor),
+            (Dtype::I8, IntDType::U8) => kernel::cast::<R, i8, u8>(tensor),
+            (Dtype::U64, IntDType::I64) => kernel::cast::<R, u64, i64>(tensor),
+            (Dtype::U64, IntDType::I32) => kernel::cast::<R, u64, i32>(tensor),
+            (Dtype::U64, IntDType::I16) => kernel::cast::<R, u64, i16>(tensor),
+            (Dtype::U64, IntDType::I8) => kernel::cast::<R, u64, i8>(tensor),
+            (Dtype::U32, IntDType::I64) => kernel::cast::<R, u32, i64>(tensor),
+            (Dtype::U32, IntDType::I32) => kernel::cast::<R, u32, i32>(tensor),
+            (Dtype::U32, IntDType::I16) => kernel::cast::<R, u32, i16>(tensor),
+            (Dtype::U32, IntDType::I8) => kernel::cast::<R, u32, i8>(tensor),
+            (Dtype::U16, IntDType::I64) => kernel::cast::<R, u16, i64>(tensor),
+            (Dtype::U16, IntDType::I32) => kernel::cast::<R, u16, i32>(tensor),
+            (Dtype::U16, IntDType::I16) => kernel::cast::<R, u16, i16>(tensor),
+            (Dtype::U16, IntDType::I8) => kernel::cast::<R, u16, i8>(tensor),
+            (Dtype::U8, IntDType::I64) => kernel::cast::<R, u8, i64>(tensor),
+            (Dtype::U8, IntDType::I32) => kernel::cast::<R, u8, i32>(tensor),
+            (Dtype::U8, IntDType::I16) => kernel::cast::<R, u8, i16>(tensor),
+            (Dtype::U8, IntDType::I8) => kernel::cast::<R, u8, i8>(tensor),
+        }
+    }
+
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         numeric::bitwise_and::<R, I>(lhs, rhs)
     }
