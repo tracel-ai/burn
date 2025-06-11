@@ -11,7 +11,7 @@ pub struct TensorId {
 }
 
 /// The status of the current tensor.
-#[derive(Hash, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Hash, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TensorStatus {
     /// The tensor can be read, but not written.
     ReadOnly,

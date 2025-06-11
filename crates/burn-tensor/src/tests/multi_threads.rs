@@ -112,7 +112,11 @@ mod tests {
                 let mut base = tensor_moved.clone();
 
                 if settings.num_ops_alive == 0 && settings.num_ops_consumed == 0 {
+                    std::thread::sleep(settings.sleep_alive);
+                    println!("Dropping both ...");
+                    core::mem::drop(tensor_moved);
                     core::mem::drop(base);
+                    println!("Dropped both");
                 } else {
                     if settings.num_ops_alive > 1 {
                         for j in 0..(settings.num_ops_alive - 1) {
@@ -160,5 +164,6 @@ mod tests {
         for j in joined {
             j.join().unwrap();
         }
+        println!("Finish");
     }
 }

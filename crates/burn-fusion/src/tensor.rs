@@ -185,6 +185,7 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
 
         match self.status() {
             TensorStatus::ReadWrite => {
+                println!("Droping {self:?}");
                 let id = *self.id.as_ref();
                 let mut shape = Vec::new();
                 core::mem::swap(&mut shape, &mut self.shape);
@@ -201,8 +202,12 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
                 self.client
                     .register(streams, OperationIr::Drop(ir), DropOp { id });
             }
-            TensorStatus::ReadOnly => {}
-            TensorStatus::NotInit => {}
+            TensorStatus::ReadOnly => {
+                println!("Cant drop readonly {self:?}");
+            }
+            TensorStatus::NotInit => {
+                println!("Cant drop noinit {self:?}");
+            }
         }
     }
 }

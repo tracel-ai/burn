@@ -1,10 +1,9 @@
-use std::collections::BTreeSet;
-
-use super::{OperationConverter, RelativeOps, execution::Operation};
+use super::{OperationConverter, OperationStreams, RelativeOps, execution::Operation};
 use crate::FusionRuntime;
-use burn_ir::{OperationIr, TensorId};
+use burn_ir::{OperationIr, TensorId, TensorStatus};
 
 pub use burn_common::id::StreamId;
+use hashbrown::HashMap;
 
 /// A growing list of [tensor operation descriptions](OperationIr).
 pub struct OperationQueue<R: FusionRuntime> {
@@ -19,7 +18,7 @@ pub struct OperationQueue<R: FusionRuntime> {
     pub(crate) relative: Vec<OperationIr>,
     pub(crate) converter: OperationConverter,
     pub(crate) operations: Vec<Box<dyn Operation<R>>>,
-    pub(crate) ids: BTreeSet<TensorId>,
+    pub(crate) variables: HashMap<TensorId, (StreamId, TensorStatus)>,
 }
 
 impl<R: FusionRuntime> Default for OperationQueue<R> {
@@ -36,7 +35,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
             relative: Vec::new(),
             converter: OperationConverter::default(),
             operations: Vec::new(),
-            ids: BTreeSet::new(),
+            variables: HashMap::new(),
         }
     }
 
@@ -45,9 +44,19 @@ impl<R: FusionRuntime> OperationQueue<R> {
     /// The new [operation intermediate representation](OperationIr) will be converted to a local
     /// representation that can be reused when the same pattern emerge in different but similar
     /// scenario, so that the same optimization can be used.
-    pub fn add(&mut self, global: OperationIr, operation: Box<dyn Operation<R>>) {
+    pub fn add(
+        &mut self,
+        global: OperationIr,
+        operation: Box<dyn Operation<R>>,
+        streams: &OperationStreams,
+        current: StreamId,
+    ) {
         for node in global.nodes() {
-            self.ids.insert(node.id);
+            if let Some(stream_id) = streams.get(node.id) {
+                self.variables.insert(node.id, (stream_id, node.status));
+            } else {
+                self.variables.insert(node.id, (current, node.status));
+            }
         }
         let relative = global.to_relative(&mut self.converter);
         self.relative.push(relative);

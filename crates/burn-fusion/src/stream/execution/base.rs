@@ -1,4 +1,4 @@
-use burn_ir::HandleContainer;
+use burn_ir::{HandleContainer, TensorStatus};
 
 use crate::{
     FusionRuntime,
@@ -55,7 +55,24 @@ impl<R: FusionRuntime> OperationQueue<R> {
         self.global[0..num_drained]
             .iter()
             .flat_map(|desc| desc.nodes())
-            .for_each(|tensor| handles.free(tensor));
+            .for_each(|tensor| {
+                match tensor.status {
+                    TensorStatus::ReadWrite => {
+                        self.variables.remove(&tensor.id);
+                    }
+                    TensorStatus::NotInit => {
+                        // When not init, the variable is no longer part of the stream if it's not
+                        // read anymore following the stream.
+                        if let Some((id, status)) = self.variables.remove(&tensor.id) {
+                            if status != TensorStatus::NotInit {
+                                self.variables.insert(tensor.id, (id, status));
+                            }
+                        }
+                    }
+                    _ => (),
+                };
+                handles.free(tensor)
+            });
 
         self.global.drain(0..num_drained);
         self.reset_relative();

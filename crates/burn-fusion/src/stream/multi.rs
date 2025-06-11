@@ -6,15 +6,16 @@ use super::{
     store::{ExecutionPlanId, ExecutionPlanStore},
 };
 use crate::{DropOp, FusionRuntime};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-/// Keep track of multiple concurrent streams of operations.
+/// Keep track of multiple concurrent lazy streams of operations.
 pub struct MultiStream<R: FusionRuntime> {
     streams: HashMap<StreamId, Stream<R>>,
     optimizations: ExecutionPlanStore<R::Optimization>,
     device: R::FusionDevice,
     shared_tensors: HashMap<TensorId, SharedTensor>,
-    shared_tensors_manual_drop: HashMap<TensorId, TensorIr>,
+    shared_tensors_manual_drop: HashMap<TensorId, (TensorIr, StreamId)>,
+    exists: BTreeSet<TensorId>,
 }
 
 impl<R: FusionRuntime> MultiStream<R> {
@@ -25,6 +26,7 @@ impl<R: FusionRuntime> MultiStream<R> {
             device,
             shared_tensors: HashMap::new(),
             shared_tensors_manual_drop: HashMap::new(),
+            exists: BTreeSet::new(),
         }
     }
 
@@ -36,7 +38,8 @@ impl<R: FusionRuntime> MultiStream<R> {
         operation: Box<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
-        let id = self.resolve_streams(streams, handles, &mut repr);
+        println!("Execute {repr:?}");
+        let id = self.resolve_streams(&streams, handles, &mut repr);
         println!("Executing on stream {id:?}");
 
         match &repr {
@@ -45,7 +48,8 @@ impl<R: FusionRuntime> MultiStream<R> {
                 match tensor_ir.status {
                     burn_ir::TensorStatus::ReadWrite => {}
                     _ => {
-                        println!("Skipping drop");
+                        println!("Skipping drop {:?}", self.shared_tensors);
+                        println!("Skipping drop => {:?}", self.streams.len());
                         let stream = self.streams.get(&id);
 
                         if let Some(shared) = self.shared_tensors.get_mut(&tensor_ir.id) {
@@ -60,7 +64,8 @@ impl<R: FusionRuntime> MultiStream<R> {
             _ => {}
         };
 
-        let (num_executed, queue_empty) = self.enqueue_operation(id, repr, operation, handles);
+        let (num_executed, queue_empty) =
+            self.enqueue_operation(id, repr, &streams, operation, handles);
 
         if num_executed > 0 {
             self.check_shared_tensors(handles);
@@ -68,24 +73,46 @@ impl<R: FusionRuntime> MultiStream<R> {
 
         if queue_empty {
             println!("Removing stream {}", id);
-            self.streams.remove(&id);
+            if let Some(stream) = self.streams.remove(&id) {
+                self.on_close_stream(id, stream);
+            }
             self.assert_post_remove_stream(&id);
         }
     }
 
-    fn assert_post_remove_stream(&self, stream_id: &StreamId) {
-        for (_, st) in self.shared_tensors.iter() {
-            assert!(!st.streams.contains_key(stream_id));
+    fn on_close_stream(&mut self, stream_id: StreamId, mut stream: Stream<R>) {
+        println!(
+            "1 Removing stream with remaining variables {:?}",
+            stream.queue.variables
+        );
+        for (tensor_id, (origin_stream_id, _latest_status)) in stream.queue.variables.drain() {
+            if origin_stream_id == stream_id {
+                self.exists.insert(tensor_id);
+            }
         }
+    }
+
+    fn assert_post_remove_stream(&self, stream_id: &StreamId) {
+        // for (_, st) in self.shared_tensors.iter() {
+        //     assert!(!st.streams.contains_key(stream_id));
+        // }
+        // for id in self.shared_tensors_manual_drop.values() {
+        //     assert_ne!(id.1, *stream_id);
+        // }
+        println!("Assert {:?}", self.shared_tensors);
+        println!("Assert {:?}", self.shared_tensors_manual_drop);
+        println!("Exist {:?}", self.exists);
     }
 
     fn enqueue_operation(
         &mut self,
         id: StreamId,
         repr: OperationIr,
+        streams: &OperationStreams,
         operation: Box<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) -> (usize, bool) {
+        println!("{streams:?} on stream {id:?}");
         let stream = match self.streams.get_mut(&id) {
             Some(stream) => stream,
             None => {
@@ -97,7 +124,7 @@ impl<R: FusionRuntime> MultiStream<R> {
             }
         };
 
-        stream.queue.add(repr, operation);
+        stream.queue.add(repr, operation, streams, id);
 
         let len_before = stream.queue.len();
         stream.processor.process(
@@ -137,6 +164,11 @@ impl<R: FusionRuntime> MultiStream<R> {
             }
             println!("Num Streams {}", self.streams.len());
             println!("{:?}", self.shared_tensors);
+            println!(
+                "Removing stream with remaining variables {:?}",
+                stream.queue.variables
+            );
+            self.on_close_stream(id, stream);
             self.assert_post_remove_stream(&id);
         }
     }
@@ -146,7 +178,7 @@ impl<R: FusionRuntime> MultiStream<R> {
     /// Returns the selected stream id.
     fn resolve_streams(
         &mut self,
-        streams: OperationStreams,
+        streams: &OperationStreams,
         handles: &mut HandleContainer<R::FusionHandle>,
         op: &mut OperationIr,
     ) -> StreamId {
@@ -154,18 +186,27 @@ impl<R: FusionRuntime> MultiStream<R> {
         // TODO: Assumes the server runs on the same thread as user code, which is true with the
         // mutex channel.
         let current = StreamId::current();
+        let nodes = op.nodes();
+
+        let cleanup_existing_tensors = |exists: &mut BTreeSet<TensorId>| {
+            for node in nodes.iter() {
+                if let burn_ir::TensorStatus::ReadWrite = node.status {
+                    exists.remove(&node.id);
+                }
+            }
+        };
 
         if streams_list.len() == 0 {
+            cleanup_existing_tensors(&mut self.exists);
             return current;
         }
 
-        let nodes = op.nodes();
-
         let analysis = self.register_shared_tensors(&nodes, &streams, current);
-        println!("{analysis:?}");
 
         self.merge_streams_timelines(handles, &analysis, &streams, current, &nodes);
-        self.register_shared_tensors_drop(analysis, op);
+        cleanup_existing_tensors(&mut self.exists);
+
+        self.register_shared_tensors_drop(&streams, analysis, op);
 
         current
     }
@@ -180,7 +221,7 @@ impl<R: FusionRuntime> MultiStream<R> {
     ) {
         if let Some(stream) = self.streams.get(&id) {
             for node in nodes {
-                if stream.queue.ids.contains(&node.id) {
+                if stream.queue.variables.contains_key(&node.id) {
                     self.drain(handles, id);
                     return;
                 }
@@ -199,6 +240,10 @@ impl<R: FusionRuntime> MultiStream<R> {
         let register = |state: &mut SharedTensor,
                         node: &TensorIr,
                         shared_tensors: &mut SharedTensorsAnalysis| {
+            if self.exists.contains(&node.id) {
+                return false;
+            }
+
             if let Some(stream_id) = streams.streams.get(&node.id) {
                 if stream_id != &current {
                     let stream = self.streams.get(&current);
@@ -287,6 +332,7 @@ impl<R: FusionRuntime> MultiStream<R> {
 
     fn register_shared_tensors_drop(
         &mut self,
+        streams: &OperationStreams,
         mut analysis: SharedTensorsAnalysis,
         op: &mut OperationIr,
     ) {
@@ -305,7 +351,9 @@ impl<R: FusionRuntime> MultiStream<R> {
         for tensor in op.readonly(&readonly_tensors) {
             println!("Register tensor as drop {tensor:?}");
             println!("{:?}", self.shared_tensors);
-            self.shared_tensors_manual_drop.insert(tensor.id, tensor);
+            let stream_id = streams.streams.get(&tensor.id).unwrap();
+            self.shared_tensors_manual_drop
+                .insert(tensor.id, (tensor, *stream_id));
         }
     }
 
@@ -333,9 +381,12 @@ impl<R: FusionRuntime> MultiStream<R> {
         for id in tensors {
             self.shared_tensors.remove(&id);
 
-            if let Some(tensor) = self.shared_tensors_manual_drop.remove(&id) {
+            if let Some((tensor, stream_id)) = self.shared_tensors_manual_drop.remove(&id) {
+                let mut streams = OperationStreams::default();
+                // streams.insert(tensor.id, stream_id);
+
                 self.register(
-                    OperationStreams::default(),
+                    streams,
                     OperationIr::Drop(tensor),
                     Box::new(DropOp { id }),
                     handles,
@@ -375,6 +426,7 @@ impl<R: FusionRuntime> Stream<R> {
             cursor: 0,
         }
     }
+    fn close(&mut self) {}
 }
 
 #[derive(Default, Debug)]
@@ -472,6 +524,10 @@ impl OperationStreams {
 
     fn insert(&mut self, id: TensorId, stream_id: StreamId) {
         self.streams.insert(id, stream_id);
+    }
+
+    pub(crate) fn get(&self, id: TensorId) -> Option<StreamId> {
+        self.streams.get(&id).cloned()
     }
 
     fn to_vec(&self) -> Vec<StreamId> {
