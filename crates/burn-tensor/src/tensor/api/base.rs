@@ -921,7 +921,8 @@ where
     ///
     /// ## Parameters
     ///
-    /// - `shifts`: A slice of shifts corresponding to each dimension; supports negative values and wraps around.
+    /// - `shifts`: A slice of shifts corresponding to each dimension;
+    ///   supports negative values and wraps around.
     /// - `dims`: A slice of dimensions to roll; supports negative indexing.
     ///
     /// ## Returns
