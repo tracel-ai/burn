@@ -35,7 +35,7 @@ def build_model():
 
     # Create the model
     model = onnx.helper.make_model(
-        opset_imports=[onnx.helper.make_operatorsetid("", 21)],
+        opset_imports=[onnx.helper.make_operatorsetid("", 16)],
         graph=graph,
         producer_name='ONNX_Generator',
     )
