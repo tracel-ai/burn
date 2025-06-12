@@ -115,6 +115,7 @@ impl Aggregator {
                 let mut base = tensors.pop().unwrap();
 
                 for tensor in tensors.drain(..) {
+                    let tensor = tensor.to_device(&base.device());
                     base = B::float_add(base, tensor);
                 }
 

@@ -43,7 +43,8 @@ pub fn register<B: Backend>(num_nodes: u32) {
 
 pub fn collective_sum<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     let client = aggregator();
+    let device = tensor.device();
     let primitive = client.register(tensor.into_primitive());
 
-    Tensor::from_primitive(primitive)
+    Tensor::from_primitive(primitive).to_device(device)
 }
