@@ -30,6 +30,8 @@ log = { workspace = true }
 
 tokio = { version = "1.45", features = ["rt-multi-thread"] }
 
+serial_test = "3.2.0"
+
 
 [package.metadata.docs.rs]
 features = ["doc"]

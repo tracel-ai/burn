@@ -5,7 +5,7 @@ use std::{
     collections::HashMap,
 };
 
-use crate::aggregator::{Aggregator, AggregatorClient};
+use crate::aggregator::{AggregateMethod, Aggregator, AggregatorClient};
 
 static STATE: Mutex<Option<HashMap<TypeId, Box<dyn Any + Send + Sync>>>> = Mutex::new(None);
 
@@ -31,18 +31,28 @@ pub fn aggregator<B: Backend>() -> AggregatorClient<B> {
     val.downcast_ref().cloned().unwrap()
 }
 
-pub fn register<B: Backend>(num_nodes: u32) {
+pub fn reset_collective<B: Backend>() {
     let client = aggregator::<B>();
-    client.register(num_nodes);
+    client.reset();
+}
+
+pub fn register<B: Backend>(id: u32, num_nodes: u32) {
+    let client = aggregator::<B>();
+    client.register(id, num_nodes);
 }
 
 pub fn collective_sum<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     let client: AggregatorClient<B> = aggregator();
     let device = tensor.device();
-    if let burn_tensor::TensorPrimitive::Float(tensor) = tensor.into_primitive() {
-        let primitive = client.aggregate(tensor);
-        Tensor::from_primitive(burn_tensor::TensorPrimitive::Float(primitive)).to_device(&device)
-    } else {
-        unimplemented!();
-    }
+    let tensor = tensor.into_primitive().tensor();
+    let primitive = client.aggregate(tensor, AggregateMethod::Sum);
+    Tensor::from_primitive(burn_tensor::TensorPrimitive::Float(primitive)).to_device(&device)
+}
+
+pub fn collective_mean<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, D> {
+    let client: AggregatorClient<B> = aggregator();
+    let device = tensor.device();
+    let tensor = tensor.into_primitive().tensor();
+    let primitive = client.aggregate(tensor, AggregateMethod::Mean);
+    Tensor::from_primitive(burn_tensor::TensorPrimitive::Float(primitive)).to_device(&device)
 }
