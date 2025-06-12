@@ -453,15 +453,8 @@ trait TopologicalSortable {
 
 impl TopologicalSortable for Vec<NodeProto> {
     fn is_top_sorted(&self) -> bool {
-        // Create a hashmap to store the position of each node in the vector
-        let position: HashMap<String, usize> = self
-            .iter()
-            .enumerate()
-            .map(|(idx, node)| (node.name.clone(), idx))
-            .collect();
-
         // Iterate over each node in the vector
-        for node in self {
+        for (node_position, node) in self.iter().enumerate() {
             // Iterate over each output of the node
             for output in &node.output {
                 // If the output is empty, we don't want to check the rest of the graph, inputs and outputs that are optional
@@ -470,11 +463,11 @@ impl TopologicalSortable for Vec<NodeProto> {
                     continue;
                 }
                 // Iterate over each other node in the vector
-                for other_node in self {
+                for (other_node_position, other_node) in self.iter().enumerate() {
                     // If the other node has an input that matches the current output
                     if other_node.input.contains(output) {
                         // If the position of the current node is greater than the position of the other node
-                        if position[&node.name] > position[&other_node.name] {
+                        if node_position > other_node_position {
                             // The vector is not topologically sorted
                             return false;
                         }
