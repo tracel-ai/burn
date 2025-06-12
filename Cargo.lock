@@ -563,6 +563,7 @@ dependencies = [
  "burn-tensor",
  "derive-new 0.7.0",
  "log",
+ "serial_test",
  "tokio",
 ]
 
