@@ -1,36 +1,31 @@
 pub mod backend;
-pub mod cluster;
+pub mod aggregator;
 
-pub mod ndarray;
+#[cfg(all(test))]
+mod tests {
+    use burn_ndarray::{NdArray, NdArrayDevice};
+    use burn_tensor::{Distribution, Tensor};
 
-//#[cfg(all(test))]
-//mod tests {
-//    use burn_ndarray::{NdArray, NdArrayDevice};
-//    use burn_tensor::{Distribution, Tensor};
-//
-//    use crate::{backend::CollectiveBackend, cluster::ClusterMetadata};
-//
-//    pub fn run_peer(id: u32, peer_count: usize) {
-//        let input_shape = [peer_count, 28, 28];
-//        let device = NdArrayDevice::default();
-//        let cluster_metadata = ClusterMetadata {
-//            cluster_size: peer_count,
-//            master_device: 0,
-//        };
-//        let _ = NdArray::register(device, id, cluster_metadata);
-//
-//        let tensor = Tensor::<NdArray, 3>::random(input_shape, Distribution::Default, &device);
-//
-//        let x = tensor.sum();
-//
-//        println!("{:?}", x);
-//    }
-//
-//    #[test]
-//    pub fn dummy_test() {
-//        const PEER_COUNT: usize = 8;
-//        for id in 0..PEER_COUNT {
-//            std::thread::spawn(move || run_peer(id as u32, PEER_COUNT));
-//        }
-//    }
-//}
+    use crate::backend::register;
+
+    pub fn run_peer(peer_count: u32) {
+        let input_shape = [peer_count as usize, 28, 28];
+        let device = NdArrayDevice::default();
+
+        register::<NdArray>(peer_count);
+
+        let tensor = Tensor::<NdArray, 3>::random(input_shape, Distribution::Default, &device);
+
+        let x = tensor.sum();
+
+        println!("{:?}", x);
+    }
+
+    #[test]
+    pub fn dummy_test() {
+        const PEER_COUNT: u32 = 8;
+        for _ in 0..PEER_COUNT {
+            std::thread::spawn(move || run_peer(PEER_COUNT));
+        }
+    }
+}

@@ -1,34 +1,8 @@
 use std::{
-    collections::HashMap,
-    hash::Hash,
-    sync::mpsc::{Sender, SyncSender},
+    sync::mpsc::{SyncSender},
 };
 
-use burn_ndarray::NdArrayTensor;
-use burn_tensor::backend::Backend;
-
-// TODO is "Cluster" a good name? Maybe "CollectiveGroup" is better
-
-/// Operations on a cluster, which is the struct used by the collective backend extention to keep
-/// track of the other units during collective operations.
-pub trait ClusterOps<B: Backend> {
-    fn register(
-        &mut self,
-        device: B::Device,
-        rank: u32,
-        cluster_info: ClusterMetadata,
-    ) -> Result<(), String>;
-    fn sync_op(&self);
-
-    // TODO make generic for any backend
-    fn set_tensor_sender(&mut self, sender: Sender<NdArrayTensor<f32>>);
-    fn get_tensor_sender(&self) -> Option<Sender<NdArrayTensor<f32>>>;
-}
-
-#[derive(Debug, Clone)]
-pub struct ClusterMetadata {
-    pub cluster_size: usize,
-}
+use burn_tensor::{backend::Backend};
 
 pub struct Aggregator {}
 
@@ -52,23 +26,23 @@ pub struct AggregatorClient<B: Backend> {
 
 impl<B: Backend> AggregatorClient<B> {
     pub fn register(&self, num_nodes: u32) {
-        let (callback, rec) = std::sync::mpsc::sync_channel::<Message<B>>(1);
+        let (callback, rec) = std::sync::mpsc::sync_channel::<()>(1);
 
         self.channel.send(Message::Register {
             num_nodes,
             callback,
-        });
+        }).unwrap();
 
-        if let Some(result) = rec.recv() {
+        if let Ok(_result) = rec.recv() {
             return;
         }
     }
 
     pub fn aggregate(&self, tensor: B::FloatTensorPrimitive) -> B::FloatTensorPrimitive {
-        let (callback, rec) = std::sync::mpsc::sync_channel::<Message<B>>(1);
-        self.channel.send(Message::Aggregate { tensor, callback });
+        let (callback, rec) = std::sync::mpsc::sync_channel::<B::FloatTensorPrimitive>(1);
+        self.channel.send(Message::Aggregate { tensor, callback }).unwrap();
 
-        if let Some(result) = rec.recv() {
+        if let Ok(result) = rec.recv() {
             result
         } else {
             panic!("message");
@@ -85,16 +59,15 @@ impl Aggregator {
         let _handle = std::thread::spawn(move || {
             let mut num_nodes_registered = 0;
 
-            let mut aggregations = HashMap::new();
             let mut tensors = Vec::new();
             let mut callbacks_register = Vec::new();
             let mut callbacks_aggregate = Vec::new();
 
-            for message in rec.recv() {
+            while let Ok(message) = rec.recv() {
                 match message {
                     Message::Aggregate { tensor, callback } => {
-                        tensors.push(message.tensor);
-                        callbacks_aggregate.push(message.callback);
+                        tensors.push(tensor);
+                        callbacks_aggregate.push(callback);
                     }
                     Message::Register {
                         num_nodes,
@@ -104,25 +77,26 @@ impl Aggregator {
                         callbacks_register.push(callback);
                         if num_nodes_registered == num_nodes {
                             for callback in callbacks_register.drain(..) {
-                                callback.send(());
+                                callback.send(()).unwrap();
                             }
                         }
                     }
                 }
-            }
 
-            if tensors.len() == num_nodes_registered {
-                let mut base = tensors.pop().unwrap();
-
-                for tensor in tensors.drain(..) {
-                    let tensor = tensor.to_device(&base.device());
-                    base = B::float_add(base, tensor);
+                if tensors.len() == num_nodes_registered as usize {
+                    let mut base = tensors.pop().unwrap();
+    
+                    for tensor in tensors.drain(..) {
+                        let target_device = B::float_device(&base);
+                        let tensor = B::float_to_device(tensor, &target_device);
+                        base = B::float_add(base, tensor);
+                    }
+    
+                    for callback in callbacks_aggregate.drain(..) {
+                        callback.send(base.clone()).unwrap();
+                    }
+                    num_nodes_registered = 0;
                 }
-
-                for callback in callbacks_aggregate.drain(..) {
-                    callback.send(base.clone());
-                }
-                num_nodes_registered = 0;
             }
         });
 
