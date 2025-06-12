@@ -165,10 +165,12 @@ impl<R: Runtime> MatmulOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> TuneOutput<R> {
+        println!("Execute fallback ...");
         self.fallback
             .as_ref()
             .expect("A fallback operation should be available")
             .run(context);
+        println!("Fallback ran!");
 
         #[cfg(feature = "autotune-checks")]
         let mut output = TuneOutput::Checked {
@@ -179,7 +181,9 @@ impl<R: Runtime> MatmulOptimization<R> {
 
         #[cfg(feature = "autotune-checks")]
         if let TuneOutput::Checked { handles } = &mut output {
+            println!("Here");
             let out_desc = context.tensors.get(&self.matmul_simple.op.out.id).unwrap();
+            println!("Failllllllled {out_desc:?}");
             let handle_out = context
                 .handles
                 .get_handle(&out_desc.id, &burn_ir::TensorStatus::ReadOnly);
@@ -190,6 +194,7 @@ impl<R: Runtime> MatmulOptimization<R> {
             );
         }
 
+        println!("Basic matmul done ...");
         let output_write = self
             .trace_fallback
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)

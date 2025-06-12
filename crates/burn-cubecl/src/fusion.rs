@@ -34,6 +34,7 @@ where
             Self::ElementWise(op) => op.execute::<BT>(context),
             Self::Matmul(op) => op.execute::<BT>(context, |index| {
                 let operation = execution.operation_within_optimization(index);
+                println!("Fallback matmul {operation:?} {index:?}");
                 Box::new(FallbackOperationUnsafe::new(operation))
             }),
             Self::Reduce(op) => op.execute::<BT>(context, |index| {

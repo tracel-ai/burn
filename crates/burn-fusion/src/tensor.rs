@@ -174,6 +174,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
     }
 }
 
+#[derive(new, Debug)]
 pub(crate) struct DropOp {
     pub(crate) id: TensorId,
 }

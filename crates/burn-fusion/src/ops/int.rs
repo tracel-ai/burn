@@ -17,7 +17,7 @@ use super::NoOp;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct EmptyOps<B: FusionBackend> {
             desc: TensorIr,
             device: Device<B>,
@@ -90,7 +90,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct ReshapeDimsOps<B: FusionBackend> {
             desc: UnaryOpIr,
             _b: PhantomData<B>,
@@ -124,7 +124,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_slice(tensor: IntTensor<Self>, ranges: &[Range<usize>]) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct SliceOps<B: FusionBackend> {
             desc: SliceOpIr,
             _b: PhantomData<B>,
@@ -172,7 +172,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         ranges: &[Range<usize>],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct SliceAssignOps<B: FusionBackend> {
             desc: SliceAssignOpIr,
             _b: PhantomData<B>,
@@ -217,7 +217,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         mask: BoolTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct MaskWhereOps<B: FusionBackend> {
             desc: MaskWhereOpIr,
             _b: PhantomData<B>,
@@ -268,7 +268,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         mask: BoolTensor<Self>,
         value: IntElem<Self>,
     ) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct MaskFillOps<B: FusionBackend> {
             desc: MaskFillOpIr<i32>,
             _b: PhantomData<B>,
@@ -316,7 +316,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         tensor: IntTensor<Self>,
         indices: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct GatherOps<B: FusionBackend> {
             desc: GatherOpIr,
             _b: PhantomData<B>,
@@ -364,7 +364,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct ScatterOps<B: FusionBackend> {
             desc: ScatterOpIr,
             _b: PhantomData<B>,
@@ -415,7 +415,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         dim: usize,
         indices: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct SelectOps<B: FusionBackend> {
             desc: SelectOpIr,
             _b: PhantomData<B>,
@@ -465,7 +465,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct SelectAssignOps<B: FusionBackend> {
             desc: SelectAssignOpIr,
             _b: PhantomData<B>,
@@ -512,7 +512,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_cat(tensors: Vec<IntTensor<Self>>, dim: usize) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct CatOps<B: FusionBackend> {
             desc: CatOpIr,
             _b: PhantomData<B>,
@@ -1100,7 +1100,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_zeros(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct ZerosOps<B: FusionBackend> {
             desc: TensorIr,
             device: Device<B>,
@@ -1130,7 +1130,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_ones(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct OnesOps<B: FusionBackend> {
             desc: TensorIr,
             device: Device<B>,
@@ -1380,7 +1380,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         min: IntElem<Self>,
         max: IntElem<Self>,
     ) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct ClampOps<B: FusionBackend> {
             desc: ClampOpIr<i32>,
             _b: PhantomData<B>,
@@ -1444,7 +1444,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct IntoFloatOps<B: FusionBackend> {
             desc: UnaryOpIr,
             _b: PhantomData<B>,
@@ -1477,7 +1477,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_swap_dims(tensor: IntTensor<Self>, dim1: usize, dim2: usize) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct SwapDimsOps<B: FusionBackend> {
             desc: SwapDimsOpIr,
             _b: PhantomData<B>,
@@ -1573,7 +1573,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         tensor: IntTensor<Self>,
         dim: usize,
     ) -> (IntTensor<Self>, IntTensor<Self>) {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct MaxDimWithIndicesOps<B: FusionBackend> {
             desc: ReduceDimWithIndicesOpIr,
             _b: PhantomData<B>,
@@ -1725,7 +1725,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         tensor: IntTensor<Self>,
         dim: usize,
     ) -> (IntTensor<Self>, IntTensor<Self>) {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct MinDimWithIndicesOps<B: FusionBackend> {
             desc: ReduceDimWithIndicesOpIr,
             _b: PhantomData<B>,
@@ -1771,7 +1771,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         distribution: Distribution,
         device: &Device<Self>,
     ) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct IntRandomOps<B: FusionBackend> {
             desc: RandomOpIr,
             device: Device<B>,
@@ -1805,7 +1805,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_permute(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct PermuteDimsOps<B: FusionBackend> {
             desc: PermuteOpIr,
             _b: PhantomData<B>,
@@ -1845,7 +1845,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_expand(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct ExpandOps<B: FusionBackend> {
             desc: ExpandOpIr,
             _b: PhantomData<B>,
@@ -1882,7 +1882,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct FlipDimsOps<B: FusionBackend> {
             desc: FlipOpIr,
             _b: PhantomData<B>,
@@ -1920,7 +1920,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_repeat_dim(tensor: IntTensor<Self>, dim: usize, times: usize) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct RepeatDimOps<B: FusionBackend> {
             desc: RepeatDimOpIr,
             _b: PhantomData<B>,

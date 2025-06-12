@@ -244,6 +244,7 @@ impl<O> Policy<O> {
     }
 
     fn action_sync(&self, operations: &[OperationIr], store: &ExecutionPlanStore<O>) -> Action {
+        println!("Action sync");
         for available in self.availables.iter() {
             if available.size == operations.len() {
                 return Action::Execute(available.id);

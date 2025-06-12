@@ -2,7 +2,7 @@ use crate::{FusionBackend, stream::Operation};
 use burn_ir::HandleContainer;
 use std::marker::PhantomData;
 
-#[derive(new, Clone)]
+#[derive(new, Clone, Debug)]
 pub struct NoOp<B: FusionBackend> {
     _b: PhantomData<B>,
 }

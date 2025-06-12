@@ -10,7 +10,6 @@ use super::{OperationStreams, Stream};
 pub struct SharedTensors {
     shared_tensors: HashMap<TensorId, SharedTensor>,
     shared_tensors_manual_drop: HashMap<TensorId, TensorIr>,
-    num_shared: HashMap<StreamId, u32>,
 }
 
 impl core::fmt::Debug for SharedTensors {
@@ -29,10 +28,6 @@ impl core::fmt::Debug for SharedTensors {
         }
         for sh in self.shared_tensors_manual_drop.iter() {
             f.write_fmt(format_args!("  - Manual Drop {}", sh.0))?;
-            f.write_str("\n")?;
-        }
-        for sn in self.num_shared.iter() {
-            f.write_fmt(format_args!("  - Stream {} has {} tensors ", sn.0, sn.1))?;
             f.write_str("\n")?;
         }
 
@@ -104,16 +99,7 @@ impl SharedTensors {
     }
 
     pub fn can_remove<R: FusionRuntime>(&self, stream_id: &StreamId, stream: &Stream<R>) -> bool {
-        // let result = self
-        //     .num_shared
-        //     .get(stream_id)
-        //     .map(|a| *a == 0)
-        //     .unwrap_or(true)
-        //     &&
-
-        let result = stream.queue.variables.is_empty();
-        println!("[{stream_id}] Can remove {}", result);
-        result
+        stream.queue.variables.is_empty()
     }
 
     pub fn on_executed_ops<R: FusionRuntime>(
@@ -126,9 +112,6 @@ impl SharedTensors {
             if state.update(id, &stream) {
                 cleared.push(*tensor_id);
             }
-        }
-        for _ in 0..cleared.len() {
-            self.decrease_num_tensor_shared(&id);
         }
         println!("[{id}] On executed ops => {cleared:?}",);
         cleared
@@ -181,33 +164,7 @@ impl SharedTensors {
             },
         };
 
-        self.increase_num_tensor_shared(&id);
-        self.increase_num_tensor_shared(stream_id);
-
         result
-    }
-
-    fn increase_num_tensor_shared(&mut self, stream_id: &StreamId) {
-        let state = match self.num_shared.get_mut(stream_id) {
-            Some(state) => state,
-            None => {
-                self.num_shared.insert(*stream_id, 0);
-                self.num_shared.get_mut(stream_id).unwrap()
-            }
-        };
-
-        *state += 1;
-    }
-    fn decrease_num_tensor_shared(&mut self, stream_id: &StreamId) {
-        let state = match self.num_shared.get_mut(stream_id) {
-            Some(state) => state,
-            None => {
-                self.num_shared.insert(*stream_id, 0);
-                self.num_shared.get_mut(stream_id).unwrap()
-            }
-        };
-
-        *state -= 1;
     }
 
     pub fn on_registering_op(&mut self, id: StreamId, nodes: &[&TensorIr]) {

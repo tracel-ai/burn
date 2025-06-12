@@ -46,7 +46,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct QuantizeOp<B: FusionBackend> {
             desc: QuantizeOpIr,
             _b: PhantomData<B>,
@@ -103,7 +103,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct DequantizeOp<B: FusionBackend> {
             desc: DequantizeOpIr,
             _b: PhantomData<B>,
@@ -159,7 +159,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     }
 
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct ReshapeDimsOps<B: FusionBackend> {
             desc: UnaryOpIr,
             _b: PhantomData<B>,
@@ -201,7 +201,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         dim1: usize,
         dim2: usize,
     ) -> QuantizedTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct SwapDimsOps<B: FusionBackend> {
             desc: SwapDimsOpIr,
             _b: PhantomData<B>,
@@ -242,7 +242,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     }
 
     fn q_permute(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct PermuteDimsOps<B: FusionBackend> {
             desc: PermuteOpIr,
             _b: PhantomData<B>,
@@ -280,7 +280,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     }
 
     fn q_flip(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct FlipOps<B: FusionBackend> {
             desc: FlipOpIr,
             _b: PhantomData<B>,
@@ -320,7 +320,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         tensor: QuantizedTensor<Self>,
         indices: IntTensor<Self>,
     ) -> QuantizedTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct GatherOps<B: FusionBackend> {
             desc: GatherOpIr,
             _b: PhantomData<B>,
@@ -364,7 +364,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         dim: usize,
         indices: IntTensor<Self>,
     ) -> QuantizedTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct SelectOps<B: FusionBackend> {
             desc: SelectOpIr,
             _b: PhantomData<B>,
@@ -405,7 +405,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     }
 
     fn q_slice(tensor: QuantizedTensor<Self>, ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct SliceOps<B: FusionBackend> {
             desc: SliceOpIr,
             _b: PhantomData<B>,
@@ -447,7 +447,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     }
 
     fn q_expand(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct ExpandOps<B: FusionBackend> {
             desc: ExpandOpIr,
             _b: PhantomData<B>,

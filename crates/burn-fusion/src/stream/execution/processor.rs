@@ -65,6 +65,7 @@ impl<O: NumOperations> Processor<O> {
                     };
                 }
                 Action::Execute(id) => {
+                    println!("Execute sync {id:?}");
                     if let ExecutionMode::Sync = mode {
                         store.add_trigger(id, ExecutionTrigger::OnSync);
                     }
@@ -105,6 +106,8 @@ impl<O: NumOperations> Processor<O> {
                     optim,
                     mode,
                 );
+                println!("Exploration Completed {id:?}");
+                println!("Exploration Completed {:?}", item.operations());
                 item.execute(id, store);
                 self.reset(store, item.operations());
             }
@@ -135,6 +138,8 @@ impl<O: NumOperations> Processor<O> {
         optimization: BlockOptimization<O>,
         mode: ExecutionMode,
     ) -> ExecutionPlanId {
+        println!("On exploration completed {operations:?}");
+        println!("On exploration completed {optimization:?}");
         let num_optimized = optimization.ordering.len();
         let relative = &operations[0..num_optimized];
 

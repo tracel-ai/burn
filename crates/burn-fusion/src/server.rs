@@ -50,6 +50,7 @@ where
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
+        self.streams.mark_read(id, &tensor);
         let tensor = self.handles.get_float_tensor::<B>(&tensor);
         B::float_into_data(tensor)
     }
@@ -65,6 +66,7 @@ where
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
+        self.streams.mark_read(id, &tensor);
         let tensor = self.handles.get_int_tensor::<B>(&tensor);
         B::int_into_data(tensor)
     }
@@ -80,6 +82,7 @@ where
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
+        self.streams.mark_read(id, &tensor);
         let tensor = self.handles.get_bool_tensor::<B>(&tensor);
         B::bool_into_data(tensor)
     }
@@ -95,6 +98,7 @@ where
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
+        self.streams.mark_read(id, &tensor);
         let tensor = self.handles.get_quantized_tensor::<B>(&tensor);
         B::q_into_data(tensor)
     }
@@ -108,7 +112,9 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        self.streams.mark_read(StreamId::current(), tensor);
         let tensor = self.handles.get_float_tensor::<B>(tensor);
+
         let tensor = B::float_to_device(tensor, device);
         let id = server_device.create_empty_handle();
 

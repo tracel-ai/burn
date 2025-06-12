@@ -10,7 +10,7 @@ pub(crate) enum ExecutionMode {
 }
 
 /// General trait to abstract how a single operation is executed.
-pub trait Operation<R: FusionRuntime>: Send + Sync {
+pub trait Operation<R: FusionRuntime>: Send + Sync + core::fmt::Debug {
     /// Execute the operation.
     fn execute(&self, handles: &mut HandleContainer<R::FusionHandle>);
 }

@@ -42,7 +42,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         distribution: Distribution,
         device: &Device<Self>,
     ) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct RandomOps<B: FusionBackend> {
             desc: RandomOpIr,
             device: Device<B>,
@@ -77,7 +77,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_zeros(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct ZerosOps<B: FusionBackend> {
             out: TensorIr,
             device: Device<B>,
@@ -108,7 +108,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_ones(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct OnesOps<B: FusionBackend> {
             out: TensorIr,
             device: Device<B>,
@@ -143,7 +143,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         fill_value: FloatElem<Self>,
         device: &Device<Self>,
     ) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct FullOps<B: FusionBackend> {
             out: TensorIr,
             elem: f32,
@@ -201,7 +201,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_into_int(tensor: FloatTensor<Self>) -> IntTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct IntoIntOps<B: FusionBackend> {
             desc: UnaryOpIr,
             _b: PhantomData<B>,
@@ -237,7 +237,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_empty(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct EmptyOps<B: FusionBackend> {
             desc: TensorIr,
             device: Device<B>,
@@ -317,7 +317,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         min: FloatElem<Self>,
         max: FloatElem<Self>,
     ) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct ClampOps<B: FusionBackend> {
             desc: ClampOpIr<f32>,
             _b: PhantomData<B>,
@@ -572,7 +572,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct SwapDimsOps<B: FusionBackend> {
             desc: SwapDimsOpIr,
             _b: PhantomData<B>,
@@ -613,7 +613,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_reshape(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct ReshapeDimsOps<B: FusionBackend> {
             desc: UnaryOpIr,
             _b: PhantomData<B>,
@@ -650,7 +650,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         tensor: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct GatherOps<B: FusionBackend> {
             desc: GatherOpIr,
             _b: PhantomData<B>,
@@ -695,7 +695,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         indices: IntTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct ScatterOps<B: FusionBackend> {
             desc: ScatterOpIr,
             _b: PhantomData<B>,
@@ -745,7 +745,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         dim: usize,
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct SelectOps<B: FusionBackend> {
             desc: SelectOpIr,
             _b: PhantomData<B>,
@@ -791,7 +791,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         indices: IntTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct SelectAssignOps<B: FusionBackend> {
             desc: SelectAssignOpIr,
             _b: PhantomData<B>,
@@ -837,7 +837,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_slice(tensor: FloatTensor<Self>, ranges: &[Range<usize>]) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct SliceOps<B: FusionBackend> {
             desc: SliceOpIr,
             _b: PhantomData<B>,
@@ -883,7 +883,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         ranges: &[Range<usize>],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct SliceAssignOps<B: FusionBackend> {
             desc: SliceAssignOpIr,
             _b: PhantomData<B>,
@@ -930,7 +930,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         mask: BoolTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct MaskWhereOps<B: FusionBackend> {
             desc: MaskWhereOpIr,
             _b: PhantomData<B>,
@@ -979,7 +979,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         mask: BoolTensor<Self>,
         value: FloatElem<Self>,
     ) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct MaskFillOps<B: FusionBackend> {
             desc: MaskFillOpIr<f32>,
             _b: PhantomData<B>,
@@ -1656,7 +1656,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_cat(tensors: Vec<FloatTensor<Self>>, dim: usize) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct CatOps<B: FusionBackend> {
             desc: CatOpIr,
             _b: PhantomData<B>,
@@ -1737,7 +1737,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct RepeatDimOps<B: FusionBackend> {
             desc: RepeatDimOpIr,
             _b: PhantomData<B>,
@@ -1849,7 +1849,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         tensor: FloatTensor<Self>,
         dim: usize,
     ) -> (FloatTensor<Self>, IntTensor<Self>) {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct MaxDimWithIndicesOps<B: FusionBackend> {
             desc: ReduceDimWithIndicesOpIr,
             _b: PhantomData<B>,
@@ -1939,7 +1939,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         tensor: FloatTensor<Self>,
         dim: usize,
     ) -> (FloatTensor<Self>, IntTensor<Self>) {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct MinDimWithIndicesOps<B: FusionBackend> {
             desc: ReduceDimWithIndicesOpIr,
             _b: PhantomData<B>,
@@ -2050,7 +2050,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_permute(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct PermuteDimsOps<B: FusionBackend> {
             desc: PermuteOpIr,
             _b: PhantomData<B>,
@@ -2088,7 +2088,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_expand(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct ExpandOps<B: FusionBackend> {
             desc: ExpandOpIr,
             _b: PhantomData<B>,
@@ -2126,7 +2126,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_flip(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct FlipOps<B: FusionBackend> {
             desc: FlipOpIr,
             _b: PhantomData<B>,
@@ -2231,7 +2231,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_cast(tensor: FloatTensor<Self>, dtype: burn_tensor::FloatDType) -> FloatTensor<Self> {
-        #[derive(new)]
+        #[derive(new, Debug)]
         struct CastOps<B: FusionBackend> {
             desc: UnaryOpIr,
             dtype: burn_tensor::FloatDType,
