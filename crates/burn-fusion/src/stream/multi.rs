@@ -21,6 +21,12 @@ pub struct MultiStream<R: FusionRuntime> {
     device: R::FusionDevice,
 }
 
+enum DropInfo {
+    SharedTensor,
+    NormalDrop,
+    NotDrop,
+}
+
 impl<R: FusionRuntime> MultiStream<R> {
     pub(crate) fn new(device: R::FusionDevice) -> Self {
         Self {
@@ -42,9 +48,11 @@ impl<R: FusionRuntime> MultiStream<R> {
         let id = self.resolve_streams(&streams, handles, &mut repr);
         println!("[{id}] Registering operation {repr:?}");
 
-        if self.handle_drop_op(id, &mut repr) {
-            return;
-        }
+        let sync = match self.handle_drop_op(id, &mut repr) {
+            DropInfo::SharedTensor => return,
+            DropInfo::NormalDrop => true,
+            DropInfo::NotDrop => false,
+        };
 
         let (num_executed, queue_empty) =
             self.enqueue_operation(id, repr, &streams, operation, handles);
@@ -58,45 +66,56 @@ impl<R: FusionRuntime> MultiStream<R> {
             }
         }
 
-        if queue_empty {
-            let stream = self.streams.get(&id).unwrap();
-            let can_remove = self.shared_tensors.can_remove(&id, stream);
+        let stream = self.streams.get(&id).unwrap();
+        let can_remove = self.shared_tensors.can_remove(&id, stream);
+        println!(
+            "[{id}] Can drop {can_remove:?} => {:?}",
+            stream.queue.variables
+        );
 
-            if can_remove {
-                if let Some(stream) = self.streams.remove(&id) {
-                    if !stream.queue.is_empty() {
-                        // Maybe some registered drop should be sync.
-                        panic!("Panic");
-                    }
-
-                    self.shared_tensors.on_closed_stream(id);
+        if can_remove {
+            if let Some(stream) = self.streams.remove(&id) {
+                if !stream.queue.is_empty() {
+                    panic!("Queue must be empty");
                 }
+
+                self.shared_tensors.on_closed_stream(id);
             }
+        } else if sync {
+            println!("[{id}] Sync drain after register.");
+            self.drain(handles, id);
         }
-        println!("{:?}", self.shared_tensors);
-        for (id, s) in self.streams.iter() {
-            println!("{id} => Executed {} Remaining {}", s.cursor, s.queue.len());
-        }
+
+        // for (id, s) in self.streams.iter() {
+        //     println!("{id} => Executed {} Remaining {}", s.cursor, s.queue.len());
+        // }
+        // println!("{:?}", self.shared_tensors);
     }
 
-    fn handle_drop_op(&mut self, id: StreamId, repr: &mut OperationIr) -> bool {
-        if let OperationIr::Drop(tensor_ir) = repr {
-            if !matches!(tensor_ir.status, TensorStatus::ReadWrite) {
-                let stream = self.streams.get(&id);
+    fn handle_drop_op(&mut self, id: StreamId, repr: &mut OperationIr) -> DropInfo {
+        match repr {
+            OperationIr::Drop(tensor_ir) => {
+                match !matches!(tensor_ir.status, TensorStatus::ReadWrite) {
+                    true => {
+                        let stream = self.streams.get(&id);
+                        let on_drop =
+                            self.shared_tensors
+                                .on_drop(id, tensor_ir.id, stream.is_none());
 
-                let on_drop = self
-                    .shared_tensors
-                    .on_drop(id, tensor_ir.id, stream.is_none());
-
-                println!("[{id}] {on_drop:?}");
-                return match on_drop {
-                    SharedTensorDropped::ForceDrop => false,
-                    SharedTensorDropped::Skip => true,
-                };
+                        println!("[{id}] {on_drop:?}");
+                        match on_drop {
+                            SharedTensorDropped::ForceDrop => {
+                                tensor_ir.status = TensorStatus::ReadWrite;
+                                DropInfo::NormalDrop
+                            }
+                            SharedTensorDropped::Skip => DropInfo::SharedTensor,
+                        }
+                    }
+                    false => DropInfo::NormalDrop,
+                }
             }
-        };
-
-        false
+            _ => DropInfo::NotDrop,
+        }
     }
 
     fn enqueue_operation(
@@ -141,6 +160,11 @@ impl<R: FusionRuntime> MultiStream<R> {
 
         let stream = self.streams.get(&id).unwrap();
         let can_remove = self.shared_tensors.can_remove(&id, stream);
+        println!(
+            "[{id}] DRAIN Can drop {can_remove:?} => {:?}",
+            stream.queue.variables
+        );
+
         if can_remove {
             if let Some(_) = self.streams.remove(&id) {
                 self.shared_tensors.on_closed_stream(id);
@@ -200,7 +224,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         if let Some(stream) = self.streams.get(&id) {
             for node in nodes {
                 if stream.queue.variables.contains_key(&node.id) {
-                    self.drain_inner(handles, id);
+                    self.drain(handles, id);
                     return;
                 }
             }

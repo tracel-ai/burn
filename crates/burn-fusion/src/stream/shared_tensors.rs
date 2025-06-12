@@ -104,12 +104,14 @@ impl SharedTensors {
     }
 
     pub fn can_remove<R: FusionRuntime>(&self, stream_id: &StreamId, stream: &Stream<R>) -> bool {
-        let result = self
-            .num_shared
-            .get(stream_id)
-            .map(|a| *a == 0)
-            .unwrap_or(true)
-            && stream.queue.variables.is_empty();
+        // let result = self
+        //     .num_shared
+        //     .get(stream_id)
+        //     .map(|a| *a == 0)
+        //     .unwrap_or(true)
+        //     &&
+
+        let result = stream.queue.variables.is_empty();
         println!("[{stream_id}] Can remove {}", result);
         result
     }
