@@ -70,7 +70,7 @@ where
     ) -> FusionTensor<R> {
         let mut server = self.server.lock();
         let id = server.create_empty_handle();
-        server.handles.register_handle(*id.as_ref(), handle);
+        server.handles.register_handle(id, handle);
         core::mem::drop(server);
 
         FusionTensor::new(id, shape, dtype, self.clone(), stream)

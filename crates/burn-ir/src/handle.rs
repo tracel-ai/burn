@@ -1,12 +1,6 @@
 use burn_tensor::Shape;
 use hashbrown::HashMap;
 
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
-
-#[cfg(not(target_has_atomic = "ptr"))]
-use portable_atomic_util::Arc;
-
 use crate::{BackendIr, TensorHandle, TensorId, TensorIr, TensorStatus};
 
 /// Keep all [tensor handles](BackendIr::Handle) in one place and ensure that all resources
@@ -83,6 +77,9 @@ impl<H: Clone> HandleContainer<H> {
             .remove_entry(id)
             .unwrap_or_else(|| panic!("Should have handle for tensor {:?}", id));
         println!("Get handle {}", self.handles.len());
+        //  for i in self.handles.iter() {
+        //      println!("Remaining Handle {:?}", i.0);
+        //  }
 
         match handle {
             Handle::Existing(handle) => match status {
@@ -184,12 +181,11 @@ impl<H: Clone> HandleContainer<H> {
     }
 
     /// Lazily create a new empty tensor and return its corresponding [tensor id](TensorId).
-    pub fn create_tensor_uninit(&mut self) -> Arc<TensorId> {
+    pub fn create_tensor_uninit(&mut self) -> TensorId {
         let id = TensorId::new(self.counter);
         self.counter += 1;
         self.handles.insert(id, Handle::NotInit);
-
-        Arc::new(id)
+        id
     }
 
     /// Remove tensor handle from container.

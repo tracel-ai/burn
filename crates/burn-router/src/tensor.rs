@@ -1,3 +1,5 @@
+use core::sync::atomic::{AtomicU32, Ordering};
+
 use alloc::{sync::Arc, vec::Vec};
 
 use super::RunnerClient;
@@ -6,7 +8,7 @@ use burn_tensor::{DType, Shape, TensorData, TensorMetadata};
 
 /// Tensor primitive for the [router backend](crate::BackendRouter).
 pub struct RouterTensor<C: RunnerClient> {
-    pub(crate) id: Arc<TensorId>,
+    pub(crate) id: TensorId,
     pub(crate) shape: Vec<usize>,
     pub(crate) dtype: DType,
     pub(crate) client: C,
@@ -16,6 +18,7 @@ pub struct RouterTensor<C: RunnerClient> {
     // When a tensor is dropped and is still an orphan, we need to register it as such to avoid
     // memory leak.
     pub(crate) is_orphan: bool,
+    pub(crate) count: Arc<AtomicU32>,
 }
 
 impl<C: RunnerClient> TensorMetadata for RouterTensor<C> {
@@ -30,13 +33,14 @@ impl<C: RunnerClient> TensorMetadata for RouterTensor<C> {
 
 impl<C: RunnerClient> RouterTensor<C> {
     /// Create a new router tensor.
-    pub fn new(id: Arc<TensorId>, shape: Vec<usize>, dtype: DType, client: C) -> Self {
+    pub fn new(id: TensorId, shape: Vec<usize>, dtype: DType, client: C) -> Self {
         Self {
             id,
             shape,
             dtype,
             client,
             is_orphan: true,
+            count: Arc::new(AtomicU32::new(1)),
         }
     }
 
@@ -45,7 +49,8 @@ impl<C: RunnerClient> RouterTensor<C> {
     }
 
     pub(crate) fn into_ir(mut self) -> TensorIr {
-        let status = self.status();
+        let count = self.count.fetch_sub(1, Ordering::Acquire);
+        let status = self.status(count);
         let mut shape_out = Vec::new();
         core::mem::swap(&mut self.shape, &mut shape_out);
 
@@ -56,7 +61,7 @@ impl<C: RunnerClient> RouterTensor<C> {
         TensorIr {
             status,
             shape: shape_out,
-            id: *self.id.as_ref(),
+            id: self.id,
             dtype: self.dtype,
         }
     }
@@ -65,13 +70,13 @@ impl<C: RunnerClient> RouterTensor<C> {
         TensorIr {
             status: TensorStatus::NotInit,
             shape: self.shape.clone(),
-            id: *self.id.as_ref(),
+            id: self.id,
             dtype: self.dtype,
         }
     }
 
-    pub(crate) fn status(&self) -> TensorStatus {
-        if Arc::strong_count(&self.id) <= 1 {
+    pub(crate) fn status(&self, count: u32) -> TensorStatus {
+        if count <= 1 {
             TensorStatus::ReadWrite
         } else {
             TensorStatus::ReadOnly
@@ -97,25 +102,30 @@ impl<C: RunnerClient> core::fmt::Debug for RouterTensor<C> {
 
 impl<C: RunnerClient> Clone for RouterTensor<C> {
     fn clone(&self) -> Self {
+        self.count.fetch_sub(1, Ordering::Acquire);
+
         Self {
             id: self.id.clone(),
             shape: self.shape.clone(),
             client: self.client.clone(),
             dtype: self.dtype,
             is_orphan: self.is_orphan,
+            count: self.count.clone(),
         }
     }
 }
 
 impl<C: RunnerClient> Drop for RouterTensor<C> {
     fn drop(&mut self) {
+        let count = self.count.fetch_sub(1, Ordering::Acquire);
+
         if !self.is_orphan {
             return;
         }
 
-        match self.status() {
+        match self.status(count) {
             TensorStatus::ReadWrite => {
-                let id = *self.id.as_ref();
+                let id = self.id.clone();
                 let mut shape = Vec::new();
                 core::mem::swap(&mut shape, &mut self.shape);
 

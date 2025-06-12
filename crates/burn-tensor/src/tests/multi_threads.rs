@@ -19,6 +19,7 @@ mod tests {
         num_wait_alive: usize,
         // Number of operations that needs to execute before continuing execution on the main thread.
         num_wait_consumed: usize,
+        sleep_before: Duration,
         sleep_alive: Duration,
         sleep_consumed: Duration,
         // If the output is dropped, otherwise it will be consumed by an operation.
@@ -33,6 +34,7 @@ mod tests {
             num_ops_consumed: 5,
             num_wait_alive: 5,
             num_wait_consumed: 5,
+            sleep_before: Duration::from_millis(100),
             sleep_alive: Duration::from_millis(100),
             sleep_consumed: Duration::from_millis(100),
             dropped: true,
@@ -47,6 +49,7 @@ mod tests {
             num_ops_consumed: 5,
             num_wait_alive: 5,
             num_wait_consumed: 5,
+            sleep_before: Duration::from_millis(100),
             sleep_alive: Duration::from_millis(100),
             sleep_consumed: Duration::from_millis(100),
             dropped: false,
@@ -61,6 +64,7 @@ mod tests {
             num_ops_consumed: 5,
             num_wait_alive: 0,
             num_wait_consumed: 0,
+            sleep_before: Duration::from_millis(100),
             sleep_alive: Duration::from_millis(100),
             sleep_consumed: Duration::from_millis(100),
             dropped: true,
@@ -75,6 +79,7 @@ mod tests {
             num_ops_consumed: 5,
             num_wait_alive: 0,
             num_wait_consumed: 0,
+            sleep_before: Duration::from_millis(100),
             sleep_alive: Duration::from_millis(100),
             sleep_consumed: Duration::from_millis(100),
             dropped: false,
@@ -89,6 +94,22 @@ mod tests {
             num_ops_consumed: 0,
             num_wait_alive: 0,
             num_wait_consumed: 0,
+            sleep_before: Duration::from_millis(100),
+            sleep_alive: Duration::from_millis(100),
+            sleep_consumed: Duration::from_millis(100),
+            dropped: false,
+        })
+    }
+
+    #[test]
+    fn should_handle_multi_threads_no_async_op_no_wait() {
+        run_multi_thread_test(MultiThreadTestSettings {
+            num_threads: 3,
+            num_ops_alive: 0,
+            num_ops_consumed: 0,
+            num_wait_alive: 0,
+            num_wait_consumed: 0,
+            sleep_before: Duration::from_millis(0),
             sleep_alive: Duration::from_millis(100),
             sleep_consumed: Duration::from_millis(100),
             dropped: false,
@@ -110,9 +131,9 @@ mod tests {
 
             let handle = std::thread::spawn(move || {
                 let mut base = tensor_moved.clone();
+                std::thread::sleep(settings.sleep_before);
 
                 if settings.num_ops_alive == 0 && settings.num_ops_consumed == 0 {
-                    std::thread::sleep(settings.sleep_alive);
                     println!("Dropping both ...");
                     core::mem::drop(tensor_moved);
                     core::mem::drop(base);

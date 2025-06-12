@@ -4,7 +4,6 @@ use crate::{
 };
 use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr};
 use burn_tensor::TensorData;
-use std::sync::Arc;
 
 pub struct FusionServer<R: FusionRuntime> {
     streams: MultiStream<R>,
@@ -36,7 +35,7 @@ where
         self.streams.drain(&mut self.handles, id)
     }
 
-    pub fn create_empty_handle(&mut self) -> Arc<TensorId> {
+    pub fn create_empty_handle(&mut self) -> TensorId {
         self.handles.create_tensor_uninit()
     }
 
@@ -105,7 +104,7 @@ where
         tensor: &TensorIr,
         device: &R::FusionDevice,
         server_device: &mut Self,
-    ) -> Arc<TensorId>
+    ) -> TensorId
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -146,7 +145,7 @@ where
         tensor: &TensorIr,
         device: &R::FusionDevice,
         server_device: &mut Self,
-    ) -> Arc<TensorId>
+    ) -> TensorId
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -166,7 +165,7 @@ where
         tensor: &TensorIr,
         device: &R::FusionDevice,
         server_device: &mut Self,
-    ) -> Arc<TensorId>
+    ) -> TensorId
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -186,7 +185,7 @@ where
         tensor: &TensorIr,
         device: &R::FusionDevice,
         server_device: &mut Self,
-    ) -> Arc<TensorId>
+    ) -> TensorId
     where
         B: FusionBackend<FusionRuntime = R>,
     {
