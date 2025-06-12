@@ -10,6 +10,7 @@ fn main() {
         .input("tests/and/and.onnx")
         .input("tests/add/add_int.onnx")
         .input("tests/argmax/argmax.onnx")
+        .input("tests/argmin/argmin.onnx")
         .input("tests/avg_pool1d/avg_pool1d.onnx")
         .input("tests/avg_pool2d/avg_pool2d.onnx")
         .input("tests/batch_norm/batch_norm.onnx")

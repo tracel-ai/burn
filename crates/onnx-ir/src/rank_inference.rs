@@ -1,7 +1,7 @@
 use crate::{
     ir::{Node, NodeType},
     node::{
-        argmax::argmax_update_outputs, cast::cast_update_outputs,
+        argmax::argmax_update_outputs, argmin::argmin_update_outputs, cast::cast_update_outputs,
         comparison::elementwise_comparison_outputs, concat::concat_update_outputs,
         constant::constant_update_outputs, constant_of_shape::constant_of_shape_update_output,
         depth_to_space::depth_to_space_update_outputs, expand::expand_update_outputs,
@@ -27,6 +27,7 @@ pub fn rank_inference(node: &mut Node) {
     match node.node_type {
         NodeType::Add => same_as_input_broadcast(node),
         NodeType::ArgMax => argmax_update_outputs(node),
+        NodeType::ArgMin => argmin_update_outputs(node),
         NodeType::AveragePool1d => same_as_input(node),
         NodeType::AveragePool2d => same_as_input(node),
         NodeType::BatchNormalization => same_as_input(node),

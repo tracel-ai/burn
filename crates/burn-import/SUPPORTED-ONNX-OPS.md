@@ -15,7 +15,7 @@ functionality.
 | [Add][4]                         | ✅             | ✅           |
 | [And][5]                         | ✅             | ✅           |
 | [ArgMax][6]                      | ✅             | ✅           |
-| [ArgMin][7]                      | ❌             | ✅           |
+| [ArgMin][7]                      | ✅             | ✅           |
 | [Asin][8]                        | ❌             | ❌           |
 | [Asinh][9]                       | ❌             | ❌           |
 | [Atan][10]                       | ❌             | ❌           |

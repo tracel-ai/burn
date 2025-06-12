@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use super::{
-    argmax::ArgMaxNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
+    argmax::ArgMaxNode, argmin::ArgMinNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
     batch_norm::BatchNormNode, binary::BinaryNode, ceil::CeilNode, clip::ClipNode,
     concat::ConcatNode, constant::ConstantNode, constant_of_shape::ConstantOfShapeNode,
     conv_transpose_1d::ConvTranspose1dNode, conv_transpose_2d::ConvTranspose2dNode,
@@ -86,6 +86,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 #[derive(Debug, Clone)]
 pub enum Node<PS: PrecisionSettings> {
     ArgMax(ArgMaxNode),
+    ArgMin(ArgMinNode),
     AvgPool1d(AvgPool1dNode),
     AvgPool2d(AvgPool2dNode),
     BatchNorm(BatchNormNode),
@@ -149,6 +150,7 @@ macro_rules! match_all {
         #[allow(clippy::redundant_closure_call)]
         match $self {
             Node::ArgMax(node) => $func(node),
+            Node::ArgMin(node) => $func(node),
             Node::AvgPool1d(node) => $func(node),
             Node::AvgPool2d(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
@@ -220,6 +222,7 @@ impl<PS: PrecisionSettings> Node<PS> {
     pub fn name(&self) -> &str {
         match self {
             Node::ArgMax(_) => "argmax",
+            Node::ArgMin(_) => "argmin",
             Node::AvgPool1d(_) => "avg_pool1d",
             Node::AvgPool2d(_) => "avg_pool2d",
             Node::BatchNorm(_) => "batch_norm",
