@@ -98,6 +98,8 @@ impl Aggregator {
                     num_nodes_registered = 0;
                 }
             }
+
+            log::info!("Aggregator channel receive failed");
         });
 
         client

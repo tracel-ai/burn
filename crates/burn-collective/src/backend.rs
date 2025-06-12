@@ -43,6 +43,6 @@ pub fn collective_sum<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tenso
         let primitive = client.aggregate(tensor);
         Tensor::from_primitive(burn_tensor::TensorPrimitive::Float(primitive)).to_device(&device)
     } else {
-        unimplemented!("qfloat unsupported");
+        unimplemented!();
     }
 }
