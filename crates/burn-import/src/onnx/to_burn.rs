@@ -17,6 +17,7 @@ use crate::{
         graph::BurnGraph,
         node::{
             argmax::ArgMaxNode,
+            argmin::ArgMinNode,
             avg_pool1d::AvgPool1dNode,
             avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
@@ -82,12 +83,13 @@ use onnx_ir::{
         TensorType as OnnxTensorType,
     },
     node::{
-        argmax::argmax_config, avg_pool1d::avg_pool1d_config, avg_pool2d::avg_pool2d_config,
-        batch_norm::batch_norm_config, clip::clip_config, concat::concat_config,
-        conv_transpose1d::conv_transpose1d_config, conv_transpose2d::conv_transpose2d_config,
-        conv_transpose3d::conv_transpose3d_config, conv1d::conv1d_config, conv2d::conv2d_config,
-        conv3d::conv3d_config, depth_to_space::depth_to_space_config, dropout::dropout_config,
-        expand::expand_config, flatten::flatten_config, gather::gather_config, gemm::gemm_config,
+        argmax::argmax_config, argmin::argmin_config, avg_pool1d::avg_pool1d_config,
+        avg_pool2d::avg_pool2d_config, batch_norm::batch_norm_config, clip::clip_config,
+        concat::concat_config, conv_transpose1d::conv_transpose1d_config,
+        conv_transpose2d::conv_transpose2d_config, conv_transpose3d::conv_transpose3d_config,
+        conv1d::conv1d_config, conv2d::conv2d_config, conv3d::conv3d_config,
+        depth_to_space::depth_to_space_config, dropout::dropout_config, expand::expand_config,
+        flatten::flatten_config, gather::gather_config, gemm::gemm_config,
         group_norm::group_norm_config, hard_sigmoid::hard_sigmoid_config,
         instance_norm::instance_norm_config, layer_norm::layer_norm_config,
         leaky_relu::leaky_relu_config, linear::linear_config, log_softmax::log_softmax_config,
@@ -289,6 +291,7 @@ impl ParsedOnnxGraph {
             match node.node_type {
                 NodeType::Add => graph.register(Self::add_conversion(node)),
                 NodeType::ArgMax => graph.register(Self::argmax_conversion(node)),
+                NodeType::ArgMin => graph.register(Self::argmin_conversion(node)),
                 NodeType::Sub => graph.register(Self::sub_conversion(node)),
                 NodeType::Mul => graph.register(Self::mul_conversion(node)),
                 NodeType::Div => graph.register(Self::div_conversion(node)),
@@ -978,6 +981,14 @@ impl ParsedOnnxGraph {
         let axis = argmax_config(&node);
 
         ArgMaxNode::new(input, output, axis)
+    }
+
+    fn argmin_conversion(node: Node) -> ArgMinNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let axis = argmin_config(&node);
+
+        ArgMinNode::new(input, output, axis)
     }
 
     fn concat_conversion(node: Node) -> ConcatNode {
