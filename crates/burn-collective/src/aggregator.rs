@@ -1,8 +1,6 @@
-use std::{
-    sync::mpsc::{SyncSender},
-};
+use std::sync::mpsc::SyncSender;
 
-use burn_tensor::{backend::Backend};
+use burn_tensor::backend::Backend;
 
 pub struct Aggregator {}
 
@@ -28,25 +26,24 @@ impl<B: Backend> AggregatorClient<B> {
     pub fn register(&self, num_nodes: u32) {
         let (callback, rec) = std::sync::mpsc::sync_channel::<()>(1);
 
-        self.channel.send(Message::Register {
-            num_nodes,
-            callback,
-        }).unwrap();
+        self.channel
+            .send(Message::Register {
+                num_nodes,
+                callback,
+            })
+            .unwrap();
 
-        if let Ok(_result) = rec.recv() {
-            return;
-        }
+        rec.recv().unwrap();
     }
 
     pub fn aggregate(&self, tensor: B::FloatTensorPrimitive) -> B::FloatTensorPrimitive {
         let (callback, rec) = std::sync::mpsc::sync_channel::<B::FloatTensorPrimitive>(1);
-        self.channel.send(Message::Aggregate { tensor, callback }).unwrap();
+        self.channel
+            .send(Message::Aggregate { tensor, callback })
+            .unwrap();
 
-        if let Ok(result) = rec.recv() {
-            result
-        } else {
-            panic!("message");
-        }
+        rec.recv()
+            .expect("Failed to receive callback from aggregator")
     }
 }
 
@@ -85,13 +82,13 @@ impl Aggregator {
 
                 if tensors.len() == num_nodes_registered as usize {
                     let mut base = tensors.pop().unwrap();
-    
+
                     for tensor in tensors.drain(..) {
                         let target_device = B::float_device(&base);
                         let tensor = B::float_to_device(tensor, &target_device);
                         base = B::float_add(base, tensor);
                     }
-    
+
                     for callback in callbacks_aggregate.drain(..) {
                         callback.send(base.clone()).unwrap();
                     }
@@ -99,7 +96,7 @@ impl Aggregator {
                 }
             }
 
-            log::info!("Aggregator channel receive failed");
+            log::debug!("Aggregator message failed");
         });
 
         client
