@@ -51,11 +51,11 @@ impl<R: FusionRuntime> OperationQueue<R> {
                     TensorStatus::NotInit => {
                         // When not init, the variable is no longer part of the stream if it's not
                         // read anymore following the stream.
-                        if let Some((id, status)) = self.variables.remove(&tensor.id) {
-                            if matches!(status, TensorStatus::ReadOnly) {
-                                self.variables.insert(tensor.id, (id, status));
-                            }
-                        }
+                        // if let Some((id, status)) = self.variables.remove(&tensor.id) {
+                        //     if matches!(status, TensorStatus::ReadOnly) {
+                        //         self.variables.insert(tensor.id, (id, status));
+                        //     }
+                        // }
                     }
                     _ => (),
                 };

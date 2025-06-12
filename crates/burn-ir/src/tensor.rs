@@ -10,6 +10,12 @@ pub struct TensorId {
     value: u64,
 }
 
+impl core::fmt::Display for TensorId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_fmt(format_args!("TensorId({:?})", self.value))
+    }
+}
+
 /// The status of the current tensor.
 #[derive(Hash, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TensorStatus {

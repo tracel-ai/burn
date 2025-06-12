@@ -1,5 +1,6 @@
 pub(crate) mod execution;
 pub(crate) mod queue;
+pub(crate) mod shared_tensors;
 pub(crate) mod store;
 
 mod base;
