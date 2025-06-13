@@ -26,6 +26,11 @@ pub mod container;
 /// The grid module.
 pub mod grid;
 
+/// The indexing module.
+pub mod indexing;
+
+pub use indexing::AsIndex;
+
 /// The linalg module.
 pub mod linalg;
 
@@ -49,6 +54,7 @@ mod report;
 
 #[cfg(feature = "experimental-named-tensor")]
 mod named;
+
 #[cfg(feature = "experimental-named-tensor")]
 pub use named::*;
 
