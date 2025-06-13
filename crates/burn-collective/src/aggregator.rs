@@ -312,7 +312,7 @@ fn aggregate_ring<B: Backend>(
         sliced_tensors.push(slices);
     }
 
-    // phase 1: aggregate in ring N-1 times
+    // phase 1: aggregate in ring N-1 times (Reduce-Scatter)
     for cycle in 0..(tensor_count - 1) {
         // aggregate slices in a ring
         for i in 0..tensor_count {
@@ -332,7 +332,7 @@ fn aggregate_ring<B: Backend>(
         }
     }
 
-    // phase 2: share (overwrite) in a ring N-1 times
+    // phase 2: share (overwrite) in a ring N-1 times (All-Gather)
     for cycle in 0..(tensor_count - 1) {
         // aggregate slices in a ring
         for i in 0..tensor_count {
