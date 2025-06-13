@@ -63,6 +63,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         if num_executed > 0 {
             if let Some(stream) = self.streams.get(&id) {
                 let cleared = self.shared_tensors.on_executed_ops(id, stream);
+                self.clear_shared_tensors(&cleared, id);
                 let to_drop = self.shared_tensors.clear_tensors(cleared);
                 self.drop_shared_tensors(to_drop, handles, id);
             }
@@ -196,6 +197,7 @@ impl<R: FusionRuntime> MultiStream<R> {
             stream.cursor += num_executed as u64;
 
             let cleared = self.shared_tensors.on_executed_ops(id, &stream);
+            self.clear_shared_tensors(&cleared, id);
             let to_drop = self.shared_tensors.clear_tensors(cleared);
 
             self.drop_shared_tensors(to_drop, handles, id);
@@ -337,16 +339,49 @@ impl<R: FusionRuntime> MultiStream<R> {
         &mut self,
         tensors: Vec<TensorIr>,
         handles: &mut HandleContainer<R::FusionHandle>,
-        stream_id: StreamId,
+        current: StreamId,
     ) {
+        for (stream_id, s) in self.streams.iter_mut() {
+            for tensor in tensors.iter() {
+                if let Some((original, _status)) = s.queue.variables.get(&tensor.id) {
+                    println!("Remove {tensor:?} from strea {stream_id}");
+                    if original != stream_id {
+                        s.queue.variables.remove(&tensor.id);
+                    }
+                }
+            }
+        }
         for tensor in tensors {
             let streams = OperationStreams {
                 streams: HashMap::new(),
-                current: stream_id,
+                current,
             };
 
             let op = Box::new(DropOp { id: tensor.id });
             self.register(streams, OperationIr::Drop(tensor), op, handles);
+        }
+    }
+    fn clear_shared_tensors(&mut self, tensors: &[TensorId], current: StreamId) {
+        let mut to_remove = Vec::new();
+        for (stream_id, s) in self.streams.iter_mut() {
+            for tensor in tensors.iter() {
+                if let Some((original, _status)) = s.queue.variables.get(tensor) {
+                    println!("Remove {tensor:?} from strea {stream_id}");
+                    if current != *stream_id || true {
+                        s.queue.variables.remove(tensor);
+                    }
+                }
+            }
+
+            if s.queue.variables.is_empty() {
+                if current != *stream_id {
+                    to_remove.push(*stream_id);
+                }
+            }
+        }
+
+        for s in to_remove {
+            self.streams.remove(&s);
         }
     }
 }
