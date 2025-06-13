@@ -1,38 +1,114 @@
-//! A module for dimension indexing utility machinery.
+//! A module for indexing utility machinery.
 
 use core::fmt::Debug;
 
-/// A helper trait to convert difference indices type to a slice index.
-pub trait IndexConversion: Debug + Copy + Sized {
+/// Helper trait for implementing indexing with support for negative indices.
+///
+/// # Example
+/// ```rust
+/// use burn_tensor::indexing::{AsIndex, canonicalize_dim};
+///
+/// fn example<I: AsIndex, const D: usize>(dim: I, size: usize) -> isize {
+///    let dim: usize = canonicalize_dim(dim, D, false);
+///    unimplemented!()
+/// }
+/// ```
+pub trait AsIndex: Debug + Copy + Sized {
     /// Converts into a slice index.
     fn index(self) -> isize;
 }
 
-impl IndexConversion for usize {
+impl AsIndex for usize {
     fn index(self) -> isize {
         self as isize
     }
 }
 
-impl IndexConversion for isize {
+impl AsIndex for isize {
     fn index(self) -> isize {
         self
     }
 }
 
-// Default integer type
-impl IndexConversion for i32 {
+impl AsIndex for i64 {
     fn index(self) -> isize {
         self as isize
     }
+}
+
+impl AsIndex for u64 {
+    fn index(self) -> isize {
+        self as isize
+    }
+}
+
+// Default integer type
+impl AsIndex for i32 {
+    fn index(self) -> isize {
+        self as isize
+    }
+}
+
+impl AsIndex for u32 {
+    fn index(self) -> isize {
+        self as isize
+    }
+}
+
+impl AsIndex for i16 {
+    fn index(self) -> isize {
+        self as isize
+    }
+}
+
+impl AsIndex for u16 {
+    fn index(self) -> isize {
+        self as isize
+    }
+}
+
+impl AsIndex for i8 {
+    fn index(self) -> isize {
+        self as isize
+    }
+}
+
+impl AsIndex for u8 {
+    fn index(self) -> isize {
+        self as isize
+    }
+}
+
+/// Canonicalizes and bounds checks an index with negative indexing support.
+///
+/// ## Arguments
+///
+/// * `idx` - The dimension index to canonicalize.
+/// * `size` - The rank of the tensor.
+/// * `wrap_scalar` - If true, pretend scalars have rank=1.
+///
+/// ## Returns
+///
+/// The canonicalized dimension index.
+///
+/// ## Panics
+///
+/// * If `wrap_scalar` is false and the tensor has no dimensions.
+/// * If the dimension index is out of range.
+#[must_use]
+pub fn canonicalize_index<I>(idx: I, size: usize, wrap_scalar: bool) -> usize
+where
+    I: AsIndex,
+{
+    _canonicalize_named_index("index", "size", idx, size, wrap_scalar)
 }
 
 /// Canonicalizes and bounds checks a dimension index with negative indexing support.
 ///
 /// ## Arguments
 ///
-/// * `rank` - The rank of the tensor.
 /// * `idx` - The dimension index to canonicalize.
+/// * `rank` - The rank of the tensor.
 /// * `wrap_scalar` - If true, pretend scalars have rank=1.
 ///
 /// ## Returns
@@ -46,9 +122,9 @@ impl IndexConversion for i32 {
 #[must_use]
 pub fn canonicalize_dim<I>(idx: I, rank: usize, wrap_scalar: bool) -> usize
 where
-    I: IndexConversion,
+    I: AsIndex,
 {
-    canonicalize_index("dimension", idx, rank, wrap_scalar)
+    _canonicalize_named_index("dimension index", "rank", idx, rank, wrap_scalar)
 }
 
 /// Canonicalizes and bounds checks an index with negative indexing support.
@@ -56,6 +132,7 @@ where
 /// ## Arguments
 ///
 /// * `name` - The name of the index (for error messages).
+/// * `size_name` - The name of the size (for error messages).
 /// * `idx` - The index to canonicalize.
 /// * `size` - The size of the dimension.
 /// * `wrap_scalar` - If true, treat scalar dimensions as having size 1.
@@ -68,9 +145,17 @@ where
 ///
 /// * If `wrap_scalar` is false and the size is 0.
 /// * If the index is out of range for the dimension size.
-pub fn canonicalize_index<I>(name: &str, idx: I, size: usize, wrap_scalar: bool) -> usize
+#[inline(always)]
+#[must_use]
+pub fn _canonicalize_named_index<I>(
+    name: &str,
+    size_name: &str,
+    idx: I,
+    size: usize,
+    wrap_scalar: bool,
+) -> usize
 where
-    I: IndexConversion,
+    I: AsIndex,
 {
     let idx = idx.index();
 
@@ -78,7 +163,7 @@ where
         size
     } else {
         if !wrap_scalar {
-            panic!("{name} has size {size} and index {idx}");
+            panic!("{name} {idx} used when {size_name} is 0");
         }
         1
     };
@@ -93,7 +178,7 @@ where
         let rank = rank as isize;
         let lower = -rank;
         let upper = rank - 1;
-        panic!("{name} index {idx} out of range: ({lower}..={upper})");
+        panic!("{name} {idx} out of range: ({lower}..={upper})");
     }
 
     _idx as usize
@@ -112,7 +197,7 @@ where
 #[must_use]
 pub fn wrap_index<I>(idx: I, size: usize) -> usize
 where
-    I: IndexConversion,
+    I: AsIndex,
 {
     if size == 0 {
         return 0; // Avoid modulo by zero
@@ -157,19 +242,41 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "dimension has size 0 and index 0"]
-    fn test_canonicalize_error_no_dims() {
+    #[should_panic = "dimension index 0 used when rank is 0"]
+    fn test_canonicalize_dim_error_no_dims() {
         let _d = canonicalize_dim(0, 0, false);
     }
 
     #[test]
     #[should_panic = "dimension index 3 out of range: (-3..=2)"]
-    fn test_canonicalize_error_too_big() {
+    fn test_canonicalize_dim_error_too_big() {
         let _d = canonicalize_dim(3, 3, false);
     }
     #[test]
     #[should_panic = "dimension index -4 out of range: (-3..=2)"]
-    fn test_canonicalize_error_too_small() {
+    fn test_canonicalize_dim_error_too_small() {
         let _d = canonicalize_dim(-4, 3, false);
+    }
+
+    #[test]
+    fn test_canonicalize_index() {
+        for idx in 0..3 {
+            let wrap_scalar = false;
+            assert_eq!(canonicalize_index(idx, 3, wrap_scalar), idx as usize);
+            assert_eq!(
+                canonicalize_index(-(idx + 1), 3, wrap_scalar),
+                (3 - (idx + 1)) as usize
+            );
+        }
+
+        let wrap_scalar = true;
+        assert_eq!(canonicalize_index(0, 0, wrap_scalar), 0);
+        assert_eq!(canonicalize_index(-1, 0, wrap_scalar), 0);
+    }
+
+    #[test]
+    #[should_panic = "index 3 out of range: (-3..=2)"]
+    fn test_canonicalize_index_error_too_big() {
+        let _d = canonicalize_index(3, 3, false);
     }
 }
