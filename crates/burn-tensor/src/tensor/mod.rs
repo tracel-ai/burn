@@ -29,6 +29,8 @@ pub mod grid;
 /// The indexing module.
 pub mod indexing;
 
+pub use indexing::AsIndex;
+
 /// The linalg module.
 pub mod linalg;
 

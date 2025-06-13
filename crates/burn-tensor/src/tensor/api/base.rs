@@ -15,10 +15,10 @@ use serde::{Deserialize, Deserializer};
 use serde::{Serialize, Serializer};
 
 use super::{Slice, TensorMetadata, Transaction};
-use crate::indexing::{canonicalize_dim, wrap_index};
+use crate::indexing::{AsIndex, canonicalize_dim, wrap_index};
 use crate::{
-    Bool, ElementConversion, Float, IndexConversion, Int, Shape, TensorData, TensorKind,
-    backend::Backend, check, ops::Device,
+    Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check,
+    ops::Device,
 };
 use crate::{DType, Element, TensorPrimitive};
 use crate::{cast::ToElement, check::TensorCheck};
@@ -855,8 +855,8 @@ where
     #[must_use]
     pub fn roll_dim<I1, I2>(self, dim: I2, shift: I1) -> Self
     where
-        I1: IndexConversion,
-        I2: IndexConversion,
+        I1: AsIndex,
+        I2: AsIndex,
     {
         let dim = canonicalize_dim(dim, D, false);
         let size = self.shape().dims[dim];
@@ -930,8 +930,8 @@ where
     #[must_use]
     pub fn roll<I1, I2>(self, dims: &[I2], shifts: &[I1]) -> Self
     where
-        I1: IndexConversion,
-        I2: IndexConversion,
+        I1: AsIndex,
+        I2: AsIndex,
     {
         assert_eq!(
             dims.len(),
