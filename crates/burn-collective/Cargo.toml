@@ -23,6 +23,7 @@ doc = []
 burn-tensor = { path = "../burn-tensor", version = "0.18.0", default-features = true }
 burn-common = { path = "../burn-common", version = "0.18.0", default-features = true }
 burn-ndarray = { path = "../burn-ndarray", version = "0.18.0" }
+burn-wgpu = { path = "../burn-wgpu", version = "0.18.0" }
 
 # Basic dependencies
 derive-new = { workspace = true }

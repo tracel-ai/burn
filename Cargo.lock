@@ -561,6 +561,7 @@ dependencies = [
  "burn-common",
  "burn-ndarray",
  "burn-tensor",
+ "burn-wgpu",
  "derive-new 0.7.0",
  "log",
  "serial_test",

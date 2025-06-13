@@ -5,9 +5,10 @@ pub mod backend;
 mod tests {
     use std::sync::mpsc::SyncSender;
 
-    use burn_ndarray::{NdArray, NdArrayDevice};
-    use burn_tensor::{Distribution, Tensor};
+    use burn_ndarray::NdArray;
+    use burn_tensor::{Distribution, Tensor, backend::Backend};
 
+    use burn_wgpu::Wgpu;
     use serial_test::serial;
 
     use crate::{
@@ -15,18 +16,18 @@ mod tests {
         backend::{collective_mean, collective_sum, register, reset_collective},
     };
 
-    pub fn run_peer(
+    pub fn run_peer<B: Backend>(
         id: u32,
         peer_count: u32,
         params: AggregateParams,
-        output: SyncSender<Tensor<NdArray, 3>>,
+        output: SyncSender<Tensor<B, 3>>,
     ) {
-        let input_shape = [1, 4, 4];
-        let device = NdArrayDevice::default();
+        let input_shape = [1, 8, 4];
+        let device = B::Device::default();
 
-        register::<NdArray>(id, peer_count);
+        register::<B>(id, peer_count);
 
-        let tensor = Tensor::<NdArray, 3>::random(input_shape, Distribution::Default, &device);
+        let tensor = Tensor::<B, 3>::random(input_shape, Distribution::Default, &device);
 
         let tensor = match params.kind {
             AggregateKind::Sum => collective_sum(tensor, params.strategy),
@@ -36,17 +37,17 @@ mod tests {
         output.send(tensor).unwrap();
     }
 
-    fn test_aggregate(params: AggregateParams) {
+    fn test_aggregate<B: Backend>(params: AggregateParams) {
         reset_collective::<NdArray>();
         println!("Testing with {:?}", params);
 
-        const PEER_COUNT: u32 = 8;
+        const PEER_COUNT: u32 = 4;
         let (send, recv) = std::sync::mpsc::sync_channel(1);
 
         for id in 0..PEER_COUNT {
             let send = send.clone();
             let params = params.clone();
-            std::thread::spawn(move || run_peer(id, PEER_COUNT, params, send));
+            std::thread::spawn(move || run_peer::<B>(id, PEER_COUNT, params, send));
         }
 
         let first = recv.recv().unwrap().to_data();
@@ -59,7 +60,7 @@ mod tests {
     #[test]
     #[serial]
     pub fn test_aggregate_sum() {
-        test_aggregate(AggregateParams {
+        test_aggregate::<NdArray>(AggregateParams {
             kind: AggregateKind::Sum,
             strategy: AggregateStrategy::Centralized,
         });
@@ -68,7 +69,7 @@ mod tests {
     #[test]
     #[serial]
     pub fn test_aggregate_mean() {
-        test_aggregate(AggregateParams {
+        test_aggregate::<NdArray>(AggregateParams {
             kind: AggregateKind::Mean,
             strategy: AggregateStrategy::Centralized,
         });
@@ -77,7 +78,7 @@ mod tests {
     #[test]
     #[serial]
     pub fn test_aggregate_binary_tree_sum() {
-        test_aggregate(AggregateParams {
+        test_aggregate::<NdArray>(AggregateParams {
             kind: AggregateKind::Sum,
             strategy: AggregateStrategy::Tree(2),
         });
@@ -86,7 +87,7 @@ mod tests {
     #[test]
     #[serial]
     pub fn test_aggregate_binary_tree_mean() {
-        test_aggregate(AggregateParams {
+        test_aggregate::<NdArray>(AggregateParams {
             kind: AggregateKind::Mean,
             strategy: AggregateStrategy::Tree(2),
         });
@@ -95,7 +96,7 @@ mod tests {
     #[test]
     #[serial]
     pub fn test_aggregate_5_tree_sum() {
-        test_aggregate(AggregateParams {
+        test_aggregate::<NdArray>(AggregateParams {
             kind: AggregateKind::Sum,
             strategy: AggregateStrategy::Tree(5),
         });
@@ -104,7 +105,7 @@ mod tests {
     #[test]
     #[serial]
     pub fn test_aggregate_5_tree_mean() {
-        test_aggregate(AggregateParams {
+        test_aggregate::<NdArray>(AggregateParams {
             kind: AggregateKind::Mean,
             strategy: AggregateStrategy::Tree(5),
         });
@@ -113,7 +114,7 @@ mod tests {
     #[test]
     #[serial]
     pub fn test_aggregate_5_ring_sum() {
-        test_aggregate(AggregateParams {
+        test_aggregate::<NdArray>(AggregateParams {
             kind: AggregateKind::Sum,
             strategy: AggregateStrategy::Ring,
         });
@@ -121,8 +122,8 @@ mod tests {
 
     #[test]
     #[serial]
-    pub fn test_aggregate_5_ring_mean() {
-        test_aggregate(AggregateParams {
+    pub fn test_aggregate_5_ring_mean_wgpu() {
+        test_aggregate::<Wgpu>(AggregateParams {
             kind: AggregateKind::Mean,
             strategy: AggregateStrategy::Ring,
         });

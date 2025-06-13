@@ -88,6 +88,8 @@ impl<B: Backend> AggregatorClient<B> {
             })
             .unwrap();
 
+        // returns a tensor primitive that may or may not be on the correct device,
+        // depending on the strategy used.
         rec.recv()
             .expect("Failed to receive callback from aggregator")
     }
@@ -155,28 +157,22 @@ impl Aggregator {
                     let kind = &cur_params.as_ref().unwrap().kind;
                     let strategy = &cur_params.as_ref().unwrap().strategy;
                     match &strategy {
-                        // In ring strategy, we end up with the tensor already shared between
-                        // all devices. Return the respective tensors to avoid unnecessary transfers.
-                        AggregateStrategy::Ring => {
-                            let mut outs = aggregate_ring::<B>(&mut tensors, kind);
-                            for callback in callbacks_aggregate.drain(..) {
-                                let out = outs.remove(0);
-                                callback.send(out).unwrap();
-                            }
-                        }
                         &strategy => {
-                            let out = match strategy {
+                            let mut outs = match strategy {
                                 AggregateStrategy::Centralized => {
-                                    aggregate_centralized::<B>(&mut tensors, kind)
+                                    let out = aggregate_centralized::<B>(&mut tensors, kind);
+                                    vec![out; tensor_count]
                                 }
                                 AggregateStrategy::Tree(arity) => {
-                                    aggregate_tree::<B>(&mut tensors, kind, *arity)
+                                    let out = aggregate_tree::<B>(&mut tensors, kind, *arity);
+                                    vec![out; tensor_count]
                                 }
-                                _ => unreachable!(),
+                                AggregateStrategy::Ring => aggregate_ring::<B>(&mut tensors, kind),
                             };
 
                             for callback in callbacks_aggregate.drain(..) {
-                                callback.send(out.clone()).unwrap();
+                                let out = outs.remove(0);
+                                callback.send(out).unwrap();
                             }
                         }
                     };
@@ -250,7 +246,7 @@ fn aggregate_tree<B: Backend>(
     result
 }
 
-// TODO the algo used here is definitely not in-place. 
+// TODO the algo used here is definitely not in-place.
 // In theory this is a completely in-place algorithm.
 fn aggregate_ring<B: Backend>(
     tensors: &mut Vec<B::FloatTensorPrimitive>,
@@ -285,7 +281,12 @@ fn aggregate_ring<B: Backend>(
     // Chose and axis and build the slice ranges
     let slice_dim = get_slice_dim(&shape);
     let dim_size = shape.dims[slice_dim];
-    let slice_size = dim_size / tensor_count;
+    let slice_size = if dim_size < tensor_count {
+        unimplemented!("Small tensors unsupported for now");
+    } else {
+        dim_size / tensor_count
+    };
+
     for i in 0..tensor_count {
         let start = i * slice_size;
         let end = start + slice_size;
@@ -363,6 +364,5 @@ fn aggregate_ring<B: Backend>(
         results.insert(0, result)
     }
 
-    // return a vec, each is the same, but they may be on different devices
     results
 }
