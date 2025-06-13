@@ -1,7 +1,5 @@
+use crate::indexing::AsIndex;
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
-
-/// Legacy import for backward compatibility.
-pub use crate::tensor::indexing::IndexConversion;
 
 /// Creates a slice specification for tensor indexing operations.
 ///
@@ -93,7 +91,7 @@ fn handle_signed_inclusive_end(end: isize) -> Option<isize> {
     }
 }
 
-impl<I: IndexConversion> From<Range<I>> for Slice {
+impl<I: AsIndex> From<Range<I>> for Slice {
     fn from(r: Range<I>) -> Self {
         Self {
             start: r.start.index(),
@@ -102,7 +100,7 @@ impl<I: IndexConversion> From<Range<I>> for Slice {
     }
 }
 
-impl<I: IndexConversion + Copy> From<RangeInclusive<I>> for Slice {
+impl<I: AsIndex + Copy> From<RangeInclusive<I>> for Slice {
     fn from(r: RangeInclusive<I>) -> Self {
         Self {
             start: (*r.start()).index(),
@@ -111,7 +109,7 @@ impl<I: IndexConversion + Copy> From<RangeInclusive<I>> for Slice {
     }
 }
 
-impl<I: IndexConversion> From<RangeFrom<I>> for Slice {
+impl<I: AsIndex> From<RangeFrom<I>> for Slice {
     fn from(r: RangeFrom<I>) -> Self {
         Self {
             start: r.start.index(),
@@ -120,7 +118,7 @@ impl<I: IndexConversion> From<RangeFrom<I>> for Slice {
     }
 }
 
-impl<I: IndexConversion> From<RangeTo<I>> for Slice {
+impl<I: AsIndex> From<RangeTo<I>> for Slice {
     fn from(r: RangeTo<I>) -> Self {
         Self {
             start: 0,
@@ -129,7 +127,7 @@ impl<I: IndexConversion> From<RangeTo<I>> for Slice {
     }
 }
 
-impl<I: IndexConversion> From<RangeToInclusive<I>> for Slice {
+impl<I: AsIndex> From<RangeToInclusive<I>> for Slice {
     fn from(r: RangeToInclusive<I>) -> Self {
         Self {
             start: 0,
