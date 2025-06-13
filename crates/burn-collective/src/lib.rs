@@ -69,7 +69,7 @@ mod tests {
     #[serial]
     pub fn test_aggregate_mean() {
         test_aggregate(AggregateParams {
-            kind: AggregateKind::Sum,
+            kind: AggregateKind::Mean,
             strategy: AggregateStrategy::Centralized,
         });
     }
@@ -87,7 +87,7 @@ mod tests {
     #[serial]
     pub fn test_aggregate_binary_tree_mean() {
         test_aggregate(AggregateParams {
-            kind: AggregateKind::Sum,
+            kind: AggregateKind::Mean,
             strategy: AggregateStrategy::Tree(2),
         });
     }
@@ -105,8 +105,26 @@ mod tests {
     #[serial]
     pub fn test_aggregate_5_tree_mean() {
         test_aggregate(AggregateParams {
-            kind: AggregateKind::Sum,
+            kind: AggregateKind::Mean,
             strategy: AggregateStrategy::Tree(5),
+        });
+    }
+
+    #[test]
+    #[serial]
+    pub fn test_aggregate_5_ring_sum() {
+        test_aggregate(AggregateParams {
+            kind: AggregateKind::Sum,
+            strategy: AggregateStrategy::Ring,
+        });
+    }
+
+    #[test]
+    #[serial]
+    pub fn test_aggregate_5_ring_mean() {
+        test_aggregate(AggregateParams {
+            kind: AggregateKind::Mean,
+            strategy: AggregateStrategy::Ring,
         });
     }
 }

@@ -1,10 +1,11 @@
 use std::{
     cmp::{self},
+    ops::Range,
     sync::mpsc::SyncSender,
 };
 
 use burn_tensor::{
-    ElementConversion,
+    ElementConversion, Shape, TensorMetadata,
     backend::{Backend, DeviceOps},
 };
 
@@ -153,19 +154,32 @@ impl Aggregator {
                 if tensor_count > 0 && tensor_count == registered_nodes.len() {
                     let kind = &cur_params.as_ref().unwrap().kind;
                     let strategy = &cur_params.as_ref().unwrap().strategy;
-                    let out = match &strategy {
-                        AggregateStrategy::Centralized => {
-                            aggregate_centralized::<B>(&mut tensors, kind)
+                    match &strategy {
+                        // In ring strategy, we end up with the tensor already shared between
+                        // all devices. Return the respective tensors to avoid unnecessary transfers.
+                        AggregateStrategy::Ring => {
+                            let mut outs = aggregate_ring::<B>(&mut tensors, kind);
+                            for callback in callbacks_aggregate.drain(..) {
+                                let out = outs.remove(0);
+                                callback.send(out).unwrap();
+                            }
                         }
-                        AggregateStrategy::Tree(arity) => {
-                            aggregate_tree::<B>(&mut tensors, kind, *arity)
-                        }
-                        AggregateStrategy::Ring => aggregate_ring::<B>(&mut tensors, kind),
-                    };
+                        &strategy => {
+                            let out = match strategy {
+                                AggregateStrategy::Centralized => {
+                                    aggregate_centralized::<B>(&mut tensors, kind)
+                                }
+                                AggregateStrategy::Tree(arity) => {
+                                    aggregate_tree::<B>(&mut tensors, kind, *arity)
+                                }
+                                _ => unreachable!(),
+                            };
 
-                    for callback in callbacks_aggregate.drain(..) {
-                        callback.send(out.clone()).unwrap();
-                    }
+                            for callback in callbacks_aggregate.drain(..) {
+                                callback.send(out.clone()).unwrap();
+                            }
+                        }
+                    };
                 }
             }
 
@@ -236,9 +250,119 @@ fn aggregate_tree<B: Backend>(
     result
 }
 
+// TODO the algo used here is definitely not in-place. 
+// In theory this is a completely in-place algorithm.
 fn aggregate_ring<B: Backend>(
-    _tensors: &mut Vec<B::FloatTensorPrimitive>,
-    _kind: &AggregateKind,
-) -> B::FloatTensorPrimitive {
-    unimplemented!()
+    tensors: &mut Vec<B::FloatTensorPrimitive>,
+    kind: &AggregateKind,
+) -> Vec<B::FloatTensorPrimitive> {
+    // https://blog.dailydoseofds.com/p/all-reduce-and-ring-reduce-for-model
+    fn get_slice_dim(shape: &Shape) -> usize {
+        // get dimension with greatest size
+        shape
+            .dims
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.cmp(b))
+            .map(|(index, _)| index)
+            .unwrap()
+    }
+
+    let mut shape = None;
+    let mut ranges: Vec<Range<usize>> = vec![];
+
+    let tensor_count = tensors.len();
+    // verify all shapes are the same
+    for tensor in tensors.as_slice() {
+        if shape.is_none() {
+            shape = Some(tensor.shape());
+        } else if tensor.shape() != *shape.as_ref().unwrap() {
+            panic!("Cannot aggregate tensors with different sizes");
+        }
+    }
+    let shape = shape.unwrap();
+
+    // Chose and axis and build the slice ranges
+    let slice_dim = get_slice_dim(&shape);
+    let dim_size = shape.dims[slice_dim];
+    let slice_size = dim_size / tensor_count;
+    for i in 0..tensor_count {
+        let start = i * slice_size;
+        let end = start + slice_size;
+        ranges.push(Range { start, end });
+    }
+    ranges.last_mut().unwrap().end = dim_size;
+
+    // split tensors into slices
+    let mut sliced_tensors = vec![];
+    for tensor in tensors {
+        let mut slices = vec![];
+        for range in &ranges {
+            // TODO could be cached
+            let mut range_vec: Vec<Range<usize>> = shape
+                .dims
+                .iter()
+                .map(|d| Range { start: 0, end: *d }.clone())
+                .collect();
+            range_vec[slice_dim] = range.clone();
+            let slice = B::float_slice(tensor.clone(), &range_vec);
+            slices.push(slice);
+        }
+        sliced_tensors.push(slices);
+    }
+
+    // phase 1: aggregate in ring N-1 times
+    for cycle in 0..(tensor_count - 1) {
+        // aggregate slices in a ring
+        for i in 0..tensor_count {
+            let src_tensor_idx = i;
+            let dest_tensor_idx = (i + 1) % tensor_count;
+            let slice_idx = (i + (tensor_count - 1) * cycle) % tensor_count;
+
+            let src_slice = sliced_tensors[src_tensor_idx].remove(slice_idx);
+            let mut dest_slice = sliced_tensors[dest_tensor_idx].remove(slice_idx);
+
+            let dest_device = B::float_device(&dest_slice);
+            let src_slice_on_dest = B::float_to_device(src_slice.clone(), &dest_device);
+            dest_slice = B::float_add(dest_slice, src_slice_on_dest);
+
+            sliced_tensors[src_tensor_idx].insert(slice_idx, src_slice);
+            sliced_tensors[dest_tensor_idx].insert(slice_idx, dest_slice);
+        }
+    }
+
+    // phase 2: share (overwrite) in a ring N-1 times
+    for cycle in 0..(tensor_count - 1) {
+        // aggregate slices in a ring
+        for i in 0..tensor_count {
+            let src_tensor_idx = i;
+            let dest_tensor_idx = (i + 1) % tensor_count;
+            // +1 because we're on the slice *after* the one for the last phase (see the graphs)
+            let slice_idx = (i + (tensor_count - 1) * cycle + 1) % tensor_count;
+
+            let src_slice = sliced_tensors[src_tensor_idx].remove(slice_idx);
+            let mut dest_slice = sliced_tensors[dest_tensor_idx].remove(slice_idx);
+
+            let dest_device = B::float_device(&dest_slice);
+            let src_slice_on_dest = B::float_to_device(src_slice.clone(), &dest_device);
+            dest_slice = src_slice_on_dest;
+
+            sliced_tensors[src_tensor_idx].insert(slice_idx, src_slice);
+            sliced_tensors[dest_tensor_idx].insert(slice_idx, dest_slice);
+        }
+    }
+
+    // merge new slices
+    let mut results = vec![];
+    while let Some(slices) = sliced_tensors.pop() {
+        let mut result = B::float_cat(slices, slice_dim);
+        if *kind == AggregateKind::Mean {
+            result = B::float_div_scalar(result, (tensor_count as f32).elem());
+        }
+
+        results.insert(0, result)
+    }
+
+    // return a vec, each is the same, but they may be on different devices
+    results
 }
