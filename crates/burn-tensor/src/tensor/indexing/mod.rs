@@ -1,36 +1,33 @@
 //! A module for dimension indexing utility machinery.
 
-/// A trait for types that can be used as dimension indices.
-pub trait ReflectableIndex: Copy + Sized {
-    /// Converts the index to an `isize` for internal processing.
-    fn as_isize_index(&self) -> isize;
+use core::fmt::Debug;
+
+/// A helper trait to convert difference indices type to a slice index.
+pub trait IndexConversion: Debug + Copy + Sized {
+    /// Converts into a slice index.
+    fn index(self) -> isize;
 }
 
-impl ReflectableIndex for isize {
-    fn as_isize_index(&self) -> isize {
-        *self
+impl IndexConversion for usize {
+    fn index(self) -> isize {
+        self as isize
     }
 }
 
-impl ReflectableIndex for usize {
-    fn as_isize_index(&self) -> isize {
-        *self as isize
+impl IndexConversion for isize {
+    fn index(self) -> isize {
+        self
     }
 }
 
-impl ReflectableIndex for i32 {
-    fn as_isize_index(&self) -> isize {
-        *self as isize
+// Default integer type
+impl IndexConversion for i32 {
+    fn index(self) -> isize {
+        self as isize
     }
 }
 
-impl ReflectableIndex for u32 {
-    fn as_isize_index(&self) -> isize {
-        *self as isize
-    }
-}
-
-/// Canonicalizes and bounds checks a dimension index.
+/// Canonicalizes and bounds checks a dimension index with negative indexing support.
 ///
 /// ## Arguments
 ///
@@ -49,15 +46,39 @@ impl ReflectableIndex for u32 {
 #[must_use]
 pub fn canonicalize_dim<I>(idx: I, rank: usize, wrap_scalar: bool) -> usize
 where
-    I: ReflectableIndex,
+    I: IndexConversion,
 {
-    let idx = idx.as_isize_index();
+    canonicalize_index("dimension", idx, rank, wrap_scalar)
+}
 
-    let rank = if rank > 0 {
-        rank
+/// Canonicalizes and bounds checks an index with negative indexing support.
+///
+/// ## Arguments
+///
+/// * `name` - The name of the index (for error messages).
+/// * `idx` - The index to canonicalize.
+/// * `size` - The size of the dimension.
+/// * `wrap_scalar` - If true, treat scalar dimensions as having size 1.
+///
+/// ## Returns
+///
+/// The canonicalized index.
+///
+/// ## Panics
+///
+/// * If `wrap_scalar` is false and the size is 0.
+/// * If the index is out of range for the dimension size.
+pub fn canonicalize_index<I>(name: &str, idx: I, size: usize, wrap_scalar: bool) -> usize
+where
+    I: IndexConversion,
+{
+    let idx = idx.index();
+
+    let rank = if size > 0 {
+        size
     } else {
         if !wrap_scalar {
-            panic!("Dimension specified as {idx} but tensor has no dimensions");
+            panic!("{name} has size {size} and index {idx}");
         }
         1
     };
@@ -69,12 +90,10 @@ where
     let _idx = if idx < 0 { idx + rank as isize } else { idx };
 
     if _idx < 0 || (_idx as usize) >= rank {
-        panic!(
-            "Dimension out of range (expected to be in range of [{}, {}], but got {})",
-            -(rank as isize),
-            rank - 1,
-            idx
-        );
+        let rank = rank as isize;
+        let lower = -rank;
+        let upper = rank - 1;
+        panic!("{name} index {idx} out of range: ({lower}..={upper})");
     }
 
     _idx as usize
@@ -91,14 +110,14 @@ where
 ///
 /// The positive wrapped dimension index.
 #[must_use]
-pub fn wrap_idx<I>(idx: I, size: usize) -> usize
+pub fn wrap_index<I>(idx: I, size: usize) -> usize
 where
-    I: ReflectableIndex,
+    I: IndexConversion,
 {
     if size == 0 {
         return 0; // Avoid modulo by zero
     }
-    let wrapped = idx.as_isize_index().rem_euclid(size as isize);
+    let wrapped = idx.index().rem_euclid(size as isize);
     if wrapped < 0 {
         (wrapped + size as isize) as usize
     } else {
@@ -113,11 +132,11 @@ mod tests {
     #[test]
     fn test_wrap_idx() {
         for idx in 0..3 {
-            assert_eq!(wrap_idx(idx, 3), idx as usize);
-            assert_eq!(wrap_idx(idx + 3, 3), idx as usize);
-            assert_eq!(wrap_idx(idx + 2 * 3, 3), idx as usize);
-            assert_eq!(wrap_idx(idx - 3, 3), idx as usize);
-            assert_eq!(wrap_idx(idx - 2 * 3, 3), idx as usize);
+            assert_eq!(wrap_index(idx, 3), idx as usize);
+            assert_eq!(wrap_index(idx + 3, 3), idx as usize);
+            assert_eq!(wrap_index(idx + 2 * 3, 3), idx as usize);
+            assert_eq!(wrap_index(idx - 3, 3), idx as usize);
+            assert_eq!(wrap_index(idx - 2 * 3, 3), idx as usize);
         }
     }
 
@@ -138,18 +157,18 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "Dimension specified as 0 but tensor has no dimensions"]
+    #[should_panic = "dimension has size 0 and index 0"]
     fn test_canonicalize_error_no_dims() {
         let _d = canonicalize_dim(0, 0, false);
     }
 
     #[test]
-    #[should_panic = "Dimension out of range (expected to be in range of [-3, 2], but got 3)"]
+    #[should_panic = "dimension index 3 out of range: (-3..=2)"]
     fn test_canonicalize_error_too_big() {
         let _d = canonicalize_dim(3, 3, false);
     }
     #[test]
-    #[should_panic = "Dimension out of range (expected to be in range of [-3, 2], but got -4)"]
+    #[should_panic = "dimension index -4 out of range: (-3..=2)"]
     fn test_canonicalize_error_too_small() {
         let _d = canonicalize_dim(-4, 3, false);
     }

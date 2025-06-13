@@ -1,5 +1,8 @@
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 
+/// Legacy import for backward compatibility.
+pub use crate::tensor::indexing::IndexConversion;
+
 /// Creates a slice specification for tensor indexing operations.
 ///
 /// This macro simplifies the creation of tensor slices by allowing various range types
@@ -87,31 +90,6 @@ fn handle_signed_inclusive_end(end: isize) -> Option<isize> {
     match end {
         -1 => None,
         end => Some(end + 1),
-    }
-}
-
-/// A helper trait to convert difference indices type to a slice index.
-pub trait IndexConversion {
-    /// Converts into a slice index.
-    fn index(self) -> isize;
-}
-
-impl IndexConversion for usize {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-impl IndexConversion for isize {
-    fn index(self) -> isize {
-        self
-    }
-}
-
-// Default integer type
-impl IndexConversion for i32 {
-    fn index(self) -> isize {
-        self as isize
     }
 }
 
