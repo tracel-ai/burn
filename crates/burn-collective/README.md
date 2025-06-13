@@ -37,6 +37,45 @@ The tensors are sliced into N parts, where N is the number of tensors to aggrega
 Then, the slices are sent around in a series of cycles and aggregated until every tensor's slices 
 is a sum of the other corresponding slices. 
 
+(p=4, n=3)
+
+o->o  o  o-\
+o  o->o  o  \
+o  o  o->o   \->
+
+
+o  1->o  o
+o  o  1->o  /->
+1->o  o  1-/
+
+o  1  2->o  /->
+2->o  1  2-/
+1  2->o  1
+
+3  1  2  3
+2  3  1  2
+1  2  3  1
+
+(We have essentially done a reduce-scatter)
+
+3->x  x  3-\
+x  3->x  x  \
+x  x  3->x   \->
+
+3  3->x  3
+x  3  3->x  /->
+3->x  3  3-/
+
+3  3  3->3  /->
+3->3  3  3-/
+3  3->3  3
+
+3  3  3  3
+3  3  3  3
+3  3  3  3
+
+(This has essentially done a all-gather)
+
 This is done so that every node is both sending and receiving data at any moment. 
 This is an important part of this strategy's advantages.
 
