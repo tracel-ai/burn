@@ -49,6 +49,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
         let id = self.resolve_streams(&streams, handles, &mut repr);
+        println!("[{id}] {repr:?}");
 
         let (id, sync) = match self.handle_drop_op(id, &mut repr) {
             DropInfo::SkipSharedTensor => return,
@@ -57,22 +58,21 @@ impl<R: FusionRuntime> MultiStream<R> {
             DropInfo::ForceSharedTensor(stream_id) => (stream_id, true),
         };
 
-        let (num_executed, queue_empty) =
-            self.enqueue_operation(id, repr, &streams, operation, handles);
+        let num_executed = self.enqueue_operation(id, repr, &streams, operation, handles);
 
         if num_executed > 0 {
             if let Some(stream) = self.streams.get(&id) {
                 let cleared = self.shared_tensors.on_executed_ops(id, stream);
-                let to_drop = self.shared_tensors.clear_tensors(id, cleared);
+                let to_drop = self.shared_tensors.clear_tensors(cleared);
                 self.drop_shared_tensors(to_drop, handles, id);
             }
         }
 
         let stream = self.streams.get(&id).unwrap();
-        let can_remove = self.shared_tensors.can_remove(&id, stream);
+        let can_remove = stream.queue.variables.is_empty();
 
         if can_remove {
-            if let Some(stream) = self.streams.remove(&id) {
+            if let Some(_stream) = self.streams.remove(&id) {
                 self.shared_tensors.on_closed_stream(id);
             }
         } else if sync {
@@ -81,6 +81,15 @@ impl<R: FusionRuntime> MultiStream<R> {
             // TODO: Fix.
             self.drain(handles, id);
         }
+
+        for (id, s) in self.streams.iter() {
+            println!("{id} => Executed {}", s.cursor);
+            for v in s.queue.variables.iter() {
+                println!("{v:?}");
+            }
+        }
+        println!("Num streams {}", self.streams.len());
+        println!("{:?}", self.shared_tensors);
     }
 
     fn handle_drop_op(&mut self, id: StreamId, repr: &mut OperationIr) -> DropInfo {
@@ -117,7 +126,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         streams: &OperationStreams,
         operation: Box<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
-    ) -> (usize, bool) {
+    ) -> usize {
         let stream = match self.streams.get_mut(&id) {
             Some(stream) => stream,
             None => {
@@ -131,19 +140,18 @@ impl<R: FusionRuntime> MultiStream<R> {
 
         stream.queue.add(repr, operation, streams, id);
 
-        let len_before = stream.queue.len();
+        let len_before = stream.queue.global.len();
         stream.processor.process(
             Segment::new(&mut stream.queue, handles),
             &mut self.optimizations,
             ExecutionMode::Lazy,
         );
-        let len_after = stream.queue.len();
+        let len_after = stream.queue.global.len();
         let num_executed = len_before - len_after;
 
         stream.cursor += num_executed as u64;
-        let queue_empty = stream.queue.is_empty();
 
-        (num_executed, queue_empty)
+        num_executed
     }
 
     /// Mark a tensor as read.
@@ -162,12 +170,6 @@ impl<R: FusionRuntime> MultiStream<R> {
         if stream.queue.variables.is_empty() {
             self.streams.remove(&id);
         }
-
-        // for (id, s) in self.streams.iter() {
-        //     println!("{id} => Executed {} Remaining {}", s.cursor, s.queue.len());
-        // }
-        // println!("Num streams {}", self.streams.len());
-        // println!("{:?}", self.shared_tensors);
     }
 
     /// Drain a stream
@@ -175,9 +177,8 @@ impl<R: FusionRuntime> MultiStream<R> {
         self.drain_inner(handles, id);
 
         let stream = self.streams.get(&id).unwrap();
-        let can_remove = self.shared_tensors.can_remove(&id, stream);
 
-        if can_remove {
+        if stream.queue.variables.is_empty() {
             if let Some(_) = self.streams.remove(&id) {
                 self.shared_tensors.on_closed_stream(id);
             }
@@ -186,7 +187,7 @@ impl<R: FusionRuntime> MultiStream<R> {
 
     fn drain_inner(&mut self, handles: &mut HandleContainer<R::FusionHandle>, id: StreamId) {
         if let Some(stream) = self.streams.get_mut(&id) {
-            let num_executed = stream.queue.len();
+            let num_executed = stream.queue.global.len();
             stream.processor.process(
                 Segment::new(&mut stream.queue, handles),
                 &mut self.optimizations,
@@ -195,7 +196,7 @@ impl<R: FusionRuntime> MultiStream<R> {
             stream.cursor += num_executed as u64;
 
             let cleared = self.shared_tensors.on_executed_ops(id, &stream);
-            let to_drop = self.shared_tensors.clear_tensors(id, cleared);
+            let to_drop = self.shared_tensors.clear_tensors(cleared);
 
             self.drop_shared_tensors(to_drop, handles, id);
         }
@@ -287,11 +288,11 @@ impl<R: FusionRuntime> MultiStream<R> {
         }
 
         let mut streams_to_sync = HashSet::new();
-        for (tensor_id, stream_id) in analysis.new.iter() {
+        for (_tensor_id, stream_id) in analysis.new.iter() {
             streams_to_sync.insert(*stream_id);
         }
 
-        for (tensor_id, stream_id, original_cursor) in analysis.existing.iter() {
+        for (_tensor_id, stream_id, original_cursor) in analysis.existing.iter() {
             if let Some(stream) = self.streams.get(stream_id) {
                 // We only have to sync stream when the stream isn't up to data to
                 // the original cursor of the current operation.
@@ -407,23 +408,8 @@ impl OperationStreams {
         self.streams.insert(tensor.id.clone(), tensor.stream);
     }
 
-    fn insert(&mut self, id: TensorId, stream_id: StreamId) {
-        self.streams.insert(id, stream_id);
-    }
-
     pub(crate) fn get(&self, id: TensorId) -> Option<StreamId> {
         self.streams.get(&id).cloned()
-    }
-
-    fn to_vec(&self) -> Vec<StreamId> {
-        let mut streams = Vec::new();
-        for stream in self.streams.values() {
-            if !streams.contains(stream) {
-                streams.push(*stream);
-            }
-        }
-
-        streams
     }
 }
 

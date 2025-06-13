@@ -63,16 +63,6 @@ impl<R: FusionRuntime> OperationQueue<R> {
         self.global.push(global);
         self.operations.push(operation);
     }
-
-    /// The size of the queue.
-    pub fn len(&self) -> usize {
-        self.global.len()
-    }
-
-    /// If the queue is empty.
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
 }
 
 #[cfg(all(test, feature = "std"))]

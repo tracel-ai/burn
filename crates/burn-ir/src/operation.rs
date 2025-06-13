@@ -2091,14 +2091,22 @@ impl ModuleOperationIr {
                 (None, Some(bias)) => vec![&repr.x, &repr.offset, &repr.weight, &bias],
                 (None, None) => vec![&repr.x, &repr.offset, &repr.weight],
             },
-            ModuleOperationIr::DeformableConv2dBackward(repr) => match (&repr.mask, &repr.bias) {
-                (Some(mask), Some(bias)) => {
-                    vec![&repr.x, &repr.offset, &repr.weight, &mask, &bias]
+            ModuleOperationIr::DeformableConv2dBackward(repr) => {
+                let mut nodes = Vec::with_capacity(6);
+                nodes.push(&repr.x);
+                nodes.push(&repr.offset);
+                nodes.push(&repr.weight);
+                nodes.push(&repr.out_grad);
+
+                if let Some(mask) = repr.mask.as_ref() {
+                    nodes.push(mask);
                 }
-                (Some(mask), None) => vec![&repr.x, &repr.offset, &repr.weight, &mask],
-                (None, Some(bias)) => vec![&repr.x, &repr.offset, &repr.weight, &bias],
-                (None, None) => vec![&repr.x, &repr.offset, &repr.weight],
-            },
+                if let Some(bias) = repr.bias.as_ref() {
+                    nodes.push(bias);
+                }
+
+                nodes
+            }
             ModuleOperationIr::ConvTranspose1d(repr) => {
                 if let Some(bias) = &repr.bias {
                     vec![&repr.x, &repr.weight, &bias, &repr.out]
@@ -2231,20 +2239,14 @@ impl ModuleOperationIr {
                 repr.x.readonly(nodes, &mut output);
                 repr.weight.readonly(nodes, &mut output);
                 repr.offset.readonly(nodes, &mut output);
+                repr.out_grad.readonly(nodes, &mut output);
 
-                match (&mut repr.mask, &mut repr.bias) {
-                    (Some(mask), Some(bias)) => {
-                        mask.readonly(nodes, &mut output);
-                        bias.readonly(nodes, &mut output);
-                    }
-                    (Some(mask), None) => {
-                        mask.readonly(nodes, &mut output);
-                    }
-                    (None, Some(bias)) => {
-                        bias.readonly(nodes, &mut output);
-                    }
-                    (None, None) => {}
-                };
+                if let Some(mask) = repr.mask.as_mut() {
+                    mask.readonly(nodes, &mut output);
+                }
+                if let Some(bias) = repr.bias.as_mut() {
+                    bias.readonly(nodes, &mut output);
+                }
             }
             ModuleOperationIr::ConvTranspose1d(repr) => {
                 repr.x.readonly(nodes, &mut output);

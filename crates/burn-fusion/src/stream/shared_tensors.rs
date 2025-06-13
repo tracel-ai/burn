@@ -95,10 +95,6 @@ impl SharedTensors {
         return SharedTensorDropped::Skip;
     }
 
-    pub fn can_remove<R: FusionRuntime>(&self, stream_id: &StreamId, stream: &Stream<R>) -> bool {
-        stream.queue.variables.is_empty()
-    }
-
     pub fn on_executed_ops<R: FusionRuntime>(
         &mut self,
         id: StreamId,
@@ -193,7 +189,7 @@ impl SharedTensors {
         }
     }
 
-    pub fn clear_tensors(&mut self, stream_id: StreamId, tensors: Vec<TensorId>) -> Vec<TensorIr> {
+    pub fn clear_tensors(&mut self, tensors: Vec<TensorId>) -> Vec<TensorIr> {
         let mut to_drop = Vec::new();
         for id in tensors {
             self.shared_tensors.remove(&id);
@@ -218,7 +214,7 @@ impl SharedTensor {
         stream: Option<&Stream<R>>,
     ) -> Option<u64> {
         let cursor_current = match stream {
-            Some(stream) => stream.cursor + stream.queue.len() as u64,
+            Some(stream) => stream.cursor + stream.queue.global.len() as u64,
             None => 1,
         };
 
