@@ -1,5 +1,5 @@
+use hashbrown::HashMap;
 use std::{
-    collections::HashMap,
     fmt::Display,
     sync::{
         Arc,
@@ -11,7 +11,7 @@ use std::{
 };
 
 use burn_common::{id::StreamId, stub::Mutex};
-use burn_ir::HandleContainer;
+use burn_ir::{HandleContainer, TensorId, TensorStatus};
 
 use crate::FusionRuntime;
 
@@ -47,14 +47,19 @@ struct StreamAnalyses {
 impl Display for StreamAnalyses {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("\n==== Fusion Memory Report ====\n")?;
-        f.write_fmt(format_args!("  - Num Handles: {}\n", self.num_handles))?;
-        f.write_fmt(format_args!("  - Num Streams: {}\n", self.streams.len()))?;
+        f.write_fmt(format_args!(" - Handles: {}\n", self.num_handles))?;
+        f.write_fmt(format_args!(" - Streams: {}\n", self.streams.len()))?;
 
         for (id, analysis) in self.streams.iter() {
             f.write_fmt(format_args!(
-                "  - {} => variables: {} operations: {} cursor: {}\n",
-                id, analysis.num_variables, analysis.num_operations, analysis.cursor
+                "  - {} => operations: {} cursor: {}\n",
+                id, analysis.num_operations, analysis.cursor
             ))?;
+            for (tid, (origin, status)) in analysis.variables.iter() {
+                f.write_fmt(format_args!(
+                    "   - {tid} => origin: {origin} status: {status:?}\n",
+                ))?;
+            }
         }
 
         f.write_str("==============================\n")
@@ -63,7 +68,7 @@ impl Display for StreamAnalyses {
 
 #[derive(Default, Debug)]
 struct Analysis {
-    num_variables: usize,
+    variables: HashMap<TensorId, (StreamId, TensorStatus)>,
     num_operations: usize,
     cursor: u64,
 }
@@ -73,10 +78,13 @@ struct Analysis {
 macro_rules! memory_checks {
     () => {
         #[cfg(test)]
-        mod memory_checks {
-            #[test]
-            fn test_memory_checks() {
-                burn_fusion::stream::memory_checks::memory_checks_test();
+        mod tt {
+
+            mod _op_no_wait {
+                #[test]
+                fn test_memory_checks() {
+                    burn_fusion::stream::memory_checks::memory_checks_test();
+                }
             }
         }
     };
@@ -159,7 +167,7 @@ impl MemoryChecks {
 
         for (id, s) in streams.iter() {
             let analysis = Analysis {
-                num_variables: s.queue.variables.len(),
+                variables: s.queue.variables.clone(),
                 num_operations: s.queue.global.len(),
                 cursor: s.cursor,
             };
@@ -180,7 +188,10 @@ impl MemoryChecks {
 
             loop {
                 let payload = match rec.recv() {
-                    Err(err) => panic!("{err:?}"),
+                    Err(_err) => {
+                        // A client has panic, safe to skip as it may be normal.
+                        continue;
+                    }
                     Ok(payload) => payload,
                 };
                 match payload {

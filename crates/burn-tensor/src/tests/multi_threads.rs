@@ -16,9 +16,6 @@ mod tests {
         // The number of operations that are applied after the tensor is consumed for the last time.
         num_ops_consumed: usize,
         // Number of operations that needs to execute before continuing execution on the main thread.
-        num_wait_alive: usize,
-        // Number of operations that needs to execute before continuing execution on the main thread.
-        num_wait_consumed: usize,
         sleep_before: Duration,
         sleep_alive: Duration,
         sleep_consumed: Duration,
@@ -32,8 +29,6 @@ mod tests {
             num_threads: 3,
             num_ops_alive: 5,
             num_ops_consumed: 5,
-            num_wait_alive: 5,
-            num_wait_consumed: 5,
             sleep_before: Duration::from_millis(100),
             sleep_alive: Duration::from_millis(100),
             sleep_consumed: Duration::from_millis(100),
@@ -47,8 +42,6 @@ mod tests {
             num_threads: 3,
             num_ops_alive: 5,
             num_ops_consumed: 5,
-            num_wait_alive: 5,
-            num_wait_consumed: 5,
             sleep_before: Duration::from_millis(100),
             sleep_alive: Duration::from_millis(100),
             sleep_consumed: Duration::from_millis(100),
@@ -62,8 +55,6 @@ mod tests {
             num_threads: 3,
             num_ops_alive: 5,
             num_ops_consumed: 5,
-            num_wait_alive: 0,
-            num_wait_consumed: 0,
             sleep_before: Duration::from_millis(100),
             sleep_alive: Duration::from_millis(100),
             sleep_consumed: Duration::from_millis(100),
@@ -77,8 +68,6 @@ mod tests {
             num_threads: 3,
             num_ops_alive: 5,
             num_ops_consumed: 5,
-            num_wait_alive: 0,
-            num_wait_consumed: 0,
             sleep_before: Duration::from_millis(100),
             sleep_alive: Duration::from_millis(100),
             sleep_consumed: Duration::from_millis(100),
@@ -92,8 +81,6 @@ mod tests {
             num_threads: 3,
             num_ops_alive: 0,
             num_ops_consumed: 0,
-            num_wait_alive: 0,
-            num_wait_consumed: 0,
             sleep_before: Duration::from_millis(100),
             sleep_alive: Duration::from_millis(100),
             sleep_consumed: Duration::from_millis(100),
@@ -107,8 +94,6 @@ mod tests {
             num_threads: 3,
             num_ops_alive: 0,
             num_ops_consumed: 0,
-            num_wait_alive: 0,
-            num_wait_consumed: 0,
             sleep_before: Duration::from_millis(0),
             sleep_alive: Duration::from_millis(100),
             sleep_consumed: Duration::from_millis(100),
@@ -134,10 +119,8 @@ mod tests {
                 std::thread::sleep(settings.sleep_before);
 
                 if settings.num_ops_alive == 0 && settings.num_ops_consumed == 0 {
-                    println!("Dropping both ...");
                     core::mem::drop(tensor_moved);
                     core::mem::drop(base);
-                    println!("Dropped both");
                 } else {
                     if settings.num_ops_alive > 1 {
                         for j in 0..(settings.num_ops_alive - 1) {
@@ -185,6 +168,5 @@ mod tests {
         for j in joined {
             j.join().unwrap();
         }
-        println!("Finish");
     }
 }
