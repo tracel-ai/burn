@@ -1203,6 +1203,19 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         out
     }
 
+    fn int_cast(tensor: IntTensor<Self>, dtype: burn_tensor::IntDType) -> IntTensor<Self> {
+        let client = tensor.client.clone();
+        let out = client.register_int_tensor(tensor.shape.clone(), dtype);
+
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::BaseInt(BaseOperationIr::Cast(desc)));
+        out
+    }
+
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;

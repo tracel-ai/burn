@@ -1,6 +1,7 @@
 // Language
 use alloc::vec::Vec;
 use burn_common::rand::get_seeded_rng;
+use burn_tensor::ops::IntTensor;
 use burn_tensor::Distribution;
 use burn_tensor::ops::FloatTensor;
 use burn_tensor::ops::IntTensorOps;
@@ -14,6 +15,7 @@ use crate::element::FloatNdArrayElement;
 use crate::element::IntNdArrayElement;
 use crate::element::QuantElement;
 use crate::execute_with_float_dtype;
+use crate::execute_with_int_dtype;
 use crate::new_tensor_float;
 use crate::{NdArray, tensor::NdArrayTensor};
 use crate::{NdArrayDevice, SEED};
@@ -28,7 +30,14 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
 {
     fn int_from_data(data: TensorData, _device: &NdArrayDevice) -> NdArrayTensor<I> {
         match data.dtype {
-            DType::I64 | DType::I32 => NdArrayTensor::from_data(data),
+            DType::I64
+            | DType::I32
+            | DType::I16
+            | DType::I8
+            | DType::U64
+            | DType::U32
+            | DType::U16
+            | DType::U8 => NdArrayTensor::from_data(data),
             _ => unimplemented!("Unsupported dtype for `int_from_data`"),
         }
     }
@@ -42,11 +51,11 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn int_reshape(tensor: NdArrayTensor<I>, shape: Shape) -> NdArrayTensor<I> {
-        NdArrayOps::reshape(tensor, shape)
+        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::reshape(tensor, shape))
     }
 
     fn int_slice(tensor: NdArrayTensor<I>, ranges: &[Range<usize>]) -> NdArrayTensor<I> {
-        NdArrayOps::slice(tensor, ranges)
+        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::slice(tensor, ranges))
     }
 
     fn int_device(_tensor: &NdArrayTensor<I>) -> <NdArray<E> as Backend>::Device {
@@ -62,7 +71,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
         mask: NdArrayTensor<bool>,
         source: NdArrayTensor<I>,
     ) -> NdArrayTensor<I> {
-        NdArrayMathOps::mask_where(tensor, mask, source)
+        execute_with_int_dtype!((tensor, source), |tensor, source| {
+            NdArrayMathOps::mask_where(tensor, mask, source)
+        })
     }
 
     fn int_mask_fill(
@@ -70,7 +81,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
         mask: NdArrayTensor<bool>,
         value: I,
     ) -> NdArrayTensor<I> {
-        NdArrayMathOps::mask_fill(tensor, mask, value)
+        execute_with_int_dtype!((tensor, value), |tensor, value| {
+            NdArrayMathOps::mask_fill(tensor, mask, value)
+        })
     }
 
     fn int_slice_assign(
@@ -78,19 +91,25 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
         ranges: &[Range<usize>],
         value: NdArrayTensor<I>,
     ) -> NdArrayTensor<I> {
-        NdArrayOps::slice_assign(tensor, ranges, value)
+        execute_with_int_dtype!((tensor, value), |tensor, value| {
+            NdArrayOps::slice_assign(tensor, ranges, value)
+        })
     }
 
     fn int_cat(tensors: Vec<NdArrayTensor<I>>, dim: usize) -> NdArrayTensor<I> {
-        NdArrayOps::cat(tensors, dim)
+        execute_with_int_dtype!(tensors, |tensors| NdArrayOps::cat(tensors, dim))
     }
 
     fn int_equal(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<bool> {
-        NdArrayMathOps::equal(lhs, rhs)
+        execute_with_int_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
+            NdArrayMathOps::equal(lhs, rhs)
+        })
     }
 
     fn int_equal_elem(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<bool> {
-        NdArrayMathOps::equal_elem(lhs, rhs)
+        execute_with_int_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
+            NdArrayMathOps::equal_elem(tensor, rhs.elem())
+        })
     }
 
     fn int_greater(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<bool> {
