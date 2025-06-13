@@ -228,7 +228,7 @@ fn aggregate_tree<B: Backend>(
     } else {
         aggregate_centralized::<B>(tensors, &AggregateKind::Sum)
     };
-    
+
     if *kind == AggregateKind::Mean {
         result = B::float_div_scalar(result, (tensor_count as f32).elem());
     }

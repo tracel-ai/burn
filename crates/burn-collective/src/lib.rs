@@ -10,9 +10,17 @@ mod tests {
 
     use serial_test::serial;
 
-    use crate::{aggregator::{AggregateKind, AggregateParams, AggregateStrategy}, backend::{collective_mean, collective_sum, register, reset_collective}};
+    use crate::{
+        aggregator::{AggregateKind, AggregateParams, AggregateStrategy},
+        backend::{collective_mean, collective_sum, register, reset_collective},
+    };
 
-    pub fn run_peer(id: u32, peer_count: u32, params: AggregateParams, output: SyncSender<Tensor<NdArray, 3>>) {
+    pub fn run_peer(
+        id: u32,
+        peer_count: u32,
+        params: AggregateParams,
+        output: SyncSender<Tensor<NdArray, 3>>,
+    ) {
         let input_shape = [1, 4, 4];
         let device = NdArrayDevice::default();
 
@@ -21,12 +29,8 @@ mod tests {
         let tensor = Tensor::<NdArray, 3>::random(input_shape, Distribution::Default, &device);
 
         let tensor = match params.kind {
-            AggregateKind::Sum => {
-                collective_sum(tensor, params.strategy)
-            }
-            AggregateKind::Mean => {
-                collective_mean(tensor, params.strategy)
-            }
+            AggregateKind::Sum => collective_sum(tensor, params.strategy),
+            AggregateKind::Mean => collective_mean(tensor, params.strategy),
         };
 
         output.send(tensor).unwrap();
@@ -55,36 +59,54 @@ mod tests {
     #[test]
     #[serial]
     pub fn test_aggregate_sum() {
-        test_aggregate(AggregateParams { kind: AggregateKind::Sum, strategy: AggregateStrategy::Centralized });
+        test_aggregate(AggregateParams {
+            kind: AggregateKind::Sum,
+            strategy: AggregateStrategy::Centralized,
+        });
     }
-    
+
     #[test]
     #[serial]
     pub fn test_aggregate_mean() {
-        test_aggregate(AggregateParams { kind: AggregateKind::Sum, strategy: AggregateStrategy::Centralized });
+        test_aggregate(AggregateParams {
+            kind: AggregateKind::Sum,
+            strategy: AggregateStrategy::Centralized,
+        });
     }
 
     #[test]
     #[serial]
     pub fn test_aggregate_binary_tree_sum() {
-        test_aggregate(AggregateParams { kind: AggregateKind::Sum, strategy: AggregateStrategy::Tree(2) });
+        test_aggregate(AggregateParams {
+            kind: AggregateKind::Sum,
+            strategy: AggregateStrategy::Tree(2),
+        });
     }
 
     #[test]
     #[serial]
     pub fn test_aggregate_binary_tree_mean() {
-        test_aggregate(AggregateParams { kind: AggregateKind::Sum, strategy: AggregateStrategy::Tree(2) });
+        test_aggregate(AggregateParams {
+            kind: AggregateKind::Sum,
+            strategy: AggregateStrategy::Tree(2),
+        });
     }
 
     #[test]
     #[serial]
     pub fn test_aggregate_5_tree_sum() {
-        test_aggregate(AggregateParams { kind: AggregateKind::Sum, strategy: AggregateStrategy::Tree(5) });
+        test_aggregate(AggregateParams {
+            kind: AggregateKind::Sum,
+            strategy: AggregateStrategy::Tree(5),
+        });
     }
 
     #[test]
     #[serial]
     pub fn test_aggregate_5_tree_mean() {
-        test_aggregate(AggregateParams { kind: AggregateKind::Sum, strategy: AggregateStrategy::Tree(5) });
+        test_aggregate(AggregateParams {
+            kind: AggregateKind::Sum,
+            strategy: AggregateStrategy::Tree(5),
+        });
     }
 }
