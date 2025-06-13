@@ -19,9 +19,6 @@ impl<R: FusionRuntime> OrderedExecution<R> {
     /// This is useful to implement fallback for optimizations.
     #[allow(clippy::borrowed_box)]
     pub fn operation_within_optimization(&self, index: usize) -> &Box<dyn Operation<R>> {
-        println!("Ordering {:?}", self.ordering);
-        println!("Operations {:?}", self.operations);
-        println!("Num executed {:?}", self.num_executed);
         match &self.ordering {
             Some(val) => {
                 let index = val[index];
@@ -32,7 +29,6 @@ impl<R: FusionRuntime> OrderedExecution<R> {
     }
 
     pub(crate) fn new(operations: Vec<Box<dyn Operation<R>>>) -> Self {
-        println!("Operations {:?}", operations);
         Self {
             operations,
             num_executed: 0,
@@ -54,7 +50,6 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         if ordering.len() > self.operations.len() {
             panic!("Ordering is bigger than operations");
         }
-        println!("Execute optimization {:?}", ordering);
         self.ordering = Some(ordering);
         let num_drained = optimization.len();
         optimization.execute(context, self);

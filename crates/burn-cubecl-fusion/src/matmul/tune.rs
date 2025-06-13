@@ -31,10 +31,9 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
 
     let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
         .with_tunable(tune_fallback::<R, BT>) // First one should always work.
-        // .with_tunable(tune_simple_fused::<R, BT>)
+        .with_tunable(tune_simple_fused::<R, BT>)
         .with_tunable_optional(tune_double_buffering_fused::<R, BT>, |key| {
-            false
-            // should_tune_double_buffering(key.num_out_buffers > 1, &key.matmul_key)
+            should_tune_double_buffering(key.num_out_buffers > 1, &key.matmul_key)
         });
 
     TUNER.execute(

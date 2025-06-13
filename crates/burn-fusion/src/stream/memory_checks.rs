@@ -1,0 +1,233 @@
+use std::{
+    collections::HashMap,
+    fmt::Display,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+        mpsc::{Sender, SyncSender},
+    },
+    thread::JoinHandle,
+    time::Duration,
+};
+
+use burn_common::{id::StreamId, stub::Mutex};
+use burn_ir::HandleContainer;
+
+use crate::FusionRuntime;
+
+use super::Stream;
+
+/// Memory checks struct to validate there is no memory leak with the fusion runtime.
+#[derive(Clone)]
+pub(crate) struct MemoryChecks {
+    sender: Sender<Message>,
+    num_queued: Arc<AtomicU64>,
+    // Keeps track of its thread.
+    _handle: Arc<JoinHandle<()>>,
+}
+
+enum Message {
+    Register(StreamAnalyses),
+    Check(SyncSender<MemoryReport>),
+}
+
+enum MemoryReport {
+    Success,
+    NotReady,
+    NotStarted,
+    Fail(String),
+}
+
+#[derive(Default)]
+struct StreamAnalyses {
+    streams: HashMap<StreamId, Analysis>,
+    num_handles: usize,
+}
+
+impl Display for StreamAnalyses {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("\n==== Fusion Memory Report ====\n")?;
+        f.write_fmt(format_args!("  - Num Handles: {}\n", self.num_handles))?;
+        f.write_fmt(format_args!("  - Num Streams: {}\n", self.streams.len()))?;
+
+        for (id, analysis) in self.streams.iter() {
+            f.write_fmt(format_args!(
+                "  - {} => variables: {} operations: {} cursor: {}\n",
+                id, analysis.num_variables, analysis.num_operations, analysis.cursor
+            ))?;
+        }
+
+        f.write_str("==============================\n")
+    }
+}
+
+#[derive(Default, Debug)]
+struct Analysis {
+    num_variables: usize,
+    num_operations: usize,
+    cursor: u64,
+}
+
+#[macro_export]
+/// Export memory checks tests.
+macro_rules! memory_checks {
+    () => {
+        #[cfg(test)]
+        mod memory_checks {
+            #[test]
+            fn test_memory_checks() {
+                burn_fusion::stream::memory_checks::memory_checks_test();
+            }
+        }
+    };
+}
+
+static INSTANCE: Mutex<Option<MemoryChecks>> = Mutex::new(None);
+
+/// Performs memory checks and panics if a leak is discovered.
+pub fn memory_checks_test() {
+    let mut num_try_uninit = 0;
+    let max_try = 25;
+
+    loop {
+        let report = fetch_memory_report();
+        match report {
+            MemoryReport::Success => return,
+            MemoryReport::NotReady => {
+                num_try_uninit = 0;
+                std::thread::sleep(Duration::from_millis(100))
+            }
+            MemoryReport::NotStarted => {
+                if num_try_uninit >= max_try {
+                    // Nothing is running on the fusion runtime.
+                    return;
+                }
+                num_try_uninit += 1;
+                std::thread::sleep(Duration::from_millis(100))
+            }
+            MemoryReport::Fail(msg) => panic!("{msg}"),
+        }
+    }
+}
+
+fn fetch_memory_report() -> MemoryReport {
+    let report = INSTANCE.lock();
+
+    match report {
+        Ok(report) => {
+            let report = match report.as_ref() {
+                Some(client) => client,
+                None => return MemoryReport::NotStarted,
+            };
+
+            let (sender, rec) = std::sync::mpsc::sync_channel(1);
+            report.sender.send(Message::Check(sender)).unwrap();
+
+            match rec.recv() {
+                Ok(report) => return report,
+                Err(message) => panic!("{message}"),
+            }
+        }
+        _ => MemoryReport::NotStarted,
+    }
+}
+
+impl Default for MemoryChecks {
+    fn default() -> Self {
+        let mut instance = INSTANCE.lock().unwrap();
+        let result = match instance.as_mut() {
+            Some(client) => client.clone(),
+            None => {
+                let this = Self::spawn_new();
+                *instance = Some(this.clone());
+                this
+            }
+        };
+        core::mem::drop(instance);
+        result
+    }
+}
+
+impl MemoryChecks {
+    pub(crate) fn check<R: FusionRuntime>(
+        &mut self,
+        streams: &HashMap<StreamId, Stream<R>>,
+        handles: &HandleContainer<R::FusionHandle>,
+    ) {
+        let mut analyses = StreamAnalyses::default();
+        analyses.num_handles = handles.num_handles();
+
+        for (id, s) in streams.iter() {
+            let analysis = Analysis {
+                num_variables: s.queue.variables.len(),
+                num_operations: s.queue.global.len(),
+                cursor: s.cursor,
+            };
+            analyses.streams.insert(*id, analysis);
+        }
+
+        self.num_queued.fetch_add(1, Ordering::Relaxed);
+        self.sender.send(Message::Register(analyses)).unwrap();
+    }
+
+    fn spawn_new() -> Self {
+        let (sender, rec) = std::sync::mpsc::channel();
+        let num_queued = Arc::new(AtomicU64::new(0));
+        let num_queued_moved = num_queued.clone();
+
+        let handle = std::thread::spawn(move || {
+            let mut last_analyses = None;
+
+            loop {
+                let payload = match rec.recv() {
+                    Err(err) => panic!("{err:?}"),
+                    Ok(payload) => payload,
+                };
+                match payload {
+                    Message::Register(payload) => {
+                        last_analyses = Some(payload);
+                        num_queued_moved.fetch_sub(1, Ordering::Relaxed);
+                    }
+                    Message::Check(callback) => {
+                        if num_queued_moved.load(Ordering::Relaxed) > 1 {
+                            continue;
+                        }
+
+                        // We assume that if nothing has been registered in the last second
+                        // while being at a count of 1, it's the end.
+                        std::thread::sleep(Duration::from_secs(1));
+
+                        if num_queued_moved.load(Ordering::Relaxed) <= 1 {
+                            match last_analyses.take() {
+                                Some(val) => {
+                                    callback.send(Self::final_check(val)).unwrap();
+                                }
+                                None => {
+                                    callback
+                                        .send(MemoryReport::Fail("No analyses".into()))
+                                        .unwrap();
+                                }
+                            }
+                        } else {
+                            callback.send(MemoryReport::NotReady).unwrap();
+                        }
+                    }
+                }
+            }
+        });
+
+        Self {
+            sender,
+            num_queued,
+            _handle: Arc::new(handle),
+        }
+    }
+
+    fn final_check(analyses: StreamAnalyses) -> MemoryReport {
+        if !analyses.streams.is_empty() || analyses.num_handles > 0 {
+            return MemoryReport::Fail(format!("{analyses}"));
+        }
+
+        MemoryReport::Success
+    }
+}

@@ -50,9 +50,9 @@ where
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
-        self.streams.mark_read(id, &tensor);
-        let tensor = self.handles.get_float_tensor::<B>(&tensor);
-        B::float_into_data(tensor)
+        let tensor_float = self.handles.get_float_tensor::<B>(&tensor);
+        self.streams.mark_read(id, &tensor, &self.handles);
+        B::float_into_data(tensor_float)
     }
 
     pub fn read_int<B>(
@@ -66,9 +66,9 @@ where
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
-        self.streams.mark_read(id, &tensor);
-        let tensor = self.handles.get_int_tensor::<B>(&tensor);
-        B::int_into_data(tensor)
+        let tensor_int = self.handles.get_int_tensor::<B>(&tensor);
+        self.streams.mark_read(id, &tensor, &self.handles);
+        B::int_into_data(tensor_int)
     }
 
     pub fn read_bool<B>(
@@ -82,9 +82,9 @@ where
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
-        self.streams.mark_read(id, &tensor);
-        let tensor = self.handles.get_bool_tensor::<B>(&tensor);
-        B::bool_into_data(tensor)
+        let tensor_bool = self.handles.get_bool_tensor::<B>(&tensor);
+        self.streams.mark_read(id, &tensor, &self.handles);
+        B::bool_into_data(tensor_bool)
     }
 
     pub fn read_quantized<B>(
@@ -98,9 +98,9 @@ where
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
-        self.streams.mark_read(id, &tensor);
-        let tensor = self.handles.get_quantized_tensor::<B>(&tensor);
-        B::q_into_data(tensor)
+        let tensor_q = self.handles.get_quantized_tensor::<B>(&tensor);
+        self.streams.mark_read(id, &tensor, &self.handles);
+        B::q_into_data(tensor_q)
     }
 
     pub fn change_server_float<B>(
@@ -112,10 +112,11 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.streams.mark_read(StreamId::current(), tensor);
-        let tensor = self.handles.get_float_tensor::<B>(tensor);
+        let tensor_float = self.handles.get_float_tensor::<B>(tensor);
+        self.streams
+            .mark_read(StreamId::current(), tensor, &self.handles);
 
-        let tensor = B::float_to_device(tensor, device);
+        let tensor = B::float_to_device(tensor_float, device);
         let id = server_device.create_empty_handle();
 
         server_device

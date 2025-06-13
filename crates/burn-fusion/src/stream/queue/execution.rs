@@ -41,15 +41,10 @@ impl<R: FusionRuntime> OperationQueue<R> {
     fn drain_queue(&mut self, num_drained: usize, handles: &mut HandleContainer<R::FusionHandle>) {
         self.global[0..num_drained]
             .iter()
-            .map(|op| {
-                println!("Execute lazy {op:?}");
-                op
-            })
             .flat_map(|desc| desc.nodes())
             .for_each(|tensor| {
                 match tensor.status {
                     TensorStatus::ReadWrite => {
-                        println!("Remove variable {}", tensor.id);
                         self.variables.remove(&tensor.id);
                     }
                     _ => (),
