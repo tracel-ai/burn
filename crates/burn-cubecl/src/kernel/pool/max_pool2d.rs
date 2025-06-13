@@ -103,6 +103,7 @@ pub(crate) fn max_pool2d<R: CubeRuntime, E: CubeElement>(
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    ceil: bool,
 ) -> CubeTensor<R> {
     let [batch_size, channels, _, _] = x.shape.dims();
 
@@ -112,6 +113,7 @@ pub(crate) fn max_pool2d<R: CubeRuntime, E: CubeElement>(
         padding[0],
         dilation[0],
         x.shape.dims[2],
+        ceil,
     );
     let size_1 = calculate_pool_output_size(
         kernel_size[1],
@@ -119,6 +121,7 @@ pub(crate) fn max_pool2d<R: CubeRuntime, E: CubeElement>(
         padding[1],
         dilation[1],
         x.shape.dims[3],
+        ceil,
     );
 
     let x = into_contiguous(permute_nchw_to_nhwc(x));
@@ -160,6 +163,7 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime, E: CubeElement, I: CubeEle
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    ceil: bool,
 ) -> (CubeTensor<R>, CubeTensor<R>) {
     let [batch_size, channels, _, _] = x.shape.dims();
 
@@ -169,6 +173,7 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime, E: CubeElement, I: CubeEle
         padding[0],
         dilation[0],
         x.shape.dims[2],
+        ceil,
     );
     let size_1 = calculate_pool_output_size(
         kernel_size[1],
@@ -176,6 +181,7 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime, E: CubeElement, I: CubeEle
         padding[1],
         dilation[1],
         x.shape.dims[3],
+        ceil,
     );
 
     let x = into_contiguous(permute_nchw_to_nhwc(x));

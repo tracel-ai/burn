@@ -1163,6 +1163,7 @@ pub struct AvgPool1dOpIr {
     pub stride: usize,
     pub padding: usize,
     pub count_include_pad: bool,
+    pub ceil: bool,
     pub out: TensorIr,
 }
 
@@ -1174,6 +1175,7 @@ pub struct AvgPool2dOpIr {
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub count_include_pad: bool,
+    pub ceil: bool,
     pub out: TensorIr,
 }
 
@@ -1241,6 +1243,7 @@ pub struct MaxPool1dOpIr {
     pub stride: usize,
     pub padding: usize,
     pub dilation: usize,
+    pub ceil: bool,
     pub out: TensorIr,
 }
 
@@ -1252,6 +1255,7 @@ pub struct MaxPool1dWithIndicesOpIr {
     pub stride: usize,
     pub padding: usize,
     pub dilation: usize,
+    pub ceil: bool,
     pub out: TensorIr,
     pub out_indices: TensorIr,
 }
@@ -1277,6 +1281,7 @@ pub struct MaxPool2dOpIr {
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub dilation: [usize; 2],
+    pub ceil: bool,
     pub out: TensorIr,
 }
 
@@ -1288,6 +1293,7 @@ pub struct MaxPool2dWithIndicesOpIr {
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub dilation: [usize; 2],
+    pub ceil: bool,
     pub out: TensorIr,
     pub out_indices: TensorIr,
 }

@@ -12,6 +12,7 @@ pub(crate) fn avg_pool1d_from_2d<B: Backend>(
     stride: usize,
     padding: usize,
     count_include_pad: bool,
+    ceil: bool,
 ) -> FloatTensor<B> {
     let [batch_size, channels, length] = x.shape().dims();
 
@@ -22,6 +23,7 @@ pub(crate) fn avg_pool1d_from_2d<B: Backend>(
         [stride, 1],
         [padding, 0],
         count_include_pad,
+        ceil,
     );
 
     let [batch_size, channels, length, _] = x.shape().dims();
@@ -90,6 +92,7 @@ pub(crate) fn max_pool1d_from_2d<B: Backend>(
     stride: usize,
     padding: usize,
     dilation: usize,
+    ceil: bool,
 ) -> FloatTensor<B> {
     let [batch_size, channels, length] = x.shape().dims();
 
@@ -100,6 +103,7 @@ pub(crate) fn max_pool1d_from_2d<B: Backend>(
         [stride, 1],
         [padding, 0],
         [dilation, 1],
+        ceil,
     );
 
     let [batch_size, channels, length, _] = x.shape().dims();
@@ -113,6 +117,7 @@ pub(crate) fn max_pool1d_with_indices_from_2d<B: Backend>(
     stride: usize,
     padding: usize,
     dilation: usize,
+    ceil: bool,
 ) -> MaxPool1dWithIndices<B> {
     let [batch_size, channels, length] = x.shape().dims();
 
@@ -123,6 +128,7 @@ pub(crate) fn max_pool1d_with_indices_from_2d<B: Backend>(
         [1, stride],
         [0, padding],
         [1, dilation],
+        ceil,
     );
     let [batch_size, channels, _, length] = x.output.shape().dims();
     let output = B::float_reshape(x.output, Shape::from([batch_size, channels, length]));

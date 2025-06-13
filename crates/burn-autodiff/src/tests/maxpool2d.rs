@@ -15,6 +15,7 @@ mod tests {
         let stride_2 = 1;
         let dilation_1 = 1;
         let dilation_2 = 1;
+        let ceil = false;
 
         let device = Default::default();
         let x = TestAutodiffTensor::from_floats(
@@ -43,6 +44,7 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            ceil,
         );
         let grads = output.backward();
 
@@ -63,6 +65,7 @@ mod tests {
         let stride_2 = 1;
         let dilation_1 = 1;
         let dilation_2 = 1;
+        let ceil = false;
 
         let device = Default::default();
         let x = TestAutodiffTensor::from_floats(
@@ -91,6 +94,7 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            ceil,
         );
         let grads = output.backward();
 
@@ -111,6 +115,7 @@ mod tests {
         let stride_2 = 1;
         let dilation_1 = 2;
         let dilation_2 = 2;
+        let ceil = false;
 
         let device = Default::default();
         let x = TestAutodiffTensor::from_floats(
@@ -139,6 +144,7 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            ceil,
         );
         let grads = output.backward();
 
@@ -159,6 +165,7 @@ mod tests {
         let stride_2 = 2;
         let dilation_1 = 1;
         let dilation_2 = 1;
+        let ceil = false;
 
         let device = Default::default();
         let x = TestAutodiffTensor::from_floats(
@@ -189,6 +196,7 @@ mod tests {
             [stride_1, stride_2],
             [padding_1, padding_2],
             [dilation_1, dilation_2],
+            ceil,
         );
         let grads = output.backward();
 
