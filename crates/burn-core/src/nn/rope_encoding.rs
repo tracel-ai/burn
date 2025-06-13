@@ -217,12 +217,13 @@ impl<B: Backend> RotaryEncoding<B> {
         } else {
             // Shift the tail
             let num_keep = current_end - start;
-            let tail_freqs = self.freq_complex.clone().slice([start..current_end]);
+            let start_rel = start - self.start_offset;
+            let tail_freqs = self.freq_complex.clone().slice([start_rel..max_seq_len]);
             self.freq_complex
                 .inplace(|freqs| freqs.slice_assign([0..num_keep], tail_freqs));
             // Compute the rest and assign
             let new_freqs = Self::compute_rotary_frequencies(
-                current_end..start + current_end,
+                current_end..start + max_seq_len,
                 self.theta.clone(),
             );
             self.freq_complex
@@ -511,6 +512,14 @@ mod tests {
         output
             .into_data()
             .assert_approx_eq::<FT>(&expected_output.into_data(), Tolerance::default());
+    }
+
+    #[test]
+    fn test_rotary_encoding_shift_multiple() {
+        let device = Default::default();
+        let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init::<TestBackend>(&device);
+        rotary_encoding.shift(2);
+        rotary_encoding.shift(5);
     }
 
     #[test]
