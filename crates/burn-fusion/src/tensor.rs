@@ -106,12 +106,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
     /// Intermediate representation to be used when using an initialized tensor used as input.
     pub fn into_ir(mut self) -> TensorIr {
         let count = self.count.load(Ordering::Relaxed);
-        let stream_id = StreamId::current();
         let status = self.status(count);
-        // println!(
-        //     "[{stream_id:?}] {:?} | IntoIr {count} - {:?}",
-        //     self.id, status
-        // );
 
         let mut shape_out = Vec::new();
         core::mem::swap(&mut self.shape, &mut shape_out);
@@ -188,8 +183,6 @@ impl<RO: FusionRuntime> Operation<RO> for DropOp {
 impl<R: FusionRuntime> Drop for FusionTensor<R> {
     fn drop(&mut self) {
         let count = self.count.fetch_sub(1, Ordering::Acquire);
-        let stream_id = StreamId::current();
-        // println!("[{stream_id:?}] {:?} | Drop {count}", self.id);
 
         match self.status(count) {
             TensorStatus::ReadWrite => {
@@ -208,12 +201,8 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
                 self.client
                     .register(streams, OperationIr::Drop(ir), DropOp { id: self.id });
             }
-            TensorStatus::ReadOnly => {
-                // println!("Cant drop readonly {self:?}");
-            }
-            TensorStatus::NotInit => {
-                // println!("Cant drop noinit {self:?}");
-            }
+            TensorStatus::ReadOnly => {}
+            TensorStatus::NotInit => {}
         }
     }
 }

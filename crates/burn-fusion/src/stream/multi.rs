@@ -49,7 +49,6 @@ impl<R: FusionRuntime> MultiStream<R> {
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
         let id = self.resolve_streams(&streams, handles, &mut repr);
-        println!("[{id}] Registering operation {repr:?}");
 
         let (id, sync) = match self.handle_drop_op(id, &mut repr) {
             DropInfo::SkipSharedTensor => return,
@@ -60,7 +59,6 @@ impl<R: FusionRuntime> MultiStream<R> {
 
         let (num_executed, queue_empty) =
             self.enqueue_operation(id, repr, &streams, operation, handles);
-        println!("[{id}] Num executed {}", num_executed);
 
         if num_executed > 0 {
             if let Some(stream) = self.streams.get(&id) {
@@ -78,7 +76,6 @@ impl<R: FusionRuntime> MultiStream<R> {
                 self.shared_tensors.on_closed_stream(id);
             }
         } else if sync {
-            println!("[{id}] Sync drain after register.");
             // Cause a problem where the queue becomes corrupted sometimes.
             //
             // TODO: Fix.
@@ -96,7 +93,6 @@ impl<R: FusionRuntime> MultiStream<R> {
                             self.shared_tensors
                                 .on_drop(id, tensor_ir.id, stream.is_none());
 
-                        println!("[{id}] {on_drop:?}");
                         match on_drop {
                             SharedTensorDropped::ForceDrop => {
                                 tensor_ir.status = TensorStatus::ReadWrite;
@@ -111,7 +107,6 @@ impl<R: FusionRuntime> MultiStream<R> {
             _ => DropInfo::NotDrop,
         };
 
-        println!("{r:?}");
         r
     }
 
@@ -153,7 +148,6 @@ impl<R: FusionRuntime> MultiStream<R> {
 
     /// Mark a tensor as read.
     pub fn mark_read(&mut self, id: StreamId, ir: &TensorIr) {
-        println!("[{id}] Mark read {ir:?}");
         if !matches!(ir.status, TensorStatus::ReadWrite) {
             return;
         };
@@ -166,7 +160,6 @@ impl<R: FusionRuntime> MultiStream<R> {
         stream.queue.variables.remove(&ir.id);
 
         if stream.queue.variables.is_empty() {
-            // println!("[{id}] Removing stream after read");
             self.streams.remove(&id);
         }
 
@@ -183,10 +176,6 @@ impl<R: FusionRuntime> MultiStream<R> {
 
         let stream = self.streams.get(&id).unwrap();
         let can_remove = self.shared_tensors.can_remove(&id, stream);
-        // println!(
-        //     "[{id}] DRAIN Can drop {can_remove:?} => {:?}",
-        //     stream.queue.variables
-        // );
 
         if can_remove {
             if let Some(_) = self.streams.remove(&id) {
@@ -197,10 +186,6 @@ impl<R: FusionRuntime> MultiStream<R> {
 
     fn drain_inner(&mut self, handles: &mut HandleContainer<R::FusionHandle>, id: StreamId) {
         if let Some(stream) = self.streams.get_mut(&id) {
-            println!("Drain inner ");
-            for g in stream.queue.global.iter() {
-                println!("{g:?}");
-            }
             let num_executed = stream.queue.len();
             stream.processor.process(
                 Segment::new(&mut stream.queue, handles),
@@ -229,7 +214,6 @@ impl<R: FusionRuntime> MultiStream<R> {
         let nodes = op.nodes();
 
         let analysis = self.analyse_shared_tensors(&nodes, &streams, current);
-        // println!("[{current}] {analysis:?}");
         self.shared_tensors.on_registering_op(current, &nodes);
 
         self.merge_streams_timelines(handles, &analysis, current, &nodes);
@@ -360,7 +344,6 @@ impl<R: FusionRuntime> MultiStream<R> {
                 current: stream_id,
             };
 
-            println!("Manual Drop");
             let op = Box::new(DropOp { id: tensor.id });
             self.register(streams, OperationIr::Drop(tensor), op, handles);
         }
@@ -385,9 +368,6 @@ impl<R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'_, R> {
     }
 
     fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<R::Optimization>) {
-        println!("Execute {id:?}");
-        println!("{:?}", self.queue.relative);
-        println!("{:?}", self.queue.operations);
         self.queue.execute(id, self.handles, store)
     }
 }

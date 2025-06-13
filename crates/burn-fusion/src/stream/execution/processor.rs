@@ -138,8 +138,6 @@ impl<O: NumOperations> Processor<O> {
         optimization: BlockOptimization<O>,
         mode: ExecutionMode,
     ) -> ExecutionPlanId {
-        println!("On exploration completed {operations:?}");
-        println!("On exploration completed {optimization:?}");
         let num_optimized = optimization.ordering.len();
         let relative = &operations[0..num_optimized];
 

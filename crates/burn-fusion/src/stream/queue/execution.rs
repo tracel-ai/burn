@@ -30,7 +30,6 @@ impl<R: FusionRuntime> OperationQueue<R> {
     ) {
         let mut operations = Vec::new();
         core::mem::swap(&mut operations, &mut self.operations);
-        println!("Before block run {operations:?}");
         let (operations, num_drained) =
             QueueExecution::run(step, &mut self.converter, handles, operations);
 
@@ -42,24 +41,11 @@ impl<R: FusionRuntime> OperationQueue<R> {
     fn drain_queue(&mut self, num_drained: usize, handles: &mut HandleContainer<R::FusionHandle>) {
         self.global[0..num_drained]
             .iter()
-            .map(|n| {
-                println!("Executed lazy op {n:?}");
-                n
-            })
             .flat_map(|desc| desc.nodes())
             .for_each(|tensor| {
                 match tensor.status {
                     TensorStatus::ReadWrite => {
                         self.variables.remove(&tensor.id);
-                    }
-                    TensorStatus::NotInit => {
-                        // When not init, the variable is no longer part of the stream if it's not
-                        // read anymore following the stream.
-                        // if let Some((id, status)) = self.variables.remove(&tensor.id) {
-                        //     if matches!(status, TensorStatus::ReadOnly) {
-                        //         self.variables.insert(tensor.id, (id, status));
-                        //     }
-                        // }
                     }
                     _ => (),
                 };
@@ -118,7 +104,6 @@ impl<'a, R: FusionRuntime> QueueExecution<'a, R> {
                 _ => unreachable!(),
             }
         } else {
-            println!("Single optimization.");
             let mut this = QueueExecution::Single {
                 handles,
                 converter,

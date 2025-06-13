@@ -75,8 +75,6 @@ impl SharedTensors {
         tensor_id: TensorId,
         stream_gone: bool,
     ) -> SharedTensorDropped {
-        println!("[{stream_id}] On drop {}", tensor_id);
-        println!("[{stream_id}] {:?}", self);
         let mut execute_still = false;
 
         if let Some(shared) = self.shared_tensors.get_mut(&tensor_id) {
@@ -89,7 +87,6 @@ impl SharedTensors {
         }
 
         if execute_still {
-            println!("[{stream_id:?}] Real drop {:?}", tensor_id);
             self.shared_tensors.remove(&tensor_id);
             self.shared_tensors_manual_drop.remove(&tensor_id);
             return SharedTensorDropped::ForceDrop;
@@ -113,7 +110,6 @@ impl SharedTensors {
                 cleared.push(*tensor_id);
             }
         }
-        println!("[{id}] On executed ops => {cleared:?}",);
         cleared
     }
 
@@ -192,15 +188,12 @@ impl SharedTensors {
     }
 
     pub fn on_closed_stream(&mut self, id: StreamId) {
-        // println!("[{id}] On closed stream {:?}", self.shared_tensors);
-
         for (_id, st) in self.shared_tensors.iter() {
             assert!(!st.streams.contains_key(&id));
         }
     }
 
     pub fn clear_tensors(&mut self, stream_id: StreamId, tensors: Vec<TensorId>) -> Vec<TensorIr> {
-        // println!("[{stream_id}] Clear shared tensors {tensors:?}");
         let mut to_drop = Vec::new();
         for id in tensors {
             self.shared_tensors.remove(&id);
@@ -257,14 +250,9 @@ impl SharedTensor {
             Some(val) => val,
             None => return self.streams.is_empty(),
         };
-        println!(
-            "[{id}] Update cursors {:?} <= {:?}",
-            entry.cursor_current, stream.cursor,
-        );
 
         // We can only free the shared tensor if the latest cursor is executed.
         if entry.cursor_current <= stream.cursor {
-            println!("{self:?}");
             self.streams.is_empty()
         } else {
             self.streams.insert(id, entry);
