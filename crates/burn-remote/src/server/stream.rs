@@ -1,9 +1,15 @@
 use core::marker::PhantomData;
-use std::sync::mpsc::{Receiver, SyncSender};
+use std::sync::{
+    Arc,
+    mpsc::{Receiver, SyncSender},
+};
 
-use crate::shared::{ConnectionId, TaskResponse};
+use crate::shared::{ConnectionId, TaskResponse, TensorRemote};
 
-use super::processor::{Processor, ProcessorTask};
+use super::{
+    processor::{Processor, ProcessorTask},
+    tensor_data_service::TensorDataService,
+};
 use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
 use burn_router::Runner;
 use burn_tensor::TensorData;
@@ -18,8 +24,12 @@ pub struct Stream<B: BackendIr> {
 }
 
 impl<B: BackendIr> Stream<B> {
-    pub fn new(runner: Runner<B>, writer_sender: SyncSender<Receiver<TaskResponse>>) -> Self {
-        let sender = Processor::start(runner);
+    pub fn new(
+        runner: Runner<B>,
+        writer_sender: SyncSender<Receiver<TaskResponse>>,
+        state: Arc<TensorDataService>,
+    ) -> Self {
+        let sender = Processor::start(runner, state);
 
         Self {
             compute_sender: sender,
@@ -38,6 +48,18 @@ impl<B: BackendIr> Stream<B> {
         self.compute_sender
             .send(ProcessorTask::RegisterTensor(tensor_id, data))
             .unwrap()
+    }
+
+    pub fn register_tensor_remote(&self, tensor: TensorRemote, new_id: TensorId) {
+        self.compute_sender
+            .send(ProcessorTask::RegisterTensorRemote(tensor, new_id))
+            .unwrap()
+    }
+
+    pub fn expose_tensor_remote(&self, tensor: TensorIr, count: u32) {
+        self.compute_sender
+            .send(ProcessorTask::ExposeTensorRemote { tensor, count })
+            .unwrap();
     }
 
     pub fn read_tensor(&self, id: ConnectionId, desc: TensorIr) {

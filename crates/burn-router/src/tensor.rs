@@ -9,7 +9,8 @@ pub struct RouterTensor<C: RunnerClient> {
     pub(crate) id: Arc<TensorId>,
     pub(crate) shape: Vec<usize>,
     pub(crate) dtype: DType,
-    pub(crate) client: C,
+    /// The client this tensor is on
+    pub client: C,
 
     // Orphan means that a tensor is never converted into a representation when it becomes `ReadWrite`.
     //
@@ -44,7 +45,8 @@ impl<C: RunnerClient> RouterTensor<C> {
         self.client.clone().read_tensor(self.into_ir()).await
     }
 
-    pub(crate) fn into_ir(mut self) -> TensorIr {
+    /// Get the IR of this tensor
+    pub fn into_ir(mut self) -> TensorIr {
         let status = self.status();
         let mut shape_out = Vec::new();
         core::mem::swap(&mut self.shape, &mut shape_out);

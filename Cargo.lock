@@ -800,6 +800,7 @@ dependencies = [
  "burn-ndarray",
  "burn-router",
  "burn-tensor",
+ "bytes",
  "derive-new 0.7.0",
  "futures-util",
  "log",

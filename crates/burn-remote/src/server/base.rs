@@ -7,7 +7,11 @@ use axum::{
     response::IntoResponse,
     routing::any,
 };
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+};
 
 use burn_ir::BackendIr;
 use burn_tensor::Device;
@@ -15,13 +19,15 @@ use tracing_core::{Level, LevelFilter};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{filter::filter_fn, registry};
 
-use crate::shared::{ComputeTask, Task};
+use crate::shared::{ComputeTask, RemoteTensorReq, Task};
 
 use super::session::SessionManager;
+use super::tensor_data_service::TensorDataService;
 
 #[derive(Clone)]
 pub struct WsServer<B: BackendIr> {
-    state: Arc<SessionManager<B>>,
+    session_manager: Arc<SessionManager<B>>,
+    state: Arc<TensorDataService>,
 }
 
 impl<B: BackendIr> WsServer<B> {
@@ -45,16 +51,20 @@ impl<B: BackendIr> WsServer<B> {
         let address = format!("0.0.0.0:{port}");
         log::info!("Start server {address} on device {device:?}");
 
-        let state = SessionManager::<B>::new(device);
-        let state = Self {
-            state: Arc::new(state),
+        let state = Arc::new(TensorDataService {
+            exposed_tensors: Mutex::new(HashMap::new()),
+        });
+        let server = Self {
+            session_manager: Arc::new(SessionManager::<B>::new(device, state.clone())),
+            state,
         };
 
         // build our application with some routes
         let app = Router::new()
             .route("/response", any(Self::handler_response))
             .route("/request", any(Self::handler_request))
-            .with_state(state);
+            .route("/data", any(Self::handler_data))
+            .with_state(server);
 
         // run it with hyper
         let listener = tokio::net::TcpListener::bind(address).await.unwrap();
@@ -77,6 +87,10 @@ impl<B: BackendIr> WsServer<B> {
         ws.on_upgrade(move |socket| state.handle_socket_request(socket))
     }
 
+    async fn handler_data(ws: WebSocketUpgrade, State(state): State<Self>) -> impl IntoResponse {
+        ws.on_upgrade(move |socket| state.handle_socket_data(socket))
+    }
+
     async fn handle_socket_response(self, mut socket: WebSocket) {
         log::info!("[Response Handler] On new connection.");
 
@@ -97,7 +111,7 @@ impl<B: BackendIr> WsServer<B> {
                     _ => panic!("Response handler not initialized."),
                 };
 
-                let receiver = self.state.register_responder(id);
+                let receiver = self.session_manager.register_responder(id);
 
                 log::info!("Response handler connection active");
 
@@ -144,13 +158,14 @@ impl<B: BackendIr> WsServer<B> {
                     break;
                 }
 
-                let (stream, connection_id, task) = match self.state.stream(&mut session_id, task) {
-                    Some(val) => val,
-                    None => {
-                        log::info!("Ops session activated {session_id:?}");
-                        continue;
-                    }
-                };
+                let (stream, connection_id, task) =
+                    match self.session_manager.stream(&mut session_id, task) {
+                        Some(val) => val,
+                        None => {
+                            log::info!("Ops session activated {session_id:?}");
+                            continue;
+                        }
+                    };
 
                 match task {
                     ComputeTask::RegisterOperation(op) => {
@@ -165,6 +180,12 @@ impl<B: BackendIr> WsServer<B> {
                     ComputeTask::SyncBackend => {
                         stream.sync(connection_id);
                     }
+                    ComputeTask::RegisterTensorRemote(tensor, new_id) => {
+                        stream.register_tensor_remote(tensor, new_id);
+                    }
+                    ComputeTask::ExposeTensorRemote { tensor, count } => {
+                        stream.expose_tensor_remote(tensor, count);
+                    }
                 }
             } else {
                 log::info!("Not a binary message, closing, received {msg:?}");
@@ -173,7 +194,53 @@ impl<B: BackendIr> WsServer<B> {
         }
 
         log::info!("Closing session {:?}", session_id);
-        self.state.close(session_id);
+        self.session_manager.close(session_id);
+    }
+
+    async fn handle_socket_data(self, mut socket: WebSocket) {
+        log::info!("[Response Handler] On new connection for data.");
+
+        let packet = socket.recv().await;
+        let msg = match packet {
+            Some(msg) => msg,
+            None => panic!("Still no message"),
+        };
+
+        match msg {
+            Ok(ws::Message::Binary(bytes)) => {
+                let id = match rmp_serde::from_slice::<RemoteTensorReq>(&bytes) {
+                    Ok(val) => val.id,
+                    Err(err) => panic!("Only bytes messages are supported {err:?}"),
+                };
+
+                log::info!("Response handler for data active");
+
+                // Get the requested exposed tensor data
+                let bytes: bytes::Bytes = {
+                    let mut exposed_tensors = self.state.exposed_tensors.lock().unwrap();
+                    // take the tensor out of the hashmap while we download
+                    if let Some(mut exposed_state) = exposed_tensors.remove(&id) {
+                        log::info!("Tensor found (id: {id:?})");
+
+                        exposed_state.cur_download_count += 1;
+                        if exposed_state.cur_download_count == exposed_state.max_downloads {
+                            exposed_state.bytes
+                        } else {
+                            let bytes = exposed_state.bytes.clone();
+                            exposed_tensors.insert(id, exposed_state);
+                            bytes
+                        }
+                    } else {
+                        panic!("A tensor was requested (id: {id:?}) that isn't being served");
+                    }
+                };
+
+                // Send tensor and increment its counter
+                socket.send(ws::Message::Binary(bytes)).await.unwrap();
+            }
+            Err(err) => panic!("Can't start the response handler {err:?}"),
+            _ => panic!("Unsupported message type"),
+        }
     }
 }
 
