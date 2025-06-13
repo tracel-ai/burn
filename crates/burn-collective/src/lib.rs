@@ -5,8 +5,9 @@ pub mod backend;
 mod tests {
     use std::sync::mpsc::SyncSender;
 
-    use burn_ndarray::NdArray;
-    use burn_tensor::{Tensor, TensorData, backend::Backend};
+    use burn_common::rand::get_seeded_rng;
+    use burn_ndarray::{NdArray, NdArrayDevice};
+    use burn_tensor::{Shape, Tensor, TensorData, Tolerance, backend::Backend};
 
     use burn_wgpu::Wgpu;
     use serial_test::serial;
@@ -16,15 +17,13 @@ mod tests {
         backend::{collective_mean, collective_sum, register, reset_collective},
     };
 
-    pub fn run_peer<B: Backend, T>(
+    pub fn run_peer<B: Backend>(
         id: u32,
         peer_count: u32,
         params: AggregateParams,
-        input: T,
+        input: TensorData,
         output: SyncSender<Tensor<B, 1>>,
-    ) where
-        T: Into<TensorData>,
-    {
+    ) {
         let device = B::Device::default();
 
         register::<B>(id, peer_count);
@@ -39,114 +38,166 @@ mod tests {
         output.send(tensor).unwrap();
     }
 
-    fn test_aggregate<B: Backend>(params: AggregateParams) {
+    fn generate_random_input(
+        shape: Shape,
+        params: AggregateParams,
+        peer_count: u32,
+    ) -> (Vec<TensorData>, TensorData) {
+        let input: Vec<TensorData> = (0..peer_count)
+            .map(|_| {
+                TensorData::random::<f32, _, _>(
+                    shape.clone(),
+                    burn_tensor::Distribution::Default,
+                    &mut get_seeded_rng(),
+                )
+            })
+            .collect();
+
+        let mut expected_tensor = Tensor::<NdArray, 1>::empty(shape, &NdArrayDevice::default());
+        for i in 0..peer_count as usize {
+            let input_tensor =
+                Tensor::<NdArray, 1>::from_data(input[i].clone(), &NdArrayDevice::default());
+            expected_tensor = expected_tensor.add(input_tensor);
+        }
+        if params.kind == AggregateKind::Mean {
+            expected_tensor = expected_tensor.div_scalar(peer_count);
+        }
+
+        let expected = expected_tensor.to_data();
+
+        (input, expected)
+    }
+
+    fn test_aggregate<B: Backend>(params: AggregateParams, peer_count: u32) {
         reset_collective::<NdArray>();
 
-        const PEER_COUNT: u32 = 4;
         let (send, recv) = std::sync::mpsc::sync_channel(1);
 
-        let input = [
-            [3, 4, 2, 3],
-            [1, 7, 8, 3],
-            [1, 2, 2, 1],
-            [3, 4, 12, 3],
-            [1, 3, 2, 0],
-            [1, 2, 2, 10],
-            [3, 4, 8, 3],
-        ];
+        let shape = Shape { dims: vec![3] };
+        let (input, expected) = generate_random_input(shape, params.clone(), peer_count);
 
-        let expected: &[f32] = if params.kind == AggregateKind::Mean {
-            &[2.0, 4.25, 6.0, 2.5]
-        } else {
-            &[8.0, 17.0, 24.0, 10.0]
-        };
-
-        for id in 0..PEER_COUNT {
+        for id in 0..peer_count {
             let send = send.clone();
             let params = params.clone();
-            std::thread::spawn(move || {
-                run_peer::<B, _>(id, PEER_COUNT, params, input[id as usize], send)
-            });
+            let input = input[id as usize].clone();
+            std::thread::spawn(move || run_peer::<B>(id, peer_count, params, input, send));
         }
 
         let first = recv.recv().unwrap().to_data();
-        for _ in 1..PEER_COUNT {
+        for _ in 1..peer_count {
             let tensor = recv.recv().unwrap();
             tensor.to_data().assert_eq(&first, true);
         }
 
-        assert_eq!(expected, first.to_vec::<f32>().unwrap().as_slice());
+        let tol: Tolerance<f32> = Tolerance::balanced();
+        expected.assert_approx_eq(&first, tol);
     }
 
     #[test]
     #[serial]
     pub fn test_aggregate_sum() {
-        test_aggregate::<NdArray>(AggregateParams {
-            kind: AggregateKind::Sum,
-            strategy: AggregateStrategy::Centralized,
-        });
+        test_aggregate::<NdArray>(
+            AggregateParams {
+                kind: AggregateKind::Sum,
+                strategy: AggregateStrategy::Centralized,
+            },
+            4,
+        );
     }
 
     #[test]
     #[serial]
     pub fn test_aggregate_mean() {
-        test_aggregate::<NdArray>(AggregateParams {
-            kind: AggregateKind::Mean,
-            strategy: AggregateStrategy::Centralized,
-        });
+        test_aggregate::<NdArray>(
+            AggregateParams {
+                kind: AggregateKind::Mean,
+                strategy: AggregateStrategy::Centralized,
+            },
+            4,
+        );
     }
 
     #[test]
     #[serial]
     pub fn test_aggregate_binary_tree_sum() {
-        test_aggregate::<NdArray>(AggregateParams {
-            kind: AggregateKind::Sum,
-            strategy: AggregateStrategy::Tree(2),
-        });
+        test_aggregate::<NdArray>(
+            AggregateParams {
+                kind: AggregateKind::Sum,
+                strategy: AggregateStrategy::Tree(2),
+            },
+            4,
+        );
     }
 
     #[test]
     #[serial]
     pub fn test_aggregate_binary_tree_mean() {
-        test_aggregate::<NdArray>(AggregateParams {
-            kind: AggregateKind::Mean,
-            strategy: AggregateStrategy::Tree(2),
-        });
+        test_aggregate::<NdArray>(
+            AggregateParams {
+                kind: AggregateKind::Mean,
+                strategy: AggregateStrategy::Tree(2),
+            },
+            4,
+        );
     }
 
     #[test]
     #[serial]
     pub fn test_aggregate_5_tree_sum() {
-        test_aggregate::<NdArray>(AggregateParams {
-            kind: AggregateKind::Sum,
-            strategy: AggregateStrategy::Tree(5),
-        });
+        test_aggregate::<NdArray>(
+            AggregateParams {
+                kind: AggregateKind::Sum,
+                strategy: AggregateStrategy::Tree(5),
+            },
+            4,
+        );
     }
 
     #[test]
     #[serial]
     pub fn test_aggregate_5_tree_mean() {
-        test_aggregate::<NdArray>(AggregateParams {
-            kind: AggregateKind::Mean,
-            strategy: AggregateStrategy::Tree(5),
-        });
+        test_aggregate::<NdArray>(
+            AggregateParams {
+                kind: AggregateKind::Mean,
+                strategy: AggregateStrategy::Tree(5),
+            },
+            4,
+        );
     }
 
     #[test]
     #[serial]
-    pub fn test_aggregate_5_ring_sum() {
-        test_aggregate::<NdArray>(AggregateParams {
-            kind: AggregateKind::Sum,
-            strategy: AggregateStrategy::Ring,
-        });
+    pub fn test_aggregate_ring_sum() {
+        test_aggregate::<NdArray>(
+            AggregateParams {
+                kind: AggregateKind::Sum,
+                strategy: AggregateStrategy::Ring,
+            },
+            3,
+        );
     }
 
     #[test]
     #[serial]
-    pub fn test_aggregate_5_ring_mean_wgpu() {
-        test_aggregate::<Wgpu>(AggregateParams {
-            kind: AggregateKind::Mean,
-            strategy: AggregateStrategy::Ring,
-        });
+    pub fn test_aggregate_ring_irregular_sum() {
+        test_aggregate::<NdArray>(
+            AggregateParams {
+                kind: AggregateKind::Sum,
+                strategy: AggregateStrategy::Ring,
+            },
+            4,
+        );
+    }
+
+    #[test]
+    #[serial]
+    pub fn test_aggregate_ring_wgpu() {
+        test_aggregate::<Wgpu>(
+            AggregateParams {
+                kind: AggregateKind::Mean,
+                strategy: AggregateStrategy::Ring,
+            },
+            3,
+        );
     }
 }

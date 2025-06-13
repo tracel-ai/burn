@@ -564,6 +564,7 @@ dependencies = [
  "burn-wgpu",
  "derive-new 0.7.0",
  "log",
+ "rand 0.8.5",
  "serial_test",
  "tokio",
 ]

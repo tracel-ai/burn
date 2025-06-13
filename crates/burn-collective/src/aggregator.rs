@@ -266,6 +266,7 @@ fn aggregate_ring<B: Backend>(
 
     // Example: tensors=3, slices=3
 
+    // phase 1
     // o->o  o
     // o  o->o
     // o  o  o->
@@ -274,13 +275,19 @@ fn aggregate_ring<B: Backend>(
     // o  o  1->
     // 1->o  o
 
+    // phase 2
     // o  1  2->
     // 2->o  1
     // 1  2->o
 
-    // 3  1  2
-    // 2  3  1
-    // 1  2  3
+    // 2->1  2
+    // 2  2->1
+    // 1  2  2->
+
+    // 2  2  2
+    // 2  2  2
+    // 2  2  2
+
     fn get_slice_dim(shape: &Shape) -> usize {
         // get dimension with greatest size
         shape
@@ -309,13 +316,16 @@ fn aggregate_ring<B: Backend>(
     // Chose and axis and build the slice ranges
     let slice_dim = get_slice_dim(&shape);
     let dim_size = shape.dims[slice_dim];
-    let (slice_size, slice_count) = if dim_size < tensor_count {
-        (1, dim_size)
-    } else {
-        (dim_size / tensor_count, tensor_count)
-    };
+    if dim_size < tensor_count {
+        // TODO, ici on pourrait prendre un sous-group des tensors et faire un aggregate_ring
+        // avec eux, et faire un b-tree reduce avec le reste
+        let result = aggregate_tree::<B>(tensors, kind, 2);
+        return vec![result; tensor_count];
+    }
 
-    for i in 0..slice_count {
+    let slice_size = dim_size / tensor_count;
+
+    for i in 0..tensor_count {
         let start = i * slice_size;
         let end = start + slice_size;
         ranges.push(Range { start, end });
@@ -341,37 +351,14 @@ fn aggregate_ring<B: Backend>(
     }
 
     // phase 1: aggregate in ring N-1 times (Reduce-Scatter)
-    for cycle in 0..(slice_count - 1) {
+    for cycle in 0..(tensor_count - 1) {
+        println!("(1) cycle: {:?}", cycle);
         for i in 0..tensor_count {
             let src_tensor_idx = i;
             let dest_tensor_idx = (i + 1) % tensor_count;
 
-            let slice_idx = if i == tensor_count && slice_count != tensor_count {
-                // The slice to send of the last tensor needs to be different,
-                // if slice_count != tensor_count.
-
-                // Example: tensors=4, slices=3
-
-                // o->o  o  o
-                // o  o->o  o
-                // o  o  o->o->  <= this here
-
-                // o  1->o  o
-                // o  o  1->o->
-                // 1->o  o  1
-
-                // o  1  2->o->
-                // 2->o  1  2
-                // 1  2->o  1
-
-                // 3  1  2  3
-                // 2  3  1  2
-                // 1  2  3  1
-
-                ((slice_count - 1) * (cycle + 1)) % slice_count
-            } else {
-                (i + (slice_count - 1) * cycle) % slice_count
-            };
+            let slice_idx = (i + (tensor_count - 1) * cycle) % tensor_count;
+            println!("slice: {:?}", slice_idx);
 
             let src_slice = sliced_tensors[src_tensor_idx].remove(slice_idx);
             let mut dest_slice = sliced_tensors[dest_tensor_idx].remove(slice_idx);
@@ -386,18 +373,15 @@ fn aggregate_ring<B: Backend>(
     }
 
     // phase 2: share (overwrite) in a ring N-1 times (All-Gather)
-    for cycle in 0..(slice_count - 1) {
+    for cycle in 0..(tensor_count - 1) {
+        println!("(2) cycle: {:?}", cycle);
         for i in 0..tensor_count {
             let src_tensor_idx = i;
             let dest_tensor_idx = (i + 1) % tensor_count;
 
             // +1 because we're on the slice *after* the one for the last phase (see the graphs)
-            let slice_idx = if i == tensor_count && slice_count != tensor_count {
-                // See explanation in phase 1
-                ((slice_count - 1) * (cycle + 1)) % slice_count
-            } else {
-                (i + 1 + (slice_count - 1) * cycle) % slice_count
-            };
+            let slice_idx = (i + 1 + (tensor_count - 1) * cycle) % tensor_count;
+            println!("slice: {:?}", slice_idx);
 
             let src_slice = sliced_tensors[src_tensor_idx].remove(slice_idx);
             let mut dest_slice = sliced_tensors[dest_tensor_idx].remove(slice_idx);
@@ -419,6 +403,7 @@ fn aggregate_ring<B: Backend>(
             result = B::float_div_scalar(result, (tensor_count as f32).elem());
         }
 
+        println!("{:?}", result);
         results.insert(0, result)
     }
 
