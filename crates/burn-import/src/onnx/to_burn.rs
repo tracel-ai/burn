@@ -21,6 +21,7 @@ use crate::{
             avg_pool1d::AvgPool1dNode,
             avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
+            bernoulli::BernoulliNode,
             binary::BinaryNode,
             ceil::CeilNode,
             clip::ClipNode,
@@ -292,6 +293,7 @@ impl ParsedOnnxGraph {
                 NodeType::Add => graph.register(Self::add_conversion(node)),
                 NodeType::ArgMax => graph.register(Self::argmax_conversion(node)),
                 NodeType::ArgMin => graph.register(Self::argmin_conversion(node)),
+                NodeType::Bernoulli => graph.register(Self::bernoulli_conversion(node)),
                 NodeType::Sub => graph.register(Self::sub_conversion(node)),
                 NodeType::Mul => graph.register(Self::mul_conversion(node)),
                 NodeType::Div => graph.register(Self::div_conversion(node)),
@@ -989,6 +991,13 @@ impl ParsedOnnxGraph {
         let axis = argmin_config(&node);
 
         ArgMinNode::new(input, output, axis)
+    }
+
+    fn bernoulli_conversion(node: Node) -> BernoulliNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        BernoulliNode::new(input, output)
     }
 
     fn concat_conversion(node: Node) -> ConcatNode {
