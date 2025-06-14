@@ -52,27 +52,21 @@ impl<R: FusionRuntime> MultiStream<R> {
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
         let id = self.resolve_streams(&streams, handles, &mut repr);
-        // println!("[{id}] {repr:?}");
-        // println!("{streams:?}");
-        println!("[{id:?}] {:?}", self.shared_tensors);
 
-        let (id, sync) = match self.handle_drop_op(id, &mut repr) {
+        let sync = match self.handle_drop_op(id, &mut repr) {
             DropInfo::SkipSharedTensor => return,
-            DropInfo::NormalDrop => (id, true),
-            DropInfo::NotDrop => (id, false),
+            DropInfo::NormalDrop => true,
+            DropInfo::NotDrop => false,
             DropInfo::ForceSharedTensor(stream_ids, tid) => {
                 for stream_id in stream_ids {
                     if let Some(stream) = self.streams.get_mut(&stream_id) {
-                        println!("Removing {tid} from {stream_id}");
                         stream.queue.variables.remove(&tid);
                         if stream.queue.variables.is_empty() {
                             self.streams.remove(&stream_id);
                         }
-                    } else {
-                        println!("Stream gone.");
                     }
                 }
-                (id, true)
+                true
             }
         };
 
@@ -92,7 +86,6 @@ impl<R: FusionRuntime> MultiStream<R> {
             None => {
                 #[cfg(feature = "memory-checks")]
                 self.memory_checks.check(&self.streams, handles);
-                println!("{:?}", self.shared_tensors);
                 return;
             }
         };
@@ -112,11 +105,10 @@ impl<R: FusionRuntime> MultiStream<R> {
 
         #[cfg(feature = "memory-checks")]
         self.memory_checks.check(&self.streams, handles);
-        println!("{:?}", self.shared_tensors);
     }
 
     fn handle_drop_op(&mut self, id: StreamId, repr: &mut OperationIr) -> DropInfo {
-        let r = match repr {
+        match repr {
             OperationIr::Drop(tensor_ir) => {
                 match !matches!(tensor_ir.status, TensorStatus::ReadWrite) {
                     true => {
@@ -137,10 +129,7 @@ impl<R: FusionRuntime> MultiStream<R> {
                 }
             }
             _ => DropInfo::NotDrop,
-        };
-        println!("[{id}] Handle drop {r:?}");
-
-        r
+        }
     }
 
     fn enqueue_operation(
@@ -200,10 +189,8 @@ impl<R: FusionRuntime> MultiStream<R> {
             self.streams.remove(&id);
         }
 
-        // println!("{:?}", self.shared_tensors);
         #[cfg(feature = "memory-checks")]
         self.memory_checks.check(&self.streams, handles);
-        println!("{:?}", self.shared_tensors);
     }
 
     /// Drain a stream
@@ -253,7 +240,6 @@ impl<R: FusionRuntime> MultiStream<R> {
         let nodes = op.nodes();
 
         let analysis = self.analyse_shared_tensors(&nodes, &streams, current);
-        println!("{analysis:?}");
         self.shared_tensors.on_registering_op(current, &nodes);
 
         self.merge_streams_timelines(handles, &analysis, current, &nodes);
@@ -292,7 +278,6 @@ impl<R: FusionRuntime> MultiStream<R> {
             let analysis = self
                 .shared_tensors
                 .analyse(current, node, streams, &self.streams);
-            println!("[{current}] I {analysis:?}");
             match analysis {
                 SingleAnalysis::SharedFromCurrentStrean => {
                     shared_analysis.current.push(node.id);
@@ -399,7 +384,6 @@ impl<R: FusionRuntime> MultiStream<R> {
         }
     }
     fn clear_shared_tensors(&mut self, tensors: &[TensorId], current: StreamId) {
-        println!("Clear shared tensor {tensors:?}");
         let mut to_remove = Vec::new();
         for (stream_id, s) in self.streams.iter_mut() {
             for tensor in tensors.iter() {

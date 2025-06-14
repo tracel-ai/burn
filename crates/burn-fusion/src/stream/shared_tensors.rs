@@ -87,14 +87,12 @@ impl SharedTensors {
         }
 
         if execute_still {
-            println!("Execute still");
             let state = self.shared_tensors.remove(&tensor_id);
             self.shared_tensors_manual_drop.remove(&tensor_id);
 
             return match state {
                 Some(val) => {
                     let streams = val.streams.keys().map(|s| *s).collect();
-                    println!("Has a astate {streams:?}");
                     SharedTensorDropped::ForceDrop(streams)
                 }
                 None => SharedTensorDropped::ForceDrop(Vec::new()),
@@ -112,8 +110,9 @@ impl SharedTensors {
         let mut cleared = Vec::new();
         for (tensor_id, state) in self.shared_tensors.iter_mut() {
             match state.update(id, &stream) {
-                SharedTensorUpdate::RemovedStream(stream_id, no_more_stream) => {
+                SharedTensorUpdate::RemovedFromStream(no_more_stream) => {
                     stream.queue.variables.remove(tensor_id);
+
                     if no_more_stream {
                         cleared.push(*tensor_id);
                     }
@@ -121,7 +120,7 @@ impl SharedTensors {
                 SharedTensorUpdate::NoMoreStream => {
                     cleared.push(*tensor_id);
                 }
-                SharedTensorUpdate::Skip => {}
+                SharedTensorUpdate::NothingToDo => {}
             }
         }
         cleared
@@ -164,7 +163,7 @@ impl SharedTensors {
         };
 
         state.register_new_stream(id, stream_current);
-        let result = match state.register_new_stream(*stream_id, stream) {
+        match state.register_new_stream(*stream_id, stream) {
             Some(origin) => SingleAnalysis::SharedFromExistingStream {
                 stream_id: *stream_id,
                 original_cursor: origin,
@@ -172,10 +171,7 @@ impl SharedTensors {
             None => SingleAnalysis::SharedFromNewStream {
                 stream_id: *stream_id,
             },
-        };
-        println!("{:?}", self);
-
-        result
+        }
     }
 
     pub fn on_registering_op(&mut self, id: StreamId, nodes: &[&TensorIr]) {
@@ -247,9 +243,9 @@ impl SharedTensors {
 }
 
 pub enum SharedTensorUpdate {
-    RemovedStream(StreamId, bool),
+    RemovedFromStream(bool),
     NoMoreStream,
-    Skip,
+    NothingToDo,
 }
 
 impl SharedTensor {
@@ -297,18 +293,17 @@ impl SharedTensor {
                 return if self.streams.is_empty() {
                     SharedTensorUpdate::NoMoreStream
                 } else {
-                    SharedTensorUpdate::Skip
+                    SharedTensorUpdate::NothingToDo
                 };
             }
         };
 
         // We can only free the shared tensor if the latest cursor is executed.
         if entry.cursor_current <= stream.cursor {
-            println!("Removed stream {id}");
-            SharedTensorUpdate::RemovedStream(id, self.streams.is_empty())
+            SharedTensorUpdate::RemovedFromStream(self.streams.is_empty())
         } else {
             self.streams.insert(id, entry);
-            SharedTensorUpdate::Skip
+            SharedTensorUpdate::NothingToDo
         }
     }
 
