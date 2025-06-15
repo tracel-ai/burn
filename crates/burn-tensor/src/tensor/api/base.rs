@@ -14,14 +14,14 @@ use serde::{Deserialize, Deserializer};
 
 use serde::{Serialize, Serializer};
 
+use super::{Slice, TensorMetadata, Transaction};
+use crate::indexing::{AsIndex, canonicalize_dim, wrap_index};
 use crate::{
     Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check,
     ops::Device,
 };
 use crate::{DType, Element, TensorPrimitive};
 use crate::{cast::ToElement, check::TensorCheck};
-
-use super::{Slice, TensorMetadata, Transaction};
 
 /// A tensor with a given backend, shape and data type.
 ///
@@ -840,6 +840,208 @@ where
         //lastly, create the shape and reshape
         let shape = Shape::new(new_dims);
         self.reshape(shape)
+    }
+
+    /// Roll operation along a specific dimension.
+    ///
+    /// ## Parameters
+    ///
+    /// - `dim`: The dimension to roll; supports negative indexing.
+    /// - `shift`: The number of positions to shift; supports negative values and wraps around.
+    ///
+    /// ## Returns
+    ///
+    /// A new tensor with the specified dimension rolled by the given shift amount.
+    #[must_use]
+    pub fn roll_dim<I1, I2>(self, dim: I2, shift: I1) -> Self
+    where
+        I1: AsIndex,
+        I2: AsIndex,
+    {
+        let dim = canonicalize_dim(dim, D, false);
+        let size = self.shape().dims[dim];
+        let shift = wrap_index(shift, size);
+
+        if size == 0 || shift == 0 {
+            return self;
+        }
+
+        self._unchecked_roll_dim(dim, shift)
+    }
+
+    /// Internal implementation of `roll_dim` that does not canonicalize dimensions or shifts.
+    ///
+    /// ## Parameters
+    ///
+    /// - `shift`: The number of positions to shift; must be (0 < shift < size).
+    /// - `dim`: The dimension to roll; must be a valid index for the tensor's shape.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the contract conditions are not met.
+    ///
+    /// ## Returns
+    ///
+    /// A new tensor with the specified dimension rolled by the given shift amount.
+    #[inline(always)]
+    #[must_use]
+    fn _unchecked_roll_dim(self, dim: usize, shift: usize) -> Self {
+        #[cfg(debug_assertions)]
+        {
+            let size = self.shape().dims[dim];
+            assert!(
+                0 < shift && shift < size,
+                "Expected: 0 < shift < size: found shift={}, size={}",
+                shift,
+                size,
+            );
+            assert!(
+                dim < size,
+                "Expected: dim < size: found dim={}, size={}",
+                dim,
+                size,
+            );
+        }
+
+        Tensor::cat(
+            vec![
+                self.clone().slice_dim(dim, shift..),
+                self.slice_dim(dim, ..shift),
+            ],
+            dim,
+        )
+    }
+
+    /// Roll operation.
+    ///
+    /// Note: unlike ``pytorch``, `dims` and `shifts` must have the same length.
+    ///
+    /// A given `dim` may be rolled multiple times, and the shifts will be applied sequentially.
+    ///
+    /// ## Parameters
+    ///
+    /// - `dims`: A slice of dimensions to roll; supports negative indexing.
+    /// - `shifts`: A slice of shifts corresponding to each dimension;
+    ///   supports negative values and wraps around.
+    ///
+    /// ## Returns
+    ///
+    /// A new tensor with the specified dimensions rolled by the given shifts.
+    #[must_use]
+    pub fn roll<I1, I2>(self, dims: &[I2], shifts: &[I1]) -> Self
+    where
+        I1: AsIndex,
+        I2: AsIndex,
+    {
+        assert_eq!(
+            dims.len(),
+            shifts.len(),
+            "Dimensions and shifts must align; found dims={:#?}, shifts={:#?}",
+            dims,
+            shifts,
+        );
+
+        // This is a fair amount of complexity, which could be replaced
+        // by a simple canonicalization of `dims` and wrapping of `shifts`.
+        // The work is done here to ensure that any roll operation
+        // which could be a no-op is a no-op; simplifying the accounting
+        // needed by backend-specific implementations of the inner roll op.
+
+        let item_count = dims.len();
+
+        let shape = self.shape().dims;
+
+        // Accumulate the effective shifts for each dimension.
+        let mut accumulated_shifts: Vec<isize> = vec![0; shape.len()];
+        for i in 0..item_count {
+            let dim = canonicalize_dim(dims[i], D, false);
+            accumulated_shifts[dim] += shifts[i].index();
+        }
+
+        // Do this after we've checked the validity of `dims` and `shifts`.
+        if self.shape().num_elements() == 0 {
+            // If the tensor is empty, return it as is.
+            return self;
+        }
+
+        // Wrap the accumulated shifts, and filter out empty dimensions.
+        let mut effective_dims: Vec<usize> = Vec::with_capacity(item_count);
+        let mut effective_shifts: Vec<usize> = Vec::with_capacity(item_count);
+        for dim in 0..shape.len() {
+            let shift = accumulated_shifts[dim];
+            if shift == 0 {
+                continue;
+            }
+            let shift = wrap_index(shift, shape[dim]);
+            if shift == 0 {
+                continue;
+            }
+
+            effective_dims.push(dim);
+            effective_shifts.push(shift);
+        }
+
+        // If no shifts are needed, return the original tensor.
+        if effective_shifts.is_empty() {
+            return self;
+        }
+
+        // At this point:
+        // - `dims` contains the effective dimensions to roll, in index order,
+        // - `shifts` contains the effective usize shifts for each dimension.
+        // - Every shift is non-zero, and less than the size of the corresponding dimension.
+        self._unchecked_roll(&effective_dims, &effective_shifts)
+    }
+
+    /// `roll` internal implementation.
+    ///
+    /// ## Parameters
+    ///
+    /// - `dims`: A slice of dimensions to roll; must be non-empty;
+    ///   the same length as `shifts`, and must not contain repeats.
+    /// - `shifts`: A slice of shifts corresponding to each dimension;
+    ///   must be non-empty, the same length as `dims`, and all ``1..<size>``.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the shifts and dimensions do not align, or if dimensions contain repeats.
+    ///
+    /// ## Returns
+    ///
+    /// A new tensor with the specified dimensions rolled by the given shifts.
+    #[inline(always)]
+    #[must_use]
+    fn _unchecked_roll(self, dims: &[usize], shifts: &[usize]) -> Self {
+        #[cfg(debug_assertions)]
+        {
+            assert!(!shifts.is_empty());
+            assert_eq!(
+                shifts.len(),
+                dims.len(),
+                "Shifts and dimensions must align; found {} shifts and {} dims",
+                shifts.len(),
+                dims.len()
+            );
+
+            let mut unique_dims = dims.to_vec();
+            unique_dims.dedup();
+
+            assert_eq!(
+                unique_dims.len(),
+                dims.len(),
+                "Dimensions must not contain repeats; found {} unique dims and {} total dims",
+                unique_dims.len(),
+                dims.len()
+            )
+        }
+
+        let x = self._unchecked_roll_dim(dims[0], shifts[0]);
+
+        if dims.len() == 1 {
+            x
+        } else {
+            x._unchecked_roll(&dims[1..], &shifts[1..])
+        }
     }
 
     /// Returns a tensor containing the elements selected from the given ranges.
