@@ -37,6 +37,12 @@ mod tests {
 
         input
             .clone()
+            .roll(&[1, 0], &[-1, 1])
+            .to_data()
+            .assert_eq(&TensorData::from([[5, 3, 4], [2, 0, 1]]), false);
+
+        input
+            .clone()
             .roll(&[0, 1], &[2 * 32 + 1, 3 * (-400) - 1])
             .to_data()
             .assert_eq(&TensorData::from([[5, 3, 4], [2, 0, 1]]), false);
