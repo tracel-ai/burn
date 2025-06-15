@@ -968,11 +968,17 @@ where
         let mut effective_dims: Vec<usize> = Vec::with_capacity(item_count);
         let mut effective_shifts: Vec<usize> = Vec::with_capacity(item_count);
         for dim in 0..shape.len() {
-            let effective_shift = wrap_index(accumulated_shifts[dim], shape[dim]);
-            if effective_shift != 0 {
-                effective_dims.push(dim);
-                effective_shifts.push(effective_shift);
+            let shift = accumulated_shifts[dim];
+            if shift == 0 {
+                continue;
             }
+            let shift = wrap_index(shift, shape[dim]);
+            if shift == 0 {
+                continue;
+            }
+
+            effective_dims.push(dim);
+            effective_shifts.push(shift);
         }
 
         // If no shifts are needed, return the original tensor.
@@ -991,9 +997,10 @@ where
     ///
     /// ## Parameters
     ///
-    /// - `dims`: A slice of dimensions to roll; must be the same length as `shifts`,
-    ///   and must not contain repeats.
-    /// - `shifts`: A slice of shifts corresponding to each dimension; must not be empty.
+    /// - `dims`: A slice of dimensions to roll; must be non-empty;
+    ///   the same length as `shifts`, and must not contain repeats.
+    /// - `shifts`: A slice of shifts corresponding to each dimension;
+    ///   must be non-empty, the same length as `dims`, and all ``1..<size>``.
     ///
     /// ## Panics
     ///
@@ -1026,10 +1033,6 @@ where
                 unique_dims.len(),
                 dims.len()
             )
-        }
-
-        if dims.is_empty() {
-            return self;
         }
 
         let x = self._unchecked_roll_dim(dims[0], shifts[0]);
