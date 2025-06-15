@@ -906,7 +906,7 @@ where
         Tensor::cat(
             vec![
                 self.clone().slice_dim(dim, shift..),
-                self.slice_dim(dim, 0..shift),
+                self.slice_dim(dim, ..shift),
             ],
             dim,
         )
@@ -949,14 +949,13 @@ where
 
         let item_count = dims.len();
 
-        let sizes = self.shape().dims;
+        let shape = self.shape().dims;
 
         // Accumulate the effective shifts for each dimension.
-        let mut shift_accum: Vec<isize> = vec![0; sizes.len()];
+        let mut accumulated_shifts: Vec<isize> = vec![0; shape.len()];
         for i in 0..item_count {
-            let self1 = &dims[i];
-            let dim = canonicalize_dim(*self1, D, false);
-            shift_accum[dim] += shifts[i].index();
+            let dim = canonicalize_dim(dims[i], D, false);
+            accumulated_shifts[dim] += shifts[i].index();
         }
 
         // Do this after we've checked the validity of `dims` and `shifts`.
@@ -966,28 +965,26 @@ where
         }
 
         // Wrap the accumulated shifts, and filter out empty dimensions.
-        let mut _dims: Vec<usize> = Vec::with_capacity(item_count);
-        let mut _shifts: Vec<usize> = Vec::with_capacity(item_count);
-        for dim in 0..item_count {
-            let self1 = &shift_accum[dim];
-            let size = sizes[dim];
-            let shift = wrap_index(*self1, size);
-            if shift != 0 {
-                _shifts.push(shift);
-                _dims.push(dim);
+        let mut effective_dims: Vec<usize> = Vec::with_capacity(item_count);
+        let mut effective_shifts: Vec<usize> = Vec::with_capacity(item_count);
+        for dim in 0..shape.len() {
+            let effective_shift = wrap_index(accumulated_shifts[dim], shape[dim]);
+            if effective_shift != 0 {
+                effective_dims.push(dim);
+                effective_shifts.push(effective_shift);
             }
         }
 
         // If no shifts are needed, return the original tensor.
-        if _shifts.is_empty() {
+        if effective_shifts.is_empty() {
             return self;
         }
 
         // At this point:
-        // - the roll is non-trivial (i.e., at least one accumulated shift is non-zero),
         // - `dims` contains the effective dimensions to roll, in index order,
         // - `shifts` contains the effective usize shifts for each dimension.
-        self._unchecked_roll(&_dims, &_shifts)
+        // - Every shift is non-zero, and less than the size of the corresponding dimension.
+        self._unchecked_roll(&effective_dims, &effective_shifts)
     }
 
     /// `roll` internal implementation.
