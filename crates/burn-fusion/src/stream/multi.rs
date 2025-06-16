@@ -390,11 +390,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         let mut to_remove = Vec::new();
         for (stream_id, s) in self.streams.iter_mut() {
             for tensor in tensors.iter() {
-                if let Some((_original, _status)) = s.queue.variables.get(tensor) {
-                    if current != *stream_id || true {
-                        s.queue.variables.remove(tensor);
-                    }
-                }
+                s.queue.variables.remove(tensor);
             }
 
             if s.queue.variables.is_empty() && current != *stream_id {
