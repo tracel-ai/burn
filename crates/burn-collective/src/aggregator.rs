@@ -317,8 +317,6 @@ fn aggregate_ring<B: Backend>(
     let slice_dim = get_slice_dim(&shape);
     let dim_size = shape.dims[slice_dim];
     if dim_size < tensor_count {
-        // TODO, ici on pourrait prendre un sous-group des tensors et faire un aggregate_ring
-        // avec eux, et faire un b-tree reduce avec le reste
         let result = aggregate_tree::<B>(tensors, kind, 2);
         return vec![result; tensor_count];
     }
@@ -352,13 +350,11 @@ fn aggregate_ring<B: Backend>(
 
     // phase 1: aggregate in ring N-1 times (Reduce-Scatter)
     for cycle in 0..(tensor_count - 1) {
-        println!("(1) cycle: {:?}", cycle);
         for i in 0..tensor_count {
             let src_tensor_idx = i;
             let dest_tensor_idx = (i + 1) % tensor_count;
 
             let slice_idx = (i + (tensor_count - 1) * cycle) % tensor_count;
-            println!("slice: {:?}", slice_idx);
 
             let src_slice = sliced_tensors[src_tensor_idx].remove(slice_idx);
             let mut dest_slice = sliced_tensors[dest_tensor_idx].remove(slice_idx);
@@ -374,14 +370,12 @@ fn aggregate_ring<B: Backend>(
 
     // phase 2: share (overwrite) in a ring N-1 times (All-Gather)
     for cycle in 0..(tensor_count - 1) {
-        println!("(2) cycle: {:?}", cycle);
         for i in 0..tensor_count {
             let src_tensor_idx = i;
             let dest_tensor_idx = (i + 1) % tensor_count;
 
             // +1 because we're on the slice *after* the one for the last phase (see the graphs)
             let slice_idx = (i + 1 + (tensor_count - 1) * cycle) % tensor_count;
-            println!("slice: {:?}", slice_idx);
 
             let src_slice = sliced_tensors[src_tensor_idx].remove(slice_idx);
             let mut dest_slice = sliced_tensors[dest_tensor_idx].remove(slice_idx);
@@ -403,7 +397,6 @@ fn aggregate_ring<B: Backend>(
             result = B::float_div_scalar(result, (tensor_count as f32).elem());
         }
 
-        println!("{:?}", result);
         results.insert(0, result)
     }
 

@@ -68,12 +68,14 @@ mod tests {
         (input, expected)
     }
 
-    fn test_aggregate<B: Backend>(params: AggregateParams, peer_count: u32) {
+    fn test_aggregate<B: Backend>(params: AggregateParams, peer_count: u32, tensor_size: usize) {
         reset_collective::<NdArray>();
 
         let (send, recv) = std::sync::mpsc::sync_channel(1);
 
-        let shape = Shape { dims: vec![3] };
+        let shape = Shape {
+            dims: vec![tensor_size],
+        };
         let (input, expected) = generate_random_input(shape, params.clone(), peer_count);
 
         for id in 0..peer_count {
@@ -102,6 +104,7 @@ mod tests {
                 strategy: AggregateStrategy::Centralized,
             },
             4,
+            4,
         );
     }
 
@@ -113,6 +116,7 @@ mod tests {
                 kind: AggregateKind::Mean,
                 strategy: AggregateStrategy::Centralized,
             },
+            4,
             4,
         );
     }
@@ -126,6 +130,7 @@ mod tests {
                 strategy: AggregateStrategy::Tree(2),
             },
             4,
+            4,
         );
     }
 
@@ -137,6 +142,7 @@ mod tests {
                 kind: AggregateKind::Mean,
                 strategy: AggregateStrategy::Tree(2),
             },
+            4,
             4,
         );
     }
@@ -150,6 +156,7 @@ mod tests {
                 strategy: AggregateStrategy::Tree(5),
             },
             4,
+            4,
         );
     }
 
@@ -161,6 +168,7 @@ mod tests {
                 kind: AggregateKind::Mean,
                 strategy: AggregateStrategy::Tree(5),
             },
+            4,
             4,
         );
     }
@@ -174,18 +182,21 @@ mod tests {
                 strategy: AggregateStrategy::Ring,
             },
             3,
+            3,
         );
     }
 
     #[test]
     #[serial]
     pub fn test_aggregate_ring_irregular_sum() {
+        // this should trigger the fallback algorithm when the tensor is too small.
         test_aggregate::<NdArray>(
             AggregateParams {
                 kind: AggregateKind::Sum,
                 strategy: AggregateStrategy::Ring,
             },
             4,
+            3,
         );
     }
 
@@ -197,6 +208,7 @@ mod tests {
                 kind: AggregateKind::Mean,
                 strategy: AggregateStrategy::Ring,
             },
+            3,
             3,
         );
     }
