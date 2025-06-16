@@ -7,32 +7,10 @@ use crate::FusionRuntime;
 use super::{OperationStreams, Stream};
 
 #[derive(Default)]
+/// Manages tensors that are shared between multiple streams.
 pub struct SharedTensors {
     shared_tensors: HashMap<TensorId, SharedTensor>,
     shared_tensors_manual_drop: HashMap<TensorId, TensorIr>,
-}
-
-impl core::fmt::Debug for SharedTensors {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("\n==== Shared Tensors ====\n")?;
-
-        for sh in self.shared_tensors.iter() {
-            f.write_fmt(format_args!("  - Shared {}", sh.0))?;
-            for (id, state) in sh.1.streams.iter() {
-                f.write_fmt(format_args!(
-                    " [{}, cursor={}..{}] ",
-                    id, state.cursor_origin, state.cursor_current
-                ))?;
-            }
-            f.write_str("\n")?;
-        }
-        for sh in self.shared_tensors_manual_drop.iter() {
-            f.write_fmt(format_args!("  - Manual Drop {}", sh.0))?;
-            f.write_str("\n")?;
-        }
-
-        f.write_str("========================\n")
-    }
 }
 
 #[derive(Default, Debug)]
@@ -48,37 +26,49 @@ struct SharedTensorState {
 }
 
 #[derive(Debug)]
-pub enum SharedTensorDropped {
+/// What do to when a tensor is dropped.
+pub enum SharedTensorDropAction {
+    /// Performs the drop and removes the shared tensor from the provided list of
+    /// stream ids.
     ForceDrop(Vec<StreamId>),
+    /// Skip the drop.
     Skip,
 }
 
 #[derive(Debug)]
-pub enum SingleAnalysis {
+/// Information about a shared tensor.
+pub enum SharedTensorAnalysis {
+    /// The tensor is not shared.
     NotShared,
+    /// The tensor is shared, but its original stream is the current one.
     SharedFromCurrentStrean,
+    /// The tensor is shared, and its original stream is an existing stream.
     SharedFromExistingStream {
+        /// The stream id of the existing stream.
         stream_id: StreamId,
+        /// The position of execution in the existing stream where the tensor was created.
         original_cursor: u64,
     },
-    /// From a stream that is created, but no operation was executed yet because of lazy
-    /// execution.
+    /// The tensor is shared, and its original stream is a new one without any operation
+    /// executed.
     SharedFromNewStream {
+        /// The stream id of the new stream.
         stream_id: StreamId,
     },
 }
 
 impl SharedTensors {
+    /// Function to call when a drop operation is registered on the given stream and tensor.
     pub fn on_drop(
         &mut self,
         stream_id: StreamId,
         tensor_id: TensorId,
-        stream_gone: bool,
-    ) -> SharedTensorDropped {
+        stream_completed: bool,
+    ) -> SharedTensorDropAction {
         let mut execute_still = false;
 
         if let Some(shared) = self.shared_tensors.get_mut(&tensor_id) {
-            if stream_gone {
+            if stream_completed {
                 shared.drop(stream_id);
                 execute_still = shared.streams.is_empty();
             }
@@ -93,15 +83,18 @@ impl SharedTensors {
             return match state {
                 Some(val) => {
                     let streams = val.streams.keys().copied().collect();
-                    SharedTensorDropped::ForceDrop(streams)
+                    SharedTensorDropAction::ForceDrop(streams)
                 }
-                None => SharedTensorDropped::ForceDrop(Vec::new()),
+                None => SharedTensorDropAction::ForceDrop(Vec::new()),
             };
         }
 
-        SharedTensorDropped::Skip
+        SharedTensorDropAction::Skip
     }
 
+    /// Function to call when one or many operations were executed on the stream.
+    ///
+    /// Returns the tensor id that can be cleared with [Self::clear_tensors]
     pub fn on_executed_ops<R: FusionRuntime>(
         &mut self,
         id: StreamId,
@@ -126,27 +119,42 @@ impl SharedTensors {
         cleared
     }
 
+    /// Clear the provided tensors and returns the list of tensors that can be manually dropped.
+    pub fn clear_tensors(&mut self, tensors: Vec<TensorId>) -> Vec<TensorIr> {
+        let mut to_drop = Vec::new();
+        for id in tensors {
+            self.shared_tensors.remove(&id);
+
+            if let Some(tensor) = self.shared_tensors_manual_drop.remove(&id) {
+                to_drop.push(tensor);
+            }
+        }
+
+        self.register_manual_drop(to_drop)
+    }
+
+    /// Analyses the current tensor and updates its state.
     pub fn analyse<R: FusionRuntime>(
         &mut self,
         id: StreamId,
         node: &TensorIr,
         streams_op: &OperationStreams,
         streams: &HashMap<StreamId, Stream<R>>,
-    ) -> SingleAnalysis {
+    ) -> SharedTensorAnalysis {
         let stream_id = match streams_op.streams.get(&node.id) {
             Some(val) => val,
             None => {
                 return match self.shared_tensors.contains_key(&node.id) {
-                    true => SingleAnalysis::SharedFromCurrentStrean,
-                    false => SingleAnalysis::NotShared,
+                    true => SharedTensorAnalysis::SharedFromCurrentStrean,
+                    false => SharedTensorAnalysis::NotShared,
                 };
             }
         };
 
         if stream_id == &id {
             return match self.shared_tensors.contains_key(&node.id) {
-                true => SingleAnalysis::SharedFromCurrentStrean,
-                false => SingleAnalysis::NotShared,
+                true => SharedTensorAnalysis::SharedFromCurrentStrean,
+                false => SharedTensorAnalysis::NotShared,
             };
         }
 
@@ -164,58 +172,21 @@ impl SharedTensors {
 
         state.register_new_stream(id, stream_current);
         match state.register_new_stream(*stream_id, stream) {
-            Some(origin) => SingleAnalysis::SharedFromExistingStream {
+            Some(origin) => SharedTensorAnalysis::SharedFromExistingStream {
                 stream_id: *stream_id,
                 original_cursor: origin,
             },
-            None => SingleAnalysis::SharedFromNewStream {
+            None => SharedTensorAnalysis::SharedFromNewStream {
                 stream_id: *stream_id,
             },
         }
     }
 
-    pub fn on_registering_op(&mut self, id: StreamId, nodes: &[&TensorIr]) {
-        for node in nodes {
-            if let burn_ir::TensorStatus::ReadWrite = node.status {
-                if let Some(st) = self.shared_tensors.get(&node.id) {
-                    if !st.streams.is_empty() {
-                        if st.streams.len() == 1 && st.streams.contains_key(&id) {
-                        } else {
-                            continue;
-                        }
-                    }
-                };
-            }
-        }
-    }
-
+    /// Tag the provided tensors as manually dropped.
     pub fn tag_manual_drop(&mut self, dropped: Vec<TensorIr>) {
         for tensor in dropped {
-            if !self.shared_tensors.contains_key(&tensor.id) {
-                panic!("What");
-            }
-
             self.shared_tensors_manual_drop.insert(tensor.id, tensor);
         }
-    }
-
-    pub fn on_closed_stream(&mut self, id: StreamId) {
-        for (_id, st) in self.shared_tensors.iter() {
-            assert!(!st.streams.contains_key(&id));
-        }
-    }
-
-    pub fn clear_tensors(&mut self, tensors: Vec<TensorId>) -> Vec<TensorIr> {
-        let mut to_drop = Vec::new();
-        for id in tensors {
-            self.shared_tensors.remove(&id);
-
-            if let Some(tensor) = self.shared_tensors_manual_drop.remove(&id) {
-                to_drop.push(tensor);
-            }
-        }
-
-        self.register_manual_drop(to_drop)
     }
 
     fn register_manual_drop(&mut self, mut tensors: Vec<TensorIr>) -> Vec<TensorIr> {
@@ -239,9 +210,15 @@ impl SharedTensors {
     }
 }
 
+/// The result from a [SharedTensor::update].
 pub enum SharedTensorUpdate {
+    /// The tensor is removed from the current stream.
+    ///
+    /// Also contains if the current stream is empty.
     RemovedFromStream(bool),
+    /// If the tensor is shared across zero streams.
     NoMoreStream,
+    /// If nothing has been done from the update.
     NothingToDo,
 }
 
@@ -306,5 +283,28 @@ impl SharedTensor {
 
     fn drop(&mut self, id: StreamId) {
         self.streams.remove(&id);
+    }
+}
+
+impl core::fmt::Debug for SharedTensors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("\n==== Shared Tensors ====\n")?;
+
+        for sh in self.shared_tensors.iter() {
+            f.write_fmt(format_args!("  - Shared {}", sh.0))?;
+            for (id, state) in sh.1.streams.iter() {
+                f.write_fmt(format_args!(
+                    " [{}, cursor={}..{}] ",
+                    id, state.cursor_origin, state.cursor_current
+                ))?;
+            }
+            f.write_str("\n")?;
+        }
+        for sh in self.shared_tensors_manual_drop.iter() {
+            f.write_fmt(format_args!("  - Manual Drop {}", sh.0))?;
+            f.write_str("\n")?;
+        }
+
+        f.write_str("========================\n")
     }
 }

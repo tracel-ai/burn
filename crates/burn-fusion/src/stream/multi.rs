@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     DropOp, FusionRuntime,
-    stream::shared_tensors::{SharedTensorDropped, SingleAnalysis},
+    stream::shared_tensors::{SharedTensorAnalysis, SharedTensorDropAction},
 };
 
 /// Keep track of multiple concurrent lazy streams of operations.
@@ -28,7 +28,7 @@ enum DropAction {
     SkipSharedTensor,
     ForceSharedTensor(Vec<StreamId>, TensorId),
     ContinueDrop,
-    DontDrop,
+    NotADrop,
 }
 
 impl<R: FusionRuntime> MultiStream<R> {
@@ -55,8 +55,7 @@ impl<R: FusionRuntime> MultiStream<R> {
 
         let sync = match self.handle_drop_op(id, &mut repr) {
             DropAction::SkipSharedTensor => return,
-            DropAction::ContinueDrop => true,
-            DropAction::DontDrop => false,
+            DropAction::NotADrop => false,
             DropAction::ForceSharedTensor(stream_ids, tid) => {
                 for stream_id in stream_ids {
                     if let Some(stream) = self.streams.get_mut(&stream_id) {
@@ -68,6 +67,7 @@ impl<R: FusionRuntime> MultiStream<R> {
                 }
                 true
             }
+            DropAction::ContinueDrop => true,
         };
 
         let num_executed = self.enqueue_operation(id, repr, &streams, operation, handles);
@@ -90,13 +90,7 @@ impl<R: FusionRuntime> MultiStream<R> {
             }
         };
 
-        let can_remove = stream.queue.variables.is_empty();
-
-        if can_remove {
-            if let Some(_stream) = self.streams.remove(&id) {
-                self.shared_tensors.on_closed_stream(id);
-            }
-        } else if sync {
+        if !stream.queue.variables.is_empty() && sync {
             // Not draining the queue can cause a memory leak when a stream is closing.
             self.drain(handles, id);
         }
@@ -120,17 +114,17 @@ impl<R: FusionRuntime> MultiStream<R> {
                                 .on_drop(id, tensor_ir.id, stream.is_none());
 
                         match on_drop {
-                            SharedTensorDropped::ForceDrop(streams) => {
+                            SharedTensorDropAction::ForceDrop(streams) => {
                                 tensor_ir.status = TensorStatus::ReadWrite;
                                 DropAction::ForceSharedTensor(streams, tensor_ir.id)
                             }
-                            SharedTensorDropped::Skip => DropAction::SkipSharedTensor,
+                            SharedTensorDropAction::Skip => DropAction::SkipSharedTensor,
                         }
                     }
                     false => DropAction::ContinueDrop,
                 }
             }
-            _ => DropAction::DontDrop,
+            _ => DropAction::NotADrop,
         }
     }
 
@@ -198,21 +192,6 @@ impl<R: FusionRuntime> MultiStream<R> {
 
     /// Drain a stream
     pub fn drain(&mut self, handles: &mut HandleContainer<R::FusionHandle>, id: StreamId) {
-        self.drain_inner(handles, id);
-
-        let stream = match self.streams.get(&id) {
-            Some(val) => val,
-            None => return,
-        };
-
-        if stream.queue.variables.is_empty() {
-            if let Some(_) = self.streams.remove(&id) {
-                self.shared_tensors.on_closed_stream(id);
-            }
-        }
-    }
-
-    fn drain_inner(&mut self, handles: &mut HandleContainer<R::FusionHandle>, id: StreamId) {
         if let Some(stream) = self.streams.get_mut(&id) {
             let num_executed = stream.queue.global.len();
             stream.processor.process(
@@ -243,7 +222,6 @@ impl<R: FusionRuntime> MultiStream<R> {
         let nodes = op.nodes();
 
         let analysis = self.analyse_shared_tensors(&nodes, streams, current);
-        self.shared_tensors.on_registering_op(current, &nodes);
 
         self.merge_streams_timelines(handles, &analysis, current, &nodes);
         self.register_shared_tensors_drop(&analysis, op);
@@ -274,19 +252,19 @@ impl<R: FusionRuntime> MultiStream<R> {
         nodes: &[&TensorIr],
         streams: &OperationStreams,
         current: StreamId,
-    ) -> SharedTensorsAnalysis {
-        let mut shared_analysis = SharedTensorsAnalysis::default();
+    ) -> MultiSharedTensorAnalysis {
+        let mut shared_analysis = MultiSharedTensorAnalysis::default();
 
         for node in nodes.iter() {
             let analysis = self
                 .shared_tensors
                 .analyse(current, node, streams, &self.streams);
             match analysis {
-                SingleAnalysis::SharedFromCurrentStrean => {
+                SharedTensorAnalysis::SharedFromCurrentStrean => {
                     shared_analysis.current.push(node.id);
                 }
-                SingleAnalysis::NotShared => {}
-                SingleAnalysis::SharedFromExistingStream {
+                SharedTensorAnalysis::NotShared => {}
+                SharedTensorAnalysis::SharedFromExistingStream {
                     stream_id,
                     original_cursor,
                 } => {
@@ -294,7 +272,7 @@ impl<R: FusionRuntime> MultiStream<R> {
                         .existing
                         .push((node.id, stream_id, original_cursor));
                 }
-                SingleAnalysis::SharedFromNewStream { stream_id } => {
+                SharedTensorAnalysis::SharedFromNewStream { stream_id } => {
                     shared_analysis.new.push((node.id, stream_id));
                 }
             }
@@ -306,7 +284,7 @@ impl<R: FusionRuntime> MultiStream<R> {
     fn merge_streams_timelines(
         &mut self,
         handles: &mut HandleContainer<R::FusionHandle>,
-        analysis: &SharedTensorsAnalysis,
+        analysis: &MultiSharedTensorAnalysis,
         current: StreamId,
         nodes: &[&TensorIr],
     ) {
@@ -322,27 +300,22 @@ impl<R: FusionRuntime> MultiStream<R> {
 
         for (_tensor_id, stream_id, original_cursor) in analysis.existing.iter() {
             if let Some(stream) = self.streams.get(stream_id) {
-                // We only have to sync stream when the stream isn't up to data to
+                // We only have to sync a stream when the stream isn't up to date with
                 // the original cursor of the current operation.
-                //
-                // This way we're avoiding to re-sync the streams of previsouvly shared tensors
-                // that are already resolved.
-                if stream.cursor <= *original_cursor {
+                if stream.cursor <= *original_cursor && *stream_id != current {
                     streams_to_sync.insert(*stream_id);
                 }
             }
         }
 
         for id in streams_to_sync.drain() {
-            if id != current {
-                self.resolve_stream(handles, id, nodes);
-            }
+            self.resolve_stream(handles, id, nodes);
         }
     }
 
     fn register_shared_tensors_drop(
         &mut self,
-        analysis: &SharedTensorsAnalysis,
+        analysis: &MultiSharedTensorAnalysis,
         op: &mut OperationIr,
     ) {
         let mut readonly_tensors = Vec::new();
@@ -467,11 +440,12 @@ impl OperationStreams {
 }
 
 #[derive(Default, Debug)]
-struct SharedTensorsAnalysis {
+struct MultiSharedTensorAnalysis {
     /// Tensors that are shared with other streams, but we're currently executing on the same stream
     /// the tensor was originally created.
     current: Vec<TensorId>,
-    /// Tensors that are newly shared with other streams.
+    /// Tensors that are shared with new streams.
     new: Vec<(TensorId, StreamId)>,
+    /// Tensors that are shared with existing streams.
     existing: Vec<(TensorId, StreamId, u64)>,
 }
