@@ -24,11 +24,11 @@ pub struct MultiStream<R: FusionRuntime> {
 }
 
 #[derive(Debug)]
-enum DropInfo {
+enum DropAction {
     SkipSharedTensor,
     ForceSharedTensor(Vec<StreamId>, TensorId),
-    NormalDrop,
-    NotDrop,
+    ContinueDrop,
+    DontDrop,
 }
 
 impl<R: FusionRuntime> MultiStream<R> {
@@ -54,10 +54,10 @@ impl<R: FusionRuntime> MultiStream<R> {
         let id = self.resolve_streams(&streams, handles, &mut repr);
 
         let sync = match self.handle_drop_op(id, &mut repr) {
-            DropInfo::SkipSharedTensor => return,
-            DropInfo::NormalDrop => true,
-            DropInfo::NotDrop => false,
-            DropInfo::ForceSharedTensor(stream_ids, tid) => {
+            DropAction::SkipSharedTensor => return,
+            DropAction::ContinueDrop => true,
+            DropAction::DontDrop => false,
+            DropAction::ForceSharedTensor(stream_ids, tid) => {
                 for stream_id in stream_ids {
                     if let Some(stream) = self.streams.get_mut(&stream_id) {
                         stream.queue.variables.remove(&tid);
@@ -97,9 +97,7 @@ impl<R: FusionRuntime> MultiStream<R> {
                 self.shared_tensors.on_closed_stream(id);
             }
         } else if sync {
-            // Cause a problem where the queue becomes corrupted sometimes.
-            //
-            // TODO: Fix.
+            // Not draining the queue can cause a memory leak when a stream is closing.
             self.drain(handles, id);
         }
 
@@ -107,7 +105,11 @@ impl<R: FusionRuntime> MultiStream<R> {
         self.memory_checks.check(&self.streams, handles);
     }
 
-    fn handle_drop_op(&mut self, id: StreamId, repr: &mut OperationIr) -> DropInfo {
+    /// Checks if the current operation is a drop.
+    ///
+    /// When a tensor is shared across multiple concurrent streams, dropping a tensor might cause a
+    /// problem when the same tensor is registered lazily on another stream, but not yet executed.
+    fn handle_drop_op(&mut self, id: StreamId, repr: &mut OperationIr) -> DropAction {
         match repr {
             OperationIr::Drop(tensor_ir) => {
                 match !matches!(tensor_ir.status, TensorStatus::ReadWrite) {
@@ -120,18 +122,19 @@ impl<R: FusionRuntime> MultiStream<R> {
                         match on_drop {
                             SharedTensorDropped::ForceDrop(streams) => {
                                 tensor_ir.status = TensorStatus::ReadWrite;
-                                DropInfo::ForceSharedTensor(streams, tensor_ir.id)
+                                DropAction::ForceSharedTensor(streams, tensor_ir.id)
                             }
-                            SharedTensorDropped::Skip => DropInfo::SkipSharedTensor,
+                            SharedTensorDropped::Skip => DropAction::SkipSharedTensor,
                         }
                     }
-                    false => DropInfo::NormalDrop,
+                    false => DropAction::ContinueDrop,
                 }
             }
-            _ => DropInfo::NotDrop,
+            _ => DropAction::DontDrop,
         }
     }
 
+    /// Enqueue an operation on the queue.
     fn enqueue_operation(
         &mut self,
         id: StreamId,
