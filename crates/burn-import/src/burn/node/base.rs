@@ -1,13 +1,13 @@
 use std::marker::PhantomData;
 
 use super::{
-    argmax::ArgMaxNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
+    argmax::ArgMaxNode, argmin::ArgMinNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
     batch_norm::BatchNormNode, binary::BinaryNode, ceil::CeilNode, clip::ClipNode,
     concat::ConcatNode, constant::ConstantNode, constant_of_shape::ConstantOfShapeNode,
     conv_transpose_1d::ConvTranspose1dNode, conv_transpose_2d::ConvTranspose2dNode,
     conv_transpose_3d::ConvTranspose3dNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
-    conv3d::Conv3dNode, dropout::DropoutNode, expand::ExpandNode, floor::FloorNode,
-    gather::GatherNode, gather_elements::GatherElementsNode, gemm::GemmNode,
+    conv3d::Conv3dNode, depth_to_space::DepthToSpaceNode, dropout::DropoutNode, expand::ExpandNode,
+    floor::FloorNode, gather::GatherNode, gather_elements::GatherElementsNode, gemm::GemmNode,
     global_avg_pool::GlobalAvgPoolNode, group_norm::GroupNormNode, instance_norm::InstanceNormNode,
     layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
     max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, mean::MeanNode, one_hot::OneHotNode,
@@ -18,7 +18,7 @@ use super::{
     sum::SumNode, tile::TileNode, top_k::TopKNode, trilu::TriluNode, unary::UnaryNode,
     unsqueeze::UnsqueezeNode,
 };
-use crate::burn::{BurnImports, Scope, Type};
+use crate::burn::{BurnImports, Scope, Type, node::space_to_depth::SpaceToDepthNode};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use serde::Serialize;
@@ -86,6 +86,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 #[derive(Debug, Clone)]
 pub enum Node<PS: PrecisionSettings> {
     ArgMax(ArgMaxNode),
+    ArgMin(ArgMinNode),
     AvgPool1d(AvgPool1dNode),
     AvgPool2d(AvgPool2dNode),
     BatchNorm(BatchNormNode),
@@ -99,6 +100,7 @@ pub enum Node<PS: PrecisionSettings> {
     ConvTranspose1d(ConvTranspose1dNode),
     ConvTranspose2d(ConvTranspose2dNode),
     ConvTranspose3d(ConvTranspose3dNode),
+    DepthToSpace(DepthToSpaceNode),
     PRelu(PReluNode),
     Dropout(DropoutNode),
     Expand(ExpandNode),
@@ -124,6 +126,7 @@ pub enum Node<PS: PrecisionSettings> {
     Round(RoundNode),
     Slice(SliceNode),
     Squeeze(SqueezeNode),
+    SpaceToDepth(SpaceToDepthNode),
     Split(SplitNode),
     Sum(SumNode),
     Tile(TileNode),
@@ -147,6 +150,7 @@ macro_rules! match_all {
         #[allow(clippy::redundant_closure_call)]
         match $self {
             Node::ArgMax(node) => $func(node),
+            Node::ArgMin(node) => $func(node),
             Node::AvgPool1d(node) => $func(node),
             Node::AvgPool2d(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
@@ -160,6 +164,7 @@ macro_rules! match_all {
             Node::ConvTranspose1d(node) => $func(node),
             Node::ConvTranspose2d(node) => $func(node),
             Node::ConvTranspose3d(node) => $func(node),
+            Node::DepthToSpace(node) => $func(node),
             Node::PRelu(node) => $func(node),
             Node::Dropout(node) => $func(node),
             Node::Expand(node) => $func(node),
@@ -184,6 +189,7 @@ macro_rules! match_all {
             Node::Resize(node) => $func(node),
             Node::Round(node) => $func(node),
             Node::Slice(node) => $func(node),
+            Node::SpaceToDepth(node) => $func(node),
             Node::Squeeze(node) => $func(node),
             Node::Sum(node) => $func(node),
             Node::Tile(node) => $func(node),
@@ -216,6 +222,7 @@ impl<PS: PrecisionSettings> Node<PS> {
     pub fn name(&self) -> &str {
         match self {
             Node::ArgMax(_) => "argmax",
+            Node::ArgMin(_) => "argmin",
             Node::AvgPool1d(_) => "avg_pool1d",
             Node::AvgPool2d(_) => "avg_pool2d",
             Node::BatchNorm(_) => "batch_norm",
@@ -229,6 +236,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::ConvTranspose1d(_) => "conv_transpose1d",
             Node::ConvTranspose2d(_) => "conv_transpose2d",
             Node::ConvTranspose3d(_) => "conv_transpose3d",
+            Node::DepthToSpace(_) => "depth_to_space",
             Node::PRelu(_) => "prelu",
             Node::Dropout(_) => "dropout",
             Node::Expand(_) => "expand",
@@ -253,6 +261,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Resize(_) => "resize",
             Node::Round(_) => "round",
             Node::Slice(_) => "slice",
+            Node::SpaceToDepth(_) => "space_to_depth",
             Node::Squeeze(_) => "squeeze",
             Node::Sum(_) => "add",
             Node::Tile(_) => "tile",

@@ -17,6 +17,7 @@ use crate::{
         graph::BurnGraph,
         node::{
             argmax::ArgMaxNode,
+            argmin::ArgMinNode,
             avg_pool1d::AvgPool1dNode,
             avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
@@ -32,6 +33,7 @@ use crate::{
             conv1d::Conv1dNode,
             conv2d::Conv2dNode,
             conv3d::Conv3dNode,
+            depth_to_space::DepthToSpaceNode,
             dropout::DropoutNode,
             expand::ExpandNode,
             floor::FloorNode,
@@ -59,6 +61,7 @@ use crate::{
             resize::ResizeNode,
             round::RoundNode,
             slice::SliceNode,
+            space_to_depth::SpaceToDepthNode,
             split::SplitNode,
             squeeze::SqueezeNode,
             sum::SumNode,
@@ -80,11 +83,12 @@ use onnx_ir::{
         TensorType as OnnxTensorType,
     },
     node::{
-        argmax::argmax_config, avg_pool1d::avg_pool1d_config, avg_pool2d::avg_pool2d_config,
-        batch_norm::batch_norm_config, clip::clip_config, concat::concat_config,
-        conv_transpose1d::conv_transpose1d_config, conv_transpose2d::conv_transpose2d_config,
-        conv_transpose3d::conv_transpose3d_config, conv1d::conv1d_config, conv2d::conv2d_config,
-        conv3d::conv3d_config, dropout::dropout_config, expand::expand_config,
+        argmax::argmax_config, argmin::argmin_config, avg_pool1d::avg_pool1d_config,
+        avg_pool2d::avg_pool2d_config, batch_norm::batch_norm_config, clip::clip_config,
+        concat::concat_config, conv_transpose1d::conv_transpose1d_config,
+        conv_transpose2d::conv_transpose2d_config, conv_transpose3d::conv_transpose3d_config,
+        conv1d::conv1d_config, conv2d::conv2d_config, conv3d::conv3d_config,
+        depth_to_space::depth_to_space_config, dropout::dropout_config, expand::expand_config,
         flatten::flatten_config, gather::gather_config, gemm::gemm_config,
         group_norm::group_norm_config, hard_sigmoid::hard_sigmoid_config,
         instance_norm::instance_norm_config, layer_norm::layer_norm_config,
@@ -93,9 +97,9 @@ use onnx_ir::{
         pad::pad_config, reduce_max::reduce_max_config, reduce_mean::reduce_mean_config,
         reduce_min::reduce_min_config, reduce_prod::reduce_prod_config,
         reduce_sum::reduce_sum_config, reshape::reshape_config, resize::resize_config,
-        slice::slice_config, softmax::softmax_config, split::split_config, squeeze::squeeze_config,
-        tile::tile_config, topk::top_k_config, transpose::transpose_config, trilu::trilu_config,
-        unsqueeze::unsqueeze_config,
+        slice::slice_config, softmax::softmax_config, space_to_depth::space_to_depth_config,
+        split::split_config, squeeze::squeeze_config, tile::tile_config, topk::top_k_config,
+        transpose::transpose_config, trilu::trilu_config, unsqueeze::unsqueeze_config,
     },
     parse_onnx,
     util::shape_config,
@@ -287,6 +291,7 @@ impl ParsedOnnxGraph {
             match node.node_type {
                 NodeType::Add => graph.register(Self::add_conversion(node)),
                 NodeType::ArgMax => graph.register(Self::argmax_conversion(node)),
+                NodeType::ArgMin => graph.register(Self::argmin_conversion(node)),
                 NodeType::Sub => graph.register(Self::sub_conversion(node)),
                 NodeType::Mul => graph.register(Self::mul_conversion(node)),
                 NodeType::Div => graph.register(Self::div_conversion(node)),
@@ -302,6 +307,7 @@ impl ParsedOnnxGraph {
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
                 NodeType::Conv3d => graph.register(Self::conv3d_conversion::<PS>(node)),
+                NodeType::DepthToSpace => graph.register(Self::depth_to_space_conversion(node)),
                 NodeType::Max => graph.register(Self::max_conversion(node)),
                 NodeType::MaxPool1d => graph.register(Self::max_pool1d_conversion(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
@@ -363,6 +369,7 @@ impl ParsedOnnxGraph {
                 NodeType::Sin => graph.register(Self::sin_conversion(node)),
                 NodeType::Sinh => graph.register(Self::sinh_conversion(node)),
                 NodeType::Slice => graph.register(Self::slice_conversion(node)),
+                NodeType::SpaceToDepth => graph.register(Self::space_to_depth_conversion(node)),
                 NodeType::Sum => graph.register(Self::sum_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
                 NodeType::Concat => graph.register(Self::concat_conversion(node)),
@@ -909,6 +916,14 @@ impl ParsedOnnxGraph {
         SliceNode::new(input, output, ranges)
     }
 
+    fn space_to_depth_conversion(node: Node) -> SpaceToDepthNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let block_size = space_to_depth_config(&node);
+
+        SpaceToDepthNode::new(input, output, block_size)
+    }
+
     fn sum_conversion(node: Node) -> SumNode {
         let inputs = node.inputs.iter().map(TensorType::from).collect();
         let output = TensorType::from(node.outputs.first().unwrap());
@@ -966,6 +981,14 @@ impl ParsedOnnxGraph {
         let axis = argmax_config(&node);
 
         ArgMaxNode::new(input, output, axis)
+    }
+
+    fn argmin_conversion(node: Node) -> ArgMinNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let axis = argmin_config(&node);
+
+        ArgMinNode::new(input, output, axis)
     }
 
     fn concat_conversion(node: Node) -> ConcatNode {
@@ -1120,6 +1143,14 @@ impl ParsedOnnxGraph {
 
         let name = &node.name;
         Conv3dNode::new(name, input, output, weight, bias, config)
+    }
+
+    fn depth_to_space_conversion(node: Node) -> DepthToSpaceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = depth_to_space_config(&node);
+
+        DepthToSpaceNode::new(input, output, config)
     }
 
     fn max_pool1d_conversion(node: Node) -> MaxPool1dNode {

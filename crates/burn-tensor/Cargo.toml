@@ -51,4 +51,4 @@ rand = { workspace = true, features = ["thread_rng"] } # Default enables std
 
 [package.metadata.docs.rs]
 features = ["doc"]
-rustdoc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "katex-header.html"]
