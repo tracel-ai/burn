@@ -48,7 +48,10 @@ impl<C: RunnerClient> RouterTensor<C> {
         core::mem::swap(&mut self.shape, &mut shape_out);
 
         if let TensorStatus::ReadWrite = status {
-            // Avoids a double drop.
+            // Avoids an unwanted drop on the same thread.
+            //
+            // Since `drop` is called after `into_ir`, we must not register a drop if the tensor
+            // was consumed with a `ReadWrite` status.
             self.count.fetch_add(1, Ordering::Relaxed);
         }
 
