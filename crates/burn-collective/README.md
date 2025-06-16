@@ -3,8 +3,7 @@
 Tools for collective operations on tensors
 
 The collective operations are the following:
-- `collective_sum`
-- `collective_mean`
+- `all-reduce`
 
 
 Threads can register to use collective operations with `register()`
@@ -23,7 +22,7 @@ The resulting tensor then sent to the device corresponding to each original tens
 ### Tree
 
 Tensors in groups of N are aggregated together. This is done recursively until only one tensor 
-remains. For now, the grouping strategy is unaware of the devies.
+remains. For now, the grouping strategy is unaware of the devices.
 When N=2, this is like a binary tree reduce.
 The resulting tensor then sent to the device corresponding to each original tensor.
 

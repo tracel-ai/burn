@@ -559,14 +559,14 @@ name = "burn-collective"
 version = "0.18.0"
 dependencies = [
  "burn-common",
+ "burn-cuda",
  "burn-ndarray",
  "burn-tensor",
  "burn-wgpu",
+ "cfg-if",
  "derive-new 0.7.0",
  "log",
- "rand 0.8.5",
  "serial_test",
- "tokio",
 ]
 
 [[package]]

@@ -1,39 +1,42 @@
 use std::{
-    cmp::{self},
-    ops::Range,
-    sync::mpsc::SyncSender,
+    any::{Any, TypeId},
+    collections::HashMap,
+    sync::{
+        Mutex,
+        mpsc::{Receiver, SyncSender},
+    },
 };
 
-use burn_tensor::{
-    ElementConversion, Shape, TensorMetadata,
-    backend::{Backend, DeviceOps},
+use burn_tensor::backend::Backend;
+
+use crate::{
+    AggregateParams, AggregateStrategy, centralized::all_reduce_centralized, ring::all_reduce_ring,
+    tree::all_reduce_tree,
 };
 
-pub struct Aggregator {}
+/// Used by the aggregator thread that manages all the collective aggregation operations
+/// (like all-reduce).
+/// This thread takes in messages from different clients. The clients must register, than they can
+/// send an aggregate message. They must all use the same parameters for the same aggregate
+/// operation.
+pub struct Aggregator<B: Backend> {
+    /// Channel receiver for messages from clients
+    message_rec: Receiver<Message<B>>,
 
-pub type AggregationId = u32;
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum AggregateStrategy {
-    Centralized,
-    Tree(u32),
-    Ring,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum AggregateKind {
-    Sum,
-    Mean,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct AggregateParams {
-    pub kind: AggregateKind,
-    pub strategy: AggregateStrategy,
+    /// The ids passed to each register so far
+    registered_nodes: Vec<u32>,
+    /// The params of the current operation, as defined by the first caller
+    cur_params: Option<AggregateParams>,
+    /// The tensor primitives passed by each operation call
+    tensors: Vec<B::FloatTensorPrimitive>,
+    /// Callbacks for when all registers are done
+    callbacks_register: Vec<SyncSender<()>>,
+    /// Callbacks for when aggregate is done
+    callbacks_aggregate: Vec<SyncSender<B::FloatTensorPrimitive>>,
 }
 
 #[derive(Debug)]
-pub enum Message<B: Backend> {
+pub(crate) enum Message<B: Backend> {
     Aggregate {
         tensor: B::FloatTensorPrimitive,
         params: AggregateParams,
@@ -48,8 +51,32 @@ pub enum Message<B: Backend> {
 }
 
 #[derive(Clone)]
-pub struct AggregatorClient<B: Backend> {
+pub(crate) struct AggregatorClient<B: Backend> {
     channel: SyncSender<Message<B>>,
+}
+
+static STATE: Mutex<Option<HashMap<TypeId, Box<dyn Any + Send + Sync>>>> = Mutex::new(None);
+
+pub(crate) fn aggregator<B: Backend>() -> AggregatorClient<B> {
+    let mut state = STATE.lock().unwrap();
+
+    if state.is_none() {
+        *state = Some(HashMap::new());
+    }
+    let hashmap = state.as_mut().unwrap();
+
+    let typeid = core::any::TypeId::of::<B>();
+
+    let val = match hashmap.get(&typeid) {
+        Some(val) => val,
+        None => {
+            let client = Aggregator::start();
+            hashmap.insert(typeid, Box::new(client.clone()));
+            return client;
+        }
+    };
+
+    val.downcast_ref().cloned().unwrap()
 }
 
 impl<B: Backend> AggregatorClient<B> {
@@ -74,11 +101,9 @@ impl<B: Backend> AggregatorClient<B> {
     pub fn aggregate(
         &self,
         tensor: B::FloatTensorPrimitive,
-        kind: AggregateKind,
-        strategy: AggregateStrategy,
+        params: AggregateParams,
     ) -> B::FloatTensorPrimitive {
         let (callback, rec) = std::sync::mpsc::sync_channel::<B::FloatTensorPrimitive>(1);
-        let params = AggregateParams { kind, strategy };
 
         self.channel
             .send(Message::Aggregate {
@@ -95,88 +120,29 @@ impl<B: Backend> AggregatorClient<B> {
     }
 }
 
-impl Aggregator {
-    pub fn start<B: Backend>() -> AggregatorClient<B> {
+impl<B: Backend> Aggregator<B> {
+    fn new(rec: Receiver<Message<B>>) -> Self {
+        Self {
+            message_rec: rec,
+            registered_nodes: vec![],
+            cur_params: None,
+            tensors: vec![],
+            callbacks_register: vec![],
+            callbacks_aggregate: vec![],
+        }
+    }
+
+    /// Starts the aggregator thread
+    pub(crate) fn start() -> AggregatorClient<B> {
         let (sender, rec) = std::sync::mpsc::sync_channel::<Message<B>>(50);
 
         let client = AggregatorClient { channel: sender };
 
         let _handle = std::thread::spawn(move || {
-            let mut registered_nodes = vec![];
-            let mut cur_params = None;
+            let mut aggregator = Aggregator::new(rec);
 
-            let mut tensors = Vec::new();
-            let mut callbacks_register = Vec::new();
-            let mut callbacks_aggregate = Vec::new();
-
-            while let Ok(message) = rec.recv() {
-                match message {
-                    Message::Aggregate {
-                        tensor,
-                        params,
-                        callback,
-                    } => {
-                        if tensors.is_empty() || cur_params.is_none() {
-                            cur_params = Some(params);
-                        } else if *cur_params.as_ref().unwrap() != params {
-                            panic!(
-                                "Trying to aggregate a different way ({:?}) than is currently
-                                    being done ({:?})",
-                                params, cur_params,
-                            );
-                        }
-
-                        tensors.push(tensor);
-                        callbacks_aggregate.push(callback);
-                    }
-                    Message::Register {
-                        id,
-                        num_nodes,
-                        callback,
-                    } => {
-                        if registered_nodes.contains(&id) {
-                            panic!("Cannot register a node twice!");
-                        }
-                        registered_nodes.push(id);
-                        callbacks_register.push(callback);
-                        if registered_nodes.len() == num_nodes as usize {
-                            for callback in callbacks_register.drain(..) {
-                                callback.send(()).unwrap();
-                            }
-                        }
-                    }
-                    Message::Reset => {
-                        registered_nodes.clear();
-                        tensors.clear();
-                        cur_params = None;
-                    }
-                }
-
-                let tensor_count = tensors.len();
-                if tensor_count > 0 && tensor_count == registered_nodes.len() {
-                    let kind = &cur_params.as_ref().unwrap().kind;
-                    let strategy = &cur_params.as_ref().unwrap().strategy;
-                    match &strategy {
-                        &strategy => {
-                            let mut outs = match strategy {
-                                AggregateStrategy::Centralized => {
-                                    let out = aggregate_centralized::<B>(&mut tensors, kind);
-                                    vec![out; tensor_count]
-                                }
-                                AggregateStrategy::Tree(arity) => {
-                                    let out = aggregate_tree::<B>(&mut tensors, kind, *arity);
-                                    vec![out; tensor_count]
-                                }
-                                AggregateStrategy::Ring => aggregate_ring::<B>(&mut tensors, kind),
-                            };
-
-                            for callback in callbacks_aggregate.drain(..) {
-                                let out = outs.remove(0);
-                                callback.send(out).unwrap();
-                            }
-                        }
-                    };
-                }
+            while let Ok(message) = aggregator.message_rec.recv() {
+                aggregator.process_message(message);
             }
 
             log::debug!("Aggregator message failed");
@@ -184,221 +150,78 @@ impl Aggregator {
 
         client
     }
-}
 
-fn aggregate_centralized<B: Backend>(
-    tensors: &mut Vec<B::FloatTensorPrimitive>,
-    kind: &AggregateKind,
-) -> B::FloatTensorPrimitive {
-    let tensor_count = tensors.len();
-    let mut base = tensors.pop().unwrap();
+    fn process_message(&mut self, message: Message<B>) {
+        match message {
+            Message::Aggregate {
+                tensor,
+                params,
+                callback,
+            } => {
+                if self.tensors.is_empty() || self.cur_params.is_none() {
+                    self.cur_params = Some(params);
+                } else if *self.cur_params.as_ref().unwrap() != params {
+                    panic!(
+                        "Trying to aggregate a different way ({:?}) than is currently
+                            being done ({:?})",
+                        params, self.cur_params,
+                    );
+                }
 
-    for tensor in tensors.drain(..) {
-        let target_device = B::float_device(&base);
-        let tensor = B::float_to_device(tensor, &target_device);
-        base = B::float_add(base, tensor);
-    }
-
-    if *kind == AggregateKind::Mean {
-        base = B::float_div_scalar(base, (tensor_count as f32).elem());
-    }
-
-    base
-}
-
-fn sum_tree<B: Backend>(
-    tensors: &mut Vec<B::FloatTensorPrimitive>,
-    arity: u32,
-) -> B::FloatTensorPrimitive {
-    // Sort by device id
-    tensors.sort_by(|a, b| {
-        let dev_a = B::float_device(a).id();
-        let dev_b = B::float_device(b).id();
-
-        dev_a.cmp(&dev_b)
-    });
-
-    let tensor_count = tensors.len() as u32;
-    let result = if tensor_count > arity {
-        // Split tensor vec into chunks
-        let chunk_count = cmp::min(arity, tensor_count);
-        let chunk_size = tensor_count / chunk_count;
-        let chunks: Vec<Vec<B::FloatTensorPrimitive>> = tensors
-            .chunks(chunk_size as usize)
-            .map(|s| s.into())
-            .collect();
-
-        // Recursive reduce
-        let mut new_tensors = vec![];
-        for mut chunk in chunks {
-            new_tensors.push(sum_tree::<B>(&mut chunk, arity));
+                self.tensors.push(tensor);
+                self.callbacks_aggregate.push(callback);
+            }
+            Message::Register {
+                id,
+                num_nodes,
+                callback,
+            } => {
+                if self.registered_nodes.contains(&id) {
+                    panic!("Cannot register a node twice!");
+                }
+                self.registered_nodes.push(id);
+                self.callbacks_register.push(callback);
+                if self.registered_nodes.len() == num_nodes as usize {
+                    for callback in self.callbacks_register.drain(..) {
+                        callback.send(()).unwrap();
+                    }
+                }
+            }
+            Message::Reset => {
+                self.registered_nodes.clear();
+                self.tensors.clear();
+                self.cur_params = None;
+            }
         }
-        aggregate_centralized::<B>(&mut new_tensors, &AggregateKind::Sum)
-    } else {
-        aggregate_centralized::<B>(tensors, &AggregateKind::Sum)
-    };
 
-    result
-}
-
-fn aggregate_tree<B: Backend>(
-    tensors: &mut Vec<B::FloatTensorPrimitive>,
-    kind: &AggregateKind,
-    arity: u32,
-) -> B::FloatTensorPrimitive {
-    let tensor_count = tensors.len() as f32;
-    let mut result = sum_tree::<B>(tensors, arity);
-
-    if *kind == AggregateKind::Mean {
-        result = B::float_div_scalar(result, tensor_count.elem());
-    }
-
-    result
-}
-
-// TODO the algo used here is definitely not in-place.
-// In theory this is a completely in-place algorithm.
-fn aggregate_ring<B: Backend>(
-    tensors: &mut Vec<B::FloatTensorPrimitive>,
-    kind: &AggregateKind,
-) -> Vec<B::FloatTensorPrimitive> {
-    // https://blog.dailydoseofds.com/p/all-reduce-and-ring-reduce-for-model
-
-    // Example: tensors=3, slices=3
-
-    // phase 1
-    // o->o  o
-    // o  o->o
-    // o  o  o->
-
-    // o  1->o
-    // o  o  1->
-    // 1->o  o
-
-    // phase 2
-    // o  1  2->
-    // 2->o  1
-    // 1  2->o
-
-    // 2->1  2
-    // 2  2->1
-    // 1  2  2->
-
-    // 2  2  2
-    // 2  2  2
-    // 2  2  2
-
-    fn get_slice_dim(shape: &Shape) -> usize {
-        // get dimension with greatest size
-        shape
-            .dims
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| a.cmp(b))
-            .map(|(index, _)| index)
-            .unwrap()
-    }
-
-    let mut shape = None;
-    let mut ranges: Vec<Range<usize>> = vec![];
-
-    let tensor_count = tensors.len();
-    // verify all shapes are the same
-    for tensor in tensors.as_slice() {
-        if shape.is_none() {
-            shape = Some(tensor.shape());
-        } else if tensor.shape() != *shape.as_ref().unwrap() {
-            panic!("Cannot aggregate tensors with different sizes");
-        }
-    }
-    let shape = shape.unwrap();
-
-    // Chose and axis and build the slice ranges
-    let slice_dim = get_slice_dim(&shape);
-    let dim_size = shape.dims[slice_dim];
-    if dim_size < tensor_count {
-        let result = aggregate_tree::<B>(tensors, kind, 2);
-        return vec![result; tensor_count];
-    }
-
-    let slice_size = dim_size / tensor_count;
-
-    for i in 0..tensor_count {
-        let start = i * slice_size;
-        let end = start + slice_size;
-        ranges.push(Range { start, end });
-    }
-    ranges.last_mut().unwrap().end = dim_size;
-
-    // split tensors into slices
-    let mut sliced_tensors = vec![];
-    for tensor in tensors {
-        let mut slices = vec![];
-        for range in &ranges {
-            // TODO could be cached
-            let mut range_vec: Vec<Range<usize>> = shape
-                .dims
-                .iter()
-                .map(|d| Range { start: 0, end: *d }.clone())
-                .collect();
-            range_vec[slice_dim] = range.clone();
-            let slice = B::float_slice(tensor.clone(), &range_vec);
-            slices.push(slice);
-        }
-        sliced_tensors.push(slices);
-    }
-
-    // phase 1: aggregate in ring N-1 times (Reduce-Scatter)
-    for cycle in 0..(tensor_count - 1) {
-        for i in 0..tensor_count {
-            let src_tensor_idx = i;
-            let dest_tensor_idx = (i + 1) % tensor_count;
-
-            let slice_idx = (i + (tensor_count - 1) * cycle) % tensor_count;
-
-            let src_slice = sliced_tensors[src_tensor_idx].remove(slice_idx);
-            let mut dest_slice = sliced_tensors[dest_tensor_idx].remove(slice_idx);
-
-            let dest_device = B::float_device(&dest_slice);
-            let src_slice_on_dest = B::float_to_device(src_slice.clone(), &dest_device);
-            dest_slice = B::float_add(dest_slice, src_slice_on_dest);
-
-            sliced_tensors[src_tensor_idx].insert(slice_idx, src_slice);
-            sliced_tensors[dest_tensor_idx].insert(slice_idx, dest_slice);
+        let tensor_count = self.tensors.len();
+        if tensor_count > 0 && tensor_count == self.registered_nodes.len() {
+            // all registered callers have sent a tensor to aggregate
+            self.do_aggregation()
         }
     }
 
-    // phase 2: share (overwrite) in a ring N-1 times (All-Gather)
-    for cycle in 0..(tensor_count - 1) {
-        for i in 0..tensor_count {
-            let src_tensor_idx = i;
-            let dest_tensor_idx = (i + 1) % tensor_count;
+    fn do_aggregation(&mut self) {
+        let kind = &self.cur_params.as_ref().unwrap().kind;
+        let strategy = &self.cur_params.as_ref().unwrap().strategy;
+        let tensor_count = self.tensors.len();
 
-            // +1 because we're on the slice *after* the one for the last phase (see the graphs)
-            let slice_idx = (i + 1 + (tensor_count - 1) * cycle) % tensor_count;
+        let mut outs = match strategy {
+            AggregateStrategy::Centralized => {
+                let out = all_reduce_centralized::<B>(&mut self.tensors, kind);
+                vec![out; tensor_count]
+            }
+            AggregateStrategy::Tree(arity) => {
+                let out = all_reduce_tree::<B>(&mut self.tensors, kind, *arity);
+                vec![out; tensor_count]
+            }
+            AggregateStrategy::Ring => all_reduce_ring::<B>(&mut self.tensors, kind),
+        };
 
-            let src_slice = sliced_tensors[src_tensor_idx].remove(slice_idx);
-            let mut dest_slice = sliced_tensors[dest_tensor_idx].remove(slice_idx);
-
-            let dest_device = B::float_device(&dest_slice);
-            let src_slice_on_dest = B::float_to_device(src_slice.clone(), &dest_device);
-            dest_slice = src_slice_on_dest;
-
-            sliced_tensors[src_tensor_idx].insert(slice_idx, src_slice);
-            sliced_tensors[dest_tensor_idx].insert(slice_idx, dest_slice);
+        // Callbacks return results
+        for callback in self.callbacks_aggregate.drain(..) {
+            let out = outs.remove(0);
+            callback.send(out).unwrap();
         }
     }
-
-    // merge new slices
-    let mut results = vec![];
-    while let Some(slices) = sliced_tensors.pop() {
-        let mut result = B::float_cat(slices, slice_dim);
-        if *kind == AggregateKind::Mean {
-            result = B::float_div_scalar(result, (tensor_count as f32).elem());
-        }
-
-        results.insert(0, result)
-    }
-
-    results
 }
