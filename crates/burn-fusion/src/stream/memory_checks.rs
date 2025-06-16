@@ -211,7 +211,7 @@ impl MemoryChecks {
 
                         // We assume that if nothing has been registered in the last second
                         // while being at a count of 1, it's the end.
-                        std::thread::sleep(Duration::from_secs(1));
+                        std::thread::sleep(Duration::from_secs(5));
 
                         if num_queued_moved.load(Ordering::Relaxed) <= 1 {
                             match last_analyses.take() {
