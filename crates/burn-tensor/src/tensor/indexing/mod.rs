@@ -96,11 +96,11 @@ impl AsIndex for u8 {
 /// * If `wrap_scalar` is false and the tensor has no dimensions.
 /// * If the dimension index is out of range.
 #[must_use]
-pub fn canonicalize_index<I>(idx: I, size: usize, wrap_scalar: bool) -> usize
+pub fn canonicalize_index<Index>(idx: Index, size: usize, wrap_scalar: bool) -> usize
 where
-    I: AsIndex,
+    Index: AsIndex,
 {
-    _canonicalize_named_index("index", "size", idx, size, wrap_scalar)
+    canonicalize_named_index("index", "size", idx, size, wrap_scalar)
 }
 
 /// Canonicalizes and bounds checks a dimension index with negative indexing support.
@@ -120,11 +120,11 @@ where
 /// * If `wrap_scalar` is false and the tensor has no dimensions.
 /// * If the dimension index is out of range.
 #[must_use]
-pub fn canonicalize_dim<I>(idx: I, rank: usize, wrap_scalar: bool) -> usize
+pub fn canonicalize_dim<Dim>(idx: Dim, rank: usize, wrap_scalar: bool) -> usize
 where
-    I: AsIndex,
+    Dim: AsIndex,
 {
-    _canonicalize_named_index("dimension index", "rank", idx, rank, wrap_scalar)
+    canonicalize_named_index("dimension index", "rank", idx, rank, wrap_scalar)
 }
 
 /// Canonicalizes and bounds checks an index with negative indexing support.
@@ -147,7 +147,7 @@ where
 /// * If the index is out of range for the dimension size.
 #[inline(always)]
 #[must_use]
-pub fn _canonicalize_named_index<I>(
+fn canonicalize_named_index<I>(
     name: &str,
     size_name: &str,
     idx: I,
