@@ -78,13 +78,10 @@ struct Analysis {
 macro_rules! memory_checks {
     () => {
         #[cfg(test)]
-        mod tt {
-
-            mod _op_no_wait {
-                #[test]
-                fn test_memory_checks() {
-                    burn_fusion::stream::memory_checks::memory_checks_test();
-                }
+        mod memory_checks {
+            #[test]
+            fn test_memory_leaks() {
+                burn_fusion::stream::memory_checks::check_memory_leaks();
             }
         }
     };
@@ -93,7 +90,7 @@ macro_rules! memory_checks {
 static INSTANCE: Mutex<Option<MemoryChecks>> = Mutex::new(None);
 
 /// Performs memory checks and panics if a leak is discovered.
-pub fn memory_checks_test() {
+pub fn check_memory_leaks() {
     let mut num_try_uninit = 0;
     let max_try = 25;
 
