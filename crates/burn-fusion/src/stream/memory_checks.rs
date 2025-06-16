@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use burn_common::{id::StreamId, stub::Mutex};
+use burn_common::id::StreamId;
 use burn_ir::{HandleContainer, TensorId, TensorStatus};
 
 use crate::FusionRuntime;
@@ -87,7 +87,7 @@ macro_rules! memory_checks {
     };
 }
 
-static INSTANCE: Mutex<Option<MemoryChecks>> = Mutex::new(None);
+static INSTANCE: spin::Mutex<Option<MemoryChecks>> = spin::Mutex::new(None);
 
 /// Performs memory checks and panics if a leak is discovered.
 pub fn check_memory_leaks() {
@@ -118,28 +118,28 @@ pub fn check_memory_leaks() {
 fn fetch_memory_report() -> MemoryReport {
     let report = INSTANCE.lock();
 
-    match report {
-        Ok(report) => {
-            let report = match report.as_ref() {
-                Some(client) => client,
-                None => return MemoryReport::NotStarted,
-            };
+    let report = match report.as_ref() {
+        Some(client) => client,
+        None => return MemoryReport::NotStarted,
+    };
 
-            let (sender, rec) = std::sync::mpsc::sync_channel(1);
-            report.sender.send(Message::Check(sender)).unwrap();
-
-            match rec.recv() {
-                Ok(report) => report,
-                Err(message) => panic!("{message}"),
-            }
+    let (sender, rec) = std::sync::mpsc::sync_channel(1);
+    match report.sender.send(Message::Check(sender)) {
+        Ok(_) => {}
+        Err(err) => {
+            panic!("Channel closed can't send the check call: {err:?}")
         }
-        _ => MemoryReport::NotStarted,
+    };
+
+    match rec.recv() {
+        Ok(report) => report,
+        Err(err) => panic!("Received an error from fetching check results: {err}"),
     }
 }
 
 impl Default for MemoryChecks {
     fn default() -> Self {
-        let mut instance = INSTANCE.lock().unwrap();
+        let mut instance = INSTANCE.lock();
         let result = match instance.as_mut() {
             Some(client) => client.clone(),
             None => {
@@ -174,7 +174,12 @@ impl MemoryChecks {
         }
 
         self.num_queued.fetch_add(1, Ordering::Relaxed);
-        self.sender.send(Message::Register(analyses)).unwrap();
+        match self.sender.send(Message::Register(analyses)) {
+            Ok(..) => {}
+            Err(err) => {
+                panic!("Can't register memory checks analysis: {err:?}")
+            }
+        }
     }
 
     fn spawn_new() -> Self {
@@ -200,6 +205,7 @@ impl MemoryChecks {
                     }
                     Message::Check(callback) => {
                         if num_queued_moved.load(Ordering::Relaxed) > 1 {
+                            callback.send(MemoryReport::NotReady).unwrap();
                             continue;
                         }
 
