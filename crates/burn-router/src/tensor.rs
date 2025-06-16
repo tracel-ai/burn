@@ -42,7 +42,7 @@ impl<C: RunnerClient> RouterTensor<C> {
     }
 
     pub(crate) fn into_ir(mut self) -> TensorIr {
-        let count = self.count.fetch_sub(1, Ordering::Acquire);
+        let count = self.count.load(Ordering::Relaxed);
         let status = self.status(count);
         let mut shape_out = Vec::new();
         core::mem::swap(&mut self.shape, &mut shape_out);
@@ -95,7 +95,7 @@ impl<C: RunnerClient> core::fmt::Debug for RouterTensor<C> {
 
 impl<C: RunnerClient> Clone for RouterTensor<C> {
     fn clone(&self) -> Self {
-        self.count.fetch_sub(1, Ordering::Acquire);
+        self.count.fetch_add(1, Ordering::Relaxed);
 
         Self {
             id: self.id,
@@ -109,7 +109,7 @@ impl<C: RunnerClient> Clone for RouterTensor<C> {
 
 impl<C: RunnerClient> Drop for RouterTensor<C> {
     fn drop(&mut self) {
-        let count = self.count.fetch_sub(1, Ordering::Acquire);
+        let count = self.count.fetch_sub(1, Ordering::Relaxed);
 
         match self.status(count) {
             TensorStatus::ReadWrite => {
