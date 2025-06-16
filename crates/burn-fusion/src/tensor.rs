@@ -185,7 +185,7 @@ impl<RO: FusionRuntime> Operation<RO> for DropOp {
 
 impl<R: FusionRuntime> Drop for FusionTensor<R> {
     fn drop(&mut self) {
-        let count = self.count.fetch_sub(1, Ordering::Acquire);
+        let count = self.count.fetch_sub(1, Ordering::Relaxed);
 
         match self.status(count) {
             TensorStatus::ReadWrite => {
