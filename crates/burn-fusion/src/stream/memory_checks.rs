@@ -159,8 +159,10 @@ impl MemoryChecks {
         streams: &HashMap<StreamId, Stream<R>>,
         handles: &HandleContainer<R::FusionHandle>,
     ) {
-        let mut analyses = StreamAnalyses::default();
-        analyses.num_handles = handles.num_handles();
+        let mut analyses = StreamAnalyses {
+            num_handles: handles.num_handles(),
+            streams: Default::default(),
+        };
 
         for (id, s) in streams.iter() {
             let analysis = Analysis {
