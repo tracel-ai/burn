@@ -1,4 +1,5 @@
 #[burn_tensor_testgen::testgen(multi_threads)]
+#[cfg(feature = "std")]
 mod tests {
     use super::*;
     use burn_tensor::{DType, Element, Shape, Tensor, backend::Backend};
