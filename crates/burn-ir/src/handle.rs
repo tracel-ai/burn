@@ -1,12 +1,6 @@
 use burn_tensor::Shape;
 use hashbrown::HashMap;
 
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
-
-#[cfg(not(target_has_atomic = "ptr"))]
-use portable_atomic_util::Arc;
-
 use crate::{BackendIr, TensorHandle, TensorId, TensorIr, TensorStatus};
 
 /// Keep all [tensor handles](BackendIr::Handle) in one place and ensure that all resources
@@ -183,12 +177,11 @@ impl<H: Clone> HandleContainer<H> {
     }
 
     /// Lazily create a new empty tensor and return its corresponding [tensor id](TensorId).
-    pub fn create_tensor_uninit(&mut self) -> Arc<TensorId> {
+    pub fn create_tensor_uninit(&mut self) -> TensorId {
         let id = TensorId::new(self.counter);
         self.counter += 1;
         self.handles.insert(id, Handle::NotInit);
-
-        Arc::new(id)
+        id
     }
 
     /// Remove tensor handle from container.
@@ -204,6 +197,11 @@ impl<H: Clone> HandleContainer<H> {
             TensorStatus::ReadWrite => {
                 self.handles.remove(&tensor.id);
             }
-        }
+        };
+    }
+
+    /// Returns the number of handles.
+    pub fn num_handles(&self) -> usize {
+        self.handles.len()
     }
 }

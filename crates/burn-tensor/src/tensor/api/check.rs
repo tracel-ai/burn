@@ -317,7 +317,7 @@ impl TensorCheck {
             );
         }
 
-        if D2 < D1 - (end_dim - start_dim) {
+        if (D2 as i32) < (D1 as i32 - (end_dim as i32 - start_dim as i32)) {
             check = check.register(
                 "Flatten",
                 TensorError::new(format!(

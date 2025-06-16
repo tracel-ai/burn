@@ -73,7 +73,9 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
         ) = (self, &other)
         {
             let mut num_checked = 0;
+            let mut num_handles = 0;
             for (id, (shape, handle)) in handles_ref.iter() {
+                num_handles += 1;
                 if let Some((shape_other, other)) = handles.get(id) {
                     assert_eq!(
                         handle.strides, other.strides,
@@ -105,11 +107,17 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
                     println!("No tensor found for {id:?}=>{shape:?}");
                 }
             }
-            // At least one check is needed per output.
+
+            // At least one check is needed per output when there is an output.
             //
             // Some optimizations might write more outputs than needed, so it might be fined if
             // the number of handles is different, but at least one is required.
-            assert!(num_checked >= 1);
+            //
+            // An optimization might not create outputs if its dead code detection is triggered,
+            // therefore avoiding useless computation.
+            if num_handles > 0 {
+                assert!(num_checked >= 1);
+            }
         }
     }
 }
@@ -259,7 +267,7 @@ impl RegisteredTensors {
             .iter_mut()
             .find(|(tensor_old, _)| tensor_old.id == tensor.id)
         {
-            tensor_old.status = tensor.status.clone();
+            tensor_old.status = tensor.status;
         }
     }
 }

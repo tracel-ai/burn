@@ -18,13 +18,15 @@ workspace = true
 default = ["std"]
 std = ["serde/std"]
 doc = ["default"]
+memory-checks = ["std"]
 
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "0.18.0" }
 burn-common = { path = "../burn-common", version = "0.18.0" }
 burn-ir = { path = "../burn-ir", version = "0.18.0" }
+
 hashbrown = { workspace = true }
-derive-new = {workspace = true }
+derive-new = { workspace = true }
 spin = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true }

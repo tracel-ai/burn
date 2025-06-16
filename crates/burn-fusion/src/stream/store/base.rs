@@ -36,6 +36,7 @@ pub(crate) enum ExecutionTrigger {
 pub(crate) type ExecutionPlanId = usize;
 
 /// The outcome of an exploration that can be stored.
+#[derive(Debug)]
 pub(crate) struct ExecutionPlan<O> {
     /// The operations on which the exploration is related to.
     pub(crate) operations: Vec<OperationIr>,

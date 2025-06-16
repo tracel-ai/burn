@@ -1,6 +1,7 @@
 mod base;
 
 pub(crate) mod argmax;
+pub(crate) mod argmin;
 pub(crate) mod avg_pool1d;
 pub(crate) mod avg_pool2d;
 pub(crate) mod batch_norm;
@@ -16,6 +17,7 @@ pub(crate) mod conv3d;
 pub(crate) mod conv_transpose_1d;
 pub(crate) mod conv_transpose_2d;
 pub(crate) mod conv_transpose_3d;
+pub(crate) mod depth_to_space;
 pub(crate) mod dropout;
 pub(crate) mod expand;
 pub(crate) mod floor;
@@ -44,6 +46,7 @@ pub(crate) mod reshape;
 pub(crate) mod resize;
 pub(crate) mod round;
 pub(crate) mod slice;
+pub(crate) mod space_to_depth;
 pub(crate) mod split;
 pub(crate) mod squeeze;
 pub(crate) mod sum;
