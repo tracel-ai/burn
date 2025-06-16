@@ -35,6 +35,7 @@ export_tests = [
     "serial_test",
     "burn-autodiff/export_tests",
     "burn-tensor/export_tests",
+    "burn-fusion/memory-checks",
     "cubecl/autotune-checks",
     "burn-ndarray",
     "fusion",

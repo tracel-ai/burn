@@ -22,7 +22,7 @@ pub struct RunnerContext<B: BackendIr> {
 
 impl<B: BackendIr> RunnerContext<B> {
     /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
-    fn create_empty_handle(&mut self) -> Arc<TensorId> {
+    fn create_empty_handle(&mut self) -> TensorId {
         self.handles.create_tensor_uninit()
     }
 }
@@ -63,7 +63,7 @@ impl<B: BackendIr> Runner<B> {
         let mut ctx = self.context.lock().unwrap();
         let id = ctx.create_empty_handle();
 
-        ctx.handles.register_handle(*id.as_ref(), handle);
+        ctx.handles.register_handle(id, handle);
         core::mem::drop(ctx);
 
         RouterTensor::new(id, shape, dtype, client)
@@ -113,7 +113,7 @@ impl<B: BackendIr> Runner<B> {
         core::mem::drop(ctx);
 
         TensorIr {
-            id: *id,
+            id,
             shape,
             status: TensorStatus::ReadWrite,
             dtype,
@@ -127,7 +127,7 @@ impl<B: BackendIr> Runner<B> {
         core::mem::drop(ctx);
 
         TensorIr {
-            id: *id,
+            id,
             shape,
             status: TensorStatus::NotInit,
             dtype,
@@ -1250,17 +1250,17 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
 
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {
         let desc = self.register_tensor_data_desc(data);
-        RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
+        RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
     }
 
     fn register_empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self> {
         let desc = self.register_empty_tensor_desc(shape, dtype);
-        RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
+        RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
     }
 
     fn register_float_tensor(&self, shape: Vec<usize>, dtype: FloatDType) -> RouterTensor<Self> {
         let desc = self.register_float_tensor_desc(shape, dtype);
-        RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
+        RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
     }
 
     fn device(&self) -> Self::Device {

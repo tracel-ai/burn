@@ -578,6 +578,7 @@ dependencies = [
  "burn-cuda",
  "burn-dataset",
  "burn-derive",
+ "burn-fusion",
  "burn-ndarray",
  "burn-remote",
  "burn-rocm",

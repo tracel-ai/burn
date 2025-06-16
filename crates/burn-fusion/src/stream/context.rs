@@ -1034,7 +1034,7 @@ impl RelativeOps for TensorIr {
         let relative_tensor = TensorIr {
             id: relative_id,
             shape: relative_shape,
-            status: self.status.clone(),
+            status: self.status,
             dtype: self.dtype,
         };
 

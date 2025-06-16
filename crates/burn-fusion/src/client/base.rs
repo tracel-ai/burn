@@ -2,7 +2,7 @@ use std::future::Future;
 
 use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionTensor,
-    stream::{StreamId, execution::Operation},
+    stream::{OperationStreams, StreamId, execution::Operation},
 };
 use burn_ir::{OperationIr, TensorIr};
 use burn_tensor::{DType, TensorData};
@@ -15,7 +15,7 @@ where
     /// Create a new client for the given [device](FusionRuntime::FusionDevice).
     fn new(device: FusionDevice<R>) -> Self;
     /// Register a new [tensor operation intermediate representation](OperationIr).
-    fn register<O>(&self, streams: Vec<StreamId>, repr: OperationIr, operation: O)
+    fn register<O>(&self, streams: OperationStreams, repr: OperationIr, operation: O)
     where
         O: Operation<R> + 'static;
     /// Register all lazy computation.
