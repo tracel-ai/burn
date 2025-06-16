@@ -852,10 +852,10 @@ where
     /// ## Returns
     ///
     /// A new tensor with the specified dimension rolled by the given shift amount.
-    pub fn roll_dim<Dim, Shift>(self, shift: Shift, dim: Dim) -> Self
+    pub fn roll_dim<Shift, Dim>(self, shift: Shift, dim: Dim) -> Self
     where
-        Dim: AsIndex,
         Shift: AsIndex,
+        Dim: AsIndex,
     {
         let dim = canonicalize_dim(dim, D, false);
         let size = self.shape().dims[dim];
@@ -926,10 +926,10 @@ where
     /// ## Returns
     ///
     /// A new tensor with the specified dimensions rolled by the given shifts.
-    pub fn roll<Dim, Shift>(self, shifts: &[Shift], dims: &[Dim]) -> Self
+    pub fn roll<Shift, Dim>(self, shifts: &[Shift], dims: &[Dim]) -> Self
     where
-        Dim: AsIndex,
         Shift: AsIndex,
+        Dim: AsIndex,
     {
         assert_eq!(
             dims.len(),
@@ -985,17 +985,17 @@ where
         // - `dims` contains the effective dimensions to roll, in index order,
         // - `shifts` contains the effective usize shifts for each dimension.
         // - Every shift is non-zero, and less than the size of the corresponding dimension.
-        self.unchecked_roll(&effective_dims, &effective_shifts)
+        self.unchecked_roll(&effective_shifts, &effective_dims)
     }
 
     /// `roll` internal implementation.
     ///
     /// ## Parameters
     ///
-    /// - `dims`: A slice of dimensions to roll; must be non-empty;
-    ///   the same length as `shifts`, and must not contain repeats.
     /// - `shifts`: A slice of shifts corresponding to each dimension;
     ///   must be non-empty, the same length as `dims`, and all ``1..<size>``.
+    /// - `dims`: A slice of dimensions to roll; must be non-empty;
+    ///   the same length as `shifts`, and must not contain repeats.
     ///
     /// ## Panics
     ///
@@ -1005,7 +1005,7 @@ where
     ///
     /// A new tensor with the specified dimensions rolled by the given shifts.
     #[inline(always)]
-    fn unchecked_roll(self, dims: &[usize], shifts: &[usize]) -> Self {
+    fn unchecked_roll(self, shifts: &[usize], dims: &[usize]) -> Self {
         #[cfg(debug_assertions)]
         {
             assert!(!shifts.is_empty());
@@ -1034,7 +1034,7 @@ where
         if dims.len() == 1 {
             x
         } else {
-            x.unchecked_roll(&dims[1..], &shifts[1..])
+            x.unchecked_roll(&shifts[1..], &dims[1..])
         }
     }
 
