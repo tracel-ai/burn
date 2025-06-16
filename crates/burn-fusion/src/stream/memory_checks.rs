@@ -4,7 +4,7 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
-        mpsc::{Sender, SyncSender},
+        mpsc::SyncSender,
     },
     thread::JoinHandle,
     time::Duration,
@@ -20,7 +20,7 @@ use super::Stream;
 /// Memory checks struct to validate there is no memory leak with the fusion runtime.
 #[derive(Clone)]
 pub(crate) struct MemoryChecks {
-    sender: Sender<Message>,
+    sender: SyncSender<Message>,
     num_queued: Arc<AtomicU64>,
     // Keeps track of its thread.
     _handle: Arc<JoinHandle<()>>,
@@ -183,7 +183,7 @@ impl MemoryChecks {
     }
 
     fn spawn_new() -> Self {
-        let (sender, rec) = std::sync::mpsc::channel();
+        let (sender, rec) = std::sync::mpsc::sync_channel(100);
         let num_queued = Arc::new(AtomicU64::new(0));
         let num_queued_moved = num_queued.clone();
 
