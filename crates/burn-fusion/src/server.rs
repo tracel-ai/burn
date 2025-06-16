@@ -156,8 +156,10 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let tensor = self.handles.get_int_tensor::<B>(tensor);
-        let tensor = B::int_to_device(tensor, device);
+        let tensor_int = self.handles.get_int_tensor::<B>(tensor);
+        self.streams
+            .mark_read(StreamId::current(), tensor, &self.handles);
+        let tensor = B::int_to_device(tensor_int, device);
         let id = server_device.create_empty_handle();
 
         server_device
@@ -176,8 +178,10 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let tensor = self.handles.get_bool_tensor::<B>(tensor);
-        let tensor = B::bool_to_device(tensor, device);
+        let tensor_bool = self.handles.get_bool_tensor::<B>(tensor);
+        self.streams
+            .mark_read(StreamId::current(), tensor, &self.handles);
+        let tensor = B::bool_to_device(tensor_bool, device);
         let id = server_device.create_empty_handle();
 
         server_device

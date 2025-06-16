@@ -110,10 +110,10 @@ impl SharedTensors {
                         cleared.push(*tensor_id);
                     }
                 }
-                SharedTensorUpdate::NoMoreStream => {
+                SharedTensorUpdate::ReadyForCleanup => {
                     cleared.push(*tensor_id);
                 }
-                SharedTensorUpdate::NothingToDo => {}
+                SharedTensorUpdate::NoChange => {}
             }
         }
         cleared
@@ -217,9 +217,9 @@ pub enum SharedTensorUpdate {
     /// Also contains if the current stream is empty.
     RemovedFromStream(bool),
     /// If the tensor is shared across zero streams.
-    NoMoreStream,
+    ReadyForCleanup,
     /// If nothing has been done from the update.
-    NothingToDo,
+    NoChange,
 }
 
 impl SharedTensor {
@@ -257,17 +257,14 @@ impl SharedTensor {
     ///
     /// If the shared tensor is no longer needed on the stream, we will remove it from the list of
     /// shared streams.
-    ///
-    /// If the shared tensor is needed on no stream, we return true, indicating that the shared
-    /// tensor is safe to manually drop.
     fn update<R: FusionRuntime>(&mut self, id: StreamId, stream: &Stream<R>) -> SharedTensorUpdate {
         let entry = match self.streams.remove(&id) {
             Some(val) => val,
             None => {
                 return if self.streams.is_empty() {
-                    SharedTensorUpdate::NoMoreStream
+                    SharedTensorUpdate::ReadyForCleanup
                 } else {
-                    SharedTensorUpdate::NothingToDo
+                    SharedTensorUpdate::NoChange
                 };
             }
         };
@@ -277,7 +274,7 @@ impl SharedTensor {
             SharedTensorUpdate::RemovedFromStream(self.streams.is_empty())
         } else {
             self.streams.insert(id, entry);
-            SharedTensorUpdate::NothingToDo
+            SharedTensorUpdate::NoChange
         }
     }
 

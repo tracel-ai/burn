@@ -28,7 +28,6 @@ enum DropAction {
     SkipSharedTensor,
     ForceSharedTensor(Vec<StreamId>, TensorId),
     ContinueDrop,
-    NotADrop,
 }
 
 impl<R: FusionRuntime> MultiStream<R> {
@@ -53,10 +52,15 @@ impl<R: FusionRuntime> MultiStream<R> {
     ) {
         let id = self.resolve_streams(&streams, handles, &mut repr);
 
-        let sync = match self.handle_drop_op(id, &mut repr) {
-            DropAction::SkipSharedTensor => return,
-            DropAction::NotADrop => false,
-            DropAction::ForceSharedTensor(stream_ids, tid) => {
+        let drop_action = match &mut repr {
+            OperationIr::Drop(tensor_ir) => Some(self.handle_drop_op(id, tensor_ir)),
+            _ => None,
+        };
+
+        let sync = match drop_action {
+            Some(DropAction::SkipSharedTensor) => return,
+            Some(DropAction::ContinueDrop) => true,
+            Some(DropAction::ForceSharedTensor(stream_ids, tid)) => {
                 for stream_id in stream_ids {
                     if let Some(stream) = self.streams.get_mut(&stream_id) {
                         stream.queue.variables.remove(&tid);
@@ -67,7 +71,7 @@ impl<R: FusionRuntime> MultiStream<R> {
                 }
                 true
             }
-            DropAction::ContinueDrop => true,
+            None => false,
         };
 
         let num_executed = self.enqueue_operation(id, repr, &streams, operation, handles);
@@ -103,28 +107,23 @@ impl<R: FusionRuntime> MultiStream<R> {
     ///
     /// When a tensor is shared across multiple concurrent streams, dropping a tensor might cause a
     /// problem when the same tensor is registered lazily on another stream, but not yet executed.
-    fn handle_drop_op(&mut self, id: StreamId, repr: &mut OperationIr) -> DropAction {
-        match repr {
-            OperationIr::Drop(tensor_ir) => {
-                match !matches!(tensor_ir.status, TensorStatus::ReadWrite) {
-                    true => {
-                        let stream = self.streams.get(&id);
-                        let on_drop =
-                            self.shared_tensors
-                                .on_drop(id, tensor_ir.id, stream.is_none());
+    fn handle_drop_op(&mut self, id: StreamId, tensor_ir: &mut TensorIr) -> DropAction {
+        match !matches!(tensor_ir.status, TensorStatus::ReadWrite) {
+            true => {
+                let stream = self.streams.get(&id);
+                let on_drop = self
+                    .shared_tensors
+                    .on_drop(id, tensor_ir.id, stream.is_none());
 
-                        match on_drop {
-                            SharedTensorDropAction::ForceDrop(streams) => {
-                                tensor_ir.status = TensorStatus::ReadWrite;
-                                DropAction::ForceSharedTensor(streams, tensor_ir.id)
-                            }
-                            SharedTensorDropAction::Skip => DropAction::SkipSharedTensor,
-                        }
+                match on_drop {
+                    SharedTensorDropAction::ForceDrop(streams) => {
+                        tensor_ir.status = TensorStatus::ReadWrite;
+                        DropAction::ForceSharedTensor(streams, tensor_ir.id)
                     }
-                    false => DropAction::ContinueDrop,
+                    SharedTensorDropAction::Skip => DropAction::SkipSharedTensor,
                 }
             }
-            _ => DropAction::NotADrop,
+            false => DropAction::ContinueDrop,
         }
     }
 
@@ -165,6 +164,7 @@ impl<R: FusionRuntime> MultiStream<R> {
     }
 
     /// Mark a tensor as read.
+    #[allow(unused_variables)]
     pub fn mark_read(
         &mut self,
         id: StreamId,
@@ -331,7 +331,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         }
 
         self.shared_tensors
-            .tag_manual_drop(op.readonly(&readonly_tensors));
+            .tag_manual_drop(op.mark_read_only(&readonly_tensors));
     }
 
     fn drop_shared_tensors(

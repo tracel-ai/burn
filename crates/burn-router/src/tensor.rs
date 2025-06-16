@@ -12,12 +12,6 @@ pub struct RouterTensor<C: RunnerClient> {
     pub(crate) shape: Vec<usize>,
     pub(crate) dtype: DType,
     pub(crate) client: C,
-
-    // Orphan means that a tensor is never converted into a representation when it becomes `ReadWrite`.
-    //
-    // When a tensor is dropped and is still an orphan, we need to register it as such to avoid
-    // memory leak.
-    pub(crate) is_orphan: bool,
     pub(crate) count: Arc<AtomicU32>,
 }
 
@@ -39,7 +33,6 @@ impl<C: RunnerClient> RouterTensor<C> {
             shape,
             dtype,
             client,
-            is_orphan: true,
             count: Arc::new(AtomicU32::new(1)),
         }
     }
@@ -55,7 +48,8 @@ impl<C: RunnerClient> RouterTensor<C> {
         core::mem::swap(&mut self.shape, &mut shape_out);
 
         if let TensorStatus::ReadWrite = status {
-            self.is_orphan = false;
+            // Avoids a double drop.
+            self.count.fetch_add(1, Ordering::Relaxed);
         }
 
         TensorIr {
@@ -88,11 +82,10 @@ impl<C: RunnerClient> core::fmt::Debug for RouterTensor<C> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(
             format!(
-                "{{ id: {:?}, shape: {:?}, dtype: {:?}, should_drop: {:?}, device: {:?} }}",
+                "{{ id: {:?}, shape: {:?}, dtype: {:?}, device: {:?} }}",
                 self.id,
                 self.shape,
                 self.dtype,
-                self.is_orphan,
                 self.client.device().clone(),
             )
             .as_str(),
@@ -109,7 +102,6 @@ impl<C: RunnerClient> Clone for RouterTensor<C> {
             shape: self.shape.clone(),
             client: self.client.clone(),
             dtype: self.dtype,
-            is_orphan: self.is_orphan,
             count: self.count.clone(),
         }
     }
@@ -118,10 +110,6 @@ impl<C: RunnerClient> Clone for RouterTensor<C> {
 impl<C: RunnerClient> Drop for RouterTensor<C> {
     fn drop(&mut self) {
         let count = self.count.fetch_sub(1, Ordering::Acquire);
-
-        if !self.is_orphan {
-            return;
-        }
 
         match self.status(count) {
             TensorStatus::ReadWrite => {

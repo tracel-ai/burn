@@ -260,9 +260,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     .bias
                     .as_ref()
                     .map(|bias| handles.get_float_tensor::<B>(bias));
-                println!("Get output grad ------------------ START");
                 let output_grad = handles.get_float_tensor::<B>(&args.out_grad);
-                println!("Get output grad ------------------ END");
 
                 let output = B::deform_conv2d_backward(
                     x,
