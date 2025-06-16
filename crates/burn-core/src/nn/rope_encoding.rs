@@ -90,6 +90,7 @@ impl RotaryEncodingConfig {
         RotaryEncoding {
             freq_complex,
             theta,
+            start_offset: 0,
         }
     }
 }
@@ -110,6 +111,7 @@ pub struct RotaryEncoding<B: Backend> {
     pub freq_complex: Tensor<B, 3>,
     /// Frequency vector used to compute/apply the complex rotations.
     pub theta: Tensor<B, 1>,
+    start_offset: usize,
 }
 
 impl<B: Backend> ModuleDisplay for RotaryEncoding<B> {
@@ -198,11 +200,36 @@ impl<B: Backend> RotaryEncoding<B> {
     /// This method updates the internal frequency tensor `freq_complex` to store
     /// the rotary positional encodings for a new window of positions starting at `start`.
     pub fn shift(&mut self, start: usize) {
-        let max_sequence_length = self.freq_complex.dims()[0];
-        self.freq_complex = Self::compute_rotary_frequencies(
-            start..start + max_sequence_length,
-            self.theta.clone(),
+        let max_seq_len = self.freq_complex.dims()[0];
+        assert!(
+            start > self.start_offset,
+            "Shift start position must be monotonically increasing"
         );
+
+        let current_end = self.start_offset + max_seq_len;
+
+        if start >= current_end {
+            // Overwrite the whole buffer
+            let new_freqs =
+                Self::compute_rotary_frequencies(start..start + max_seq_len, self.theta.clone());
+            self.freq_complex
+                .inplace(|freqs| freqs.slice_assign([0..max_seq_len], new_freqs));
+        } else {
+            // Shift the tail
+            let num_keep = current_end - start;
+            let start_rel = start - self.start_offset;
+            let tail_freqs = self.freq_complex.clone().slice([start_rel..max_seq_len]);
+            self.freq_complex
+                .inplace(|freqs| freqs.slice_assign([0..num_keep], tail_freqs));
+            // Compute the rest and assign
+            let new_freqs = Self::compute_rotary_frequencies(
+                current_end..start + max_seq_len,
+                self.theta.clone(),
+            );
+            self.freq_complex
+                .inplace(|freqs| freqs.slice_assign([num_keep..max_seq_len], new_freqs));
+        }
+        self.start_offset = start;
     }
 
     /// Computes the positional rotation frequencies (cosine and sine values) used in RoPE.
@@ -428,6 +455,36 @@ mod tests {
     }
 
     #[test]
+    fn test_rotary_encoding_shift_full() {
+        let device = Default::default();
+        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init::<TestBackend>(&device);
+
+        // Input = [Batch size, Num of heads, Seq_len, d_model]
+        let input = Tensor::<TestBackend, 3>::from_floats(
+            [
+                [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]],
+                [[9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]],
+            ],
+            &device,
+        )
+        .unsqueeze::<4>();
+
+        // Initializing for a bigger cache (e.g., max_seq_len = 10) should give the same result
+        // as using a smaller cache of pre-computed RoPE frequencies that are shifted to the same
+        // initial position
+        let expected_output = rotary_encoding.apply(input.clone(), 6);
+
+        let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init::<TestBackend>(&device);
+        rotary_encoding.shift(6); // start > 4 will perform a full re-compute
+
+        let output = rotary_encoding.apply(input, 0);
+
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected_output.into_data(), Tolerance::default());
+    }
+
+    #[test]
     fn test_rotary_encoding_shift() {
         let device = Default::default();
         let rotary_encoding = RotaryEncodingConfig::new(10, 4).init::<TestBackend>(&device);
@@ -443,18 +500,35 @@ mod tests {
         .unsqueeze::<4>();
 
         // Initializing for a bigger cache (e.g., max_seq_len = 10) should give the same result
-        // as using a smaller cache of pre-computed RoPE frequencies that are shifted (recomputed)
-        // to the same initial position
-        let expected_output = rotary_encoding.apply(input.clone(), 6);
+        // as using a smaller cache of pre-computed RoPE frequencies that are shifted to the same
+        // initial position
+        let expected_output = rotary_encoding.apply(input.clone(), 2);
 
         let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init::<TestBackend>(&device);
-        rotary_encoding.shift(6);
+        rotary_encoding.shift(2); // start < 4 will shift the (current_end - start) freqs and compute the rest
 
         let output = rotary_encoding.apply(input, 0);
 
         output
             .into_data()
             .assert_approx_eq::<FT>(&expected_output.into_data(), Tolerance::default());
+    }
+
+    #[test]
+    fn test_rotary_encoding_shift_multiple() {
+        let device = Default::default();
+        let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init::<TestBackend>(&device);
+        rotary_encoding.shift(2);
+        rotary_encoding.shift(5);
+    }
+
+    #[test]
+    #[should_panic = "Shift start position must be monotonically increasing"]
+    fn test_rotary_encoding_shift_should_increase() {
+        let device = Default::default();
+        let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init::<TestBackend>(&device);
+        rotary_encoding.shift(6);
+        rotary_encoding.shift(4); // should be monotonically increasing
     }
 
     #[test]
