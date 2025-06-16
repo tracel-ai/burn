@@ -43,11 +43,8 @@ impl<R: FusionRuntime> OperationQueue<R> {
             .iter()
             .flat_map(|desc| desc.nodes())
             .for_each(|tensor| {
-                match tensor.status {
-                    TensorStatus::ReadWrite => {
-                        self.variables.remove(&tensor.id);
-                    }
-                    _ => (),
+                if tensor.status == TensorStatus::ReadWrite {
+                    self.variables.remove(&tensor.id);
                 };
                 handles.free(tensor)
             });

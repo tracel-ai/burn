@@ -267,7 +267,7 @@ impl RegisteredTensors {
             .iter_mut()
             .find(|(tensor_old, _)| tensor_old.id == tensor.id)
         {
-            tensor_old.status = tensor.status.clone();
+            tensor_old.status = tensor.status;
         }
     }
 }

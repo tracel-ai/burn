@@ -187,9 +187,8 @@ impl<H: Clone> HandleContainer<H> {
 
     /// Remove tensor handle from container.
     pub fn remove_handle(&mut self, id: TensorId) -> Option<Handle<H>> {
-        let r = self.handles.remove(&id);
         // println!("Remove handles {}", self.handles.len());
-        r
+        self.handles.remove(&id)
     }
 
     /// Remove tensor handle from container if writable

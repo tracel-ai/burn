@@ -719,7 +719,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&value);
 
         let shape: Vec<usize> = tensor.shape.clone();
-        let dtype = tensor.dtype.clone();
+        let dtype = tensor.dtype;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = ScatterOpIr {

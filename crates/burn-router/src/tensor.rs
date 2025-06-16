@@ -105,7 +105,7 @@ impl<C: RunnerClient> Clone for RouterTensor<C> {
         self.count.fetch_sub(1, Ordering::Acquire);
 
         Self {
-            id: self.id.clone(),
+            id: self.id,
             shape: self.shape.clone(),
             client: self.client.clone(),
             dtype: self.dtype,
@@ -125,7 +125,7 @@ impl<C: RunnerClient> Drop for RouterTensor<C> {
 
         match self.status(count) {
             TensorStatus::ReadWrite => {
-                let id = self.id.clone();
+                let id = self.id;
                 let mut shape = Vec::new();
                 core::mem::swap(&mut shape, &mut self.shape);
 

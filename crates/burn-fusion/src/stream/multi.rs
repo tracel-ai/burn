@@ -242,7 +242,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         let current = streams.current;
         let nodes = op.nodes();
 
-        let analysis = self.analyse_shared_tensors(&nodes, &streams, current);
+        let analysis = self.analyse_shared_tensors(&nodes, streams, current);
         self.shared_tensors.on_registering_op(current, &nodes);
 
         self.merge_streams_timelines(handles, &analysis, current, &nodes);
@@ -335,7 +335,7 @@ impl<R: FusionRuntime> MultiStream<R> {
 
         for id in streams_to_sync.drain() {
             if id != current {
-                self.resolve_stream(handles, id, &nodes);
+                self.resolve_stream(handles, id, nodes);
             }
         }
     }
@@ -397,10 +397,8 @@ impl<R: FusionRuntime> MultiStream<R> {
                 }
             }
 
-            if s.queue.variables.is_empty() {
-                if current != *stream_id {
-                    to_remove.push(*stream_id);
-                }
+            if s.queue.variables.is_empty() && current != *stream_id {
+                to_remove.push(*stream_id);
             }
         }
 
@@ -464,7 +462,7 @@ impl OperationStreams {
     /// You only need to register input tensors, not the outputs.
     /// So init tensor operations should have no streams registered.
     pub fn tensor<R: FusionRuntime>(&mut self, tensor: &crate::FusionTensor<R>) {
-        self.streams.insert(tensor.id.clone(), tensor.stream);
+        self.streams.insert(tensor.id, tensor.stream);
     }
 
     pub(crate) fn get(&self, id: TensorId) -> Option<StreamId> {

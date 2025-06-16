@@ -92,14 +92,14 @@ impl SharedTensors {
 
             return match state {
                 Some(val) => {
-                    let streams = val.streams.keys().map(|s| *s).collect();
+                    let streams = val.streams.keys().copied().collect();
                     SharedTensorDropped::ForceDrop(streams)
                 }
                 None => SharedTensorDropped::ForceDrop(Vec::new()),
             };
         }
 
-        return SharedTensorDropped::Skip;
+        SharedTensorDropped::Skip
     }
 
     pub fn on_executed_ops<R: FusionRuntime>(
@@ -109,7 +109,7 @@ impl SharedTensors {
     ) -> Vec<TensorId> {
         let mut cleared = Vec::new();
         for (tensor_id, state) in self.shared_tensors.iter_mut() {
-            match state.update(id, &stream) {
+            match state.update(id, stream) {
                 SharedTensorUpdate::RemovedFromStream(no_more_stream) => {
                     stream.queue.variables.remove(tensor_id);
 
@@ -177,16 +177,13 @@ impl SharedTensors {
     pub fn on_registering_op(&mut self, id: StreamId, nodes: &[&TensorIr]) {
         for node in nodes {
             if let burn_ir::TensorStatus::ReadWrite = node.status {
-                match self.shared_tensors.get(&node.id) {
-                    Some(st) => {
-                        if !st.streams.is_empty() {
-                            if st.streams.len() == 1 && st.streams.contains_key(&id) {
-                            } else {
-                                continue;
-                            }
+                if let Some(st) = self.shared_tensors.get(&node.id) {
+                    if !st.streams.is_empty() {
+                        if st.streams.len() == 1 && st.streams.contains_key(&id) {
+                        } else {
+                            continue;
                         }
                     }
-                    None => {}
                 };
             }
         }

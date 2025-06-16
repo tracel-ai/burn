@@ -2347,14 +2347,9 @@ impl InitOperationIr {
 
 impl TensorIr {
     fn readonly(&mut self, nodes: &[TensorId], output: &mut Vec<TensorIr>) {
-        match self.status {
-            TensorStatus::ReadWrite => {
-                if nodes.contains(&self.id) {
-                    output.push(self.clone());
-                    self.status = TensorStatus::ReadOnly;
-                }
-            }
-            _ => {}
+        if self.status == TensorStatus::ReadWrite && nodes.contains(&self.id) {
+            output.push(self.clone());
+            self.status = TensorStatus::ReadOnly;
         }
     }
 }

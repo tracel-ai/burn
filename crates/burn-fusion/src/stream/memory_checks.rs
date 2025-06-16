@@ -129,7 +129,7 @@ fn fetch_memory_report() -> MemoryReport {
             report.sender.send(Message::Check(sender)).unwrap();
 
             match rec.recv() {
-                Ok(report) => return report,
+                Ok(report) => report,
                 Err(message) => panic!("{message}"),
             }
         }

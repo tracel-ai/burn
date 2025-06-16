@@ -33,7 +33,7 @@ impl<R: FusionRuntime> Clone for FusionTensor<R> {
         self.count.fetch_add(1, Ordering::Relaxed);
 
         Self {
-            id: self.id.clone(),
+            id: self.id,
             shape: self.shape.clone(),
             client: self.client.clone(),
             dtype: self.dtype,
@@ -196,7 +196,7 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
                     dtype: self.dtype,
                 };
                 let mut streams = OperationStreams::default();
-                streams.tensor(&self);
+                streams.tensor(self);
 
                 self.client
                     .register(streams, OperationIr::Drop(ir), DropOp { id: self.id });
