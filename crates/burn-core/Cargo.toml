@@ -75,7 +75,7 @@ test-wgpu = [
 test-wgpu-spirv = [
     "burn-wgpu/default",
     "burn-wgpu/vulkan",
-    "test-memory-check",
+    "test-memory-checks",
 ] # To use wgpu-spirv during testing, default uses ndarray.
 test-memory-checks = ["burn-fusion/memory-checks"]
 
