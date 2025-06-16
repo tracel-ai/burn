@@ -277,8 +277,9 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: usize,
         padding: usize,
         count_include_pad: bool,
+        ceil: bool,
     ) -> FloatTensor<Self> {
-        let size = calculate_pool_output_size(kernel_size, stride, padding, 1, x.shape[2]);
+        let size = calculate_pool_output_size(kernel_size, stride, padding, 1, x.shape[2], ceil);
 
         let shape = vec![x.shape[0], x.shape[1], size];
         let client = x.client.clone();
@@ -290,6 +291,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             stride,
             padding,
             count_include_pad,
+            ceil,
             out: out.to_ir_out(),
         };
 
@@ -304,11 +306,12 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil: bool,
     ) -> FloatTensor<Self> {
         let size_0 =
-            calculate_pool_output_size(kernel_size[0], stride[0], padding[0], 1, x.shape[2]);
+            calculate_pool_output_size(kernel_size[0], stride[0], padding[0], 1, x.shape[2], ceil);
         let size_1 =
-            calculate_pool_output_size(kernel_size[1], stride[1], padding[1], 1, x.shape[3]);
+            calculate_pool_output_size(kernel_size[1], stride[1], padding[1], 1, x.shape[3], ceil);
 
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
         let client = x.client.clone();
@@ -319,6 +322,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             kernel_size,
             stride,
             padding,
+            ceil,
             count_include_pad,
             out: out.to_ir_out(),
         };
@@ -390,8 +394,10 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil: bool,
     ) -> FloatTensor<Self> {
-        let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
+        let size =
+            calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2], ceil);
 
         let shape = vec![x.shape[0], x.shape[1], size];
         let client = x.client.clone();
@@ -403,6 +409,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             stride,
             padding,
             dilation,
+            ceil,
             out: out.to_ir_out(),
         };
 
@@ -417,6 +424,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil: bool,
     ) -> FloatTensor<Self> {
         let size_0 = calculate_pool_output_size(
             kernel_size[0],
@@ -424,6 +432,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             padding[0],
             dilation[0],
             x.shape[2],
+            ceil,
         );
         let size_1 = calculate_pool_output_size(
             kernel_size[1],
@@ -431,6 +440,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             padding[1],
             dilation[1],
             x.shape[3],
+            ceil,
         );
 
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
@@ -443,6 +453,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             stride,
             padding,
             dilation,
+            ceil,
             out: out.to_ir_out(),
         };
 
@@ -457,8 +468,10 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil: bool,
     ) -> MaxPool1dWithIndices<Self> {
-        let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
+        let size =
+            calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2], ceil);
 
         let shape = vec![x.shape[0], x.shape[1], size];
         let client = x.client.clone();
@@ -471,6 +484,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             stride,
             padding,
             dilation,
+            ceil,
             out: out.to_ir_out(),
             out_indices: out_indices.to_ir_out(),
         };
@@ -488,6 +502,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil: bool,
     ) -> MaxPool2dWithIndices<Self> {
         let size_0 = calculate_pool_output_size(
             kernel_size[0],
@@ -495,6 +510,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             padding[0],
             dilation[0],
             x.shape[2],
+            ceil,
         );
         let size_1 = calculate_pool_output_size(
             kernel_size[1],
@@ -502,6 +518,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             padding[1],
             dilation[1],
             x.shape[3],
+            ceil,
         );
 
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
@@ -515,6 +532,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             stride,
             padding,
             dilation,
+            ceil,
             out: out.to_ir_out(),
             out_indices: out_indices.to_ir_out(),
         };

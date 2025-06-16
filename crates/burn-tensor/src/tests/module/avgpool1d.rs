@@ -16,6 +16,7 @@ mod tests {
             stride: 1,
             length: 6,
             count_include_pad: true,
+            ceil: false,
         };
 
         test.assert_output(TestTensor::from([[[1., 2., 3., 4.]]]));
@@ -31,6 +32,7 @@ mod tests {
             stride: 2,
             length: 6,
             count_include_pad: true,
+            ceil: false,
         };
 
         test.assert_output(TestTensor::from([[
@@ -49,6 +51,7 @@ mod tests {
             stride: 2,
             length: 6,
             count_include_pad: false,
+            ceil: false,
         };
 
         test.assert_output(TestTensor::from([[
@@ -65,6 +68,7 @@ mod tests {
         stride: usize,
         length: usize,
         count_include_pad: bool,
+        ceil: bool,
     }
 
     impl AvgPool1dTestCase {
@@ -81,6 +85,7 @@ mod tests {
                 self.stride,
                 self.padding,
                 self.count_include_pad,
+                self.ceil,
             );
 
             y.to_data().assert_approx_eq::<FT>(

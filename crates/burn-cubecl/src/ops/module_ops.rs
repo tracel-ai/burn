@@ -109,8 +109,9 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil: bool,
     ) -> FloatTensor<Self> {
-        kernel::pool::avg_pool2d::<R, F>(x, kernel_size, stride, padding, count_include_pad)
+        kernel::pool::avg_pool2d::<R, F>(x, kernel_size, stride, padding, count_include_pad, ceil)
     }
 
     fn avg_pool2d_backward(
@@ -137,8 +138,9 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil: bool,
     ) -> FloatTensor<Self> {
-        kernel::pool::max_pool2d::<R, F>(x, kernel_size, stride, padding, dilation)
+        kernel::pool::max_pool2d::<R, F>(x, kernel_size, stride, padding, dilation, ceil)
     }
 
     fn max_pool2d_with_indices(
@@ -147,6 +149,7 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil: bool,
     ) -> MaxPool2dWithIndices<Self> {
         let (output, indices) = kernel::pool::max_pool2d_with_indices::<R, F, I>(
             x,
@@ -154,6 +157,7 @@ where
             stride,
             padding,
             dilation,
+            ceil,
         );
 
         MaxPool2dWithIndices::new(output, indices)

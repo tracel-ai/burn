@@ -20,10 +20,24 @@ mod tests {
         let stride = [1, 2];
         let padding = [1, 2];
         let count_include_pad = true;
+        let ceil = false;
 
-        let pooled = module::avg_pool2d(tensor, kernel_size, stride, padding, count_include_pad);
-        let pooled_ref =
-            module::avg_pool2d(tensor_ref, kernel_size, stride, padding, count_include_pad);
+        let pooled = module::avg_pool2d(
+            tensor,
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            ceil,
+        );
+        let pooled_ref = module::avg_pool2d(
+            tensor_ref,
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            ceil,
+        );
 
         pooled
             .into_data()
@@ -45,6 +59,7 @@ mod tests {
         let stride = [1, 1];
         let padding = [1, 1];
         let count_include_pad = true;
+        let ceil = false;
 
         let shape_out = module::avg_pool2d(
             tensor.clone(),
@@ -52,6 +67,7 @@ mod tests {
             stride,
             padding,
             count_include_pad,
+            ceil,
         )
         .shape();
         let grad_output =

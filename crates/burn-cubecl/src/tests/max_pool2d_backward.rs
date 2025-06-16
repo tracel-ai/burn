@@ -20,15 +20,23 @@ mod tests {
         let stride = [2, 2];
         let padding = [1, 1];
         let dilation = [1, 1];
+        let ceil = false;
 
-        let (_, indices) =
-            module::max_pool2d_with_indices(tensor.clone(), kernel_size, stride, padding, dilation);
+        let (_, indices) = module::max_pool2d_with_indices(
+            tensor.clone(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil,
+        );
         let (_, indices_ref) = module::max_pool2d_with_indices(
             tensor_ref.clone(),
             kernel_size,
             stride,
             padding,
             dilation,
+            ceil,
         );
         let grad = TestBackend::max_pool2d_with_indices_backward(
             tensor.into_primitive().tensor(),

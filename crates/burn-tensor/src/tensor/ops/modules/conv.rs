@@ -71,8 +71,17 @@ pub fn calculate_pool_output_size(
     padding: usize,
     dilation: usize,
     size_in: usize,
+    ceil: bool,
 ) -> usize {
-    ((size_in + 2 * padding - dilation * (kernel_size - 1) - 1) / stride) + 1
+    let pool_size = size_in + 2 * padding - dilation * (kernel_size - 1) - 1;
+
+    let pool_size = if ceil {
+        pool_size.div_ceil(stride)
+    } else {
+        pool_size / stride
+    };
+
+    pool_size + 1
 }
 
 /// Calculate the [1D convolution](crate::ops::ModuleOps::conv1d) backward pass, returning the gradient for `x`.
@@ -1210,5 +1219,37 @@ mod tests {
             calculate_conv_output_size(kernel_size, stride, padding, dilation, size_in);
 
         assert_eq!(size_out, size_out_expected, "Expected size");
+    }
+
+    #[test]
+    fn test_calculate_pool_output_size_1() {
+        let kernel_size = 2;
+        let stride = 2;
+        let padding = 1;
+        let size_in = 75;
+        let size_out = 39;
+        let dilation = 1;
+        let ceil = true;
+
+        assert_eq!(
+            calculate_pool_output_size(kernel_size, stride, padding, dilation, size_in, ceil),
+            size_out
+        );
+    }
+
+    #[test]
+    fn test_calculate_pool_output_size_2() {
+        let kernel_size = 2;
+        let stride = 2;
+        let padding = 1;
+        let size_in = 75;
+        let size_out = 38;
+        let dilation = 1;
+        let ceil = false;
+
+        assert_eq!(
+            calculate_pool_output_size(kernel_size, stride, padding, dilation, size_in, ceil),
+            size_out
+        );
     }
 }
