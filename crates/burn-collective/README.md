@@ -28,8 +28,6 @@ The resulting tensor then sent to the device corresponding to each original tens
 
 ### Ring
 
-This strategy minimizes the communications between devices.
-
 See this good explanation: https://blog.dailydoseofds.com/p/all-reduce-and-ring-reduce-for-model
 
 The tensors are sliced into N parts, where N is the number of tensors to aggregate. 
