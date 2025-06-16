@@ -859,9 +859,14 @@ where
     {
         let dim = canonicalize_dim(dim, D, false);
         let size = self.shape().dims[dim];
-        let shift = wrap_index(shift, size);
+        if size == 0 {
+            // If the dimension is empty, return the tensor as is.
+            return self;
+        }
 
-        if size == 0 || shift == 0 {
+        let shift = wrap_index(shift, size);
+        if shift == 0 {
+            // If the shift is zero, return the tensor as is.
             return self;
         }
 
