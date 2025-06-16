@@ -67,7 +67,7 @@ pub type TestBackend = burn_cuda::Cuda;
 #[cfg(test)]
 pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
-#[cfg(all(test, feature = "test-memory-check"))]
+#[cfg(all(test, feature = "test-memory-checks"))]
 mod tests {
     burn_fusion::memory_checks!();
 }
