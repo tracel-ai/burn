@@ -83,8 +83,8 @@ impl AsIndex for u8 {
 ///
 /// ## Arguments
 ///
-/// * `idx` - The dimension index to canonicalize.
-/// * `size` - The rank of the tensor.
+/// * `idx` - The index to canonicalize.
+/// * `size` - The size of the index range.
 /// * `wrap_scalar` - If true, pretend scalars have rank=1.
 ///
 /// ## Returns
@@ -108,7 +108,7 @@ where
 /// ## Arguments
 ///
 /// * `idx` - The dimension index to canonicalize.
-/// * `rank` - The rank of the tensor.
+/// * `rank` - The size of the dimension.
 /// * `wrap_scalar` - If true, pretend scalars have rank=1.
 ///
 /// ## Returns
@@ -134,8 +134,8 @@ where
 /// * `name` - The name of the index (for error messages).
 /// * `size_name` - The name of the size (for error messages).
 /// * `idx` - The index to canonicalize.
-/// * `size` - The size of the dimension.
-/// * `wrap_scalar` - If true, treat scalar dimensions as having size 1.
+/// * `size` - The size of the index range.
+/// * `wrap_scalar` - If true, treat 0-size ranges as having size 1.
 ///
 /// ## Returns
 ///
@@ -194,6 +194,7 @@ where
 /// ## Returns
 ///
 /// The positive wrapped dimension index.
+#[inline]
 #[must_use]
 pub fn wrap_index<I>(idx: I, size: usize) -> usize
 where
@@ -216,25 +217,35 @@ mod tests {
 
     #[test]
     fn test_wrap_idx() {
-        for idx in 0..3 {
-            assert_eq!(wrap_index(idx, 3), idx as usize);
-            assert_eq!(wrap_index(idx + 3, 3), idx as usize);
-            assert_eq!(wrap_index(idx + 2 * 3, 3), idx as usize);
-            assert_eq!(wrap_index(idx - 3, 3), idx as usize);
-            assert_eq!(wrap_index(idx - 2 * 3, 3), idx as usize);
-        }
+        assert_eq!(wrap_index(0, 3), 0 as usize);
+        assert_eq!(wrap_index(0 + 3, 3), 0 as usize);
+        assert_eq!(wrap_index(0 + 2 * 3, 3), 0 as usize);
+        assert_eq!(wrap_index(0 - 3, 3), 0 as usize);
+        assert_eq!(wrap_index(0 - 2 * 3, 3), 0 as usize);
+
+        assert_eq!(wrap_index(1, 3), 1 as usize);
+        assert_eq!(wrap_index(1 + 3, 3), 1 as usize);
+        assert_eq!(wrap_index(1 + 2 * 3, 3), 1 as usize);
+        assert_eq!(wrap_index(1 - 3, 3), 1 as usize);
+        assert_eq!(wrap_index(1 - 2 * 3, 3), 1 as usize);
+
+        assert_eq!(wrap_index(2, 3), 2 as usize);
+        assert_eq!(wrap_index(2 + 3, 3), 2 as usize);
+        assert_eq!(wrap_index(2 + 2 * 3, 3), 2 as usize);
+        assert_eq!(wrap_index(2 - 3, 3), 2 as usize);
+        assert_eq!(wrap_index(2 - 2 * 3, 3), 2 as usize);
     }
 
     #[test]
     fn test_canonicalize_dim() {
-        for idx in 0..3 {
-            let wrap_scalar = false;
-            assert_eq!(canonicalize_dim(idx, 3, wrap_scalar), idx as usize);
-            assert_eq!(
-                canonicalize_dim(-(idx + 1), 3, wrap_scalar),
-                (3 - (idx + 1)) as usize
-            );
-        }
+        let wrap_scalar = false;
+        assert_eq!(canonicalize_dim(0, 3, wrap_scalar), 0 as usize);
+        assert_eq!(canonicalize_dim(1, 3, wrap_scalar), 1 as usize);
+        assert_eq!(canonicalize_dim(2, 3, wrap_scalar), 2 as usize);
+
+        assert_eq!(canonicalize_dim(-1, 3, wrap_scalar), (3 - 1) as usize);
+        assert_eq!(canonicalize_dim(-2, 3, wrap_scalar), (3 - 2) as usize);
+        assert_eq!(canonicalize_dim(-3, 3, wrap_scalar), (3 - 3) as usize);
 
         let wrap_scalar = true;
         assert_eq!(canonicalize_dim(0, 0, wrap_scalar), 0);
@@ -260,14 +271,14 @@ mod tests {
 
     #[test]
     fn test_canonicalize_index() {
-        for idx in 0..3 {
-            let wrap_scalar = false;
-            assert_eq!(canonicalize_index(idx, 3, wrap_scalar), idx as usize);
-            assert_eq!(
-                canonicalize_index(-(idx + 1), 3, wrap_scalar),
-                (3 - (idx + 1)) as usize
-            );
-        }
+        let wrap_scalar = false;
+        assert_eq!(canonicalize_index(0, 3, wrap_scalar), 0 as usize);
+        assert_eq!(canonicalize_index(1, 3, wrap_scalar), 1 as usize);
+        assert_eq!(canonicalize_index(2, 3, wrap_scalar), 2 as usize);
+
+        assert_eq!(canonicalize_index(-1, 3, wrap_scalar), (3 - 1) as usize);
+        assert_eq!(canonicalize_index(-2, 3, wrap_scalar), (3 - 2) as usize);
+        assert_eq!(canonicalize_index(-3, 3, wrap_scalar), (3 - 3) as usize);
 
         let wrap_scalar = true;
         assert_eq!(canonicalize_index(0, 0, wrap_scalar), 0);
