@@ -11,6 +11,7 @@ pub struct RouterTensor<C: RunnerClient> {
     pub(crate) id: TensorId,
     pub(crate) shape: Vec<usize>,
     pub(crate) dtype: DType,
+    /// The client that has this tensor
     pub client: C,
     pub(crate) count: Arc<AtomicU32>,
 }
@@ -41,6 +42,7 @@ impl<C: RunnerClient> RouterTensor<C> {
         self.client.clone().read_tensor(self.into_ir()).await
     }
 
+    /// Get the ir for this tensor
     pub fn into_ir(mut self) -> TensorIr {
         let count = self.count.load(Ordering::Relaxed);
         let status = self.status(count);

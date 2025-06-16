@@ -46,7 +46,7 @@ impl RunnerClient for WsClient {
 
         self.sender.send(ComputeTask::RegisterTensor(id, data));
 
-        RouterTensor::new(Arc::new(id), shape, dtype, self.clone())
+        RouterTensor::new(id, shape, dtype, self.clone())
     }
 
     fn register_empty_tensor(
@@ -56,7 +56,7 @@ impl RunnerClient for WsClient {
     ) -> RouterTensor<Self> {
         let id = self.sender.new_tensor_id();
 
-        RouterTensor::new(Arc::new(id), shape, dtype, self.clone())
+        RouterTensor::new(id, shape, dtype, self.clone())
     }
 
     fn register_float_tensor(
