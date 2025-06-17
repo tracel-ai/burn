@@ -3,10 +3,8 @@ use burn_router::{Runner, RunnerClient};
 use burn_tensor::TensorData;
 use core::marker::PhantomData;
 use futures_util::{SinkExt, StreamExt};
-use std::sync::{
-    Arc,
-    mpsc::{Sender, SyncSender},
-};
+use std::sync::Arc;
+use tokio::sync::mpsc::Sender;
 use tokio_tungstenite::{
     connect_async_with_config,
     tungstenite::{
@@ -39,12 +37,12 @@ pub enum ProcessorTask {
 }
 
 impl<B: BackendIr> Processor<B> {
-    pub fn start(runner: Runner<B>, state: Arc<TensorDataService>) -> SyncSender<ProcessorTask> {
+    pub async fn start(runner: Runner<B>, state: Arc<TensorDataService>) -> Sender<ProcessorTask> {
         // channel for tasks to execute
-        let (task_sender, task_rec) = std::sync::mpsc::sync_channel(1);
+        let (task_sender, mut task_rec) = tokio::sync::mpsc::channel(1);
 
-        std::thread::spawn(move || {
-            for item in task_rec.iter() {
+        tokio::spawn(async move {
+            while let Some(item) = task_rec.recv().await {
                 match item {
                     ProcessorTask::RegisterOperation(op) => {
                         runner.register(*op);
@@ -56,27 +54,26 @@ impl<B: BackendIr> Processor<B> {
                                 content: TaskResponseContent::SyncBackend,
                                 id,
                             })
+                            .await
                             .unwrap();
                     }
                     ProcessorTask::RegisterTensor(id, data) => {
                         runner.register_tensor_data_id(id, data);
                     }
                     ProcessorTask::RegisterTensorRemote(remote_tensor, new_id) => {
-                        // downloading with a websocket requires a Tokio 1.x runtime
-                        let rt = tokio::runtime::Runtime::new().unwrap();
-                        let data = rt
-                            .block_on(Self::download_tensor(remote_tensor))
+                        let data = Self::download_tensor(remote_tensor)
+                            .await
                             .expect("Could not fetch remote tensor");
                         log::info!("Registering remote tensor...(id: {new_id:?})");
                         runner.register_tensor_data_id(new_id, data);
                     }
                     ProcessorTask::ExposeTensorRemote { tensor, count } => {
                         let id = tensor.id;
-                        let fut = runner.read_tensor(tensor);
-                        let data = burn_common::future::block_on(fut);
+                        let data = runner.read_tensor(tensor).await;
                         let bytes: bytes::Bytes = rmp_serde::to_vec(&data).unwrap().into();
 
                         let mut exposed_tensors = state.exposed_tensors.lock().unwrap();
+                        log::info!("Exposing tensor: (id: {id:?})");
                         exposed_tensors.insert(
                             id,
                             TensorExposeState {
@@ -87,13 +84,13 @@ impl<B: BackendIr> Processor<B> {
                         );
                     }
                     ProcessorTask::ReadTensor(id, tensor, callback) => {
-                        let fut = runner.read_tensor(tensor);
-                        let tensor = burn_common::future::block_on(fut);
+                        let tensor = runner.read_tensor(tensor).await;
                         callback
                             .send(TaskResponse {
                                 content: TaskResponseContent::ReadTensor(tensor),
                                 id,
                             })
+                            .await
                             .unwrap();
                     }
                     ProcessorTask::Close => {
@@ -101,7 +98,7 @@ impl<B: BackendIr> Processor<B> {
                         runner.sync();
                         core::mem::drop(runner);
                         B::sync(&device);
-                        return;
+                        break;
                     }
                 }
             }
@@ -112,6 +109,7 @@ impl<B: BackendIr> Processor<B> {
 
     /// Downloads a tensor that is exposed on another server. Requires a Tokio 1.x runtime
     async fn download_tensor(remote_tensor: TensorRemote) -> Option<TensorData> {
+        log::info!("Downloading tensor {:?}", remote_tensor.clone());
         let address_request = format!("{}/{}", remote_tensor.address.as_str(), "data");
         const MB: usize = 1024 * 1024;
 

@@ -43,7 +43,7 @@ pub enum Task {
 }
 
 #[allow(missing_docs)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TensorRemote {
     pub id: TensorId,
     pub address: String,

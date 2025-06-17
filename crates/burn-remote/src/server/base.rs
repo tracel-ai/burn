@@ -13,7 +13,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use burn_ir::BackendIr;
+use burn_ir::{BackendIr, TensorId};
 use burn_tensor::Device;
 use tracing_core::{Level, LevelFilter};
 use tracing_subscriber::prelude::*;
@@ -111,12 +111,12 @@ impl<B: BackendIr> WsServer<B> {
                     _ => panic!("Response handler not initialized."),
                 };
 
-                let receiver = self.session_manager.register_responder(id);
+                let mut receiver = self.session_manager.register_responder(id).await;
 
                 log::info!("Response handler connection active");
 
-                while let Ok(callback) = receiver.recv() {
-                    let response = callback.recv().unwrap();
+                while let Some(mut callback) = receiver.recv().await {
+                    let response = callback.recv().await.unwrap();
                     let bytes = rmp_serde::to_vec(&response).unwrap();
 
                     socket
@@ -159,7 +159,7 @@ impl<B: BackendIr> WsServer<B> {
                 }
 
                 let (stream, connection_id, task) =
-                    match self.session_manager.stream(&mut session_id, task) {
+                    match self.session_manager.stream(&mut session_id, task).await {
                         Some(val) => val,
                         None => {
                             log::info!("Ops session activated {session_id:?}");
@@ -169,22 +169,22 @@ impl<B: BackendIr> WsServer<B> {
 
                 match task {
                     ComputeTask::RegisterOperation(op) => {
-                        stream.register_operation(op);
+                        stream.register_operation(op).await;
                     }
                     ComputeTask::RegisterTensor(id, data) => {
-                        stream.register_tensor(id, data);
+                        stream.register_tensor(id, data).await;
                     }
                     ComputeTask::ReadTensor(tensor) => {
-                        stream.read_tensor(connection_id, tensor);
+                        stream.read_tensor(connection_id, tensor).await;
                     }
                     ComputeTask::SyncBackend => {
-                        stream.sync(connection_id);
+                        stream.sync(connection_id).await;
                     }
                     ComputeTask::RegisterTensorRemote(tensor, new_id) => {
-                        stream.register_tensor_remote(tensor, new_id);
+                        stream.register_tensor_remote(tensor, new_id).await;
                     }
                     ComputeTask::ExposeTensorRemote { tensor, count } => {
-                        stream.expose_tensor_remote(tensor, count);
+                        stream.expose_tensor_remote(tensor, count).await;
                     }
                 }
             } else {
@@ -194,11 +194,11 @@ impl<B: BackendIr> WsServer<B> {
         }
 
         log::info!("Closing session {:?}", session_id);
-        self.session_manager.close(session_id);
+        self.session_manager.close(session_id).await;
     }
 
     async fn handle_socket_data(self, mut socket: WebSocket) {
-        log::info!("[Response Handler] On new connection for data.");
+        log::info!("[Data Handler] New connection for download.");
 
         let packet = socket.recv().await;
         let msg = match packet {
@@ -213,33 +213,42 @@ impl<B: BackendIr> WsServer<B> {
                     Err(err) => panic!("Only bytes messages are supported {err:?}"),
                 };
 
-                log::info!("Response handler for data active");
-
                 // Get the requested exposed tensor data
-                let bytes: bytes::Bytes = {
-                    let mut exposed_tensors = self.state.exposed_tensors.lock().unwrap();
-                    // take the tensor out of the hashmap while we download
-                    if let Some(mut exposed_state) = exposed_tensors.remove(&id) {
-                        log::info!("Tensor found (id: {id:?})");
-
-                        exposed_state.cur_download_count += 1;
-                        if exposed_state.cur_download_count == exposed_state.max_downloads {
-                            exposed_state.bytes
-                        } else {
-                            let bytes = exposed_state.bytes.clone();
-                            exposed_tensors.insert(id, exposed_state);
-                            bytes
-                        }
-                    } else {
-                        panic!("A tensor was requested (id: {id:?}) that isn't being served");
-                    }
-                };
+                let bytes: bytes::Bytes = Self::get_exposed_tensor_bytes(id, self.state).await;
 
                 // Send tensor and increment its counter
                 socket.send(ws::Message::Binary(bytes)).await.unwrap();
             }
             Err(err) => panic!("Can't start the response handler {err:?}"),
             _ => panic!("Unsupported message type"),
+        }
+    }
+
+    async fn get_exposed_tensor_bytes(id: TensorId, state: Arc<TensorDataService>) -> bytes::Bytes {
+        loop {
+            if let Ok(mut exposed_tensors) = state.exposed_tensors.try_lock() {
+                log::info!("Looking for tensor (id: {id:?})");
+                // take the tensor out of the hashmap while we download
+                if let Some(mut exposed_state) = exposed_tensors.remove(&id) {
+                    log::info!("Tensor found (id: {id:?})");
+
+                    exposed_state.cur_download_count += 1;
+                    if exposed_state.cur_download_count == exposed_state.max_downloads {
+                        return exposed_state.bytes;
+                    } else {
+                        let bytes = exposed_state.bytes.clone();
+                        exposed_tensors.insert(id, exposed_state);
+                        return bytes;
+                    }
+                } else {
+                    //panic!("A tensor was requested (id: {id:?}) that isn't being served");
+                }
+            } else {
+                // TODO should i add a
+                // Optional: Add a small pause to reduce CPU usage
+                // thread::yield_now();
+                log::info!("Failed to find tensor in exposed_tensors");
+            }
         }
     }
 }
