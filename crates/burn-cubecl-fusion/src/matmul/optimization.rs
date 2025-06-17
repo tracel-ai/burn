@@ -23,8 +23,6 @@ use cubecl::matmul::components::AvailableLineSizes;
 use cubecl::matmul::components::MatmulLineSizes;
 use cubecl::matmul::components::MatmulPrecision;
 use cubecl::matmul::components::MatmulProblem;
-use cubecl::matmul::components::global::load::sync_full_cyclic;
-use cubecl::matmul::components::stage::ColMajorTilingOrder;
 use cubecl::matmul::components::tile::TileMatmulFamily;
 use cubecl::matmul::components::tile::accelerated::AcceleratedMatmul;
 use cubecl::matmul::kernels::matmul::Algorithm;
@@ -85,9 +83,11 @@ impl<R: Runtime> MatmulOptimization<R> {
         let mut matmul_double_buffering = matmul;
 
         matmul_simple.selector = FusedMatmulSelector::Simple;
-        matmul_simple_unit.selector = FusedMatmulSelector::SimpleUnit(
-            line_size_overrides_simple_unit::<R>(&matmul_simple_unit, &trace),
-        );
+        matmul_simple_unit.selector =
+            FusedMatmulSelector::SimpleUnit(line_size_overrides::<R, SimpleUnitAlgorithm>(
+                &matmul_simple_unit,
+                &trace,
+            ));
         matmul_double_buffering.selector = FusedMatmulSelector::DoubleBuffering;
 
         Self {
@@ -477,7 +477,7 @@ fn matmul_launch_kernel<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
     }
 }
 
-fn line_size_overrides_simple_unit<R: Runtime>(
+fn line_size_overrides<R: Runtime, A: Algorithm>(
     matmul: &FusedMatmul,
     trace: &FuseTrace,
 ) -> LineSizeOverrides {
@@ -499,14 +499,11 @@ fn line_size_overrides_simple_unit<R: Runtime>(
         rhs: R::line_size_elem(&elem_rhs).collect(),
         out: R::line_size_elem(&elem_out).collect(),
     };
-    let available_line_sizes_filtered = SimpleUnitAlgorithm::<
-        sync_full_cyclic::LoadingStrategy<ColMajorTilingOrder>, // For the rust type sytem For
-                                                                // the rust type system.
-    >::filter_line_sizes(available_line_sizes);
+    let available_line_sizes_filtered = A::filter_line_sizes(available_line_sizes);
 
     let mut line_size_overrides = LineSizeOverrides::default();
-    line_size_overrides.register(&lhs_id, available_line_sizes_filtered.lhs);
-    line_size_overrides.register(&rhs_id, available_line_sizes_filtered.rhs);
+    line_size_overrides.overrides(&lhs_id, available_line_sizes_filtered.lhs);
+    line_size_overrides.overrides(&rhs_id, available_line_sizes_filtered.rhs);
 
     line_size_overrides
 }

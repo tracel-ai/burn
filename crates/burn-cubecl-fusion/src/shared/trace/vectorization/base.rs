@@ -38,7 +38,7 @@ pub struct LineSizeOverrides {
 }
 
 impl LineSizeOverrides {
-    pub fn register(&mut self, tensor_id: &TensorId, line_sizes: Vec<u8>) {
+    pub fn overrides(&mut self, tensor_id: &TensorId, line_sizes: Vec<u8>) {
         let map = match &mut self.state {
             Some(val) => val,
             None => {
