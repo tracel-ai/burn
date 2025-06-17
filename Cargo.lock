@@ -514,6 +514,7 @@ version = "0.18.0"
 dependencies = [
  "burn-autodiff",
  "burn-candle",
+ "burn-collective",
  "burn-core",
  "burn-cuda",
  "burn-ir",
