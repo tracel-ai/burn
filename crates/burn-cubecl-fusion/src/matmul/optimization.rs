@@ -1,27 +1,34 @@
 use std::any::TypeId;
+use std::collections::BTreeMap;
 
 use crate::CubeFusionHandle;
 use crate::FallbackOperation;
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::ir::FusePrecision;
 use crate::shared::ir::RefLayout;
+use crate::shared::trace::LineSizeOverrides;
 use crate::shared::trace::TraceError;
 use crate::shared::trace::TuneOutput;
+use crate::shared::trace::Vect;
 use crate::shared::trace::Vectorization;
+use crate::shared::trace::vectorization_default;
 
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
+use burn_ir::TensorId;
+use burn_ir::TensorIr;
+use cubecl::ir::Elem;
 use cubecl::matmul::components;
 use cubecl::matmul::components::MatmulLineSizes;
 use cubecl::matmul::components::MatmulPrecision;
 use cubecl::matmul::components::MatmulProblem;
 use cubecl::matmul::components::tile::TileMatmulFamily;
-use cubecl::matmul::components::tile::accelerated_matmul::AcceleratedMatmul;
+use cubecl::matmul::components::tile::accelerated::AcceleratedMatmul;
 use cubecl::matmul::kernels::matmul::Algorithm;
 use cubecl::matmul::kernels::matmul::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::matmul::select_kernel_virtual;
 use cubecl::matmul::kernels::matmul::simple::SimpleAlgorithm;
-use cubecl::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
+use cubecl::matmul::kernels::{MatmulAvailabilityError, MatmulSetupError};
 use cubecl::{client::ComputeClient, prelude::*};
 use cubecl_std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use half::{bf16, f16};
@@ -72,6 +79,7 @@ impl<R: Runtime> MatmulOptimization<R> {
 
         matmul_simple.selector = FusedMatmulSelector::Simple;
         matmul_double_buffering.selector = FusedMatmulSelector::DoubleBuffering;
+        // Call line size algo
 
         Self {
             trace,
@@ -203,6 +211,7 @@ impl<R: Runtime> MatmulOptimization<R> {
 pub enum FusedMatmulSelector {
     #[default]
     Simple,
+    SimpleUnit(LineSizeOverrides),
     DoubleBuffering,
 }
 
@@ -217,17 +226,45 @@ pub struct FusedMatmul {
 
 #[derive(Debug)]
 pub enum FusedMatmulError {
-    LaunchError(MatmulLaunchError),
+    LaunchError(MatmulSetupError),
     InvalidInput,
 }
 
-impl From<MatmulLaunchError> for FusedMatmulError {
-    fn from(value: MatmulLaunchError) -> Self {
+impl From<MatmulSetupError> for FusedMatmulError {
+    fn from(value: MatmulSetupError) -> Self {
         Self::LaunchError(value)
     }
 }
 
-impl<R: Runtime> Vectorization<R> for FusedMatmul {}
+impl<R: Runtime> Vectorization<R> for FusedMatmul {
+    /// The vectorization factor for all inputs and outputs.
+    #[allow(clippy::too_many_arguments)]
+    fn vectorization<'a>(
+        &self,
+        vectorizations: &mut BTreeMap<TensorId, Vect>,
+        handles_inputs: impl Iterator<Item = &'a CubeFusionHandle<R>>,
+        inputs: impl Iterator<Item = &'a TensorIr>,
+        outputs: impl Iterator<Item = &'a TensorIr>,
+        reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
+        swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
+        ref_elem: &Elem,
+        max: u8,
+        axis: Option<usize>,
+    ) {
+        vectorization_default(
+            vectorizations,
+            handles_inputs,
+            inputs,
+            outputs,
+            reshaped,
+            swapped,
+            ref_elem,
+            (),
+            max,
+            axis,
+        )
+    }
+}
 
 impl<R: Runtime> TraceRunner<R> for FusedMatmul {
     type Error = FusedMatmulError;
@@ -329,7 +366,7 @@ impl FusedMatmul {
         let plane_size = match plane_size {
             Some(val) => val,
             None => {
-                return Err(MatmulLaunchError::Unavailable(
+                return Err(MatmulSetupError::Unavailable(
                     MatmulAvailabilityError::PlaneDimUnknown,
                 )
                 .into());
@@ -374,7 +411,7 @@ fn matmul_launch_kernel<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
     problem: MatmulProblem,
     line_sizes: MatmulLineSizes,
     plane_size: u32,
-) -> Result<(), MatmulLaunchError> {
+) -> Result<(), MatmulSetupError> {
     if <A::TileMatmul as TileMatmulFamily>::requires_tensor_cores()
         && TypeId::of::<EG::ES>() == TypeId::of::<f32>()
         && tf32::is_supported(client)

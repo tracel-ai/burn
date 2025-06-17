@@ -5,6 +5,7 @@ use super::{
 use crate::CubeFusionHandle;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::{ir::Elem, prelude::*};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// A trace runner is responsible for determining the vectorization factor as well as launching
@@ -34,6 +35,7 @@ pub trait Vectorization<R: Runtime> {
     /// The vectorization factor for all inputs and outputs.
     #[allow(clippy::too_many_arguments)]
     fn vectorization<'a>(
+        &self,
         vectorizations: &mut BTreeMap<TensorId, Vect>,
         handles_inputs: impl Iterator<Item = &'a CubeFusionHandle<R>>,
         inputs: impl Iterator<Item = &'a TensorIr>,
@@ -52,14 +54,18 @@ pub trait Vectorization<R: Runtime> {
             reshaped,
             swapped,
             ref_elem,
+            R::line_size_elem(ref_elem),
             max,
             axis,
         )
     }
 }
 
+#[derive(Default, Clone, Serialize, Deserialize, Debug)]
+pub struct LineSizeOverrides {}
+
 #[allow(clippy::too_many_arguments)]
-fn vectorization_default<'a, R: Runtime>(
+pub(crate) fn vectorization_default<'a, R: Runtime>(
     vectorizations: &mut BTreeMap<TensorId, Vect>,
     handles_inputs: impl Iterator<Item = &'a CubeFusionHandle<R>>,
     inputs: impl Iterator<Item = &'a TensorIr>,
@@ -68,6 +74,7 @@ fn vectorization_default<'a, R: Runtime>(
     swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
     // Smallest element type that can be vectorized.
     ref_elem: &Elem,
+    supported_line_sizes: impl Iterator<Item = u8> + Clone,
     max: u8,
     axis: Option<usize>,
 ) {

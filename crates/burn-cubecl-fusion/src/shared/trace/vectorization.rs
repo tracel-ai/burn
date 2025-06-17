@@ -92,7 +92,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             .map(|item| !self.resources.indexed.contains_key(&item.relative_id))
             .collect::<Vec<_>>();
 
-        Runner::vectorization(
+        runner.vectorization(
             &mut plan.vectorizations,
             plan.handle_inputs
                 .iter()
