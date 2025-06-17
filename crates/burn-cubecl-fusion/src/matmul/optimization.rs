@@ -6,12 +6,12 @@ use crate::FallbackOperation;
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::ir::FusePrecision;
 use crate::shared::ir::RefLayout;
-use crate::shared::trace::LineSizeOverrides;
 use crate::shared::trace::TraceError;
 use crate::shared::trace::TuneOutput;
-use crate::shared::trace::Vect;
 use crate::shared::trace::Vectorization;
-use crate::shared::trace::vectorization_default;
+use crate::shared::trace::vectorization::LineSizeOverrides;
+use crate::shared::trace::vectorization::Vect;
+use crate::shared::trace::vectorization::vectorization_default;
 
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
@@ -19,15 +19,19 @@ use burn_ir::TensorId;
 use burn_ir::TensorIr;
 use cubecl::ir::Elem;
 use cubecl::matmul::components;
+use cubecl::matmul::components::AvailableLineSizes;
 use cubecl::matmul::components::MatmulLineSizes;
 use cubecl::matmul::components::MatmulPrecision;
 use cubecl::matmul::components::MatmulProblem;
+use cubecl::matmul::components::global::load::sync_full_cyclic;
+use cubecl::matmul::components::stage::ColMajorTilingOrder;
 use cubecl::matmul::components::tile::TileMatmulFamily;
 use cubecl::matmul::components::tile::accelerated::AcceleratedMatmul;
 use cubecl::matmul::kernels::matmul::Algorithm;
 use cubecl::matmul::kernels::matmul::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::matmul::select_kernel_virtual;
 use cubecl::matmul::kernels::matmul::simple::SimpleAlgorithm;
+use cubecl::matmul::kernels::matmul::simple_unit::SimpleUnitAlgorithm;
 use cubecl::matmul::kernels::{MatmulAvailabilityError, MatmulSetupError};
 use cubecl::{client::ComputeClient, prelude::*};
 use cubecl_std::tensor::{MatrixBatchLayout, matrix_batch_layout};
@@ -51,6 +55,7 @@ pub struct MatmulOptimization<R: Runtime> {
     pub(crate) device: R::Device,
     pub(crate) len: usize,
     pub(crate) matmul_simple: FusedMatmul,
+    pub(crate) matmul_simple_unit: FusedMatmul,
     pub(crate) matmul_double_buffering: FusedMatmul,
     fallback: Option<Box<dyn FallbackOperation<R>>>,
 }
@@ -61,6 +66,7 @@ pub struct MatmulOptimizationState {
     trace: FuseTrace,
     trace_fallback: FuseTrace,
     matmul_simple: FusedMatmul,
+    matmul_simple_unit: FusedMatmul,
     matmul_double_buffering: FusedMatmul,
     len: usize,
 }
@@ -75,11 +81,14 @@ impl<R: Runtime> MatmulOptimization<R> {
         matmul: FusedMatmul,
     ) -> Self {
         let mut matmul_simple = matmul.clone();
+        let mut matmul_simple_unit = matmul.clone();
         let mut matmul_double_buffering = matmul;
 
         matmul_simple.selector = FusedMatmulSelector::Simple;
+        matmul_simple_unit.selector = FusedMatmulSelector::SimpleUnit(
+            line_size_overrides_simple_unit::<R>(&matmul_simple_unit, &trace),
+        );
         matmul_double_buffering.selector = FusedMatmulSelector::DoubleBuffering;
-        // Call line size algo
 
         Self {
             trace,
@@ -88,6 +97,7 @@ impl<R: Runtime> MatmulOptimization<R> {
             device,
             len,
             matmul_simple,
+            matmul_simple_unit,
             matmul_double_buffering,
             fallback: None,
         }
@@ -124,6 +134,7 @@ impl<R: Runtime> MatmulOptimization<R> {
             client: R::client(device),
             device: device.clone(),
             matmul_simple: state.matmul_simple.clone(),
+            matmul_simple_unit: state.matmul_simple_unit.clone(),
             matmul_double_buffering: state.matmul_double_buffering.clone(),
             fallback: None,
         }
@@ -135,6 +146,7 @@ impl<R: Runtime> MatmulOptimization<R> {
             trace: self.trace.clone(),
             trace_fallback: self.trace_fallback.clone(),
             matmul_simple: self.matmul_simple.clone(),
+            matmul_simple_unit: self.matmul_simple_unit.clone(),
             matmul_double_buffering: self.matmul_double_buffering.clone(),
             len: self.len,
         }
@@ -154,6 +166,18 @@ impl<R: Runtime> MatmulOptimization<R> {
             &self.device,
             context,
             &self.matmul_simple,
+        )
+    }
+
+    pub fn execute_simple_unit_fused<BT: CubeElement>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+    ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
+        self.trace.run::<R, BT, FusedMatmul>(
+            &self.client,
+            &self.device,
+            context,
+            &self.matmul_simple_unit,
         )
     }
 
@@ -251,18 +275,32 @@ impl<R: Runtime> Vectorization<R> for FusedMatmul {
         max: u8,
         axis: Option<usize>,
     ) {
-        vectorization_default(
-            vectorizations,
-            handles_inputs,
-            inputs,
-            outputs,
-            reshaped,
-            swapped,
-            ref_elem,
-            (),
-            max,
-            axis,
-        )
+        match &self.selector {
+            FusedMatmulSelector::SimpleUnit(line_size_overrides) => vectorization_default(
+                vectorizations,
+                handles_inputs,
+                inputs,
+                outputs,
+                reshaped,
+                swapped,
+                ref_elem,
+                line_size_overrides,
+                max,
+                axis,
+            ),
+            _ => vectorization_default(
+                vectorizations,
+                handles_inputs,
+                inputs,
+                outputs,
+                reshaped,
+                swapped,
+                ref_elem,
+                &Default::default(),
+                max,
+                axis,
+            ),
+        }
     }
 }
 
@@ -373,7 +411,7 @@ impl FusedMatmul {
             }
         };
 
-        match self.selector {
+        match &self.selector {
             FusedMatmulSelector::Simple => {
                 match matmul_launch_kernel::<R, EG, SimpleAlgorithm<AcceleratedMatmul>>(
                     client,
@@ -389,6 +427,19 @@ impl FusedMatmul {
             }
             FusedMatmulSelector::DoubleBuffering => {
                 match matmul_launch_kernel::<R, EG, CyclicDoubleBufferingAlgorithm<AcceleratedMatmul>>(
+                    client,
+                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    outputs,
+                    problem,
+                    line_sizes,
+                    plane_size,
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+            FusedMatmulSelector::SimpleUnit(..) => {
+                match matmul_launch_kernel::<R, EG, SimpleUnitAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,
@@ -417,21 +468,45 @@ fn matmul_launch_kernel<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
         && tf32::is_supported(client)
     {
         select_kernel_virtual::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
-            client,
-            input,
-            output,
-            problem,
-            Some(line_sizes),
-            plane_size,
+            client, input, output, problem, line_sizes, plane_size,
         )
     } else {
         select_kernel_virtual::<FusedMatmulSpec<EG>, R, A>(
-            client,
-            input,
-            output,
-            problem,
-            Some(line_sizes),
-            plane_size,
+            client, input, output, problem, line_sizes, plane_size,
         )
     }
+}
+
+fn line_size_overrides_simple_unit<R: Runtime>(
+    matmul: &FusedMatmul,
+    trace: &FuseTrace,
+) -> LineSizeOverrides {
+    let elem_lhs = matmul.lhs.precision().into_elem();
+    let elem_rhs = matmul.rhs.precision().into_elem();
+    let elem_out = matmul.out.precision().into_elem();
+
+    let lhs_id = match &matmul.lhs {
+        Arg::Input(pos, ..) => trace.resources.inputs.get_id(*pos as usize).unwrap(),
+        _ => unreachable!(),
+    };
+    let rhs_id = match &matmul.rhs {
+        Arg::Input(pos, ..) => trace.resources.inputs.get_id(*pos as usize).unwrap(),
+        _ => unreachable!(),
+    };
+
+    let available_line_sizes = AvailableLineSizes {
+        lhs: R::line_size_elem(&elem_lhs).collect(),
+        rhs: R::line_size_elem(&elem_rhs).collect(),
+        out: R::line_size_elem(&elem_out).collect(),
+    };
+    let available_line_sizes_filtered = SimpleUnitAlgorithm::<
+        sync_full_cyclic::LoadingStrategy<ColMajorTilingOrder>, // For the rust type sytem For
+                                                                // the rust type system.
+    >::filter_line_sizes(available_line_sizes);
+
+    let mut line_size_overrides = LineSizeOverrides::default();
+    line_size_overrides.register(&lhs_id, available_line_sizes_filtered.lhs);
+    line_size_overrides.register(&rhs_id, available_line_sizes_filtered.rhs);
+
+    line_size_overrides
 }
