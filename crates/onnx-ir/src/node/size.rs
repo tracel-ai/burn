@@ -20,7 +20,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
-    fn create_test_node(start: Option<i64>, end: Option<i64>, rank: usize) -> Node {
+    fn create_test_node(rank: usize) -> Node {
         let builder = NodeBuilder::new(NodeType::Size, "test_size")
             .input_tensor_f32("data", rank, None)
             .output_scalar_i64("size");
@@ -30,7 +30,7 @@ mod tests {
 
     #[test]
     fn test_size_update_outputs() {
-        let mut node = create_test_node(Some(-2), Some(-1), 4);
+        let mut node = create_test_node(4);
         size_update_outputs(&mut node);
         assert!(matches!(
             &node.outputs[0].ty,
