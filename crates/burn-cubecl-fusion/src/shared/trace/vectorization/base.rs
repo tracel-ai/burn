@@ -175,17 +175,15 @@ fn vectorization_input<R: Runtime>(
     match overrides {
         Some(vals) => {
             for s in vals {
-                match inner(*s) {
-                    Some(val) => return val,
-                    None => {}
+                if let Some(val) = inner(*s) {
+                    return val;
                 }
             }
         }
         None => {
             for s in R::line_size_elem(ref_elem) {
-                match inner(s) {
-                    Some(val) => return val,
-                    None => {}
+                if let Some(val) = inner(s) {
+                    return val;
                 }
             }
         }
@@ -214,17 +212,15 @@ fn vectorization_output<R: Runtime>(
     match overrides {
         Some(val) => {
             for s in val {
-                match inner(*s) {
-                    Some(val) => return val,
-                    None => {}
+                if let Some(val) = inner(*s) {
+                    return val;
                 }
             }
         }
         None => {
             for s in R::line_size_elem(ref_elem) {
-                match inner(s) {
-                    Some(val) => return val,
-                    None => {}
+                if let Some(val) = inner(s) {
+                    return val;
                 }
             }
         }
@@ -286,17 +282,15 @@ fn vectorization_reshape<R: Runtime>(
     match overrides {
         Some(val) => {
             for i in val {
-                match inner(*i) {
-                    Some(vect) => return vect,
-                    None => {}
+                if let Some(vect) = inner(*i) {
+                    return vect;
                 }
             }
         }
         None => {
             for s in R::line_size_elem(ref_elem) {
-                match inner(s) {
-                    Some(vect) => return vect,
-                    None => {}
+                if let Some(vect) = inner(s) {
+                    return vect;
                 }
             }
         }
@@ -305,6 +299,7 @@ fn vectorization_reshape<R: Runtime>(
     Vect::Aligned(1)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn vectorization_swapped<R: Runtime>(
     handle: &CubeFusionHandle<R>,
     swapped: &TensorIr,
@@ -361,17 +356,15 @@ fn vectorization_swapped<R: Runtime>(
     match overrides {
         Some(val) => {
             for s in val {
-                match inner(*s) {
-                    Some(val) => return val,
-                    None => {}
+                if let Some(val) = inner(*s) {
+                    return val;
                 }
             }
         }
         None => {
             for s in R::line_size_elem(ref_elem) {
-                match inner(s) {
-                    Some(val) => return val,
-                    None => {}
+                if let Some(val) = inner(s) {
+                    return val;
                 }
             }
         }
