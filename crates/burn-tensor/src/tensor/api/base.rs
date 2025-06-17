@@ -895,8 +895,8 @@ where
                 size,
             );
             assert!(
-                dim < size,
-                "Expected: dim < size: found dim={}, size={}",
+                dim < self.shape().num_dims(),
+                "Expected: dim < num_dims: found dim={}, num_dims={}",
                 dim,
                 size,
             );
