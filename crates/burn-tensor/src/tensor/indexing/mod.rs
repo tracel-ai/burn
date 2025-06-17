@@ -108,7 +108,7 @@ where
 /// ## Arguments
 ///
 /// * `idx` - The dimension index to canonicalize.
-/// * `rank` - The size of the dimension.
+/// * `rank` - The number of dimensions.
 /// * `wrap_scalar` - If true, pretend scalars have rank=1.
 ///
 /// ## Returns
