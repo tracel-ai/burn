@@ -555,6 +555,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-collective"
+version = "0.18.0"
+dependencies = [
+ "burn-common",
+ "burn-cuda",
+ "burn-ndarray",
+ "burn-tensor",
+ "burn-wgpu",
+ "cfg-if",
+ "derive-new 0.7.0",
+ "log",
+ "serial_test",
+]
+
+[[package]]
 name = "burn-common"
 version = "0.18.0"
 dependencies = [
