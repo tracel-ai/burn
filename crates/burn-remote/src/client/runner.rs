@@ -70,10 +70,6 @@ impl RunnerClient for WsClient {
         self.device.clone()
     }
 
-    fn register_orphan(&self, id: &burn_ir::TensorId) {
-        self.sender.send(ComputeTask::RegisterOrphan(*id));
-    }
-
     fn sync(&self) {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::SyncBackend);

@@ -40,6 +40,7 @@ macro_rules! testgen_all {
     () => {
         use burn_tensor::{Float, Int, Bool};
         $crate::testgen_all!([Float], [Int], [Bool]);
+
     };
     ([$($float:ident),*], [$($int:ident),*], [$($bool:ident),*]) => {
         mod cube {
@@ -86,6 +87,7 @@ macro_rules! testgen_all {
         }
         mod cube_fusion {
             burn_cubecl::testgen_jit_fusion!([$($float),*], [$($int),*], [$($bool),*]);
+            burn_fusion::memory_checks!();
         }
     };
 }
