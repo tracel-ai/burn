@@ -76,113 +76,20 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
 ) {
     let swapped: Vec<_> = swapped.collect();
 
-    let vectorization_output = |desc: &TensorIr| {
-        let axis = axis.unwrap_or_else(|| desc.shape.len() - 1);
-
-        for s in R::line_size_elem(ref_elem) {
-            // The dimension should be a multiple of the vector size.
-            if desc.shape[axis] % s as usize == 0 && s <= max {
-                return Vect::Aligned(s);
-            }
-        }
-
-        Vect::Aligned(1)
-    };
-
-    let vectorization_reshape = |reshaped: &TensorIr, original: &TensorIr, multi_reads: bool| {
-        let axis = axis.unwrap_or_else(|| reshaped.shape.len() - 1);
-        let reshape_shape_axis = reshaped.shape[axis];
-
-        if !multi_reads && reshape_shape_axis == 1 {
-            return Vect::Broadcasted;
-        }
-
-        // If the axis is not the last dim, didn't think of it, return Aligned(1) to be sure.
-        if axis != reshaped.shape.len() - 1 {
-            return Vect::Aligned(1);
-        }
-
-        let original_shape_axis = original.shape[original.shape.len() - 1];
-
-        if original_shape_axis != reshape_shape_axis {
-            return Vect::Aligned(1);
-        }
-
-        for s in R::line_size_elem(ref_elem) {
-            if !multi_reads {
-                // The last dimension should be a multiple of the vector size or broadcated.
-                if reshape_shape_axis % s as usize == 0 && s <= max {
-                    return Vect::Aligned(s);
-                }
-            } else {
-                // Since the original tensor must share the same vectorization factor as the
-                // reshaped tensor, they must have compatible shapes when both are access
-                // independently.
-                if reshape_shape_axis % s as usize == 0
-                    && original_shape_axis % s as usize == 0
-                    && s <= max
-                {
-                    return Vect::Aligned(s);
-                }
-            }
-        }
-
-        Vect::Aligned(1)
-    };
-
-    let vectorization_swapped = |handle: &CubeFusionHandle<R>,
-                                 swapped: &TensorIr,
-                                 original: &TensorIr,
-                                 multi_reads: bool,
-                                 dims: &(u32, u32)| {
-        let axis = axis.unwrap_or_else(|| swapped.shape.len() - 1);
-
-        let swapped_axis = swapped.shape[axis];
-        let shape_axis = original.shape[axis];
-
-        let axis_index = axis;
-        let dim_index = if dims.0 as usize == axis_index {
-            dims.1 as usize
-        } else if dims.1 as usize == axis_index {
-            dims.0 as usize
-        } else {
-            axis_index
-        };
-
-        // Last dimension strides should be 1, otherwise vecX won't be contiguous.
-        if multi_reads {
-            if handle.strides[axis_index] != 1 {
-                return Vect::Aligned(1);
-            }
-            if handle.strides[dim_index] != 1 {
-                return Vect::Aligned(1);
-            }
-        } else if handle.strides[dim_index] != 1 {
-            return Vect::Aligned(1);
-        }
-
-        if !multi_reads && swapped_axis == 1 {
-            return Vect::Broadcasted;
-        }
-
-        for s in R::line_size_elem(ref_elem) {
-            // The last dimension should be a multiple of the vector size or broadcated.
-            if multi_reads {
-                if swapped_axis % s as usize == 0 && s <= max {
-                    return Vect::Aligned(s);
-                }
-            } else if swapped_axis % s as usize == 0 && shape_axis % s as usize == 0 && s <= max {
-                return Vect::Aligned(s);
-            }
-        }
-
-        Vect::Aligned(1)
-    };
-
     for (handle, tensor) in handles_inputs.zip(inputs) {
         if let Some((s, o, mr, dims)) = swapped.iter().find(|(_s, o, _mr, _dims)| o.id == tensor.id)
         {
-            let val = vectorization_swapped(handle, s, o, *mr, dims);
+            let val = vectorization_swapped::<R>(
+                handle,
+                s,
+                o,
+                *mr,
+                dims,
+                max,
+                axis,
+                ref_elem,
+                overrides.tensor(&tensor.id),
+            );
             multi_reads_vectorization_update(vectorizations, o.id, val);
         } else {
             let val =
@@ -192,12 +99,21 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
     }
 
     for (reshaped, original, multi_reads) in reshaped {
-        let val = vectorization_reshape(reshaped, original, multi_reads);
+        let val = vectorization_reshape::<R>(
+            reshaped,
+            original,
+            multi_reads,
+            axis,
+            ref_elem,
+            max,
+            overrides.tensor(&original.id),
+        );
         multi_reads_vectorization_update(vectorizations, original.id, val);
     }
 
     for tensor in outputs {
-        let val = vectorization_output(tensor);
+        let val =
+            vectorization_output::<R>(tensor, axis, ref_elem, max, overrides.tensor(&tensor.id));
         vectorizations.insert(tensor.id, val);
     }
 }
@@ -248,20 +164,214 @@ fn vectorization_input<R: Runtime>(
         return Vect::Aligned(1);
     }
 
+    let inner = |s: u8| {
+        // The last dimension should be a multiple of the vector size or broadcated.
+        if shape_axis % s as usize == 0 {
+            return Some(Vect::Aligned(s));
+        }
+        None
+    };
+
     match overrides {
         Some(vals) => {
             for s in vals {
-                // The last dimension should be a multiple of the vector size or broadcated.
-                if shape_axis % *s as usize == 0 {
-                    return Vect::Aligned(*s);
+                match inner(*s) {
+                    Some(val) => return val,
+                    None => {}
                 }
             }
         }
         None => {
             for s in R::line_size_elem(ref_elem) {
-                // The last dimension should be a multiple of the vector size or broadcated.
-                if shape_axis % s as usize == 0 {
-                    return Vect::Aligned(s);
+                match inner(s) {
+                    Some(val) => return val,
+                    None => {}
+                }
+            }
+        }
+    }
+
+    Vect::Aligned(1)
+}
+
+fn vectorization_output<R: Runtime>(
+    desc: &TensorIr,
+    axis: Option<usize>,
+    ref_elem: &Elem,
+    max: u8,
+    overrides: Option<&Vec<u8>>,
+) -> Vect {
+    let axis = axis.unwrap_or_else(|| desc.shape.len() - 1);
+
+    let inner = |s: u8| {
+        // The dimension should be a multiple of the vector size.
+        if desc.shape[axis] % s as usize == 0 && s <= max {
+            return Some(Vect::Aligned(s));
+        }
+
+        None
+    };
+    match overrides {
+        Some(val) => {
+            for s in val {
+                match inner(*s) {
+                    Some(val) => return val,
+                    None => {}
+                }
+            }
+        }
+        None => {
+            for s in R::line_size_elem(ref_elem) {
+                match inner(s) {
+                    Some(val) => return val,
+                    None => {}
+                }
+            }
+        }
+    }
+
+    Vect::Aligned(1)
+}
+
+fn vectorization_reshape<R: Runtime>(
+    reshaped: &TensorIr,
+    original: &TensorIr,
+    multi_reads: bool,
+    axis: Option<usize>,
+    ref_elem: &Elem,
+    max: u8,
+    overrides: Option<&Vec<u8>>,
+) -> Vect {
+    let axis = axis.unwrap_or_else(|| reshaped.shape.len() - 1);
+    let reshape_shape_axis = reshaped.shape[axis];
+
+    if !multi_reads && reshape_shape_axis == 1 {
+        return Vect::Broadcasted;
+    }
+
+    // If the axis is not the last dim, didn't think of it, return Aligned(1) to be sure.
+    if axis != reshaped.shape.len() - 1 {
+        return Vect::Aligned(1);
+    }
+
+    let original_shape_axis = original.shape[original.shape.len() - 1];
+
+    if original_shape_axis != reshape_shape_axis {
+        return Vect::Aligned(1);
+    }
+
+    let inner = |s: u8| {
+        if !multi_reads {
+            // The last dimension should be a multiple of the vector size or broadcated.
+            if reshape_shape_axis % s as usize == 0 && s <= max {
+                Some(Vect::Aligned(s))
+            } else {
+                None
+            }
+        } else {
+            // Since the original tensor must share the same vectorization factor as the
+            // reshaped tensor, they must have compatible shapes when both are access
+            // independently.
+            if reshape_shape_axis % s as usize == 0
+                && original_shape_axis % s as usize == 0
+                && s <= max
+            {
+                Some(Vect::Aligned(s))
+            } else {
+                None
+            }
+        }
+    };
+
+    match overrides {
+        Some(val) => {
+            for i in val {
+                match inner(*i) {
+                    Some(vect) => return vect,
+                    None => {}
+                }
+            }
+        }
+        None => {
+            for s in R::line_size_elem(ref_elem) {
+                match inner(s) {
+                    Some(vect) => return vect,
+                    None => {}
+                }
+            }
+        }
+    }
+
+    Vect::Aligned(1)
+}
+
+fn vectorization_swapped<R: Runtime>(
+    handle: &CubeFusionHandle<R>,
+    swapped: &TensorIr,
+    original: &TensorIr,
+    multi_reads: bool,
+    dims: &(u32, u32),
+    max: u8,
+    axis: Option<usize>,
+    ref_elem: &Elem,
+    overrides: Option<&Vec<u8>>,
+) -> Vect {
+    let axis = axis.unwrap_or_else(|| swapped.shape.len() - 1);
+
+    let swapped_axis = swapped.shape[axis];
+    let shape_axis = original.shape[axis];
+
+    let axis_index = axis;
+    let dim_index = if dims.0 as usize == axis_index {
+        dims.1 as usize
+    } else if dims.1 as usize == axis_index {
+        dims.0 as usize
+    } else {
+        axis_index
+    };
+
+    // Last dimension strides should be 1, otherwise vecX won't be contiguous.
+    if multi_reads {
+        if handle.strides[axis_index] != 1 {
+            return Vect::Aligned(1);
+        }
+        if handle.strides[dim_index] != 1 {
+            return Vect::Aligned(1);
+        }
+    } else if handle.strides[dim_index] != 1 {
+        return Vect::Aligned(1);
+    }
+
+    if !multi_reads && swapped_axis == 1 {
+        return Vect::Broadcasted;
+    }
+
+    let inner = |s: u8| {
+        // The last dimension should be a multiple of the vector size or broadcated.
+        if multi_reads {
+            if swapped_axis % s as usize == 0 && s <= max {
+                return Some(Vect::Aligned(s));
+            }
+        } else if swapped_axis % s as usize == 0 && shape_axis % s as usize == 0 && s <= max {
+            return Some(Vect::Aligned(s));
+        }
+        None
+    };
+
+    match overrides {
+        Some(val) => {
+            for s in val {
+                match inner(*s) {
+                    Some(val) => return val,
+                    None => {}
+                }
+            }
+        }
+        None => {
+            for s in R::line_size_elem(ref_elem) {
+                match inner(s) {
+                    Some(val) => return val,
+                    None => {}
                 }
             }
         }
