@@ -51,6 +51,7 @@ pub enum UnaryNodeKind {
     Tanh,
     Transpose,
     Sign,
+    Size,
 }
 
 impl UnaryNodeKind {
@@ -86,6 +87,7 @@ impl UnaryNodeKind {
             Self::Tanh => "tanh",
             Self::Transpose => "transpose",
             Self::Sign => "sign",
+            Self::Size => "size",
         }
     }
 }
@@ -512,6 +514,11 @@ impl UnaryNode {
     pub(crate) fn sign(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.sign()};
         Self::new(input, output, UnaryNodeKind::Sign, Rc::new(function))
+    }
+
+    pub(crate) fn size(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.shape.num_elements()};
+        Self::new(input, output, UnaryNodeKind::Size, Rc::new(function))
     }
 }
 
@@ -1212,6 +1219,25 @@ mod tests {
             },
             vec!["tensor1".to_string()],
             vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_size() {
+        one_node_graph(
+            UnaryNode::size(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Int64)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> i64 {
+                    let scalar1 = tensor1.shape.num_elements();
+
+                    scalar1
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["scalar1".to_string()],
         );
     }
 }

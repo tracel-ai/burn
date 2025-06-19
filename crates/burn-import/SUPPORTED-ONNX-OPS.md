@@ -177,7 +177,7 @@ functionality.
 | [Sign][163]                      | ✅             | ✅           |
 | [Sin][164]                       | ✅             | ✅           |
 | [Sinh][165]                      | ✅             | ✅           |
-| [Size][166]                      | ❌             | ✅           |
+| [Size][166]                      | ✅             | ✅           |
 | [Slice][167]                     | ✅             | ✅           |
 | [Softmax][168]                   | ✅             | ✅           |
 | [SoftmaxCrossEntropyLoss][169]   | ❌             | ❌           |
