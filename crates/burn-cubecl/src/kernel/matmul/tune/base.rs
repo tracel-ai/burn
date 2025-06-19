@@ -1,8 +1,12 @@
 use burn_tensor::Element;
 use cubecl::{
     matmul::{
-        Strategy, SyncLoadingStrategy,
+        Strategy, SyncBufferLoadingStrategy, SyncLoadingStrategy,
         components::MatmulKind,
+        kernels::matmul::{
+            double_buffering::DoubleBufferingAlgorithmArgs,
+            ordered_double_buffering::OrderedDoubleBufferingSelectionArgs,
+        },
         tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
     },
     tune::{LocalTuner, TunableSet, local_tuner},
@@ -41,7 +45,13 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
                 || !matches!(key.analysis.kind, MatmulKind::General)
         })
         .with_tunable(matmul_simple::<R, E>)
-        .with_tunable_optional(matmul_ordered_double_buffering::<R, E>, |key| {
+        .with_tunable_optional(matmul_ordered_double_buffering_1::<R, E>, |key| {
+            should_tune_double_buffering(false, key)
+        })
+        .with_tunable_optional(matmul_ordered_double_buffering_2::<R, E>, |key| {
+            should_tune_double_buffering(false, key)
+        })
+        .with_tunable_optional(matmul_double_buffering_specialized::<R, E>, |key| {
             should_tune_double_buffering(false, key)
         })
         .with_tunable_optional(matmul_double_buffering::<R, E>, |key| {
@@ -98,7 +108,11 @@ fn matmul_double_buffering<R: CubeRuntime, E: FloatElement>(
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
-        &Strategy::DoubleBuffering(cubecl::matmul::SyncBufferLoadingStrategy::Cyclic, None),
+        &Strategy::DoubleBuffering(
+            SyncBufferLoadingStrategy::Tilewise,
+            DoubleBufferingAlgorithmArgs { specialized: false },
+            None,
+        ),
         &lhs.client,
         &lhs.as_handle_ref(),
         &None,
@@ -109,13 +123,65 @@ fn matmul_double_buffering<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_ordered_double_buffering<R: CubeRuntime, E: FloatElement>(
+fn matmul_double_buffering_specialized<R: CubeRuntime, E: FloatElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
-        &Strategy::OrderedDoubleBuffering(None),
+        &Strategy::DoubleBuffering(
+            SyncBufferLoadingStrategy::Tilewise,
+            DoubleBufferingAlgorithmArgs { specialized: true },
+            None,
+        ),
+        &lhs.client,
+        &lhs.as_handle_ref(),
+        &None,
+        &rhs.as_handle_ref(),
+        &None,
+        &out.as_handle_ref(),
+    )
+    .map_err(|err| format!("{err:?}"))
+}
+
+fn matmul_ordered_double_buffering_1<R: CubeRuntime, E: FloatElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
+) -> Result<(), String> {
+    cubecl::matmul::launch_ref::<R, E>(
+        &Strategy::OrderedDoubleBuffering(
+            OrderedDoubleBufferingSelectionArgs {
+                pk: Some(1),
+                occupancy_factor: Some(2),
+                multi_rows: None,
+            },
+            None,
+        ),
+        &lhs.client,
+        &lhs.as_handle_ref(),
+        &None,
+        &rhs.as_handle_ref(),
+        &None,
+        &out.as_handle_ref(),
+    )
+    .map_err(|err| format!("{err:?}"))
+}
+
+fn matmul_ordered_double_buffering_2<R: CubeRuntime, E: FloatElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
+) -> Result<(), String> {
+    cubecl::matmul::launch_ref::<R, E>(
+        &Strategy::OrderedDoubleBuffering(
+            OrderedDoubleBufferingSelectionArgs {
+                pk: Some(2),
+                occupancy_factor: Some(4),
+                multi_rows: None,
+            },
+            None,
+        ),
         &lhs.client,
         &lhs.as_handle_ref(),
         &None,
