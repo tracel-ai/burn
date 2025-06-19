@@ -18,7 +18,10 @@ workspace = true
 default = ["client", "server"]
 doc = []
 client = ["tokio-tungstenite", "async-channel", "tokio/sync"]
-server = ["tokio-tungstenite", "async-channel", "tokio/sync", "axum", "tracing-core", "tracing-subscriber"]
+server = [
+    "tokio-tungstenite", "async-channel", "tokio/sync", 
+    "axum", "tracing-core", "tracing-subscriber", "tokio-util"
+]
 
 
 [dependencies]
@@ -48,6 +51,7 @@ tokio-tungstenite = { version = "0.26", optional = true }
 axum = { version = "0.8.3", features = ["ws"], optional = true }
 tracing-core = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
+tokio-util = { version = "0.7.15", optional = true }
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "0.18.0" }

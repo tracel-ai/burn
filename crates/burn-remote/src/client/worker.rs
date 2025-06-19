@@ -4,13 +4,7 @@ use crate::shared::{
 };
 use async_channel::Receiver;
 use futures_util::{SinkExt, StreamExt};
-use std::{
-    collections::HashMap,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-};
+use std::{collections::HashMap, sync::Arc};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async_with_config,
@@ -19,6 +13,8 @@ use tokio_tungstenite::{
         protocol::{Message, WebSocketConfig},
     },
 };
+
+use tokio_util::sync::CancellationToken;
 
 pub type CallbackSender = async_channel::Sender<TaskResponseContent>;
 
@@ -35,6 +31,11 @@ pub(crate) struct ClientWorker {
     stream_response: Option<WebSocketStream<MaybeTlsStream<TcpStream>>>,
     stream_request: Option<WebSocketStream<MaybeTlsStream<TcpStream>>>,
     session_id: Option<SessionId>,
+}
+
+enum StreamKind {
+    Request,
+    Response,
 }
 
 impl ClientWorker {
@@ -77,7 +78,11 @@ impl ClientWorker {
         let address_response = format!("{}/{}", device.address.as_str(), "response");
 
         #[allow(deprecated)]
-        runtime.spawn(Self::work(address_request, address_response, request_recv));
+        runtime.spawn(Self::start_workers(
+            address_request,
+            address_response,
+            request_recv,
+        ));
 
         WsClient::new(device, request_sender, runtime)
     }
@@ -138,89 +143,77 @@ impl ClientWorker {
         Ok(())
     }
 
-    async fn connect_or_close(&mut self, close_flag: &AtomicBool) -> bool {
-        while !close_flag.load(Ordering::Relaxed) {
+    /// Takes the WebSocket stream if it has been initialized,
+    /// otherwise initializes it and takes it.
+    async fn take_stream(
+        &mut self,
+        kind: StreamKind,
+        close_token: CancellationToken,
+    ) -> Option<WebSocketStream<MaybeTlsStream<TcpStream>>> {
+        // If stream is none, try to reconnect
+        while match kind {
+            StreamKind::Request => &self.stream_request,
+            StreamKind::Response => &self.stream_response,
+        }
+        .is_none()
+        {
+            if close_token.is_cancelled() {
+                // Workers have been closed, exit now
+                return None;
+            }
+
+            // Try to connect
             match self.connect().await {
-                Ok(_) => return true,
+                Ok(_) => break,
                 Err(err) => {
                     log::warn!("Connection failed: {:?}", err);
                 }
             }
         }
 
-        false
+        let stream = match kind {
+            StreamKind::Request => self.stream_request.take(),
+            StreamKind::Response => self.stream_response.take(),
+        };
+
+        Some(stream.expect("Connection failed, no response stream created."))
     }
 
-    /// Takes the response WebSocket stream if it has been initialized,
-    /// otherwise initializes it and takes it.
-    async fn stream_response(
-        state: &tokio::sync::Mutex<ClientWorker>,
-        close_flag: &AtomicBool,
-    ) -> Option<WebSocketStream<MaybeTlsStream<TcpStream>>> {
-        let mut state = state.lock().await;
-        // If stream is none, try to connect
-        if state.stream_response.is_none() && !state.connect_or_close(close_flag).await {
-            // close_flag was raised during connection
-            return None;
-        }
-
-        Some(
-            state
-                .stream_response
-                .take()
-                .expect("Connection failed, no response stream created."),
-        )
-    }
-
-    /// Takes the request WebSocket stream if it has been initialized,
-    /// otherwise initializes it and takes it. TODO refactor
-    async fn stream_request(
-        state: &tokio::sync::Mutex<ClientWorker>,
-        close_flag: &AtomicBool,
-    ) -> Option<WebSocketStream<MaybeTlsStream<TcpStream>>> {
-        let mut state = state.lock().await;
-        // If stream is none, try to connect
-        if state.stream_request.is_none() && !state.connect_or_close(close_flag).await {
-            // close_flag was raised during connection
-            return None;
-        }
-
-        Some(
-            state
-                .stream_request
-                .take()
-                .expect("Connection failed, no request stream created."),
-        )
-    }
-    async fn work(
+    async fn start_workers(
         address_request: String,
         address_response: String,
         request_recv: Receiver<ClientRequest>,
     ) {
         let worker = ClientWorker::new(address_request, address_response);
         let state = Arc::new(tokio::sync::Mutex::new(worker));
-        let close_flag = Arc::new(AtomicBool::new(false));
+        let close_token = CancellationToken::new();
 
         let state_ws = state.clone();
-        let close_flag_ws = close_flag.clone();
+        let close_token_ws = close_token.clone();
         tokio::spawn(async move {
-            Self::handle_responses(state_ws, close_flag_ws).await;
+            Self::handle_responses(state_ws, close_token_ws).await;
         });
 
         tokio::spawn(async move {
-            Self::handle_requests(state, close_flag, request_recv).await;
+            Self::handle_requests(state, close_token, request_recv).await;
         });
     }
 
     async fn handle_responses(
         state_ws: Arc<tokio::sync::Mutex<ClientWorker>>,
-        close_flag_ws: Arc<AtomicBool>,
+        close_token: CancellationToken,
     ) {
-        let mut stream_response = match Self::stream_response(&state_ws, &close_flag_ws).await {
-            Some(stream) => stream,
-            None => {
-                log::warn!("Closing response thread");
-                return;
+        let mut stream_response = {
+            let mut state = state_ws.lock().await;
+            match state
+                .take_stream(StreamKind::Response, close_token.clone())
+                .await
+            {
+                Some(stream) => stream,
+                None => {
+                    log::warn!("Closing response thread");
+                    return;
+                }
             }
         };
 
@@ -229,7 +222,11 @@ impl ClientWorker {
                 Ok(msg) => msg,
                 Err(err) => {
                     log::warn!("WebSocket stream error: {:?}", err);
-                    stream_response = match Self::stream_response(&state_ws, &close_flag_ws).await {
+                    let mut state = state_ws.lock().await;
+                    stream_response = match state
+                        .take_stream(StreamKind::Response, close_token.clone())
+                        .await
+                    {
                         Some(stream) => stream,
                         None => {
                             log::warn!("Closing response thread");
@@ -254,7 +251,7 @@ impl ClientWorker {
                 _ => panic!("Unsupported websocket message: {msg:?}"),
             };
 
-            if close_flag_ws.load(Ordering::Relaxed) {
+            if close_token.is_cancelled() {
                 return;
             }
         }
@@ -262,14 +259,20 @@ impl ClientWorker {
 
     async fn handle_requests(
         state: Arc<tokio::sync::Mutex<ClientWorker>>,
-        close_flag: Arc<AtomicBool>,
+        close_token: CancellationToken,
         request_recv: Receiver<ClientRequest>,
     ) {
-        let mut stream_request = match Self::stream_request(&state, &close_flag).await {
-            Some(stream) => stream,
-            None => {
-                log::warn!("Closing request thread");
-                return;
+        let mut stream_request = {
+            let mut state = state.lock().await;
+            match state
+                .take_stream(StreamKind::Request, close_token.clone())
+                .await
+            {
+                Some(stream) => stream,
+                None => {
+                    log::warn!("Closing request thread");
+                    return;
+                }
             }
         };
 
@@ -285,12 +288,12 @@ impl ClientWorker {
                     let session_id = state.lock().await.session_id;
                     match session_id {
                         Some(session_id) => {
-                            close_flag.store(true, Ordering::Relaxed);
+                            close_token.cancel();
                             Task::Close(session_id)
                         }
                         None => {
                             log::warn!("Trying to close the session when none is open");
-                            close_flag.store(true, Ordering::Relaxed);
+                            close_token.cancel();
                             return;
                         }
                     }
@@ -303,7 +306,12 @@ impl ClientWorker {
 
             if let Err(err) = stream_request.send(Message::Binary(bytes)).await {
                 log::warn!("Request stream error, reopening connection. {:?}", err);
-                stream_request = match Self::stream_request(&state, &close_flag).await {
+
+                let mut state = state.lock().await;
+                stream_request = match state
+                    .take_stream(StreamKind::Request, close_token.clone())
+                    .await
+                {
                     Some(stream) => stream,
                     None => {
                         log::warn!("Closing request thread");
