@@ -7,9 +7,10 @@ use super::{
     processor::{Processor, ProcessorTask},
     tensor_data_service::TensorDataService,
 };
+
 use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
 use burn_router::Runner;
-use burn_tensor::TensorData;
+use burn_tensor::{DType, TensorData};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 /// A stream makes sure all operations registered are executed in the order they were sent to the
@@ -39,6 +40,18 @@ impl<B: BackendIr> Stream<B> {
     pub async fn register_operation(&self, op: Box<OperationIr>) {
         self.compute_sender
             .send(ProcessorTask::RegisterOperation(op))
+            .await
+            .unwrap();
+    }
+
+    pub async fn register_empty_tensor(
+        &self,
+        tensor_id: TensorId,
+        shape: Vec<usize>,
+        dtype: DType,
+    ) {
+        self.compute_sender
+            .send(ProcessorTask::RegisterEmptyTensor(tensor_id, shape, dtype))
             .await
             .unwrap();
     }

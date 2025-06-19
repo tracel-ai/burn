@@ -55,6 +55,11 @@ pub fn get_client<R: RunnerChannel>(device: &R::Device) -> Client<R> {
     CLIENTS.client::<R>(device)
 }
 
+/// Drop the client for the given device
+pub fn drop_client<R: RunnerChannel>(device: &R::Device) {
+    CLIENTS.drop_client::<R>(device)
+}
+
 pub(crate) fn set_seed(seed: u64) {
     SEED_SET.store(true, Ordering::Relaxed);
     SEED.store(seed, Ordering::Relaxed);
@@ -133,5 +138,18 @@ impl RunnerClientLocator {
 
             clients.insert(key, Box::new(client));
         }
+    }
+
+    pub fn drop_client<R: RunnerChannel + 'static>(&self, device: &R::Device) {
+        let device_id = device.id();
+        let client_id = (core::any::TypeId::of::<R>(), device_id);
+        let mut clients = self.clients.lock();
+        if clients.is_none() {
+            return;
+        }
+
+        let clients = clients.as_mut().unwrap();
+        clients.remove(&client_id);
+
     }
 }

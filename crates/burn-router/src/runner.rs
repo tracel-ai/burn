@@ -120,6 +120,22 @@ impl<B: BackendIr> Runner<B> {
         }
     }
 
+    /// Register an empty tensor with a given ID and returns its intermediate representation.
+    pub fn register_empty_tensor(&self, id: TensorId, shape: Vec<usize>, dtype: DType) -> TensorIr {
+        let mut ctx = self.context.lock().unwrap();
+
+        let shape = Shape { dims: shape };
+        let handle = B::float_empty(shape.clone(), &self.device);
+        ctx.handles.register_float_tensor::<B>(&id, handle);
+
+        TensorIr {
+            id,
+            shape: shape.dims,
+            status: TensorStatus::NotInit,
+            dtype,
+        }
+    }
+
     /// Register an empty tensor and returns its intermediate representation.
     pub fn register_empty_tensor_desc(&self, shape: Vec<usize>, dtype: DType) -> TensorIr {
         let mut ctx = self.context.lock().unwrap();

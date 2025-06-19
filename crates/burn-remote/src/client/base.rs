@@ -1,5 +1,5 @@
 use super::worker::{ClientRequest, ClientWorker};
-use crate::shared::{ComputeTask, ConnectionId, SessionId, Task, TaskResponseContent};
+use crate::shared::{ComputeTask, ConnectionId, TaskResponseContent};
 use async_channel::Sender;
 use burn_common::id::StreamId;
 use burn_ir::TensorId;
@@ -26,7 +26,6 @@ impl WsClient {
         device: WsDevice,
         sender: Sender<ClientRequest>,
         runtime: Arc<tokio::runtime::Runtime>,
-        session_id: SessionId,
     ) -> Self {
         Self {
             device,
@@ -35,7 +34,6 @@ impl WsClient {
                 sender,
                 position_counter: AtomicU64::new(0),
                 tensor_id_counter: AtomicU64::new(0),
-                session_id,
             }),
         }
     }
@@ -45,7 +43,6 @@ pub(crate) struct WsSender {
     sender: Sender<ClientRequest>,
     position_counter: AtomicU64,
     tensor_id_counter: AtomicU64,
-    session_id: SessionId,
 }
 
 impl WsSender {
@@ -57,10 +54,10 @@ impl WsSender {
         let sender = self.sender.clone();
 
         sender
-            .send_blocking(ClientRequest::WithoutCallback(Task::Compute(
+            .send_blocking(ClientRequest::Compute(
                 task,
                 ConnectionId::new(position, stream_id),
-            )))
+            ))
             .unwrap();
     }
 
@@ -81,8 +78,8 @@ impl WsSender {
         let sender = self.sender.clone();
         let (callback_sender, callback_recv) = async_channel::bounded(1);
         sender
-            .send_blocking(ClientRequest::WithSyncCallback(
-                Task::Compute(task, ConnectionId::new(position, stream_id)),
+            .send_blocking(ClientRequest::ComputeWithCallback(
+                task, ConnectionId::new(position, stream_id),
                 callback_sender,
             ))
             .unwrap();
@@ -98,7 +95,7 @@ impl WsSender {
     pub(crate) fn close(&mut self) {
         let sender = self.sender.clone();
 
-        let close_task = ClientRequest::WithoutCallback(Task::Close(self.session_id));
+        let close_task = ClientRequest::Close;
 
         sender.send_blocking(close_task).unwrap();
     }

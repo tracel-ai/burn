@@ -51,6 +51,7 @@ tracing-subscriber = { workspace = true, optional = true }
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "0.18.0" }
+serial_test = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]
