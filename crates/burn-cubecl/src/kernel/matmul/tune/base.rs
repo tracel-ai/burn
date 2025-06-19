@@ -3,7 +3,6 @@ use cubecl::{
     matmul::{
         Strategy, SyncLoadingStrategy,
         components::MatmulKind,
-        kernels::tiling2d::Tiling2dConfig,
         tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
     },
     tune::{LocalTuner, TunableSet, local_tuner},
@@ -36,20 +35,17 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
     static TUNER: LocalTuner<MatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<R>, matmul_input_gen::<R>)
-        .with_tunable_optional(matmul_tiling2d::<R, E>, |key| {
+        .with_tunable_optional(simple_cube::<R, E>, |key| {
             !key.analysis.may_use_tensor_cores
                 || matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
+                || !matches!(key.analysis.kind, MatmulKind::General)
         })
         .with_tunable(matmul_simple::<R, E>)
-        .with_tunable_optional(matmul_double_buffering::<R, E>, |key| {
+        .with_tunable_optional(matmul_ordered_double_buffering::<R, E>, |key| {
             should_tune_double_buffering(false, key)
         })
-        .with_tunable_optional(matmul_naive::<R, E>, |key| {
-            !key.analysis.may_use_tensor_cores
-                || !matches!(
-                    key.analysis.kind,
-                    MatmulKind::OuterProduct | MatmulKind::General
-                )
+        .with_tunable_optional(matmul_double_buffering::<R, E>, |key| {
+            should_tune_double_buffering(false, key)
         });
 
     TUNER.execute(
@@ -96,14 +92,13 @@ fn matmul_simple<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-// Creates invalid configs for some shapes, re-enable once fixed
 fn matmul_double_buffering<R: CubeRuntime, E: FloatElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
-        &Strategy::DoubleBuffering(cubecl::matmul::SyncBufferLoadingStrategy::Cyclic),
+        &Strategy::DoubleBuffering(cubecl::matmul::SyncBufferLoadingStrategy::Cyclic, None),
         &lhs.client,
         &lhs.as_handle_ref(),
         &None,
@@ -114,13 +109,13 @@ fn matmul_double_buffering<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_tiling2d<R: CubeRuntime, E: FloatElement>(
+fn matmul_ordered_double_buffering<R: CubeRuntime, E: FloatElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
-        &Strategy::Tiling2D(Tiling2dConfig::default()),
+        &Strategy::OrderedDoubleBuffering(None),
         &lhs.client,
         &lhs.as_handle_ref(),
         &None,
@@ -131,13 +126,13 @@ fn matmul_tiling2d<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_naive<R: CubeRuntime, E: FloatElement>(
+fn simple_cube<R: CubeRuntime, E: FloatElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
-        &Strategy::Naive,
+        &Strategy::SimpleUnit(None),
         &lhs.client,
         &lhs.as_handle_ref(),
         &None,

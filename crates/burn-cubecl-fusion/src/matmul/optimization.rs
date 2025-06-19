@@ -27,7 +27,8 @@ use cubecl::matmul::components::tile::TileMatmulFamily;
 use cubecl::matmul::components::tile::accelerated::AcceleratedMatmul;
 use cubecl::matmul::kernels::matmul::Algorithm;
 use cubecl::matmul::kernels::matmul::double_buffering::CyclicDoubleBufferingAlgorithm;
-use cubecl::matmul::kernels::matmul::select_kernel_virtual;
+use cubecl::matmul::kernels::matmul::launch_kernel_virtual;
+use cubecl::matmul::kernels::matmul::ordered_double_buffering::OrderedDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::matmul::simple::SimpleAlgorithm;
 use cubecl::matmul::kernels::matmul::simple_unit::SimpleUnitAlgorithm;
 use cubecl::matmul::kernels::{MatmulAvailabilityError, MatmulSetupError};
@@ -55,6 +56,7 @@ pub struct MatmulOptimization<R: Runtime> {
     pub(crate) matmul_simple: FusedMatmul,
     pub(crate) matmul_simple_unit: FusedMatmul,
     pub(crate) matmul_double_buffering: FusedMatmul,
+    pub(crate) matmul_ordered_double_buffering: FusedMatmul,
     fallback: Option<Box<dyn FallbackOperation<R>>>,
 }
 
@@ -66,6 +68,7 @@ pub struct MatmulOptimizationState {
     matmul_simple: FusedMatmul,
     matmul_simple_unit: FusedMatmul,
     matmul_double_buffering: FusedMatmul,
+    matmul_ordered_double_buffering: FusedMatmul,
     len: usize,
 }
 
@@ -80,7 +83,8 @@ impl<R: Runtime> MatmulOptimization<R> {
     ) -> Self {
         let mut matmul_simple = matmul.clone();
         let mut matmul_simple_unit = matmul.clone();
-        let mut matmul_double_buffering = matmul;
+        let mut matmul_double_buffering = matmul.clone();
+        let mut matmul_ordered_double_buffering = matmul;
 
         matmul_simple.selector = FusedMatmulSelector::Simple;
         matmul_simple_unit.selector =
@@ -89,6 +93,7 @@ impl<R: Runtime> MatmulOptimization<R> {
                 &trace,
             ));
         matmul_double_buffering.selector = FusedMatmulSelector::DoubleBuffering;
+        matmul_ordered_double_buffering.selector = FusedMatmulSelector::DoubleBuffering;
 
         Self {
             trace,
@@ -99,6 +104,7 @@ impl<R: Runtime> MatmulOptimization<R> {
             matmul_simple,
             matmul_simple_unit,
             matmul_double_buffering,
+            matmul_ordered_double_buffering,
             fallback: None,
         }
     }
@@ -136,6 +142,7 @@ impl<R: Runtime> MatmulOptimization<R> {
             matmul_simple: state.matmul_simple.clone(),
             matmul_simple_unit: state.matmul_simple_unit.clone(),
             matmul_double_buffering: state.matmul_double_buffering.clone(),
+            matmul_ordered_double_buffering: state.matmul_ordered_double_buffering.clone(),
             fallback: None,
         }
     }
@@ -148,6 +155,7 @@ impl<R: Runtime> MatmulOptimization<R> {
             matmul_simple: self.matmul_simple.clone(),
             matmul_simple_unit: self.matmul_simple_unit.clone(),
             matmul_double_buffering: self.matmul_double_buffering.clone(),
+            matmul_ordered_double_buffering: self.matmul_ordered_double_buffering.clone(),
             len: self.len,
         }
     }
@@ -190,6 +198,18 @@ impl<R: Runtime> MatmulOptimization<R> {
             &self.device,
             context,
             &self.matmul_double_buffering,
+        )
+    }
+
+    pub fn execute_ordered_double_buffering_fused<BT: CubeElement>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+    ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
+        self.trace.run::<R, BT, FusedMatmul>(
+            &self.client,
+            &self.device,
+            context,
+            &self.matmul_ordered_double_buffering,
         )
     }
 
@@ -237,6 +257,7 @@ pub enum FusedMatmulSelector {
     Simple,
     SimpleUnit(LineSizeOverrides),
     DoubleBuffering,
+    OrderedDoubleBuffering,
 }
 
 #[derive(new, Clone, Serialize, Deserialize, Debug)]
@@ -413,7 +434,7 @@ impl FusedMatmul {
 
         match &self.selector {
             FusedMatmulSelector::Simple => {
-                match matmul_launch_kernel::<R, EG, SimpleAlgorithm<AcceleratedMatmul>>(
+                match launch_inner_fix_dtype::<R, EG, SimpleAlgorithm<AcceleratedMatmul>>(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,
@@ -426,7 +447,28 @@ impl FusedMatmul {
                 }
             }
             FusedMatmulSelector::DoubleBuffering => {
-                match matmul_launch_kernel::<R, EG, CyclicDoubleBufferingAlgorithm<AcceleratedMatmul>>(
+                match launch_inner_fix_dtype::<
+                    R,
+                    EG,
+                    CyclicDoubleBufferingAlgorithm<AcceleratedMatmul>,
+                >(
+                    client,
+                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    outputs,
+                    problem,
+                    line_sizes,
+                    plane_size,
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+            FusedMatmulSelector::OrderedDoubleBuffering => {
+                match launch_inner_fix_dtype::<
+                    R,
+                    EG,
+                    OrderedDoubleBufferingAlgorithm<AcceleratedMatmul>,
+                >(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,
@@ -439,7 +481,7 @@ impl FusedMatmul {
                 }
             }
             FusedMatmulSelector::SimpleUnit(..) => {
-                match matmul_launch_kernel::<R, EG, SimpleUnitAlgorithm>(
+                match launch_inner_fix_dtype::<R, EG, SimpleUnitAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,
@@ -455,7 +497,7 @@ impl FusedMatmul {
     }
 }
 
-fn matmul_launch_kernel<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
+fn launch_inner_fix_dtype<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
     client: &ComputeClient<R::Server, R::Channel>,
     input: FusedMatmulInputLaunch<'a, R>,
     output: GlobalArgsLaunch<'a, R>,
@@ -467,11 +509,11 @@ fn matmul_launch_kernel<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
         && TypeId::of::<EG::ES>() == TypeId::of::<f32>()
         && tf32::is_supported(client)
     {
-        select_kernel_virtual::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
+        launch_kernel_virtual::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
             client, input, output, problem, line_sizes, plane_size,
         )
     } else {
-        select_kernel_virtual::<FusedMatmulSpec<EG>, R, A>(
+        launch_kernel_virtual::<FusedMatmulSpec<EG>, R, A>(
             client, input, output, problem, line_sizes, plane_size,
         )
     }

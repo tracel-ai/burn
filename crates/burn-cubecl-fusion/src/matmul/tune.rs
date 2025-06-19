@@ -6,7 +6,10 @@ use crate::{
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
-    matmul::tune_key::{MatmulAutotuneKey, should_tune_double_buffering},
+    matmul::{
+        components::MatmulKind,
+        tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
+    },
     tune::{LocalTuner, TunableSet, local_tuner},
 };
 use serde::{Deserialize, Serialize};
@@ -32,7 +35,17 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
     let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
         .with_tunable(tune_fallback::<R, BT>) // First one should always work.
         .with_tunable(tune_simple_fused::<R, BT>)
-        .with_tunable(tune_simple_unit_fused::<R, BT>)
+        .with_tunable_optional(tune_simple_unit_fused::<R, BT>, |key| {
+            !key.matmul_key.analysis.may_use_tensor_cores
+                || matches!(
+                    key.matmul_key.analysis.scale_global,
+                    MatmulGlobalScale::Small
+                )
+                || !matches!(key.matmul_key.analysis.kind, MatmulKind::General)
+        })
+        .with_tunable_optional(tune_ordered_double_buffering_fused::<R, BT>, |key| {
+            should_tune_double_buffering(key.num_out_buffers > 1, &key.matmul_key)
+        })
         .with_tunable_optional(tune_double_buffering_fused::<R, BT>, |key| {
             should_tune_double_buffering(key.num_out_buffers > 1, &key.matmul_key)
         });
@@ -130,6 +143,22 @@ fn tune_double_buffering_fused<R: Runtime, BT: CubeElement>(
         TuneContext::Fork(mut context_owned) => {
             optimization.execute_double_buffering_fused::<BT>(&mut context_owned.as_context())
         }
+    }
+    .map_err(|e| format!("{e:?}"))
+}
+
+fn tune_ordered_double_buffering_fused<R: Runtime, BT: CubeElement>(
+    input: TuneInput<R, MatmulOptimization<R>>,
+) -> Result<TuneOutput<R>, String> {
+    let optimization = input.optimization();
+    let context = input.context();
+
+    match context {
+        TuneContext::Original(context) => {
+            optimization.execute_ordered_double_buffering_fused::<BT>(context)
+        }
+        TuneContext::Fork(mut context_owned) => optimization
+            .execute_ordered_double_buffering_fused::<BT>(&mut context_owned.as_context()),
     }
     .map_err(|e| format!("{e:?}"))
 }
