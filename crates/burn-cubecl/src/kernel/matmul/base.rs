@@ -5,7 +5,7 @@ use burn_tensor::{
     quantization::{QTensorPrimitive, QuantAccPrecision},
 };
 use cubecl::{
-    matmul::{components::Quantized, kernels::MatmulLaunchError},
+    matmul::{components::Quantized, kernels::MatmulSetupError},
     prelude::TensorHandleRef,
 };
 
@@ -38,7 +38,7 @@ pub fn matmul<R: CubeRuntime, E: FloatElement>(
     rhs: CubeTensor<R>,
     out: Option<CubeTensor<R>>,
     strategy: MatmulStrategy,
-) -> Result<CubeTensor<R>, MatmulLaunchError> {
+) -> Result<CubeTensor<R>, MatmulSetupError> {
     match strategy {
         MatmulStrategy::Cube => {
             let out = out.unwrap_or_else(|| init_matmul_output::<R, E>(&lhs, &rhs));
@@ -68,7 +68,7 @@ pub fn q_matmul<R: CubeRuntime>(
     mut rhs: CubeTensor<R>,
     out: Option<CubeTensor<R>>,
     _strategy: MatmulStrategy,
-) -> Result<CubeTensor<R>, MatmulLaunchError> {
+) -> Result<CubeTensor<R>, MatmulSetupError> {
     let out = out.unwrap_or_else(|| init_matmul_output::<R, half::f16>(&lhs, &rhs));
 
     let client = &lhs.client;

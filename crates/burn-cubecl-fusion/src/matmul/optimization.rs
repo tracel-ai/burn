@@ -16,12 +16,12 @@ use cubecl::matmul::components::MatmulLineSizes;
 use cubecl::matmul::components::MatmulPrecision;
 use cubecl::matmul::components::MatmulProblem;
 use cubecl::matmul::components::tile::TileMatmulFamily;
-use cubecl::matmul::components::tile::accelerated_matmul::AcceleratedMatmul;
+use cubecl::matmul::components::tile::accelerated::AcceleratedMatmul;
 use cubecl::matmul::kernels::matmul::Algorithm;
 use cubecl::matmul::kernels::matmul::double_buffering::CyclicDoubleBufferingAlgorithm;
-use cubecl::matmul::kernels::matmul::select_kernel_virtual;
+use cubecl::matmul::kernels::matmul::launch_kernel_virtual;
 use cubecl::matmul::kernels::matmul::simple::SimpleAlgorithm;
-use cubecl::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
+use cubecl::matmul::kernels::{MatmulAvailabilityError, MatmulSetupError};
 use cubecl::{client::ComputeClient, prelude::*};
 use cubecl_std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use half::{bf16, f16};
@@ -217,12 +217,12 @@ pub struct FusedMatmul {
 
 #[derive(Debug)]
 pub enum FusedMatmulError {
-    LaunchError(MatmulLaunchError),
+    LaunchError(MatmulSetupError),
     InvalidInput,
 }
 
-impl From<MatmulLaunchError> for FusedMatmulError {
-    fn from(value: MatmulLaunchError) -> Self {
+impl From<MatmulSetupError> for FusedMatmulError {
+    fn from(value: MatmulSetupError) -> Self {
         Self::LaunchError(value)
     }
 }
@@ -329,7 +329,7 @@ impl FusedMatmul {
         let plane_size = match plane_size {
             Some(val) => val,
             None => {
-                return Err(MatmulLaunchError::Unavailable(
+                return Err(MatmulSetupError::Unavailable(
                     MatmulAvailabilityError::PlaneDimUnknown,
                 )
                 .into());
@@ -374,27 +374,17 @@ fn matmul_launch_kernel<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
     problem: MatmulProblem,
     line_sizes: MatmulLineSizes,
     plane_size: u32,
-) -> Result<(), MatmulLaunchError> {
+) -> Result<(), MatmulSetupError> {
     if <A::TileMatmul as TileMatmulFamily>::requires_tensor_cores()
         && TypeId::of::<EG::ES>() == TypeId::of::<f32>()
         && tf32::is_supported(client)
     {
-        select_kernel_virtual::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
-            client,
-            input,
-            output,
-            problem,
-            Some(line_sizes),
-            plane_size,
+        launch_kernel_virtual::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
+            client, input, output, problem, line_sizes, plane_size,
         )
     } else {
-        select_kernel_virtual::<FusedMatmulSpec<EG>, R, A>(
-            client,
-            input,
-            output,
-            problem,
-            Some(line_sizes),
-            plane_size,
+        launch_kernel_virtual::<FusedMatmulSpec<EG>, R, A>(
+            client, input, output, problem, line_sizes, plane_size,
         )
     }
 }
