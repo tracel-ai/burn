@@ -150,6 +150,5 @@ impl RunnerClientLocator {
 
         let clients = clients.as_mut().unwrap();
         clients.remove(&client_id);
-
     }
 }

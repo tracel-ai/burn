@@ -158,10 +158,10 @@ impl ClientWorker {
         close_flag: &AtomicBool,
     ) -> Option<WebSocketStream<MaybeTlsStream<TcpStream>>> {
         let mut state = state.lock().await;
-        if state.stream_response.is_none() {
-            if !state.connect_or_close(close_flag).await {
-                return None;
-            }
+        // If stream is none, try to connect
+        if state.stream_response.is_none() && !state.connect_or_close(close_flag).await {
+            // close_flag was raised during connection
+            return None;
         }
 
         Some(
@@ -179,10 +179,10 @@ impl ClientWorker {
         close_flag: &AtomicBool,
     ) -> Option<WebSocketStream<MaybeTlsStream<TcpStream>>> {
         let mut state = state.lock().await;
-        if state.stream_request.is_none() {
-            if !state.connect_or_close(close_flag).await {
-                return None;
-            }
+        // If stream is none, try to connect
+        if state.stream_request.is_none() && !state.connect_or_close(close_flag).await {
+            // close_flag was raised during connection
+            return None;
         }
 
         Some(
@@ -301,8 +301,8 @@ impl ClientWorker {
                 .expect("Can serialize tasks to bytes.")
                 .into();
 
-            if let Err(_) = stream_request.send(Message::Binary(bytes)).await {
-                log::warn!("Request stream error, reopening connection.");
+            if let Err(err) = stream_request.send(Message::Binary(bytes)).await {
+                log::warn!("Request stream error, reopening connection. {:?}", err);
                 stream_request = match Self::stream_request(&state, &close_flag).await {
                     Some(stream) => stream,
                     None => {

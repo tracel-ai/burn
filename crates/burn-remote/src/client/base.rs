@@ -79,7 +79,8 @@ impl WsSender {
         let (callback_sender, callback_recv) = async_channel::bounded(1);
         sender
             .send_blocking(ClientRequest::ComputeWithCallback(
-                task, ConnectionId::new(position, stream_id),
+                task,
+                ConnectionId::new(position, stream_id),
                 callback_sender,
             ))
             .unwrap();

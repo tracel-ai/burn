@@ -38,7 +38,7 @@ pub use __client::*;
 
 #[cfg(all(test, feature = "client", feature = "server"))]
 mod tests {
-    use crate::{client::WsChannel, RemoteBackend};
+    use crate::{RemoteBackend, client::WsChannel};
     use burn_ndarray::NdArray;
     use burn_router::drop_client;
     use burn_tensor::{Distribution, Tensor};
@@ -125,12 +125,15 @@ mod tests {
             &remote_device_2,
         );
         let numbers_2: Vec<f32> = tensor_2.to_data().to_vec().unwrap();
-        let sum_expected: Vec<f32> = numbers_1.iter().enumerate().map(|(i, x)| x + numbers_2[i]).collect();
+        let sum_expected: Vec<f32> = numbers_1
+            .iter()
+            .enumerate()
+            .map(|(i, x)| x + numbers_2[i])
+            .collect();
 
         // Move tensor 1 to device 2
         let tensor_1_on_2 = tensor_1.clone().to_device(&remote_device_2);
         let sum_on_2 = tensor_2.add(tensor_1_on_2);
-
 
         // Move tensor back to device 1
         let sum_on_1 = sum_on_2.to_device(&remote_device_1);
@@ -140,7 +143,7 @@ mod tests {
             assert_eq!(x, sum_expected[i]);
         }
 
-        // find a way to shut down the Client which has the Sender which will close the channel to the workers which are hanging threads.        
+        // find a way to shut down the Client which has the Sender which will close the channel to the workers which are hanging threads.
 
         drop_client::<WsChannel>(&remote_device_1);
         drop_client::<WsChannel>(&remote_device_2);
