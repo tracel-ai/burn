@@ -12,7 +12,7 @@ use cubecl::{
     matmul::components::{
         MatmulPrecision,
         global::args::{ConcreteOutputFactory, MatmulArgs},
-        tile::accelerated_matmul::AcceleratedMatmul,
+        tile::accelerated::AcceleratedMatmul,
     },
 };
 
