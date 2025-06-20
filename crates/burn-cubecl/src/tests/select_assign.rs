@@ -36,13 +36,9 @@ mod tests {
             Tensor::<TestBackend, D>::random(shape, Distribution::Default, &Default::default());
         let value =
             Tensor::<TestBackend, D>::random(shape, Distribution::Default, &Default::default());
-        let indices = Tensor::<TestBackend, 1, Int>::from_data(
-            Tensor::<TestBackend, 1>::random(
-                [shape[dim]],
-                Distribution::Uniform(0., shape[dim] as f64),
-                &Default::default(),
-            )
-            .into_data(),
+        let indices = Tensor::<TestBackend, 1, Int>::random(
+            [shape[dim]],
+            Distribution::Uniform(0., shape[dim] as f64),
             &Default::default(),
         );
         let tensor_ref =
