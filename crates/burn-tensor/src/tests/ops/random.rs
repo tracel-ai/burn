@@ -1,7 +1,10 @@
 #[burn_tensor_testgen::testgen(random)]
 mod tests {
     use super::*;
-    use burn_tensor::{Distribution, Tensor, cast::ToElement, tests::Float};
+    use burn_tensor::{
+        Distribution, ElementComparison, ElementConversion, Tensor, backend::Backend,
+        cast::ToElement, tests::Float,
+    };
 
     #[test]
     fn rand_default() {
@@ -26,6 +29,24 @@ mod tests {
         } else {
             tensor.into_data().assert_within_range(4.0..5.0);
         }
+    }
+
+    #[test]
+    fn rand_uniform_int() {
+        let low = 0.;
+        let high = 5.;
+
+        let tensor = TestTensorInt::<1>::random(
+            [100_000],
+            Distribution::Uniform(low, high),
+            &Default::default(),
+        );
+
+        type IntElem = <TestBackend as Backend>::IntElem;
+
+        tensor
+            .into_data()
+            .assert_within_range::<IntElem>(low.elem()..high.elem());
     }
 
     #[test]
