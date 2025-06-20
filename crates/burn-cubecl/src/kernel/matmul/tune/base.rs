@@ -4,8 +4,8 @@ use cubecl::{
         Strategy, SyncBufferLoadingStrategy, SyncLoadingStrategy,
         components::MatmulKind,
         kernels::matmul::{
-            double_buffering::DoubleBufferingAlgorithmArgs,
-            ordered_double_buffering::OrderedDoubleBufferingSelectionArgs,
+            Selection, double_buffering::DoubleBufferingArgs,
+            ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
         },
         tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
     },
@@ -45,12 +45,9 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
                 || !matches!(key.analysis.kind, MatmulKind::General)
         })
         .with_tunable(matmul_simple::<R, E>)
-        .with_tunable_optional(matmul_ordered_double_buffering_1::<R, E>, |key| {
-            should_tune_double_buffering(false, key)
-        })
-        .with_tunable_optional(matmul_ordered_double_buffering_2::<R, E>, |key| {
-            should_tune_double_buffering(false, key)
-        })
+        .with_tunable(matmul_simple_multi_rows::<R, E>)
+        .with_tunable(matmul_ordered_double_buffering_1::<R, E>)
+        .with_tunable(matmul_ordered_double_buffering_2::<R, E>)
         .with_tunable_optional(matmul_double_buffering_specialized::<R, E>, |key| {
             should_tune_double_buffering(false, key)
         })
@@ -91,7 +88,30 @@ fn matmul_simple<R: CubeRuntime, E: FloatElement>(
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
-        &Strategy::Simple(SyncLoadingStrategy::Cyclic),
+        &Strategy::Simple(
+            SyncLoadingStrategy::Cyclic,
+            Selection::Inferred(SimpleArgs { multi_rows: false }),
+        ),
+        &lhs.client,
+        &lhs.as_handle_ref(),
+        &None,
+        &rhs.as_handle_ref(),
+        &None,
+        &out.as_handle_ref(),
+    )
+    .map_err(|err| format!("{err:?}"))
+}
+
+fn matmul_simple_multi_rows<R: CubeRuntime, E: FloatElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
+) -> Result<(), String> {
+    cubecl::matmul::launch_ref::<R, E>(
+        &Strategy::Simple(
+            SyncLoadingStrategy::Cyclic,
+            Selection::Inferred(SimpleArgs { multi_rows: true }),
+        ),
         &lhs.client,
         &lhs.as_handle_ref(),
         &None,
@@ -108,10 +128,9 @@ fn matmul_double_buffering<R: CubeRuntime, E: FloatElement>(
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
-        &Strategy::DoubleBuffering(
+        &&Strategy::DoubleBuffering(
             SyncBufferLoadingStrategy::Tilewise,
-            DoubleBufferingAlgorithmArgs { specialized: false },
-            None,
+            Selection::Inferred(DoubleBufferingArgs { specialized: false }),
         ),
         &lhs.client,
         &lhs.as_handle_ref(),
@@ -131,8 +150,7 @@ fn matmul_double_buffering_specialized<R: CubeRuntime, E: FloatElement>(
     cubecl::matmul::launch_ref::<R, E>(
         &Strategy::DoubleBuffering(
             SyncBufferLoadingStrategy::Tilewise,
-            DoubleBufferingAlgorithmArgs { specialized: true },
-            None,
+            Selection::Inferred(DoubleBufferingArgs { specialized: true }),
         ),
         &lhs.client,
         &lhs.as_handle_ref(),
@@ -150,14 +168,11 @@ fn matmul_ordered_double_buffering_1<R: CubeRuntime, E: FloatElement>(
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
-        &Strategy::OrderedDoubleBuffering(
-            OrderedDoubleBufferingSelectionArgs {
-                pk: Some(1),
-                occupancy_factor: Some(2),
-                multi_rows: None,
-            },
-            None,
-        ),
+        &Strategy::OrderedDoubleBuffering(Selection::Inferred(OrderedSelectionArgs {
+            partition_k: Some(16),
+            row_count: Some(2),
+            rows_per_plane: Some(1),
+        })),
         &lhs.client,
         &lhs.as_handle_ref(),
         &None,
@@ -174,14 +189,11 @@ fn matmul_ordered_double_buffering_2<R: CubeRuntime, E: FloatElement>(
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
-        &Strategy::OrderedDoubleBuffering(
-            OrderedDoubleBufferingSelectionArgs {
-                pk: Some(2),
-                occupancy_factor: Some(4),
-                multi_rows: None,
-            },
-            None,
-        ),
+        &Strategy::OrderedDoubleBuffering(Selection::Inferred(OrderedSelectionArgs {
+            partition_k: Some(8),
+            row_count: Some(2),
+            rows_per_plane: Some(2),
+        })),
         &lhs.client,
         &lhs.as_handle_ref(),
         &None,
