@@ -9,7 +9,7 @@ The collective operations are the following:
 Threads can register to use collective operations with `register()`
 
 When a collective operation is called N times (N calls to `register`), 
-the aggregator starts the collective operation. Every tensor passed is aggregated.  
+the collective server starts the collective operation. Every tensor passed is aggregated.  
 
 ## Stategies
 
@@ -90,4 +90,11 @@ the better.
 ### Double binary tree
 
 https://developer.nvidia.com/blog/massively-scale-deep-learning-training-nccl-2-4/
+
+
+## Local and Global
+
+Local threads register to the Local Collective Server. If configured during registration, 
+the Local Collective Server will register to a remote Global Collective Server. If configured, 
+there are two levels in aggregation.
 

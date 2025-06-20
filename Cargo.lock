@@ -559,15 +559,25 @@ dependencies = [
 name = "burn-collective"
 version = "0.18.0"
 dependencies = [
+ "axum",
  "burn-common",
  "burn-cuda",
+ "burn-ir",
  "burn-ndarray",
  "burn-tensor",
  "burn-wgpu",
  "cfg-if",
  "derive-new 0.7.0",
+ "futures-util",
  "log",
+ "rmp-serde",
+ "serde",
+ "serde_bytes",
  "serial_test",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing-core",
+ "tracing-subscriber",
 ]
 
 [[package]]
