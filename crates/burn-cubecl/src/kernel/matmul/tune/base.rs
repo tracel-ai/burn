@@ -123,7 +123,7 @@ fn matmul_double_buffering<R: CubeRuntime, E: FloatElement>(
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
-        &&Strategy::DoubleBuffering(
+        &Strategy::DoubleBuffering(
             SyncBufferLoadingStrategy::Tilewise,
             Selection::Inferred(DoubleBufferingArgs { specialized: false }),
         ),

@@ -92,9 +92,7 @@ impl MatmulVariants {
             simple_unit: selector(FusedMatmulSelector::SimpleUnit(line_size_overrides::<
                 R,
                 SimpleUnitAlgorithm,
-            >(
-                &matmul, &trace
-            ))),
+            >(matmul, trace))),
             simple: selector(FusedMatmulSelector::Simple),
             simple_multi_rows: selector(FusedMatmulSelector::SimpleMultiRows),
             double_buffering: selector(FusedMatmulSelector::DoubleBuffering),
@@ -568,7 +566,7 @@ fn line_size_overrides<R: Runtime, A: Algorithm>(
 }
 
 pub(crate) trait MatmulVariantSelection {
-    fn select<'a>(variants: &'a MatmulVariants) -> &'a FusedMatmul;
+    fn select(variants: &MatmulVariants) -> &FusedMatmul;
 }
 
 pub(crate) struct Simple;
@@ -580,43 +578,43 @@ pub(crate) struct Ordered1;
 pub(crate) struct Ordered2;
 
 impl MatmulVariantSelection for Simple {
-    fn select<'a>(variants: &'a MatmulVariants) -> &'a FusedMatmul {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
         &variants.simple
     }
 }
 
 impl MatmulVariantSelection for SimpleUnit {
-    fn select<'a>(variants: &'a MatmulVariants) -> &'a FusedMatmul {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
         &variants.simple_unit
     }
 }
 
 impl MatmulVariantSelection for SimpleMultiRows {
-    fn select<'a>(variants: &'a MatmulVariants) -> &'a FusedMatmul {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
         &variants.simple_multi_rows
     }
 }
 
 impl MatmulVariantSelection for DoubleBuffering {
-    fn select<'a>(variants: &'a MatmulVariants) -> &'a FusedMatmul {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
         &variants.double_buffering
     }
 }
 
 impl MatmulVariantSelection for Specialized {
-    fn select<'a>(variants: &'a MatmulVariants) -> &'a FusedMatmul {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
         &variants.specialized
     }
 }
 
 impl MatmulVariantSelection for Ordered1 {
-    fn select<'a>(variants: &'a MatmulVariants) -> &'a FusedMatmul {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
         &variants.ordered_1
     }
 }
 
 impl MatmulVariantSelection for Ordered2 {
-    fn select<'a>(variants: &'a MatmulVariants) -> &'a FusedMatmul {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
         &variants.ordered_2
     }
 }
