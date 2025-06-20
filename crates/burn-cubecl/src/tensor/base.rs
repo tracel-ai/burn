@@ -8,7 +8,7 @@ use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
 use cubecl::prelude::{TensorHandleRef, *};
 use cubecl::server::Handle;
-use cubecl_std::tensor::TensorHandle;
+use cubecl::std::tensor::TensorHandle;
 use std::marker::PhantomData;
 
 /// The basic tensor primitive struct.

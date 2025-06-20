@@ -1,5 +1,5 @@
+use cubecl::std::{FastDivmod, FastDivmodArgs};
 use cubecl::{prelude::SequenceArg, std::tensor::StridedLayoutArgs};
-use cubecl_std::{FastDivmod, FastDivmodArgs};
 
 use crate::{CubeRuntime, tensor::CubeTensor};
 
