@@ -56,6 +56,9 @@ impl RunnerClient for WsClient {
     ) -> RouterTensor<Self> {
         let id = self.sender.new_tensor_id();
 
+        self.sender
+            .send(ComputeTask::RegisterEmptyTensor(id, shape.clone(), dtype));
+
         RouterTensor::new(id, shape, dtype, self.clone())
     }
 
@@ -153,6 +156,9 @@ impl RemoteTensorHandle {
     /// to download the data.
     /// This way the client never sees the tensor's data, and we avoid a bottleneck.
     pub(crate) fn change_backend(mut self, target_device: &WsDevice) -> Self {
+        if self.client.device == *target_device {
+            return self;
+        }
         self.client.sender.send(ComputeTask::ExposeTensorRemote {
             tensor: self.tensor.clone(),
             count: 1,

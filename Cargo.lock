@@ -808,6 +808,7 @@ dependencies = [
  "rmp-serde",
  "serde",
  "serde_bytes",
+ "serial_test",
  "tokio",
  "tokio-tungstenite",
  "tracing-core",
