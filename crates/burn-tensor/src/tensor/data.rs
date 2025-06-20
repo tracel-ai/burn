@@ -659,11 +659,8 @@ impl TensorData {
     /// If any value is not within the half-open range bounded inclusively below
     /// and exclusively above (`start..end`).
     pub fn assert_within_range<E: Element>(&self, range: core::ops::Range<E>) {
-        let start = range.start.elem::<f32>();
-        let end = range.end.elem::<f32>();
-
-        for elem in self.iter::<f32>() {
-            if elem < start || elem >= end {
+        for elem in self.iter::<E>() {
+            if elem.cmp(&range.start).is_lt() || elem.cmp(&range.end).is_ge() {
                 panic!("Element ({elem:?}) is not within range {range:?}");
             }
         }
@@ -679,11 +676,11 @@ impl TensorData {
     ///
     /// If any value is not within the half-open range bounded inclusively (`start..=end`).
     pub fn assert_within_range_inclusive<E: Element>(&self, range: core::ops::RangeInclusive<E>) {
-        let start = range.start().elem::<f32>();
-        let end = range.end().elem::<f32>();
+        let start = range.start();
+        let end = range.end();
 
-        for elem in self.iter::<f32>() {
-            if elem < start || elem > end {
+        for elem in self.iter::<E>() {
+            if elem.cmp(start).is_lt() || elem.cmp(end).is_gt() {
                 panic!("Element ({elem:?}) is not within range {range:?}");
             }
         }
