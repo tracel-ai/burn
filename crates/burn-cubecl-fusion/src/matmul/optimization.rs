@@ -575,7 +575,7 @@ pub(crate) struct Simple;
 pub(crate) struct SimpleUnit;
 pub(crate) struct SimpleMultiRows;
 pub(crate) struct DoubleBuffering;
-// pub(crate) struct Specialized;
+pub(crate) struct Specialized;
 pub(crate) struct Ordered1;
 pub(crate) struct Ordered2;
 
@@ -603,11 +603,11 @@ impl MatmulVariantSelection for DoubleBuffering {
     }
 }
 
-// impl MatmulVariantSelection for Specialized {
-//     fn select<'a>(variants: &'a MatmulVariants) -> &'a FusedMatmul {
-//         &variants.specialized
-//     }
-// }
+impl MatmulVariantSelection for Specialized {
+    fn select<'a>(variants: &'a MatmulVariants) -> &'a FusedMatmul {
+        &variants.specialized
+    }
+}
 
 impl MatmulVariantSelection for Ordered1 {
     fn select<'a>(variants: &'a MatmulVariants) -> &'a FusedMatmul {

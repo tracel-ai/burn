@@ -1,7 +1,7 @@
 use crate::{
     CubeFusionHandle,
     matmul::optimization::{
-        DoubleBuffering, Ordered1, Ordered2, Simple, SimpleMultiRows, SimpleUnit,
+        DoubleBuffering, Ordered1, Ordered2, Simple, SimpleMultiRows, SimpleUnit, Specialized,
     },
     shared::trace::TuneOutput,
     tune::{TuneContext, TuneInput},
@@ -39,14 +39,9 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
         .with_tunable(tune_fused::<R, BT, SimpleMultiRows>)
         .with_tunable(tune_fused::<R, BT, Ordered1>)
         .with_tunable(tune_fused::<R, BT, Ordered2>)
-        // Create a bug on nvidia with ressources allocation.
-        //
-        // TODO: Proper error handling in cubecl runtimes to not panic on such error and simply
-        // ignore an autotune entry instead.
-        //
-        // .with_tunable_optional(tune_fused::<R, BT, Specialized>, |key| {
-        //     should_tune_double_buffering(key.num_out_buffers > 1, &key.matmul_key)
-        // })
+        .with_tunable_optional(tune_fused::<R, BT, Specialized>, |key| {
+            should_tune_double_buffering(key.num_out_buffers > 1, &key.matmul_key)
+        })
         .with_tunable_optional(tune_fused::<R, BT, DoubleBuffering>, |key| {
             should_tune_double_buffering(key.num_out_buffers > 1, &key.matmul_key)
         });
