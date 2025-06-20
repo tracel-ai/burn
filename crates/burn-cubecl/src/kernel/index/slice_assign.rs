@@ -1,6 +1,6 @@
 use crate::{CubeRuntime, element::CubeElement, tensor::CubeTensor};
+use cubecl::std::{FastDivmod, FastDivmodArgs};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
-use cubecl_std::{FastDivmod, FastDivmodArgs};
 use std::ops::Range;
 
 #[cube(launch_unchecked)]

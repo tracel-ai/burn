@@ -3,7 +3,7 @@ use cubecl::{
     calculate_cube_count_elemwise, convolution::ConvLaunchError, prelude::*,
     std::tensor::StridedLayout, tensor_line_size_parallel,
 };
-use cubecl_std::{CubeOption, CubeOptionExpand, FastDivmod};
+use cubecl::std::{CubeOption, CubeOptionExpand, FastDivmod};
 
 use crate::{
     CubeElement, CubeRuntime,

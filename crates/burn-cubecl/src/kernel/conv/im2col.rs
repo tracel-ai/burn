@@ -10,7 +10,7 @@ use cubecl::{
     prelude::*,
     std::tensor::{TensorHandle, into_contiguous_pitched},
 };
-use cubecl_std::{FastDivmod, FastDivmodArgs};
+use cubecl::std::{FastDivmod, FastDivmodArgs};
 
 use crate::{
     CubeElement, CubeRuntime, FloatElement,
