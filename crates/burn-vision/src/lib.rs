@@ -14,6 +14,10 @@ extern crate alloc;
 
 /// Backend implementations for JIT and CPU
 pub mod backends;
+
+/// Image layers for burn-vision
+pub mod layers;
+
 mod base;
 mod ops;
 mod tensor;
