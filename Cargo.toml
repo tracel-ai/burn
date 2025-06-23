@@ -109,7 +109,6 @@ chrono = "0.4.39"
 os_info = "3.10.0"
 wsl = "0.1.0"
 
-# TODO: update to official 2.0 release once MSRV is bumped to 1.85
 bincode = { version = "2.0.1", features = [
     "alloc",
     "serde",
@@ -122,7 +121,7 @@ cfg-if = "1.0.1"
 derive-new = { version = "0.7.0", default-features = false }
 
 blas-src = { version = "0.11.1", default-features = false }
-bon = "3.6.2"
+bon = "3.6.4"
 half = { version = "2.6.0", features = [
     "alloc",
     "num-traits",
@@ -134,7 +133,7 @@ ndarray = { version = "0.16.1", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
-openblas-src = "0.10.11"
+openblas-src = "0.10.12"
 rand = { version = "0.9.1", default-features = false, features = [
     "std_rng",
 ] } # std_rng is for no_std
@@ -160,15 +159,12 @@ portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 ### For the main burn branch. ###
 cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f2c896ec67d77753e0fe3e2b457db88e05299389" }
 cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f2c896ec67d77753e0fe3e2b457db88e05299389" }
-cubecl-std = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f2c896ec67d77753e0fe3e2b457db88e05299389" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
-# cubecl-std = { path = "../cubecl/crates/cubecl-std", default-features = false }
 ### For the release. ###
 # cubecl = { version = "0.5.0", default-features = false }
 # cubecl-common = { version = "0.5.0", default-features = false }
-# cubecl-std = { version = "0.5.0", default-features = false }
 
 ### For xtask crate ###
 tracel-xtask = { version = "=1.1.9" }

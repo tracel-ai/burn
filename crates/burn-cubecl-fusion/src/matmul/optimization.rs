@@ -36,8 +36,8 @@ use cubecl::matmul::kernels::matmul::simple::SimpleAlgorithm;
 use cubecl::matmul::kernels::matmul::simple::SimpleArgs;
 use cubecl::matmul::kernels::matmul::simple_unit::SimpleUnitAlgorithm;
 use cubecl::matmul::kernels::{MatmulAvailabilityError, MatmulSetupError};
+use cubecl::std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
-use cubecl_std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
