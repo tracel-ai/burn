@@ -22,8 +22,8 @@ use cubecl::matmul::kernels::matmul::double_buffering::CyclicDoubleBufferingAlgo
 use cubecl::matmul::kernels::matmul::launch_kernel_virtual;
 use cubecl::matmul::kernels::matmul::simple::SimpleAlgorithm;
 use cubecl::matmul::kernels::{MatmulAvailabilityError, MatmulSetupError};
+use cubecl::std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
-use cubecl_std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
