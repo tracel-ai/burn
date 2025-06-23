@@ -328,10 +328,10 @@ jobs:
           mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
       # --------------------------------------------------------------------------------
       - name: Crates Build
-        run: cargo xtask --execution-environment no-std build --ci
+        run: cargo xtask --context no-std build --ci
       # --------------------------------------------------------------------------------
       - name: Crates Tests
-        run: cargo xtask --execution-environment no-std test --release --ci github-runner
+        run: cargo xtask --context no-std test --release --ci github-runner
 
   windows-std-tests:
     runs-on: windows-2022
