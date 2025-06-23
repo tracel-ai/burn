@@ -288,7 +288,7 @@ jobs:
           cargo xtask coverage install
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask ${{ matrix.coverage }} test --ci github-runner
+        run: cargo xtask ${{ matrix.coverage }} test --release --ci github-runner
       # --------------------------------------------------------------------------------
       - name: Generate lcov.info
         if: matrix.rust == 'stable'
@@ -331,7 +331,7 @@ jobs:
         run: cargo xtask --execution-environment no-std build --ci
       # --------------------------------------------------------------------------------
       - name: Crates Tests
-        run: cargo xtask --execution-environment no-std test --ci github-runner
+        run: cargo xtask --execution-environment no-std test --release --ci github-runner
 
   windows-std-tests:
     runs-on: windows-2022
@@ -362,7 +362,7 @@ jobs:
           warp-version: ${{ env.WARP_VERSION }}
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask test --ci github-runner
+        run: cargo xtask test --release --ci github-runner
 
   macos-std-tests:
     runs-on: blaze/macos-14
@@ -382,4 +382,4 @@ jobs:
           cache-key: ${{ matrix.rust }}-macos
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: CUBECL_DEBUG_OPTION=profile cargo xtask test --ci github-runner
+        run: CUBECL_DEBUG_OPTION=profile cargo xtask test --release --ci github-runner
