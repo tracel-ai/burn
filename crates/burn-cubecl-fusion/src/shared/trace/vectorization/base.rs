@@ -36,6 +36,7 @@ impl Vect {
 #[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub struct LineSizeOverrides {
     state: Option<BTreeMap<TensorId, Vec<u8>>>,
+    default: Option<Vec<u8>>,
 }
 
 impl LineSizeOverrides {
@@ -50,6 +51,9 @@ impl LineSizeOverrides {
 
         map.insert(*tensor_id, line_sizes);
     }
+    pub fn overrides_default(&mut self, line_sizes: Vec<u8>) {
+        self.default = Some(line_sizes);
+    }
 
     pub fn mapping<R: Runtime>(&self, context: &Context<'_, CubeFusionHandle<R>>) -> Self {
         match &self.state {
@@ -63,19 +67,32 @@ impl LineSizeOverrides {
 
                 Self {
                     state: Some(state_new),
+                    default: self.default.clone(),
                 }
             }
-            None => Self::default(),
+            None => Self {
+                state: None,
+                default: self.default.clone(),
+            },
         }
     }
 
     pub fn tensor(&self, tensor_id: &TensorId) -> Option<&Vec<u8>> {
         let map = match &self.state {
             Some(val) => val,
-            None => return None,
+            None => match &self.default {
+                Some(val) => return Some(val),
+                None => return None,
+            },
         };
 
-        map.get(tensor_id)
+        match map.get(tensor_id) {
+            Some(val) => Some(val),
+            None => match &self.default {
+                Some(val) => return Some(val),
+                None => return None,
+            },
+        }
     }
 }
 

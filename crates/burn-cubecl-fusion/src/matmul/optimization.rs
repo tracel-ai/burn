@@ -562,6 +562,7 @@ fn line_size_overrides<R: Runtime, A: Algorithm>(
     let mut line_size_overrides = LineSizeOverrides::default();
     line_size_overrides.overrides(&lhs_id, available_line_sizes_filtered.lhs);
     line_size_overrides.overrides(&rhs_id, available_line_sizes_filtered.rhs);
+    line_size_overrides.overrides_default(available_line_sizes_filtered.out);
 
     line_size_overrides
 }
