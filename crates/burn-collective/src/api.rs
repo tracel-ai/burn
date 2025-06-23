@@ -1,4 +1,5 @@
-use burn_tensor::{Tensor, backend::Backend};
+use burn_ir::BackendIr;
+use burn_tensor::Tensor;
 use serde::{Deserialize, Serialize};
 
 use crate::local_server::{LocalCollectiveClient, get_collective_client};
@@ -17,6 +18,9 @@ pub enum AggregateKind {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct GlobalAggregateParams;
+
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct AggregateParams {
     pub kind: AggregateKind,
     pub strategy: AggregateStrategy,
@@ -26,6 +30,8 @@ pub struct AggregateParams {
 pub struct GlobalRegisterParams {
     pub num_nodes: u32,
     pub server_address: String,
+    pub client_address: String,
+    pub client_data_port: u16,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -35,21 +41,21 @@ pub struct RegisterParams {
 }
 
 /// Resets the local collective server. All registered callers and ongoing operations are forgotten
-pub fn reset_collective<B: Backend>() {
+pub fn reset_collective<B: BackendIr>() {
     let client = get_collective_client::<B>();
     client.reset();
 }
 
 /// Registers a "node". `num_nodes` must be the same as the other calls to register,
 /// and `id` must be unique.
-pub fn register<B: Backend>(id: u32, params: RegisterParams) {
+pub fn register<B: BackendIr>(id: u32, params: RegisterParams) {
     let client = get_collective_client::<B>();
     client.register(id, params);
 }
 
 /// Calls for an all-reduce operation with the given parameters, and returns the result.
 /// The `params` must be the same as the parameters passed by the other nodes.
-pub fn all_reduce<B: Backend, const D: usize>(
+pub fn all_reduce<B: BackendIr, const D: usize>(
     tensor: Tensor<B, D>,
     params: AggregateParams,
 ) -> Tensor<B, D> {

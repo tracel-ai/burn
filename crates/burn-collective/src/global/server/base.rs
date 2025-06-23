@@ -15,7 +15,7 @@ use tracing_subscriber::{
     Layer, filter::filter_fn, layer::SubscriberExt, registry, util::SubscriberInitExt,
 };
 
-use crate::global::{server::state::GlobalCollectiveState, shared::{Message}};
+use crate::global::{server::state::GlobalCollectiveState, shared::Message};
 
 #[derive(Clone)]
 struct GlobalCollectiveServer {
@@ -136,15 +136,14 @@ impl GlobalCollectiveServer {
                 let mut state = self.state.lock().await;
 
                 match rmp_serde::from_slice::<Message>(&bytes) {
-                    Ok(val) => {
-                        match val {
-                            Message::Init(id) => {
-                                session_id = Some(id);
-                            },
-                            Message::Request(request_id, remote_request) => {
-                                let session_id = session_id.expect("Must init session before requesting operations!");
-                                state.process(session_id, request_id, remote_request).await;
-                            },
+                    Ok(val) => match val {
+                        Message::Init(id) => {
+                            session_id = Some(id);
+                        }
+                        Message::Request(request_id, remote_request) => {
+                            let session_id = session_id
+                                .expect("Must init session before requesting operations!");
+                            state.process(session_id, request_id, remote_request).await;
                         }
                     },
                     Err(err) => {

@@ -1,5 +1,5 @@
-pub mod local_server;
 pub mod centralized;
+pub mod local_server;
 pub mod ring;
 pub mod tree;
 

@@ -7,11 +7,16 @@ use std::{
     },
 };
 
+use burn_ir::BackendIr;
 use burn_tensor::backend::Backend;
 use tokio::runtime::Builder;
 
 use crate::{
-    centralized::all_reduce_centralized, global::{client::base::GlobalCollectiveClient, shared::NodeId}, ring::all_reduce_ring, tree::all_reduce_tree, AggregateParams, AggregateStrategy, RegisterParams
+    AggregateParams, AggregateStrategy, GlobalAggregateParams, RegisterParams,
+    centralized::all_reduce_centralized,
+    global::{client::base::GlobalCollectiveClient, shared::NodeId},
+    ring::all_reduce_ring,
+    tree::all_reduce_tree,
 };
 
 /// The local collective server that manages all the collective aggregation operations
@@ -19,7 +24,7 @@ use crate::{
 /// This thread takes in messages from different clients. The clients must register, than they can
 /// send an aggregate message. They must all use the same parameters for the same aggregate
 /// operation.
-pub struct LocalCollectiveServer<B: Backend> {
+pub struct LocalCollectiveServer<B: BackendIr> {
     /// Channel receiver for messages from clients
     message_rec: Receiver<Message<B>>,
 
@@ -41,7 +46,7 @@ pub struct LocalCollectiveServer<B: Backend> {
 }
 
 #[derive(Debug)]
-pub(crate) enum Message<B: Backend> {
+pub(crate) enum Message<B: BackendIr> {
     Aggregate {
         tensor: B::FloatTensorPrimitive,
         params: AggregateParams,
@@ -56,13 +61,13 @@ pub(crate) enum Message<B: Backend> {
 }
 
 #[derive(Clone)]
-pub(crate) struct LocalCollectiveClient<B: Backend> {
+pub(crate) struct LocalCollectiveClient<B: BackendIr> {
     channel: SyncSender<Message<B>>,
 }
 
 static STATE: Mutex<Option<HashMap<TypeId, Box<dyn Any + Send + Sync>>>> = Mutex::new(None);
 
-pub(crate) fn get_collective_client<B: Backend>() -> LocalCollectiveClient<B> {
+pub(crate) fn get_collective_client<B: BackendIr>() -> LocalCollectiveClient<B> {
     let mut state = STATE.lock().unwrap();
 
     if state.is_none() {
@@ -84,7 +89,7 @@ pub(crate) fn get_collective_client<B: Backend>() -> LocalCollectiveClient<B> {
     val.downcast_ref().cloned().unwrap()
 }
 
-impl<B: Backend> LocalCollectiveClient<B> {
+impl<B: BackendIr> LocalCollectiveClient<B> {
     pub fn reset(&self) {
         self.channel.send(Message::Reset).unwrap();
     }
@@ -125,7 +130,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
     }
 }
 
-impl<B: Backend> LocalCollectiveServer<B> {
+impl<B: BackendIr> LocalCollectiveServer<B> {
     fn new(rec: Receiver<Message<B>>) -> Self {
         Self {
             message_rec: rec,
@@ -145,19 +150,16 @@ impl<B: Backend> LocalCollectiveServer<B> {
 
         let client = LocalCollectiveClient { channel: sender };
 
-        let rt = Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
+        let rt = Builder::new_current_thread().enable_all().build().unwrap();
 
         let _handle = std::thread::spawn(move || {
             rt.block_on(async {
                 let mut aggregator = LocalCollectiveServer::new(rec);
-    
+
                 while let Ok(message) = aggregator.message_rec.recv() {
                     aggregator.process_message(message).await;
                 }
-    
+
                 log::debug!("Aggregator message failed");
             })
         });
@@ -171,7 +173,10 @@ impl<B: Backend> LocalCollectiveServer<B> {
                 tensor,
                 params,
                 callback,
-            } => self.process_aggregate_message(tensor, params, callback).await,
+            } => {
+                self.process_aggregate_message(tensor, params, callback)
+                    .await
+            }
             Message::Register {
                 id,
                 params,
@@ -234,7 +239,11 @@ impl<B: Backend> LocalCollectiveServer<B> {
         self.callbacks_register.push(callback);
 
         if let Some(global_params) = &params.global_params {
-            let client = GlobalCollectiveClient::new(global_params.server_address.clone());
+            let client = GlobalCollectiveClient::new(
+                &global_params.server_address,
+                &global_params.client_address,
+                global_params.client_data_port,
+            );
             self.global_client = Some(client)
         }
 
@@ -269,8 +278,11 @@ impl<B: Backend> LocalCollectiveServer<B> {
             AggregateStrategy::Ring => all_reduce_ring::<B>(&mut self.tensors, kind),
         };
 
-        if let Some(global_client) = &self.global_client {
-            global_client.aggregate(outs.first().unwrap().clone()).await;
+        if let Some(global_client) = &mut self.global_client {
+            let tensor = &outs[0];
+            let params = GlobalAggregateParams;
+            let device = B::float_device(tensor);
+            global_client.aggregate(tensor, params, &device).await;
         }
 
         // Callbacks return results
