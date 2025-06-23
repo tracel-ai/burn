@@ -134,7 +134,7 @@ ndarray = { version = "0.16.1", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
-openblas-src = "0.10.11"
+openblas-src = "0.10.12"
 rand = { version = "0.9.1", default-features = false, features = [
     "std_rng",
 ] } # std_rng is for no_std
