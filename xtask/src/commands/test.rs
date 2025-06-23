@@ -19,10 +19,11 @@ pub enum CiTestType {
 
 pub(crate) fn handle_command(
     mut args: BurnTestCmdArgs,
-    exec_env: ExecutionEnvironment,
+    env: Environment,
+    context: Context,
 ) -> anyhow::Result<()> {
-    match exec_env {
-        ExecutionEnvironment::NoStd => {
+    match context {
+        Context::NoStd => {
             ["Default"].iter().try_for_each(|test_target| {
                 let mut test_args = vec!["--no-default-features"];
                 if *test_target != "Default" {
@@ -38,7 +39,7 @@ pub(crate) fn handle_command(
             })?;
             Ok(())
         }
-        ExecutionEnvironment::Std => {
+        Context::Std => {
             let disable_wgpu = std::env::var("DISABLE_WGPU")
                 .map(|val| val == "1" || val == "true")
                 .unwrap_or(false);
@@ -80,7 +81,7 @@ pub(crate) fn handle_command(
             }
 
             // test workspace
-            base_commands::test::handle_command(args.clone().try_into().unwrap())?;
+            base_commands::test::handle_command(args.clone().try_into().unwrap(), env, context)?;
 
             // Specific additional commands to test specific features
             if args.ci == CiTestType::GithubRunner {
@@ -177,10 +178,10 @@ pub(crate) fn handle_command(
 
             Ok(())
         }
-        ExecutionEnvironment::All => ExecutionEnvironment::value_variants()
+        Context::All => Context::value_variants()
             .iter()
-            .filter(|env| **env != ExecutionEnvironment::All)
-            .try_for_each(|env| {
+            .filter(|ctx| **ctx != Context::All)
+            .try_for_each(|ctx| {
                 handle_command(
                     BurnTestCmdArgs {
                         command: args.command.clone(),
@@ -192,8 +193,13 @@ pub(crate) fn handle_command(
                         ci: args.ci.clone(),
                         features: args.features.clone(),
                         no_default_features: args.no_default_features,
+                        release: args.release,
+                        test: args.test.clone(),
+                        force: args.force,
+                        no_capture: args.no_capture,
                     },
                     env.clone(),
+                    ctx.clone(),
                 )
             }),
     }
