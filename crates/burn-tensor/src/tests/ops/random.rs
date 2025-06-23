@@ -12,10 +12,12 @@ mod tests {
 
         // check that the tensor is within the range of [0..1) (1 is exclusive)
         // the conversion can ceil the value if `FloatType` is less precise than f32
+        let low = 0.elem::<FloatType>();
+        let high = 1.elem::<FloatType>();
         if FloatType::EPSILON.to_f32() > f32::EPSILON {
-            tensor.into_data().assert_within_range_inclusive(0.0..=1.0);
+            tensor.into_data().assert_within_range_inclusive(low..=high);
         } else {
-            tensor.into_data().assert_within_range(0.0..1.0);
+            tensor.into_data().assert_within_range(low..high);
         }
     }
 
@@ -23,11 +25,13 @@ mod tests {
     fn rand_uniform() {
         let tensor =
             TestTensor::<1>::random([20], Distribution::Uniform(4., 5.), &Default::default());
+        let low = 4.elem::<FloatType>();
+        let high = 5.elem::<FloatType>();
 
         if FloatType::EPSILON.to_f32() > f32::EPSILON {
-            tensor.into_data().assert_within_range_inclusive(4.0..=5.0);
+            tensor.into_data().assert_within_range_inclusive(low..=high);
         } else {
-            tensor.into_data().assert_within_range(4.0..5.0);
+            tensor.into_data().assert_within_range(low..high);
         }
     }
 
