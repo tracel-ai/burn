@@ -9,7 +9,10 @@ use crate::{
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
-    matmul::tune_key::{MatmulAutotuneKey, should_tune_double_buffering},
+    matmul::{
+        components::MatmulKind,
+        tune_key::{MatmulAutotuneKey, should_tune_double_buffering},
+    },
     tune::{LocalTuner, TunableSet, local_tuner},
 };
 use serde::{Deserialize, Serialize};
@@ -35,10 +38,18 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
     let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
         .with_tunable(tune_fallback::<R, BT>) // First one should always work.
         .with_tunable(tune_fused::<R, BT, SimpleUnit>)
-        .with_tunable(tune_fused::<R, BT, Simple>)
-        .with_tunable(tune_fused::<R, BT, SimpleMultiRows>)
-        .with_tunable(tune_fused::<R, BT, Ordered1>)
-        .with_tunable(tune_fused::<R, BT, Ordered2>)
+        .with_tunable_optional(tune_fused::<R, BT, Simple>, |key| {
+            matches!(key.matmul_key.analysis.kind, MatmulKind::General)
+        })
+        .with_tunable_optional(tune_fused::<R, BT, SimpleMultiRows>, |key| {
+            matches!(key.matmul_key.analysis.kind, MatmulKind::General)
+        })
+        .with_tunable_optional(tune_fused::<R, BT, Ordered1>, |key| {
+            matches!(key.matmul_key.analysis.kind, MatmulKind::General)
+        })
+        .with_tunable_optional(tune_fused::<R, BT, Ordered2>, |key| {
+            matches!(key.matmul_key.analysis.kind, MatmulKind::General)
+        })
         .with_tunable_optional(tune_fused::<R, BT, Specialized>, |key| {
             should_tune_double_buffering(key.num_out_buffers > 1, &key.matmul_key)
         })
