@@ -93,7 +93,7 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v2
+        uses: tracel-ai/github-actions/setup-rust@v3
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -113,7 +113,7 @@ jobs:
         run: cargo xtask check lint
       # --------------------------------------------------------------------------------
       - name: Typos
-        uses: tracel-ai/github-actions/check-typos@v1
+        uses: tracel-ai/github-actions/check-typos@v3
 
   documentation:
     runs-on: ubuntu-22.04
@@ -126,7 +126,7 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v2
+        uses: tracel-ai/github-actions/setup-rust@v3
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -212,7 +212,7 @@ jobs:
   #           toolchain: stable
   #   steps:
   #     - name: Setup Rust
-  #       uses: tracel-ai/github-actions/setup-rust@v2
+  #       uses: tracel-ai/github-actions/setup-rust@v3
   #       with:
   #         rust-toolchain: ${{ matrix.toolchain }}
   #         enable-cache: false
@@ -238,7 +238,7 @@ jobs:
   #           toolchain: stable
   #   steps:
   #     - name: Setup Rust
-  #       uses: tracel-ai/github-actions/setup-rust@v2
+  #       uses: tracel-ai/github-actions/setup-rust@v3
   #       with:
   #         rust-toolchain: ${{ matrix.toolchain }}
   #         enable-cache: false
@@ -264,7 +264,7 @@ jobs:
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v2
+        uses: tracel-ai/github-actions/setup-rust@v3
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -272,7 +272,7 @@ jobs:
           enable-cache: ${{ matrix.rust != 'stable' }}
       # --------------------------------------------------------------------------------
       - name: Setup Linux runner
-        uses: tracel-ai/github-actions/setup-linux@v2
+        uses: tracel-ai/github-actions/setup-linux@v3
         with:
           vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
           mesa-version: ${{ env.MESA_VERSION }}
@@ -315,13 +315,13 @@ jobs:
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v2
+        uses: tracel-ai/github-actions/setup-rust@v3
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux-no-std
       # --------------------------------------------------------------------------------
       - name: Setup Linux runner
-        uses: tracel-ai/github-actions/setup-linux@v2
+        uses: tracel-ai/github-actions/setup-linux@v3
         with:
           vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
           mesa-version: ${{ env.MESA_VERSION }}
@@ -347,14 +347,14 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v2
+        uses: tracel-ai/github-actions/setup-rust@v3
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-windows
       # --------------------------------------------------------------------------------
       - name: Setup Windows runner
         if: env.DISABLE_WGPU != '1'
-        uses: tracel-ai/github-actions/setup-windows@v1
+        uses: tracel-ai/github-actions/setup-windows@v3
         with:
           dxc-release: ${{ env.DXC_RELEASE }}
           dxc-filename: ${{ env.DXC_FILENAME }}
@@ -376,7 +376,7 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v2
+        uses: tracel-ai/github-actions/setup-rust@v3
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-macos
