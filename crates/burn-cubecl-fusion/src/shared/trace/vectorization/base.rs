@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::{Runtime, ir::Elem};
 use serde::{Deserialize, Serialize};
@@ -48,6 +49,24 @@ impl LineSizeOverrides {
         };
 
         map.insert(*tensor_id, line_sizes);
+    }
+
+    pub fn mapping<R: Runtime>(&self, context: &Context<'_, CubeFusionHandle<R>>) -> Self {
+        match &self.state {
+            Some(state) => {
+                let mut state_new = BTreeMap::new();
+
+                for (k, v) in state.iter() {
+                    let global = context.tensors.get(k).unwrap();
+                    state_new.insert(global.id, v.clone());
+                }
+
+                Self {
+                    state: Some(state_new),
+                }
+            }
+            None => Self::default(),
+        }
     }
 
     pub fn tensor(&self, tensor_id: &TensorId) -> Option<&Vec<u8>> {

@@ -266,6 +266,7 @@ impl<R: Runtime> Vectorization<R> for FusedMatmul {
     #[allow(clippy::too_many_arguments)]
     fn vectorization<'a>(
         &self,
+        context: &Context<'_, CubeFusionHandle<R>>,
         vectorizations: &mut BTreeMap<TensorId, Vect>,
         handles_inputs: impl Iterator<Item = &'a CubeFusionHandle<R>>,
         inputs: impl Iterator<Item = &'a TensorIr>,
@@ -285,7 +286,7 @@ impl<R: Runtime> Vectorization<R> for FusedMatmul {
                 reshaped,
                 swapped,
                 ref_elem,
-                line_size_overrides,
+                &line_size_overrides.mapping(context),
                 max,
                 axis,
             ),

@@ -96,6 +96,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             .collect::<Vec<_>>();
 
         runner.vectorization(
+            context,
             &mut plan.vectorizations,
             plan.handle_inputs
                 .iter()

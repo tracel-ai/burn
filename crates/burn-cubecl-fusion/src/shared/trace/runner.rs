@@ -3,6 +3,7 @@ use super::{
     vectorization::{Vect, vectorization_default},
 };
 use crate::CubeFusionHandle;
+use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::{ir::Elem, prelude::*};
 use std::collections::BTreeMap;
@@ -35,6 +36,7 @@ pub trait Vectorization<R: Runtime> {
     #[allow(clippy::too_many_arguments)]
     fn vectorization<'a>(
         &self,
+        _context: &Context<'_, CubeFusionHandle<R>>,
         vectorizations: &mut BTreeMap<TensorId, Vect>,
         handles_inputs: impl Iterator<Item = &'a CubeFusionHandle<R>>,
         inputs: impl Iterator<Item = &'a TensorIr>,
