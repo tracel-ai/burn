@@ -89,8 +89,8 @@ impl LineSizeOverrides {
         match map.get(tensor_id) {
             Some(val) => Some(val),
             None => match &self.default {
-                Some(val) => return Some(val),
-                None => return None,
+                Some(val) => Some(val),
+                None => None,
             },
         }
     }
