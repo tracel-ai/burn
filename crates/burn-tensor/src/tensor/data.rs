@@ -12,6 +12,7 @@ use crate::{
     DType, Distribution, Element, ElementConversion,
     quantization::{QuantInputType, QuantScheme, QuantizationStrategy, QuantizedBytes},
     tensor::bytes::Bytes,
+    tensor::element::{Complex32, Complex64},
 };
 
 use rand::RngCore;
@@ -107,6 +108,12 @@ impl TensorData {
                         .map_err(DataError::CastError)?;
                     Ok(unsafe { core::mem::transmute::<&[u8], &[E]>(slice) })
                 }
+                DType::Complex32 => {
+                    bytemuck::checked::try_cast_slice(&self.bytes).map_err(DataError::CastError)
+                }
+                DType::Complex64 => {
+                    bytemuck::checked::try_cast_slice(&self.bytes).map_err(DataError::CastError)
+                }
                 _ => bytemuck::checked::try_cast_slice(&self.bytes).map_err(DataError::CastError),
             }
         } else {
@@ -133,6 +140,10 @@ impl TensorData {
                         .map_err(DataError::CastError)?;
                     Ok(unsafe { core::mem::transmute::<&mut [u8], &mut [E]>(slice) })
                 }
+                DType::Complex32 => bytemuck::checked::try_cast_slice_mut(&mut self.bytes)
+                    .map_err(DataError::CastError),
+                DType::Complex64 => bytemuck::checked::try_cast_slice_mut(&mut self.bytes)
+                    .map_err(DataError::CastError),
                 _ => bytemuck::checked::try_cast_slice_mut(&mut self.bytes)
                     .map_err(DataError::CastError),
             }
@@ -169,6 +180,8 @@ impl TensorData {
                 let vec = self.into_vec_unchecked::<u8>()?;
                 Ok(unsafe { core::mem::transmute::<Vec<u8>, Vec<E>>(vec) })
             }
+            DType::Complex32 => self.into_vec_unchecked(),
+            DType::Complex64 => self.into_vec_unchecked(),
             _ => self.into_vec_unchecked(),
         }
     }
@@ -251,6 +264,16 @@ impl TensorData {
                 ),
                 // bool is a byte value equal to either 0 or 1
                 DType::Bool => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
+                DType::Complex32 => Box::new(
+                    bytemuck::checked::cast_slice(&self.bytes)
+                        .iter()
+                        .map(|e: &Complex32| e.elem::<E>()),
+                ),
+                DType::Complex64 => Box::new(
+                    bytemuck::checked::cast_slice(&self.bytes)
+                        .iter()
+                        .map(|e: &Complex64| e.elem::<E>()),
+                ),
                 DType::QFloat(scheme) => match scheme {
                     QuantScheme {
                         level: QuantLevel::Tensor,
@@ -369,6 +392,8 @@ impl TensorData {
                 DType::U32 => self.convert_inplace_dtype::<u32>(dtype),
                 DType::U16 => self.convert_inplace_dtype::<u16>(dtype),
                 DType::U8 => self.convert_inplace_dtype::<u8>(dtype),
+                DType::Complex32 => self.convert_inplace_dtype::<Complex32>(dtype),
+                DType::Complex64 => self.convert_inplace_dtype::<Complex64>(dtype),
                 DType::Bool | DType::QFloat(_) => unreachable!(),
             }
         } else {
@@ -386,6 +411,8 @@ impl TensorData {
                 DType::U16 => self.convert_clone_dtype::<u16>(dtype),
                 DType::U8 => self.convert_clone_dtype::<u8>(dtype),
                 DType::Bool => self.convert_clone_dtype::<bool>(dtype),
+                DType::Complex32 => self.convert_clone_dtype::<Complex32>(dtype),
+                DType::Complex64 => self.convert_clone_dtype::<Complex64>(dtype),
                 DType::QFloat(_) => unreachable!(),
             }
         }
@@ -405,6 +432,8 @@ impl TensorData {
             DType::U32 => self.convert_inplace::<Current, u32>(),
             DType::U16 => self.convert_inplace::<Current, u16>(),
             DType::U8 => self.convert_inplace::<Current, u8>(),
+            DType::Complex32 => self.convert_inplace::<Current, Complex32>(),
+            DType::Complex64 => self.convert_inplace::<Current, Complex64>(),
             DType::Bool | DType::QFloat(_) => unreachable!(),
         }
     }
@@ -438,6 +467,8 @@ impl TensorData {
             DType::U16 => self.convert_clone::<Current, u16>(),
             DType::U8 => self.convert_clone::<Current, u8>(),
             DType::Bool => self.convert_clone::<Current, bool>(),
+            DType::Complex32 => self.convert_clone::<Current, Complex32>(),
+            DType::Complex64 => self.convert_clone::<Current, Complex64>(),
             DType::QFloat(_) => unreachable!(),
         }
     }
@@ -535,6 +566,8 @@ impl TensorData {
             DType::U16 => self.assert_eq_elem::<u16>(other),
             DType::U8 => self.assert_eq_elem::<u8>(other),
             DType::Bool => self.assert_eq_elem::<bool>(other),
+            DType::Complex32 => self.assert_eq_elem::<Complex32>(other),
+            DType::Complex64 => self.assert_eq_elem::<Complex64>(other),
             DType::QFloat(q) => {
                 // Strict or not, it doesn't make sense to compare quantized data to not quantized data for equality
                 let q_other = if let DType::QFloat(q_other) = other.dtype {
@@ -813,6 +846,8 @@ impl core::fmt::Display for TensorData {
             DType::U16 => format!("{:?}", self.as_slice::<u16>().unwrap()),
             DType::U8 => format!("{:?}", self.as_slice::<u8>().unwrap()),
             DType::Bool => format!("{:?}", self.as_slice::<bool>().unwrap()),
+            DType::Complex32 => format!("{:?}", self.as_slice::<Complex32>().unwrap()),
+            DType::Complex64 => format!("{:?}", self.as_slice::<Complex64>().unwrap()),
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
                     level: QuantLevel::Tensor,
@@ -1171,5 +1206,94 @@ mod tests {
             &TensorData::from([[-12.7, -7.7, -2.6], [2.5, 7.6, 12.7]]),
             Tolerance::default(),
         );
+    }
+
+    #[test]
+    fn should_support_complex32() {
+        use crate::tensor::element::Complex32;
+
+        let data = vec![
+            Complex32::new(1.0, 2.0),
+            Complex32::new(3.0, -4.0),
+            Complex32::new(-5.0, 6.0),
+        ];
+        let tensor_data = TensorData::new(data.clone(), [3]);
+
+        // Test as_slice
+        let slice = tensor_data.as_slice::<Complex32>().unwrap();
+        assert_eq!(slice.len(), 3);
+        assert_eq!(slice[0], Complex32::new(1.0, 2.0));
+        assert_eq!(slice[1], Complex32::new(3.0, -4.0));
+        assert_eq!(slice[2], Complex32::new(-5.0, 6.0));
+
+        // Test into_vec
+        let vec = tensor_data.clone().into_vec::<Complex32>().unwrap();
+        assert_eq!(vec, data);
+
+        // Test iterator
+        let collected: Vec<Complex32> = tensor_data.iter::<Complex32>().collect();
+        assert_eq!(collected, data);
+
+        // Test display
+        let display_str = format!("{}", tensor_data);
+        assert!(display_str.contains("Complex32"));
+        assert!(display_str.contains("real: 1.0, imag: 2.0"));
+        assert!(display_str.contains("real: 3.0, imag: -4.0"));
+    }
+
+    #[test]
+    fn should_support_complex64() {
+        use crate::tensor::element::Complex64;
+
+        let data = vec![
+            Complex64::new(1.5, 2.5),
+            Complex64::new(3.5, -4.5),
+            Complex64::new(-5.5, 6.5),
+        ];
+        let tensor_data = TensorData::new(data.clone(), [3]);
+
+        // Test as_slice
+        let slice = tensor_data.as_slice::<Complex64>().unwrap();
+        assert_eq!(slice.len(), 3);
+        assert_eq!(slice[0], Complex64::new(1.5, 2.5));
+        assert_eq!(slice[1], Complex64::new(3.5, -4.5));
+        assert_eq!(slice[2], Complex64::new(-5.5, 6.5));
+
+        // Test into_vec
+        let vec = tensor_data.clone().into_vec::<Complex64>().unwrap();
+        assert_eq!(vec, data);
+
+        // Test iterator
+        let collected: Vec<Complex64> = tensor_data.iter::<Complex64>().collect();
+        assert_eq!(collected, data);
+
+        // Test display
+        let display_str = format!("{}", tensor_data);
+        assert!(display_str.contains("Complex64"));
+        assert!(display_str.contains("real: 1.5, imag: 2.5"));
+        assert!(display_str.contains("real: 3.5, imag: -4.5"));
+    }
+
+    #[test]
+    fn should_support_complex_conversion() {
+        use crate::tensor::element::{Complex32, Complex64};
+
+        // Test Complex32 to Complex64 conversion
+        let data32 = vec![Complex32::new(1.0, 2.0), Complex32::new(3.0, -4.0)];
+        let tensor_data32 = TensorData::new(data32, [2]);
+        let tensor_data64 = tensor_data32.convert::<Complex64>();
+
+        let vec64 = tensor_data64.into_vec::<Complex64>().unwrap();
+        assert_eq!(vec64[0], Complex64::new(1.0, 2.0));
+        assert_eq!(vec64[1], Complex64::new(3.0, -4.0));
+
+        // Test Complex64 to Complex32 conversion
+        let data64 = vec![Complex64::new(1.5, 2.5), Complex64::new(3.5, -4.5)];
+        let tensor_data64 = TensorData::new(data64, [2]);
+        let tensor_data32 = tensor_data64.convert::<Complex32>();
+
+        let vec32 = tensor_data32.into_vec::<Complex32>().unwrap();
+        assert_eq!(vec32[0], Complex32::new(1.5, 2.5));
+        assert_eq!(vec32[1], Complex32::new(3.5, -4.5));
     }
 }

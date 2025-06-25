@@ -56,6 +56,7 @@ pub trait Backend:
     FloatTensorOps<Self>
     + BoolTensorOps<Self>
     + IntTensorOps<Self>
+    + ComplexTensorOps<Self>
     + ModuleOps<Self>
     + ActivationOps<Self>
     + QTensorOps<Self>
@@ -85,6 +86,11 @@ pub trait Backend:
     type BoolTensorPrimitive: TensorMetadata + 'static;
     /// Tensor primitive to be used for all bool operations.
     type BoolElem: Element;
+
+    /// Tensor primitive to be used for all complex operations.
+    type ComplexTensorPrimitive: TensorMetadata + 'static;
+    /// Complex element type.
+    type ComplexElem: Element;
 
     /// Tensor primitive to be used for all quantized operations.
     type QuantizedTensorPrimitive: TensorMetadata + QTensorPrimitive + 'static;
