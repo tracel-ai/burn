@@ -57,6 +57,7 @@ pub mod reduce_sum;
 pub mod reshape;
 pub mod resize;
 pub mod shape;
+pub mod size;
 pub mod slice;
 pub mod softmax;
 pub mod space_to_depth;
