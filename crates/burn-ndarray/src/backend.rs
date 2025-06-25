@@ -1,4 +1,5 @@
 use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
+use burn_tensor::element::{Complex32, Complex64};
 use crate::{NdArrayQTensor, NdArrayTensor, NdArrayTensorFloat};
 use alloc::string::String;
 use burn_common::stub::Mutex;
@@ -53,6 +54,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for 
 
     type BoolTensorPrimitive = NdArrayTensor<bool>;
     type BoolElem = bool;
+
+    type ComplexTensorPrimitive = NdArrayTensor<Complex32>;
+    type ComplexElem = Complex32;
 
     type QuantizedTensorPrimitive = NdArrayQTensor<Q>;
     type QuantizedEncoding = Q;
