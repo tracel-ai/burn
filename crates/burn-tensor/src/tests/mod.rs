@@ -199,6 +199,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_chunk!();
         burn_tensor::testgen_clamp!();
         burn_tensor::testgen_close!();
+        burn_tensor::testgen_complex!();
         burn_tensor::testgen_cos!();
         burn_tensor::testgen_cosh!();
         burn_tensor::testgen_create_like!();

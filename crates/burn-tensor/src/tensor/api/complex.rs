@@ -1,0 +1,518 @@
+use crate::{
+    Complex, Distribution, Shape, Tensor, TensorData, DType,
+    backend::Backend, check, check::TensorCheck, ops::{ComplexTensor, Device}, 
+    BasicOps, Numeric, Element, ElementConversion, TensorMetadata
+};
+use alloc::vec::Vec;
+use core::ops::Range;
+
+use super::Transaction;
+
+impl<B: Backend> BasicOps<B> for Complex {
+    type Elem = B::ComplexElem;
+
+    fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
+        B::complex_zeros(shape, device)
+    }
+
+    fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
+        // Complex tensors don't support transactions yet
+        // TODO: Implement complex tensor transaction support
+    }
+
+    fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
+        B::complex_reshape(tensor, shape)
+    }
+
+    fn transpose(tensor: Self::Primitive) -> Self::Primitive {
+        B::complex_transpose(tensor)
+    }
+
+    fn swap_dims(tensor: Self::Primitive, dim1: usize, dim2: usize) -> Self::Primitive {
+        // TODO: Implement complex_swap_dims in ComplexTensorOps
+        todo!("complex_swap_dims not yet implemented")
+    }
+
+    fn slice(tensor: Self::Primitive, ranges: &[Range<usize>]) -> Self::Primitive {
+        // TODO: Implement complex_slice in ComplexTensorOps
+        todo!("complex_slice not yet implemented")
+    }
+
+    fn slice_assign(
+        tensor: Self::Primitive,
+        ranges: &[Range<usize>],
+        value: Self::Primitive,
+    ) -> Self::Primitive {
+        // TODO: Implement complex_slice_assign in ComplexTensorOps
+        todo!("complex_slice_assign not yet implemented")
+    }
+
+    fn device(tensor: &Self::Primitive) -> Device<B> {
+        B::complex_device(tensor)
+    }
+
+    fn to_device(tensor: Self::Primitive, device: &Device<B>) -> Self::Primitive {
+        B::complex_to_device(tensor, device)
+    }
+
+    async fn into_data_async(tensor: Self::Primitive) -> TensorData {
+        B::complex_into_data(tensor)
+    }
+
+    fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
+        B::complex_from_data(data.convert::<B::ComplexElem>(), device)
+    }
+
+    fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
+        if !dtype.is_complex() {
+            panic!("Expected complex dtype, got {dtype:?}")
+        }
+        B::complex_from_data(data.convert_dtype(dtype), device)
+    }
+
+    fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
+        // TODO: Implement complex_repeat_dim in ComplexTensorOps
+        todo!("complex_repeat_dim not yet implemented")
+    }
+
+    fn equal(lhs: Self::Primitive, rhs: Self::Primitive) -> <B as Backend>::BoolTensorPrimitive {
+        // TODO: Implement complex_equal in ComplexTensorOps
+        todo!("complex_equal not yet implemented")
+    }
+
+    fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> <B as Backend>::BoolTensorPrimitive {
+        // TODO: Implement complex_not_equal in ComplexTensorOps
+        todo!("complex_not_equal not yet implemented")
+    }
+
+    fn cat(tensors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive {
+        // TODO: Implement complex_cat in ComplexTensorOps
+        todo!("complex_cat not yet implemented")
+    }
+
+    fn any(tensor: Self::Primitive) -> <B as Backend>::BoolTensorPrimitive {
+        // For complex numbers, "any" typically means any non-zero element
+        // TODO: Implement complex_any in ComplexTensorOps
+        todo!("complex_any not yet implemented")
+    }
+
+    fn any_dim(tensor: Self::Primitive, dim: usize) -> <B as Backend>::BoolTensorPrimitive {
+        // TODO: Implement complex_any_dim in ComplexTensorOps
+        todo!("complex_any_dim not yet implemented")
+    }
+
+    fn all(tensor: Self::Primitive) -> <B as Backend>::BoolTensorPrimitive {
+        // For complex numbers, "all" typically means all non-zero elements
+        // TODO: Implement complex_all in ComplexTensorOps
+        todo!("complex_all not yet implemented")
+    }
+
+    fn all_dim(tensor: Self::Primitive, dim: usize) -> <B as Backend>::BoolTensorPrimitive {
+        // TODO: Implement complex_all_dim in ComplexTensorOps
+        todo!("complex_all_dim not yet implemented")
+    }
+
+    fn permute(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
+        // TODO: Implement complex_permute in ComplexTensorOps
+        todo!("complex_permute not yet implemented")
+    }
+
+    fn expand(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
+        // TODO: Implement complex_expand in ComplexTensorOps
+        todo!("complex_expand not yet implemented")
+    }
+
+    fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
+        // TODO: Implement complex_flip in ComplexTensorOps
+        todo!("complex_flip not yet implemented")
+    }
+}
+
+impl<B: Backend> Numeric<B> for Complex 
+where
+    B::ComplexElem: Element,
+{
+    fn add(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::complex_add(lhs, rhs)
+    }
+
+    fn add_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        // TODO: Implement complex_add_scalar in ComplexTensorOps
+        // For now, create a tensor with the scalar value and use add
+        let device = B::complex_device(&lhs);
+        let shape = B::complex_shape(&lhs);
+        let scalar_complex = B::ComplexElem::from_elem(rhs);
+        let scalar_tensor = B::complex_full(shape, scalar_complex, &device);
+        B::complex_add(lhs, scalar_tensor)
+    }
+
+    fn sub(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::complex_sub(lhs, rhs)
+    }
+
+    fn sub_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        // TODO: Implement complex_sub_scalar in ComplexTensorOps
+        let device = B::complex_device(&lhs);
+        let shape = B::complex_shape(&lhs);
+        let scalar_complex = B::ComplexElem::from_elem(rhs);
+        let scalar_tensor = B::complex_full(shape, scalar_complex, &device);
+        B::complex_sub(lhs, scalar_tensor)
+    }
+
+    fn mul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::complex_mul(lhs, rhs)
+    }
+
+    fn mul_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        // TODO: Implement complex_mul_scalar in ComplexTensorOps
+        let device = B::complex_device(&lhs);
+        let shape = B::complex_shape(&lhs);
+        let scalar_complex = B::ComplexElem::from_elem(rhs);
+        let scalar_tensor = B::complex_full(shape, scalar_complex, &device);
+        B::complex_mul(lhs, scalar_tensor)
+    }
+
+    fn div(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::complex_div(lhs, rhs)
+    }
+
+    fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        // TODO: Implement complex_div_scalar in ComplexTensorOps
+        let device = B::complex_device(&lhs);
+        let shape = B::complex_shape(&lhs);
+        let scalar_complex = B::ComplexElem::from_elem(rhs);
+        let scalar_tensor = B::complex_full(shape, scalar_complex, &device);
+        B::complex_div(lhs, scalar_tensor)
+    }
+
+    fn remainder(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        // Complex remainder is not mathematically well-defined
+        todo!("Complex remainder operation is not supported")
+    }
+
+    fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        // Complex remainder is not mathematically well-defined
+        todo!("Complex remainder operation is not supported")
+    }
+
+    fn zeros(shape: Shape, device: &B::Device) -> Self::Primitive {
+        B::complex_zeros(shape, device)
+    }
+
+    fn ones(shape: Shape, device: &B::Device) -> Self::Primitive {
+        B::complex_ones(shape, device)
+    }
+
+    fn full<E: ElementConversion>(
+        shape: Shape,
+        fill_value: E,
+        device: &B::Device,
+    ) -> Self::Primitive {
+        B::complex_full(shape, B::ComplexElem::from_elem(fill_value), device)
+    }
+
+    fn sum(tensor: Self::Primitive) -> Self::Primitive {
+        // TODO: Implement complex_sum in ComplexTensorOps
+        todo!("complex_sum not yet implemented")
+    }
+
+    fn sum_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        // TODO: Implement complex_sum_dim in ComplexTensorOps
+        todo!("complex_sum_dim not yet implemented")
+    }
+
+    fn prod(tensor: Self::Primitive) -> Self::Primitive {
+        // TODO: Implement complex_prod in ComplexTensorOps
+        todo!("complex_prod not yet implemented")
+    }
+
+    fn prod_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        // TODO: Implement complex_prod_dim in ComplexTensorOps
+        todo!("complex_prod_dim not yet implemented")
+    }
+
+    fn mean(tensor: Self::Primitive) -> Self::Primitive {
+        // TODO: Implement complex_mean in ComplexTensorOps
+        todo!("complex_mean not yet implemented")
+    }
+
+    fn mean_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        // TODO: Implement complex_mean_dim in ComplexTensorOps
+        todo!("complex_mean_dim not yet implemented")
+    }
+
+
+
+    fn neg(tensor: Self::Primitive) -> Self::Primitive {
+        B::complex_neg(tensor)
+    }
+
+    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        // TODO: Implement complex_equal_elem in ComplexTensorOps
+        todo!("complex_equal_elem not yet implemented")
+    }
+
+    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        // TODO: Implement complex_not_equal_elem in ComplexTensorOps
+        todo!("complex_not_equal_elem not yet implemented")
+    }
+
+    fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        // Greater comparison for complex numbers is typically based on magnitude
+        // TODO: Implement complex_greater in ComplexTensorOps
+        todo!("complex_greater not yet implemented")
+    }
+
+    fn greater_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        // TODO: Implement complex_greater_elem in ComplexTensorOps
+        todo!("complex_greater_elem not yet implemented")
+    }
+
+    fn greater_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        // TODO: Implement complex_greater_equal in ComplexTensorOps
+        todo!("complex_greater_equal not yet implemented")
+    }
+
+    fn greater_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        // TODO: Implement complex_greater_equal_elem in ComplexTensorOps
+        todo!("complex_greater_equal_elem not yet implemented")
+    }
+
+    fn lower(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        // TODO: Implement complex_lower in ComplexTensorOps
+        todo!("complex_lower not yet implemented")
+    }
+
+    fn lower_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        // TODO: Implement complex_lower_elem in ComplexTensorOps
+        todo!("complex_lower_elem not yet implemented")
+    }
+
+    fn lower_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        // TODO: Implement complex_lower_equal in ComplexTensorOps
+        todo!("complex_lower_equal not yet implemented")
+    }
+
+    fn lower_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        // TODO: Implement complex_lower_equal_elem in ComplexTensorOps
+        todo!("complex_lower_equal_elem not yet implemented")
+    }
+
+    fn mask_where(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
+        source: Self::Primitive,
+    ) -> Self::Primitive {
+        // TODO: Implement complex_mask_where in ComplexTensorOps
+        todo!("complex_mask_where not yet implemented")
+    }
+
+    fn mask_fill(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
+        value: Self::Elem,
+    ) -> Self::Primitive {
+        // TODO: Implement complex_mask_fill in ComplexTensorOps
+        todo!("complex_mask_fill not yet implemented")
+    }
+
+    fn select(tensor: Self::Primitive, dim: usize, indices: crate::Tensor<B, 1, crate::Int>) -> Self::Primitive {
+        // TODO: Implement complex_select in ComplexTensorOps
+        todo!("complex_select not yet implemented")
+    }
+
+    fn select_assign(
+        tensor: Self::Primitive,
+        dim: usize,
+        indices: crate::Tensor<B, 1, crate::Int>,
+        value: Self::Primitive,
+    ) -> Self::Primitive {
+        // TODO: Implement complex_select_assign in ComplexTensorOps
+        todo!("complex_select_assign not yet implemented")
+    }
+
+    fn gather(
+        dim: usize,
+        tensor: Self::Primitive,
+        indices: B::IntTensorPrimitive,
+    ) -> Self::Primitive {
+        // TODO: Implement complex_gather in ComplexTensorOps
+        todo!("complex_gather not yet implemented")
+    }
+
+    fn scatter(
+        dim: usize,
+        tensor: Self::Primitive,
+        indices: B::IntTensorPrimitive,
+        value: Self::Primitive,
+    ) -> Self::Primitive {
+        // TODO: Implement complex_scatter in ComplexTensorOps
+        todo!("complex_scatter not yet implemented")
+    }
+
+    fn sign(tensor: Self::Primitive) -> Self::Primitive {
+        // TODO: Implement complex_sign in ComplexTensorOps
+        todo!("complex_sign not yet implemented")
+    }
+
+    fn argmax(tensor: Self::Primitive, dim: usize) -> B::IntTensorPrimitive {
+        // TODO: Implement complex_argmax in ComplexTensorOps
+        todo!("complex_argmax not yet implemented")
+    }
+
+    fn argmin(tensor: Self::Primitive, dim: usize) -> B::IntTensorPrimitive {
+        // TODO: Implement complex_argmin in ComplexTensorOps
+        todo!("complex_argmin not yet implemented")
+    }
+
+    fn max(tensor: Self::Primitive) -> Self::Primitive {
+        // TODO: Implement complex_max in ComplexTensorOps
+        todo!("complex_max not yet implemented")
+    }
+
+    fn max_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        // TODO: Implement complex_max_dim in ComplexTensorOps
+        todo!("complex_max_dim not yet implemented")
+    }
+
+    fn max_dim_with_indices(tensor: Self::Primitive, dim: usize) -> (Self::Primitive, B::IntTensorPrimitive) {
+        // TODO: Implement complex_max_dim_with_indices in ComplexTensorOps
+        todo!("complex_max_dim_with_indices not yet implemented")
+    }
+
+    fn max_abs(tensor: Self::Primitive) -> Self::Primitive {
+        // TODO: Implement complex_max_abs in ComplexTensorOps
+        todo!("complex_max_abs not yet implemented")
+    }
+
+    fn max_abs_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        // TODO: Implement complex_max_abs_dim in ComplexTensorOps
+        todo!("complex_max_abs_dim not yet implemented")
+    }
+
+    fn min(tensor: Self::Primitive) -> Self::Primitive {
+        // TODO: Implement complex_min in ComplexTensorOps
+        todo!("complex_min not yet implemented")
+    }
+
+    fn min_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        // TODO: Implement complex_min_dim in ComplexTensorOps
+        todo!("complex_min_dim not yet implemented")
+    }
+
+    fn min_dim_with_indices(tensor: Self::Primitive, dim: usize) -> (Self::Primitive, B::IntTensorPrimitive) {
+        // TODO: Implement complex_min_dim_with_indices in ComplexTensorOps
+        todo!("complex_min_dim_with_indices not yet implemented")
+    }
+
+    fn clamp(tensor: Self::Primitive, min: Self::Elem, max: Self::Elem) -> Self::Primitive {
+        // TODO: Implement complex_clamp in ComplexTensorOps
+        todo!("complex_clamp not yet implemented")
+    }
+
+    fn clamp_min(tensor: Self::Primitive, min: Self::Elem) -> Self::Primitive {
+        // TODO: Implement complex_clamp_min in ComplexTensorOps
+        todo!("complex_clamp_min not yet implemented")
+    }
+
+    fn clamp_max(tensor: Self::Primitive, max: Self::Elem) -> Self::Primitive {
+        // TODO: Implement complex_clamp_max in ComplexTensorOps
+        todo!("complex_clamp_max not yet implemented")
+    }
+
+    fn abs(tensor: Self::Primitive) -> Self::Primitive {
+        // For complex numbers, abs returns the magnitude as a complex number (real part = magnitude, imag = 0)
+        let magnitude = B::complex_abs(tensor.clone());
+        let zeros = B::float_zeros(B::complex_shape(&tensor), &B::complex_device(&tensor));
+        B::complex_from_parts(magnitude, zeros)
+    }
+
+    fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::complex_powc(lhs, rhs)
+    }
+
+    fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        // TODO: Implement complex_powi in ComplexTensorOps
+        todo!("complex_powi not yet implemented")
+    }
+
+    fn powf_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        let device = B::complex_device(&lhs);
+        let shape = B::complex_shape(&lhs);
+        let scalar_complex = B::ComplexElem::from_elem(rhs);
+        let scalar_tensor = B::complex_full(shape, scalar_complex, &device);
+        B::complex_powc(lhs, scalar_tensor)
+    }
+
+    fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        // TODO: Implement complex_powi_scalar in ComplexTensorOps
+        todo!("complex_powi_scalar not yet implemented")
+    }
+
+    fn random(shape: Shape, distribution: crate::Distribution, device: &crate::Device<B>) -> Self::Primitive {
+        B::complex_random(shape, distribution, device)
+    }
+
+    fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive {
+        // TODO: Implement complex_sort in ComplexTensorOps (based on magnitude)
+        todo!("complex_sort not yet implemented")
+    }
+
+    fn sort_with_indices(tensor: Self::Primitive, dim: usize, descending: bool) -> (Self::Primitive, B::IntTensorPrimitive) {
+        // TODO: Implement complex_sort_with_indices in ComplexTensorOps
+        todo!("complex_sort_with_indices not yet implemented")
+    }
+
+    fn argsort(tensor: Self::Primitive, dim: usize, descending: bool) -> B::IntTensorPrimitive {
+        // TODO: Implement complex_argsort in ComplexTensorOps
+        todo!("complex_argsort not yet implemented")
+    }
+
+    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        // TODO: Implement complex_matmul in ComplexTensorOps
+        todo!("complex_matmul not yet implemented")
+    }
+}
+
+// Complex-specific methods for Tensor<B, D, Complex>
+impl<B, const D: usize> Tensor<B, D, Complex>
+where
+    B: Backend,
+{
+    /// Returns the complex conjugate of the tensor.
+    ///
+    /// For a complex number z = a + bi, the conjugate is z* = a - bi.
+    pub fn conj(self) -> Self {
+        Self::new(B::complex_conj(self.primitive))
+    }
+
+    /// Returns the real part of the complex tensor as a float tensor.
+    pub fn real(self) -> Tensor<B, D> {
+        Tensor::new(crate::TensorPrimitive::Float(B::complex_real(self.primitive)))
+    }
+
+    /// Returns the imaginary part of the complex tensor as a float tensor.
+    pub fn imag(self) -> Tensor<B, D> {
+        Tensor::new(crate::TensorPrimitive::Float(B::complex_imag(self.primitive)))
+    }
+
+    /// Returns the magnitude (absolute value) of the complex tensor as a float tensor.
+    pub fn magnitude(self) -> Tensor<B, D> {
+        Tensor::new(crate::TensorPrimitive::Float(B::complex_abs(self.primitive)))
+    }
+
+    /// Returns the phase (argument) of the complex tensor as a float tensor.
+    pub fn phase(self) -> Tensor<B, D> {
+        Tensor::new(crate::TensorPrimitive::Float(B::complex_arg(self.primitive)))
+    }
+
+    /// Creates a complex tensor from real and imaginary parts.
+    pub fn from_parts(real: Tensor<B, D>, imag: Tensor<B, D>) -> Self {
+        Self::new(B::complex_from_parts(real.primitive.tensor(), imag.primitive.tensor()))
+    }
+
+    /// Creates a complex tensor from magnitude and phase (polar coordinates).
+    pub fn from_polar(magnitude: Tensor<B, D>, phase: Tensor<B, D>) -> Self {
+        Self::new(B::complex_from_polar(magnitude.primitive.tensor(), phase.primitive.tensor()))
+    }
+}
