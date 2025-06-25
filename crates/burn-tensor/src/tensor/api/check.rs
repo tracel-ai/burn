@@ -304,7 +304,9 @@ impl TensorCheck {
         if D2 > D1 {
             check = check.register(
                 "Flatten",
-                TensorError::new(format!("Result dim ({D2}) must be smaller than or equal to ({D1})")),
+                TensorError::new(format!(
+                    "Result dim ({D2}) must be smaller than or equal to ({D1})"
+                )),
             );
         }
 
