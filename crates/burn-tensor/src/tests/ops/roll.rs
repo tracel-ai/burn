@@ -1,22 +1,22 @@
 #[burn_tensor_testgen::testgen(roll)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, Slice, Tensor, TensorData};
+    use burn_tensor::{Int, Slice, Tensor, TensorData, might_panic};
 
-    // #[cfg(feature = "std")]
-    // #[might_panic(reason = "0 size resources are not yet supported")]
-    // #[test]
-    // fn test_roll_empty() {
-    //     let device = Default::default();
-    //     let input = TestTensorInt::<2>::zeros([12, 0], &device);
+    #[cfg(feature = "std")]
+    #[might_panic(reason = "0 size resources are not yet supported")]
+    #[test]
+    fn test_roll_empty() {
+        let device = Default::default();
+        let input = TestTensorInt::<2>::zeros([12, 0], &device);
 
-    //     let result = input.clone().roll(&[1, 2], &[0, 1]);
+        let result = input.clone().roll(&[1, 2], &[0, 1]);
 
-    //     assert_eq!(result.shape().dims, &[12, 0]);
+        assert_eq!(result.shape().dims, &[12, 0]);
 
-    //     // TODO: Rolling an empty tensor should return the same empty tensor;
-    //     // but we have no way to compare tensor references yet.
-    // }
+        // TODO: Rolling an empty tensor should return the same empty tensor;
+        // but we have no way to compare tensor references yet.
+    }
 
     #[test]
     fn test_roll() {
