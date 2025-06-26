@@ -231,6 +231,10 @@ impl RegisteredTensors {
         self.tensors.len()
     }
 
+    pub fn get_id(&self, index: usize) -> Option<TensorId> {
+        self.tensors.get(index).map(|entry| entry.0.id)
+    }
+
     pub fn get_index(&self, tensor_id: TensorId) -> Option<u32> {
         self.tensors
             .iter()

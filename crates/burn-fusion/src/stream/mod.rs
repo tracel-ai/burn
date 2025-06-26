@@ -7,6 +7,22 @@ pub(crate) mod store;
 /// Memory checks module.
 pub mod memory_checks;
 
+#[cfg(not(feature = "memory-checks"))]
+#[macro_export]
+/// Export memory checks tests.
+macro_rules! memory_checks {
+    () => {
+        #[cfg(test)]
+        mod memory_checks {
+            #[ignore = "'memory-checks' disabled"]
+            #[test]
+            fn test_memory_leaks() {
+                //
+            }
+        }
+    };
+}
+
 mod base;
 mod context;
 mod multi;

@@ -368,6 +368,7 @@ impl ParsedOnnxGraph {
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Sin => graph.register(Self::sin_conversion(node)),
                 NodeType::Sinh => graph.register(Self::sinh_conversion(node)),
+                NodeType::Size => graph.register(Self::size_conversion(node)),
                 NodeType::Slice => graph.register(Self::slice_conversion(node)),
                 NodeType::SpaceToDepth => graph.register(Self::space_to_depth_conversion(node)),
                 NodeType::Sum => graph.register(Self::sum_conversion(node)),
@@ -906,6 +907,13 @@ impl ParsedOnnxGraph {
         let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::sinh(input, output)
+    }
+
+    fn size_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        UnaryNode::size(input, output)
     }
 
     fn slice_conversion(node: Node) -> SliceNode {
