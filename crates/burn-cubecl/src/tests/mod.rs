@@ -30,6 +30,7 @@ mod uniform;
 // Re-export dependencies for tests
 pub use crate::ops::base::into_data_sync;
 pub use burn_autodiff;
+#[cfg(feature = "fusion")]
 pub use burn_fusion;
 pub use burn_ndarray;
 pub use burn_tensor;
@@ -85,6 +86,8 @@ macro_rules! testgen_all {
                 burn_cubecl::testgen_quantization!();
             }
         }
+
+        #[cfg(feature = "fusion")]
         mod cube_fusion {
             burn_cubecl::testgen_jit_fusion!([$($float),*], [$($int),*], [$($bool),*]);
             burn_fusion::memory_checks!();
