@@ -314,7 +314,7 @@ where
     {
         if self.tracing_logger.is_some() {
             if let Err(e) = self.tracing_logger.as_ref().unwrap().install() {
-                log::warn!("Failed to install the experiment logger: {}", e);
+                log::warn!("Failed to install the experiment logger: {e}");
             }
         }
         let renderer = self

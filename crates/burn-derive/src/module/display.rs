@@ -56,7 +56,7 @@ pub fn attributes_fn(ast: &syn::DeriveInput) -> proc_macro2::TokenStream {
                     }
                     syn::Fields::Unnamed(unnamed_fields) => {
                         let field_names = (0..unnamed_fields.unnamed.len()).map(|i| {
-                            syn::Ident::new(&format!("_{}", i), proc_macro2::Span::call_site())
+                            syn::Ident::new(&format!("_{i}"), proc_macro2::Span::call_site())
                         });
 
                         let field_prints = field_names.clone().map(|field_name| {

@@ -1880,9 +1880,9 @@ where
             if let Some(data) = data {
                 let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
                 match (precision, K::name()) {
-                    (Some(p), "Float") => acc.push_str(&format!("{:.1$}", elem, p)),
+                    (Some(p), "Float") => acc.push_str(&format!("{elem:.p$}")),
                     (_, "Bool") => acc.push_str(&format!("{}", elem.to_bool())),
-                    _ => acc.push_str(&format!("{:?}", elem)),
+                    _ => acc.push_str(&format!("{elem:?}")),
                 }
             } else {
                 acc.push_str("<Tensor data not available>");

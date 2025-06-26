@@ -26,18 +26,14 @@ pub fn argmin_config(node: &Node) -> usize {
                 // not all params are supported in burn
                 if value.clone().into_i64() != 0 {
                     log::warn!(
-                        "only select_last_index=0 is supported for argmin in burn. Ignoring supplied value (got {:?})",
-                        value
+                        "only select_last_index=0 is supported for argmin in burn. Ignoring supplied value (got {value:?})"
                     );
                 }
             }
             "keepdims" => {
                 // not all params are supported in burn
                 if value.clone().into_i64() != 1 {
-                    panic!(
-                        "Only keepdims=1 is supported for argmin in burn (got {:?})",
-                        value
-                    );
+                    panic!("Only keepdims=1 is supported for argmin in burn (got {value:?})");
                 }
             }
             _ => {}

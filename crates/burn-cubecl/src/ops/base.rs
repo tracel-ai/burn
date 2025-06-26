@@ -124,8 +124,7 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
                 } else {
                     // Error handling: Dimension mismatch for broadcasting
                     panic!(
-                        "Dimension mismatch: cannot broadcast dimension {} of tensor to target shape",
-                        tensor_dim
+                        "Dimension mismatch: cannot broadcast dimension {tensor_dim} of tensor to target shape"
                     );
                 }
             } else {

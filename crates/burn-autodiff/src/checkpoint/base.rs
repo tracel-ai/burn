@@ -71,7 +71,7 @@ impl Checkpointer {
                     n_required: _,
                 } => vec![node_id],
             },
-            None => panic!("Node {:?} is not in the backward_states. ", node_id),
+            None => panic!("Node {node_id:?} is not in the backward_states. "),
         }
     }
 

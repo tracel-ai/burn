@@ -209,7 +209,7 @@ impl ModelGen {
             self.out_dir.as_ref().expect("out_dir is not set").clone()
         };
 
-        log::debug!("Output directory: {:?}", out_dir);
+        log::debug!("Output directory: {out_dir:?}");
 
         create_dir_all(&out_dir).unwrap();
 
@@ -217,9 +217,9 @@ impl ModelGen {
             let file_name = input.file_stem().unwrap();
             let out_file: PathBuf = out_dir.join(file_name);
 
-            log::info!("Converting {:?}", input);
-            log::debug!("Input file name: {:?}", file_name);
-            log::debug!("Output file: {:?}", out_file);
+            log::info!("Converting {input:?}");
+            log::debug!("Input file name: {file_name:?}");
+            log::debug!("Output file: {out_file:?}");
 
             self.generate_model(input, out_file);
         }
@@ -229,17 +229,17 @@ impl ModelGen {
 
     /// Generate model source code and model state.
     fn generate_model(&self, input: &PathBuf, out_file: PathBuf) {
-        log::info!("Generating model from {:?}", input);
+        log::info!("Generating model from {input:?}");
         log::debug!("Development mode: {:?}", self.development);
-        log::debug!("Output file: {:?}", out_file);
+        log::debug!("Output file: {out_file:?}");
 
         let graph = parse_onnx(input.as_ref());
 
         if self.development {
             // save onnx graph as a debug file
-            let debug_graph = format!("{:#?}", graph);
+            let debug_graph = format!("{graph:#?}");
             let graph_file = out_file.with_extension("onnx.txt");
-            log::debug!("Writing debug onnx graph file: {:?}", graph_file);
+            log::debug!("Writing debug onnx graph file: {graph_file:?}");
             fs::write(graph_file, debug_graph).unwrap();
         }
 
@@ -247,9 +247,9 @@ impl ModelGen {
 
         if self.development {
             // export the graph
-            let debug_graph = format!("{:#?}", graph);
+            let debug_graph = format!("{graph:#?}");
             let graph_file = out_file.with_extension("graph.txt");
-            log::debug!("Writing debug graph file: {:?}", graph_file);
+            log::debug!("Writing debug graph file: {graph_file:?}");
             fs::write(graph_file, debug_graph).unwrap();
         }
 
@@ -414,7 +414,7 @@ impl ParsedOnnxGraph {
         }
 
         if !unsupported_ops.is_empty() {
-            panic!("Unsupported ops: {:?}", unsupported_ops);
+            panic!("Unsupported ops: {unsupported_ops:?}");
         }
 
         // Get input and output names
@@ -474,7 +474,7 @@ impl ParsedOnnxGraph {
                 ElementType::Int32 => ConstantValue::Int32(attr.value.unwrap().data.into_i32()),
                 ElementType::Int64 => ConstantValue::Int64(attr.value.unwrap().data.into_i64()),
                 ElementType::Bool => ConstantValue::Bool(attr.value.unwrap().data.into_bool()),
-                _ => panic!("Unsupported constant tensor type: {:?} ", elem_type),
+                _ => panic!("Unsupported constant tensor type: {elem_type:?} "),
             },
             ArgType::Shape(_) => panic!("Shape is not supported as constant value."),
         };
@@ -617,7 +617,7 @@ impl ParsedOnnxGraph {
                 Data::Int32s(vals) => ConstantValue::from_vec(vals),
                 Data::Int64s(vals) => ConstantValue::from_vec(vals),
                 Data::Bools(vals) => ConstantValue::from_vec(vals),
-                ty => panic!("Unsupported value type {:?} for ConstantOfShape!", ty),
+                ty => panic!("Unsupported value type {ty:?} for ConstantOfShape!"),
             })
             .unwrap_or(ConstantValue::Float32(0.0f32));
         ConstantOfShapeNode::new(input, output, value)

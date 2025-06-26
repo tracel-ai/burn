@@ -362,7 +362,7 @@ fn write_vec_truncated<T: core::fmt::Debug>(
         if i > 0 {
             write!(f, ", ")?;
         }
-        write!(f, "{:?}", v)?;
+        write!(f, "{v:?}")?;
     }
     write!(f, ", ...] len={})", vec.len())
 }
