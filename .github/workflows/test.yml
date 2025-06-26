@@ -382,4 +382,4 @@ jobs:
           cache-key: ${{ matrix.rust }}-macos
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: CUBECL_DEBUG_OPTION=profile cargo xtask test --ci github-runner
+        run: CUBECL_DEBUG_OPTION=profile cargo test -p burn-wgpu --lib
