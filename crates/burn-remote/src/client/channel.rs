@@ -49,6 +49,7 @@ impl RunnerChannel for WsChannel {
             address: client.device.address.to_string(),
         };
         let new_id = client.sender.new_tensor_id();
+
         client
             .sender
             .send(ComputeTask::RegisterTensorRemote(remote_tensor, new_id));

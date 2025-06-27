@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use burn_common::id::{IdGenerator, StreamId};
 use burn_ir::{OperationIr, TensorId, TensorIr};
-use burn_tensor::TensorData;
+use burn_tensor::{DType, TensorData};
 use serde::{Deserialize, Serialize};
 
 #[allow(missing_docs)]
@@ -35,7 +35,7 @@ impl SessionId {
 }
 
 #[allow(missing_docs)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Task {
     Compute(ComputeTask, ConnectionId),
     Init(SessionId),
@@ -50,12 +50,18 @@ pub struct TensorRemote {
 }
 
 #[allow(missing_docs)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ComputeTask {
     RegisterOperation(Box<OperationIr>),
     RegisterTensor(TensorId, TensorData),
+    /// Register an empty tensor
+    RegisterEmptyTensor(TensorId, Vec<usize>, DType),
+    /// Register a tensor to download from another remote server
     RegisterTensorRemote(TensorRemote, TensorId),
-    ExposeTensorRemote { tensor: TensorIr, count: u32 },
+    ExposeTensorRemote {
+        tensor: TensorIr,
+        count: u32,
+    },
     ReadTensor(TensorIr),
     SyncBackend,
 }
