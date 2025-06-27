@@ -890,15 +890,11 @@ where
             let size = self.shape().dims[dim];
             assert!(
                 0 < shift && shift < size,
-                "Expected: 0 < shift < size: found shift={}, size={}",
-                shift,
-                size,
+                "Expected: 0 < shift < size: found shift={shift}, size={size}"
             );
             assert!(
                 dim < self.shape().num_dims(),
-                "Expected: dim < num_dims: found dim={}, num_dims={}",
-                dim,
-                size,
+                "Expected: dim < num_dims: found dim={dim}, num_dims={size}",
             );
         }
 
@@ -934,9 +930,7 @@ where
         assert_eq!(
             dims.len(),
             shifts.len(),
-            "Dimensions and shifts must align; found dims={:#?}, shifts={:#?}",
-            dims,
-            shifts,
+            "Dimensions and shifts must align; found dims={dims:#?}, shifts={shifts:#?}"
         );
 
         // This is a fair amount of complexity, which could be replaced
