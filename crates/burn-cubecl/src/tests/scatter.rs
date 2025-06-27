@@ -44,13 +44,9 @@ mod tests {
         let test_device = Default::default();
         let tensor = Tensor::<TestBackend, D>::random(shape1, Distribution::Default, &test_device);
         let value = Tensor::<TestBackend, D>::random(shape2, Distribution::Default, &test_device);
-        let indices = Tensor::<TestBackend, 1, Int>::from_data(
-            Tensor::<TestBackend, 1>::random(
-                [shape2.iter().product()],
-                Distribution::Uniform(0., shape2[dim] as f64),
-                &test_device,
-            )
-            .into_data(),
+        let indices = Tensor::<TestBackend, 1, Int>::random(
+            [shape2.iter().product()],
+            Distribution::Uniform(0., shape2[dim] as f64),
             &test_device,
         )
         .reshape(shape2);

@@ -110,6 +110,7 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use crate::tensor::{Shape, TensorData};
+    use burn_tensor::ElementConversion;
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
@@ -118,7 +119,7 @@ mod tests {
         TestBackend::seed(0);
 
         let config = LinearConfig::new(5, 5);
-        let k = (1.0 / config.d_input as f64).sqrt() as f32;
+        let k = (1.0 / config.d_input as f64).sqrt().elem::<FT>();
         let device = Default::default();
         let linear = config.init::<TestBackend>(&device);
 

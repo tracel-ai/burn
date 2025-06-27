@@ -357,7 +357,7 @@ mod tests {
     use super::*;
     use crate::tensor::{Device, Distribution, TensorData};
     use crate::{TestBackend, module::Param, nn::LinearRecord};
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn_tensor::{ElementConversion, Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[cfg(feature = "std")]
@@ -374,10 +374,10 @@ mod tests {
         let gate_to_data =
             |gate: GateController<TestBackend>| gate.input_transform.weight.val().to_data();
 
-        gate_to_data(lstm.input_gate).assert_within_range(0..1);
-        gate_to_data(lstm.forget_gate).assert_within_range(0..1);
-        gate_to_data(lstm.output_gate).assert_within_range(0..1);
-        gate_to_data(lstm.cell_gate).assert_within_range(0..1);
+        gate_to_data(lstm.input_gate).assert_within_range::<FT>(0.elem()..1.elem());
+        gate_to_data(lstm.forget_gate).assert_within_range::<FT>(0.elem()..1.elem());
+        gate_to_data(lstm.output_gate).assert_within_range::<FT>(0.elem()..1.elem());
+        gate_to_data(lstm.cell_gate).assert_within_range::<FT>(0.elem()..1.elem());
     }
 
     /// Test forward pass with simple input vector.
