@@ -3,7 +3,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 fn convert_primitive<T: core::fmt::Debug>(primitive: T) -> TokenStream {
-    let value = format!("{:?}", primitive);
+    let value = format!("{primitive:?}");
 
     value.parse().unwrap()
 }

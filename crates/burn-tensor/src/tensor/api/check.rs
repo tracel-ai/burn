@@ -114,8 +114,7 @@ impl TensorCheck {
             check = check.register(
                 "Narrow",
                 TensorError::new(format!(
-                    "Can't narrow at dimension {}, length must be greater than 0",
-                    dim
+                    "Can't narrow at dimension {dim}, length must be greater than 0",
                 )),
             );
         }
@@ -124,9 +123,8 @@ impl TensorCheck {
             check = check.register(
                 "Narrow",
                 TensorError::new(format!(
-                    "Can't narrow at dimension {}, start exceeds the size of the tensor along \
+                    "Can't narrow at dimension {dim}, start exceeds the size of the tensor along \
                      this dimension (Size={})",
-                    dim,
                     tensor.shape().dims[dim]
                 )),
             );
@@ -136,9 +134,8 @@ impl TensorCheck {
             check = check.register(
                 "Narrow",
                 TensorError::new(format!(
-                    "Can't narrow at dimension {}, start + length exceeds the size of the tensor \
+                    "Can't narrow at dimension {dim}, start + length exceeds the size of the tensor \
                      along this dimension (Size={})",
-                    dim,
                     tensor.shape().dims[dim]
                 )),
             );
@@ -179,7 +176,7 @@ impl TensorCheck {
                 TensorError::new(
                     "The given shape cannot contain negative dimensions (other than -1).",
                 )
-                .details(format!("Target shape: {:?}.", target)),
+                .details(format!("Target shape: {target:?}.")),
             );
         }
 
@@ -187,7 +184,7 @@ impl TensorCheck {
             check = check.register(
                 "Reshape",
                 TensorError::new("The given shape cannot contain more than one -1.")
-                    .details(format!("Target shape: {:?}.", target)),
+                    .details(format!("Target shape: {target:?}.")),
             );
         }
 
@@ -238,8 +235,7 @@ impl TensorCheck {
             check = check.register(
                 "Movedim",
                 TensorError::new("The given dimensions are out of bounds.").details(format!(
-                    "Current tensor has {D} dimensions, but the given dimensions are {:?}.",
-                    dims
+                    "Current tensor has {D} dimensions, but the given dimensions are {dims:?}.",
                 )),
             );
         }
@@ -252,8 +248,7 @@ impl TensorCheck {
                         "Movedim",
                         TensorError::new("The given dimensions contain duplicates.").details(
                             format!(
-                                "The dimension {} is duplicated in the given dimensions {:?}.",
-                                dim_i, dims
+                                "The dimension {dim_i} is duplicated in the given dimensions {dims:?}.",
                             ),
                         ),
                     );
@@ -277,8 +272,7 @@ impl TensorCheck {
                     "The number of dimensions in source and destination must be equal.",
                 )
                 .details(format!(
-                    "Source dimensions: {:?}, Destination dimensions: {:?}.",
-                    source_dims, destination_dims
+                    "Source dimensions: {source_dims:?}, Destination dimensions: {destination_dims:?}.",
                 )),
             )
         }
@@ -353,8 +347,7 @@ impl TensorCheck {
             check = check.register(
                 "Squeeze",
                 TensorError::new(format!(
-                    "Can't squeeze dimension {} because its size is not 1",
-                    dim
+                    "Can't squeeze dimension {dim} because its size is not 1",
                 )),
             );
         }
@@ -363,8 +356,7 @@ impl TensorCheck {
             check = check.register(
                 "Squeeze",
                 TensorError::new(format!(
-                    "Dimension index {} is out of bounds for tensor dimensions {:?}.",
-                    dim, tensor_dims
+                    "Dimension index {dim} is out of bounds for tensor dimensions {tensor_dims:?}.",
                 )),
             );
         }
@@ -393,8 +385,7 @@ impl TensorCheck {
             check = check.register(
                 "Squeeze",
                 TensorError::new(format!(
-                    "Resulting dimensions {} do not match the required D2 size {}.",
-                    new_dims_len, D2
+                    "Resulting dimensions {new_dims_len} do not match the required D2 size {D2}.",
                 )),
             );
         }
@@ -422,8 +413,7 @@ impl TensorCheck {
             check = check.register(
                 "Unsqueeze",
                 TensorError::new(format!(
-                    "Can't unsqueeze at dimension {}, exceeds tensor dimensions (D={})",
-                    dim, D1
+                    "Can't unsqueeze at dimension {dim}, exceeds tensor dimensions (D={D1})",
                 )),
             );
         }
@@ -432,8 +422,7 @@ impl TensorCheck {
             check = check.register(
                 "Unsqueeze",
                 TensorError::new(format!(
-                    "Can't unsqueeze at dimension {}, exceeds output tensor dimensions (D2={})",
-                    dim, D2
+                    "Can't unsqueeze at dimension {dim}, exceeds output tensor dimensions (D2={D2})",
                 )),
             );
         }
@@ -449,8 +438,7 @@ impl TensorCheck {
             check = check.register(
                 "Unsqueeze",
                 TensorError::new(format!(
-                    "unsqueeze arg {} is out of range for the output tensor of rank {}",
-                    dim, output_rank
+                    "unsqueeze arg {dim} is out of range for the output tensor of rank {output_rank}",
                 )),
             );
         }
@@ -628,9 +616,8 @@ impl TensorCheck {
             check = check.register(
                 "Stack",
                 TensorError::new(format!(
-                    "Can't stack tensors on existing dimension {}, the input and output ranks are the same (D={}; D2={}).\
-                    If you want to concatenate the tensors along the specified dimension ({}), use `Tensor::cat` instead.",
-                    dim, D1, D2, dim
+                    "Can't stack tensors on existing dimension {dim}, the input and output ranks are the same (D={D1}; D2={D2}).\
+                    If you want to concatenate the tensors along the specified dimension ({dim}), use `Tensor::cat` instead.",
                 )),
             );
         }
@@ -651,8 +638,7 @@ impl TensorCheck {
                 return check.register(
                     "Stack",
                     TensorError::new("Can't stack tensors with different shapes").details(format!(
-                        "Provided dimension ({}), tensors shapes: {:?}",
-                        dim,
+                        "Provided dimension ({dim}), tensors shapes: {:?}",
                         tensors.iter().map(Tensor::shape).collect::<Vec<_>>()
                     )),
                 );
@@ -703,8 +689,7 @@ impl TensorCheck {
                          dimension",
                     )
                     .details(format!(
-                        "Provided dimension ({}), tensors shapes: {:?}",
-                        dim,
+                        "Provided dimension ({dim}), tensors shapes: {:?}",
                         tensors.iter().map(Tensor::shape).collect::<Vec<_>>()
                     )),
                 );
@@ -982,8 +967,7 @@ impl TensorCheck {
                         "Number of channels in input tensor and  number of weights must be equal",
                     )
                     .details(format!(
-                        "Got no. of channels: {}, no. of weights: {}",
-                        channels, num_weights
+                        "Got no. of channels: {channels}, no. of weights: {num_weights}",
                     )),
                 );
                 return check;
@@ -996,8 +980,8 @@ impl TensorCheck {
                     "Number of channels in input tensor and  number of weights must be equal",
                 )
                 .details(format!(
-                    "Got no. of channels: {}, no. of weights: {}",
-                    1, shape_weight.dims[0]
+                    "Got no. of channels: 1, no. of weights: {}",
+                    shape_weight.dims[0]
                 )),
             );
             check

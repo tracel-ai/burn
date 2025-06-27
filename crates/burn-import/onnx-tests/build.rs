@@ -120,6 +120,7 @@ fn main() {
         .input("tests/sign/sign.onnx")
         .input("tests/sin/sin.onnx")
         .input("tests/sinh/sinh.onnx")
+        .input("tests/size/size.onnx")
         .input("tests/slice/slice.onnx")
         .input("tests/slice/slice_shape.onnx")
         .input("tests/softmax/softmax.onnx")

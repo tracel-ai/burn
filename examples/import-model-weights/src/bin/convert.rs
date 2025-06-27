@@ -38,34 +38,26 @@ pub fn main() {
     // Load the model record based on the specified format
     let model_record: ModelRecord<B> = match weight_format {
         "pytorch" => {
-            println!("Loading PyTorch weights from '{}'...", PYTORCH_WEIGHTS_PATH);
+            println!("Loading PyTorch weights from '{PYTORCH_WEIGHTS_PATH}'...");
             PyTorchFileRecorder::<FullPrecisionSettings>::default()
                 .load(PYTORCH_WEIGHTS_PATH.into(), &device)
                 .unwrap_or_else(|_| {
-                    panic!(
-                        "Failed to load PyTorch model weights from '{}'",
-                        PYTORCH_WEIGHTS_PATH
-                    )
+                    panic!("Failed to load PyTorch model weights from '{PYTORCH_WEIGHTS_PATH}'")
                 })
         }
         "safetensors" => {
-            println!(
-                "Loading Safetensors weights from '{}'...",
-                SAFETENSORS_WEIGHTS_PATH
-            );
+            println!("Loading Safetensors weights from '{SAFETENSORS_WEIGHTS_PATH}'...");
             SafetensorsFileRecorder::<FullPrecisionSettings>::default()
                 .load(SAFETENSORS_WEIGHTS_PATH.into(), &device)
                 .unwrap_or_else(|_| {
                     panic!(
-                        "Failed to load Safetensors model weights from '{}'",
-                        SAFETENSORS_WEIGHTS_PATH
+                        "Failed to load Safetensors model weights from '{SAFETENSORS_WEIGHTS_PATH}'"
                     )
                 })
         }
         _ => {
             eprintln!(
-                "Error: Unsupported weight format '{}'. Please use 'pytorch' or 'safetensors'.",
-                weight_format
+                "Error: Unsupported weight format '{weight_format}'. Please use 'pytorch' or 'safetensors'."
             );
             process::exit(1);
         }

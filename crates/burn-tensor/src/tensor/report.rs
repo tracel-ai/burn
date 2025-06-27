@@ -89,10 +89,7 @@ pub fn check_closeness<B: Backend, const D: usize>(output: &Tensor<B, D>, expect
 
         let percentage = (count as f64 / num_elements as f64) * 100.0;
 
-        println!(
-            "  Close elements: {}/{} ({:.2}%)",
-            count, num_elements, percentage
-        );
+        println!("  Close elements: {count}/{num_elements} ({percentage:.2}%)");
 
         if percentage == 100.0 {
             println!("  {} All elements are within tolerance", "[PASS]".green());
