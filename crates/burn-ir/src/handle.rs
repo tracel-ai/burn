@@ -75,7 +75,7 @@ impl<H: Clone> HandleContainer<H> {
         let (id, handle) = self
             .handles
             .remove_entry(id)
-            .unwrap_or_else(|| panic!("Should have handle for tensor {:?}", id));
+            .unwrap_or_else(|| panic!("Should have handle for tensor {id:?}"));
 
         match handle {
             Handle::Existing(handle) => match status {
@@ -85,11 +85,10 @@ impl<H: Clone> HandleContainer<H> {
                 }
                 TensorStatus::ReadWrite => handle,
                 TensorStatus::NotInit => panic!(
-                    "Cannot get uninitialized tensor {:?}. Tensor exist but with wrong status",
-                    id
+                    "Cannot get uninitialized tensor {id:?}. Tensor exist but with wrong status"
                 ),
             },
-            Handle::NotInit => panic!("Cannot get uninitialized handle {:?}.", id),
+            Handle::NotInit => panic!("Cannot get uninitialized handle {id:?}."),
         }
     }
 

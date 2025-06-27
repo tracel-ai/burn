@@ -94,8 +94,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
             }
 
             _ => Err(de::Error::custom(format!(
-                "Expected struct but got {:?}",
-                value
+                "Expected struct but got {value:?}"
             ))),
         }
     }
@@ -308,10 +307,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
                     value,
                     self.default_for_missing_fields,
                 )),
-                _ => Err(de::Error::custom(format!(
-                    "Expected Vec but got {:?}",
-                    value
-                ))),
+                _ => Err(de::Error::custom(format!("Expected Vec but got {value:?}"))),
             }
         } else {
             Err(de::Error::custom("Expected Vec but got None"))

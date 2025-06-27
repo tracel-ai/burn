@@ -122,7 +122,7 @@ struct RecordType {
 impl RecordType {
     fn from_ast(ast: &syn::DeriveInput) -> Self {
         let name = ast.ident.clone();
-        let item = Ident::new(format!("{}Item", name).as_str(), name.span());
+        let item = Ident::new(format!("{name}Item").as_str(), name.span());
         let has_backend = ast
             .generics
             .type_params()

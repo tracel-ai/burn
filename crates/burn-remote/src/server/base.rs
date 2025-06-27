@@ -193,7 +193,7 @@ impl<B: BackendIr> WsServer<B> {
             };
         }
 
-        log::info!("Closing session {:?}", session_id);
+        log::info!("Closing session {session_id:?}");
         self.session_manager.close(session_id).await;
     }
 

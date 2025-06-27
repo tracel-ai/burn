@@ -14,8 +14,7 @@ where
 {
     let data = TensorData::deserialize(deserializer).map_err(|e| {
         serde::de::Error::custom(format!(
-            "{:?}\nThe internal data format has changed since version 0.14.0. If you are trying to load a record saved in a previous version, use the `record-backward-compat` feature flag with a previous version (<=0.16.0). Once you have saved the record in the new format, you can upgrade back to the current version.\n",
-            e
+            "{e:?}\nThe internal data format has changed since version 0.14.0. If you are trying to load a record saved in a previous version, use the `record-backward-compat` feature flag with a previous version (<=0.16.0). Once you have saved the record in the new format, you can upgrade back to the current version.\n"
         ))
     })?;
     let data = if let DType::QFloat(_) = data.dtype {

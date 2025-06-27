@@ -81,7 +81,7 @@ impl FileMetricLogger {
     }
 
     fn epoch_directory(&self, epoch: usize) -> PathBuf {
-        let name = format!("{}{}", EPOCH_PREFIX, epoch);
+        let name = format!("{EPOCH_PREFIX}{epoch}");
         self.directory.join(name)
     }
 

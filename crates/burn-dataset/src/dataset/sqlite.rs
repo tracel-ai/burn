@@ -544,7 +544,7 @@ where
         pragma_update_with_error_handling(&conn, "journal_mode", "OFF")?;
 
         // Insert the serialized item into the database
-        let insert_statement = format!("insert into {split} (item) values (?)", split = split);
+        let insert_statement = format!("insert into {split} (item) values (?)");
         conn.execute(insert_statement.as_str(), [serialized_item])?;
 
         // Get the primary key of the last inserted row and convert to index (row_id-1)

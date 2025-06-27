@@ -152,7 +152,7 @@ impl<T: ModuleDisplay> ModuleDisplayDefault for Vec<T> {
         self.iter()
             .enumerate()
             .fold(content, |acc, (i, module)| {
-                let index = format!("{}", i);
+                let index = format!("{i}");
                 acc.add(&index, module)
             })
             .set_top_level_type(format!("Vec<0..{}>", self.len()).as_str())
@@ -235,7 +235,7 @@ impl<const N: usize, T: ModuleDisplay> ModuleDisplayDefault for [T; N] {
         self.iter()
             .enumerate()
             .fold(content, |acc, (i, module)| {
-                let index = format!("{}", i);
+                let index = format!("{i}");
                 acc.add(&index, module)
             })
             .set_top_level_type(format!("[0..{}]", self.len()).as_str())

@@ -145,7 +145,7 @@ pub fn print_debug_info(
             println!("Original Key: {old_key}");
             println!("Remapped Key: {new_key}");
         } else {
-            println!("Key: {}", new_key);
+            println!("Key: {new_key}");
         }
 
         let shape = tensors[&new_key].shape();
