@@ -4,11 +4,6 @@ use cubecl::tensor_vectorization_factor;
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let shape: Shape = (&data.shape).into();
-
-    if data.num_elements() == 0 {
-        panic!("Cannot create 0-elem tensor");
-    }
-
     let client = R::client(device);
     let buffer = client.create(data.as_bytes());
 
