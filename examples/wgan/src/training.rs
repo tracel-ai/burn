@@ -192,7 +192,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
                 // Add 0.5/255.0 to the images, refer to pytorch save_image source
                 let fake_images = (fake_images + 0.5 / 255.0).clamp(0.0, 1.0);
                 // Save images in artifact directory
-                let path = format!("{artifact_dir}/image-{}.png", epoch);
+                let path = format!("{artifact_dir}/image-{epoch}.png");
                 save_image::<B, _>(fake_images, 5, path).unwrap();
             }
         }

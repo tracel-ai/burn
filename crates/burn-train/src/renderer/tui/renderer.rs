@@ -245,7 +245,7 @@ impl TuiMetricsRenderer {
                         self.draw().ok();
                     }
                     Err(err) => {
-                        eprintln!("Error reading event: {}", err);
+                        eprintln!("Error reading event: {err}");
                         break;
                     }
                     _ => continue,
@@ -261,7 +261,7 @@ impl TuiMetricsRenderer {
         if self.previous_panic_hook.is_some() {
             if self.persistent {
                 if let Err(err) = self.handle_post_training() {
-                    eprintln!("Error in post-training handling: {}", err);
+                    eprintln!("Error in post-training handling: {err}");
                 }
             }
 

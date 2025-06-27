@@ -94,7 +94,7 @@ impl CosineEmbeddingLoss {
         match &self.reduction.0 {
             Reduction::Mean => tensor.mean(),
             Reduction::Sum => tensor.sum(),
-            other => panic!("{:?} reduction is not supported", other),
+            other => panic!("{other:?} reduction is not supported"),
         }
     }
 
@@ -150,20 +150,17 @@ impl CosineEmbeddingLoss {
 
         assert_eq!(
             batch_size1, batch_size2,
-            "Batch size of input1 ({}) must match batch size of input2 ({})",
-            batch_size1, batch_size2
+            "Batch size of input1 ({batch_size1}) must match batch size of input2 ({batch_size2})"
         );
 
         assert_eq!(
             dim1, dim2,
-            "Embedding dimension of input1 ({}) must match embedding dimension of input2 ({})",
-            dim1, dim2
+            "Embedding dimension of input1 ({dim1}) must match embedding dimension of input2 ({dim2})"
         );
 
         assert_eq!(
             batch_size1, batch_size_target,
-            "Batch size of inputs ({}) must match batch size of target ({})",
-            batch_size1, batch_size_target
+            "Batch size of inputs ({batch_size1}) must match batch size of target ({batch_size_target})"
         );
     }
 }

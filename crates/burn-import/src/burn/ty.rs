@@ -67,7 +67,7 @@ impl Type {
     pub fn format_name(name: &str) -> String {
         let name_is_number = name.bytes().all(|digit| digit.is_ascii_digit());
         if name_is_number {
-            format!("_{}", name)
+            format!("_{name}")
         } else {
             name.to_string()
         }
@@ -114,7 +114,7 @@ impl Type {
 impl ScalarType {
     pub fn new<S: AsRef<str>>(name: S, kind: ScalarKind) -> Self {
         if name.as_ref().is_empty() {
-            panic!("Scalar of Type {:?} was passed with empty name", kind);
+            panic!("Scalar of Type {kind:?} was passed with empty name");
         }
 
         let formatted_name = Type::format_name(name.as_ref());
@@ -188,7 +188,7 @@ impl ShapeType {
 impl TensorType {
     pub fn new<S: AsRef<str>>(name: S, rank: usize, kind: TensorKind) -> Self {
         if name.as_ref().is_empty() {
-            panic!("Tensor of Kind {:?} was passed with empty name", kind);
+            panic!("Tensor of Kind {kind:?} was passed with empty name");
         }
         let formatted_name = Type::format_name(name.as_ref());
         assert_ne!(
@@ -241,10 +241,7 @@ impl TensorType {
 impl OtherType {
     pub fn new<S: AsRef<str>>(name: S, tokens: TokenStream) -> Self {
         if name.as_ref().is_empty() {
-            panic!(
-                "Other type with tokens {:?} was passed with empty name",
-                tokens
-            );
+            panic!("Other type with tokens {tokens:?} was passed with empty name");
         }
         let formatted_name = Type::format_name(name.as_ref());
         Self {

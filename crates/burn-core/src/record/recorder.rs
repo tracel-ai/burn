@@ -93,7 +93,7 @@ pub trait Recorder<B: Backend>:
                         .as_str();
                     }
 
-                    message += format!("\nError: {:?}", err).as_str();
+                    message += format!("\nError: {err:?}").as_str();
 
                     return RecorderError::Unknown(message);
                 }

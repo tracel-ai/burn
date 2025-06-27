@@ -87,9 +87,9 @@ pub trait ModuleDisplay: ModuleDisplayDefault {
 
         // Print the struct name
         if settings.new_line_after_attribute() {
-            writeln!(result, "{} {{", top_level_type).unwrap();
+            writeln!(result, "{top_level_type} {{").unwrap();
         } else {
-            write!(result, "{} {{", top_level_type).unwrap();
+            write!(result, "{top_level_type} {{").unwrap();
         }
 
         for (i, attribute) in content.attributes.iter().enumerate() {
@@ -106,9 +106,9 @@ pub trait ModuleDisplay: ModuleDisplayDefault {
             let num_params = self.num_params();
             if num_params > 0 {
                 if settings.new_line_after_attribute() {
-                    writeln!(result, "{indent}params: {}", num_params).unwrap();
+                    writeln!(result, "{indent}params: {num_params}").unwrap();
                 } else {
-                    write!(result, ", params: {}", num_params).unwrap();
+                    write!(result, ", params: {num_params}").unwrap();
                 }
             }
         }
@@ -464,7 +464,7 @@ impl Content {
             panic!("Cannot add single item when attributes are set.");
         }
 
-        self.single_item = Some(format!("{}", value));
+        self.single_item = Some(format!("{value}"));
         self
     }
 

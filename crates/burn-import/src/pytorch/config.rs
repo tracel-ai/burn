@@ -93,7 +93,7 @@ fn to_nested_value(obj: Object) -> Result<NestedValue, Error> {
             Ok(NestedValue::Map(map))
         }
         // Other Object types (e.g., Tuple, Tensor, Storage) are not supported here.
-        _ => Err(Error::Other(format!("Unsupported object type: {:?}", obj))),
+        _ => Err(Error::Other(format!("Unsupported object type: {obj:?}"))),
     }
 }
 
