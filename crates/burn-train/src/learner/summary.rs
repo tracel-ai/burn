@@ -187,9 +187,9 @@ impl Display for LearnerSummary {
         fn fmt_val(val: f64) -> String {
             if val < 1e-2 {
                 // Use scientific notation for small values which would otherwise be truncated
-                format!("{:<9.3e}", val)
+                format!("{val:<9.3e}")
             } else {
-                format!("{:<9.3}", val)
+                format!("{val:<9.3}")
             }
         }
 

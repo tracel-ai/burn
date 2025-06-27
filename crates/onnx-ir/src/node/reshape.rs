@@ -69,7 +69,7 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
 
     // TODO: check "shape" attribute
     if node.inputs.len() != 2 || node.inputs[1].value.is_none() {
-        panic!("Reshape: shape tensor must be present for {:?}", node);
+        panic!("Reshape: shape tensor must be present for {node:?}");
     }
 
     match &node.inputs[1].value {

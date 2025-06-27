@@ -172,9 +172,9 @@ impl HuggingfaceDatasetLoader {
 
         // create the db file path
         let db_file_name = if let Some(subset) = self.subset.clone() {
-            format!("{}-{}.db", name, sanitize(subset.as_str()))
+            format!("{name}-{}.db", sanitize(subset.as_str()))
         } else {
-            format!("{}.db", name)
+            format!("{name}.db")
         };
 
         let db_file = base_dir.join(db_file_name);
@@ -321,7 +321,7 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
         let mut handle = command.spawn().unwrap();
 
         handle.wait().map_err(|err| {
-            ImporterError::FailToDownloadPythonDependencies(format!(" error: {}", err))
+            ImporterError::FailToDownloadPythonDependencies(format!(" error: {err}"))
         })?;
         // Check if the venv environment can be used successfully."
         if !check_python_version_is_3(venv_python_path.to_str().unwrap()) {
@@ -344,9 +344,9 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
 
     // Spawn the pip install process and wait for it to complete.
     let mut handle = command.spawn().unwrap();
-    handle.wait().map_err(|err| {
-        ImporterError::FailToDownloadPythonDependencies(format!(" error: {}", err))
-    })?;
+    handle
+        .wait()
+        .map_err(|err| ImporterError::FailToDownloadPythonDependencies(format!(" error: {err}")))?;
 
     Ok(venv_python_path)
 }

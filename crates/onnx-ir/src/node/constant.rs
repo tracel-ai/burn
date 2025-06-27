@@ -60,7 +60,7 @@ pub fn constant_update_outputs(node: &mut Node) {
                     static_shape: None,
                 })
             }
-            ty => panic!("Constant value of {:?} is not supported", ty),
+            ty => panic!("Constant value of {ty:?} is not supported"),
         },
         None => panic!("Constant node must have a value attribute"),
     };

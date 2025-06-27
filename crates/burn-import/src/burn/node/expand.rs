@@ -45,7 +45,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
                     let shape_name = &shape.name;
                     quote! { #shape_name }
                 }
-                b => panic!("Invalid shape source {:?}", b),
+                b => panic!("Invalid shape source {b:?}"),
             },
         };
 

@@ -90,8 +90,7 @@ impl TensorData {
         let num_data = data.len();
         assert_eq!(
             expected_data_len, num_data,
-            "Shape {:?} is invalid for input of size {:?}",
-            shape, num_data,
+            "Shape {shape:?} is invalid for input of size {num_data:?}",
         );
     }
 
@@ -545,7 +544,7 @@ impl TensorData {
                 if q == q_other {
                     self.assert_eq_elem::<i8>(other)
                 } else {
-                    panic!("Quantization schemes differ ({:?} != {:?})", q, q_other)
+                    panic!("Quantization schemes differ ({q:?} != {q_other:?})")
                 }
             }
         }
@@ -579,7 +578,7 @@ impl TensorData {
         }
 
         if !message.is_empty() {
-            panic!("Tensors are not eq:{}", message);
+            panic!("Tensors are not eq:{message}");
         }
     }
 
@@ -644,7 +643,7 @@ impl TensorData {
         }
 
         if !message.is_empty() {
-            panic!("Tensors are not approx eq:{}", message);
+            panic!("Tensors are not approx eq:{message}");
         }
     }
 

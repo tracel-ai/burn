@@ -233,7 +233,7 @@ fn main() {
     let device = Default::default();
     let model = ModelConfig::new(10, 512).init::<MyBackend>(&device);
 
-    println!("{}", model);
+    println!("{model}");
 }
 ```
 
