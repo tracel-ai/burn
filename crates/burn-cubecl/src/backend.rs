@@ -38,6 +38,8 @@ where
     type FloatTensorPrimitive = CubeTensor<R>;
     type IntTensorPrimitive = CubeTensor<R>;
     type BoolTensorPrimitive = CubeTensor<R>;
+    type ComplexTensorPrimitive = CubeTensor<R>;
+    type ComplexElem = burn_tensor::Complex32;
     type QuantizedTensorPrimitive = CubeTensor<R>;
     type QuantizedEncoding = u32;
 

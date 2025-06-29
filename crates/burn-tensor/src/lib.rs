@@ -51,6 +51,8 @@ mod cube {
                 crate::DType::U16 => Elem::UInt(UIntKind::U16),
                 crate::DType::U8 => Elem::UInt(UIntKind::U8),
                 crate::DType::Bool => Elem::Bool,
+                crate::DType::Complex32 => panic!("Complex32 type is not supported in CubeCL."),
+                crate::DType::Complex64 => panic!("Complex64 type is not supported in CubeCL."),
                 crate::DType::QFloat(_) => panic!("quantized type is not supported yet."),
             }
         }
