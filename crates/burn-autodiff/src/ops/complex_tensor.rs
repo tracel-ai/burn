@@ -1,12 +1,9 @@
-use crate::{
-    checkpoint::strategy::CheckpointStrategy,
-    Autodiff,
-};
+use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy};
 use burn_tensor::{
+    Distribution, Shape, TensorData,
     backend::Backend,
     ops::ComplexTensorOps,
-    Distribution, Shape, TensorData,
-    ops::{Device, ComplexTensor},
+    ops::{ComplexTensor, Device},
 };
 
 impl<B: Backend, C: CheckpointStrategy> ComplexTensorOps<Self> for Autodiff<B, C> {
@@ -34,7 +31,10 @@ impl<B: Backend, C: CheckpointStrategy> ComplexTensorOps<Self> for Autodiff<B, C
         B::complex_device(tensor)
     }
 
-    fn complex_to_device(tensor: ComplexTensor<Self>, device: &Device<Self>) -> ComplexTensor<Self> {
+    fn complex_to_device(
+        tensor: ComplexTensor<Self>,
+        device: &Device<Self>,
+    ) -> ComplexTensor<Self> {
         B::complex_to_device(tensor, device)
     }
 
@@ -74,34 +74,34 @@ impl<B: Backend, C: CheckpointStrategy> ComplexTensorOps<Self> for Autodiff<B, C
         B::complex_conj(tensor)
     }
 
-    fn complex_real(tensor: ComplexTensor<Self>) -> <Self as Backend>::FloatTensorPrimitive {
+    fn complex_real(_tensor: ComplexTensor<Self>) -> <Self as Backend>::FloatTensorPrimitive {
         // Since autodiff complex tensors are just the inner backend's complex tensors,
         // and complex_real returns a float tensor, we need to convert it to an autodiff float tensor
         todo!("Need to implement autodiff wrapper for complex_real")
     }
 
-    fn complex_imag(tensor: ComplexTensor<Self>) -> <Self as Backend>::FloatTensorPrimitive {
+    fn complex_imag(_tensor: ComplexTensor<Self>) -> <Self as Backend>::FloatTensorPrimitive {
         todo!("Need to implement autodiff wrapper for complex_imag")
     }
 
-    fn complex_abs(tensor: ComplexTensor<Self>) -> <Self as Backend>::FloatTensorPrimitive {
+    fn complex_abs(_tensor: ComplexTensor<Self>) -> <Self as Backend>::FloatTensorPrimitive {
         todo!("Need to implement autodiff wrapper for complex_abs")
     }
 
-    fn complex_arg(tensor: ComplexTensor<Self>) -> <Self as Backend>::FloatTensorPrimitive {
+    fn complex_arg(_tensor: ComplexTensor<Self>) -> <Self as Backend>::FloatTensorPrimitive {
         todo!("Need to implement autodiff wrapper for complex_arg")
     }
 
     fn complex_from_parts(
-        real: <Self as Backend>::FloatTensorPrimitive,
-        imag: <Self as Backend>::FloatTensorPrimitive,
+        _real: <Self as Backend>::FloatTensorPrimitive,
+        _imag: <Self as Backend>::FloatTensorPrimitive,
     ) -> ComplexTensor<Self> {
         todo!("Need to implement autodiff wrapper for complex_from_parts")
     }
 
     fn complex_from_polar(
-        magnitude: <Self as Backend>::FloatTensorPrimitive,
-        phase: <Self as Backend>::FloatTensorPrimitive,
+        _magnitude: <Self as Backend>::FloatTensorPrimitive,
+        _phase: <Self as Backend>::FloatTensorPrimitive,
     ) -> ComplexTensor<Self> {
         todo!("Need to implement autodiff wrapper for complex_from_polar")
     }

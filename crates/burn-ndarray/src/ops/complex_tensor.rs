@@ -1,14 +1,18 @@
-use crate::{backend::NdArrayDevice, element::FloatNdArrayElement, NdArray, NdArrayTensor, SEED};
-use burn_tensor::{
-    backend::Backend,
-    element::{Complex32, Complex64},
-    ops::ComplexTensorOps,
-    Distribution, Shape, TensorData,
+use crate::{
+    IntNdArrayElement, NdArray, NdArrayTensor, QuantElement, SEED, backend::NdArrayDevice,
+    element::FloatNdArrayElement,
 };
+use alloc::vec::Vec;
 use burn_common::rand::get_seeded_rng;
-use ndarray::{ArcArray, ArrayD, Axis, IxDyn};
+use burn_tensor::{
+    Complex32, Distribution, Shape, TensorData, TensorMetadata, backend::Backend,
+    ops::ComplexTensorOps,
+};
+use ndarray::{ArrayD, IxDyn};
 
-impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArray<E, I, Q> {
+impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>
+    ComplexTensorOps<NdArray<E, I, Q>> for NdArray<E, I, Q>
+{
     fn complex_from_data(data: TensorData, _device: &NdArrayDevice) -> NdArrayTensor<Complex32> {
         NdArrayTensor::from_data(data)
     }
@@ -55,8 +59,12 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
     }
 
     fn complex_reshape(tensor: NdArrayTensor<Complex32>, shape: Shape) -> NdArrayTensor<Complex32> {
-        let array = tensor.array.into_shape(IxDyn(shape.dims.as_slice())).unwrap();
-        NdArrayTensor::new(array)
+        let array = tensor
+            .array
+            .to_shape(IxDyn(shape.dims.as_slice()))
+            .unwrap()
+            .to_owned();
+        NdArrayTensor::new(array.into())
     }
 
     fn complex_transpose(tensor: NdArrayTensor<Complex32>) -> NdArrayTensor<Complex32> {
@@ -69,7 +77,7 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
         rhs: NdArrayTensor<Complex32>,
     ) -> NdArrayTensor<Complex32> {
         let array = &lhs.array + &rhs.array;
-        NdArrayTensor::new(array)
+        NdArrayTensor::new(array.into())
     }
 
     fn complex_sub(
@@ -77,7 +85,7 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
         rhs: NdArrayTensor<Complex32>,
     ) -> NdArrayTensor<Complex32> {
         let array = &lhs.array - &rhs.array;
-        NdArrayTensor::new(array)
+        NdArrayTensor::new(array.into())
     }
 
     fn complex_mul(
@@ -85,13 +93,16 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
         rhs: NdArrayTensor<Complex32>,
     ) -> NdArrayTensor<Complex32> {
         // Complex multiplication: (a + bi) * (c + di) = (ac - bd) + (ad + bc)i
-        let result = lhs.array.iter().zip(rhs.array.iter()).map(|(a, b)| {
-            Complex32 {
+        let result = lhs
+            .array
+            .iter()
+            .zip(rhs.array.iter())
+            .map(|(a, b)| Complex32 {
                 real: a.real * b.real - a.imag * b.imag,
                 imag: a.real * b.imag + a.imag * b.real,
-            }
-        }).collect::<Vec<_>>();
-        
+            })
+            .collect::<Vec<_>>();
+
         let shape = lhs.shape();
         let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), result).unwrap();
         NdArrayTensor::new(array.into_shared())
@@ -102,14 +113,19 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
         rhs: NdArrayTensor<Complex32>,
     ) -> NdArrayTensor<Complex32> {
         // Complex division: (a + bi) / (c + di) = ((ac + bd) + (bc - ad)i) / (c² + d²)
-        let result = lhs.array.iter().zip(rhs.array.iter()).map(|(a, b)| {
-            let denom = b.real * b.real + b.imag * b.imag;
-            Complex32 {
-                real: (a.real * b.real + a.imag * b.imag) / denom,
-                imag: (a.imag * b.real - a.real * b.imag) / denom,
-            }
-        }).collect::<Vec<_>>();
-        
+        let result = lhs
+            .array
+            .iter()
+            .zip(rhs.array.iter())
+            .map(|(a, b)| {
+                let denom = b.real * b.real + b.imag * b.imag;
+                Complex32 {
+                    real: (a.real * b.real + a.imag * b.imag) / denom,
+                    imag: (a.imag * b.real - a.real * b.imag) / denom,
+                }
+            })
+            .collect::<Vec<_>>();
+
         let shape = lhs.shape();
         let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), result).unwrap();
         NdArrayTensor::new(array.into_shared())
@@ -120,7 +136,7 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
             real: -c.real,
             imag: -c.imag,
         });
-        NdArrayTensor::new(array)
+        NdArrayTensor::new(array.into())
     }
 
     fn complex_conj(tensor: NdArrayTensor<Complex32>) -> NdArrayTensor<Complex32> {
@@ -128,7 +144,7 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
             real: c.real,
             imag: -c.imag,
         });
-        NdArrayTensor::new(array)
+        NdArrayTensor::new(array.into())
     }
 
     fn complex_real(tensor: NdArrayTensor<Complex32>) -> <Self as Backend>::FloatTensorPrimitive {
@@ -148,9 +164,11 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
     }
 
     fn complex_abs(tensor: NdArrayTensor<Complex32>) -> <Self as Backend>::FloatTensorPrimitive {
-        let abs_data: Vec<f32> = tensor.array.iter().map(|c| {
-            (c.real * c.real + c.imag * c.imag).sqrt()
-        }).collect();
+        let abs_data: Vec<f32> = tensor
+            .array
+            .iter()
+            .map(|c| (c.real * c.real + c.imag * c.imag).sqrt())
+            .collect();
         let shape = tensor.shape();
         let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), abs_data).unwrap();
         let abs_tensor = NdArrayTensor::new(array.into_shared());
@@ -158,9 +176,7 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
     }
 
     fn complex_arg(tensor: NdArrayTensor<Complex32>) -> <Self as Backend>::FloatTensorPrimitive {
-        let arg_data: Vec<f32> = tensor.array.iter().map(|c| {
-            c.imag.atan2(c.real)
-        }).collect();
+        let arg_data: Vec<f32> = tensor.array.iter().map(|c| c.imag.atan2(c.real)).collect();
         let shape = tensor.shape();
         let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), arg_data).unwrap();
         let arg_tensor = NdArrayTensor::new(array.into_shared());
@@ -181,7 +197,7 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
                 NdArrayTensor::new(array.into_shared())
             }
         };
-        
+
         let imag_f32 = match imag {
             crate::NdArrayTensorFloat::F32(tensor) => tensor,
             crate::NdArrayTensorFloat::F64(tensor) => {
@@ -192,11 +208,13 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
             }
         };
 
-        let complex_data: Vec<Complex32> = real_f32.array.iter()
+        let complex_data: Vec<Complex32> = real_f32
+            .array
+            .iter()
             .zip(imag_f32.array.iter())
             .map(|(&r, &i)| Complex32 { real: r, imag: i })
             .collect();
-        
+
         let shape = real_f32.shape();
         let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), complex_data).unwrap();
         NdArrayTensor::new(array.into_shared())
@@ -216,7 +234,7 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
                 NdArrayTensor::new(array.into_shared())
             }
         };
-        
+
         let phase_f32 = match phase {
             crate::NdArrayTensorFloat::F32(tensor) => tensor,
             crate::NdArrayTensorFloat::F64(tensor) => {
@@ -227,14 +245,16 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
             }
         };
 
-        let complex_data: Vec<Complex32> = mag_f32.array.iter()
+        let complex_data: Vec<Complex32> = mag_f32
+            .array
+            .iter()
             .zip(phase_f32.array.iter())
-            .map(|(&m, &p)| Complex32 { 
-                real: m * p.cos(), 
-                imag: m * p.sin() 
+            .map(|(&m, &p)| Complex32 {
+                real: m * p.cos(),
+                imag: m * p.sin(),
             })
             .collect();
-        
+
         let shape = mag_f32.shape();
         let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), complex_data).unwrap();
         NdArrayTensor::new(array.into_shared())
@@ -248,7 +268,7 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
                 imag: exp_real * c.imag.sin(),
             }
         });
-        NdArrayTensor::new(array)
+        NdArrayTensor::new(array.into())
     }
 
     fn complex_log(tensor: NdArrayTensor<Complex32>) -> NdArrayTensor<Complex32> {
@@ -260,7 +280,7 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
                 imag: phase,
             }
         });
-        NdArrayTensor::new(array)
+        NdArrayTensor::new(array.into())
     }
 
     fn complex_powc(
@@ -284,7 +304,7 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
                 imag: sqrt_mag * half_phase.sin(),
             }
         });
-        NdArrayTensor::new(array)
+        NdArrayTensor::new(array.into())
     }
 
     fn complex_sin(tensor: NdArrayTensor<Complex32>) -> NdArrayTensor<Complex32> {
@@ -295,7 +315,7 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
                 imag: c.real.cos() * c.imag.sinh(),
             }
         });
-        NdArrayTensor::new(array)
+        NdArrayTensor::new(array.into())
     }
 
     fn complex_cos(tensor: NdArrayTensor<Complex32>) -> NdArrayTensor<Complex32> {
@@ -306,7 +326,7 @@ impl<E: FloatNdArrayElement, I, Q> ComplexTensorOps<NdArray<E, I, Q>> for NdArra
                 imag: -c.real.sin() * c.imag.sinh(),
             }
         });
-        NdArrayTensor::new(array)
+        NdArrayTensor::new(array.into())
     }
 
     fn complex_tan(tensor: NdArrayTensor<Complex32>) -> NdArrayTensor<Complex32> {

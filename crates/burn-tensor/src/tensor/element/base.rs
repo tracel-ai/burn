@@ -60,6 +60,51 @@ impl core::fmt::Display for Complex32 {
     }
 }
 
+// Arithmetic operators for Complex32
+impl core::ops::Add for Complex32 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            real: self.real + rhs.real,
+            imag: self.imag + rhs.imag,
+        }
+    }
+}
+
+impl core::ops::Sub for Complex32 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            real: self.real - rhs.real,
+            imag: self.imag - rhs.imag,
+        }
+    }
+}
+
+impl core::ops::Mul for Complex32 {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self {
+            real: self.real * rhs.real - self.imag * rhs.imag,
+            imag: self.real * rhs.imag + self.imag * rhs.real,
+        }
+    }
+}
+
+impl core::ops::Neg for Complex32 {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self {
+            real: -self.real,
+            imag: -self.imag,
+        }
+    }
+}
+
 /// 64-bit complex number type (real and imaginary parts are f64).
 #[derive(Debug, Clone, Copy, PartialEq, Default, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]

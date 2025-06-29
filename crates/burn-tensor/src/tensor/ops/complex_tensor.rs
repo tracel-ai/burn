@@ -1,4 +1,4 @@
-use super::{Device, ComplexElem, ComplexTensor};
+use super::{ComplexElem, ComplexTensor, Device};
 use crate::{Distribution, TensorData, backend::Backend, tensor::Shape};
 
 /// Operations on complex tensors.
@@ -71,7 +71,11 @@ pub trait ComplexTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the given shape and value.
-    fn complex_full(shape: Shape, fill_value: ComplexElem<B>, device: &Device<B>) -> ComplexTensor<B> {
+    fn complex_full(
+        shape: Shape,
+        fill_value: ComplexElem<B>,
+        device: &Device<B>,
+    ) -> ComplexTensor<B> {
         Self::complex_from_data(TensorData::full(shape, fill_value), device)
     }
 

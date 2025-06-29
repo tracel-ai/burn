@@ -1,13 +1,13 @@
 use crate::{
-    Complex, Distribution, Shape, Tensor, TensorData, DType,
-    backend::Backend, check, check::TensorCheck, ops::{ComplexTensor, Device}, 
-    BasicOps, Numeric, Element, ElementConversion, TensorMetadata
+    BasicOps, Complex, DType, Element, ElementConversion, Numeric, Shape, Tensor, TensorData,
+    backend::Backend, ops::Device,
 };
 use alloc::vec::Vec;
 use core::ops::Range;
 
 use super::Transaction;
 
+#[allow(unused_variables)]
 impl<B: Backend> BasicOps<B> for Complex {
     type Elem = B::ComplexElem;
 
@@ -80,7 +80,10 @@ impl<B: Backend> BasicOps<B> for Complex {
         todo!("complex_equal not yet implemented")
     }
 
-    fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> <B as Backend>::BoolTensorPrimitive {
+    fn not_equal(
+        lhs: Self::Primitive,
+        rhs: Self::Primitive,
+    ) -> <B as Backend>::BoolTensorPrimitive {
         // TODO: Implement complex_not_equal in ComplexTensorOps
         todo!("complex_not_equal not yet implemented")
     }
@@ -128,7 +131,8 @@ impl<B: Backend> BasicOps<B> for Complex {
     }
 }
 
-impl<B: Backend> Numeric<B> for Complex 
+#[allow(unused_variables)]
+impl<B: Backend> Numeric<B> for Complex
 where
     B::ComplexElem: Element,
 {
@@ -141,7 +145,7 @@ where
         // For now, create a tensor with the scalar value and use add
         let device = B::complex_device(&lhs);
         let shape = B::complex_shape(&lhs);
-        let scalar_complex = B::ComplexElem::from_elem(rhs);
+        let scalar_complex: B::ComplexElem = rhs.elem();
         let scalar_tensor = B::complex_full(shape, scalar_complex, &device);
         B::complex_add(lhs, scalar_tensor)
     }
@@ -154,7 +158,7 @@ where
         // TODO: Implement complex_sub_scalar in ComplexTensorOps
         let device = B::complex_device(&lhs);
         let shape = B::complex_shape(&lhs);
-        let scalar_complex = B::ComplexElem::from_elem(rhs);
+        let scalar_complex: B::ComplexElem = rhs.elem();
         let scalar_tensor = B::complex_full(shape, scalar_complex, &device);
         B::complex_sub(lhs, scalar_tensor)
     }
@@ -167,7 +171,7 @@ where
         // TODO: Implement complex_mul_scalar in ComplexTensorOps
         let device = B::complex_device(&lhs);
         let shape = B::complex_shape(&lhs);
-        let scalar_complex = B::ComplexElem::from_elem(rhs);
+        let scalar_complex: B::ComplexElem = rhs.elem();
         let scalar_tensor = B::complex_full(shape, scalar_complex, &device);
         B::complex_mul(lhs, scalar_tensor)
     }
@@ -180,7 +184,7 @@ where
         // TODO: Implement complex_div_scalar in ComplexTensorOps
         let device = B::complex_device(&lhs);
         let shape = B::complex_shape(&lhs);
-        let scalar_complex = B::ComplexElem::from_elem(rhs);
+        let scalar_complex: B::ComplexElem = rhs.elem();
         let scalar_tensor = B::complex_full(shape, scalar_complex, &device);
         B::complex_div(lhs, scalar_tensor)
     }
@@ -208,7 +212,8 @@ where
         fill_value: E,
         device: &B::Device,
     ) -> Self::Primitive {
-        B::complex_full(shape, B::ComplexElem::from_elem(fill_value), device)
+        let complex_value: B::ComplexElem = fill_value.elem();
+        B::complex_full(shape, complex_value, device)
     }
 
     fn sum(tensor: Self::Primitive) -> Self::Primitive {
@@ -240,8 +245,6 @@ where
         // TODO: Implement complex_mean_dim in ComplexTensorOps
         todo!("complex_mean_dim not yet implemented")
     }
-
-
 
     fn neg(tensor: Self::Primitive) -> Self::Primitive {
         B::complex_neg(tensor)
@@ -316,7 +319,11 @@ where
         todo!("complex_mask_fill not yet implemented")
     }
 
-    fn select(tensor: Self::Primitive, dim: usize, indices: crate::Tensor<B, 1, crate::Int>) -> Self::Primitive {
+    fn select(
+        tensor: Self::Primitive,
+        dim: usize,
+        indices: crate::Tensor<B, 1, crate::Int>,
+    ) -> Self::Primitive {
         // TODO: Implement complex_select in ComplexTensorOps
         todo!("complex_select not yet implemented")
     }
@@ -375,7 +382,10 @@ where
         todo!("complex_max_dim not yet implemented")
     }
 
-    fn max_dim_with_indices(tensor: Self::Primitive, dim: usize) -> (Self::Primitive, B::IntTensorPrimitive) {
+    fn max_dim_with_indices(
+        tensor: Self::Primitive,
+        dim: usize,
+    ) -> (Self::Primitive, B::IntTensorPrimitive) {
         // TODO: Implement complex_max_dim_with_indices in ComplexTensorOps
         todo!("complex_max_dim_with_indices not yet implemented")
     }
@@ -400,7 +410,10 @@ where
         todo!("complex_min_dim not yet implemented")
     }
 
-    fn min_dim_with_indices(tensor: Self::Primitive, dim: usize) -> (Self::Primitive, B::IntTensorPrimitive) {
+    fn min_dim_with_indices(
+        tensor: Self::Primitive,
+        dim: usize,
+    ) -> (Self::Primitive, B::IntTensorPrimitive) {
         // TODO: Implement complex_min_dim_with_indices in ComplexTensorOps
         todo!("complex_min_dim_with_indices not yet implemented")
     }
@@ -439,7 +452,7 @@ where
     fn powf_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         let device = B::complex_device(&lhs);
         let shape = B::complex_shape(&lhs);
-        let scalar_complex = B::ComplexElem::from_elem(rhs);
+        let scalar_complex: B::ComplexElem = rhs.elem();
         let scalar_tensor = B::complex_full(shape, scalar_complex, &device);
         B::complex_powc(lhs, scalar_tensor)
     }
@@ -449,7 +462,11 @@ where
         todo!("complex_powi_scalar not yet implemented")
     }
 
-    fn random(shape: Shape, distribution: crate::Distribution, device: &crate::Device<B>) -> Self::Primitive {
+    fn random(
+        shape: Shape,
+        distribution: crate::Distribution,
+        device: &crate::Device<B>,
+    ) -> Self::Primitive {
         B::complex_random(shape, distribution, device)
     }
 
@@ -458,7 +475,11 @@ where
         todo!("complex_sort not yet implemented")
     }
 
-    fn sort_with_indices(tensor: Self::Primitive, dim: usize, descending: bool) -> (Self::Primitive, B::IntTensorPrimitive) {
+    fn sort_with_indices(
+        tensor: Self::Primitive,
+        dim: usize,
+        descending: bool,
+    ) -> (Self::Primitive, B::IntTensorPrimitive) {
         // TODO: Implement complex_sort_with_indices in ComplexTensorOps
         todo!("complex_sort_with_indices not yet implemented")
     }
@@ -488,31 +509,80 @@ where
 
     /// Returns the real part of the complex tensor as a float tensor.
     pub fn real(self) -> Tensor<B, D> {
-        Tensor::new(crate::TensorPrimitive::Float(B::complex_real(self.primitive)))
+        Tensor::new(crate::TensorPrimitive::Float(B::complex_real(
+            self.primitive,
+        )))
     }
 
     /// Returns the imaginary part of the complex tensor as a float tensor.
     pub fn imag(self) -> Tensor<B, D> {
-        Tensor::new(crate::TensorPrimitive::Float(B::complex_imag(self.primitive)))
+        Tensor::new(crate::TensorPrimitive::Float(B::complex_imag(
+            self.primitive,
+        )))
     }
 
     /// Returns the magnitude (absolute value) of the complex tensor as a float tensor.
     pub fn magnitude(self) -> Tensor<B, D> {
-        Tensor::new(crate::TensorPrimitive::Float(B::complex_abs(self.primitive)))
+        Tensor::new(crate::TensorPrimitive::Float(B::complex_abs(
+            self.primitive,
+        )))
     }
 
     /// Returns the phase (argument) of the complex tensor as a float tensor.
     pub fn phase(self) -> Tensor<B, D> {
-        Tensor::new(crate::TensorPrimitive::Float(B::complex_arg(self.primitive)))
+        Tensor::new(crate::TensorPrimitive::Float(B::complex_arg(
+            self.primitive,
+        )))
     }
 
     /// Creates a complex tensor from real and imaginary parts.
     pub fn from_parts(real: Tensor<B, D>, imag: Tensor<B, D>) -> Self {
-        Self::new(B::complex_from_parts(real.primitive.tensor(), imag.primitive.tensor()))
+        Self::new(B::complex_from_parts(
+            real.primitive.tensor(),
+            imag.primitive.tensor(),
+        ))
     }
 
     /// Creates a complex tensor from magnitude and phase (polar coordinates).
     pub fn from_polar(magnitude: Tensor<B, D>, phase: Tensor<B, D>) -> Self {
-        Self::new(B::complex_from_polar(magnitude.primitive.tensor(), phase.primitive.tensor()))
+        Self::new(B::complex_from_polar(
+            magnitude.primitive.tensor(),
+            phase.primitive.tensor(),
+        ))
+    }
+
+    /// Complex exponential function.
+    pub fn exp(self) -> Self {
+        Self::new(B::complex_exp(self.primitive))
+    }
+
+    /// Complex natural logarithm.
+    pub fn log(self) -> Self {
+        Self::new(B::complex_log(self.primitive))
+    }
+
+    /// Complex power function.
+    pub fn powc(self, rhs: Self) -> Self {
+        Self::new(B::complex_powc(self.primitive, rhs.primitive))
+    }
+
+    /// Complex square root.
+    pub fn sqrt(self) -> Self {
+        Self::new(B::complex_sqrt(self.primitive))
+    }
+
+    /// Complex sine function.
+    pub fn sin(self) -> Self {
+        Self::new(B::complex_sin(self.primitive))
+    }
+
+    /// Complex cosine function.
+    pub fn cos(self) -> Self {
+        Self::new(B::complex_cos(self.primitive))
+    }
+
+    /// Complex tangent function.
+    pub fn tan(self) -> Self {
+        Self::new(B::complex_tan(self.primitive))
     }
 }

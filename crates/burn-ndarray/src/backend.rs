@@ -1,11 +1,11 @@
 use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
-use burn_tensor::element::{Complex32, Complex64};
 use crate::{NdArrayQTensor, NdArrayTensor, NdArrayTensorFloat};
 use alloc::string::String;
 use burn_common::stub::Mutex;
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
+use burn_tensor::Complex32;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
-use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
+use burn_tensor::ops::{BoolTensor, ComplexTensor, FloatTensor, IntTensor, QuantizedTensor};
 use core::marker::PhantomData;
 use rand::{SeedableRng, rngs::StdRng};
 
@@ -121,5 +121,16 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BackendIr fo
 
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         HandleKind::Quantized(tensor)
+    }
+
+    fn complex_tensor(handle: TensorHandle<Self::Handle>) -> ComplexTensor<Self> {
+        match handle.handle {
+            HandleKind::Complex(handle) => handle,
+            _ => panic!("Expected complex handle, got {}", handle.handle.name()),
+        }
+    }
+
+    fn complex_tensor_handle(tensor: ComplexTensor<Self>) -> Self::Handle {
+        HandleKind::Complex(tensor)
     }
 }

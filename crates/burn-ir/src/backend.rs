@@ -1,7 +1,7 @@
 use burn_tensor::{
     Shape,
     backend::Backend,
-    ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
+    ops::{BoolTensor, ComplexTensor, FloatTensor, IntTensor, QuantizedTensor},
 };
 
 /// A tensor representation containing a reference to a tensor resource with a given shape.
@@ -27,6 +27,8 @@ pub trait BackendIr: Backend {
     fn bool_tensor(handle: TensorHandle<Self::Handle>) -> BoolTensor<Self>;
     /// Convert a [handle](BackendIr::Handle) to a [quantized tensor](Backend::QuantizedTensorPrimitive).
     fn quantized_tensor(handle: TensorHandle<Self::Handle>) -> QuantizedTensor<Self>;
+    /// Convert a [handle](BackendIr::Handle) to a [complex tensor](Backend::ComplexTensorPrimitive).
+    fn complex_tensor(handle: TensorHandle<Self::Handle>) -> ComplexTensor<Self>;
 
     /// Convert a [float tensor](Backend::FloatTensorPrimitive) to a [handle](BackendIr::Handle).
     fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle;
@@ -36,6 +38,8 @@ pub trait BackendIr: Backend {
     fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle;
     /// Convert a [quantized tensor](Backend::QuantizedTensorPrimitive) to a [handle](BackendIr::Handle).
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle;
+    /// Convert a [complex tensor](Backend::ComplexTensorPrimitive) to a [handle](BackendIr::Handle).
+    fn complex_tensor_handle(tensor: ComplexTensor<Self>) -> Self::Handle;
 }
 
 /// Handle which points to a backend tensor primitive kind.
@@ -49,6 +53,8 @@ pub enum HandleKind<B: Backend> {
     Bool(B::BoolTensorPrimitive),
     /// Quantized tensor handle.
     Quantized(B::QuantizedTensorPrimitive),
+    /// Complex tensor handle.
+    Complex(B::ComplexTensorPrimitive),
 }
 
 impl<B: Backend> HandleKind<B> {
@@ -59,6 +65,7 @@ impl<B: Backend> HandleKind<B> {
             HandleKind::Int(_) => "int",
             HandleKind::Bool(_) => "bool",
             HandleKind::Quantized(_) => "quantized",
+            HandleKind::Complex(_) => "complex",
         }
     }
 }

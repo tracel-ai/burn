@@ -1,6 +1,7 @@
 mod activation;
 mod binary;
 mod boolean;
+mod complex;
 mod float;
 mod int;
 mod module;

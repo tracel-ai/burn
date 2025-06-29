@@ -115,6 +115,10 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
         into_tensor(handle.handle, handle.shape)
     }
 
+    fn complex_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::ComplexTensor<Self> {
+        into_tensor(handle.handle, handle.shape)
+    }
+
     fn float_tensor_handle(tensor: burn_tensor::ops::FloatTensor<Self>) -> Self::Handle {
         tensor.into()
     }
@@ -128,6 +132,10 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
     }
 
     fn quantized_tensor_handle(tensor: burn_tensor::ops::QuantizedTensor<Self>) -> Self::Handle {
+        tensor.into()
+    }
+
+    fn complex_tensor_handle(tensor: burn_tensor::ops::ComplexTensor<Self>) -> Self::Handle {
         tensor.into()
     }
 }
