@@ -1,5 +1,5 @@
+use cubecl::std::FastDivmod;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::StridedLayout};
-use cubecl_std::FastDivmod;
 
 use crate::{
     CubeRuntime, FloatElement,

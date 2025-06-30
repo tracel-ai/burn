@@ -13,10 +13,11 @@ pub struct BurnBuildCmdArgs {
 
 pub(crate) fn handle_command(
     mut args: BurnBuildCmdArgs,
-    exec_env: ExecutionEnvironment,
+    env: Environment,
+    context: Context,
 ) -> anyhow::Result<()> {
-    match exec_env {
-        ExecutionEnvironment::NoStd => {
+    match context {
+        Context::NoStd => {
             [
                 "Default",
                 WASM32_TARGET,
@@ -56,7 +57,7 @@ pub(crate) fn handle_command(
             })?;
             Ok(())
         }
-        ExecutionEnvironment::Std => {
+        Context::Std => {
             if args.ci {
                 // Exclude crates that are not supported on CI
                 args.exclude.extend(vec![
@@ -69,7 +70,7 @@ pub(crate) fn handle_command(
                 };
             }
             // Build workspace
-            base_commands::build::handle_command(args.try_into().unwrap())?;
+            base_commands::build::handle_command(args.try_into().unwrap(), env, context)?;
             // Specific additional commands to test specific features
             // burn-dataset
             helpers::custom_crates_build(
@@ -81,18 +82,20 @@ pub(crate) fn handle_command(
             )?;
             Ok(())
         }
-        ExecutionEnvironment::All => ExecutionEnvironment::value_variants()
+        Context::All => Context::value_variants()
             .iter()
-            .filter(|env| **env != ExecutionEnvironment::All)
-            .try_for_each(|env| {
+            .filter(|ctx| **ctx != Context::All)
+            .try_for_each(|ctx| {
                 handle_command(
                     BurnBuildCmdArgs {
                         target: args.target.clone(),
                         exclude: args.exclude.clone(),
                         only: args.only.clone(),
                         ci: args.ci,
+                        release: args.release,
                     },
                     env.clone(),
+                    ctx.clone(),
                 )
             }),
     }

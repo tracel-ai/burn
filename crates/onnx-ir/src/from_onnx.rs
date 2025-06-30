@@ -121,10 +121,7 @@ impl GraphData {
                 if let Some(init_arg) = self.initializers.get(proto_str) {
                     init_arg.clone()
                 } else {
-                    log::warn!(
-                        "Input {} not found, should only happen when peeking",
-                        proto_str
-                    );
+                    log::warn!("Input {proto_str} not found, should only happen when peeking");
                     Argument::new(proto_str.to_string())
                 }
             }
@@ -281,7 +278,7 @@ impl OnnxGraphBuilder {
         } else if self.constants_types.contains(&node.node_type) {
             log::debug!("checking node {} for constants", &node.name);
             for input in node.inputs.iter_mut().skip(1) {
-                log::debug!("checking input {:?} for const", input);
+                log::debug!("checking input {input:?} for const");
                 if let Some(const_idx) = self.constants_map.get(&input.name) {
                     let constant = &graph_data.processed_nodes[*const_idx];
                     log::debug!(
@@ -369,10 +366,9 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     // Check opset versions - must be >= MIN_OPSET_VERSION
     if !verify_opsets(&onnx_model.opset_import, MIN_OPSET_VERSION) {
         panic!(
-            "Unsupported ONNX opset version. This implementation requires opset {} or higher. \
+            "Unsupported ONNX opset version. This implementation requires opset {MIN_OPSET_VERSION} or higher. \
             Please upgrade your model using the ONNX shape inference tool. \
-            See documentation (https://burn.dev/burn-book/import/onnx-model.html) for details.",
-            MIN_OPSET_VERSION
+            See documentation (https://burn.dev/burn-book/import/onnx-model.html) for details."
         );
     }
 

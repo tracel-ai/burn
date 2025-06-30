@@ -272,8 +272,7 @@ fn parse_coco_bbox_annotations(
 
             if bbox_coords.len() < BBOX_MIN_NUM_VALUES {
                 return Err(ImageLoaderError::ParsingError(format!(
-                    "not enough bounding box coordinates in annotation for image {}",
-                    image_id
+                    "not enough bounding box coordinates in annotation for image {image_id}",
                 )));
             }
 
@@ -662,9 +661,9 @@ impl ImageFolderDataset {
         images_path: I,
     ) -> Result<Self, ImageLoaderError> {
         let file = fs::File::open(annotations_json)
-            .map_err(|e| ImageLoaderError::IOError(format!("Failed to open annotations: {}", e)))?;
+            .map_err(|e| ImageLoaderError::IOError(format!("Failed to open annotations: {e}")))?;
         let json: Value = serde_json::from_reader(file).map_err(|e| {
-            ImageLoaderError::ParsingError(format!("Failed to parse annotations: {}", e))
+            ImageLoaderError::ParsingError(format!("Failed to parse annotations: {e}"))
         })?;
 
         let classes = parse_coco_classes(&json)?;

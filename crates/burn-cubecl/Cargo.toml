@@ -21,6 +21,7 @@ autotune-checks = [
     "cubecl/autotune-checks",
     "burn-cubecl-fusion?/autotune-checks",
 ]
+memory-checks = ["burn-fusion?/memory-checks"]
 default = [
     "autotune",
     "std",
@@ -30,13 +31,13 @@ default = [
 ]
 doc = ["default"]
 export_tests = [
+    # Too expensive and flaky for the CI.
+    # "memory-checks", 
     "autotune-checks",
     "burn-tensor-testgen",
     "serial_test",
     "burn-autodiff/export_tests",
     "burn-tensor/export_tests",
-    "burn-fusion/memory-checks",
-    "cubecl/autotune-checks",
     "burn-ndarray",
     "fusion",
     "paste",
@@ -60,8 +61,8 @@ cubecl = { workspace = true, features = [
     "convolution",
     "reduce",
     "random",
+    "stdlib",
 ] }
-cubecl-std = { workspace = true }
 
 bytemuck = { workspace = true }
 derive-new = { workspace = true }

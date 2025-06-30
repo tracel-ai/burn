@@ -3,6 +3,7 @@ use burn_tensor::{
     ops::{ConvOptions, conv::calculate_conv_output_sizes},
 };
 use core::iter;
+use cubecl::std::{FastDivmod, FastDivmodArgs};
 use cubecl::{
     calculate_cube_count_elemwise,
     convolution::ConvLaunchError,
@@ -10,7 +11,6 @@ use cubecl::{
     prelude::*,
     std::tensor::{TensorHandle, into_contiguous_pitched},
 };
-use cubecl_std::{FastDivmod, FastDivmodArgs};
 
 use crate::{
     CubeElement, CubeRuntime, FloatElement,

@@ -38,8 +38,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
                     }
                 }
                 _ => panic!(
-                    "UnsqueezeNode received invalid axes type: expected tensor but got {:?}",
-                    arg
+                    "UnsqueezeNode received invalid axes type: expected tensor but got {arg:?}"
                 ),
             },
         };
