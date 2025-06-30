@@ -18,7 +18,7 @@ use tracing_subscriber::{
 use crate::global::{server::state::GlobalCollectiveState, shared::Message};
 
 #[derive(Clone)]
-struct GlobalCollectiveServer {
+pub struct GlobalCollectiveServer {
     state: Arc<Mutex<GlobalCollectiveState>>,
 }
 
@@ -40,7 +40,10 @@ fn init_logging() {
 }
 
 impl GlobalCollectiveServer {
-    pub async fn start(port: u16) {
+    pub(crate) async fn start<F>(shutdown_signal: F, port: u16)
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
         init_logging();
 
         let address = format!("0.0.0.0:{port}");
@@ -64,6 +67,7 @@ impl GlobalCollectiveServer {
             listener,
             app.into_make_service_with_connect_info::<SocketAddr>(),
         )
+        .with_graceful_shutdown(shutdown_signal)
         .await
         .unwrap();
     }
@@ -138,6 +142,7 @@ impl GlobalCollectiveServer {
                 match rmp_serde::from_slice::<Message>(&bytes) {
                     Ok(val) => match val {
                         Message::Init(id) => {
+                            state.init_session(id);
                             session_id = Some(id);
                         }
                         Message::Request(request_id, remote_request) => {
@@ -159,8 +164,31 @@ impl GlobalCollectiveServer {
     }
 }
 
-#[tokio::main]
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+}
+
 /// Start the server on the given port
 pub async fn start(port: u16) {
-    GlobalCollectiveServer::start(port).await;
+    GlobalCollectiveServer::start(shutdown_signal(), port).await;
 }

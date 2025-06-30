@@ -1,10 +1,10 @@
 use burn_tensor::{ElementConversion, backend::Backend};
 
-use crate::AggregateKind;
+use crate::ReduceKind;
 
 pub(crate) fn all_reduce_centralized<B: Backend>(
     tensors: &mut Vec<B::FloatTensorPrimitive>,
-    kind: &AggregateKind,
+    kind: &ReduceKind,
 ) -> B::FloatTensorPrimitive {
     let tensor_count = tensors.len();
     let mut base = tensors.pop().unwrap();
@@ -15,7 +15,7 @@ pub(crate) fn all_reduce_centralized<B: Backend>(
         base = B::float_add(base, tensor);
     }
 
-    if *kind == AggregateKind::Mean {
+    if *kind == ReduceKind::Mean {
         base = B::float_div_scalar(base, (tensor_count as f32).elem());
     }
 

@@ -120,13 +120,13 @@ impl<B: Backend> TensorDataClient<B> {
 
     async fn handler_data(ws: WebSocketUpgrade, State(state): State<Self>) -> impl IntoResponse {
         ws.on_upgrade(async move |socket| {
-            state.state.handle_socket_data(socket).await;
+            state.state.handle_socket(socket).await;
         })
     }
 
-    pub async fn expose(&mut self, tensor: &B::FloatTensorPrimitive, count: u32) {
+    pub async fn expose(&mut self, tensor: B::FloatTensorPrimitive, count: u32) {
         // TODO is cloning here ok?
-        let data = B::float_into_data(tensor.clone()).await;
+        let data = B::float_into_data(tensor).await;
         let bytes: bytes::Bytes = rmp_serde::to_vec(&data).unwrap().into();
 
         let mut exposed_tensors = self.state.exposed_tensors.lock().unwrap();
@@ -161,35 +161,34 @@ impl TensorDataService {
         }
     }
 
-    pub async fn handle_socket_data(&self, mut socket: WebSocket) {
+    pub async fn handle_socket(&self, mut socket: WebSocket) {
         log::info!("[Data Handler] New connection for download.");
 
-        // TODO there should be counters for the different steps of collective operations
-        // depending on the strategy
+        // TODO could there be counters for the different steps of collective operations
+        // depending on the strategy?
 
         // Get the requested exposed tensor data
-        let bytes: bytes::Bytes = self.get_next_exposed_tensor_bytes().await;
+        let bytes = self.get_next_exposed_tensor_bytes().await.unwrap();
 
         // Send tensor and increment its counter
         socket.send(ws::Message::Binary(bytes)).await.unwrap();
     }
 
-    async fn get_next_exposed_tensor_bytes(&self) -> bytes::Bytes {
+    async fn get_next_exposed_tensor_bytes(&self) -> Option<bytes::Bytes> {
         loop {
             if let Ok(mut exposed_tensors) = self.exposed_tensors.try_lock() {
                 // take the tensor out of the hashmap while we download
                 if let Some(mut exposed_state) = exposed_tensors.pop_front() {
                     exposed_state.cur_download_count += 1;
                     if exposed_state.cur_download_count == exposed_state.max_downloads {
-                        return exposed_state.bytes;
+                        return Some(exposed_state.bytes);
                     } else {
                         let bytes = exposed_state.bytes.clone();
                         exposed_tensors.push_front(exposed_state);
-                        return bytes;
+                        return Some(bytes);
                     }
-                } else {
-                    //panic!("A tensor was requested (id: {id:?}) that isn't being served");
                 }
+                // No exposed tensors for now, try again.
             }
         }
     }

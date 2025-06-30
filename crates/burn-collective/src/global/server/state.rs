@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use crate::{
-    GlobalAggregateParams,
+    GlobalAllReduceParams,
     global::shared::{
-        CentralizedAggregateStrategy, MessageResponse, NodeAddress, NodeId, RemoteRequest,
-        RemoteResponse, RequestId, SessionId,
+        CentralizedAllReduceStrategy, MessageResponse, NodeAddress, RemoteRequest, RemoteResponse,
+        RequestId, SessionId,
     },
 };
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -30,12 +30,12 @@ impl Session {
 
 pub(crate) struct GlobalCollectiveState {
     /// The ids passed to each register so far, and their addresses
-    registered_nodes: HashMap<SessionId, NodeId>,
-    node_addresses: HashMap<NodeId, NodeAddress>,
+    registered_nodes: HashMap<SessionId, u32>,
+    node_addresses: HashMap<u32, NodeAddress>,
     /// The params of the current operation, as defined by the first caller
-    cur_params: Option<GlobalAggregateParams>,
+    cur_params: Option<GlobalAllReduceParams>,
 
-    aggregate_requests: Vec<(SessionId, RequestId, NodeAddress)>,
+    all_reduce_requests: Vec<(SessionId, RequestId, NodeAddress)>,
     register_requests: Vec<(SessionId, RequestId)>,
 
     sessions: HashMap<SessionId, Session>,
@@ -47,20 +47,24 @@ impl GlobalCollectiveState {
             registered_nodes: HashMap::new(),
             node_addresses: HashMap::new(),
             cur_params: None,
-            aggregate_requests: Vec::new(),
+            all_reduce_requests: Vec::new(),
             register_requests: Vec::new(),
             sessions: HashMap::new(),
         }
     }
 
+    pub(crate) fn init_session(&mut self, id: SessionId) {
+        if self.sessions.contains_key(&id) {
+            return;
+        }
+        self.sessions.insert(id, Session::new());
+    }
+
     /// Create the session with given id if necessary, and get the response receiver
     pub(crate) fn get_session_responder(&mut self, id: SessionId) -> Receiver<MessageResponse> {
-        let mut session = match self.sessions.remove(&id) {
-            Some(val) => val,
-            None => Session::new(),
-        };
+        self.init_session(id);
+        let session = self.sessions.get_mut(&id).unwrap();
         let response_recv = session.response_receiver.take();
-        self.sessions.insert(id, session);
 
         response_recv.unwrap()
     }
@@ -77,8 +81,8 @@ impl GlobalCollectiveState {
         request: RemoteRequest,
     ) {
         match request {
-            RemoteRequest::Aggregate { params } => {
-                self.aggregate(session_id, request_id, params).await;
+            RemoteRequest::AllReduce { params } => {
+                self.all_reduce(session_id, request_id, params).await;
             }
             RemoteRequest::Register {
                 node_id,
@@ -88,15 +92,24 @@ impl GlobalCollectiveState {
                 self.register(session_id, request_id, node_id, node_addr, num_nodes)
                     .await;
             }
-            RemoteRequest::Reset => todo!(),
+            RemoteRequest::Reset => self.reset(),
         }
+    }
+
+    fn reset(&mut self) {
+        self.registered_nodes.clear();
+        self.node_addresses.clear();
+        self.cur_params = None;
+        self.all_reduce_requests.clear();
+        self.register_requests.clear();
+        self.sessions.clear();
     }
 
     async fn register(
         &mut self,
         session_id: SessionId,
         request_id: RequestId,
-        node_id: NodeId,
+        node_id: u32,
         node_addr: NodeAddress,
         num_nodes: u32,
     ) {
@@ -124,36 +137,36 @@ impl GlobalCollectiveState {
         }
     }
 
-    async fn aggregate(
+    async fn all_reduce(
         &mut self,
         session_id: SessionId,
         request_id: RequestId,
-        params: GlobalAggregateParams,
+        params: GlobalAllReduceParams,
     ) {
         let node_id = match self.registered_nodes.get(&session_id) {
             Some(node_id) => *node_id,
-            None => panic!("Cannot aggregate without having registered!"),
+            None => panic!("Cannot all_reduce without having registered!"),
         };
 
-        if self.aggregate_requests.is_empty() || self.cur_params.is_none() {
+        if self.all_reduce_requests.is_empty() || self.cur_params.is_none() {
             self.cur_params = Some(params);
         } else if *self.cur_params.as_ref().unwrap() != params {
             panic!(
-                "Trying to aggregate a different way ({:?}) than is currently
+                "Trying to all_reduce a different way ({:?}) than is currently
                     being done ({:?})",
                 params, self.cur_params,
             );
         }
 
         let node_address = self.node_addresses.get(&node_id).unwrap().clone();
-        self.aggregate_requests
+        self.all_reduce_requests
             .push((session_id, request_id, node_address));
 
-        let tensor_count = self.aggregate_requests.len();
+        let tensor_count = self.all_reduce_requests.len();
         if tensor_count > 0 && tensor_count == self.registered_nodes.len() {
-            // all registered callers have sent a tensor to aggregate
+            // all registered callers have sent a tensor to all_reduce
             let mut requests = vec![];
-            core::mem::swap(&mut requests, &mut self.aggregate_requests);
+            core::mem::swap(&mut requests, &mut self.all_reduce_requests);
 
             let mut requests_iter = requests.iter();
             let central_node = requests_iter.next().unwrap().2.clone();
@@ -163,17 +176,17 @@ impl GlobalCollectiveState {
             for (i, (session, request, _)) in requests.iter().enumerate() {
                 let is_first = i == 0;
                 let strategy = if is_first {
-                    CentralizedAggregateStrategy::Central {
+                    CentralizedAllReduceStrategy::Central {
                         other_nodes: other_nodes.clone(),
                     }
                 } else {
-                    CentralizedAggregateStrategy::Peripheral {
+                    CentralizedAllReduceStrategy::Peripheral {
                         central_node: central_node.clone(),
                     }
                 };
                 let resp = MessageResponse {
                     id: *request,
-                    content: RemoteResponse::AggregateStrategy(strategy),
+                    content: RemoteResponse::AllReduceStrategy(strategy),
                 };
                 self.respond(*session, resp).await;
             }

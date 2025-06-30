@@ -38,7 +38,7 @@ burn-wgpu = { path = "../burn-wgpu", version = "0.18.0", optional = true }
 burn-cuda = { path = "../burn-cuda", version = "0.18.0", optional = true }
 
 # Server and client
-tokio = { version = "1.45", features = ["rt-multi-thread", "sync"] }
+tokio = { version = "1.45", features = ["rt-multi-thread", "sync", "signal"] }
 serde = { workspace = true, features = ["derive"] }
 serde_bytes = { workspace = true }
 rmp-serde = { workspace = true }

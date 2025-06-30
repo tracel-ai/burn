@@ -3,7 +3,7 @@ use std::sync::atomic::AtomicU32;
 use burn_common::id::IdGenerator;
 use serde::{Deserialize, Serialize};
 
-use crate::GlobalAggregateParams;
+use crate::GlobalAllReduceParams;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub(crate) struct RequestId(u32);
@@ -31,20 +31,6 @@ impl SessionId {
     }
 }
 
-/// Unique identifier for each node
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Serialize, Deserialize, PartialOrd, Ord)]
-pub(crate) struct NodeId {
-    id: u64,
-}
-
-impl NodeId {
-    pub(crate) fn new() -> Self {
-        Self {
-            id: IdGenerator::generate(),
-        }
-    }
-}
-
 /// Allows nodes to find each other
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NodeAddress(pub String);
@@ -63,20 +49,20 @@ pub(crate) struct MessageResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum RemoteRequest {
-    Aggregate {
-        params: GlobalAggregateParams,
+    AllReduce {
+        params: GlobalAllReduceParams,
     },
     Register {
-        node_id: NodeId,
+        node_id: u32,
         node_addr: NodeAddress,
         num_nodes: u32,
     },
     Reset,
 }
 
-// For now this is a centralized all-reduce. TODO add more strategies
+// Centralized all-reduce: one node aggregates all and redistributes
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) enum CentralizedAggregateStrategy {
+pub(crate) enum CentralizedAllReduceStrategy {
     /// For the central node
     Central { other_nodes: Vec<NodeAddress> },
     /// For non-central nodes
@@ -86,6 +72,6 @@ pub(crate) enum CentralizedAggregateStrategy {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum RemoteResponse {
     RegisterAck,
-    AggregateStrategy(CentralizedAggregateStrategy),
+    AllReduceStrategy(CentralizedAllReduceStrategy),
     Error(String),
 }

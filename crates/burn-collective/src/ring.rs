@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use burn_tensor::{ElementConversion, Shape, TensorMetadata, backend::Backend};
 
-use crate::{AggregateKind, tree::all_reduce_tree};
+use crate::{ReduceKind, tree::all_reduce_tree};
 
 /// Get the dimention to slice across: the largest dimention of the shape
 fn get_slice_dim(shape: &Shape) -> usize {
@@ -132,7 +132,7 @@ fn slice_tensors<B: Backend>(
 /// Ring implementation of All-Reduce (Ring-Reduce)
 pub(crate) fn all_reduce_ring<B: Backend>(
     tensors: &mut Vec<B::FloatTensorPrimitive>,
-    kind: &AggregateKind,
+    kind: &ReduceKind,
 ) -> Vec<B::FloatTensorPrimitive> {
     // https://blog.dailydoseofds.com/p/all-reduce-and-ring-reduce-for-model
 
@@ -187,7 +187,7 @@ pub(crate) fn all_reduce_ring<B: Backend>(
     let mut results = vec![];
     while let Some(slices) = sliced_tensors.pop() {
         let mut result = B::float_cat(slices, slice_dim);
-        if *kind == AggregateKind::Mean {
+        if *kind == ReduceKind::Mean {
             result = B::float_div_scalar(result, (tensor_count as f32).elem());
         }
 

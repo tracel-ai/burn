@@ -31,20 +31,20 @@ mod tests {
     pub type TestBackend = burn_wgpu::Wgpu<f32>;
 
     use crate::{
-        AggregateKind, AggregateParams, AggregateStrategy,
+        AllReduceParams, AllReduceStrategy, ReduceKind, RegisterParams,
         api::{all_reduce, register, reset_collective},
     };
 
     pub fn run_peer<B: Backend>(
         id: u32,
-        peer_count: u32,
-        params: AggregateParams,
+        reg_params: RegisterParams,
+        params: AllReduceParams,
         input: TensorData,
         output: SyncSender<Tensor<B, 1>>,
     ) {
         let device = B::Device::default();
 
-        register::<B>(id, peer_count);
+        register::<B>(id, reg_params);
 
         let tensor = Tensor::<B, 1>::from_data(input, &device);
 
@@ -55,10 +55,10 @@ mod tests {
 
     fn generate_random_input(
         shape: Shape,
-        params: AggregateParams,
-        peer_count: u32,
+        params: AllReduceParams,
+        thread_count: u32,
     ) -> (Vec<TensorData>, TensorData) {
-        let input: Vec<TensorData> = (0..peer_count)
+        let input: Vec<TensorData> = (0..thread_count)
             .map(|_| {
                 TensorData::random::<f32, _, _>(
                     shape.clone(),
@@ -71,12 +71,12 @@ mod tests {
         let device = <TestBackend as Backend>::Device::default();
 
         let mut expected_tensor = Tensor::<TestBackend, 1>::zeros(shape, &device);
-        for item in input.iter().take(peer_count as usize) {
+        for item in input.iter().take(thread_count as usize) {
             let input_tensor = Tensor::<TestBackend, 1>::from_data(item.clone(), &device);
             expected_tensor = expected_tensor.add(input_tensor);
         }
-        if params.kind == AggregateKind::Mean {
-            expected_tensor = expected_tensor.div_scalar(peer_count);
+        if params.kind == ReduceKind::Mean {
+            expected_tensor = expected_tensor.div_scalar(thread_count);
         }
 
         let expected = expected_tensor.to_data();
@@ -84,25 +84,33 @@ mod tests {
         (input, expected)
     }
 
-    fn test_aggregate<B: Backend>(params: AggregateParams, peer_count: u32, tensor_size: usize) {
+    fn test_all_reduce<B: Backend>(device_count: u32, params: AllReduceParams, tensor_size: usize) {
         reset_collective::<TestBackend>();
 
-        let (send, recv) = std::sync::mpsc::sync_channel(1);
+        let (send, recv) = std::sync::mpsc::sync_channel(32);
 
         let shape = Shape {
             dims: vec![tensor_size],
         };
-        let (input, expected) = generate_random_input(shape, params.clone(), peer_count);
 
-        for id in 0..peer_count {
+        let (input, expected) = generate_random_input(shape, params.clone(), device_count);
+        let mut global_idx: usize = 0;
+        let reg_params = RegisterParams {
+            num_devices: device_count,
+            global_params: None,
+        };
+        for id in 0..device_count {
             let send = send.clone();
+            let reg_params = reg_params.clone();
             let params = params.clone();
-            let input = input[id as usize].clone();
-            std::thread::spawn(move || run_peer::<B>(id, peer_count, params, input, send));
+            let input = input[global_idx].clone();
+            std::thread::spawn(move || run_peer::<B>(id, reg_params, params, input, send));
+
+            global_idx += 1;
         }
 
         let first = recv.recv().unwrap().to_data();
-        for _ in 1..peer_count {
+        for _ in 1..device_count {
             let tensor = recv.recv().unwrap();
             tensor.to_data().assert_eq(&first, true);
         }
@@ -113,118 +121,118 @@ mod tests {
 
     #[test]
     #[serial]
-    pub fn test_aggregate_centralized_sum() {
-        test_aggregate::<TestBackend>(
-            AggregateParams {
-                kind: AggregateKind::Sum,
-                strategy: AggregateStrategy::Centralized,
-            },
+    pub fn test_all_reduce_centralized_sum() {
+        test_all_reduce::<TestBackend>(
             4,
+            AllReduceParams {
+                kind: ReduceKind::Sum,
+                strategy: AllReduceStrategy::Centralized,
+            },
             4,
         );
     }
 
     #[test]
     #[serial]
-    pub fn test_aggregate_centralized_mean() {
-        test_aggregate::<TestBackend>(
-            AggregateParams {
-                kind: AggregateKind::Mean,
-                strategy: AggregateStrategy::Centralized,
-            },
+    pub fn test_all_reduce_centralized_mean() {
+        test_all_reduce::<TestBackend>(
             4,
+            AllReduceParams {
+                kind: ReduceKind::Mean,
+                strategy: AllReduceStrategy::Centralized,
+            },
             4,
         );
     }
 
     #[test]
     #[serial]
-    pub fn test_aggregate_binary_tree_sum() {
-        test_aggregate::<TestBackend>(
-            AggregateParams {
-                kind: AggregateKind::Sum,
-                strategy: AggregateStrategy::Tree(2),
-            },
+    pub fn test_all_reduce_binary_tree_sum() {
+        test_all_reduce::<TestBackend>(
             4,
+            AllReduceParams {
+                kind: ReduceKind::Sum,
+                strategy: AllReduceStrategy::Tree(2),
+            },
             4,
         );
     }
 
     #[test]
     #[serial]
-    pub fn test_aggregate_binary_tree_mean() {
-        test_aggregate::<TestBackend>(
-            AggregateParams {
-                kind: AggregateKind::Mean,
-                strategy: AggregateStrategy::Tree(2),
-            },
+    pub fn test_all_reduce_binary_tree_mean() {
+        test_all_reduce::<TestBackend>(
             4,
+            AllReduceParams {
+                kind: ReduceKind::Mean,
+                strategy: AllReduceStrategy::Tree(2),
+            },
             4,
         );
     }
 
     #[test]
     #[serial]
-    pub fn test_aggregate_5_tree_sum() {
-        test_aggregate::<TestBackend>(
-            AggregateParams {
-                kind: AggregateKind::Sum,
-                strategy: AggregateStrategy::Tree(5),
-            },
+    pub fn test_all_reduce_5_tree_sum() {
+        test_all_reduce::<TestBackend>(
             4,
+            AllReduceParams {
+                kind: ReduceKind::Sum,
+                strategy: AllReduceStrategy::Tree(5),
+            },
             4,
         );
     }
 
     #[test]
     #[serial]
-    pub fn test_aggregate_5_tree_mean() {
-        test_aggregate::<TestBackend>(
-            AggregateParams {
-                kind: AggregateKind::Mean,
-                strategy: AggregateStrategy::Tree(5),
-            },
+    pub fn test_all_reduce_5_tree_mean() {
+        test_all_reduce::<TestBackend>(
             4,
+            AllReduceParams {
+                kind: ReduceKind::Mean,
+                strategy: AllReduceStrategy::Tree(5),
+            },
             4,
         );
     }
 
     #[test]
     #[serial]
-    pub fn test_aggregate_ring_sum() {
-        test_aggregate::<TestBackend>(
-            AggregateParams {
-                kind: AggregateKind::Sum,
-                strategy: AggregateStrategy::Ring,
-            },
+    pub fn test_all_reduce_ring_sum() {
+        test_all_reduce::<TestBackend>(
             3,
-            3,
-        );
-    }
-
-    #[test]
-    #[serial]
-    pub fn test_aggregate_ring_mean() {
-        test_aggregate::<TestBackend>(
-            AggregateParams {
-                kind: AggregateKind::Mean,
-                strategy: AggregateStrategy::Ring,
+            AllReduceParams {
+                kind: ReduceKind::Sum,
+                strategy: AllReduceStrategy::Ring,
             },
-            3,
             3,
         );
     }
 
     #[test]
     #[serial]
-    pub fn test_aggregate_ring_irregular_sum() {
+    pub fn test_all_reduce_ring_mean() {
+        test_all_reduce::<TestBackend>(
+            3,
+            AllReduceParams {
+                kind: ReduceKind::Mean,
+                strategy: AllReduceStrategy::Ring,
+            },
+            3,
+        );
+    }
+
+    #[test]
+    #[serial]
+    pub fn test_all_reduce_ring_irregular_sum() {
         // this should trigger the fallback algorithm when the tensor is too small.
-        test_aggregate::<TestBackend>(
-            AggregateParams {
-                kind: AggregateKind::Sum,
-                strategy: AggregateStrategy::Ring,
-            },
+        test_all_reduce::<TestBackend>(
             4,
+            AllReduceParams {
+                kind: ReduceKind::Sum,
+                strategy: AllReduceStrategy::Ring,
+            },
             3,
         );
     }

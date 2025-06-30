@@ -5,7 +5,7 @@ use burn_tensor::{
     backend::{Backend, DeviceOps},
 };
 
-use crate::{AggregateKind, centralized::all_reduce_centralized};
+use crate::{ReduceKind, centralized::all_reduce_centralized};
 
 pub(crate) fn sum_tree<B: Backend>(
     tensors: &mut Vec<B::FloatTensorPrimitive>,
@@ -34,21 +34,21 @@ pub(crate) fn sum_tree<B: Backend>(
         for mut chunk in chunks {
             new_tensors.push(sum_tree::<B>(&mut chunk, arity));
         }
-        all_reduce_centralized::<B>(&mut new_tensors, &AggregateKind::Sum)
+        all_reduce_centralized::<B>(&mut new_tensors, &ReduceKind::Sum)
     } else {
-        all_reduce_centralized::<B>(tensors, &AggregateKind::Sum)
+        all_reduce_centralized::<B>(tensors, &ReduceKind::Sum)
     }
 }
 
 pub(crate) fn all_reduce_tree<B: Backend>(
     tensors: &mut Vec<B::FloatTensorPrimitive>,
-    kind: &AggregateKind,
+    kind: &ReduceKind,
     arity: u32,
 ) -> B::FloatTensorPrimitive {
     let tensor_count = tensors.len() as f32;
     let mut result = sum_tree::<B>(tensors, arity);
 
-    if *kind == AggregateKind::Mean {
+    if *kind == ReduceKind::Mean {
         result = B::float_div_scalar(result, tensor_count.elem());
     }
 
