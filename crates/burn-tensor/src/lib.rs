@@ -90,7 +90,6 @@ mod cube_cuda {
     }
 }
 
-#[cfg(target_os = "linux")]
 #[cfg(feature = "cubecl-hip")]
 mod cube_hip {
     use crate::backend::{DeviceId, DeviceOps};
