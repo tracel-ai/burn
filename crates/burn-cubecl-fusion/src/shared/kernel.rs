@@ -404,52 +404,142 @@ fn gather<C: Numeric>(
     #[comptime] output: Arg,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    let mut index = read::<u32>(inputs, outputs, locals, write_pos, indices, config);
-    let (pos, _precision) = comptime! {
+    let line_size = locals.ref_line_size;
+    let stride_dim = locals.ref_strides[dim];
+    let shape_dim = locals.ref_shape[dim];
+
+    let pos_input = comptime! {
         match input {
-            Arg::Input(pos, precision, _) => (pos, precision),
+            Arg::Input(pos, ..) => pos,
             _ => panic!("Input tensor isn't an input"),
         }
     };
-    let line_size = locals.ref_line_size;
-    let stride = global_stride(inputs, dim, pos);
+    let pos_indices = comptime! {
+        match indices {
+            Arg::Input(pos, ..) => pos,
+            _ => panic!("Indices tensor isn't an input"),
+        }
+    };
 
-    index *= Line::new(stride);
+    let stride_input_dim = global_stride(inputs, dim, pos_input);
 
-    if comptime![dim > 0] {
-        let index_before = global_offset(
-            inputs,
-            outputs,
-            locals,
-            write_pos,
-            comptime!(input.clone()),
-            comptime![Some((0u32, dim))],
-            config,
-        );
-        index += Line::new(index_before);
-    }
-
-    if comptime![dim + 1 < config.rank] {
-        let index_after = global_offset(
-            inputs,
-            outputs,
-            locals,
-            write_pos,
-            input,
-            comptime![Some((dim + 1, config.rank))],
-            config,
-        );
-        index += Line::new(index_after);
-    }
-
+    let mut index = 0u32;
     let mut result = Line::empty(line_size);
 
-    #[unroll]
-    for i in 0..line_size {
-        let index = index[i];
+    if comptime![dim == config.rank - 1] {
+        // Per-element indexing (along the dimension)
+        let write_pos_indices = write_pos * line_size;
 
-        let input = read_input::<C>(inputs, locals, pos, index, LayoutInfo::IsRef, config, None);
-        result[i] = input[0];
+        if comptime![dim > 0] {
+            let index_before = global_offset(
+                inputs,
+                outputs,
+                locals,
+                write_pos,
+                comptime!(input.clone()),
+                comptime![Some((0u32, dim))],
+                config,
+            );
+            index += index_before;
+        }
+
+        if comptime![dim + 1 < config.rank] {
+            let index_after = global_offset(
+                inputs,
+                outputs,
+                locals,
+                write_pos,
+                input,
+                comptime![Some((dim + 1, config.rank))],
+                config,
+            );
+            index += index_after;
+        }
+
+        #[unroll]
+        for i in 0..line_size {
+            let coord = (write_pos_indices + i) / stride_dim % shape_dim;
+
+            let offset = read_input::<u32>(
+                inputs,
+                locals,
+                pos_indices,
+                coord,
+                LayoutInfo::IsRef,
+                config,
+                None,
+            );
+
+            let input = read_input::<C>(
+                inputs,
+                locals,
+                pos_input,
+                index + (offset[0] * stride_input_dim),
+                LayoutInfo::IsRef,
+                config,
+                None,
+            );
+
+            result[i] = input[0];
+        }
+    } else {
+        // Shared index for whole line
+        let stride_input_line = global_stride(inputs, comptime!(config.rank - 1), pos_input);
+        let write_pos_input = write_pos * line_size;
+        let coord = write_pos_input / stride_dim % shape_dim;
+
+        let offset = read_input::<u32>(
+            inputs,
+            locals,
+            pos_indices,
+            coord,
+            LayoutInfo::IsRef,
+            config,
+            None,
+        );
+
+        if comptime![dim > 0] {
+            let index_before = global_offset(
+                inputs,
+                outputs,
+                locals,
+                write_pos,
+                comptime!(input.clone()),
+                comptime![Some((0u32, dim))],
+                config,
+            );
+            index += index_before;
+        }
+
+        if comptime![dim + 1 < config.rank] {
+            let index_after = global_offset(
+                inputs,
+                outputs,
+                locals,
+                write_pos,
+                input,
+                comptime![Some((dim + 1, config.rank))],
+                config,
+            );
+            index += index_after;
+        }
+
+        index += offset[0] * stride_input_dim;
+
+        #[unroll]
+        for i in 0..line_size {
+            let input = read_input::<C>(
+                inputs,
+                locals,
+                pos_input,
+                index + i * stride_input_line,
+                LayoutInfo::IsRef,
+                config,
+                None,
+            );
+
+            result[i] = input[0];
+        }
     }
 
     write::<C>(inputs, outputs, locals, write_pos, result, output, config);
