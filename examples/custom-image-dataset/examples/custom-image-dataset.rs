@@ -28,13 +28,13 @@ fn main() {
         train::<Autodiff<LibTorch>>(config, device);
     }
 
-    #[cfg(all(feature = "wgpu", not(feature = "tch-gpu")))]
+    #[cfg(feature = "wgpu")]
     {
         use burn::backend::wgpu::{Wgpu, WgpuDevice};
         train::<Autodiff<Wgpu>>(config, WgpuDevice::default());
     }
 
-    #[cfg(all(feature = "metal", not(feature = "tch-gpu"), not(feature = "wgpu")))]
+    #[cfg(feature = "metal")]
     {
         // Note: Metal backend may have shader compilation issues on Intel Macs with AMD GPUs
         // If you encounter errors, use WGPU backend as an alternative
