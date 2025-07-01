@@ -130,7 +130,7 @@ burn-autodiff = { path = "../burn-autodiff", version = "0.18.0" }
 burn-dataset = { path = "../burn-dataset", version = "0.18.0", features = [
     "fake",
 ] }
-rstest = "0.25.0"
+rstest = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]
