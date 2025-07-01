@@ -4,6 +4,7 @@ use burn::{
 };
 use custom_image_dataset::training::{TrainingConfig, train};
 
+/// Creates a training configuration with SGD optimizer and momentum.
 fn create_config() -> TrainingConfig {
     TrainingConfig::new(SgdConfig::new().with_momentum(Some(MomentumConfig {
         momentum: 0.9,
@@ -35,6 +36,8 @@ fn main() {
 
     #[cfg(all(feature = "metal", not(feature = "tch-gpu"), not(feature = "wgpu")))]
     {
+        // Note: Metal backend may have shader compilation issues on Intel Macs with AMD GPUs
+        // If you encounter errors, use WGPU backend as an alternative
         use burn::backend::wgpu::{Metal, WgpuDevice};
         train::<Autodiff<Metal>>(config, WgpuDevice::default());
     }
