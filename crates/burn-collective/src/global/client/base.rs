@@ -7,11 +7,13 @@ use tokio::{
         Mutex,
         mpsc::{Receiver, Sender},
     },
+    task::JoinHandle,
 };
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async_with_config,
     tungstenite::{self, Message, protocol::WebSocketConfig},
 };
+use tokio_util::sync::CancellationToken;
 
 use futures_util::sink::SinkExt;
 use futures_util::stream::StreamExt;
@@ -27,6 +29,7 @@ use crate::{
     },
 };
 
+#[derive(Debug)]
 struct ClientRequest {
     request: RemoteRequest,
     callback: Sender<RemoteResponse>,
@@ -42,7 +45,9 @@ pub(crate) struct GlobalCollectiveClient<B: Backend> {
     request_sender: Sender<ClientRequest>,
     data_client: TensorDataClient<B>,
     data_client_address: Arc<NodeAddress>,
-    _runtime: Arc<Runtime>,
+    cancel_token: CancellationToken,
+    worker_runtime: Runtime,
+    worker_handle: Option<JoinHandle<()>>,
     _phantom_data: PhantomData<B>,
 }
 
@@ -69,35 +74,49 @@ impl<B: Backend> GlobalCollectiveClient<B> {
         let address_request = format!("{}/{}", server_address, "request");
         let address_response = format!("{}/{}", server_address, "response");
 
-        let _runtime = Arc::new(
-            tokio::runtime::Builder::new_multi_thread()
-                .enable_io()
-                .build()
-                .unwrap(),
-        );
+        let cancel_token = CancellationToken::new();
 
         let data_client_clone = data_client.clone();
-        #[allow(deprecated)]
-        _runtime.spawn(async move {
-            // Init the connection.
-            let (request, response) =
-                Self::init_connection(address_request, address_response).await;
 
-            // Websocket async worker loading responses from the server.
-            tokio::spawn(Self::response_loader(worker.clone(), response));
+        let _runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
 
-            // Channel async worker sending operations to the server.
-            tokio::spawn(Self::request_sender(request_recv, worker, request));
+        let worker_handle = _runtime.spawn({
+            let cancel_token = cancel_token.clone();
+            async move {
+                // Init the connection.
+                let (request, response) =
+                    Self::init_connection(address_request, address_response).await;
 
-            // Server for transfering tensors to and from other nodes
-            tokio::spawn(data_client_clone.start(data_server_port));
+                // Websocket async worker loading responses from the server.
+                tokio::spawn(Self::response_loader(
+                    worker.clone(),
+                    response,
+                    cancel_token.clone(),
+                ));
+
+                // Channel async worker sending operations to the server.
+                tokio::spawn(Self::request_sender(
+                    request_recv,
+                    worker,
+                    request,
+                    cancel_token.clone(),
+                ));
+
+                // Server for transfering tensors to and from other nodes
+                tokio::spawn(data_client_clone.start(data_server_port, cancel_token));
+            }
         });
 
         Self {
             request_sender,
             data_client,
             data_client_address: Arc::new(NodeAddress(client_address.to_owned())),
-            _runtime,
+            cancel_token,
+            worker_runtime: _runtime,
+            worker_handle: Some(worker_handle),
             _phantom_data: PhantomData,
         }
     }
@@ -112,7 +131,6 @@ impl<B: Backend> GlobalCollectiveClient<B> {
         const MB: usize = 1024 * 1024;
 
         log::info!("Connecting to {address_request} ...");
-        eprintln!("Connecting to {address_request} ...");
         let (mut stream_request, _) = connect_async_with_config(
             address_request.clone(),
             Some(
@@ -159,35 +177,46 @@ impl<B: Backend> GlobalCollectiveClient<B> {
         (stream_request, stream_response)
     }
 
+    fn close_connection(&mut self) {
+        self.cancel_token.cancel();
+        let handle = self.worker_handle.take().unwrap();
+        self.worker_runtime.block_on(handle).unwrap();
+    }
+
     async fn response_loader(
         worker: Arc<Mutex<ClientWorker>>,
         mut stream_response: WebSocketStream<MaybeTlsStream<TcpStream>>,
+        cancel_token: CancellationToken,
     ) {
-        while let Some(msg) = stream_response.next().await {
-            let msg = match msg {
-                Ok(msg) => msg,
-                Err(err) => {
-                    panic!("An error happened while receiving messages from the websocket: {err:?}")
-                }
-            };
+        while !cancel_token.is_cancelled() {
+            if let Some(msg) = stream_response.next().await {
+                let msg = match msg {
+                    Ok(msg) => msg,
+                    Err(err) => {
+                        panic!(
+                            "An error happened while receiving messages from the websocket: {err:?}"
+                        )
+                    }
+                };
 
-            match msg {
-                Message::Binary(bytes) => {
-                    let response: MessageResponse = rmp_serde::from_slice(&bytes)
-                        .expect("Can deserialize messages from the websocket.");
-                    let state_resp = worker.lock().await;
-                    let response_callback = state_resp
-                        .requests
-                        .get(&response.id)
-                        .expect("Got a response to an unknown request");
-                    response_callback.send(response.content).await.unwrap();
-                }
-                Message::Close(_) => {
-                    log::warn!("Closed connection");
-                    return;
-                }
-                _ => panic!("Unsupported websocket message: {msg:?}"),
-            };
+                match msg {
+                    Message::Binary(bytes) => {
+                        let response: MessageResponse = rmp_serde::from_slice(&bytes)
+                            .expect("Can deserialize messages from the websocket.");
+                        let state_resp = worker.lock().await;
+                        let response_callback = state_resp
+                            .requests
+                            .get(&response.id)
+                            .expect("Got a response to an unknown request");
+                        response_callback.send(response.content).await.unwrap();
+                    }
+                    Message::Close(_) => {
+                        log::warn!("Closed connection");
+                        return;
+                    }
+                    _ => panic!("Unsupported websocket message: {msg:?}"),
+                };
+            }
         }
     }
 
@@ -195,25 +224,28 @@ impl<B: Backend> GlobalCollectiveClient<B> {
         mut request_recv: Receiver<ClientRequest>,
         worker: Arc<Mutex<ClientWorker>>,
         mut stream_request: WebSocketStream<MaybeTlsStream<TcpStream>>,
+        cancel_token: CancellationToken,
     ) {
-        while let Some(request) = request_recv.recv().await {
-            let id = RequestId::new();
+        while !cancel_token.is_cancelled() {
+            if let Some(request) = request_recv.recv().await {
+                let id = RequestId::new();
 
-            // Register the callback if there is one
-            {
-                let mut state = worker.lock().await;
-                state.requests.insert(id, request.callback);
+                // Register the callback if there is one
+                {
+                    let mut state = worker.lock().await;
+                    state.requests.insert(id, request.callback);
+                }
+
+                let request = crate::global::shared::Message::Request(id, request.request);
+
+                let bytes = rmp_serde::to_vec::<crate::global::shared::Message>(&request)
+                    .expect("Can serialize tasks to bytes.")
+                    .into();
+                stream_request
+                    .send(Message::Binary(bytes))
+                    .await
+                    .expect("Can send the message on the websocket.");
             }
-
-            let request = crate::global::shared::Message::Request(id, request.request);
-
-            let bytes = rmp_serde::to_vec::<crate::global::shared::Message>(&request)
-                .expect("Can serialize tasks to bytes.")
-                .into();
-            stream_request
-                .send(Message::Binary(bytes))
-                .await
-                .expect("Can send the message on the websocket.");
         }
     }
 
@@ -276,7 +308,9 @@ impl<B: Backend> GlobalCollectiveClient<B> {
                 }
 
                 // Expose result
-                self.data_client.expose(sum.clone(), 1).await;
+                self.data_client
+                    .expose(sum.clone(), other_nodes.len())
+                    .await;
 
                 sum
             }
@@ -290,5 +324,23 @@ impl<B: Backend> GlobalCollectiveClient<B> {
                 B::float_from_data(data, device)
             }
         }
+    }
+
+    pub async fn finish(&mut self) {
+        // Un-register from server
+        let req = RemoteRequest::Finish;
+        let resp = self.request_with_callback(req).await;
+        if resp != RemoteResponse::FinishAck {
+            panic!("Requested to finish, did not get FinishAck; got {:?}", resp);
+        }
+
+        // Close worker thread
+        self.close_connection();
+    }
+}
+
+impl<B: Backend> Drop for GlobalCollectiveClient<B> {
+    fn drop(&mut self) {
+        eprintln!("Dropping Global Collective Client");
     }
 }

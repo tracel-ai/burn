@@ -55,6 +55,9 @@ pub(crate) enum Message<B: Backend> {
         callback: SyncSender<()>,
     },
     Reset,
+    Finish {
+        callback: SyncSender<()>,
+    },
 }
 
 #[derive(Clone)]
@@ -126,6 +129,14 @@ impl<B: Backend> LocalCollectiveClient<B> {
         rec.recv()
             .expect("Failed to receive callback from collective server")
     }
+
+    pub fn finish(&self) {
+        let (callback, rec) = std::sync::mpsc::sync_channel::<()>(1);
+        self.channel.send(Message::Finish { callback }).unwrap();
+
+        rec.recv()
+            .expect("Failed to receive response from collective server for finish operation")
+    }
 }
 
 impl<B: Backend> LocalCollectiveServer<B> {
@@ -146,19 +157,16 @@ impl<B: Backend> LocalCollectiveServer<B> {
     pub(crate) fn start() -> LocalCollectiveClient<B> {
         let (sender, rec) = std::sync::mpsc::sync_channel::<Message<B>>(50);
 
-        let _runtime = Arc::new(Builder::new_current_thread().enable_all().build().unwrap());
+        let _runtime = Arc::new(Builder::new_multi_thread().enable_all().build().unwrap());
 
-        let runtime = _runtime.clone();
-        std::thread::spawn(move || {
-            runtime.block_on(async {
-                let mut aggregator = LocalCollectiveServer::new(rec);
+        _runtime.spawn(async {
+            let mut aggregator = LocalCollectiveServer::new(rec);
 
-                while let Ok(message) = aggregator.message_rec.recv() {
-                    aggregator.process_message(message).await;
-                }
+            while let Ok(message) = aggregator.message_rec.recv() {
+                aggregator.process_message(message).await;
+            }
 
-                log::debug!("Aggregator message failed");
-            })
+            panic!("Aggregator message failed");
         });
 
         LocalCollectiveClient {
@@ -182,12 +190,23 @@ impl<B: Backend> LocalCollectiveServer<B> {
                 params,
                 callback,
             } => self.process_register_message(id, params, callback).await,
-            Message::Reset => {
-                self.registered_nodes.clear();
-                self.tensors.clear();
-                self.cur_allreduce_params = None;
+            Message::Reset => self.reset(),
+            Message::Finish { callback } => {
+                self.reset();
+
+                if let Some(client) = self.global_client.as_mut() {
+                    client.finish().await;
+                }
+
+                callback.send(()).unwrap();
             }
         }
+    }
+
+    fn reset(&mut self) {
+        self.registered_nodes.clear();
+        self.tensors.clear();
+        self.cur_allreduce_params = None;
     }
 
     async fn process_all_reduce_message(

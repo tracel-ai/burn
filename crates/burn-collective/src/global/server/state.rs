@@ -93,6 +93,7 @@ impl GlobalCollectiveState {
                     .await;
             }
             RemoteRequest::Reset => self.reset(),
+            RemoteRequest::Finish => self.finish(session_id, request_id).await,
         }
     }
 
@@ -103,6 +104,49 @@ impl GlobalCollectiveState {
         self.all_reduce_requests.clear();
         self.register_requests.clear();
         self.sessions.clear();
+    }
+
+    /// Un-register a node. Any pending requests will be cancelled, returning error responses.
+    async fn finish(&mut self, session_id: SessionId, request_id: RequestId) {
+        let node_id = self.registered_nodes.remove(&session_id).unwrap();
+        self.node_addresses.remove(&node_id);
+
+        let mut register_requests = vec![];
+        core::mem::swap(&mut register_requests, &mut self.register_requests);
+        for (session, req) in register_requests {
+            if session == session_id {
+                // Send a response if we are finishing a session with a pending register request
+                let content = RemoteResponse::Error("Register cancelled by a Finish".to_string());
+                let response = MessageResponse { id: req, content };
+                self.respond(session_id, response).await;
+            } else {
+                // keep the register request
+                self.register_requests.push((session, req));
+            }
+        }
+
+        let mut all_reduce_requests = vec![];
+        core::mem::swap(&mut all_reduce_requests, &mut self.all_reduce_requests);
+        for (session, req, addr) in all_reduce_requests {
+            if session == session_id {
+                // Send a response if we are finishing a session with a pending register request
+                let content = RemoteResponse::Error("All-Reduce cancelled by a Finish".to_string());
+                let response = MessageResponse { id: req, content };
+                self.respond(session_id, response).await;
+            } else {
+                // keep the register request
+                self.all_reduce_requests.push((session, req, addr));
+            }
+        }
+
+        self.respond(
+            session_id,
+            MessageResponse {
+                id: request_id,
+                content: RemoteResponse::FinishAck,
+            },
+        )
+        .await;
     }
 
     async fn register(
@@ -173,9 +217,10 @@ impl GlobalCollectiveState {
             let other_nodes: Vec<NodeAddress> =
                 requests_iter.map(|(_, _, addr)| addr.clone()).collect();
 
-            for (i, (session, request, _)) in requests.iter().enumerate() {
+            for (i, (session, request, addr)) in requests.iter().enumerate() {
                 let is_first = i == 0;
                 let strategy = if is_first {
+                    eprintln!("CENTRAL IS: {:?}", addr);
                     CentralizedAllReduceStrategy::Central {
                         other_nodes: other_nodes.clone(),
                     }

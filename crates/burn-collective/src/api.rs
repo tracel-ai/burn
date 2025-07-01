@@ -10,7 +10,7 @@ pub enum AllReduceStrategy {
     Ring,
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum ReduceKind {
     Sum,
     Mean,
@@ -70,4 +70,9 @@ pub fn all_reduce<B: Backend, const D: usize>(
     let tensor = tensor.into_primitive().tensor();
     let primitive = client.all_reduce(tensor, params);
     Tensor::from_primitive(burn_tensor::TensorPrimitive::Float(primitive)).to_device(&device)
+}
+
+pub fn finish_collective<B: Backend>() {
+    let client: LocalCollectiveClient<B> = get_collective_client();
+    client.finish();
 }

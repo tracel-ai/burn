@@ -11,11 +11,13 @@ use axum::{
 };
 use burn_tensor::{TensorData, backend::Backend};
 use futures_util::StreamExt;
-use std::sync::Mutex;
+use tokio::sync::Mutex;
+use tokio::sync::Notify;
 use tokio_tungstenite::{
     connect_async_with_config,
     tungstenite::{Message, protocol::WebSocketConfig},
 };
+use tokio_util::sync::CancellationToken;
 use tracing_core::{Level, LevelFilter};
 use tracing_subscriber::{
     Layer, filter::filter_fn, layer::SubscriberExt, registry, util::SubscriberInitExt,
@@ -48,7 +50,7 @@ pub async fn download_next_tensor(remote: &NodeAddress) -> Option<TensorData> {
         let msg = match msg {
             Ok(msg) => msg,
             Err(err) => {
-                panic!("An error happened while receiving messages from the websocket: {err:?}")
+                panic!("An error happened while receiving messages from the websocket: {err:?}");
             }
         };
 
@@ -71,20 +73,23 @@ pub async fn download_next_tensor(remote: &NodeAddress) -> Option<TensorData> {
 
 #[derive(Clone)]
 pub struct TensorDataClient<B: Backend> {
-    state: Arc<TensorDataService>,
+    service: Arc<TensorDataService>,
+    new_tensor_notify: Arc<Notify>,
     _phantom_data: PhantomData<B>,
 }
 
 impl<B: Backend> TensorDataClient<B> {
     pub fn new() -> Self {
+        let new_tensor_notify = Arc::new(Notify::new());
         Self {
-            state: Arc::new(TensorDataService::new()),
+            service: Arc::new(TensorDataService::new(new_tensor_notify.clone())),
+            new_tensor_notify,
             _phantom_data: PhantomData,
         }
     }
 
     /// Start the server on the given address.
-    pub async fn start(self, port: u16) {
+    pub async fn start(self, port: u16, cancel_token: CancellationToken) {
         let layer = tracing_subscriber::fmt::layer()
             .with_filter(LevelFilter::INFO)
             .with_filter(filter_fn(|m| {
@@ -108,33 +113,40 @@ impl<B: Backend> TensorDataClient<B> {
             .route("/data", any(Self::handler_data))
             .with_state(self.clone());
 
-        // run it with hyper
         let listener = tokio::net::TcpListener::bind(address).await.unwrap();
+        let shutdown = async move {
+            cancel_token.cancelled().await;
+            log::info!("Shutting down websocketc client data server");
+        };
+
+        // run it with hyper
         axum::serve(
             listener,
             app.into_make_service_with_connect_info::<SocketAddr>(),
         )
+        .with_graceful_shutdown(shutdown)
         .await
         .unwrap();
     }
 
     async fn handler_data(ws: WebSocketUpgrade, State(state): State<Self>) -> impl IntoResponse {
         ws.on_upgrade(async move |socket| {
-            state.state.handle_socket(socket).await;
+            state.service.handle_socket(socket).await;
         })
     }
 
-    pub async fn expose(&mut self, tensor: B::FloatTensorPrimitive, count: u32) {
-        // TODO is cloning here ok?
+    pub async fn expose(&mut self, tensor: B::FloatTensorPrimitive, count: usize) {
         let data = B::float_into_data(tensor).await;
         let bytes: bytes::Bytes = rmp_serde::to_vec(&data).unwrap().into();
 
-        let mut exposed_tensors = self.state.exposed_tensors.lock().unwrap();
+        let mut exposed_tensors = self.service.exposed_tensors.lock().await;
         exposed_tensors.push_back(TensorExposeState {
             bytes,
-            max_downloads: count,
+            max_downloads: count as u32,
             cur_download_count: 0,
         });
+        core::mem::drop(exposed_tensors);
+        self.new_tensor_notify.notify_waiters();
     }
 }
 
@@ -152,12 +164,14 @@ pub struct TensorExposeState {
 
 pub struct TensorDataService {
     pub exposed_tensors: Mutex<VecDeque<TensorExposeState>>,
+    pub new_tensor_notify: Arc<Notify>,
 }
 
 impl TensorDataService {
-    pub fn new() -> Self {
+    pub fn new(new_tensor_notify: Arc<Notify>) -> Self {
         Self {
             exposed_tensors: Mutex::new(VecDeque::new()),
+            new_tensor_notify,
         }
     }
 
@@ -176,26 +190,23 @@ impl TensorDataService {
 
     async fn get_next_exposed_tensor_bytes(&self) -> Option<bytes::Bytes> {
         loop {
-            if let Ok(mut exposed_tensors) = self.exposed_tensors.try_lock() {
+            {
+                let mut exposed_tensors = self.exposed_tensors.lock().await;
                 // take the tensor out of the hashmap while we download
                 if let Some(mut exposed_state) = exposed_tensors.pop_front() {
                     exposed_state.cur_download_count += 1;
-                    if exposed_state.cur_download_count == exposed_state.max_downloads {
-                        return Some(exposed_state.bytes);
+                    let bytes = if exposed_state.cur_download_count == exposed_state.max_downloads {
+                        exposed_state.bytes
                     } else {
                         let bytes = exposed_state.bytes.clone();
                         exposed_tensors.push_front(exposed_state);
-                        return Some(bytes);
-                    }
+                        bytes
+                    };
+                    return Some(bytes);
                 }
-                // No exposed tensors for now, try again.
             }
+            // No matching tensor, wait for a new one to come in.
+            self.new_tensor_notify.notified().await;
         }
-    }
-}
-
-impl Default for TensorDataService {
-    fn default() -> Self {
-        Self::new()
     }
 }

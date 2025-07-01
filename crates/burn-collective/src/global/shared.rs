@@ -58,6 +58,8 @@ pub(crate) enum RemoteRequest {
         num_nodes: u32,
     },
     Reset,
+    /// Unregister node
+    Finish,
 }
 
 // Centralized all-reduce: one node aggregates all and redistributes
@@ -72,6 +74,7 @@ pub(crate) enum CentralizedAllReduceStrategy {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum RemoteResponse {
     RegisterAck,
+    FinishAck,
     AllReduceStrategy(CentralizedAllReduceStrategy),
     Error(String),
 }

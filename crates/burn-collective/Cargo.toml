@@ -53,6 +53,7 @@ tracing-subscriber = { workspace = true }
 tokio-tungstenite = { version = "0.26" }
 bytes = { version = "1.0" }
 futures = { version = "0.3" }
+tokio-util = "0.7.15"
 
 
 [dev-dependencies]
