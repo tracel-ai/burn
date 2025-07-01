@@ -405,8 +405,6 @@ fn gather<C: Numeric>(
     #[comptime] config: &FuseBlockConfig,
 ) {
     let line_size = locals.ref_line_size;
-    let stride_dim = locals.ref_strides[dim];
-    let shape_dim = locals.ref_shape[dim];
 
     let pos_input = comptime! {
         match input {
@@ -426,10 +424,18 @@ fn gather<C: Numeric>(
     let mut index = 0u32;
     let mut result = Line::empty(line_size);
 
+    let index_offset = global_offset(
+        inputs,
+        outputs,
+        locals,
+        write_pos,
+        indices,
+        comptime![Some((0u32, config.rank))],
+        config,
+    );
+
     if comptime![dim == config.rank - 1] {
         // Per-element indexing (along the dimension)
-        let write_pos_indices = write_pos * line_size;
-
         if comptime![dim > 0] {
             let index_before = global_offset(
                 inputs,
@@ -458,13 +464,11 @@ fn gather<C: Numeric>(
 
         #[unroll]
         for i in 0..line_size {
-            let coord = (write_pos_indices + i) / stride_dim % shape_dim;
-
             let offset = read_input::<u32>(
                 inputs,
                 locals,
                 pos_indices,
-                coord,
+                index_offset + i,
                 LayoutInfo::IsRef,
                 config,
                 None,
@@ -485,14 +489,12 @@ fn gather<C: Numeric>(
     } else {
         // Shared index for whole line
         let stride_input_line = global_stride(inputs, comptime!(config.rank - 1), pos_input);
-        let write_pos_input = write_pos * line_size;
-        let coord = write_pos_input / stride_dim % shape_dim;
 
         let offset = read_input::<u32>(
             inputs,
             locals,
             pos_indices,
-            coord,
+            index_offset,
             LayoutInfo::IsRef,
             config,
             None,
