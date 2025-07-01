@@ -424,6 +424,32 @@ fn gather<C: Numeric>(
     let mut index = 0u32;
     let mut result = Line::empty(line_size);
 
+    if comptime![dim > 0] {
+        let index_before = global_offset(
+            inputs,
+            outputs,
+            locals,
+            write_pos,
+            comptime!(input.clone()),
+            comptime![Some((0u32, dim))],
+            config,
+        );
+        index += index_before;
+    }
+
+    if comptime![dim + 1 < config.rank] {
+        let index_after = global_offset(
+            inputs,
+            outputs,
+            locals,
+            write_pos,
+            input,
+            comptime![Some((dim + 1, config.rank))],
+            config,
+        );
+        index += index_after;
+    }
+
     let index_offset = global_offset(
         inputs,
         outputs,
@@ -436,32 +462,6 @@ fn gather<C: Numeric>(
 
     if comptime![dim == config.rank - 1] {
         // Per-element indexing (along the dimension)
-        if comptime![dim > 0] {
-            let index_before = global_offset(
-                inputs,
-                outputs,
-                locals,
-                write_pos,
-                comptime!(input.clone()),
-                comptime![Some((0u32, dim))],
-                config,
-            );
-            index += index_before;
-        }
-
-        if comptime![dim + 1 < config.rank] {
-            let index_after = global_offset(
-                inputs,
-                outputs,
-                locals,
-                write_pos,
-                input,
-                comptime![Some((dim + 1, config.rank))],
-                config,
-            );
-            index += index_after;
-        }
-
         #[unroll]
         for i in 0..line_size {
             let offset = read_input::<u32>(
@@ -499,32 +499,6 @@ fn gather<C: Numeric>(
             config,
             None,
         );
-
-        if comptime![dim > 0] {
-            let index_before = global_offset(
-                inputs,
-                outputs,
-                locals,
-                write_pos,
-                comptime!(input.clone()),
-                comptime![Some((0u32, dim))],
-                config,
-            );
-            index += index_before;
-        }
-
-        if comptime![dim + 1 < config.rank] {
-            let index_after = global_offset(
-                inputs,
-                outputs,
-                locals,
-                write_pos,
-                input,
-                comptime![Some((dim + 1, config.rank))],
-                config,
-            );
-            index += index_after;
-        }
 
         index += offset[0] * stride_input_dim;
 
