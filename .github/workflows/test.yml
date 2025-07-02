@@ -65,7 +65,7 @@ env:
 
   # GCP runners
   GCP_RUNNERS_IMAGE_FAMILY: "tracel-ci-ubuntu-2404-amd64-nvidia"
-  GCP_RUNNERS_TYPE: "g2-standard-4"
+  GCP_RUNNERS_MACHINE_TYPE: "g2-standard-4"
   GCP_RUNNERS_ZONE: "us-east1-c"
 
 concurrency:
@@ -77,6 +77,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       rust-prev-version: ${{ env.RUST_PREVIOUS_VERSION }}
+      gcp_runners_image_family: ${{ env.GCP_RUNNERS_IMAGE_FAMILY }}
+      gcp_runners_machine_type: ${{ env.GCP_RUNNERS_MACHINE_TYPE }}
+      gcp_runners_zone: ${{ env.GCP_RUNNERS_ZONE }}
     steps:
       - name: Do Nothing
         if: false
@@ -139,7 +142,13 @@ jobs:
 
   linux-std-cuda-tests:
     needs: [prepare-checks, code-quality]
-    runs-on: ['@id:self-hosted-cuda-job-${{github.run_id}}-${{github.run_attempt}}', '@machine-type:g2-standard-4', '@image-family:tracel-ci-ubuntu-2404-amd64-nvidia', 'gpu']
+    # '@id:' label must be unique within this worklow
+    runs-on: [
+      '@id:cuda-job-${{github.run_id}}-${{github.run_attempt}}',
+      '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
+      '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
+      '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
+      'gpu' ]
     env:
       LD_LIBRARY_PATH: '/usr/local/cuda/lib64'
       # disable incremental compilation (reduces artifact size)
@@ -163,7 +172,13 @@ jobs:
 
   linux-std-vulkan-tests:
     needs: [prepare-checks, code-quality]
-    runs-on: ['@id:self-hosted-vulkan-job-${{github.run_id}}-${{github.run_attempt}}', '@machine-type:g2-standard-4', '@image-family:tracel-ci-ubuntu-2404-amd64-nvidia', 'gpu']
+    # '@id:' label must be unique within this worklow
+    runs-on: [
+      '@id:vulkan-job-${{github.run_id}}-${{github.run_attempt}}',
+      '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
+      '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
+      '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
+      'gpu' ]
     env:
       # disable incremental compilation (reduces artifact size)
       CARGO_PROFILE_TEST_INCREMENTAL: 'false'
