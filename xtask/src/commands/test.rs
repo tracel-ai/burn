@@ -50,8 +50,6 @@ pub(crate) fn handle_command(
                     args.exclude.extend(vec![
                         "burn-cuda".to_string(),
                         "burn-rocm".to_string(),
-                        // "burn-router" uses "burn-wgpu" for the tests.
-                        "burn-router".to_string(),
                         "burn-tch".to_string(),
                         "burn-wgpu".to_string(),
                     ]);
@@ -75,9 +73,7 @@ pub(crate) fn handle_command(
                 }
                 CiTestType::GcpWgpuRunner => {
                     args.target = Target::AllPackages;
-                    // "burn-router" uses "burn-wgpu" for the tests.
-                    args.only
-                        .extend(vec!["burn-wgpu".to_string(), "burn-router".to_string()]);
+                    args.only.extend(vec!["burn-wgpu".to_string()]);
                 }
             }
 
