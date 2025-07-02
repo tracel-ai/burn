@@ -14,6 +14,7 @@ workspace = true
 default = ["burn/default"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
+metal = ["burn/metal"]
 
 [dependencies]
 burn = { path = "../../crates/burn", features = ["train", "vision", "network"] }

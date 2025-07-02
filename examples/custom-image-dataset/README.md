@@ -63,3 +63,9 @@ Run it with our WGPU backend:
 ```sh
 cargo run --example custom-image-dataset --release --features wgpu
 ```
+
+Run it with our Metal backend:
+
+```sh
+cargo run --example custom-image-dataset --release --features metal
+```
