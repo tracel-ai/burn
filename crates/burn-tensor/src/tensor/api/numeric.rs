@@ -2291,7 +2291,7 @@ where
     ///
     /// fn example<B: Backend>() {
     ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, f64::INF, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, f64::INFINITY, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.is_finite();
     ///    println!("{tensor}");
     ///    // [[true, false, true], [true, true, true]]
