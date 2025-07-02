@@ -68,8 +68,7 @@ pub(crate) struct MatmulVariants {
     pub(crate) simple_multi_rows: FusedMatmul,
     pub(crate) double_buffering: FusedMatmul,
     pub(crate) specialized: FusedMatmul,
-    pub(crate) ordered_1: FusedMatmul,
-    pub(crate) ordered_2: FusedMatmul,
+    pub(crate) ordered: FusedMatmul,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -97,8 +96,7 @@ impl MatmulVariants {
             simple_multi_rows: selector(FusedMatmulSelector::SimpleMultiRows),
             double_buffering: selector(FusedMatmulSelector::DoubleBuffering),
             specialized: selector(FusedMatmulSelector::Specialized),
-            ordered_1: selector(FusedMatmulSelector::OrderedDoubleBuffering1),
-            ordered_2: selector(FusedMatmulSelector::OrderedDoubleBuffering2),
+            ordered: selector(FusedMatmulSelector::OrderedDoubleBuffering),
         }
     }
 }
@@ -235,8 +233,7 @@ pub enum FusedMatmulSelector {
     SimpleMultiRows,
     DoubleBuffering,
     Specialized,
-    OrderedDoubleBuffering1,
-    OrderedDoubleBuffering2,
+    OrderedDoubleBuffering,
     SimpleUnit(LineSizeOverrides),
 }
 
@@ -450,7 +447,12 @@ impl FusedMatmul {
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
-            FusedMatmulSelector::OrderedDoubleBuffering1 => {
+            FusedMatmulSelector::OrderedDoubleBuffering => {
+                let partition_k = match self.lhs.precision() {
+                    FusePrecision::F16 | FusePrecision::BF16 => 8,
+                    _ => 4,
+                };
+
                 match launch_inner_fix_dtype::<
                     R,
                     EG,
@@ -463,29 +465,7 @@ impl FusedMatmul {
                     line_sizes,
                     plane_size,
                     &Selection::Inferred(OrderedSelectionArgs {
-                        row_count: Some(16),
-                        rows_per_plane: Some(2),
-                        partition_k: Some(1),
-                    }),
-                ) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                }
-            }
-            FusedMatmulSelector::OrderedDoubleBuffering2 => {
-                match launch_inner_fix_dtype::<
-                    R,
-                    EG,
-                    OrderedDoubleBufferingAlgorithm<AcceleratedMatmul>,
-                >(
-                    client,
-                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
-                    outputs,
-                    problem,
-                    line_sizes,
-                    plane_size,
-                    &Selection::Inferred(OrderedSelectionArgs {
-                        row_count: Some(8),
+                        row_count: Some(partition_k),
                         rows_per_plane: Some(2),
                         partition_k: Some(2),
                     }),
@@ -576,8 +556,7 @@ pub(crate) struct SimpleUnit;
 pub(crate) struct SimpleMultiRows;
 pub(crate) struct DoubleBuffering;
 pub(crate) struct Specialized;
-pub(crate) struct Ordered1;
-pub(crate) struct Ordered2;
+pub(crate) struct Ordered;
 
 impl MatmulVariantSelection for Simple {
     fn select(variants: &MatmulVariants) -> &FusedMatmul {
@@ -609,14 +588,8 @@ impl MatmulVariantSelection for Specialized {
     }
 }
 
-impl MatmulVariantSelection for Ordered1 {
+impl MatmulVariantSelection for Ordered {
     fn select(variants: &MatmulVariants) -> &FusedMatmul {
-        &variants.ordered_1
-    }
-}
-
-impl MatmulVariantSelection for Ordered2 {
-    fn select(variants: &MatmulVariants) -> &FusedMatmul {
-        &variants.ordered_2
+        &variants.ordered
     }
 }
