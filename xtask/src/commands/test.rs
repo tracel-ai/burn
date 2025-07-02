@@ -88,7 +88,7 @@ pub(crate) fn handle_command(
                 // burn-dataset
                 helpers::custom_crates_tests(
                     vec!["burn-dataset"],
-                    vec!["--all-features"],
+                    test_args(&["--all-features"], args.release),
                     None,
                     None,
                     "std all features",
@@ -97,7 +97,10 @@ pub(crate) fn handle_command(
                 // burn-core
                 helpers::custom_crates_tests(
                     vec!["burn-core"],
-                    vec!["--features", "test-tch,record-item-custom-serde"],
+                    test_args(
+                        &["--features", "test-tch,record-item-custom-serde"],
+                        args.release,
+                    ),
                     None,
                     None,
                     "std with features: test-tch,record-item-custom-serde",
@@ -106,7 +109,7 @@ pub(crate) fn handle_command(
                 // burn-vision
                 helpers::custom_crates_tests(
                     vec!["burn-vision"],
-                    vec!["--features", "test-cpu"],
+                    test_args(&["--features", "test-cpu"], args.release),
                     None,
                     None,
                     "std cpu",
@@ -115,14 +118,14 @@ pub(crate) fn handle_command(
                 if !disable_wgpu {
                     helpers::custom_crates_tests(
                         vec!["burn-core"],
-                        vec!["--features", "test-wgpu"],
+                        test_args(&["--features", "test-wgpu"], args.release),
                         None,
                         None,
                         "std wgpu",
                     )?;
                     helpers::custom_crates_tests(
                         vec!["burn-vision"],
-                        vec!["--features", "test-wgpu"],
+                        test_args(&["--features", "test-wgpu"], args.release),
                         None,
                         None,
                         "std wgpu",
@@ -138,14 +141,14 @@ pub(crate) fn handle_command(
                         if !disable_wgpu_spirv {
                             helpers::custom_crates_tests(
                                 vec!["burn-core"],
-                                vec!["--features", "test-wgpu-spirv"],
+                                test_args(&["--features", "test-wgpu-spirv"], args.release),
                                 None,
                                 None,
                                 "std vulkan",
                             )?;
                             helpers::custom_crates_tests(
                                 vec!["burn-vision"],
-                                vec!["--features", "test-vulkan"],
+                                test_args(&["--features", "test-vulkan"], args.release),
                                 None,
                                 None,
                                 "std vulkan",
@@ -160,7 +163,7 @@ pub(crate) fn handle_command(
                     // burn-candle
                     helpers::custom_crates_tests(
                         vec!["burn-candle"],
-                        vec!["--features", "accelerate"],
+                        test_args(&["--features", "accelerate"], args.release),
                         None,
                         None,
                         "std accelerate",
@@ -168,7 +171,7 @@ pub(crate) fn handle_command(
                     // burn-ndarray
                     helpers::custom_crates_tests(
                         vec!["burn-ndarray"],
-                        vec!["--features", "blas-accelerate"],
+                        test_args(&["--features", "blas-accelerate"], args.release),
                         None,
                         None,
                         "std blas-accelerate",
@@ -203,4 +206,12 @@ pub(crate) fn handle_command(
                 )
             }),
     }
+}
+
+fn test_args<'a>(args: &'a [&'a str], release: bool) -> Vec<&'a str> {
+    let mut args = args.to_vec();
+    if release {
+        args.push("--release");
+    }
+    args
 }
