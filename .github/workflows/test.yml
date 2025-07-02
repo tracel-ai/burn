@@ -199,6 +199,35 @@ jobs:
       - name: Tests (burn-vulkan)
         run: cargo xtask test --ci gcp-vulkan-runner
 
+  linux-std-wgpu-tests:
+    needs: [prepare-checks, code-quality]
+    # '@id:' label must be unique within this worklow
+    runs-on: [
+      '@id:wgpu-job-${{github.run_id}}-${{github.run_attempt}}',
+      '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
+      '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
+      '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
+      'gpu' ]
+    env:
+      # disable incremental compilation (reduces artifact size)
+      CARGO_PROFILE_TEST_INCREMENTAL: 'false'
+    # Keep the stragegy to be able to easily add new rust versions if required
+    strategy:
+      matrix:
+        rust: [stable]
+        include:
+          - rust: stable
+            toolchain: stable
+    steps:
+      - name: Setup Rust
+        uses: tracel-ai/github-actions/setup-rust@v3
+        with:
+          rust-toolchain: ${{ matrix.toolchain }}
+          enable-cache: false
+      # --------------------------------------------------------------------------------
+      - name: Tests (burn-wgpu)
+        run: cargo xtask test --ci gcp-wgpu-runner
+
   linux-std-tests:
     runs-on: ubuntu-22.04
     needs: [prepare-checks, code-quality]
@@ -223,15 +252,7 @@ jobs:
           cache-key: ${{ matrix.rust }}-linux
           # Disable cache on linux-std (stable) runner which currently always runs out of disk space with tests + coverage
           enable-cache: ${{ matrix.rust != 'stable' }}
-      # --------------------------------------------------------------------------------
-      - name: Setup Linux runner
-        uses: tracel-ai/github-actions/setup-linux@v3
-        with:
-          vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
-          mesa-version: ${{ env.MESA_VERSION }}
-          mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
-          cargo-package-to-clean: burn-tch
-      # --------------------------------------------------------------------------------
+      # # --------------------------------------------------------------------------------
       - name: Install grcov
         if: matrix.rust == 'stable'
         shell: bash
@@ -335,4 +356,4 @@ jobs:
           cache-key: ${{ matrix.rust }}-macos
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: CUBECL_DEBUG_OPTION=profile cargo xtask test --release --ci github-runner
+        run: CUBECL_DEBUG_OPTION=profile cargo xtask test --release --ci github-mac-runner
