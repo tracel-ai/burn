@@ -1,8 +1,5 @@
-use burn::{
-    backend::Autodiff,
-    optim::{SgdConfig, momentum::MomentumConfig},
-};
-use custom_image_dataset::training::{TrainingConfig, train};
+use burn::optim::{SgdConfig, momentum::MomentumConfig};
+use custom_image_dataset::training::TrainingConfig;
 
 /// Creates a training configuration with SGD optimizer and momentum.
 fn create_config() -> TrainingConfig {
