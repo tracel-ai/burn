@@ -56,15 +56,12 @@ fn test_all_reduce<B: Backend>(test_input: NodeTestData) {
 
     let (send, recv) = std::sync::mpsc::sync_channel(32);
 
-    let mut global_idx: usize = 0;
     for id in 0..test_input.device_count {
         let send = send.clone();
         let reg_params = reg_params.clone();
         let params = test_input.aggregate_params.clone();
-        let input = test_input.inputs[global_idx].clone();
+        let input = test_input.inputs[id as usize].clone();
         std::thread::spawn(move || run_peer::<B>(id, reg_params, params, input, send));
-
-        global_idx += 1;
     }
 
     let first = recv.recv().unwrap().to_data();

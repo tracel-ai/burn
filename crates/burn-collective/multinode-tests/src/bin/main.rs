@@ -1,5 +1,7 @@
 use std::{
-    env, fs::{self, File}, process::{Child, Command}
+    env,
+    fs::{self, File},
+    process::{Child, Command},
 };
 
 use burn::{
@@ -18,7 +20,7 @@ use serde_json::to_writer_pretty;
 fn main() {
     let test_files_dir = "target/test_files";
     fs::create_dir_all(test_files_dir).expect("Couldn't create test_files directory");
-    
+
     let server_out_path = format!("{}/server_out.txt", test_files_dir);
     let server_out = File::create(server_out_path).expect("Could't create sever ouput file");
 
