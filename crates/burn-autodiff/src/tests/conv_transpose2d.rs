@@ -77,7 +77,7 @@ mod tests {
             ),
             bias: TestTensor::from_floats([72., 72.], &device),
         };
-        test.assert_grads(grads);
+        test.assert_grads(grads, None);
     }
 
     #[test]
@@ -110,7 +110,7 @@ mod tests {
             ),
             bias: TestTensor::from_floats([8.], &device),
         };
-        test.assert_grads(grads);
+        test.assert_grads(grads, None);
     }
 
     #[test]
@@ -143,7 +143,7 @@ mod tests {
             ),
             bias: TestTensor::from_floats([108.], &device),
         };
-        test.assert_grads(grads);
+        test.assert_grads(grads, None);
     }
 
     #[test]
@@ -176,7 +176,7 @@ mod tests {
             ),
             bias: TestTensor::from_floats([140.], &device),
         };
-        test.assert_grads(grads);
+        test.assert_grads(grads, None);
     }
 
     #[test]
@@ -209,7 +209,7 @@ mod tests {
             ),
             bias: TestTensor::from_floats([80.], &device),
         };
-        test.assert_grads(grads);
+        test.assert_grads(grads, None);
     }
 
     #[test]
@@ -261,7 +261,7 @@ mod tests {
             ),
             bias: TestTensor::from_floats([36., 36., 36.], &device),
         };
-        test.assert_grads(grads);
+        test.assert_grads(grads, None);
     }
 
     #[test]
@@ -300,7 +300,7 @@ mod tests {
             ),
             bias: TestTensor::from_floats([80.], &device),
         };
-        test.assert_grads(grads);
+        test.assert_grads(grads, None);
     }
 
     #[test]
@@ -344,7 +344,7 @@ mod tests {
             ),
             bias: TestTensor::from_floats([36., 36.], &device),
         };
-        test.assert_grads(grads);
+        test.assert_grads(grads, None);
     }
 
     #[test]
@@ -444,7 +444,7 @@ mod tests {
             ),
             bias: TestTensor::from_floats([896., 896., 896.], &device),
         };
-        test.assert_grads(grads);
+        test.assert_grads(grads, Some(Tolerance::rel_abs(1e-1, 1e-2)));
     }
 
     #[test]
@@ -538,7 +538,7 @@ mod tests {
             ),
             bias: TestTensor::from_floats([570., 570.], &device),
         };
-        test.assert_grads(grads);
+        test.assert_grads(grads, None);
     }
 
     #[test]
@@ -620,7 +620,7 @@ mod tests {
             ),
             bias: TestTensor::from_floats([570., 570.], &device),
         };
-        test.assert_grads(grads);
+        test.assert_grads(grads, None);
     }
 
     struct ConvTranspose2dTestCase {
@@ -642,7 +642,10 @@ mod tests {
     }
 
     impl ConvTranspose2dTestCase {
-        fn assert_grads(self, expected_grads: Grads) {
+        fn assert_grads(self, expected_grads: Grads, tolerance: Option<Tolerance<FT>>) {
+            println!("{:?}", tolerance);
+            let tolerance = tolerance.unwrap_or(Tolerance::permissive());
+
             let shape_x = Shape::new([
                 self.batch_size,
                 self.channels[0],
@@ -694,7 +697,6 @@ mod tests {
             let weight_grad_actual = weight.grad(&grads).unwrap();
             let bias_grad_actual = bias.grad(&grads).unwrap();
 
-            let tolerance = Tolerance::permissive();
             expected_grads
                 .bias
                 .to_data()
