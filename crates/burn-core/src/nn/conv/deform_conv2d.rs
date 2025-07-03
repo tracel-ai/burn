@@ -275,7 +275,7 @@ mod tests {
         let conv = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", conv),
+            alloc::format!("{conv}"),
             "DeformConv2d {stride: [1, 1], kernel_size: [5, 5], dilation: [1, 1], weight_groups: 1, offset_groups: 1, padding: Valid, params: 126}"
         );
     }

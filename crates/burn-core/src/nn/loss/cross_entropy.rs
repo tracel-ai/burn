@@ -457,7 +457,7 @@ mod tests {
         let loss = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", loss),
+            alloc::format!("{loss}"),
             "CrossEntropyLoss {pad_tokens: None, weights: Tensor {rank: 1, shape: [3]}, smoothing: 0.5, logits: true}"
         );
     }

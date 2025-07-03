@@ -219,7 +219,7 @@ mod tests {
     fn test_wrap_idx() {
         assert_eq!(wrap_index(0, 3), 0_usize);
         assert_eq!(wrap_index(3, 3), 0_usize);
-        assert_eq!(wrap_index((2 * 3), 3), 0_usize);
+        assert_eq!(wrap_index(2 * 3, 3), 0_usize);
         assert_eq!(wrap_index(0 - 3, 3), 0_usize);
         assert_eq!(wrap_index(0 - 2 * 3, 3), 0_usize);
 

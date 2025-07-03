@@ -532,7 +532,7 @@ mod tests {
         let transformer = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", transformer),
+            alloc::format!("{transformer}"),
             "TransformerDecoder {d_model: 2, d_ff: 4, n_heads: 2, n_layers: 3, \
             dropout: 0.1, norm_first: false, quiet_softmax: false, params: 246}"
         );
