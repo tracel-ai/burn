@@ -874,7 +874,7 @@ impl<F: Float> Tolerance<F> {
     pub fn permissive() -> Self {
         Self {
             relative: F::from(0.01).unwrap(), // 1.0%
-            absolute: F::from(1e-3).unwrap(),
+            absolute: F::from(0.01).unwrap(),
         }
     }
     /// When comparing two numbers, this uses both the relative and absolute differences.

@@ -45,7 +45,7 @@ pub(crate) fn handle_command(
             // 1) Tests with default features
             // ------------------------------
             match args.ci {
-                CiTestType::GithubRunner | CiTestType::GithubMacRunner => {
+                CiTestType::GithubRunner => {
                     // Exclude crates that are not supported on CI
                     args.exclude.extend(vec![
                         "burn-cuda".to_string(),
@@ -61,6 +61,13 @@ pub(crate) fn handle_command(
                     {
                         args.exclude.extend(vec!["burn-remote".to_string()]);
                     };
+                }
+                CiTestType::GithubMacRunner => {
+                    args.target = Target::AllPackages;
+                    args.only.push("burn-wgpu".to_string());
+                    args.features
+                        .get_or_insert_with(Vec::new)
+                        .push("metal".to_string());
                 }
                 CiTestType::GcpCudaRunner => {
                     args.target = Target::AllPackages;
@@ -119,7 +126,7 @@ pub(crate) fn handle_command(
                 CiTestType::GcpVulkanRunner => {
                     helpers::custom_crates_tests(
                         vec!["burn-core"],
-                        vec!["--features", "test-wgpu-spirv"],
+                        vec!["--features", "test-vulkan"],
                         None,
                         None,
                         "std vulkan",
@@ -164,6 +171,20 @@ pub(crate) fn handle_command(
                         None,
                         None,
                         "std blas-accelerate",
+                    )?;
+                    helpers::custom_crates_tests(
+                        vec!["burn-core"],
+                        vec!["--features", "test-metal"],
+                        None,
+                        None,
+                        "std metal",
+                    )?;
+                    helpers::custom_crates_tests(
+                        vec!["burn-vision"],
+                        vec!["--features", "test-metal"],
+                        None,
+                        None,
+                        "std metal",
                     )?;
                 }
             }

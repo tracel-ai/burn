@@ -103,7 +103,7 @@ mod tests {
         let embed = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", embed),
+            alloc::format!("{embed}"),
             "Embedding {n_embedding: 100, d_model: 10, params: 1000}"
         );
     }

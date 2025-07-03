@@ -139,7 +139,7 @@ mod tests {
         let swiglu = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", swiglu),
+            alloc::format!("{swiglu}"),
             "SwiGlu {d_input: 3, d_output: 5, bias: false, params: 30}"
         );
     }

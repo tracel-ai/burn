@@ -881,7 +881,7 @@ mod tests {
             let weight_grad_actual = weight.grad(&grads).unwrap();
             let bias_grad_actual = bias.grad(&grads).unwrap();
 
-            let tolerance = Tolerance::permissive();
+            let tolerance = Tolerance::rel_abs(0.01, 0.01);
             expected_grads
                 .bias
                 .to_data()

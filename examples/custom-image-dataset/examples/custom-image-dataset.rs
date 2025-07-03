@@ -11,6 +11,7 @@ fn create_config() -> TrainingConfig {
 }
 
 fn main() {
+    #[allow(unused_variables)]
     let config = create_config();
 
     #[cfg(feature = "tch-gpu")]

@@ -93,9 +93,9 @@ mod cube_cuda {
 #[cfg(feature = "cubecl-hip")]
 mod cube_hip {
     use crate::backend::{DeviceId, DeviceOps};
-    use cubecl::hip::HipDevice;
+    use cubecl::hip::AmdDevice;
 
-    impl DeviceOps for HipDevice {
+    impl DeviceOps for AmdDevice {
         fn id(&self) -> DeviceId {
             DeviceId::new(0, self.index as u32)
         }
