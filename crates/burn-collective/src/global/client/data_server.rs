@@ -94,7 +94,6 @@ impl<B: Backend> TensorDataClient<B> {
         let cancel_token = cancel_token.clone();
         let shutdown = async move {
             cancel_token.cancelled().await;
-            log::info!("Shutting down websocketc client data server");
         };
 
         // run it with hyper

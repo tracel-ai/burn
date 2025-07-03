@@ -82,19 +82,26 @@ impl GlobalClientWorker {
         let (request, response) = Self::init_connection(address_request, address_response).await;
 
         // Websocket async worker loading responses from the server.
-        tokio::spawn(Self::response_loader(
+        let response_handle = tokio::spawn(Self::response_loader(
             state.clone(),
             response,
             cancel_token.clone(),
         ));
 
         // Channel async worker sending operations to the server.
-        tokio::spawn(Self::request_sender(
+        let request_handle = tokio::spawn(Self::request_sender(
             request_recv,
             state,
             request,
             cancel_token.clone(),
         ));
+
+        let (Ok(_), Ok(_)) = tokio::join!(
+            response_handle,
+            request_handle,
+        ) else {
+            panic!("Failed to join global collective client worker tasks.");
+        };
     }
 
     async fn init_connection(
@@ -186,6 +193,8 @@ impl GlobalClientWorker {
             }
 
             self.cancel_token.cancel();
+            eprintln!("Cancelling worker tasks...");
+
             handle.await.unwrap();
         }
     }
@@ -195,34 +204,41 @@ impl GlobalClientWorker {
         mut stream_response: WebSocketStream<MaybeTlsStream<TcpStream>>,
         cancel_token: CancellationToken,
     ) {
-        while !cancel_token.is_cancelled() {
-            if let Some(msg) = stream_response.next().await {
-                let msg = match msg {
-                    Ok(msg) => msg,
-                    Err(err) => {
-                        panic!(
-                            "An error happened while receiving messages from the websocket: {err:?}"
-                        )
-                    }
-                };
+        loop {
+            tokio::select! {
+                // Check if the cancel token is cancelled
+                _ = cancel_token.cancelled() => {
+                    break;
+                }
+                // .. Or get a message from the websocket
+                response = stream_response.next() => {
+                    let Some(msg) = response else {
+                        break;
+                    };
 
-                match msg {
-                    Message::Binary(bytes) => {
-                        let response: MessageResponse = rmp_serde::from_slice(&bytes)
-                            .expect("Can deserialize messages from the websocket.");
-                        let state_resp = state.lock().await;
-                        let response_callback = state_resp
-                            .requests
-                            .get(&response.id)
-                            .expect("Got a response to an unknown request");
-                        response_callback.send(response.content).await.unwrap();
-                    }
-                    Message::Close(_) => {
-                        log::warn!("Peer closed the connection");
-                        return;
-                    }
-                    _ => panic!("Unsupported websocket message: {msg:?}"),
-                };
+                    let msg = match msg {
+                        Ok(msg) => msg,
+                        Err(err) => {
+                            panic!(
+                                "An error happened while receiving messages from the websocket: {err:?}"
+                            )
+                        }
+                    };
+
+                    match msg {
+                        Message::Binary(bytes) => {
+                            let response: MessageResponse = rmp_serde::from_slice(&bytes)
+                                .expect("Can deserialize messages from the websocket.");
+                            let state_resp = state.lock().await;
+                            let response_callback = state_resp
+                                .requests
+                                .get(&response.id)
+                                .expect("Got a response to an unknown request");
+                            response_callback.send(response.content).await.unwrap();
+                        }
+                        _ => panic!("Unsupported websocket message: {msg:?}"),
+                    };
+                }
             }
         }
 
@@ -239,28 +255,35 @@ impl GlobalClientWorker {
         mut stream_request: WebSocketStream<MaybeTlsStream<TcpStream>>,
         cancel_token: CancellationToken,
     ) {
-        while !cancel_token.is_cancelled() {
-            let Some(request) = request_recv.recv().await else {
-                continue;
-            };
-
-            let id = RequestId::new();
-
-            // Register the callback if there is one
-            {
-                let mut state = worker.lock().await;
-                state.requests.insert(id, request.callback);
+        loop {
+            tokio::select! {
+                _ = cancel_token.cancelled() => {
+                    break;
+                },
+                request = request_recv.recv() => {
+                    let Some(request) = request else {
+                        continue;
+                    };
+        
+                    let id = RequestId::new();
+        
+                    // Register the callback if there is one
+                    {
+                        let mut state = worker.lock().await;
+                        state.requests.insert(id, request.callback);
+                    }
+        
+                    let request = crate::global::shared::Message::Request(id, request.request);
+        
+                    let bytes = rmp_serde::to_vec::<crate::global::shared::Message>(&request)
+                        .expect("Can serialize tasks to bytes.")
+                        .into();
+                    stream_request
+                        .send(Message::Binary(bytes))
+                        .await
+                        .expect("Can send the message on the websocket.");
+                }
             }
-
-            let request = crate::global::shared::Message::Request(id, request.request);
-
-            let bytes = rmp_serde::to_vec::<crate::global::shared::Message>(&request)
-                .expect("Can serialize tasks to bytes.")
-                .into();
-            stream_request
-                .send(Message::Binary(bytes))
-                .await
-                .expect("Can send the message on the websocket.");
         }
 
         eprintln!("Worker closing connection");
