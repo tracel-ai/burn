@@ -32,7 +32,7 @@ impl SessionId {
 }
 
 /// Allows nodes to find each other
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NodeAddress(pub String);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,19 +62,34 @@ pub(crate) enum RemoteRequest {
     Finish,
 }
 
-// Centralized all-reduce: one node aggregates all and redistributes
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) enum CentralizedAllReduceStrategy {
-    /// For the central node
-    Central { other_nodes: Vec<NodeAddress> },
-    /// For non-central nodes
-    Peripheral { central_node: NodeAddress },
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum RemoteResponse {
     RegisterAck,
     FinishAck,
-    AllReduceStrategy(CentralizedAllReduceStrategy),
+    CentralizedAllReduceStrategy(CentralizedAllReduceStrategy),
+    TreeAllReduceStrategy(TreeAllReduceStrategy),
+    RingAllReduceStrategy(RingAllReduceStrategy),
     Error(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum CentralizedAllReduceStrategy {
+    /// The central node is the one that will perform the all-reduce operation
+    Central { other_nodes: Vec<NodeAddress> },
+    /// The peripheral nodes are the ones that will send their tensors to the central node
+    Peripheral { central_node: NodeAddress },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct TreeAllReduceStrategy {
+    pub children: Vec<NodeAddress>,
+    pub parent: Option<NodeAddress>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct RingAllReduceStrategy {
+    pub next_node: NodeAddress,
+    pub previous_node: NodeAddress,
+    pub slice_count: usize,
+    pub first_slice: usize,
 }

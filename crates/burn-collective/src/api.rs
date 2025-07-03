@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::local_server::{LocalCollectiveClient, get_collective_client};
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum AllReduceStrategy {
     Centralized,
     Tree(u32),
@@ -17,12 +17,15 @@ pub enum ReduceKind {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct GlobalAllReduceParams;
+pub struct GlobalAllReduceParams {
+    pub strategy: AllReduceStrategy,
+}
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct AllReduceParams {
     pub kind: ReduceKind,
-    pub strategy: AllReduceStrategy,
+    pub local_strategy: AllReduceStrategy,
+    pub global_strategy: Option<AllReduceStrategy>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -55,7 +58,7 @@ pub fn reset_collective<B: Backend>() {
 /// Registers a "node". `num_nodes` must be the same as the other calls to register,
 /// and `id` must be unique.
 pub fn register<B: Backend>(id: u32, params: RegisterParams) {
-    let client = get_collective_client::<B>();
+    let mut client = get_collective_client::<B>();
     client.register(id, params);
 }
 
@@ -72,7 +75,7 @@ pub fn all_reduce<B: Backend, const D: usize>(
     Tensor::from_primitive(burn_tensor::TensorPrimitive::Float(primitive)).to_device(&device)
 }
 
-pub fn finish_collective<B: Backend>() {
+pub fn finish_collective<B: Backend>(id: u32) {
     let client: LocalCollectiveClient<B> = get_collective_client();
-    client.finish();
+    client.finish(id);
 }

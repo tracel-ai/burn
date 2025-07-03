@@ -26,7 +26,7 @@ pub struct LocalCollectiveServer<B: Backend> {
     message_rec: Receiver<Message<B>>,
 
     /// The ids passed to each register so far
-    registered_nodes: Vec<u32>,
+    registered_ids: Vec<u32>,
     /// The params of the current operation, as defined by the first caller
     cur_register_params: Option<RegisterParams>,
     /// The params of the current operation, as defined by the first caller
@@ -56,6 +56,7 @@ pub(crate) enum Message<B: Backend> {
     },
     Reset,
     Finish {
+        id: u32,
         callback: SyncSender<()>,
     },
 }
@@ -95,7 +96,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
         self.channel.send(Message::Reset).unwrap();
     }
 
-    pub fn register(&self, id: u32, params: RegisterParams) {
+    pub fn register(&mut self, id: u32, params: RegisterParams) {
         let (callback, rec) = std::sync::mpsc::sync_channel::<()>(1);
 
         self.channel
@@ -130,9 +131,9 @@ impl<B: Backend> LocalCollectiveClient<B> {
             .expect("Failed to receive callback from collective server")
     }
 
-    pub fn finish(&self) {
+    pub fn finish(&self, id: u32) {
         let (callback, rec) = std::sync::mpsc::sync_channel::<()>(1);
-        self.channel.send(Message::Finish { callback }).unwrap();
+        self.channel.send(Message::Finish { id, callback }).unwrap();
 
         rec.recv()
             .expect("Failed to receive response from collective server for finish operation")
@@ -143,7 +144,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
     fn new(rec: Receiver<Message<B>>) -> Self {
         Self {
             message_rec: rec,
-            registered_nodes: vec![],
+            registered_ids: vec![],
             cur_register_params: None,
             cur_allreduce_params: None,
             tensors: vec![],
@@ -191,22 +192,33 @@ impl<B: Backend> LocalCollectiveServer<B> {
                 callback,
             } => self.process_register_message(id, params, callback).await,
             Message::Reset => self.reset(),
-            Message::Finish { callback } => {
-                self.reset();
-
-                if let Some(client) = self.global_client.as_mut() {
-                    client.finish().await;
-                }
-
-                callback.send(()).unwrap();
+            Message::Finish { id, callback } => {
+                self.process_finish_message(id, callback).await;
             }
         }
     }
 
     fn reset(&mut self) {
-        self.registered_nodes.clear();
+        self.registered_ids.clear();
         self.tensors.clear();
         self.cur_allreduce_params = None;
+    }
+
+    async fn process_finish_message(&mut self, id: u32, callback: SyncSender<()>) {
+        if !self.registered_ids.contains(&id) {
+            panic!("Cannot un-register a node twice!");
+        }
+
+        // Remove registered with id
+        self.registered_ids.retain(|&x| x != id);
+
+        if self.registered_ids.is_empty() {
+            if let Some(global_client) = self.global_client.as_mut() {
+                global_client.finish().await;            
+            }
+        }
+
+        callback.send(()).unwrap();
     }
 
     async fn process_all_reduce_message(
@@ -229,7 +241,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         self.callbacks_allreduce.push(callback);
 
         let tensor_count = self.tensors.len();
-        if tensor_count > 0 && tensor_count == self.registered_nodes.len() {
+        if tensor_count > 0 && tensor_count == self.registered_ids.len() {
             // all registered callers have sent a tensor to aggregate
             self.all_reduce().await
         }
@@ -241,10 +253,10 @@ impl<B: Backend> LocalCollectiveServer<B> {
         params: RegisterParams,
         callback: SyncSender<()>,
     ) {
-        if self.registered_nodes.contains(&id) {
+        if self.registered_ids.contains(&id) {
             panic!("Cannot register a node twice!");
         }
-        if self.registered_nodes.is_empty() || self.cur_register_params.is_none() {
+        if self.registered_ids.is_empty() || self.cur_register_params.is_none() {
             self.cur_register_params = Some(params.clone());
         } else if self.cur_register_params.clone().unwrap() != params {
             panic!(
@@ -254,7 +266,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
             );
         }
 
-        self.registered_nodes.push(id);
+        self.registered_ids.push(id);
         self.callbacks_register.push(callback);
 
         if let Some(global_params) = &params.global_params {
@@ -269,7 +281,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         }
 
         // All have registered, callback
-        if self.registered_nodes.len() == params.num_devices as usize {
+        if self.registered_ids.len() == params.num_devices as usize {
             if let Some(global_params) = &params.global_params {
                 let client = self.global_client.as_mut().unwrap();
                 client
@@ -284,25 +296,27 @@ impl<B: Backend> LocalCollectiveServer<B> {
     }
 
     async fn all_reduce(&mut self) {
-        let kind = &self.cur_allreduce_params.as_ref().unwrap().kind;
-        let strategy = &self.cur_allreduce_params.as_ref().unwrap().strategy;
+        let params = self.cur_allreduce_params.as_ref().unwrap();
+        let kind = &params.kind;
+        let local_strategy = &params.local_strategy;
+        let global_strategy = &params.global_strategy;
         let tensor_count = self.tensors.len();
 
-        let mut outs = match strategy {
+        let mut outs = match local_strategy {
             AllReduceStrategy::Centralized => {
                 let out = all_reduce_centralized::<B>(&mut self.tensors, kind);
                 vec![out; tensor_count]
             }
-            AllReduceStrategy::Tree(arity) => {
-                let out = all_reduce_tree::<B>(&mut self.tensors, kind, *arity);
-                vec![out; tensor_count]
-            }
+            AllReduceStrategy::Tree(arity) => all_reduce_tree::<B>(&mut self.tensors, kind, *arity),
             AllReduceStrategy::Ring => all_reduce_ring::<B>(&mut self.tensors, kind),
         };
 
         if let Some(global_client) = &mut self.global_client {
             let mut tensor = outs.remove(0);
-            let params = GlobalAllReduceParams;
+            let params = GlobalAllReduceParams {
+                strategy: global_strategy.unwrap(),
+            };
+
             let device = B::float_device(&tensor);
             tensor = global_client.all_reduce(tensor, params, &device).await;
             // replace all results with global aggregation result

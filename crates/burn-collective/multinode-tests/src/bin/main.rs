@@ -1,5 +1,4 @@
 use std::{
-    env,
     fs::{self, File},
     process::{Child, Command},
 };
@@ -7,7 +6,7 @@ use std::{
 use burn::{
     backend::{
         NdArray,
-        collective::{AllReduceParams, ReduceKind},
+        collective::{AllReduceParams, AllReduceStrategy, ReduceKind},
     },
     prelude::Backend,
     tensor::{Shape, Tensor, TensorData},
@@ -17,6 +16,8 @@ use burn_common::rand::{SeedableRng, StdRng};
 
 use serde_json::to_writer_pretty;
 
+/// Main function to run the multinode all-reduce test.
+/// Launches a server and multiple clients based on the provided topology.
 fn main() {
     let test_files_dir = "target/test_files";
     fs::create_dir_all(test_files_dir).expect("Couldn't create test_files directory");
@@ -25,23 +26,21 @@ fn main() {
     let server_out = File::create(server_out_path).expect("Could't create sever ouput file");
 
     let topology = vec![5, 5, 5, 5, 5];
-    let shape = Shape { dims: vec![4] };
+    let tensor_shape = Shape { dims: vec![4] };
     let aggregate_params = AllReduceParams {
         kind: ReduceKind::Sum,
-        strategy: burn::backend::collective::AllReduceStrategy::Tree(2),
+        local_strategy: AllReduceStrategy::Tree(2),
+        global_strategy: Some(AllReduceStrategy::Tree(2)),
     };
 
-    let build_dir = env::var("CARGO_TARGET_DIR").unwrap();
-    let server_executable = format!("{build_dir}/debug/server");
-    println!("{:?}", server_executable);
-    let mut server = Command::new(server_executable)
-        .arg("3000")
+    let mut server: Child = Command::new("cargo")
+        .args(&["run", "--bin", "server", "--", "3000"])
         .stdout(server_out.try_clone().unwrap())
         .stderr(server_out)
         .spawn()
-        .expect("failed to start server");
+        .expect("failed to launch server");
 
-    let clients = launch_clients(&build_dir, topology, shape, aggregate_params);
+    let clients = launch_clients(topology, tensor_shape, aggregate_params);
 
     // Wait on every client
     for mut client in clients {
@@ -53,15 +52,17 @@ fn main() {
     let _ = server.wait();
 }
 
+/// Launch clients based on the provided topology.
+/// Each client will connect to the server and run an all-reduce operation.
+/// The topology is a vector where each element represents the number of devices in that node.
 fn launch_clients(
-    build_dir: &str,
     topology: Vec<u32>,
     tensor_shape: Shape,
     aggregate_params: AllReduceParams,
 ) -> Vec<Child> {
     let total_device_count = topology.iter().sum();
     let (inputs, expected) =
-        generate_random_input(tensor_shape, aggregate_params.kind, total_device_count, 0);
+        generate_random_input(tensor_shape, aggregate_params.kind, total_device_count, 42);
 
     let server_url = "ws://localhost:3000";
 
@@ -94,9 +95,10 @@ fn launch_clients(
         to_writer_pretty(file, &data).expect("Failed to write JSON");
 
         let client_out = File::create(output_filename).expect("Could't create client ouput file");
-        let client_executable = format!("{build_dir}/debug/client");
-        let client = Command::new(client_executable)
-            .arg(input_filename) // config
+
+
+        let client: Child = Command::new("cargo")
+            .args(&["run", "--bin", "client", "--", &input_filename])
             .stdout(client_out.try_clone().unwrap())
             .stderr(client_out)
             .spawn()
@@ -108,6 +110,7 @@ fn launch_clients(
     clients
 }
 
+/// Generates random input tensors based on the provided shape and reduce kind.
 fn generate_random_input(
     shape: Shape,
     reduce_kind: ReduceKind,

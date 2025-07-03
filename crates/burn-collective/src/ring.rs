@@ -169,9 +169,8 @@ pub(crate) fn all_reduce_ring<B: Backend>(
     let dim_size = shape.dims[slice_dim];
     let tensor_count = tensors.len();
     if dim_size < tensor_count {
-        // Tensor cannot be split into N slices! Use a fallback algorithm
-        let result = all_reduce_tree::<B>(tensors, kind, 2);
-        return vec![result; tensor_count];
+        // Tensor cannot be split into N slices! Use a fallback algorithm: binary tree
+        return all_reduce_tree::<B>(tensors, kind, 2);
     }
 
     // Split tensors into slices

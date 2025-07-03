@@ -108,7 +108,9 @@ impl GlobalCollectiveState {
 
     /// Un-register a node. Any pending requests will be cancelled, returning error responses.
     async fn finish(&mut self, session_id: SessionId, request_id: RequestId) {
-        let node_id = self.registered_nodes.remove(&session_id).unwrap();
+        let node_id = self.registered_nodes.remove(&session_id).unwrap_or_else(|| {
+            panic!("Cannot finish the session {:?} that was not registered", session_id);
+        });
         self.node_addresses.remove(&node_id);
 
         let mut register_requests = vec![];
@@ -217,10 +219,12 @@ impl GlobalCollectiveState {
             let other_nodes: Vec<NodeAddress> =
                 requests_iter.map(|(_, _, addr)| addr.clone()).collect();
 
+            // TODO handle the case where there is only one node
+            // TODO implement other strategies
             for (i, (session, request, addr)) in requests.iter().enumerate() {
                 let is_first = i == 0;
                 let strategy = if is_first {
-                    eprintln!("CENTRAL IS: {:?}", addr);
+                    eprintln!("Central is: {:?}", addr);
                     CentralizedAllReduceStrategy::Central {
                         other_nodes: other_nodes.clone(),
                     }
@@ -231,7 +235,7 @@ impl GlobalCollectiveState {
                 };
                 let resp = MessageResponse {
                     id: *request,
-                    content: RemoteResponse::AllReduceStrategy(strategy),
+                    content: RemoteResponse::CentralizedAllReduceStrategy(strategy),
                 };
                 self.respond(*session, resp).await;
             }

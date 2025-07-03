@@ -32,22 +32,18 @@ pub fn main() {
     test_all_reduce::<NdArray>(test_data);
 }
 
+/// Runs the all-reduce test for one node
 fn test_all_reduce<B: Backend>(test_input: NodeTestData) {
     reset_collective::<TestBackend>();
 
-    let global_server_url = test_input.server_url;
-    let global_client_url = test_input.client_url;
-    let global_client_data_port = test_input.client_data_port;
-    let node_id = test_input.node_id;
-    let num_nodes = test_input.node_count;
     let device_count = test_input.device_count;
 
     let global_params = Some(GlobalRegisterParams {
-        node_id,
-        num_nodes,
-        server_url: global_server_url,
-        client_url: global_client_url,
-        client_data_port: global_client_data_port,
+        node_id: test_input.node_id,
+        num_nodes: test_input.node_count,
+        server_url: test_input.server_url,
+        client_url: test_input.client_url,
+        client_data_port: test_input.client_data_port,
     });
     let reg_params = RegisterParams {
         num_devices: device_count,
@@ -56,12 +52,14 @@ fn test_all_reduce<B: Backend>(test_input: NodeTestData) {
 
     let (send, recv) = std::sync::mpsc::sync_channel(32);
 
-    for id in 0..test_input.device_count {
+    let mut handles = vec![];
+    for id in 0..device_count {
         let send = send.clone();
         let reg_params = reg_params.clone();
         let params = test_input.aggregate_params.clone();
         let input = test_input.inputs[id as usize].clone();
-        std::thread::spawn(move || run_peer::<B>(id, reg_params, params, input, send));
+        let handle = std::thread::spawn(move || run_peer::<B>(id, reg_params, params, input, send));
+        handles.push(handle);
     }
 
     let first = recv.recv().unwrap().to_data();
@@ -73,9 +71,18 @@ fn test_all_reduce<B: Backend>(test_input: NodeTestData) {
     let tol: Tolerance<f32> = Tolerance::balanced();
     test_input.expected.assert_approx_eq(&first, tol);
 
-    println!("Test success");
+    for handle in handles {
+        handle.join().expect("Failed to join thread");
+    }
+
+    println!(
+        "Test success: {:?} and {:?}",
+        first.to_vec::<f32>().unwrap(),
+        test_input.expected.to_vec::<f32>().unwrap()
+    );
 }
 
+/// Runs a thread in the all-reduce test.
 pub fn run_peer<B: Backend>(
     id: u32,
     reg_params: RegisterParams,
@@ -93,5 +100,5 @@ pub fn run_peer<B: Backend>(
 
     output.send(tensor).unwrap();
 
-    finish_collective::<B>();
+    finish_collective::<B>(id);
 }

@@ -126,7 +126,8 @@ mod tests {
             4,
             AllReduceParams {
                 kind: ReduceKind::Sum,
-                strategy: AllReduceStrategy::Centralized,
+                local_strategy: AllReduceStrategy::Centralized,
+                global_strategy: None,
             },
             4,
         );
@@ -139,7 +140,8 @@ mod tests {
             4,
             AllReduceParams {
                 kind: ReduceKind::Mean,
-                strategy: AllReduceStrategy::Centralized,
+                local_strategy: AllReduceStrategy::Centralized,
+                global_strategy: None,
             },
             4,
         );
@@ -152,7 +154,8 @@ mod tests {
             4,
             AllReduceParams {
                 kind: ReduceKind::Sum,
-                strategy: AllReduceStrategy::Tree(2),
+                local_strategy: AllReduceStrategy::Tree(2),
+                global_strategy: None,
             },
             4,
         );
@@ -165,7 +168,8 @@ mod tests {
             4,
             AllReduceParams {
                 kind: ReduceKind::Mean,
-                strategy: AllReduceStrategy::Tree(2),
+                local_strategy: AllReduceStrategy::Tree(2),
+                global_strategy: None,
             },
             4,
         );
@@ -178,7 +182,8 @@ mod tests {
             4,
             AllReduceParams {
                 kind: ReduceKind::Sum,
-                strategy: AllReduceStrategy::Tree(5),
+                local_strategy: AllReduceStrategy::Tree(5),
+                global_strategy: None,
             },
             4,
         );
@@ -191,7 +196,8 @@ mod tests {
             4,
             AllReduceParams {
                 kind: ReduceKind::Mean,
-                strategy: AllReduceStrategy::Tree(5),
+                local_strategy: AllReduceStrategy::Tree(5),
+                global_strategy: None,
             },
             4,
         );
@@ -204,7 +210,8 @@ mod tests {
             3,
             AllReduceParams {
                 kind: ReduceKind::Sum,
-                strategy: AllReduceStrategy::Ring,
+                local_strategy: AllReduceStrategy::Ring,
+                global_strategy: None,
             },
             3,
         );
@@ -217,7 +224,8 @@ mod tests {
             3,
             AllReduceParams {
                 kind: ReduceKind::Mean,
-                strategy: AllReduceStrategy::Ring,
+                local_strategy: AllReduceStrategy::Ring,
+                global_strategy: None,
             },
             3,
         );
@@ -231,7 +239,8 @@ mod tests {
             4,
             AllReduceParams {
                 kind: ReduceKind::Sum,
-                strategy: AllReduceStrategy::Ring,
+                local_strategy: AllReduceStrategy::Ring,
+                global_strategy: None,
             },
             3,
         );

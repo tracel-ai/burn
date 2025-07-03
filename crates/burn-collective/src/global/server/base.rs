@@ -136,30 +136,36 @@ impl GlobalCollectiveServer {
                 }
             };
 
-            if let Ok(ws::Message::Binary(bytes)) = msg {
-                let mut state = self.state.lock().await;
-
-                match rmp_serde::from_slice::<Message>(&bytes) {
-                    Ok(val) => match val {
-                        Message::Init(id) => {
-                            state.init_session(id);
-                            session_id = Some(id);
+            match msg {
+                Ok(ws::Message::Binary(bytes)) => {
+                    let mut state = self.state.lock().await;
+    
+                    match rmp_serde::from_slice::<Message>(&bytes) {
+                        Ok(val) => match val {
+                            Message::Init(id) => {
+                                state.init_session(id);
+                                session_id = Some(id);
+                            }
+                            Message::Request(request_id, remote_request) => {
+                                let session_id = session_id
+                                    .expect("Must init session before requesting operations!");
+                                state.process(session_id, request_id, remote_request).await;
+                            }
+                        },
+                        Err(err) => {
+                            log::info!("Only bytes message in the json format are supported {err:?}");
+                            break;
                         }
-                        Message::Request(request_id, remote_request) => {
-                            let session_id = session_id
-                                .expect("Must init session before requesting operations!");
-                            state.process(session_id, request_id, remote_request).await;
-                        }
-                    },
-                    Err(err) => {
-                        log::info!("Only bytes message in the json format are supported {err:?}");
-                        break;
-                    }
-                };
-            } else {
-                log::info!("Not a binary message, closing, received {msg:?}");
-                break;
-            };
+                    };
+                },
+                Ok(ws::Message::Close(_)) => {
+                    log::info!("Peer closed the connection");
+                    break;
+                }
+                _ => {
+                    panic!("Unsupported message type: {msg:?}");
+                }
+            }
         }
     }
 }
