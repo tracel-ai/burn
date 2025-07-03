@@ -11,9 +11,9 @@ use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
     matmul::{
         components::MatmulKind,
-        tune_key::{MatmulAutotuneKey, should_tune_double_buffering},
+        tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
     },
-    tune::{LocalTuner, TunableSet, local_tuner},
+    tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use serde::{Deserialize, Serialize};
 
@@ -35,29 +35,69 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
 ) {
     static TUNER: LocalTuner<FusedMatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
-        .with_tunable(tune_fallback::<R, BT>) // First one should always work.
-        .with_tunable(tune_fused::<R, BT, SimpleUnit>)
-        .with_tunable_optional(tune_fused::<R, BT, Simple>, |key| {
-            matches!(key.matmul_key.analysis.kind, MatmulKind::General)
-        })
-        .with_tunable_optional(tune_fused::<R, BT, SimpleMultiRows>, |key| {
-            matches!(key.matmul_key.analysis.kind, MatmulKind::General)
-        })
-        .with_tunable_optional(tune_fused::<R, BT, Ordered>, |key| {
-            matches!(key.matmul_key.analysis.kind, MatmulKind::General)
-        })
-        .with_tunable_optional(tune_fused::<R, BT, Specialized>, |key| {
-            should_tune_double_buffering(key.num_out_buffers > 1, &key.matmul_key)
-        })
-        .with_tunable_optional(tune_fused::<R, BT, DoubleBuffering>, |key| {
-            should_tune_double_buffering(key.num_out_buffers > 1, &key.matmul_key)
+    let tunables = TUNER.init(|| {
+        const PRIORITY_MAX: u8 = 3;
+        const PRIORITY_HIGH: u8 = 2;
+        const PRIORITY_MEDIUM: u8 = 1;
+        const PRIORITY_MIN: u8 = 0;
+
+        let cmma = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
+            if matches!(key.matmul_key.analysis.kind, MatmulKind::General) {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_MEDIUM
+            }
         });
+
+        let unit = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
+            if !matches!(key.matmul_key.analysis.kind, MatmulKind::General)
+                || matches!(
+                    key.matmul_key.analysis.scale_global,
+                    MatmulGlobalScale::Small
+                )
+            {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_MIN
+            }
+        });
+
+        fn double_buffering_priority(key: &FusedMatmulAutotuneKey, max: u8, min: u8) -> u8 {
+            if should_tune_double_buffering(key.num_out_buffers > 1, &key.matmul_key) {
+                max
+            } else {
+                min
+            }
+        }
+
+        TunableSet::new(create_key::<R>, input_gen::<R>)
+            .with(Tunable::new(tune_fallback::<R, BT>)) // First one should always work.
+            .with(Tunable::new(tune_fused::<R, BT, SimpleUnit>).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(tune_fused::<R, BT, Simple>).group(&cmma, |key| PRIORITY_MAX))
+            .with(
+                Tunable::new(tune_fused::<R, BT, SimpleMultiRows>).group(&cmma, |key| PRIORITY_MAX),
+            )
+            .with(
+                Tunable::new(tune_fused::<R, BT, Ordered>).group(&cmma, |key| {
+                    double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
+                }),
+            )
+            .with(
+                Tunable::new(tune_fused::<R, BT, Specialized>).group(&cmma, |key| {
+                    double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MIN)
+                }),
+            )
+            .with(
+                Tunable::new(tune_fused::<R, BT, DoubleBuffering>).group(&cmma, |key| {
+                    double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
+                }),
+            )
+    });
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&optimization.client, &optimization.device),
         &optimization.client,
-        &tunables,
+        tunables,
         TuneInput::new(context, optimization),
     );
 }

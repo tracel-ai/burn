@@ -9,7 +9,7 @@ use cubecl::{
         },
         tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
     },
-    tune::{LocalTuner, TunableSet, local_tuner},
+    tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 
 use crate::{
@@ -38,32 +38,63 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
 
     static TUNER: LocalTuner<MatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TunableSet::new(create_key::<R>, matmul_input_gen::<R>)
-        .with_tunable_optional(naive::<R, E>, |key| {
-            matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
-                || matches!(key.analysis.kind, MatmulKind::General)
-        })
-        .with_tunable(simple_cube::<R, E>)
-        .with_tunable_optional(matmul_simple::<R, E>, |key| {
-            matches!(key.analysis.kind, MatmulKind::General)
-        })
-        .with_tunable_optional(matmul_simple_multi_rows::<R, E>, |key| {
-            matches!(key.analysis.kind, MatmulKind::General)
-        })
-        .with_tunable_optional(matmul_ordered_double_buffering::<R, E>, |key| {
-            matches!(key.analysis.kind, MatmulKind::General)
-        })
-        .with_tunable_optional(matmul_double_buffering_specialized::<R, E>, |key| {
-            should_tune_double_buffering(false, key)
-        })
-        .with_tunable_optional(matmul_double_buffering::<R, E>, |key| {
-            should_tune_double_buffering(false, key)
+    let tunables = TUNER.init(|| {
+        const PRIORITY_MAX: u8 = 3;
+        const PRIORITY_HIGH: u8 = 2;
+        const PRIORITY_MEDIUM: u8 = 1;
+        const PRIORITY_MIN: u8 = 0;
+
+        let cmma = TuneGroup::<MatmulAutotuneKey>::new(|key| {
+            if matches!(key.analysis.kind, MatmulKind::General) {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_MEDIUM
+            }
         });
+
+        let unit = TuneGroup::<MatmulAutotuneKey>::new(|key| {
+            if !matches!(key.analysis.kind, MatmulKind::General)
+                || matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
+            {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_MIN
+            }
+        });
+
+        fn double_buffering_priority(key: &MatmulAutotuneKey, max: u8, min: u8) -> u8 {
+            if should_tune_double_buffering(false, &key) {
+                max
+            } else {
+                min
+            }
+        }
+        TunableSet::new(create_key::<R>, matmul_input_gen::<R>)
+            .with(Tunable::new(naive::<R, E>).group(&unit, |_| PRIORITY_MIN))
+            .with(Tunable::new(simple_cube::<R, E>).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(matmul_simple::<R, E>).group(&cmma, |_| PRIORITY_MAX))
+            .with(Tunable::new(matmul_simple_multi_rows::<R, E>).group(&cmma, |_| PRIORITY_MAX))
+            .with(
+                Tunable::new(matmul_ordered_double_buffering::<R, E>).group(&cmma, |key| {
+                    double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
+                }),
+            )
+            .with(
+                Tunable::new(matmul_double_buffering_specialized::<R, E>).group(&cmma, |key| {
+                    double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
+                }),
+            )
+            .with(
+                Tunable::new(matmul_double_buffering::<R, E>).group(&cmma, |key| {
+                    double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
+                }),
+            )
+    });
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&lhs.client, &lhs.device),
         &client,
-        &tunables,
+        tunables,
         (lhs, rhs, output.clone()),
     );
 
