@@ -210,6 +210,7 @@ jobs:
       '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
       '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
       '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
+      '@keep-alive:true',
       'gpu' ]
     env:
       # disable incremental compilation (reduces artifact size)
