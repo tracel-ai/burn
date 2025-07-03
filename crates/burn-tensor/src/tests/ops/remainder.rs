@@ -53,9 +53,12 @@ mod tests {
         let output = lhs.remainder(rhs);
         let expected = TensorData::from([1.0, 2.0, 0.0949, 0.0698, 0.2824]);
 
+        // Metal has less precise remainder function
+        let tolerance = Tolerance::default().set_half_precision_relative(1e-2);
+
         output
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 
     /// Also from https://pytorch.org/docs/stable/generated/torch.remainder.html
