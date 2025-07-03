@@ -106,7 +106,7 @@ impl<B: BackendIr> Processor<B> {
 
         task_sender
     }
-
+    // TODO refactor, this is now in collective
     /// Downloads a tensor that is exposed on another server. Requires a Tokio 1.x runtime
     async fn download_tensor(remote_tensor: TensorRemote) -> Option<TensorData> {
         log::info!("Downloading tensor {:?}", remote_tensor.clone());
