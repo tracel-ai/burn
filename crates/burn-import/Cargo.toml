@@ -49,6 +49,7 @@ thiserror = { workspace = true, optional = true }
 tracing-core = { workspace = true }
 tracing-subscriber = { workspace = true }
 zip = { workspace = true, optional = true }
+safetensors = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

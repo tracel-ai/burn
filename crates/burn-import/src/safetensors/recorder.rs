@@ -7,7 +7,7 @@ use burn::{
 };
 
 use regex::Regex;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Serialize};
 
 use super::reader::from_file;
 

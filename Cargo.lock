@@ -736,6 +736,7 @@ dependencies = [
  "regex",
  "rstest",
  "rust-format",
+ "safetensors 0.6.0",
  "serde",
  "serde_json",
  "syn 2.0.101",
@@ -6244,6 +6245,16 @@ name = "safetensors"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44560c11236a6130a46ce36c836a62936dc81ebf8c36a37947423571be0e55b6"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "safetensors"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "617df84b8360fc910a687afe4be1c4660bf7c090d448d2fc27c781e852205f7c"
 dependencies = [
  "serde",
  "serde_json",
