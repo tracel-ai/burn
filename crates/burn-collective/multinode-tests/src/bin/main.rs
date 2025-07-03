@@ -34,7 +34,7 @@ fn main() {
     };
 
     let mut server: Child = Command::new("cargo")
-        .args(&["run", "--bin", "server", "--", "3000"])
+        .args(["run", "--bin", "server", "--", "3000"])
         .stdout(server_out.try_clone().unwrap())
         .stderr(server_out)
         .spawn()
@@ -96,9 +96,8 @@ fn launch_clients(
 
         let client_out = File::create(output_filename).expect("Could't create client ouput file");
 
-
         let client: Child = Command::new("cargo")
-            .args(&["run", "--bin", "client", "--", &input_filename])
+            .args(["run", "--bin", "client", "--", &input_filename])
             .stdout(client_out.try_clone().unwrap())
             .stderr(client_out)
             .spawn()

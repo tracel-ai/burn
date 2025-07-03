@@ -30,12 +30,13 @@ pub struct TensorDataClient<B: Backend> {
     state: Arc<TensorDataService<B>>,
 }
 
+type WebSocketStreamType = WebSocketStream<MaybeTlsStream<TcpStream>>;
+
 struct TensorDataService<B: Backend> {
     /// Maps tensor IDs to their exposed state.
     pub exposed_tensors: Mutex<HashMap<u32, TensorExposeState>>,
     /// Maps node addresses to their WebSocket streams.
-    pub ws_streams:
-        Mutex<HashMap<NodeAddress, Arc<Mutex<WebSocketStream<MaybeTlsStream<TcpStream>>>>>>,
+    pub ws_streams: Mutex<HashMap<NodeAddress, Arc<Mutex<WebSocketStreamType>>>>,
     /// Notify when a new tensor is exposed.
     pub new_tensor_notify: Arc<Notify>,
 
@@ -176,7 +177,7 @@ impl<B: Backend> TensorDataService<B> {
 
     pub(crate) async fn close(&self) {
         // Send a closing message to every open WebSocket stream
-        let reason = format!("Peer is closing");
+        let reason = "Peer is closing".to_string();
 
         let mut ws_streams = self.ws_streams.lock().await;
         for (_, stream) in ws_streams.drain() {

@@ -46,8 +46,7 @@ impl<B: Backend> GlobalCollectiveClient<B> {
             .build()
             .unwrap();
 
-        let data_client =
-            TensorDataClient::new(&runtime, cancel_token.clone(), data_server_port);
+        let data_client = TensorDataClient::new(&runtime, cancel_token.clone(), data_server_port);
 
         let worker = GlobalClientWorker::new(&runtime, cancel_token.clone(), server_address);
 

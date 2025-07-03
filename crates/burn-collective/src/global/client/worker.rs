@@ -140,7 +140,6 @@ impl GlobalClientWorker {
         retry_pause: Duration,
         retry_max: Option<u32>,
     ) -> WebSocketStream<MaybeTlsStream<TcpStream>> {
-
         const MB: usize = 1024 * 1024;
         let mut retries = 0;
 
@@ -157,18 +156,18 @@ impl GlobalClientWorker {
                 address.clone(),
                 Some(
                     WebSocketConfig::default()
-                    .write_buffer_size(0)
-                    .max_message_size(None)
-                    .max_frame_size(Some(MB * 512))
-                    .accept_unmasked_frames(true)
-                    .read_buffer_size(64 * 1024), // 64 KiB (previous default)
+                        .write_buffer_size(0)
+                        .max_message_size(None)
+                        .max_frame_size(Some(MB * 512))
+                        .accept_unmasked_frames(true)
+                        .read_buffer_size(64 * 1024), // 64 KiB (previous default)
                 ),
                 true,
             )
             .await;
 
-            if result.is_ok() {
-                return result.unwrap().0;
+            if let Ok(result) = result {
+                return result.0;
             }
             println!("Failed to connect to {address}, retrying... Attempt #{retries}");
             tokio::time::sleep(retry_pause).await;
@@ -226,7 +225,7 @@ impl GlobalClientWorker {
                 };
             }
         }
-        
+
         eprintln!("Worker closing connection");
         stream_response
             .send(Message::Close(None))
@@ -263,7 +262,7 @@ impl GlobalClientWorker {
                 .await
                 .expect("Can send the message on the websocket.");
         }
-        
+
         eprintln!("Worker closing connection");
         stream_request
             .send(Message::Close(None))

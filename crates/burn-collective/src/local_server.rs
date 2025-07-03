@@ -214,7 +214,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
 
         if self.registered_ids.is_empty() {
             if let Some(global_client) = self.global_client.as_mut() {
-                global_client.finish().await;            
+                global_client.finish().await;
             }
         }
 

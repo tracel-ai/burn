@@ -5,31 +5,6 @@ use burn_tensor::{
 
 use crate::ReduceKind;
 
-// pub(crate) fn sum_tree<B: Backend>(
-//     tensors: &mut Vec<B::FloatTensorPrimitive>,
-//     arity: u32,
-// ) -> B::FloatTensorPrimitive {
-//     let tensor_count = tensors.len() as u32;
-//     if tensor_count > arity {
-//         // Split tensor vec into chunks
-//         let chunk_count = cmp::min(arity, tensor_count);
-//         let chunk_size = tensor_count / chunk_count;
-//         let chunks: Vec<Vec<B::FloatTensorPrimitive>> = tensors
-//             .chunks(chunk_size as usize)
-//             .map(|s| s.into())
-//             .collect();
-
-//         // Recursive reduce
-//         let mut new_tensors = vec![];
-//         for mut chunk in chunks {
-//             new_tensors.push(sum_tree::<B>(&mut chunk, arity));
-//         }
-//         all_reduce_centralized::<B>(&mut new_tensors, &ReduceKind::Sum)
-//     } else {
-//         all_reduce_centralized::<B>(tensors, &ReduceKind::Sum)
-//     }
-// }
-
 fn sum_tree<B: Backend>(tensors: &mut Vec<B::FloatTensorPrimitive>, arity: u32) {
     if tensors.len() <= 1 {
         // If there's only one tensor, use it directly
@@ -40,7 +15,7 @@ fn sum_tree<B: Backend>(tensors: &mut Vec<B::FloatTensorPrimitive>, arity: u32) 
     let mut children_devices = vec![];
 
     // Phase 1: Sum tensors in groups of `arity` + 1
-    while tensors.len() > 0 {
+    while !tensors.is_empty() {
         let mut devices = vec![];
         let mut parent_tensor = tensors.remove(0);
         let target_device = B::float_device(&parent_tensor);
@@ -87,7 +62,7 @@ pub(crate) fn all_reduce_tree<B: Backend>(
 
     sum_tree::<B>(tensors, arity);
 
-    let mut result: Vec<B::FloatTensorPrimitive> = tensors.drain(..).collect();
+    let mut result: Vec<B::FloatTensorPrimitive> = std::mem::take(tensors);
 
     let tensor_count = result.len() as f32;
     if *kind == ReduceKind::Mean {

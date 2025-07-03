@@ -108,9 +108,15 @@ impl GlobalCollectiveState {
 
     /// Un-register a node. Any pending requests will be cancelled, returning error responses.
     async fn finish(&mut self, session_id: SessionId, request_id: RequestId) {
-        let node_id = self.registered_nodes.remove(&session_id).unwrap_or_else(|| {
-            panic!("Cannot finish the session {:?} that was not registered", session_id);
-        });
+        let node_id = self
+            .registered_nodes
+            .remove(&session_id)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Cannot finish the session {:?} that was not registered",
+                    session_id
+                );
+            });
         self.node_addresses.remove(&node_id);
 
         let mut register_requests = vec![];

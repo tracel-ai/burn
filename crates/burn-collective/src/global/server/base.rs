@@ -139,7 +139,7 @@ impl GlobalCollectiveServer {
             match msg {
                 Ok(ws::Message::Binary(bytes)) => {
                     let mut state = self.state.lock().await;
-    
+
                     match rmp_serde::from_slice::<Message>(&bytes) {
                         Ok(val) => match val {
                             Message::Init(id) => {
@@ -153,11 +153,13 @@ impl GlobalCollectiveServer {
                             }
                         },
                         Err(err) => {
-                            log::info!("Only bytes message in the json format are supported {err:?}");
+                            log::info!(
+                                "Only bytes message in the json format are supported {err:?}"
+                            );
                             break;
                         }
                     };
-                },
+                }
                 Ok(ws::Message::Close(_)) => {
                     log::info!("Peer closed the connection");
                     break;
