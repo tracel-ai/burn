@@ -145,6 +145,7 @@ jobs:
 
   linux-std-cuda-tests:
     needs: [prepare-checks, code-quality]
+    timeout-minutes: 60
     # '@id:' label must be unique within this worklow
     runs-on: [
       '@id:burn-cuda-job-${{github.run_id}}-${{github.run_attempt}}',
@@ -175,6 +176,7 @@ jobs:
 
   linux-std-vulkan-tests:
     needs: [prepare-checks, code-quality]
+    timeout-minutes: 60
     # '@id:' label must be unique within this worklow
     runs-on: [
       '@id:burn-vulkan-job-${{github.run_id}}-${{github.run_attempt}}',
@@ -204,6 +206,7 @@ jobs:
 
   linux-std-wgpu-tests:
     needs: [prepare-checks, code-quality]
+    timeout-minutes: 60
     # '@id:' label must be unique within this worklow
     runs-on: [
       '@id:burn-wgpu-job-${{github.run_id}}-${{github.run_attempt}}',
@@ -341,9 +344,10 @@ jobs:
       - name: Tests
         run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
 
-  macos-std-tests:
+  macos-std-metal-tests:
     runs-on: blaze/macos-14
     needs: [prepare-checks, code-quality]
+    timeout-minutes: 60
     # Keep the stragegy to be able to easily add new rust versions if required
     strategy:
       matrix:
