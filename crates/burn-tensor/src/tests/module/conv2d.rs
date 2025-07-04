@@ -1,6 +1,7 @@
 #[burn_tensor_testgen::testgen(module_conv2d)]
 mod tests {
     use super::*;
+    use alloc::vec;
     use burn_tensor::activation::gelu;
     use burn_tensor::module::conv2d;
     use burn_tensor::ops::ConvOptions;
