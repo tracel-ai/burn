@@ -49,6 +49,16 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
             }
         });
 
+        let odd = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
+            if key.matmul_key.definition.lhs_pow2_factor == 0
+                || key.matmul_key.definition.rhs_pow2_factor == 0
+            {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_MIN
+            }
+        });
+
         let unit = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
             if !matches!(key.matmul_key.analysis.kind, MatmulKind::General)
                 || matches!(
@@ -81,14 +91,18 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
                 }),
             )
             .with(
-                Tunable::new(tune_fused::<R, BT, Specialized>).group(&cmma, |key| {
-                    double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MIN)
-                }),
+                Tunable::new(tune_fused::<R, BT, Specialized>)
+                    .group(&cmma, |key| {
+                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MIN)
+                    })
+                    .group(&odd, |_| PRIORITY_MAX),
             )
             .with(
-                Tunable::new(tune_fused::<R, BT, DoubleBuffering>).group(&cmma, |key| {
-                    double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
-                }),
+                Tunable::new(tune_fused::<R, BT, DoubleBuffering>)
+                    .group(&cmma, |key| {
+                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
+                    })
+                    .group(&odd, |_| PRIORITY_MAX),
             )
     });
 
