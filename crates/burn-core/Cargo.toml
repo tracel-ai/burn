@@ -69,10 +69,9 @@ test-tch = [
     "burn-tch/default",
 ] # To use tch during testing, default uses ndarray.
 test-wgpu = [
-    "burn-wgpu", # no default (fusion)
+    "burn-wgpu/default",
     "test-memory-checks",
 ] # To use wgpu during testing, default uses ndarray.
-test-fusion = ["burn-wgpu/fusion"]
 test-wgpu-spirv = [
     "burn-wgpu/default",
     "burn-wgpu/vulkan",

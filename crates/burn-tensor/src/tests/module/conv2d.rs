@@ -1,10 +1,11 @@
 #[burn_tensor_testgen::testgen(module_conv2d)]
 mod tests {
     use super::*;
+    use burn_tensor::activation::gelu;
     use burn_tensor::module::conv2d;
     use burn_tensor::ops::ConvOptions;
     use burn_tensor::{Shape, Tensor};
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn_tensor::{TensorData, Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]
@@ -442,5 +443,94 @@ mod tests {
             y.to_data()
                 .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
         }
+    }
+
+    #[rustfmt::skip] // param values are too long
+    fn conv2d_weight() -> TensorData {
+        TensorData::new(
+            vec![0.048065186, -0.3059082, -0.10345459, -0.34643555, -0.20788574, -0.021072388, 0.13745117, -0.05102539, 0.024536133, -0.16479492, -0.19519043, 0.27270508, 0.17700195, -0.33764648, -0.08239746, -0.27929688, 0.17321777, -0.1315918, 0.04574585, -0.17980957, -0.33569336, 0.27612305, 0.30004883, -0.28979492, -0.17297363, -0.021759033, -0.27148438, 0.005657196, 0.29956055, -0.06958008, -0.29345703, -0.14440918, 0.10827637, -0.13305664, -0.20239258, 0.24890137, -0.1541748, -0.20019531, -0.2854004, 0.17016602, 0.07861328, -0.09075928, 0.30908203, -0.00013422966, 0.29589844, 0.15258789, -0.25708008, 0.20422363, -0.2529297, 0.07891846, -0.19506836, 0.23571777, 0.27124023, 0.17370605, -0.16992188, -0.23522949, 0.14648438, -0.09576416, -0.18310547, 0.21044922, -0.08911133, -0.2541504, -0.2775879, -0.2064209, -0.16271973, -0.048919678, -0.03555298, -0.11639404, 0.09661865, -0.10241699, 0.08929443, 0.2866211],
+            [8, 1, 3, 3],
+        )
+    }
+
+    #[test]
+    fn test_conv2d_binary_broadcasted() {
+        let device = Default::default();
+        let x = TestTensor::<4>::full([1, 1, 28, 28], -0.42421296, &device);
+
+        // conv2d -> batchnorm -> activation
+        let weight = TestTensor::from_data(conv2d_weight(), &device);
+        let bias = TestTensor::from([
+            0.082336426,
+            -0.049591064,
+            0.0031795502,
+            0.00095653534,
+            0.02357483,
+            0.005569458,
+            0.07525635,
+            0.056396484,
+        ]);
+
+        // channels: [1, 8], kernel_size: [3, 3], stride: [1, 1], dilation: [1, 1], groups: 1, padding: [0, 0]
+        let opt = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+        let x = conv2d(x, weight, Some(bias), opt);
+
+        // simulate batchnorm binary ops with broadcasted params
+        let gamma = TestTensor::<1>::from([
+            1.0048828, 0.9902344, 1.0185547, 0.97558594, 1.0097656, 0.97802734, 1.0009766,
+            1.0146484,
+        ]);
+        let beta = TestTensor::<1>::from([
+            0.026290894,
+            0.0007505417,
+            0.006134033,
+            0.02418518,
+            0.07373047,
+            0.020507813,
+            0.01902771,
+            0.02003479,
+        ]);
+        let mean = TestTensor::<1>::from([
+            0.029159546,
+            -0.08673096,
+            -0.03894043,
+            -0.01108551,
+            0.032440186,
+            0.03237915,
+            0.013839722,
+            0.04397583,
+        ])
+        .reshape([1, 8, 1, 1]);
+        let var = TestTensor::<1>::from([
+            0.67089844, 0.29956055, 0.5209961, 0.1862793, 0.30419922, 0.21313477, 0.7504883,
+            0.26342773,
+        ])
+        .reshape([1, 8, 1, 1]);
+
+        let std = var.add_scalar(1e-5).sqrt();
+        let x = x.sub(mean);
+        let x = x.div(std);
+        let x = x.mul(gamma.reshape([1, 8, 1, 1]));
+        let x = x.add(beta.reshape([1, 8, 1, 1]));
+
+        let x = gelu(x);
+
+        let expected: Vec<f32> = [
+            0.36432067f32,
+            0.34909567,
+            0.30684796,
+            0.13217466,
+            -0.018471397,
+            -0.1389876,
+            0.39402074,
+            0.12394252,
+        ]
+        .iter()
+        .flat_map(|&v| std::iter::repeat_n(v, 676))
+        .collect();
+        let expected = TensorData::new(expected, [1, 8, 26, 26]);
+
+        x.into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }
