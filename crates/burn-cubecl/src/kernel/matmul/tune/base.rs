@@ -90,7 +90,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
             .with(Tunable::new(simple_unit_min::<R, E>).group(&unit, |_| PRIORITY_MAX))
             .with(Tunable::new(simple_unit_max::<R, E>).group(&unit, |_| PRIORITY_MAX))
             .with(Tunable::new(double_unit::<R, E>).group(&unit, |key| {
-                double_buffering_priority(key, PRIORITY_MAX, PRIORITY_MEDIUM)
+                double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
             }))
             .with(Tunable::new(matmul_simple::<R, E>).group(&cmma, |_| PRIORITY_MAX))
             .with(Tunable::new(matmul_simple_multi_rows::<R, E>).group(&cmma, |_| PRIORITY_MAX))
