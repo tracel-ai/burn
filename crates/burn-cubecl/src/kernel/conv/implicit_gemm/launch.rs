@@ -33,10 +33,9 @@ pub fn conv_gemm_cyclic<R: CubeRuntime, F: FloatElement, const N: usize>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    let x = conv_gemm_with_algo::<R, F, SimpleConvAlgorithm<AcceleratedMatmul>, N>(
+    conv_gemm_with_algo::<R, F, SimpleConvAlgorithm<AcceleratedMatmul>, N>(
         input, weight, bias, options,
-    );
-    x
+    )
 }
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
