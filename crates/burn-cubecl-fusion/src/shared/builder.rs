@@ -476,7 +476,7 @@ impl FuseOptimizationBuilder {
 
                 self.builder.register(|build| {
                     let input = build.input_indexed(&desc.tensor)?;
-                    let indices = build.input(&desc.indices)?;
+                    let indices = build.input_indexed(&desc.indices)?;
                     let output = build.output(&desc.out)?;
 
                     build.register_operation(FuseOp::Gather {

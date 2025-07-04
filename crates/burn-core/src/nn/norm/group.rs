@@ -329,7 +329,7 @@ mod tests {
         let group_norm = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            format!("{}", group_norm),
+            format!("{group_norm}"),
             "GroupNorm {num_groups: 3, num_channels: 6, epsilon: 0.00001, affine: true, params: 12}"
         );
     }

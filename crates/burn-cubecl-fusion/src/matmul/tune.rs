@@ -1,7 +1,7 @@
 use crate::{
     CubeFusionHandle,
     matmul::optimization::{
-        DoubleBuffering, Ordered1, Ordered2, Simple, SimpleMultiRows, SimpleUnit, Specialized,
+        DoubleBuffering, Ordered, Simple, SimpleMultiRows, SimpleUnit, Specialized,
     },
     shared::trace::TuneOutput,
     tune::{TuneContext, TuneInput},
@@ -44,10 +44,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
         .with_tunable_optional(tune_fused::<R, BT, SimpleMultiRows>, |key| {
             matches!(key.matmul_key.analysis.kind, MatmulKind::General)
         })
-        .with_tunable_optional(tune_fused::<R, BT, Ordered1>, |key| {
-            matches!(key.matmul_key.analysis.kind, MatmulKind::General)
-        })
-        .with_tunable_optional(tune_fused::<R, BT, Ordered2>, |key| {
+        .with_tunable_optional(tune_fused::<R, BT, Ordered>, |key| {
             matches!(key.matmul_key.analysis.kind, MatmulKind::General)
         })
         .with_tunable_optional(tune_fused::<R, BT, Specialized>, |key| {

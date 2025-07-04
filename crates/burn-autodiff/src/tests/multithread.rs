@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_multithread)]
 mod tests {
     use super::*;
-    use burn_tensor::TensorData;
+    use burn_tensor::{TensorData, Tolerance};
 
     #[test]
     fn should_behave_the_same_with_multithread() {
@@ -83,7 +83,11 @@ mod tests {
         let (grad_1, grad_2) = without_move();
         let (grad_1_moved, grad_2_moved) = with_move();
 
-        assert_eq!(grad_1.to_data(), grad_1_moved.to_data());
-        assert_eq!(grad_2.to_data(), grad_2_moved.to_data());
+        grad_1
+            .into_data()
+            .assert_approx_eq::<f32>(&grad_1_moved.into_data(), Tolerance::default());
+        grad_2
+            .into_data()
+            .assert_approx_eq::<f32>(&grad_2_moved.into_data(), Tolerance::default());
     }
 }

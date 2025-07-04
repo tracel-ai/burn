@@ -15,7 +15,8 @@ fn gather_kernel<T: Numeric, I: Numeric>(
         terminate!();
     }
 
-    let index = indices[ABSOLUTE_POS];
+    let idx = index_offset_with_layout(indices, output, ABSOLUTE_POS, 0, output.rank(), false);
+    let index = indices[idx];
 
     let stride = input.stride(*dim);
     let mut offset = u32::cast_from(index);

@@ -164,8 +164,8 @@ impl<B: Backend> Conv2d<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::Tolerance;
     use burn_tensor::ops::FloatElem;
+    use burn_tensor::{ElementConversion, Tolerance};
 
     use super::*;
     use crate::TestBackend;
@@ -178,7 +178,7 @@ mod tests {
 
         let config = Conv2dConfig::new([5, 1], [5, 5]);
         let k = (config.channels[0] * config.kernel_size[0] * config.kernel_size[1]) as f64;
-        let k = (config.groups as f64 / k).sqrt() as f32;
+        let k = (config.groups as f64 / k).sqrt().elem::<FT>();
         let device = Default::default();
         let conv = config.init::<TestBackend>(&device);
 
@@ -254,7 +254,7 @@ mod tests {
         let conv = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", conv),
+            alloc::format!("{conv}"),
             "Conv2d {stride: [1, 1], kernel_size: [5, 5], dilation: [1, 1], groups: 1, padding: Valid, params: 126}"
         );
     }

@@ -296,13 +296,9 @@ mod tests {
     fn assert_normal_init(expected_mean: f64, expected_var: f64, tensor: &Tensor<TB, 2>) {
         let (actual_vars, actual_means) = tensor.clone().var_mean(0);
         let actual_vars = actual_vars.to_data();
-        let actual_vars = actual_vars
-            .as_slice::<<TB as Backend>::FloatElem>()
-            .unwrap();
+        let actual_vars = actual_vars.as_slice::<FT>().unwrap();
         let actual_means = actual_means.to_data();
-        let actual_means = actual_means
-            .as_slice::<<TB as Backend>::FloatElem>()
-            .unwrap();
+        let actual_means = actual_means.as_slice::<FT>().unwrap();
 
         for i in 0..tensor.shape().dims[0] {
             let actual_var = actual_vars[i] as f64;
@@ -327,7 +323,9 @@ mod tests {
         let uniform = Initializer::Uniform { min, max };
         let tensor: Tensor<TB, 4> = uniform.init([2, 2, 2, 2], &Default::default()).into_value();
 
-        tensor.into_data().assert_within_range(min..max);
+        tensor
+            .into_data()
+            .assert_within_range::<FT>(min.elem()..max.elem());
     }
 
     #[test]
@@ -392,7 +390,7 @@ mod tests {
 
         let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
-        let k = gain * (3.0 / fan_in as f64).sqrt();
+        let k = (gain * (3.0 / fan_in as f64).sqrt()).elem::<FT>();
 
         let tensor: Tensor<TB, 2> = Initializer::KaimingUniform {
             gain,
@@ -428,7 +426,7 @@ mod tests {
         let gain = 2_f64;
         let shape = [3];
         let fan_in = 5;
-        let k = gain * (3.0 / fan_in as f64).sqrt();
+        let k = (gain * (3.0 / fan_in as f64).sqrt()).elem::<FT>();
 
         let tensor: Tensor<TB, 1> = Initializer::KaimingUniform {
             gain,
@@ -445,7 +443,7 @@ mod tests {
 
         let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
-        let k = gain * (3.0 / fan_out as f64).sqrt();
+        let k = (gain * (3.0 / fan_out as f64).sqrt()).elem::<FT>();
 
         let tensor: Tensor<TB, 2> = Initializer::KaimingUniform {
             gain,
@@ -478,7 +476,7 @@ mod tests {
 
         let gain = 2.;
         let (fan_in, fan_out) = (5, 6);
-        let bound = gain * (6. / (fan_in + fan_out) as f64).sqrt();
+        let bound = (gain * (6. / (fan_in + fan_out) as f64).sqrt()).elem::<FT>();
         let tensor: Tensor<TB, 2> = Initializer::XavierUniform { gain }
             .init_with(
                 [fan_out, fan_in],
@@ -578,8 +576,7 @@ mod tests {
         let dims = t.dims();
         assert_eq!(
             shape, dims,
-            "Expected the shape of the input tensor to match the shape of the output. ({:?}, {:?})",
-            shape, dims
+            "Expected the shape of the input tensor to match the shape of the output. ({shape:?}, {dims:?})"
         );
 
         // test 3D tensor
@@ -590,8 +587,7 @@ mod tests {
         let dims = t.dims();
         assert_eq!(
             shape, dims,
-            "Expected the shape of the input tensor to match the shape of the output. ({:?}, {:?})",
-            shape, dims
+            "Expected the shape of the input tensor to match the shape of the output. ({shape:?}, {dims:?})"
         );
     }
 
