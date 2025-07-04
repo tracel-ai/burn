@@ -16,9 +16,11 @@ mod tests {
             [-0.24132, 0.58235, -0.08877],
         ]);
 
-        output.into_data().assert_approx_eq::<FT>(
-            &expected,
-            Tolerance::default().set_half_precision_relative(1e-3),
-        );
+        // Metal has less precise trigonometric functions (tanh inside mish)
+        let tolerance = Tolerance::default().set_half_precision_relative(1e-2);
+
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 }

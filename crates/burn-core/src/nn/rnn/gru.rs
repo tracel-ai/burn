@@ -403,7 +403,7 @@ mod tests {
         let layer = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", layer),
+            alloc::format!("{layer}"),
             "Gru {d_input: 2, d_hidden: 8, bias: true, reset_after: true, params: 288}"
         );
     }

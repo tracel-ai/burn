@@ -356,7 +356,7 @@ mod tests {
             .serialize(Serializer::new())
             .expect("Should serialize item successfully");
 
-        let serialized_str = format!("{:?}", serialized);
+        let serialized_str = format!("{serialized:?}");
 
         // Compare the lengths of expected and actual serialized strings because
         // the order of the fields is not guaranteed for HashMaps.

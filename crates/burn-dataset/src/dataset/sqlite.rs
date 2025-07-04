@@ -822,7 +822,7 @@ mod tests {
         (0..record_count).into_par_iter().for_each(|index: i64| {
             let thread_id: std::thread::ThreadId = std::thread::current().id();
             let sample = Complex {
-                column_str: format!("test_{:?}_{}", thread_id, index),
+                column_str: format!("test_{thread_id:?}_{index}"),
                 column_bytes: vec![index as u8, 2, 3],
                 column_int: index,
                 column_bool: true,

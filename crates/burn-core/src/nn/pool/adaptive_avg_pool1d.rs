@@ -70,7 +70,7 @@ mod tests {
         let layer = config.init();
 
         assert_eq!(
-            alloc::format!("{}", layer),
+            alloc::format!("{layer}"),
             "AdaptiveAvgPool1d {output_size: 3}"
         );
     }

@@ -8,8 +8,8 @@ fn main() {
 
     // Display first and last elements
     let item = dataset.get(0).unwrap();
-    println!("First item:\n{:?}", item);
+    println!("First item:\n{item:?}");
 
     let item = dataset.get(441).unwrap();
-    println!("Last item:\n{:?}", item);
+    println!("Last item:\n{item:?}");
 }

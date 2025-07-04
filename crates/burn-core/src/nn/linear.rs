@@ -208,7 +208,7 @@ mod tests {
         let linear = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", linear),
+            alloc::format!("{linear}"),
             "Linear {d_input: 3, d_output: 5, bias: true, params: 20}"
         );
     }

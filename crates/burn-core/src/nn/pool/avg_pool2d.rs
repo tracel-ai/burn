@@ -129,7 +129,7 @@ mod tests {
         let layer = config.init();
 
         assert_eq!(
-            alloc::format!("{}", layer),
+            alloc::format!("{layer}"),
             "AvgPool2d {kernel_size: [3, 3], stride: [1, 1], padding: Valid, count_include_pad: true}"
         );
     }

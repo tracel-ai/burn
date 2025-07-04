@@ -112,7 +112,7 @@ mod tests {
         let config = DropoutConfig::new(0.5);
         let layer = config.init();
 
-        assert_eq!(alloc::format!("{}", layer), "Dropout {prob: 0.5}");
+        assert_eq!(alloc::format!("{layer}"), "Dropout {prob: 0.5}");
     }
 
     #[test]

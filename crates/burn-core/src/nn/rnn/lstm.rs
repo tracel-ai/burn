@@ -759,7 +759,7 @@ mod tests {
         let layer = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", layer),
+            alloc::format!("{layer}"),
             "Lstm {d_input: 2, d_hidden: 3, bias: true, params: 84}"
         );
     }
@@ -771,7 +771,7 @@ mod tests {
         let layer = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", layer),
+            alloc::format!("{layer}"),
             "BiLstm {d_input: 2, d_hidden: 3, bias: true, params: 168}"
         );
     }
