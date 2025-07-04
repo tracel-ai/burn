@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     GlobalAllReduceParams,
-    global::shared::{
+    global::shared::base::{
         CentralizedAllReduceStrategy, MessageResponse, NodeAddress, RemoteRequest, RemoteResponse,
         RequestId, SessionId,
     },
@@ -216,6 +216,12 @@ impl GlobalCollectiveState {
 
         let tensor_count = self.all_reduce_requests.len();
         if tensor_count > 0 && tensor_count == self.registered_nodes.len() {
+            if tensor_count == 1 {
+                log::warn!(
+                    "all-reduce should never be called with only one tensor, this is a no-op"
+                );
+            }
+
             // all registered callers have sent a tensor to all_reduce
             let mut requests = vec![];
             core::mem::swap(&mut requests, &mut self.all_reduce_requests);
@@ -225,8 +231,6 @@ impl GlobalCollectiveState {
             let other_nodes: Vec<NodeAddress> =
                 requests_iter.map(|(_, _, addr)| addr.clone()).collect();
 
-            // TODO handle the case where there is only one node
-            // TODO implement other strategies
             for (i, (session, request, addr)) in requests.iter().enumerate() {
                 let is_first = i == 0;
                 let strategy = if is_first {

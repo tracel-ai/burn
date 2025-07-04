@@ -1,42 +1,23 @@
-use std::{collections::HashMap, marker::PhantomData, net::SocketAddr, sync::Arc};
-
-use axum::{
-    Router,
-    extract::{
-        State, WebSocketUpgrade,
-        ws::{self, WebSocket},
-    },
-    response::IntoResponse,
-    routing::any,
-};
 use burn_tensor::{TensorData, backend::Backend};
-use futures_util::{SinkExt, StreamExt};
-use tokio::{net::TcpStream, sync::Mutex};
+use std::{collections::HashMap, marker::PhantomData, sync::Arc};
+use tokio::sync::Mutex;
 use tokio::{runtime::Runtime, sync::Notify};
-use tokio_tungstenite::{
-    MaybeTlsStream, WebSocketStream, connect_async_with_config,
-    tungstenite::{self, protocol::WebSocketConfig},
-};
 use tokio_util::sync::CancellationToken;
-use tracing_core::{Level, LevelFilter};
-use tracing_subscriber::{
-    Layer, filter::filter_fn, layer::SubscriberExt, registry, util::SubscriberInitExt,
-};
 
-use crate::global::shared::NodeAddress;
+use crate::global::shared::base::NodeAddress;
+
+use burn_network::{ClientNetworkStream, Server, ServerNetworkStream};
 
 #[derive(Clone)]
 pub struct TensorDataClient<B: Backend> {
     state: Arc<TensorDataService<B>>,
 }
 
-type WebSocketStreamType = WebSocketStream<MaybeTlsStream<TcpStream>>;
-
 struct TensorDataService<B: Backend> {
     /// Maps tensor IDs to their exposed state.
     pub exposed_tensors: Mutex<HashMap<u32, TensorExposeState>>,
     /// Maps node addresses to their WebSocket streams.
-    pub ws_streams: Mutex<HashMap<NodeAddress, Arc<Mutex<WebSocketStreamType>>>>,
+    pub streams: Mutex<HashMap<NodeAddress, Arc<Mutex<ClientNetworkStream>>>>,
     /// Notify when a new tensor is exposed.
     pub new_tensor_notify: Arc<Notify>,
 
@@ -67,53 +48,18 @@ impl<B: Backend> TensorDataClient<B> {
     /// Start the server on the given address.
     /// This will block until the server is stopped with the `cancel_token`.
     async fn start(state: Arc<TensorDataService<B>>, cancel_token: CancellationToken, port: u16) {
-        // TODO abstract logging code
-        let layer = tracing_subscriber::fmt::layer()
-            .with_filter(LevelFilter::INFO)
-            .with_filter(filter_fn(|m| {
-                if let Some(path) = m.module_path() {
-                    // The wgpu crate is logging too much, so we skip `info` level.
-                    if path.starts_with("wgpu") && *m.level() >= Level::INFO {
-                        return false;
-                    }
-                }
-                true
-            }));
+        let mut server = Server::<Arc<TensorDataService<B>>>::new(port);
 
-        // If we start multiple servers in the same process, this will fail, it's ok
-        let _ = registry().with(layer).try_init();
-
-        let address = format!("0.0.0.0:{port}");
-        log::info!("Start data server {address}");
-
-        // build our application with some routes
-        let app: Router = Router::new()
-            .route("/data", any(Self::handler_data))
-            .with_state(state.clone());
+        server = server.route("/data", async |state, stream| {
+            state.handle_stream(stream).await;
+        });
 
         let cancel_token = cancel_token.clone();
         let shutdown = async move {
             cancel_token.cancelled().await;
         };
 
-        // run it with hyper
-        let listener = tokio::net::TcpListener::bind(address).await.unwrap();
-        axum::serve(
-            listener,
-            app.into_make_service_with_connect_info::<SocketAddr>(),
-        )
-        .with_graceful_shutdown(shutdown)
-        .await
-        .unwrap();
-    }
-
-    async fn handler_data(
-        ws: WebSocketUpgrade,
-        State(state): State<Arc<TensorDataService<B>>>,
-    ) -> impl IntoResponse {
-        ws.on_upgrade(async move |socket| {
-            state.handle_socket(socket).await;
-        })
+        server.serve(state, shutdown).await;
     }
 
     /// Exposes a tensor to the data server, allowing it to be downloaded by other nodes.
@@ -132,7 +78,7 @@ impl<B: Backend> TensorDataClient<B> {
         remote: &NodeAddress,
         tensor_id: u32,
     ) -> Option<TensorData> {
-        self.state.download_next_tensor(remote, tensor_id).await
+        self.state.download_tensor(remote, tensor_id).await
     }
 
     pub(crate) async fn close(&mut self) {
@@ -144,7 +90,7 @@ impl<B: Backend> TensorDataService<B> {
     pub fn new(cancel_token: CancellationToken) -> Self {
         Self {
             exposed_tensors: Mutex::new(HashMap::new()),
-            ws_streams: Mutex::new(HashMap::new()),
+            streams: Mutex::new(HashMap::new()),
             new_tensor_notify: Arc::new(Notify::new()),
             cancel_token,
             _phantom_data: PhantomData::<B>,
@@ -176,27 +122,20 @@ impl<B: Backend> TensorDataService<B> {
 
     pub(crate) async fn close(&self) {
         // Send a closing message to every open WebSocket stream
-        let reason = "Peer is closing".to_string();
 
-        let mut ws_streams = self.ws_streams.lock().await;
-        for (_, stream) in ws_streams.drain() {
+        let mut streams = self.streams.lock().await;
+        for (_, stream) in streams.drain() {
             let mut stream = stream.lock().await;
 
             stream
-                .send(tungstenite::Message::Close(Some(
-                    tungstenite::protocol::CloseFrame {
-                        code: tungstenite::protocol::frame::coding::CloseCode::Normal,
-                        reason: reason.clone().into(),
-                    },
-                )))
+                .close()
                 .await
-                .expect("Failed to send Close message");
+                .expect("Failed to close WebSocket stream");
         }
     }
 
     /// Downloads a tensor that is exposed on another server. Requires a Tokio 1.x runtime
-    /// TODO rename
-    pub(crate) async fn download_next_tensor(
+    pub(crate) async fn download_tensor(
         &self,
         remote: &NodeAddress,
         tensor_id: u32,
@@ -209,98 +148,67 @@ impl<B: Backend> TensorDataService<B> {
         // Send the download request with the download id
         let bytes: bytes::Bytes = rmp_serde::to_vec(&tensor_id).unwrap().into();
         stream
-            .send(tungstenite::Message::Binary(bytes))
+            .send(bytes)
             .await
             .expect("Failed to send download id");
 
-        if let Some(msg) = stream.next().await {
-            let msg = match msg {
-                Ok(msg) => msg,
-                Err(err) => {
-                    panic!(
-                        "An error happened while receiving messages from the websocket: {err:?}"
-                    );
-                }
+        if let Ok(msg) = stream.recv().await {
+            let Some(msg) = msg else {
+                log::warn!("Received None message from the websocket, closing connection.");
+                return None;
             };
 
-            match msg {
-                tungstenite::Message::Binary(bytes) => {
-                    let data: TensorData = rmp_serde::from_slice(&bytes)
-                        .expect("Can deserialize messages from the websocket.");
-                    return Some(data);
-                }
-                tungstenite::Message::Close(_) => {
-                    log::warn!("Closed connection");
-                    return None;
-                }
-                _ => panic!("Unsupported websocket message: {msg:?}"),
-            };
+            let data: TensorData = rmp_serde::from_slice(&msg.data)
+                .expect("Can deserialize messages from the websocket.");
+            return Some(data);
         }
-
+        log::warn!("Closed connection");
         None
     }
 
     /// Get the WebSocket stream for the given address, or create a new one if it doesn't exist.
-    async fn get_data_stream(
-        &self,
-        address: &NodeAddress,
-    ) -> Arc<Mutex<WebSocketStream<MaybeTlsStream<TcpStream>>>> {
-        let mut ws_streams = self.ws_streams.lock().await;
-        match ws_streams.get(address) {
+    async fn get_data_stream(&self, address: &NodeAddress) -> Arc<Mutex<ClientNetworkStream>> {
+        let mut streams = self.streams.lock().await;
+        match streams.get(address) {
             Some(stream) => stream.clone(),
             None => {
                 // Open a new WebSocket connection to the address
                 let address_request = format!("{}/{}", address.0.as_str(), "data");
-                const MB: usize = 1024 * 1024;
-                let (stream, _) = connect_async_with_config(
-                    address_request.clone(),
-                    Some(
-                        WebSocketConfig::default()
-                            .write_buffer_size(0)
-                            .max_message_size(None)
-                            .max_frame_size(Some(MB * 512))
-                            .accept_unmasked_frames(true)
-                            .read_buffer_size(64 * 1024), // 64 KiB (previous default)
-                    ),
-                    true,
-                )
-                .await
-                .expect("Failed to connect");
+                let stream = burn_network::connect(address_request).await;
+                let Some(stream) = stream else {
+                    panic!("Failed to connect to data server at {}", address.0.as_str());
+                };
 
                 let stream = Arc::new(Mutex::new(stream));
-                ws_streams.insert(address.clone(), stream.clone());
+                streams.insert(address.clone(), stream.clone());
 
                 stream
             }
         }
     }
 
-    /// Handle incoming WebSocket connections for downloading tensors.
-    pub async fn handle_socket(&self, mut socket: WebSocket) {
+    /// Handle incoming connections for downloading tensors.
+    pub async fn handle_stream(&self, mut stream: ServerNetworkStream) {
         log::info!("[Data Handler] New connection for download.");
 
         while !self.cancel_token.is_cancelled() {
-            if let Some(msg) = socket.next().await {
-                let msg = msg.unwrap_or_else(|err| {
-                    panic!("Failed to receive message from websocket: {err:?}");
-                });
-
-                match msg {
-                    ws::Message::Binary(bytes) => {
+            match stream.recv().await {
+                Ok(message) => {
+                    if let Some(msg) = message {
+                        let bytes = msg.data;
                         let tensor_id: u32 = rmp_serde::from_slice(&bytes)
                             .expect("Can deserialize messages from the websocket.");
 
                         let bytes = self.get_exposed_tensor_bytes(tensor_id).await.unwrap();
 
-                        socket.send(ws::Message::Binary(bytes)).await.unwrap();
-                    }
-                    ws::Message::Close(_) => {
+                        stream.send(bytes).await.unwrap();
+                    } else {
                         eprintln!("Closed connection");
                         return;
                     }
-                    _ => panic!("Unsupported websocket message: {msg:?}"),
-                };
-            }
+                }
+                Err(err) => panic!("Failed to receive message from websocket: {err:?}"),
+            };
         }
         eprintln!("[Data Service] Closing connection for download.");
     }

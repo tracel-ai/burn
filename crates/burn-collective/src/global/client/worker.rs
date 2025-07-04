@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
+use burn_network::ClientNetworkStream;
 use tokio::{
-    net::TcpStream,
     runtime::Runtime,
     sync::{
         Mutex,
@@ -9,19 +9,11 @@ use tokio::{
     },
     task::JoinHandle,
 };
-use tokio_tungstenite::{
-    MaybeTlsStream, WebSocketStream, connect_async_with_config,
-    tungstenite::{self, Message, protocol::WebSocketConfig},
-};
 use tokio_util::sync::CancellationToken;
 
-use crate::global::{
-    client::base::ClientRequest,
-    shared::{MessageResponse, RemoteRequest, RemoteResponse, RequestId, SessionId},
+use crate::global::shared::base::{
+    Message, MessageResponse, RemoteRequest, RemoteResponse, RequestId, SessionId,
 };
-
-use futures_util::sink::SinkExt;
-use futures_util::stream::StreamExt;
 
 /// Worker that handles communication with the server for global collective operations.
 pub(crate) struct GlobalClientWorker {
@@ -40,6 +32,18 @@ impl GlobalClientWorkerState {
         Self {
             requests: HashMap::new(),
         }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct ClientRequest {
+    pub request: RemoteRequest,
+    pub callback: Sender<RemoteResponse>,
+}
+
+impl ClientRequest {
+    pub fn new(request: RemoteRequest, callback: Sender<RemoteResponse>) -> Self {
+        Self { request, callback }
     }
 }
 
@@ -96,10 +100,7 @@ impl GlobalClientWorker {
             cancel_token.clone(),
         ));
 
-        let (Ok(_), Ok(_)) = tokio::join!(
-            response_handle,
-            request_handle,
-        ) else {
+        let (Ok(_), Ok(_)) = tokio::join!(response_handle, request_handle,) else {
             panic!("Failed to join global collective client worker tasks.");
         };
     }
@@ -107,38 +108,23 @@ impl GlobalClientWorker {
     async fn init_connection(
         address_request: String,
         address_response: String,
-    ) -> (
-        WebSocketStream<MaybeTlsStream<TcpStream>>,
-        WebSocketStream<MaybeTlsStream<TcpStream>>,
-    ) {
+    ) -> (ClientNetworkStream, ClientNetworkStream) {
+        let session_id = SessionId::new();
+
         let stream_request_fut = Self::connect_with_retry(
             address_request.clone(),
             std::time::Duration::from_secs(1),
             None,
+            session_id,
         );
         let stream_response_fut = Self::connect_with_retry(
             address_response.clone(),
             std::time::Duration::from_secs(1),
             None,
+            session_id,
         );
-        let (mut stream_request, mut stream_response) =
-            tokio::join!(stream_request_fut, stream_response_fut,);
 
-        let session_id = SessionId::new();
-        let req = crate::global::shared::Message::Init(session_id);
-        let bytes: tungstenite::Bytes = rmp_serde::to_vec(&req)
-            .expect("Can serialize tasks to bytes.")
-            .into();
-        stream_request
-            .send(Message::Binary(bytes.clone()))
-            .await
-            .expect("Can send the message on the websocket.");
-        stream_response
-            .send(Message::Binary(bytes))
-            .await
-            .expect("Can send the message on the websocket.");
-
-        (stream_request, stream_response)
+        tokio::join!(stream_request_fut, stream_response_fut,)
     }
 
     /// Connect with websocket with retries.
@@ -146,10 +132,9 @@ impl GlobalClientWorker {
         address: String,
         retry_pause: Duration,
         retry_max: Option<u32>,
-    ) -> WebSocketStream<MaybeTlsStream<TcpStream>> {
-        const MB: usize = 1024 * 1024;
+        session_id: SessionId,
+    ) -> ClientNetworkStream {
         let mut retries = 0;
-
         loop {
             if let Some(max) = retry_max {
                 if retries >= max {
@@ -159,23 +144,18 @@ impl GlobalClientWorker {
 
             // Try to connect to the request address.
             println!("Connecting to {address} ...");
-            let result = connect_async_with_config(
-                address.clone(),
-                Some(
-                    WebSocketConfig::default()
-                        .write_buffer_size(0)
-                        .max_message_size(None)
-                        .max_frame_size(Some(MB * 512))
-                        .accept_unmasked_frames(true)
-                        .read_buffer_size(64 * 1024), // 64 KiB (previous default)
-                ),
-                true,
-            )
-            .await;
+            let result = burn_network::connect(address.clone()).await;
 
-            if let Ok(result) = result {
-                return result.0;
+            if let Some(mut stream) = result {
+                let init_msg = Message::Init(session_id);
+                let bytes: bytes::Bytes = rmp_serde::to_vec(&init_msg).unwrap().into();
+                stream
+                    .send(bytes)
+                    .await
+                    .expect("Can send the init message on the websocket.");
+                return stream;
             }
+
             println!("Failed to connect to {address}, retrying... Attempt #{retries}");
             tokio::time::sleep(retry_pause).await;
             retries += 1;
@@ -201,7 +181,7 @@ impl GlobalClientWorker {
 
     async fn response_loader(
         state: Arc<Mutex<GlobalClientWorkerState>>,
-        mut stream_response: WebSocketStream<MaybeTlsStream<TcpStream>>,
+        mut stream_response: ClientNetworkStream,
         cancel_token: CancellationToken,
     ) {
         loop {
@@ -211,23 +191,19 @@ impl GlobalClientWorker {
                     break;
                 }
                 // .. Or get a message from the websocket
-                response = stream_response.next() => {
-                    let Some(msg) = response else {
-                        break;
-                    };
-
-                    let msg = match msg {
-                        Ok(msg) => msg,
+                response = stream_response.recv() => {
+                    match response {
                         Err(err) => {
-                            panic!(
-                                "An error happened while receiving messages from the websocket: {err:?}"
-                            )
+                            eprintln!("Error receiving message from websocket: {err:?}");
+                            break;
                         }
-                    };
+                        Ok(response) => {
+                            let Some(response) = response else {
+                                eprintln!("Closed connection");
+                                break;
+                            };
 
-                    match msg {
-                        Message::Binary(bytes) => {
-                            let response: MessageResponse = rmp_serde::from_slice(&bytes)
+                            let response: MessageResponse = rmp_serde::from_slice(&response.data)
                                 .expect("Can deserialize messages from the websocket.");
                             let state_resp = state.lock().await;
                             let response_callback = state_resp
@@ -236,23 +212,22 @@ impl GlobalClientWorker {
                                 .expect("Got a response to an unknown request");
                             response_callback.send(response.content).await.unwrap();
                         }
-                        _ => panic!("Unsupported websocket message: {msg:?}"),
-                    };
+                    }
                 }
             }
         }
 
         eprintln!("Worker closing connection");
         stream_response
-            .send(Message::Close(None))
+            .close()
             .await
-            .expect("Can send the close message on the websocket.");
+            .expect("Can close the websocket stream.");
     }
 
     async fn request_sender(
         mut request_recv: Receiver<ClientRequest>,
         worker: Arc<Mutex<GlobalClientWorkerState>>,
-        mut stream_request: WebSocketStream<MaybeTlsStream<TcpStream>>,
+        mut stream_request: ClientNetworkStream,
         cancel_token: CancellationToken,
     ) {
         loop {
@@ -264,22 +239,22 @@ impl GlobalClientWorker {
                     let Some(request) = request else {
                         continue;
                     };
-        
+
                     let id = RequestId::new();
-        
+
                     // Register the callback if there is one
                     {
                         let mut state = worker.lock().await;
                         state.requests.insert(id, request.callback);
                     }
-        
-                    let request = crate::global::shared::Message::Request(id, request.request);
-        
-                    let bytes = rmp_serde::to_vec::<crate::global::shared::Message>(&request)
+
+                    let request = Message::Request(id, request.request);
+
+                    let bytes = rmp_serde::to_vec::<Message>(&request)
                         .expect("Can serialize tasks to bytes.")
                         .into();
                     stream_request
-                        .send(Message::Binary(bytes))
+                        .send(bytes)
                         .await
                         .expect("Can send the message on the websocket.");
                 }
@@ -288,7 +263,7 @@ impl GlobalClientWorker {
 
         eprintln!("Worker closing connection");
         stream_request
-            .send(Message::Close(None))
+            .close()
             .await
             .expect("Can send the close message on the websocket.");
     }

@@ -564,6 +564,7 @@ dependencies = [
  "burn-cuda",
  "burn-ir",
  "burn-ndarray",
+ "burn-network",
  "burn-tensor",
  "burn-wgpu",
  "bytes",
@@ -818,6 +819,25 @@ dependencies = [
  "rand 0.9.1",
  "seq-macro",
  "spin 0.10.0",
+]
+
+[[package]]
+name = "burn-network"
+version = "0.18.0"
+dependencies = [
+ "axum",
+ "bytes",
+ "futures",
+ "futures-util",
+ "log",
+ "rmp-serde",
+ "serde",
+ "serde_bytes",
+ "tokio",
+ "tokio-tungstenite 0.26.2",
+ "tokio-util",
+ "tracing-core",
+ "tracing-subscriber",
 ]
 
 [[package]]

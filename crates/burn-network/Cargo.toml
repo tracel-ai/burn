@@ -1,0 +1,31 @@
+[package]
+authors = [
+    "Guilhem Ané (@Cielbird)",
+    "Nathaniel Simard (@nathanielsimard)",
+]
+description = "Abstractions for network communication for Burn"
+edition.workspace = true
+license.workspace = true
+name = "burn-network"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-network"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+log = { workspace = true }
+tokio = { version = "1.45", features = ["rt-multi-thread", "sync", "signal"] }
+serde = { workspace = true, features = ["derive"] }
+serde_bytes = { workspace = true }
+rmp-serde = { workspace = true }
+futures-util = { version = "0.3" }
+axum = { version = "0.8.3", features = ["ws"] }
+tracing-core = { workspace = true }
+tracing-subscriber = { workspace = true }
+tokio-tungstenite = { version = "0.26" }
+bytes = { version = "1.0" }
+futures = { version = "0.3" }
+tokio-util = "0.7.15"
+

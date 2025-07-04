@@ -137,7 +137,6 @@ fn generate_random_input(
     }
 
     if reduce_kind == ReduceKind::Mean {
-        eprintln!("Doing a mean!");
         expected_tensor = expected_tensor.div_scalar(input_count);
     }
 

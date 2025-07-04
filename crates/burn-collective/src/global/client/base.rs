@@ -1,7 +1,7 @@
 use burn_tensor::backend::Backend;
 use futures::stream::FuturesUnordered;
 use std::{marker::PhantomData, sync::Arc};
-use tokio::{runtime::Runtime, sync::mpsc::Sender};
+use tokio::runtime::Runtime;
 use tokio_util::sync::CancellationToken;
 
 use futures_util::stream::StreamExt;
@@ -10,24 +10,13 @@ use crate::{
     GlobalAllReduceParams, GlobalRegisterParams,
     global::{
         client::{data_server::TensorDataClient, worker::GlobalClientWorker},
-        shared::{
+        shared::base::{
             CentralizedAllReduceStrategy::{self, Central, Peripheral},
-            NodeAddress, RemoteRequest, RemoteResponse, TreeAllReduceStrategy,
+            NodeAddress, RemoteRequest, RemoteResponse, RingAllReduceStrategy,
+            TreeAllReduceStrategy,
         },
     },
 };
-
-#[derive(Debug)]
-pub(crate) struct ClientRequest {
-    pub request: RemoteRequest,
-    pub callback: Sender<RemoteResponse>,
-}
-
-impl ClientRequest {
-    pub fn new(request: RemoteRequest, callback: Sender<RemoteResponse>) -> Self {
-        Self { request, callback }
-    }
-}
 
 pub(crate) struct GlobalCollectiveClient<B: Backend> {
     data_service: TensorDataClient<B>,
@@ -161,18 +150,24 @@ impl<B: Backend> GlobalCollectiveClient<B> {
         device: &B::Device,
         strategy: TreeAllReduceStrategy,
     ) -> B::FloatTensorPrimitive {
-        let mut result = tensor;
+        // Download tensors from children async
+        let mut downloads = strategy
+            .children
+            .iter()
+            .map(|child| {
+                let data_service = self.data_service.clone();
+                async move {
+                    let data = data_service.download_next_tensor(child, 0).await.unwrap();
 
-        // Download tensors from children
-        for child in &strategy.children {
-            // TODO download from kiddies async
-            let data = self
-                .data_service
-                .download_next_tensor(child, 0)
-                .await
-                .unwrap();
-            let child_tensor = B::float_from_data(data, device);
-            result = B::float_add(result, child_tensor);
+                    B::float_from_data(data, device)
+                }
+            })
+            .collect::<FuturesUnordered<_>>();
+
+        // Sum download results
+        let mut result = tensor;
+        while let Some(res) = downloads.next().await {
+            result = B::float_add(result, res);
         }
 
         // Expose the result to the parent
@@ -203,7 +198,7 @@ impl<B: Backend> GlobalCollectiveClient<B> {
         &mut self,
         _tensor: B::FloatTensorPrimitive,
         _device: &B::Device,
-        _strategy: crate::global::shared::RingAllReduceStrategy,
+        _strategy: RingAllReduceStrategy,
     ) -> B::FloatTensorPrimitive {
         // Slice the tensor, should correspond to the local slicing.
         todo!()

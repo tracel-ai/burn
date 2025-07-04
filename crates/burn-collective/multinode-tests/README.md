@@ -1,7 +1,6 @@
 # Integration test for burn collective operations with multiple nodes and devices.
 
-Run `cargo build` then 
-`CARGO_TARGET_DIR=../../../target/ cargo run --bin main` from the `multinode-tests` directory.
+Run `cargo run --bin main`
 
 There are 3 binaries:
 
