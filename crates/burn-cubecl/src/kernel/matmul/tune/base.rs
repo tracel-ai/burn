@@ -87,7 +87,15 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
                     PRIORITY_MIN
                 }
             }))
-            .with(Tunable::new(simple_unit_min::<R, E>).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(simple_unit_min::<R, E>).group(&unit, |key| {
+                if matches!(key.analysis.kind, MatmulKind::General)
+                    && matches!(key.analysis.scale_global, MatmulGlobalScale::Large)
+                {
+                    PRIORITY_MAX
+                } else {
+                    PRIORITY_HIGH
+                }
+            }))
             .with(Tunable::new(simple_unit_max::<R, E>).group(&unit, |_| PRIORITY_MAX))
             .with(Tunable::new(double_unit::<R, E>).group(&unit, |key| {
                 double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
