@@ -222,7 +222,6 @@ pub fn conv_im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    println!("conv_im2col");
     if options.groups != 1 {
         return Err(ConvLaunchError::Groups(options.groups));
     }
@@ -302,7 +301,6 @@ pub fn conv_im2col_1x1<R: CubeRuntime, E: FloatElement, const N: usize>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    println!("conv_im2col_1x1");
     if options.groups != 1 {
         return Err(ConvLaunchError::Groups(options.groups));
     }

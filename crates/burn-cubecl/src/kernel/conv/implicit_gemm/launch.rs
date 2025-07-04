@@ -33,11 +33,9 @@ pub fn conv_gemm_cyclic<R: CubeRuntime, F: FloatElement, const N: usize>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    println!("conv_gemm_cyclic");
     let x = conv_gemm_with_algo::<R, F, SimpleConvAlgorithm<AcceleratedMatmul>, N>(
         input, weight, bias, options,
     );
-    println!("done");
     x
 }
 
@@ -55,7 +53,6 @@ pub fn conv_gemm_tma<R: CubeRuntime, F: FloatElement, const N: usize>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    println!("conv_gemm_tma");
     conv_gemm_with_algo::<R, F, SimpleTmaConvAlgorithm<AcceleratedMatmul>, N>(
         input, weight, bias, options,
     )
@@ -75,7 +72,6 @@ pub fn conv_gemm_tma_multi_stage<R: CubeRuntime, F: FloatElement, const N: usize
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    println!("conv_gemm_tma_multi_stage");
     conv_gemm_with_algo::<R, F, MultiStageTmaConvAlgorithm<AcceleratedMatmul>, N>(
         input, weight, bias, options,
     )

@@ -221,7 +221,6 @@ pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError> {
-    println!("conv_direct");
     let rank = input.shape.num_dims();
     let dim_c = rank - 1;
 
