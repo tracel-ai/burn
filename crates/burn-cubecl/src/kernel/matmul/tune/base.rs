@@ -4,8 +4,9 @@ use cubecl::{
         Strategy, SyncBufferLoadingStrategy, SyncLoadingStrategy,
         components::MatmulKind,
         kernels::matmul::{
-            Selection, double_buffering::DoubleBufferingArgs,
+            Selection, TileSizeSelection, double_buffering::DoubleBufferingArgs,
             ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
+            simple_unit::SimpleUnitSelectionArgs,
         },
         tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
     },
@@ -86,7 +87,11 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
                     PRIORITY_MIN
                 }
             }))
-            .with(Tunable::new(simple_unit::<R, E>).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(simple_unit_min::<R, E>).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(simple_unit_max::<R, E>).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(double_unit::<R, E>).group(&unit, |key| {
+                double_buffering_priority(key, PRIORITY_MAX, PRIORITY_MEDIUM)
+            }))
             .with(Tunable::new(matmul_simple::<R, E>).group(&cmma, |_| PRIORITY_MAX))
             .with(Tunable::new(matmul_simple_multi_rows::<R, E>).group(&cmma, |_| PRIORITY_MAX))
             .with(
@@ -242,13 +247,51 @@ fn matmul_ordered_double_buffering<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn simple_unit<R: CubeRuntime, E: FloatElement>(
+fn simple_unit_min<R: CubeRuntime, E: FloatElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
-        &Strategy::SimpleUnit(None),
+        &Strategy::SimpleUnit(Selection::Inferred(SimpleUnitSelectionArgs {
+            tile_size: TileSizeSelection::MinTileSize,
+        })),
+        &lhs.client,
+        &lhs.as_handle_ref(),
+        &None,
+        &rhs.as_handle_ref(),
+        &None,
+        &out.as_handle_ref(),
+    )
+    .map_err(|err| format!("{err:?}"))
+}
+
+fn simple_unit_max<R: CubeRuntime, E: FloatElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
+) -> Result<(), String> {
+    cubecl::matmul::launch_ref::<R, E>(
+        &Strategy::SimpleUnit(Selection::Inferred(SimpleUnitSelectionArgs {
+            tile_size: TileSizeSelection::MaxTileSize,
+        })),
+        &lhs.client,
+        &lhs.as_handle_ref(),
+        &None,
+        &rhs.as_handle_ref(),
+        &None,
+        &out.as_handle_ref(),
+    )
+    .map_err(|err| format!("{err:?}"))
+}
+
+fn double_unit<R: CubeRuntime, E: FloatElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
+) -> Result<(), String> {
+    cubecl::matmul::launch_ref::<R, E>(
+        &Strategy::DoubleUnit(Default::default()),
         &lhs.client,
         &lhs.as_handle_ref(),
         &None,
