@@ -1,4 +1,4 @@
-use super::{Adaptor, MetricMetadata};
+use super::MetricMetadata;
 use crate::metric::{Metric, MetricEntry};
 use nvml_wrapper::Nvml;
 
@@ -23,10 +23,6 @@ impl Default for CudaMetric {
     fn default() -> Self {
         Self::new()
     }
-}
-
-impl<T> Adaptor<()> for T {
-    fn adapt(&self) {}
 }
 
 impl Metric for CudaMetric {

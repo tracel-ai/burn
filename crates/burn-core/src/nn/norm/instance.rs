@@ -221,7 +221,7 @@ mod tests {
         let instance_norm = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            format!("{}", instance_norm),
+            format!("{instance_norm}"),
             "InstanceNorm {num_channels: 6, epsilon: 0.00001, affine: true, params: 12}"
         );
     }

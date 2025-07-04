@@ -97,7 +97,7 @@ mod tests {
         let unfold = config.init();
 
         assert_eq!(
-            alloc::format!("{}", unfold),
+            alloc::format!("{unfold}"),
             "Unfold4d {kernel_size: [3, 3], stride: [1, 1], dilation: [1, 1], padding: [0, 0]}"
         );
     }

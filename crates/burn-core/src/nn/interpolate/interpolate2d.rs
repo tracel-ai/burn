@@ -243,7 +243,7 @@ mod tests {
         let layer = config.init();
 
         assert_eq!(
-            alloc::format!("{}", layer),
+            alloc::format!("{layer}"),
             "Interpolate2d {mode: Nearest, output_size: Some([20, 20]), \
             scale_factor: None}"
         );

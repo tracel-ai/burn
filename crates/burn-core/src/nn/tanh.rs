@@ -33,6 +33,6 @@ mod tests {
     fn display() {
         let layer = Tanh::new();
 
-        assert_eq!(alloc::format!("{}", layer), "Tanh");
+        assert_eq!(alloc::format!("{layer}"), "Tanh");
     }
 }
