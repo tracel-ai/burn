@@ -147,7 +147,7 @@ jobs:
     needs: [prepare-checks, code-quality]
     # '@id:' label must be unique within this worklow
     runs-on: [
-      '@id:cuda-job-${{github.run_id}}-${{github.run_attempt}}',
+      '@id:burn-cuda-job-${{github.run_id}}-${{github.run_attempt}}',
       '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
       '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
       '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
@@ -177,7 +177,7 @@ jobs:
     needs: [prepare-checks, code-quality]
     # '@id:' label must be unique within this worklow
     runs-on: [
-      '@id:vulkan-job-${{github.run_id}}-${{github.run_attempt}}',
+      '@id:burn-vulkan-job-${{github.run_id}}-${{github.run_attempt}}',
       '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
       '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
       '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
@@ -206,7 +206,7 @@ jobs:
     needs: [prepare-checks, code-quality]
     # '@id:' label must be unique within this worklow
     runs-on: [
-      '@id:wgpu-job-${{github.run_id}}-${{github.run_attempt}}',
+      '@id:burn-wgpu-job-${{github.run_id}}-${{github.run_attempt}}',
       '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
       '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
       '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
