@@ -52,6 +52,14 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
             }
         });
 
+        let odd = TuneGroup::<MatmulAutotuneKey>::new(|key| {
+            if key.definition.lhs_pow2_factor == 0 || key.definition.rhs_pow2_factor == 0 {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_MIN
+            }
+        });
+
         let unit = TuneGroup::<MatmulAutotuneKey>::new(|key| {
             if !matches!(key.analysis.kind, MatmulKind::General)
                 || matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
@@ -69,9 +77,16 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
                 min
             }
         }
+
         TunableSet::new(create_key::<R>, matmul_input_gen::<R>)
-            .with(Tunable::new(naive::<R, E>).group(&unit, |_| PRIORITY_MIN))
-            .with(Tunable::new(simple_cube::<R, E>).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(naive::<R, E>).group(&unit, |key| {
+                if matches!(key.analysis.kind, MatmulKind::InnerProduct) {
+                    PRIORITY_MAX
+                } else {
+                    PRIORITY_MIN
+                }
+            }))
+            .with(Tunable::new(simple_unit::<R, E>).group(&unit, |_| PRIORITY_MAX))
             .with(Tunable::new(matmul_simple::<R, E>).group(&cmma, |_| PRIORITY_MAX))
             .with(Tunable::new(matmul_simple_multi_rows::<R, E>).group(&cmma, |_| PRIORITY_MAX))
             .with(
@@ -80,14 +95,18 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
                 }),
             )
             .with(
-                Tunable::new(matmul_double_buffering_specialized::<R, E>).group(&cmma, |key| {
-                    double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
-                }),
+                Tunable::new(matmul_double_buffering_specialized::<R, E>)
+                    .group(&cmma, |key| {
+                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
+                    })
+                    .group(&odd, |_| PRIORITY_MAX),
             )
             .with(
-                Tunable::new(matmul_double_buffering::<R, E>).group(&cmma, |key| {
-                    double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
-                }),
+                Tunable::new(matmul_double_buffering::<R, E>)
+                    .group(&cmma, |key| {
+                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
+                    })
+                    .group(&odd, |_| PRIORITY_MAX),
             )
     });
 
@@ -223,7 +242,7 @@ fn matmul_ordered_double_buffering<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn simple_cube<R: CubeRuntime, E: FloatElement>(
+fn simple_unit<R: CubeRuntime, E: FloatElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
