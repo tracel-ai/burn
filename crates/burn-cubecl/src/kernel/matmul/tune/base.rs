@@ -71,7 +71,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
         });
 
         fn double_buffering_priority(key: &MatmulAutotuneKey, max: u8, min: u8) -> u8 {
-            if should_tune_double_buffering(false, &key) {
+            if should_tune_double_buffering(false, key) {
                 max
             } else {
                 min
