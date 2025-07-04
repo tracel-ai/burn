@@ -1,5 +1,5 @@
 use burn_tensor::{ElementConversion, Shape, ops::ConvTransposeOptions};
-use cubecl::tune::{LocalTuner, TunableSet, local_tuner};
+use cubecl::tune::{LocalTuner, Tunable, TunableSet, local_tuner};
 
 use crate::{
     CubeAutotuneKey, CubeRuntime, CubeTuneId, FloatElement,
@@ -21,14 +21,16 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime, E: FloatElement>(
 
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tune_set = TunableSet::new(create_key::<R, E>, create_transpose2d_input::<R, E>)
-        .with_tunable(conv_transpose2d_direct::<R, E>)
-        .with_tunable(conv_transpose2d_col2im::<R, E>);
+    let tune_set = TUNER.init(|| {
+        TunableSet::new(create_key::<R, E>, create_transpose2d_input::<R, E>)
+            .with(Tunable::new(conv_transpose2d_direct::<R, E>))
+            .with(Tunable::new(conv_transpose2d_col2im::<R, E>))
+    });
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&input.client, &input.device),
         &client,
-        &tune_set,
+        tune_set,
         (input, weights, bias, options),
     )
 }

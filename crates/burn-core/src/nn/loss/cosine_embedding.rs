@@ -310,7 +310,7 @@ mod tests {
         let loss = config.init();
 
         assert_eq!(
-            alloc::format!("{}", loss),
+            alloc::format!("{loss}"),
             "CosineEmbeddingLoss {margin: 0.5, reduction: Mean}"
         );
     }

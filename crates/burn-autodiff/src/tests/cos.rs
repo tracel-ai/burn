@@ -19,7 +19,9 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        let tolerance = Tolerance::default().set_half_precision_relative(1e-3);
+        // Metal has less precise trigonometric functions
+        let tolerance = Tolerance::default().set_half_precision_relative(1e-2);
+
         grad_1.to_data().assert_approx_eq::<FloatType>(
             &TensorData::from([[26.8063, -27.7870], [26.8063, -27.7870]]),
             tolerance,

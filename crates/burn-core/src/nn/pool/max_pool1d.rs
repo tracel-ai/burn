@@ -115,7 +115,7 @@ mod tests {
         let layer = config.init();
 
         assert_eq!(
-            alloc::format!("{}", layer),
+            alloc::format!("{layer}"),
             "MaxPool1d {kernel_size: 3, stride: 1, padding: Valid, dilation: 1}"
         );
     }

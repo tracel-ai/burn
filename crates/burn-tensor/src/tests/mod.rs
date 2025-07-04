@@ -224,6 +224,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_repeat_dim!();
         burn_tensor::testgen_repeat!();
         burn_tensor::testgen_reshape!();
+        burn_tensor::testgen_roll!();
         burn_tensor::testgen_sin!();
         burn_tensor::testgen_sinh!();
         burn_tensor::testgen_slice!();

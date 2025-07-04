@@ -207,7 +207,7 @@ mod tests {
         let loss = config.init();
 
         assert_eq!(
-            alloc::format!("{}", loss),
+            alloc::format!("{loss}"),
             "HuberLoss {delta: 0.5, lin_bias: 0.125}"
         );
     }

@@ -53,6 +53,7 @@ mod remainder;
 mod repeat;
 mod repeat_dim;
 mod reshape;
+mod roll;
 mod round;
 mod select;
 mod sign;
