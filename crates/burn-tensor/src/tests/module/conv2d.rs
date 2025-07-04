@@ -527,7 +527,7 @@ mod tests {
             0.12394252,
         ]
         .iter()
-        .flat_map(|&v| std::iter::repeat_n(v, 676))
+        .flat_map(|&v| core::iter::repeat_n(v, 676))
         .collect();
         let expected = TensorData::new(expected, [1, 8, 26, 26]);
 
