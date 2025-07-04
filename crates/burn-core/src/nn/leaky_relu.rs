@@ -117,7 +117,7 @@ mod tests {
     fn display() {
         let config = LeakyReluConfig::new().init();
         assert_eq!(
-            alloc::format!("{}", config),
+            alloc::format!("{config}"),
             "LeakyRelu {negative_slope: 0.01}"
         );
     }
