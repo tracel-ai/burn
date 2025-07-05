@@ -30,5 +30,14 @@ mod tests {
 
         let tensor2 = TestTensor::from([[0.0, 1.0, 0.0], [1.0, -1.0, 1.0]]) + 1e-9;
         assert!(tensor1.all_close(tensor2, None, None));
+
+        // non finite values
+        let inf_plus = TestTensor::<2>::from([[f32::INFINITY]]);
+        let one = TestTensor::<2>::from([[1.]]);
+        let inf_minus = TestTensor::<2>::from([[-f32::INFINITY]]);
+        assert!(!inf_plus.clone().all_close(inf_minus.clone(), None, None));
+        assert!(!one.clone().all_close(inf_minus.clone(), None, None));
+        assert!(!one.all_close(inf_plus.clone(), None, None));
+        assert!(inf_plus.clone().all_close(inf_plus, None, None));
     }
 }
