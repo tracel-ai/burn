@@ -1,15 +1,16 @@
-use burn_tensor::Element;
+use burn_tensor::{DType, Element};
 use cubecl::{
     matmul::{
         Strategy, SyncBufferLoadingStrategy, SyncLoadingStrategy,
         components::MatmulKind,
         kernels::matmul::{
-            Selection, double_buffering::DoubleBufferingArgs,
+            Selection, TileSizeSelection, double_buffering::DoubleBufferingArgs,
             ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
+            simple_unit::SimpleUnitSelectionArgs,
         },
         tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
     },
-    tune::{LocalTuner, TunableSet, local_tuner},
+    tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 
 use crate::{
@@ -38,35 +39,94 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
 
     static TUNER: LocalTuner<MatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TunableSet::new(create_key::<R>, matmul_input_gen::<R>)
-        .with_tunable_optional(naive::<R, E>, |key| {
-            matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
-                || matches!(key.analysis.kind, MatmulKind::General)
-        })
-        .with_tunable(simple_cube::<R, E>)
-        .with_tunable_optional(matmul_simple::<R, E>, |key| {
-            matches!(key.analysis.kind, MatmulKind::General)
-        })
-        .with_tunable_optional(matmul_simple_multi_rows::<R, E>, |key| {
-            matches!(key.analysis.kind, MatmulKind::General)
-        })
-        .with_tunable_optional(matmul_ordered_double_buffering_1::<R, E>, |key| {
-            matches!(key.analysis.kind, MatmulKind::General)
-        })
-        .with_tunable_optional(matmul_ordered_double_buffering_2::<R, E>, |key| {
-            matches!(key.analysis.kind, MatmulKind::General)
-        })
-        .with_tunable_optional(matmul_double_buffering_specialized::<R, E>, |key| {
-            should_tune_double_buffering(false, key)
-        })
-        .with_tunable_optional(matmul_double_buffering::<R, E>, |key| {
-            should_tune_double_buffering(false, key)
+    let tunables = TUNER.init(|| {
+        const PRIORITY_MAX: u8 = 3;
+        const PRIORITY_HIGH: u8 = 2;
+        const PRIORITY_MEDIUM: u8 = 1;
+        const PRIORITY_MIN: u8 = 0;
+
+        let cmma = TuneGroup::<MatmulAutotuneKey>::new(|key| {
+            if matches!(key.analysis.kind, MatmulKind::General) {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_MEDIUM
+            }
         });
+
+        let odd = TuneGroup::<MatmulAutotuneKey>::new(|key| {
+            if key.definition.lhs_pow2_factor == 0 || key.definition.rhs_pow2_factor == 0 {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_MIN
+            }
+        });
+
+        let unit = TuneGroup::<MatmulAutotuneKey>::new(|key| {
+            if !matches!(key.analysis.kind, MatmulKind::General)
+                || matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
+            {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_MIN
+            }
+        });
+
+        fn double_buffering_priority(key: &MatmulAutotuneKey, max: u8, min: u8) -> u8 {
+            if should_tune_double_buffering(false, key) {
+                max
+            } else {
+                min
+            }
+        }
+
+        TunableSet::new(create_key::<R>, matmul_input_gen::<R>)
+            .with(Tunable::new(naive::<R, E>).group(&unit, |key| {
+                if matches!(key.analysis.kind, MatmulKind::InnerProduct) {
+                    PRIORITY_MAX
+                } else {
+                    PRIORITY_MIN
+                }
+            }))
+            .with(Tunable::new(simple_unit_min::<R, E>).group(&unit, |key| {
+                if matches!(key.analysis.kind, MatmulKind::General)
+                    && matches!(key.analysis.scale_global, MatmulGlobalScale::Large)
+                {
+                    PRIORITY_MAX
+                } else {
+                    PRIORITY_HIGH
+                }
+            }))
+            .with(Tunable::new(simple_unit_max::<R, E>).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(double_unit::<R, E>).group(&unit, |key| {
+                double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
+            }))
+            .with(Tunable::new(matmul_simple::<R, E>).group(&cmma, |_| PRIORITY_MAX))
+            .with(Tunable::new(matmul_simple_multi_rows::<R, E>).group(&cmma, |_| PRIORITY_MAX))
+            .with(
+                Tunable::new(matmul_ordered_double_buffering::<R, E>).group(&cmma, |key| {
+                    double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
+                }),
+            )
+            .with(
+                Tunable::new(matmul_double_buffering_specialized::<R, E>)
+                    .group(&cmma, |key| {
+                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
+                    })
+                    .group(&odd, |_| PRIORITY_MAX),
+            )
+            .with(
+                Tunable::new(matmul_double_buffering::<R, E>)
+                    .group(&cmma, |key| {
+                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
+                    })
+                    .group(&odd, |_| PRIORITY_MAX),
+            )
+    });
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&lhs.client, &lhs.device),
         &client,
-        &tunables,
+        tunables,
         (lhs, rhs, output.clone()),
     );
 
@@ -170,35 +230,18 @@ fn matmul_double_buffering_specialized<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_ordered_double_buffering_1<R: CubeRuntime, E: FloatElement>(
+fn matmul_ordered_double_buffering<R: CubeRuntime, E: FloatElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
+    let partition_k = match lhs.dtype {
+        DType::F16 | DType::BF16 => 8,
+        _ => 4,
+    };
     cubecl::matmul::launch_ref::<R, E>(
         &Strategy::OrderedDoubleBuffering(Selection::Inferred(OrderedSelectionArgs {
-            partition_k: Some(16),
-            row_count: Some(2),
-            rows_per_plane: Some(1),
-        })),
-        &lhs.client,
-        &lhs.as_handle_ref(),
-        &None,
-        &rhs.as_handle_ref(),
-        &None,
-        &out.as_handle_ref(),
-    )
-    .map_err(|err| format!("{err:?}"))
-}
-
-fn matmul_ordered_double_buffering_2<R: CubeRuntime, E: FloatElement>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-    out: CubeTensor<R>,
-) -> Result<(), String> {
-    cubecl::matmul::launch_ref::<R, E>(
-        &Strategy::OrderedDoubleBuffering(Selection::Inferred(OrderedSelectionArgs {
-            partition_k: Some(8),
+            partition_k: Some(partition_k),
             row_count: Some(2),
             rows_per_plane: Some(2),
         })),
@@ -212,13 +255,51 @@ fn matmul_ordered_double_buffering_2<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn simple_cube<R: CubeRuntime, E: FloatElement>(
+fn simple_unit_min<R: CubeRuntime, E: FloatElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
-        &Strategy::SimpleUnit(None),
+        &Strategy::SimpleUnit(Selection::Inferred(SimpleUnitSelectionArgs {
+            tile_size: TileSizeSelection::MinTileSize,
+        })),
+        &lhs.client,
+        &lhs.as_handle_ref(),
+        &None,
+        &rhs.as_handle_ref(),
+        &None,
+        &out.as_handle_ref(),
+    )
+    .map_err(|err| format!("{err:?}"))
+}
+
+fn simple_unit_max<R: CubeRuntime, E: FloatElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
+) -> Result<(), String> {
+    cubecl::matmul::launch_ref::<R, E>(
+        &Strategy::SimpleUnit(Selection::Inferred(SimpleUnitSelectionArgs {
+            tile_size: TileSizeSelection::MaxTileSize,
+        })),
+        &lhs.client,
+        &lhs.as_handle_ref(),
+        &None,
+        &rhs.as_handle_ref(),
+        &None,
+        &out.as_handle_ref(),
+    )
+    .map_err(|err| format!("{err:?}"))
+}
+
+fn double_unit<R: CubeRuntime, E: FloatElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
+) -> Result<(), String> {
+    cubecl::matmul::launch_ref::<R, E>(
+        &Strategy::DoubleUnit(Default::default()),
         &lhs.client,
         &lhs.as_handle_ref(),
         &None,

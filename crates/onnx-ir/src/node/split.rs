@@ -183,7 +183,7 @@ mod tests {
         // Add output tensors
         for i in 0..num_outputs {
             builder = builder.output_tensor_f32(
-                &format!("output_{}", i),
+                &format!("output_{i}"),
                 0, // Will be updated
                 None,
             );

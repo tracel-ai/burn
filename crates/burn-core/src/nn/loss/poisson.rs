@@ -409,7 +409,7 @@ mod tests {
         let loss = config.init();
 
         assert_eq!(
-            alloc::format!("{}", loss),
+            alloc::format!("{loss}"),
             "PoissonNllLoss {log_input: true, full: false, eps: 0.00000001}"
         );
     }

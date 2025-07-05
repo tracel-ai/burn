@@ -537,7 +537,7 @@ mod tests {
         let pe = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", pe),
+            alloc::format!("{pe}"),
             "RotaryEncoding {d_model: 4, max_sequence_length: 10}"
         );
     }

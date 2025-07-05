@@ -25,17 +25,18 @@ use cubecl::matmul::components::MatmulPrecision;
 use cubecl::matmul::components::MatmulProblem;
 use cubecl::matmul::components::tile::TileMatmulFamily;
 use cubecl::matmul::components::tile::accelerated::AcceleratedMatmul;
+use cubecl::matmul::kernels::MatmulSetupError;
 use cubecl::matmul::kernels::matmul::Algorithm;
 use cubecl::matmul::kernels::matmul::Selection;
 use cubecl::matmul::kernels::matmul::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::matmul::double_buffering::DoubleBufferingArgs;
+use cubecl::matmul::kernels::matmul::double_unit::DoubleUnitAlgorithm;
 use cubecl::matmul::kernels::matmul::launch_kernel_virtual;
 use cubecl::matmul::kernels::matmul::ordered_double_buffering::OrderedDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::matmul::ordered_double_buffering::OrderedSelectionArgs;
 use cubecl::matmul::kernels::matmul::simple::SimpleAlgorithm;
 use cubecl::matmul::kernels::matmul::simple::SimpleArgs;
 use cubecl::matmul::kernels::matmul::simple_unit::SimpleUnitAlgorithm;
-use cubecl::matmul::kernels::{MatmulAvailabilityError, MatmulSetupError};
 use cubecl::std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
 use half::{bf16, f16};
@@ -64,12 +65,12 @@ pub struct MatmulOptimization<R: Runtime> {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct MatmulVariants {
     pub(crate) simple_unit: FusedMatmul,
+    pub(crate) double_unit: FusedMatmul,
     pub(crate) simple: FusedMatmul,
     pub(crate) simple_multi_rows: FusedMatmul,
     pub(crate) double_buffering: FusedMatmul,
     pub(crate) specialized: FusedMatmul,
-    pub(crate) ordered_1: FusedMatmul,
-    pub(crate) ordered_2: FusedMatmul,
+    pub(crate) ordered: FusedMatmul,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -88,17 +89,16 @@ impl MatmulVariants {
             matmul.selector = selector;
             matmul
         };
+        let line_sizes = line_size_overrides::<R, SimpleUnitAlgorithm>(matmul, trace);
+
         Self {
-            simple_unit: selector(FusedMatmulSelector::SimpleUnit(line_size_overrides::<
-                R,
-                SimpleUnitAlgorithm,
-            >(matmul, trace))),
+            simple_unit: selector(FusedMatmulSelector::SimpleUnit(line_sizes.clone())),
+            double_unit: selector(FusedMatmulSelector::DoubleUnit(line_sizes)),
             simple: selector(FusedMatmulSelector::Simple),
             simple_multi_rows: selector(FusedMatmulSelector::SimpleMultiRows),
             double_buffering: selector(FusedMatmulSelector::DoubleBuffering),
             specialized: selector(FusedMatmulSelector::Specialized),
-            ordered_1: selector(FusedMatmulSelector::OrderedDoubleBuffering1),
-            ordered_2: selector(FusedMatmulSelector::OrderedDoubleBuffering2),
+            ordered: selector(FusedMatmulSelector::OrderedDoubleBuffering),
         }
     }
 }
@@ -235,9 +235,9 @@ pub enum FusedMatmulSelector {
     SimpleMultiRows,
     DoubleBuffering,
     Specialized,
-    OrderedDoubleBuffering1,
-    OrderedDoubleBuffering2,
+    OrderedDoubleBuffering,
     SimpleUnit(LineSizeOverrides),
+    DoubleUnit(LineSizeOverrides),
 }
 
 #[derive(new, Clone, Serialize, Deserialize, Debug)]
@@ -401,18 +401,6 @@ impl FusedMatmul {
             },
         };
 
-        let plane_size = client.properties().hardware.defined_plane_size();
-
-        let plane_size = match plane_size {
-            Some(val) => val,
-            None => {
-                return Err(MatmulSetupError::Unavailable(
-                    MatmulAvailabilityError::PlaneDimUnknown,
-                )
-                .into());
-            }
-        };
-
         match &self.selector {
             FusedMatmulSelector::Simple | FusedMatmulSelector::SimpleMultiRows => {
                 let multi_rows = matches!(self.selector, FusedMatmulSelector::SimpleMultiRows);
@@ -423,7 +411,6 @@ impl FusedMatmul {
                     outputs,
                     problem,
                     line_sizes,
-                    plane_size,
                     &Selection::Inferred(SimpleArgs { multi_rows }),
                 ) {
                     Ok(_) => Ok(()),
@@ -443,14 +430,18 @@ impl FusedMatmul {
                     outputs,
                     problem,
                     line_sizes,
-                    plane_size,
                     &Selection::Inferred(DoubleBufferingArgs { specialized }),
                 ) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
-            FusedMatmulSelector::OrderedDoubleBuffering1 => {
+            FusedMatmulSelector::OrderedDoubleBuffering => {
+                let partition_k = match self.lhs.precision() {
+                    FusePrecision::F16 | FusePrecision::BF16 => 8,
+                    _ => 4,
+                };
+
                 match launch_inner_fix_dtype::<
                     R,
                     EG,
@@ -461,31 +452,8 @@ impl FusedMatmul {
                     outputs,
                     problem,
                     line_sizes,
-                    plane_size,
                     &Selection::Inferred(OrderedSelectionArgs {
-                        row_count: Some(16),
-                        rows_per_plane: Some(2),
-                        partition_k: Some(1),
-                    }),
-                ) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                }
-            }
-            FusedMatmulSelector::OrderedDoubleBuffering2 => {
-                match launch_inner_fix_dtype::<
-                    R,
-                    EG,
-                    OrderedDoubleBufferingAlgorithm<AcceleratedMatmul>,
-                >(
-                    client,
-                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
-                    outputs,
-                    problem,
-                    line_sizes,
-                    plane_size,
-                    &Selection::Inferred(OrderedSelectionArgs {
-                        row_count: Some(8),
+                        row_count: Some(partition_k),
                         rows_per_plane: Some(2),
                         partition_k: Some(2),
                     }),
@@ -501,7 +469,19 @@ impl FusedMatmul {
                     outputs,
                     problem,
                     line_sizes,
-                    plane_size,
+                    &Default::default(),
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+            FusedMatmulSelector::DoubleUnit(..) => {
+                match launch_inner_fix_dtype::<R, EG, DoubleUnitAlgorithm>(
+                    client,
+                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    outputs,
+                    problem,
+                    line_sizes,
                     &Default::default(),
                 ) {
                     Ok(_) => Ok(()),
@@ -518,9 +498,19 @@ fn launch_inner_fix_dtype<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
     output: GlobalArgsLaunch<'a, R>,
     problem: MatmulProblem,
     line_sizes: MatmulLineSizes,
-    plane_size: u32,
     selection: &Selection<A::SelectionArgs>,
 ) -> Result<(), MatmulSetupError> {
+    let fix_plane_dim = |plane_dim: u32| {
+        // Sometimes the GPU doesn't support plane instructions and doesn't report the
+        // plane size, but we can still execute algorithms that don't use plane instructions.
+        //
+        // In this case, we set a plane size for the selector to work, defaulting to 32 as it
+        // is a common plane size.
+        if plane_dim == 0 { 32 } else { plane_dim }
+    };
+
+    let plane_size = fix_plane_dim(A::select_plane_dim::<R>(client));
+
     if <A::TileMatmul as TileMatmulFamily>::requires_tensor_cores()
         && TypeId::of::<EG::ES>() == TypeId::of::<f32>()
         && tf32::is_supported(client)
@@ -573,11 +563,11 @@ pub(crate) trait MatmulVariantSelection {
 
 pub(crate) struct Simple;
 pub(crate) struct SimpleUnit;
+pub(crate) struct DoubleUnit;
 pub(crate) struct SimpleMultiRows;
 pub(crate) struct DoubleBuffering;
 pub(crate) struct Specialized;
-pub(crate) struct Ordered1;
-pub(crate) struct Ordered2;
+pub(crate) struct Ordered;
 
 impl MatmulVariantSelection for Simple {
     fn select(variants: &MatmulVariants) -> &FusedMatmul {
@@ -588,6 +578,12 @@ impl MatmulVariantSelection for Simple {
 impl MatmulVariantSelection for SimpleUnit {
     fn select(variants: &MatmulVariants) -> &FusedMatmul {
         &variants.simple_unit
+    }
+}
+
+impl MatmulVariantSelection for DoubleUnit {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.double_unit
     }
 }
 
@@ -609,14 +605,8 @@ impl MatmulVariantSelection for Specialized {
     }
 }
 
-impl MatmulVariantSelection for Ordered1 {
+impl MatmulVariantSelection for Ordered {
     fn select(variants: &MatmulVariants) -> &FusedMatmul {
-        &variants.ordered_1
-    }
-}
-
-impl MatmulVariantSelection for Ordered2 {
-    fn select(variants: &MatmulVariants) -> &FusedMatmul {
-        &variants.ordered_2
+        &variants.ordered
     }
 }

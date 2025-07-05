@@ -162,7 +162,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         tensor: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
-        CandleTensor::new(tensor.tensor.gather(&indices.tensor, dim).unwrap())
+        let tensor = tensor.tensor.contiguous().unwrap();
+        let indices = indices.tensor.contiguous().unwrap();
+        CandleTensor::new(tensor.gather(&indices, dim).unwrap())
     }
 
     fn float_scatter(
