@@ -1,6 +1,10 @@
 use burn::optim::{SgdConfig, momentum::MomentumConfig};
 use custom_image_dataset::training::TrainingConfig;
 
+// Import only when backend features are enabled
+#[cfg(any(feature = "tch-gpu", feature = "wgpu", feature = "metal"))]
+use {burn::backend::Autodiff, custom_image_dataset::training::train};
+
 /// Creates a training configuration with SGD optimizer and momentum.
 fn create_config() -> TrainingConfig {
     TrainingConfig::new(SgdConfig::new().with_momentum(Some(MomentumConfig {
