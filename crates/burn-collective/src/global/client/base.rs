@@ -112,14 +112,17 @@ where
     ) -> B::FloatTensorPrimitive {
         match strategy {
             Central { other_nodes } => {
-                // download tensors from other nodes
+                // Transfer 1: download tensors from other nodes
                 let mut futures = other_nodes
                     .iter()
                     .map(|x| {
                         let device = device.clone(); // if device is Clone, otherwise ref
                         let data_service = self.data_service.clone();
                         async move {
-                            let data = data_service.download_next_tensor(x, 0).await.unwrap();
+                            let data = data_service
+                                .download_next_tensor(x, 0.into())
+                                .await
+                                .expect("Couldn't find the tensor for transfer id 0");
                             B::float_from_data(data, &device)
                         }
                     })
@@ -132,23 +135,23 @@ where
                     sum = B::float_add(sum, res);
                 }
 
-                // Expose result
+                // Transfer 2: Expose result
                 self.data_service
-                    .expose(sum.clone(), other_nodes.len() as u32, 1)
+                    .expose(sum.clone(), other_nodes.len() as u32, 1.into())
                     .await;
 
                 sum
             }
             Peripheral { central_node } => {
-                // Expose input
-                self.data_service.expose(tensor, 1, 0).await;
+                // Transfer 1: Expose input
+                self.data_service.expose(tensor, 1, 0.into()).await;
 
-                // Download result
+                // Transfer 2: Download result
                 let data = self
                     .data_service
-                    .download_next_tensor(&central_node, 1)
+                    .download_next_tensor(&central_node, 1.into())
                     .await
-                    .unwrap();
+                    .expect("Couldn't find the tensor for transfer id 1");
 
                 B::float_from_data(data, device)
             }
@@ -164,14 +167,17 @@ where
         device: &B::Device,
         strategy: TreeAllReduceStrategy,
     ) -> B::FloatTensorPrimitive {
-        // Download tensors from children async
+        // Transfer #1: Download tensors from children async
         let mut downloads = strategy
             .children
             .iter()
             .map(|child| {
                 let data_service = self.data_service.clone();
                 async move {
-                    let data = data_service.download_next_tensor(child, 0).await.unwrap();
+                    let data = data_service
+                        .download_next_tensor(child, 0.into())
+                        .await
+                        .unwrap();
 
                     B::float_from_data(data, device)
                 }
@@ -184,24 +190,24 @@ where
             result = B::float_add(result, res);
         }
 
-        // Expose the result to the parent
+        // Transfer #1: Expose the result to the parent
         if let Some(parent) = &strategy.parent {
-            self.data_service.expose(result.clone(), 1, 1).await;
+            self.data_service.expose(result.clone(), 1, 0.into()).await;
 
-            // Download final tensor from parent
+            // Transfer #2: Download final tensor from parent
             let data = self
                 .data_service
-                .download_next_tensor(parent, 1)
+                .download_next_tensor(parent, 1.into())
                 .await
                 .unwrap();
             let parent_tensor = B::float_from_data(data, device);
             result = parent_tensor;
         }
 
-        // Expose the final result to all children
+        // Tranfer #2: Expose the final result to all children
         if !strategy.children.is_empty() {
             self.data_service
-                .expose(result.clone(), strategy.children.len() as u32 + 1, 1)
+                .expose(result.clone(), strategy.children.len() as u32 + 1, 1.into())
                 .await;
         }
 
@@ -221,16 +227,5 @@ where
     pub async fn finish(&mut self) {
         self.worker.close_connection().await;
         self.data_service.close().await;
-    }
-}
-
-impl<B, C, S> Drop for GlobalCollectiveClient<B, C, S>
-where
-    B: Backend,
-    C: NetworkClient,
-    S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
-{
-    fn drop(&mut self) {
-        eprintln!("Dropping Global Collective Client");
     }
 }

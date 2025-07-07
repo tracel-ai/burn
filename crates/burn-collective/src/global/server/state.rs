@@ -168,7 +168,7 @@ impl GlobalCollectiveState {
         if self.node_addresses.contains_key(&node_id)
             || self.registered_nodes.contains_key(&session_id)
         {
-            panic!("Cannot register a node twice!");
+            panic!("Cannot register a node twice! Node id: {}", node_id);
         }
         self.registered_nodes.insert(session_id, node_id);
         self.node_addresses.insert(node_id, node_addr);

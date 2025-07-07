@@ -1,5 +1,6 @@
 use burn_network::network::{NetworkClient, NetworkServer, NetworkStream};
 use burn_tensor::{TensorData, backend::Backend};
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 use tokio::sync::Mutex;
 use tokio::{runtime::Runtime, sync::Notify};
@@ -17,9 +18,24 @@ where
     _phantom_data: PhantomData<S>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub(crate) struct TensorTransferId(u32);
+
+impl From<u32> for TensorTransferId {
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+enum Message {
+    Request(TensorTransferId),
+    Data(TensorData),
+}
+
 pub(crate) struct TensorDataService<B: Backend, C: NetworkClient> {
-    /// Maps tensor IDs to their exposed state.
-    pub exposed_tensors: Mutex<HashMap<u32, TensorExposeState>>,
+    /// Maps tensor transfer IDs to their exposed state.
+    pub exposed_tensors: Mutex<HashMap<TensorTransferId, TensorExposeState>>,
     /// Maps node addresses to their WebSocket streams.
     pub streams: Mutex<HashMap<NodeAddress, Arc<Mutex<C::ClientStream>>>>,
     /// Notify when a new tensor is exposed.
@@ -31,14 +47,12 @@ pub(crate) struct TensorDataService<B: Backend, C: NetworkClient> {
 }
 
 pub struct TensorExposeState {
-    /// The bytes of the tensor data
+    /// The bytes of the tensor data message. Message::Data(...) serialized with rmp_serde
     pub bytes: bytes::Bytes,
     /// How many times the tensor will be downloaded
     pub max_downloads: u32,
     /// How man times the tensor has been downloaded
     pub cur_download_count: u32,
-    /// Unique identifier between two nodes for the transfer of a tensor.
-    pub transfer_id: u32,
 }
 
 impl<B, N, S> TensorDataClient<B, N, S>
@@ -86,7 +100,7 @@ where
         &self,
         tensor: <B as Backend>::FloatTensorPrimitive,
         max_downloads: u32,
-        transfer_id: u32,
+        transfer_id: TensorTransferId,
     ) {
         self.state.expose(tensor, max_downloads, transfer_id).await
     }
@@ -95,9 +109,9 @@ where
     pub(crate) async fn download_next_tensor(
         &self,
         remote: &NodeAddress,
-        tensor_id: u32,
+        transfer_id: TensorTransferId,
     ) -> Option<TensorData> {
-        self.state.download_tensor(remote, tensor_id).await
+        self.state.download_tensor(remote, transfer_id).await
     }
 
     pub(crate) async fn close(&mut self) {
@@ -113,10 +127,13 @@ where
                 Ok(message) => {
                     if let Some(msg) = message {
                         let bytes = msg.data;
-                        let tensor_id: u32 = rmp_serde::from_slice(&bytes)
+                        let msg: Message = rmp_serde::from_slice(&bytes)
                             .expect("Can deserialize messages from the websocket.");
+                        let Message::Request(transfer_id) = msg else {
+                            panic!("Received a message that wasn't a tensor request! {:?}", msg);
+                        };
 
-                        let bytes = state.get_exposed_tensor_bytes(tensor_id).await.unwrap();
+                        let bytes = state.get_exposed_tensor_bytes(transfer_id).await.unwrap();
 
                         stream.send(bytes).await.unwrap();
                     } else {
@@ -147,10 +164,10 @@ impl<B: Backend, N: NetworkClient> TensorDataService<B, N> {
         &self,
         tensor: <B as Backend>::FloatTensorPrimitive,
         max_downloads: u32,
-        transfer_id: u32,
+        transfer_id: TensorTransferId,
     ) {
         let data = B::float_into_data(tensor).await;
-        let bytes: bytes::Bytes = rmp_serde::to_vec(&data).unwrap().into();
+        let bytes: bytes::Bytes = rmp_serde::to_vec(&Message::Data(data)).unwrap().into();
         let mut exposed_tensors = self.exposed_tensors.lock().await;
         exposed_tensors.insert(
             transfer_id,
@@ -158,7 +175,6 @@ impl<B: Backend, N: NetworkClient> TensorDataService<B, N> {
                 bytes,
                 max_downloads,
                 cur_download_count: 0,
-                transfer_id,
             },
         );
         core::mem::drop(exposed_tensors);
@@ -183,7 +199,7 @@ impl<B: Backend, N: NetworkClient> TensorDataService<B, N> {
     pub(crate) async fn download_tensor(
         &self,
         remote: &NodeAddress,
-        tensor_id: u32,
+        transfer_id: TensorTransferId,
     ) -> Option<TensorData> {
         log::info!("Downloading next tensor from {:?}", remote.0.as_str());
 
@@ -191,7 +207,9 @@ impl<B: Backend, N: NetworkClient> TensorDataService<B, N> {
         let mut stream = stream.lock().await;
 
         // Send the download request with the download id
-        let bytes: bytes::Bytes = rmp_serde::to_vec(&tensor_id).unwrap().into();
+        let bytes: bytes::Bytes = rmp_serde::to_vec(&Message::Request(transfer_id))
+            .unwrap()
+            .into();
         stream
             .send(bytes)
             .await
@@ -203,8 +221,11 @@ impl<B: Backend, N: NetworkClient> TensorDataService<B, N> {
                 return None;
             };
 
-            let data: TensorData = rmp_serde::from_slice(&msg.data)
-                .expect("Can deserialize messages from the websocket.");
+            let Message::Data(data) = rmp_serde::from_slice(&msg.data)
+                .expect("Can deserialize messages from the websocket.")
+            else {
+                panic!("Message should have been TensorData")
+            };
             return Some(data);
         }
         log::warn!("Closed connection");
@@ -233,18 +254,21 @@ impl<B: Backend, N: NetworkClient> TensorDataService<B, N> {
     }
 
     /// Get the requested exposed tensor data, and update download counter
-    async fn get_exposed_tensor_bytes(&self, tensor_id: u32) -> Option<bytes::Bytes> {
+    async fn get_exposed_tensor_bytes(
+        &self,
+        transfer_id: TensorTransferId,
+    ) -> Option<bytes::Bytes> {
         loop {
             {
                 let mut exposed_tensors = self.exposed_tensors.lock().await;
                 // take the tensor out of the hashmap while we download
-                if let Some(mut exposed_state) = exposed_tensors.remove(&tensor_id) {
+                if let Some(mut exposed_state) = exposed_tensors.remove(&transfer_id) {
                     exposed_state.cur_download_count += 1;
                     let bytes = if exposed_state.cur_download_count == exposed_state.max_downloads {
                         exposed_state.bytes
                     } else {
                         let bytes = exposed_state.bytes.clone();
-                        exposed_tensors.insert(tensor_id, exposed_state);
+                        exposed_tensors.insert(transfer_id, exposed_state);
                         bytes
                     };
                     return Some(bytes);

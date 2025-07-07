@@ -1,6 +1,8 @@
-use std::fs::{self, File};
+use std::{
+    fs::{self, File},
+    process::{self, ExitStatus},
+};
 
-use futures::stream::{FuturesUnordered, StreamExt};
 use tokio::process::{Child, Command};
 
 use burn::{
@@ -48,23 +50,48 @@ async fn main() {
     );
     let mut clients = launch_clients(topology, tensor_shape, aggregate_params);
 
-    // Wait on every client, out of order
-    let mut client_futs = clients
-        .iter_mut()
-        .map(|child| child.wait())
-        .collect::<FuturesUnordered<_>>();
-    while let Some(mut status) = client_futs.next().await {
-        let status = status.as_mut().unwrap();
-        if !status.success() {
-            panic!("Test failed, client failed: {:?}", status);
+    let i = 0;
+    let mut success = true;
+    while i < clients.len() {
+        // Get client's name and status
+        let (name, status) = {
+            let (client_name, process) = &mut clients[i];
+            let mut status: Option<ExitStatus> = None;
+            if let Ok(mut s) = process.try_wait() {
+                status = s.take();
+            }
+
+            (client_name.clone(), status)
+        };
+
+        // If client has finished
+        if let Some(status) = status {
+            clients.remove(i);
+            if !status.success() {
+                // Client failed: we need to close other client processes and exit with an error
+                println!("Client {name} failed: {:?}", status);
+                success = false;
+                break;
+            }
         }
     }
 
-    // Shutdown server
-    let _ = server.kill();
-    let _ = server.wait();
+    // In case of failure
+    for (_, mut child) in clients {
+        let _ = child.kill().await;
+        let _ = child.wait().await;
+    }
 
-    println!("All tests successful");
+    // Shutdown server
+    let _ = server.kill().await;
+    let _ = server.wait().await;
+
+    if success {
+        println!("All tests successful");
+        process::exit(0);
+    } else {
+        process::exit(1);
+    }
 }
 
 /// Launch clients based on the provided topology.
@@ -74,7 +101,7 @@ fn launch_clients(
     topology: Vec<u32>,
     tensor_shape: Shape,
     aggregate_params: AllReduceParams,
-) -> Vec<Child> {
+) -> Vec<(String, Child)> {
     let total_device_count = topology.iter().sum();
     let (inputs, expected) =
         generate_random_input(tensor_shape, aggregate_params.kind, total_device_count, 42);
@@ -118,7 +145,8 @@ fn launch_clients(
             .spawn()
             .expect("client failed");
 
-        clients.push(client);
+        let client_name = format!("Client {}", node_idx + 1);
+        clients.push((client_name, client));
     }
 
     clients
