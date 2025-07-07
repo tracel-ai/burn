@@ -1,24 +1,20 @@
 use burn_network::network::{NetworkClient, NetworkServer};
 use burn_tensor::backend::Backend;
-use futures::stream::FuturesUnordered;
 use std::{marker::PhantomData, sync::Arc};
 use tokio::runtime::Runtime;
 use tokio_util::sync::CancellationToken;
-
-use futures_util::stream::StreamExt;
 
 use crate::{
     GlobalAllReduceParams, GlobalRegisterParams,
     global::{
         client::{
+            centralized::centralized_all_reduce,
             data_server::{TensorDataClient, TensorDataService},
+            ring::ring_all_reduce,
+            tree::tree_all_reduce,
             worker::GlobalClientWorker,
         },
-        shared::base::{
-            CentralizedAllReduceStrategy::{self, Central, Peripheral},
-            NodeAddress, RemoteRequest, RemoteResponse, RingAllReduceStrategy,
-            TreeAllReduceStrategy,
-        },
+        shared::base::{NodeAddress, RemoteRequest, RemoteResponse},
     },
 };
 
@@ -88,13 +84,13 @@ where
         let resp = self.worker.request(req).await;
         match resp {
             RemoteResponse::CentralizedAllReduceStrategy(strategy) => {
-                return self.centralized_all_reduce(tensor, device, strategy).await;
+                return centralized_all_reduce(&self.data_service, tensor, device, strategy).await;
             }
             RemoteResponse::TreeAllReduceStrategy(strategy) => {
-                return self.tree_all_reduce(tensor, device, strategy).await;
+                return tree_all_reduce(&self.data_service, tensor, device, strategy).await;
             }
             RemoteResponse::RingAllReduceStrategy(strategy) => {
-                return self.ring_all_reduce(tensor, device, strategy).await;
+                return ring_all_reduce(&self.data_service, tensor, device, strategy).await;
             }
             RemoteResponse::Error(err) => panic!("Global collective server error: {err}"),
             resp => panic!(
@@ -102,126 +98,6 @@ where
                 resp
             ),
         };
-    }
-
-    async fn centralized_all_reduce(
-        &mut self,
-        tensor: B::FloatTensorPrimitive,
-        device: &B::Device,
-        strategy: CentralizedAllReduceStrategy,
-    ) -> B::FloatTensorPrimitive {
-        match strategy {
-            Central { other_nodes } => {
-                // Transfer 1: download tensors from other nodes
-                let mut futures = other_nodes
-                    .iter()
-                    .map(|x| {
-                        let device = device.clone(); // if device is Clone, otherwise ref
-                        let data_service = self.data_service.clone();
-                        async move {
-                            let data = data_service
-                                .download_next_tensor(x, 0.into())
-                                .await
-                                .expect("Couldn't find the tensor for transfer id 0");
-                            B::float_from_data(data, &device)
-                        }
-                    })
-                    .collect::<FuturesUnordered<_>>();
-
-                // Sum all downloads async
-                let mut sum = tensor;
-                while let Some(res) = futures.next().await {
-                    // If the tensor is empty, we can skip it
-                    sum = B::float_add(sum, res);
-                }
-
-                // Transfer 2: Expose result
-                self.data_service
-                    .expose(sum.clone(), other_nodes.len() as u32, 1.into())
-                    .await;
-
-                sum
-            }
-            Peripheral { central_node } => {
-                // Transfer 1: Expose input
-                self.data_service.expose(tensor, 1, 0.into()).await;
-
-                // Transfer 2: Download result
-                let data = self
-                    .data_service
-                    .download_next_tensor(&central_node, 1.into())
-                    .await
-                    .expect("Couldn't find the tensor for transfer id 1");
-
-                B::float_from_data(data, device)
-            }
-        }
-    }
-
-    /// For each Send operation, we expose the tensor N times. For each Receive operation,
-    /// we download the tensor from the specified address, and if it hasn't been sent yet,
-    /// we combine it with the previous result. If it has been sent, we override it.
-    async fn tree_all_reduce(
-        &mut self,
-        tensor: B::FloatTensorPrimitive,
-        device: &B::Device,
-        strategy: TreeAllReduceStrategy,
-    ) -> B::FloatTensorPrimitive {
-        // Transfer #1: Download tensors from children async
-        let mut downloads = strategy
-            .children
-            .iter()
-            .map(|child| {
-                let data_service = self.data_service.clone();
-                async move {
-                    let data = data_service
-                        .download_next_tensor(child, 0.into())
-                        .await
-                        .unwrap();
-
-                    B::float_from_data(data, device)
-                }
-            })
-            .collect::<FuturesUnordered<_>>();
-
-        // Sum download results
-        let mut result = tensor;
-        while let Some(res) = downloads.next().await {
-            result = B::float_add(result, res);
-        }
-
-        // Transfer #1: Expose the result to the parent
-        if let Some(parent) = &strategy.parent {
-            self.data_service.expose(result.clone(), 1, 0.into()).await;
-
-            // Transfer #2: Download final tensor from parent
-            let data = self
-                .data_service
-                .download_next_tensor(parent, 1.into())
-                .await
-                .unwrap();
-            let parent_tensor = B::float_from_data(data, device);
-            result = parent_tensor;
-        }
-
-        // Tranfer #2: Expose the final result to all children
-        if !strategy.children.is_empty() {
-            self.data_service
-                .expose(result.clone(), strategy.children.len() as u32 + 1, 1.into())
-                .await;
-        }
-
-        result
-    }
-
-    pub async fn ring_all_reduce(
-        &mut self,
-        _tensor: B::FloatTensorPrimitive,
-        _device: &B::Device,
-        _strategy: RingAllReduceStrategy,
-    ) -> B::FloatTensorPrimitive {
-        // Slice the tensor, should correspond to the local slicing.
-        todo!()
     }
 
     pub async fn finish(&mut self) {
