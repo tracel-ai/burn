@@ -93,7 +93,7 @@ tracing-subscriber = "0.3.19"
 zip = "3.0.0"
 
 # Async handling
-async-channel = "2.3"
+async-channel = "2.5"
 futures-lite = { version = "2.5.0", default-features = false }
 
 # Terminal UI
