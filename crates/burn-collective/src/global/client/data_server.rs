@@ -1,3 +1,4 @@
+use burn_network::network::{NetworkClient, NetworkServer, NetworkStream};
 use burn_tensor::{TensorData, backend::Backend};
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 use tokio::sync::Mutex;
@@ -6,18 +7,21 @@ use tokio_util::sync::CancellationToken;
 
 use crate::global::shared::base::NodeAddress;
 
-use burn_network::{ClientNetworkStream, Server, ServerNetworkStream};
-
-#[derive(Clone)]
-pub struct TensorDataClient<B: Backend> {
-    state: Arc<TensorDataService<B>>,
+pub(crate) struct TensorDataClient<B, C, S>
+where
+    B: Backend,
+    C: NetworkClient,
+    S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
+{
+    state: Arc<TensorDataService<B, C>>,
+    _phantom_data: PhantomData<S>,
 }
 
-struct TensorDataService<B: Backend> {
+pub(crate) struct TensorDataService<B: Backend, C: NetworkClient> {
     /// Maps tensor IDs to their exposed state.
     pub exposed_tensors: Mutex<HashMap<u32, TensorExposeState>>,
     /// Maps node addresses to their WebSocket streams.
-    pub streams: Mutex<HashMap<NodeAddress, Arc<Mutex<ClientNetworkStream>>>>,
+    pub streams: Mutex<HashMap<NodeAddress, Arc<Mutex<C::ClientStream>>>>,
     /// Notify when a new tensor is exposed.
     pub new_tensor_notify: Arc<Notify>,
 
@@ -37,22 +41,37 @@ pub struct TensorExposeState {
     pub transfer_id: u32,
 }
 
-impl<B: Backend> TensorDataClient<B> {
+impl<B, N, S> TensorDataClient<B, N, S>
+where
+    B: Backend,
+    N: NetworkClient,
+    S: NetworkServer<State = Arc<TensorDataService<B, N>>>,
+{
     pub fn new(runtime: &Runtime, cancel_token: CancellationToken, data_server_port: u16) -> Self {
         let state = Arc::new(TensorDataService::new(cancel_token.clone()));
         runtime.spawn(Self::start(state.clone(), cancel_token, data_server_port));
 
-        Self { state }
+        Self {
+            state,
+            _phantom_data: PhantomData,
+        }
     }
 
     /// Start the server on the given address.
     /// This will block until the server is stopped with the `cancel_token`.
-    async fn start(state: Arc<TensorDataService<B>>, cancel_token: CancellationToken, port: u16) {
-        let mut server = Server::<Arc<TensorDataService<B>>>::new(port);
+    async fn start(
+        state: Arc<TensorDataService<B, N>>,
+        cancel_token: CancellationToken,
+        port: u16,
+    ) {
+        let mut server = S::new(port);
 
-        server = server.route("/data", async |state, stream| {
-            state.handle_stream(stream).await;
-        });
+        server = server.route(
+            "/data",
+            async |state: Arc<TensorDataService<B, N>>, stream: S::ServerStream| {
+                Self::handle_stream(&state, stream).await;
+            },
+        );
 
         let cancel_token = cancel_token.clone();
         let shutdown = async move {
@@ -84,9 +103,35 @@ impl<B: Backend> TensorDataClient<B> {
     pub(crate) async fn close(&mut self) {
         self.state.close().await;
     }
+
+    /// Handle incoming connections for downloading tensors.
+    pub async fn handle_stream(state: &TensorDataService<B, N>, mut stream: S::ServerStream) {
+        log::info!("[Data Handler] New connection for download.");
+
+        while !state.cancel_token.is_cancelled() {
+            match stream.recv().await {
+                Ok(message) => {
+                    if let Some(msg) = message {
+                        let bytes = msg.data;
+                        let tensor_id: u32 = rmp_serde::from_slice(&bytes)
+                            .expect("Can deserialize messages from the websocket.");
+
+                        let bytes = state.get_exposed_tensor_bytes(tensor_id).await.unwrap();
+
+                        stream.send(bytes).await.unwrap();
+                    } else {
+                        eprintln!("Closed connection");
+                        return;
+                    }
+                }
+                Err(err) => panic!("Failed to receive message from websocket: {err:?}"),
+            };
+        }
+        eprintln!("[Data Service] Closing connection for download.");
+    }
 }
 
-impl<B: Backend> TensorDataService<B> {
+impl<B: Backend, N: NetworkClient> TensorDataService<B, N> {
     pub fn new(cancel_token: CancellationToken) -> Self {
         Self {
             exposed_tensors: Mutex::new(HashMap::new()),
@@ -167,14 +212,14 @@ impl<B: Backend> TensorDataService<B> {
     }
 
     /// Get the WebSocket stream for the given address, or create a new one if it doesn't exist.
-    async fn get_data_stream(&self, address: &NodeAddress) -> Arc<Mutex<ClientNetworkStream>> {
+    async fn get_data_stream(&self, address: &NodeAddress) -> Arc<Mutex<N::ClientStream>> {
         let mut streams = self.streams.lock().await;
         match streams.get(address) {
             Some(stream) => stream.clone(),
             None => {
                 // Open a new WebSocket connection to the address
                 let address_request = format!("{}/{}", address.0.as_str(), "data");
-                let stream = burn_network::connect(address_request).await;
+                let stream = N::connect(address_request).await;
                 let Some(stream) = stream else {
                     panic!("Failed to connect to data server at {}", address.0.as_str());
                 };
@@ -185,32 +230,6 @@ impl<B: Backend> TensorDataService<B> {
                 stream
             }
         }
-    }
-
-    /// Handle incoming connections for downloading tensors.
-    pub async fn handle_stream(&self, mut stream: ServerNetworkStream) {
-        log::info!("[Data Handler] New connection for download.");
-
-        while !self.cancel_token.is_cancelled() {
-            match stream.recv().await {
-                Ok(message) => {
-                    if let Some(msg) = message {
-                        let bytes = msg.data;
-                        let tensor_id: u32 = rmp_serde::from_slice(&bytes)
-                            .expect("Can deserialize messages from the websocket.");
-
-                        let bytes = self.get_exposed_tensor_bytes(tensor_id).await.unwrap();
-
-                        stream.send(bytes).await.unwrap();
-                    } else {
-                        eprintln!("Closed connection");
-                        return;
-                    }
-                }
-                Err(err) => panic!("Failed to receive message from websocket: {err:?}"),
-            };
-        }
-        eprintln!("[Data Service] Closing connection for download.");
     }
 
     /// Get the requested exposed tensor data, and update download counter
@@ -233,6 +252,20 @@ impl<B: Backend> TensorDataService<B> {
             }
             // No matching tensor, wait for a new one to come in.
             self.new_tensor_notify.notified().await;
+        }
+    }
+}
+
+impl<B, C, S> Clone for TensorDataClient<B, C, S>
+where
+    B: Backend,
+    C: NetworkClient,
+    S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
+{
+    fn clone(&self) -> Self {
+        Self {
+            state: Arc::clone(&self.state),
+            _phantom_data: PhantomData,
         }
     }
 }

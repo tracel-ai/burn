@@ -1,3 +1,4 @@
+use burn_network::network::{NetworkClient, NetworkServer};
 use burn_tensor::backend::Backend;
 use futures::stream::FuturesUnordered;
 use std::{marker::PhantomData, sync::Arc};
@@ -9,7 +10,10 @@ use futures_util::stream::StreamExt;
 use crate::{
     GlobalAllReduceParams, GlobalRegisterParams,
     global::{
-        client::{data_server::TensorDataClient, worker::GlobalClientWorker},
+        client::{
+            data_server::{TensorDataClient, TensorDataService},
+            worker::GlobalClientWorker,
+        },
         shared::base::{
             CentralizedAllReduceStrategy::{self, Central, Peripheral},
             NodeAddress, RemoteRequest, RemoteResponse, RingAllReduceStrategy,
@@ -18,15 +22,25 @@ use crate::{
     },
 };
 
-pub(crate) struct GlobalCollectiveClient<B: Backend> {
-    data_service: TensorDataClient<B>,
+pub(crate) struct GlobalCollectiveClient<B, C, S>
+where
+    B: Backend,
+    C: NetworkClient,
+    S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
+{
+    data_service: TensorDataClient<B, C, S>,
     data_client_address: Arc<NodeAddress>,
-    worker: GlobalClientWorker,
+    worker: GlobalClientWorker<C>,
     _runtime: Runtime,
     _phantom_data: PhantomData<B>,
 }
 
-impl<B: Backend> GlobalCollectiveClient<B> {
+impl<B, C, S> GlobalCollectiveClient<B, C, S>
+where
+    B: Backend,
+    C: NetworkClient,
+    S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
+{
     pub fn new(server_address: &str, client_address: &str, data_server_port: u16) -> Self {
         let cancel_token = CancellationToken::new();
 
@@ -210,7 +224,12 @@ impl<B: Backend> GlobalCollectiveClient<B> {
     }
 }
 
-impl<B: Backend> Drop for GlobalCollectiveClient<B> {
+impl<B, C, S> Drop for GlobalCollectiveClient<B, C, S>
+where
+    B: Backend,
+    C: NetworkClient,
+    S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
+{
     fn drop(&mut self) {
         eprintln!("Dropping Global Collective Client");
     }

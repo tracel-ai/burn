@@ -7,14 +7,21 @@ use std::{
     },
 };
 
+use burn_network::websocket::{WsClient, WsServer};
 use burn_tensor::backend::Backend;
 use tokio::runtime::{Builder, Runtime};
 
 use crate::{
     AllReduceParams, AllReduceStrategy, GlobalAllReduceParams, RegisterParams,
-    centralized::all_reduce_centralized, global::client::base::GlobalCollectiveClient,
-    ring::all_reduce_ring, tree::all_reduce_tree,
+    centralized::all_reduce_centralized,
+    global::client::{base::GlobalCollectiveClient, data_server::TensorDataService},
+    ring::all_reduce_ring,
+    tree::all_reduce_tree,
 };
+
+// Define the client/server communication on the network
+type Client = WsClient;
+type Server<B> = WsServer<Arc<TensorDataService<B, Client>>>;
 
 /// The local collective server that manages all the collective aggregation operations
 /// (like all-reduce) between local threads.
@@ -39,7 +46,7 @@ pub struct LocalCollectiveServer<B: Backend> {
     callbacks_allreduce: Vec<SyncSender<B::FloatTensorPrimitive>>,
 
     /// Client for global collective operations
-    global_client: Option<GlobalCollectiveClient<B>>,
+    global_client: Option<GlobalCollectiveClient<B, Client, Server<B>>>,
 }
 
 #[derive(Debug)]

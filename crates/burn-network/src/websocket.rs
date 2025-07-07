@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use crate::network::{NetworkClient, NetworkMessage, NetworkServer, NetworkStream};
 use axum::{
     Router,
     extract::{
@@ -8,6 +9,7 @@ use axum::{
     },
     routing::get,
 };
+use burn_common::future::DynFut;
 use futures::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
@@ -36,39 +38,67 @@ pub fn init_logging() {
     let _ = registry().with(layer).try_init();
 }
 
-pub struct Server<S: Clone + Send + Sync + 'static> {
+pub struct WsClient;
+impl NetworkClient for WsClient {
+    type ClientStream = WsClientStream;
+    fn connect(address: String) -> DynFut<Option<WsClientStream>> {
+        Box::pin(connect_ws(address))
+    }
+}
+
+async fn connect_ws(address: String) -> Option<WsClientStream> {
+    // Open a new WebSocket connection to the address
+    const MB: usize = 1024 * 1024;
+    let (stream, _) = connect_async_with_config(
+        address.clone(),
+        Some(
+            WebSocketConfig::default()
+                .write_buffer_size(0)
+                .max_message_size(None)
+                .max_frame_size(Some(MB * 512))
+                .accept_unmasked_frames(true)
+                .read_buffer_size(64 * 1024), // 64 KiB (previous default)
+        ),
+        true,
+    )
+    .await
+    .ok()?;
+
+    Some(WsClientStream { inner: stream })
+}
+
+pub struct WsServer<S: Clone + Send + Sync + 'static> {
     port: u16,
     router: Router<S>,
 }
 
-pub struct ServerNetworkStream {
-    inner: WebSocket,
-}
-
-pub struct ClientNetworkStream {
-    inner: WebSocketStream<MaybeTlsStream<TcpStream>>,
-}
-
-pub struct NetworkMessage {
-    pub data: bytes::Bytes,
-}
-
 #[derive(Debug)]
-pub enum NetworkError {
+pub enum WsNetworkError {
     Axum(axum::Error),
     Tungstenite(tungstenite::Error),
     UnknownMessage(String),
 }
 
-impl<S: Clone + Send + Sync + 'static> Server<S> {
-    pub fn new(port: u16) -> Self {
+pub struct WsServerStream {
+    inner: WebSocket,
+}
+
+pub struct WsClientStream {
+    inner: WebSocketStream<MaybeTlsStream<TcpStream>>,
+}
+
+impl<S: Clone + Send + Sync + 'static> NetworkServer for WsServer<S> {
+    type State = S;
+    type ServerStream = WsServerStream;
+
+    fn new(port: u16) -> Self {
         Self {
             port,
             router: Router::new(),
         }
     }
 
-    pub async fn serve<F>(self, state: S, shutdown: F)
+    async fn serve<F>(self, state: S, shutdown: F)
     where
         F: Future<Output = ()> + Send + 'static,
     {
@@ -89,14 +119,14 @@ impl<S: Clone + Send + Sync + 'static> Server<S> {
         .unwrap();
     }
 
-    pub fn route<C, Fut>(mut self, path: &str, callback: C) -> Self
+    fn route<C, Fut>(mut self, path: &str, callback: C) -> Self
     where
-        C: FnOnce(S, ServerNetworkStream) -> Fut + Clone + Send + Sync + 'static,
+        C: FnOnce(S, WsServerStream) -> Fut + Clone + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
         let method = get(|ws: WebSocketUpgrade, State(state): State<S>| async {
             ws.on_upgrade(async move |socket| {
-                callback(state, ServerNetworkStream { inner: socket }).await;
+                callback(state, WsServerStream { inner: socket }).await;
             })
         });
 
@@ -106,48 +136,64 @@ impl<S: Clone + Send + Sync + 'static> Server<S> {
     }
 }
 
-impl ServerNetworkStream {
-    pub async fn send(&mut self, bytes: bytes::Bytes) -> Result<(), NetworkError> {
+impl NetworkStream for WsServerStream {
+    type Error = WsNetworkError;
+
+    async fn send(&mut self, bytes: bytes::Bytes) -> Result<(), WsNetworkError> {
         self.inner
             .send(ws::Message::Binary(bytes))
             .await
-            .map_err(NetworkError::Axum)
+            .map_err(WsNetworkError::Axum)
     }
 
-    pub async fn recv(&mut self) -> Result<Option<NetworkMessage>, NetworkError> {
+    async fn recv(&mut self) -> Result<Option<NetworkMessage>, WsNetworkError> {
         match self.inner.next().await {
             Some(next) => match next {
                 Ok(ws::Message::Binary(data)) => Ok(Some(NetworkMessage { data })),
                 Ok(ws::Message::Close(_close_frame)) => Ok(None),
-                Err(err) => Err(NetworkError::Axum(err)),
-                msg => Err(NetworkError::UnknownMessage(format!("{:?}", msg))),
+                Err(err) => Err(WsNetworkError::Axum(err)),
+                msg => Err(WsNetworkError::UnknownMessage(format!("{:?}", msg))),
             },
             None => todo!(),
         }
     }
+
+    async fn close(&mut self) -> Result<(), WsNetworkError> {
+        let reason = "Peer is closing".to_string();
+
+        self.inner
+            .send(ws::Message::Close(Some(ws::CloseFrame {
+                code: 1000, // code: Normal
+                reason: reason.clone().into(),
+            })))
+            .await
+            .map_err(WsNetworkError::Axum)
+    }
 }
 
-impl ClientNetworkStream {
-    pub async fn send(&mut self, bytes: bytes::Bytes) -> Result<(), NetworkError> {
+impl NetworkStream for WsClientStream {
+    type Error = WsNetworkError;
+
+    async fn send(&mut self, bytes: bytes::Bytes) -> Result<(), WsNetworkError> {
         self.inner
             .send(tungstenite::Message::Binary(bytes))
             .await
-            .map_err(NetworkError::Tungstenite)
+            .map_err(WsNetworkError::Tungstenite)
     }
 
-    pub async fn recv(&mut self) -> Result<Option<NetworkMessage>, NetworkError> {
+    async fn recv(&mut self) -> Result<Option<NetworkMessage>, WsNetworkError> {
         match self.inner.next().await {
             Some(next) => match next {
                 Ok(tungstenite::Message::Binary(data)) => Ok(Some(NetworkMessage { data })),
                 Ok(tungstenite::Message::Close(_close_frame)) => Ok(None),
-                Err(err) => Err(NetworkError::Tungstenite(err)),
-                msg => Err(NetworkError::UnknownMessage(format!("{:?}", msg))),
+                Err(err) => Err(WsNetworkError::Tungstenite(err)),
+                msg => Err(WsNetworkError::UnknownMessage(format!("{:?}", msg))),
             },
             None => todo!(),
         }
     }
 
-    pub async fn close(&mut self) -> Result<(), NetworkError> {
+    async fn close(&mut self) -> Result<(), WsNetworkError> {
         let reason = "Peer is closing".to_string();
 
         self.inner
@@ -158,51 +204,6 @@ impl ClientNetworkStream {
                 },
             )))
             .await
-            .map_err(NetworkError::Tungstenite)
-    }
-}
-
-pub async fn connect(address: String) -> Option<ClientNetworkStream> {
-    // Open a new WebSocket connection to the address
-    const MB: usize = 1024 * 1024;
-    let (stream, _) = connect_async_with_config(
-        address.clone(),
-        Some(
-            WebSocketConfig::default()
-                .write_buffer_size(0)
-                .max_message_size(None)
-                .max_frame_size(Some(MB * 512))
-                .accept_unmasked_frames(true)
-                .read_buffer_size(64 * 1024), // 64 KiB (previous default)
-        ),
-        true,
-    )
-    .await
-    .ok()?;
-
-    Some(ClientNetworkStream { inner: stream })
-}
-
-pub async fn os_shutdown_signal() {
-    let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-    };
-
-    #[cfg(unix)]
-    let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+            .map_err(WsNetworkError::Tungstenite)
     }
 }

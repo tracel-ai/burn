@@ -15,6 +15,7 @@ version.workspace = true
 workspace = true
 
 [dependencies]
+burn-common = { path = "../burn-common", version = "0.18.0", default-features = true }
 log = { workspace = true }
 tokio = { version = "1.45", features = ["rt-multi-thread", "sync", "signal"] }
 serde = { workspace = true, features = ["derive"] }

@@ -1,7 +1,7 @@
-use std::{
-    fs::{self, File},
-    process::{Child, Command},
-};
+use std::fs::{self, File};
+
+use futures::stream::{FuturesUnordered, StreamExt};
+use tokio::process::{Child, Command};
 
 use burn::{
     backend::{
@@ -18,7 +18,8 @@ use serde_json::to_writer_pretty;
 
 /// Main function to run the multinode all-reduce test.
 /// Launches a server and multiple clients based on the provided topology.
-fn main() {
+#[tokio::main]
+async fn main() {
     let test_files_dir = "target/test_files";
     fs::create_dir_all(test_files_dir).expect("Couldn't create test_files directory");
 
@@ -40,16 +41,30 @@ fn main() {
         .spawn()
         .expect("failed to launch server");
 
-    let clients = launch_clients(topology, tensor_shape, aggregate_params);
+    println!(
+        "Launching {} clients with topology: {:?}",
+        topology.len(),
+        topology
+    );
+    let mut clients = launch_clients(topology, tensor_shape, aggregate_params);
 
-    // Wait on every client
-    for mut client in clients {
-        let _ = client.wait();
+    // Wait on every client, out of order
+    let mut client_futs = clients
+        .iter_mut()
+        .map(|child| child.wait())
+        .collect::<FuturesUnordered<_>>();
+    while let Some(mut status) = client_futs.next().await {
+        let status = status.as_mut().unwrap();
+        if !status.success() {
+            panic!("Test failed, client failed: {:?}", status);
+        }
     }
 
     // Shutdown server
     let _ = server.kill();
     let _ = server.wait();
+
+    println!("All tests successful");
 }
 
 /// Launch clients based on the provided topology.

@@ -597,6 +597,7 @@ version = "0.18.0"
 dependencies = [
  "burn",
  "burn-common",
+ "futures",
  "log",
  "serde",
  "serde_json",
@@ -833,6 +834,7 @@ name = "burn-network"
 version = "0.18.0"
 dependencies = [
  "axum",
+ "burn-common",
  "bytes",
  "futures",
  "futures-util",

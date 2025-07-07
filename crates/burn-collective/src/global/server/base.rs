@@ -1,9 +1,11 @@
 use std::sync::Arc;
-
 use tokio::sync::Mutex;
 
 use crate::global::{server::state::GlobalCollectiveState, shared::base::Message};
-use burn_network::ServerNetworkStream;
+use burn_network::{
+    network::{NetworkServer, NetworkStream},
+    websocket::WsServer,
+};
 
 #[derive(Clone)]
 pub struct GlobalCollectiveServer {
@@ -11,29 +13,29 @@ pub struct GlobalCollectiveServer {
 }
 
 impl GlobalCollectiveServer {
-    pub(crate) async fn start<F>(shutdown_signal: F, port: u16)
+    pub(crate) async fn start<F, S: NetworkServer<State = Self>>(shutdown_signal: F, port: u16)
     where
         F: Future<Output = ()> + Send + 'static,
     {
-        burn_network::init_logging();
-
         let state = GlobalCollectiveState::new();
         let server = Self {
             state: Arc::new(tokio::sync::Mutex::new(state)),
         };
 
-        burn_network::Server::<GlobalCollectiveServer>::new(port)
+        S::new(port)
             .route("/response", async |state, socket| {
-                state.handle_socket_response(socket).await
+                state
+                    .handle_socket_response::<S::ServerStream>(socket)
+                    .await
             })
             .route("/request", async |state, socket| {
-                state.handle_socket_request(socket).await
+                state.handle_socket_request::<S::ServerStream>(socket).await
             })
             .serve(server, shutdown_signal)
             .await;
     }
 
-    async fn handle_socket_response(self, mut stream: ServerNetworkStream) {
+    async fn handle_socket_response<S: NetworkStream>(self, mut stream: S) {
         log::info!("[Response Handler] On new connection.");
 
         let msg = stream.recv().await;
@@ -61,7 +63,7 @@ impl GlobalCollectiveServer {
         }
     }
 
-    async fn handle_socket_request(self, mut socket: ServerNetworkStream) {
+    async fn handle_socket_request<S: NetworkStream>(self, mut socket: S) {
         log::info!("[Request Handler] On new connection.");
 
         let mut session_id = None;
@@ -103,5 +105,7 @@ impl GlobalCollectiveServer {
 
 /// Start the server on the given port
 pub async fn start(port: u16) {
-    GlobalCollectiveServer::start(burn_network::os_shutdown_signal(), port).await;
+    type Server = WsServer<GlobalCollectiveServer>;
+    GlobalCollectiveServer::start::<_, Server>(burn_network::util::os_shutdown_signal(), port)
+        .await;
 }
