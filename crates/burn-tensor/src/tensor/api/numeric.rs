@@ -5,8 +5,8 @@ use crate::{TensorMetadata, alloc::borrow::ToOwned, cast::ToElement};
 use crate::TensorPrimitive;
 use crate::quantization::QTensorPrimitive;
 use crate::{
-    BasicOps, Bool, Distribution, Element, ElementConversion, ElementLimits, Float, Int, Shape,
-    Tensor, TensorKind,
+    BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
+    TensorKind,
     backend::Backend,
     check,
     check::TensorCheck,
@@ -1619,111 +1619,6 @@ where
         Self::new(K::powi_scalar::<E>(self.primitive, other))
     }
 
-    /// Checks element wise if the tensor is close to another tensor.
-    ///
-    /// The tolerance is defined by the following equation:
-    ///
-    /// ```text
-    /// abs(a - b) <= (atol + rtol * abs(b))
-    ///
-    /// where `a` is the first tensor, `b` is the second tensor, `rtol` is the relative tolerance,
-    /// and `atol` is the absolute tolerance.
-    /// ```
-    ///
-    /// # Arguments
-    ///
-    /// * `other` - The tensor to compare with.
-    /// * `rtol` - Optional relative tolerance. Default is 1e-5; see `DEFAULT_RTOL`.
-    /// * `atol` - Optional absolute tolerance. Default is 1e-8; see `DEFAULT_ATOL`.
-    ///
-    /// # Returns
-    ///
-    /// A boolean tensor with the same shape as the input tensors.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor1.is_close(tensor2, None, None);
-    ///    println!("{tensor}");
-    ///    // [[true, true, true], [true, true, true]]
-    /// }
-    /// ```
-    pub fn is_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> Tensor<B, D, Bool> {
-        let rtol = rtol.unwrap_or(DEFAULT_RTOL);
-        let atol = atol.unwrap_or(DEFAULT_ATOL);
-
-        // check finite difference is close
-        let is_close_finite_val = Tensor::new(K::lower_equal(
-            K::abs(K::sub(self.primitive.clone(), other.primitive.clone())),
-            K::add_scalar(K::mul_scalar(K::abs(other.primitive.clone()), rtol), atol),
-        ))
-        .bool_and(self.is_finite())
-        .bool_and(other.is_finite());
-
-        // check if both are infinite and have same sign
-        let inf_same_sign = self
-            .is_finite()
-            .bool_not()
-            .bool_and(other.is_finite().bool_not())
-            .bool_and(self.equal(other));
-
-        is_close_finite_val.bool_or(inf_same_sign)
-    }
-
-    /// Checks if all elements are close to another tensor.
-    ///
-    /// The tolerance is defined by the following equation:
-    ///
-    /// ```text
-    ///
-    /// abs(a - b) <= (atol + rtol * abs(b))
-    ///
-    /// where `a` is the first tensor, `b` is the second tensor, `rtol` is the relative tolerance,
-    /// and `atol` is the absolute tolerance.
-    ///
-    /// ```
-    ///
-    /// # Arguments
-    ///
-    /// * `other` - The tensor to compare with.
-    /// * `rtol` - Optional relative tolerance. Default is 1e-5; see `DEFAULT_RTOL`.
-    /// * `atol` - Optional absolute tolerance. Default is 1e-8; see `DEFAULT_ATOL`.
-    ///
-    /// # Returns
-    ///
-    /// A boolean scalar.
-    ///
-    /// # Remarks
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let result = tensor1.all_close(tensor2, None, None);
-    ///    println!("{}", result);
-    ///    // true
-    /// }
-    /// ```
-    pub fn all_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> bool {
-        self.is_close(other, rtol, atol)
-            .all()
-            .into_scalar()
-            .to_bool()
-    }
-
     /// Converts the tensor to a boolean tensor by checking if the elements are non-zero.
     ///
     /// # Returns
@@ -2216,6 +2111,129 @@ where
         output.scatter(axis as usize, indices_unsqueezed, scatter_on_values)
     }
 
+    /// Applies the matrix multiplication operation.
+    ///
+    /// ```math
+    /// C = AB
+    /// ```
+    pub fn matmul(self, other: Tensor<B, D, K>) -> Tensor<B, D, K> {
+        check!(TensorCheck::matmul(&self, &other));
+        Tensor::new(K::matmul(self.primitive, other.primitive))
+    }
+}
+
+impl<B, const D: usize> Tensor<B, D, Float>
+where
+    B: Backend,
+{
+    /// Checks element wise if the tensor is close to another tensor.
+    ///
+    /// The tolerance is defined by the following equation:
+    ///
+    /// ```text
+    /// abs(a - b) <= (atol + rtol * abs(b))
+    ///
+    /// where `a` is the first tensor, `b` is the second tensor, `rtol` is the relative tolerance,
+    /// and `atol` is the absolute tolerance.
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The tensor to compare with.
+    /// * `rtol` - Optional relative tolerance. Default is 1e-5; see `DEFAULT_RTOL`.
+    /// * `atol` - Optional absolute tolerance. Default is 1e-8; see `DEFAULT_ATOL`.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensors.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = tensor1.is_close(tensor2, None, None);
+    ///    println!("{tensor}");
+    ///    // [[true, true, true], [true, true, true]]
+    /// }
+    /// ```
+    pub fn is_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> Tensor<B, D, Bool> {
+        let rtol = rtol.unwrap_or(DEFAULT_RTOL);
+        let atol = atol.unwrap_or(DEFAULT_ATOL);
+
+        // check finite difference is close
+        let is_close_finite_val = Tensor::new(Float::lower_equal(
+            Float::abs(Float::sub(self.primitive.clone(), other.primitive.clone())),
+            Float::add_scalar(
+                Float::mul_scalar(Float::abs(other.primitive.clone()), rtol),
+                atol,
+            ),
+        ))
+        .bool_and(self.is_finite())
+        .bool_and(other.is_finite());
+
+        // check if both are infinite and have same sign
+        let inf_same_sign = self
+            .is_finite()
+            .bool_not()
+            .bool_and(other.is_finite().bool_not())
+            .bool_and(self.equal(other));
+
+        is_close_finite_val.bool_or(inf_same_sign)
+    }
+
+    /// Checks if all elements are close to another tensor.
+    ///
+    /// The tolerance is defined by the following equation:
+    ///
+    /// ```text
+    ///
+    /// abs(a - b) <= (atol + rtol * abs(b))
+    ///
+    /// where `a` is the first tensor, `b` is the second tensor, `rtol` is the relative tolerance,
+    /// and `atol` is the absolute tolerance.
+    ///
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The tensor to compare with.
+    /// * `rtol` - Optional relative tolerance. Default is 1e-5; see `DEFAULT_RTOL`.
+    /// * `atol` - Optional absolute tolerance. Default is 1e-8; see `DEFAULT_ATOL`.
+    ///
+    /// # Returns
+    ///
+    /// A boolean scalar.
+    ///
+    /// # Remarks
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let result = tensor1.all_close(tensor2, None, None);
+    ///    println!("{}", result);
+    ///    // true
+    /// }
+    /// ```
+    pub fn all_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> bool {
+        self.is_close(other, rtol, atol)
+            .all()
+            .into_scalar()
+            .to_bool()
+    }
+
     /// Returns a new tensor with boolean elements indicating whether each element of the input is NaN.
     ///
     /// # Returns
@@ -2239,7 +2257,10 @@ where
     pub fn is_nan(&self) -> Tensor<B, D, Bool> {
         // Check if the input tensor is NaN by comparing it to itself
         // NaN is the only value that is not equal to itself
-        Tensor::new(K::not_equal(self.primitive.clone(), self.primitive.clone()))
+        Tensor::new(Float::not_equal(
+            self.primitive.clone(),
+            self.primitive.clone(),
+        ))
     }
 
     /// Checks if the tensor contains any NaN values.
@@ -2270,18 +2291,17 @@ where
         // Summing the tensor will result in NaN if the tensor contains any NaN values
         // This is faster than checking each element individually
         // because it rolls up the NaN values into a single value
-        let sum = K::sum(self.primitive.clone());
+        let sum = Float::sum(self.primitive.clone());
 
         // Check if the sum is NaN by comparing it to itself
-        Tensor::new(K::not_equal(sum.clone(), sum))
+        Tensor::new(Float::not_equal(sum.clone(), sum))
     }
 
-    /// Returns a new tensor with boolean elements indicating whether each element of the input is finite (not +INF or -INF).
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is infinite (either +INF or -INF).
     ///
     /// # Returns
     ///
-    /// A boolean tensor where `true` indicates that the value is finite and `false` indicates
-    /// either INF or -INF
+    /// A boolean tensor where `true` indicates that the value is infinite
     ///
     /// # Example
     ///
@@ -2291,27 +2311,41 @@ where
     ///
     /// fn example<B: Backend>() {
     ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, f64::INFINITY, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
     ///    let tensor = tensor.is_finite();
     ///    println!("{tensor}");
-    ///    // [[true, false, true], [true, true, true]]
+    ///    // [[false, true, false], [false, false, false]]
+    /// }
+    /// ```
+    pub fn is_inf(&self) -> Tensor<B, D, Bool> {
+        self.clone()
+            .abs()
+            .equal(Tensor::full_like(self, f64::INFINITY))
+    }
+
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is finite
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where `true` indicates that the value is finite and `false` indicates
+    /// either INF, -INF or NAN
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    ///    let tensor = tensor.is_finite();
+    ///    println!("{tensor}");
+    ///    // [[true, false, true], [false, true, true]]
     /// }
     /// ```
     pub fn is_finite(&self) -> Tensor<B, D, Bool> {
-        let max = Tensor::zeros_like(self) + K::Elem::MAX;
-        self.is_nan()
-            .bool_not()
-            .bool_and(self.clone().abs().lower_equal(max))
-    }
-
-    /// Applies the matrix multiplication operation.
-    ///
-    /// ```math
-    /// C = AB
-    /// ```
-    pub fn matmul(self, other: Tensor<B, D, K>) -> Tensor<B, D, K> {
-        check!(TensorCheck::matmul(&self, &other));
-        Tensor::new(K::matmul(self.primitive, other.primitive))
+        self.is_nan().bool_not().bool_and(self.is_inf().bool_not())
     }
 }
 
