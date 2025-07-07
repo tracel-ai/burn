@@ -4,8 +4,79 @@ use burn_tensor::{ElementConversion, Shape, TensorMetadata, backend::Backend};
 
 use crate::{ReduceKind, tree::all_reduce_tree};
 
+/// Ring implementation of All-Reduce (Ring-Reduce)
+pub(crate) fn all_reduce_ring<B: Backend>(
+    tensors: &mut Vec<B::FloatTensorPrimitive>,
+    kind: &ReduceKind,
+) -> Vec<B::FloatTensorPrimitive> {
+    // https://blog.dailydoseofds.com/p/all-reduce-and-ring-reduce-for-model
+
+    // Example: tensors=3, slices=3
+
+    // phase 1
+    // o->o  o
+    // o  o->o
+    // o  o  o->
+
+    // o  1->o
+    // o  o  1->
+    // 1->o  o
+
+    // o  1  2
+    // 2  o  1
+    // 1  2  o
+
+    // phase 2
+    // o  1  2->
+    // 2->o  1
+    // 1  2->o
+
+    // 2->1  2
+    // 2  2->1
+    // 1  2  2->
+
+    // 2  2  2
+    // 2  2  2
+    // 2  2  2
+
+    // Verify all shapes are the same
+    let shape = get_shape::<B>(tensors).expect("Cannot aggregate tensors with different sizes");
+
+    // Chose an axis
+    let slice_dim = get_slice_dim(&shape);
+
+    let dim_size = shape.dims[slice_dim];
+    let tensor_count = tensors.len();
+    if dim_size < tensor_count {
+        // Tensor cannot be split into N slices! Use a fallback algorithm: binary tree
+        return all_reduce_tree::<B>(tensors, kind, 2);
+    }
+
+    // Split tensors into slices
+    let mut sliced_tensors = slice_tensors::<B>(tensors, dim_size, shape, slice_dim);
+
+    // phase 1: aggregate in ring N-1 times (Reduce-Scatter)
+    ring_cycles::<B>(&mut sliced_tensors, true);
+
+    // phase 2: share (overwrite) in a ring N-1 times (All-Gather)
+    ring_cycles::<B>(&mut sliced_tensors, false);
+
+    // merge slices
+    let mut results = vec![];
+    while let Some(slices) = sliced_tensors.pop() {
+        let mut result = B::float_cat(slices, slice_dim);
+        if *kind == ReduceKind::Mean {
+            result = B::float_div_scalar(result, (tensor_count as f32).elem());
+        }
+
+        results.insert(0, result)
+    }
+
+    results
+}
+
 /// Get the dimention to slice across: the largest dimention of the shape
-fn get_slice_dim(shape: &Shape) -> usize {
+pub(crate) fn get_slice_dim(shape: &Shape) -> usize {
     // get dimension with greatest size
     shape
         .dims
@@ -16,21 +87,23 @@ fn get_slice_dim(shape: &Shape) -> usize {
         .unwrap()
 }
 
-fn validate_shapes<B: Backend>(tensors: &mut Vec<B::FloatTensorPrimitive>) -> Shape {
+/// Get the shape of the tensors. They should have all the same shape, otherwise None is returned.
+fn get_shape<B: Backend>(tensors: &mut Vec<B::FloatTensorPrimitive>) -> Option<Shape> {
     let mut shape = None;
 
     for tensor in tensors.as_slice() {
         if shape.is_none() {
             shape = Some(tensor.shape());
         } else if tensor.shape() != *shape.as_ref().unwrap() {
-            panic!("Cannot aggregate tensors with different sizes");
+            return None;
         }
     }
 
-    shape.unwrap()
+    shape
 }
 
-fn get_ranges(
+/// Get the index ranges for the slices to split a tensor across a given axis
+pub(crate) fn get_ranges(
     dim_size: usize,
     tensor_count: usize,
     shape: Shape,
@@ -127,71 +200,4 @@ fn slice_tensors<B: Backend>(
     }
 
     sliced_tensors
-}
-
-/// Ring implementation of All-Reduce (Ring-Reduce)
-pub(crate) fn all_reduce_ring<B: Backend>(
-    tensors: &mut Vec<B::FloatTensorPrimitive>,
-    kind: &ReduceKind,
-) -> Vec<B::FloatTensorPrimitive> {
-    // https://blog.dailydoseofds.com/p/all-reduce-and-ring-reduce-for-model
-
-    // Example: tensors=3, slices=3
-
-    // phase 1
-    // o->o  o
-    // o  o->o
-    // o  o  o->
-
-    // o  1->o
-    // o  o  1->
-    // 1->o  o
-
-    // phase 2
-    // o  1  2->
-    // 2->o  1
-    // 1  2->o
-
-    // 2->1  2
-    // 2  2->1
-    // 1  2  2->
-
-    // 2  2  2
-    // 2  2  2
-    // 2  2  2
-
-    // Verify all shapes are the same
-    let shape = validate_shapes::<B>(tensors);
-
-    // Chose an axis
-    let slice_dim = get_slice_dim(&shape);
-
-    let dim_size = shape.dims[slice_dim];
-    let tensor_count = tensors.len();
-    if dim_size < tensor_count {
-        // Tensor cannot be split into N slices! Use a fallback algorithm: binary tree
-        return all_reduce_tree::<B>(tensors, kind, 2);
-    }
-
-    // Split tensors into slices
-    let mut sliced_tensors = slice_tensors::<B>(tensors, dim_size, shape, slice_dim);
-
-    // phase 1: aggregate in ring N-1 times (Reduce-Scatter)
-    ring_cycles::<B>(&mut sliced_tensors, true);
-
-    // phase 2: share (overwrite) in a ring N-1 times (All-Gather)
-    ring_cycles::<B>(&mut sliced_tensors, false);
-
-    // merge slices
-    let mut results = vec![];
-    while let Some(slices) = sliced_tensors.pop() {
-        let mut result = B::float_cat(slices, slice_dim);
-        if *kind == ReduceKind::Mean {
-            result = B::float_div_scalar(result, (tensor_count as f32).elem());
-        }
-
-        results.insert(0, result)
-    }
-
-    results
 }

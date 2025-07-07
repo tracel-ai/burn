@@ -34,6 +34,7 @@ pub(crate) struct GlobalCollectiveState {
     node_addresses: HashMap<u32, NodeAddress>,
     /// The params of the current operation, as defined by the first caller
     cur_params: Option<GlobalAllReduceParams>,
+    num_global_devices: u32,
 
     all_reduce_requests: Vec<(SessionId, RequestId, NodeAddress)>,
     register_requests: Vec<(SessionId, RequestId)>,
@@ -47,6 +48,7 @@ impl GlobalCollectiveState {
             registered_nodes: HashMap::new(),
             node_addresses: HashMap::new(),
             cur_params: None,
+            num_global_devices: 0,
             all_reduce_requests: Vec::new(),
             register_requests: Vec::new(),
             sessions: HashMap::new(),
@@ -88,9 +90,17 @@ impl GlobalCollectiveState {
                 node_id,
                 node_addr,
                 num_nodes,
+                num_local_devices,
             } => {
-                self.register(session_id, request_id, node_id, node_addr, num_nodes)
-                    .await;
+                self.register(
+                    session_id,
+                    request_id,
+                    node_id,
+                    node_addr,
+                    num_nodes,
+                    num_local_devices,
+                )
+                .await;
             }
             RemoteRequest::Reset => self.reset(),
             RemoteRequest::Finish => self.finish(session_id, request_id).await,
@@ -101,6 +111,7 @@ impl GlobalCollectiveState {
         self.registered_nodes.clear();
         self.node_addresses.clear();
         self.cur_params = None;
+        self.num_global_devices = 0;
         self.all_reduce_requests.clear();
         self.register_requests.clear();
         self.sessions.clear();
@@ -164,6 +175,7 @@ impl GlobalCollectiveState {
         node_id: u32,
         node_addr: NodeAddress,
         num_nodes: u32,
+        num_devices: u32,
     ) {
         if self.node_addresses.contains_key(&node_id)
             || self.registered_nodes.contains_key(&session_id)
@@ -175,14 +187,19 @@ impl GlobalCollectiveState {
 
         self.register_requests.push((session_id, request_id));
 
+        self.num_global_devices += num_devices;
+
         if self.registered_nodes.len() == num_nodes as usize {
             let mut callbacks = vec![];
             core::mem::swap(&mut callbacks, &mut self.register_requests);
 
             for (session, request) in callbacks {
+                let content = RemoteResponse::RegisterAck {
+                    num_global_devices: self.num_global_devices,
+                };
                 let resp = MessageResponse {
                     id: request,
-                    content: RemoteResponse::RegisterAck,
+                    content,
                 };
                 self.respond(session, resp).await;
             }

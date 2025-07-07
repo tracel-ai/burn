@@ -7,10 +7,10 @@ use crate::global::{
 };
 use burn_network::network::{NetworkClient, NetworkServer};
 use burn_tensor::backend::Backend;
-use futures::stream::FuturesUnordered;
 use futures::StreamExt;
+use futures::stream::FuturesUnordered;
 
-pub(crate) async fn centralized_all_reduce<B, C, S>(
+pub(crate) async fn centralized_all_reduce_sum<B, C, S>(
     data_service: &TensorDataClient<B, C, S>,
     tensor: B::FloatTensorPrimitive,
     device: &B::Device,
@@ -21,7 +21,7 @@ where
     C: NetworkClient,
     S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
 {
-    match strategy {
+    let result = match strategy {
         Central { other_nodes } => {
             // Transfer 1: download tensors from other nodes
             let mut futures = other_nodes
@@ -31,7 +31,7 @@ where
                     let data_service = data_service.clone();
                     async move {
                         let data = data_service
-                            .download_next_tensor(x, 0.into())
+                            .download_tensor(x, 0.into())
                             .await
                             .expect("Couldn't find the tensor for transfer id 0");
                         B::float_from_data(data, &device)
@@ -59,11 +59,13 @@ where
 
             // Transfer 2: Download result
             let data = data_service
-                .download_next_tensor(&central_node, 1.into())
+                .download_tensor(&central_node, 1.into())
                 .await
                 .expect("Couldn't find the tensor for transfer id 1");
 
             B::float_from_data(data, device)
         }
-    }
+    };
+
+    result
 }

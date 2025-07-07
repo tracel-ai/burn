@@ -289,11 +289,9 @@ impl<B: Backend> LocalCollectiveServer<B> {
 
         // All have registered, callback
         if self.registered_ids.len() == params.num_devices as usize {
-            if let Some(global_params) = &params.global_params {
+            if let Some(_) = &params.global_params {
                 let client = self.global_client.as_mut().unwrap();
-                client
-                    .register(global_params.node_id, global_params.clone())
-                    .await;
+                client.register(params.clone()).await;
             }
 
             for callback in self.callbacks_register.drain(..) {
@@ -325,7 +323,9 @@ impl<B: Backend> LocalCollectiveServer<B> {
             };
 
             let device = B::float_device(&tensor);
-            tensor = global_client.all_reduce(tensor, params, &device).await;
+            tensor = global_client
+                .all_reduce(tensor, params, &device, *kind)
+                .await;
             // replace all results with global aggregation result
             let len = outs.len() + 1;
             outs = vec![tensor; len];

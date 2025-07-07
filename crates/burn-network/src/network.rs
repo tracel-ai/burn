@@ -11,7 +11,7 @@ pub struct NetworkMessage {
     pub data: bytes::Bytes,
 }
 
-pub trait NetworkServer: Send + 'static {
+pub trait NetworkServer: Send + Sync + 'static {
     type State: Clone + Send + Sync + 'static;
     type ServerStream: NetworkStream;
 

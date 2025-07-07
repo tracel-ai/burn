@@ -2,6 +2,7 @@ use std::{
     fs::{self, File},
     process::{self, ExitStatus},
 };
+use tokio::time::{Duration, Instant};
 
 use tokio::process::{Child, Command};
 
@@ -33,7 +34,7 @@ async fn main() {
     let aggregate_params = AllReduceParams {
         kind: ReduceKind::Sum,
         local_strategy: AllReduceStrategy::Tree(2),
-        global_strategy: Some(AllReduceStrategy::Tree(2)),
+        global_strategy: Some(AllReduceStrategy::Ring),
     };
 
     let mut server: Child = Command::new("cargo")
@@ -52,7 +53,9 @@ async fn main() {
 
     let i = 0;
     let mut success = true;
-    while i < clients.len() {
+    let timeout = Duration::from_secs(30);
+    let start = Instant::now();
+    while i < clients.len() && start.elapsed() < timeout {
         // Get client's name and status
         let (name, status) = {
             let (client_name, process) = &mut clients[i];
@@ -74,6 +77,10 @@ async fn main() {
                 break;
             }
         }
+    }
+
+    if start.elapsed() > timeout {
+        println!("Test timed out after {} seconds", start.elapsed().as_secs());
     }
 
     // In case of failure

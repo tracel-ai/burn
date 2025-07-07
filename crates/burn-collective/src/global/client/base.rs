@@ -1,17 +1,17 @@
 use burn_network::network::{NetworkClient, NetworkServer};
-use burn_tensor::backend::Backend;
+use burn_tensor::{ElementConversion, backend::Backend};
 use std::{marker::PhantomData, sync::Arc};
 use tokio::runtime::Runtime;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    GlobalAllReduceParams, GlobalRegisterParams,
+    GlobalAllReduceParams, ReduceKind, RegisterParams,
     global::{
         client::{
-            centralized::centralized_all_reduce,
+            centralized::centralized_all_reduce_sum,
             data_server::{TensorDataClient, TensorDataService},
-            ring::ring_all_reduce,
-            tree::tree_all_reduce,
+            ring::ring_all_reduce_sum,
+            tree::tree_all_reduce_sum,
             worker::GlobalClientWorker,
         },
         shared::base::{NodeAddress, RemoteRequest, RemoteResponse},
@@ -27,6 +27,7 @@ where
     data_service: TensorDataClient<B, C, S>,
     data_client_address: Arc<NodeAddress>,
     worker: GlobalClientWorker<C>,
+    num_global_devices: Option<u32>,
     _runtime: Runtime,
     _phantom_data: PhantomData<B>,
 }
@@ -53,25 +54,31 @@ where
             data_service: data_client,
             data_client_address: Arc::new(NodeAddress(client_address.to_owned())),
             worker,
+            num_global_devices: None,
             _runtime: runtime,
             _phantom_data: PhantomData,
         }
     }
 
-    pub async fn register(&mut self, node_id: u32, params: GlobalRegisterParams) {
+    pub async fn register(&mut self, params: RegisterParams) {
         let node_addr = self.data_client_address.as_ref().clone();
+        let global_params = params
+            .global_params
+            .expect("Must have global params for global register");
         let req = RemoteRequest::Register {
-            node_id,
+            node_id: global_params.node_id,
             node_addr,
-            num_nodes: params.num_nodes,
+            num_nodes: global_params.num_nodes,
+            num_local_devices: params.num_devices,
         };
         let resp = self.worker.request(req).await;
-        if resp != RemoteResponse::RegisterAck {
+        let RemoteResponse::RegisterAck { num_global_devices } = resp else {
             panic!(
                 "The response to a register request should be a RegisterAck, not {:?}",
                 resp
             );
-        }
+        };
+        self.num_global_devices = Some(num_global_devices);
     }
 
     pub async fn all_reduce(
@@ -79,18 +86,27 @@ where
         tensor: B::FloatTensorPrimitive,
         params: GlobalAllReduceParams,
         device: &B::Device,
+        kind: ReduceKind,
     ) -> B::FloatTensorPrimitive {
-        let req = RemoteRequest::AllReduce { params };
+        let num_global_devices = self
+            .num_global_devices
+            .expect("Can't all-reduce before registering (global)");
+
+        // Get strategy from server
+        let req = RemoteRequest::AllReduce {
+            params: params.clone(),
+        };
         let resp = self.worker.request(req).await;
-        match resp {
+
+        let mut result = match resp {
             RemoteResponse::CentralizedAllReduceStrategy(strategy) => {
-                return centralized_all_reduce(&self.data_service, tensor, device, strategy).await;
+                centralized_all_reduce_sum(&self.data_service, tensor, device, strategy).await
             }
             RemoteResponse::TreeAllReduceStrategy(strategy) => {
-                return tree_all_reduce(&self.data_service, tensor, device, strategy).await;
+                tree_all_reduce_sum(&self.data_service, tensor, device, strategy).await
             }
             RemoteResponse::RingAllReduceStrategy(strategy) => {
-                return ring_all_reduce(&self.data_service, tensor, device, strategy).await;
+                ring_all_reduce_sum(&self.data_service, tensor, device, strategy).await
             }
             RemoteResponse::Error(err) => panic!("Global collective server error: {err}"),
             resp => panic!(
@@ -98,6 +114,12 @@ where
                 resp
             ),
         };
+
+        if kind == ReduceKind::Mean {
+            result = B::float_div_scalar(result, (num_global_devices).elem());
+        }
+
+        result
     }
 
     pub async fn finish(&mut self) {

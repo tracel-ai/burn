@@ -1,3 +1,4 @@
+use core::ops::Range;
 use std::sync::atomic::AtomicU32;
 
 use burn_common::id::IdGenerator;
@@ -62,6 +63,7 @@ pub enum RemoteRequest {
         node_id: u32,
         node_addr: NodeAddress,
         num_nodes: u32,
+        num_local_devices: u32,
     },
     Reset,
     /// Unregister node
@@ -70,7 +72,7 @@ pub enum RemoteRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RemoteResponse {
-    RegisterAck,
+    RegisterAck { num_global_devices: u32 },
     FinishAck,
     CentralizedAllReduceStrategy(CentralizedAllReduceStrategy),
     TreeAllReduceStrategy(TreeAllReduceStrategy),
@@ -94,8 +96,15 @@ pub struct TreeAllReduceStrategy {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RingAllReduceStrategy {
+    // Position in ring
     pub next_node: NodeAddress,
     pub previous_node: NodeAddress,
+
+    // Slicing strategy
+    pub slice_dim: usize,
+    pub slice_ranges: Vec<Range<usize>>,
+
+    // Slice ordering
     pub slice_count: usize,
     pub first_slice: usize,
 }

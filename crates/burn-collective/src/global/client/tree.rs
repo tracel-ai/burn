@@ -1,24 +1,23 @@
 use std::sync::Arc;
 
+use crate::global::{
+    client::data_server::{TensorDataClient, TensorDataService},
+    shared::base::TreeAllReduceStrategy,
+};
 use burn_network::network::{NetworkClient, NetworkServer};
 use burn_tensor::backend::Backend;
-use futures::{stream::FuturesUnordered, StreamExt};
-use crate::global::{client::data_server::{TensorDataClient, TensorDataService}, shared::base::TreeAllReduceStrategy};
+use futures::{StreamExt, stream::FuturesUnordered};
 
-
-/// For each Send operation, we expose the tensor N times. For each Receive operation,
-/// we download the tensor from the specified address, and if it hasn't been sent yet,
-/// we combine it with the previous result. If it has been sent, we override it.
-pub(crate) async fn tree_all_reduce<B, C, S>(
+pub(crate) async fn tree_all_reduce_sum<B, C, S>(
     data_service: &TensorDataClient<B, C, S>,
     tensor: B::FloatTensorPrimitive,
     device: &B::Device,
     strategy: TreeAllReduceStrategy,
-) -> B::FloatTensorPrimitive 
-where 
-    B: Backend, 
+) -> B::FloatTensorPrimitive
+where
+    B: Backend,
     C: NetworkClient,
-    S: NetworkServer<State = Arc<TensorDataService<B, C>>>
+    S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
 {
     // Transfer #1: Download tensors from children async
     let mut downloads = strategy
@@ -28,7 +27,7 @@ where
             let data_service = data_service.clone();
             async move {
                 let data = data_service
-                    .download_next_tensor(child, 0.into())
+                    .download_tensor(child, 0.into())
                     .await
                     .unwrap();
 
@@ -49,7 +48,7 @@ where
 
         // Transfer #2: Download final tensor from parent
         let data = data_service
-            .download_next_tensor(parent, 1.into())
+            .download_tensor(parent, 1.into())
             .await
             .unwrap();
         let parent_tensor = B::float_from_data(data, device);

@@ -106,7 +106,7 @@ where
     }
 
     /// Downloads a tensor that is exposed on another server. Requires a Tokio 1.x runtime
-    pub(crate) async fn download_next_tensor(
+    pub(crate) async fn download_tensor(
         &self,
         remote: &NodeAddress,
         transfer_id: TensorTransferId,
