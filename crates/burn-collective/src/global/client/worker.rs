@@ -48,7 +48,7 @@ impl ClientRequest {
     }
 }
 
-impl<N: NetworkClient> GlobalClientWorker<N> {
+impl<C: NetworkClient> GlobalClientWorker<C> {
     /// Create a new global client worker and start the tasks.
     pub(crate) fn new(
         runtime: &Runtime,
@@ -110,7 +110,7 @@ impl<N: NetworkClient> GlobalClientWorker<N> {
     async fn init_connection(
         address_request: String,
         address_response: String,
-    ) -> (N::ClientStream, N::ClientStream) {
+    ) -> (C::ClientStream, C::ClientStream) {
         let session_id = SessionId::new();
 
         let stream_request_fut = Self::connect_with_retry(
@@ -135,7 +135,7 @@ impl<N: NetworkClient> GlobalClientWorker<N> {
         retry_pause: Duration,
         retry_max: Option<u32>,
         session_id: SessionId,
-    ) -> N::ClientStream {
+    ) -> C::ClientStream {
         let mut retries = 0;
         loop {
             if let Some(max) = retry_max {
@@ -146,7 +146,7 @@ impl<N: NetworkClient> GlobalClientWorker<N> {
 
             // Try to connect to the request address.
             println!("Connecting to {address} ...");
-            let result = N::connect(address.clone()).await;
+            let result = C::connect(address.clone()).await;
 
             if let Some(mut stream) = result {
                 let init_msg = Message::Init(session_id);
@@ -183,7 +183,7 @@ impl<N: NetworkClient> GlobalClientWorker<N> {
 
     async fn response_loader(
         state: Arc<Mutex<GlobalClientWorkerState>>,
-        mut stream_response: N::ClientStream,
+        mut stream_response: C::ClientStream,
         cancel_token: CancellationToken,
     ) {
         loop {
@@ -229,7 +229,7 @@ impl<N: NetworkClient> GlobalClientWorker<N> {
     async fn request_sender(
         mut request_recv: Receiver<ClientRequest>,
         worker: Arc<Mutex<GlobalClientWorkerState>>,
-        mut stream_request: N::ClientStream,
+        mut stream_request: C::ClientStream,
         cancel_token: CancellationToken,
     ) {
         loop {
