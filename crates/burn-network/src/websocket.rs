@@ -152,7 +152,7 @@ impl NetworkStream for WsServerStream {
                 Ok(ws::Message::Binary(data)) => Ok(Some(NetworkMessage { data })),
                 Ok(ws::Message::Close(_close_frame)) => Ok(None),
                 Err(err) => Err(WsNetworkError::Axum(err)),
-                msg => Err(WsNetworkError::UnknownMessage(format!("{:?}", msg))),
+                msg => Err(WsNetworkError::UnknownMessage(format!("{msg:?}"))),
             },
             None => todo!(),
         }
@@ -187,7 +187,7 @@ impl NetworkStream for WsClientStream {
                 Ok(tungstenite::Message::Binary(data)) => Ok(Some(NetworkMessage { data })),
                 Ok(tungstenite::Message::Close(_close_frame)) => Ok(None),
                 Err(err) => Err(WsNetworkError::Tungstenite(err)),
-                msg => Err(WsNetworkError::UnknownMessage(format!("{:?}", msg))),
+                msg => Err(WsNetworkError::UnknownMessage(format!("{msg:?}"))),
             },
             None => todo!(),
         }

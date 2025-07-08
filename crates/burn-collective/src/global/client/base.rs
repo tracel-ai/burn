@@ -73,10 +73,7 @@ where
         };
         let resp = self.worker.request(req).await;
         let RemoteResponse::RegisterAck { num_global_devices } = resp else {
-            panic!(
-                "The response to a register request should be a RegisterAck, not {:?}",
-                resp
-            );
+            panic!("The response to a register request should be a RegisterAck, not {resp:?}");
         };
         self.num_global_devices = Some(num_global_devices);
     }
@@ -109,10 +106,9 @@ where
                 ring_all_reduce_sum(&self.data_service, tensor, device, strategy).await
             }
             RemoteResponse::Error(err) => panic!("Global collective server error: {err}"),
-            resp => panic!(
-                "The response to a register request should be a RegisterAck, not {:?}",
-                resp
-            ),
+            resp => {
+                panic!("The response to a register request should be a RegisterAck, not {resp:?}")
+            }
         };
 
         if kind == ReduceKind::Mean {

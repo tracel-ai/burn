@@ -123,10 +123,7 @@ impl GlobalCollectiveState {
             .registered_nodes
             .remove(&session_id)
             .unwrap_or_else(|| {
-                panic!(
-                    "Cannot finish the session {:?} that was not registered",
-                    session_id
-                );
+                panic!("Cannot finish the session {session_id:?} that was not registered");
             });
         self.node_addresses.remove(&node_id);
 
@@ -180,7 +177,7 @@ impl GlobalCollectiveState {
         if self.node_addresses.contains_key(&node_id)
             || self.registered_nodes.contains_key(&session_id)
         {
-            panic!("Cannot register a node twice! Node id: {}", node_id);
+            panic!("Cannot register a node twice! Node id: {node_id}");
         }
         self.registered_nodes.insert(session_id, node_id);
         self.node_addresses.insert(node_id, node_addr);
@@ -251,7 +248,7 @@ impl GlobalCollectiveState {
             for (i, (session, request, addr)) in requests.iter().enumerate() {
                 let is_first = i == 0;
                 let strategy = if is_first {
-                    eprintln!("Central is: {:?}", addr);
+                    eprintln!("Central is: {addr:?}");
                     CentralizedAllReduceStrategy::Central {
                         other_nodes: other_nodes.clone(),
                     }

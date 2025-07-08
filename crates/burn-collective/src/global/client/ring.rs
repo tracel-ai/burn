@@ -62,7 +62,7 @@ where
         true,
         strategy.next_node.clone(),
         data_client,
-        &device,
+        device,
     )
     .await;
 
@@ -74,19 +74,17 @@ where
         false,
         strategy.next_node,
         data_client,
-        &device,
+        device,
     )
     .await;
 
     // merge slices
-    let result = B::float_cat(slices, strategy.slice_dim);
-
-    result
+    B::float_cat(slices, strategy.slice_dim)
 }
 
 /// Do N-1 cycles of ring-reduce
 async fn do_cycles<B, C, S>(
-    slices: &mut Vec<B::FloatTensorPrimitive>,
+    slices: &mut [B::FloatTensorPrimitive],
     transfer_counter: &mut u32,
     send_slice_idx: &mut usize,
     is_phase_one: bool,
@@ -116,14 +114,14 @@ async fn do_cycles<B, C, S>(
             tokio::spawn(async move { data_client.download_tensor(&next_node, transfer_id).await })
         };
 
-        let _ = upload.await.unwrap();
+        upload.await.unwrap();
         let download = download.await.unwrap();
         if is_phase_one {
-            let tensor = B::float_from_data(download.unwrap(), &device);
+            let tensor = B::float_from_data(download.unwrap(), device);
             slices[recv_slice_idx] = B::float_add(slices[recv_slice_idx].clone(), tensor);
         } else {
             // TODO check dimentions of new slice
-            slices[recv_slice_idx] = B::float_from_data(download.unwrap(), &device);
+            slices[recv_slice_idx] = B::float_from_data(download.unwrap(), device);
         }
 
         // Move slice index

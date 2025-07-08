@@ -21,7 +21,7 @@ where
     C: NetworkClient,
     S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
 {
-    let result = match strategy {
+    match strategy {
         Central { other_nodes } => {
             // Transfer 1: download tensors from other nodes
             let mut futures = other_nodes
@@ -65,7 +65,5 @@ where
 
             B::float_from_data(data, device)
         }
-    };
-
-    result
+    }
 }

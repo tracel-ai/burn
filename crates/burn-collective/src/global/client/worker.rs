@@ -171,7 +171,7 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
             let req = RemoteRequest::Finish;
             let resp = self.request(req).await;
             if resp != RemoteResponse::FinishAck {
-                panic!("Requested to finish, did not get FinishAck; got {:?}", resp);
+                panic!("Requested to finish, did not get FinishAck; got {resp:?}");
             }
 
             self.cancel_token.cancel();

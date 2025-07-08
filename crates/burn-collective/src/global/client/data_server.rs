@@ -130,7 +130,7 @@ where
                         let msg: Message = rmp_serde::from_slice(&bytes)
                             .expect("Can deserialize messages from the websocket.");
                         let Message::Request(transfer_id) = msg else {
-                            panic!("Received a message that wasn't a tensor request! {:?}", msg);
+                            panic!("Received a message that wasn't a tensor request! {msg:?}");
                         };
 
                         let bytes = state.get_exposed_tensor_bytes(transfer_id).await.unwrap();

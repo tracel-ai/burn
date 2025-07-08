@@ -289,7 +289,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
 
         // All have registered, callback
         if self.registered_ids.len() == params.num_devices as usize {
-            if let Some(_) = &params.global_params {
+            if params.global_params.is_some() {
                 let client = self.global_client.as_mut().unwrap();
                 client.register(params.clone()).await;
             }
