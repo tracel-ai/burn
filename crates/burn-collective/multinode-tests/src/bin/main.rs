@@ -26,7 +26,7 @@ async fn main() {
     let test_files_dir = "target/test_files";
     fs::create_dir_all(test_files_dir).expect("Couldn't create test_files directory");
 
-    let server_out_path = format!("{}/server_out.txt", test_files_dir);
+    let server_out_path = format!("{test_files_dir}/server_out.txt");
     let server_out = File::create(server_out_path).expect("Could't create sever ouput file");
 
     let topology = vec![5, 5, 5, 5, 5];
@@ -72,7 +72,7 @@ async fn main() {
             clients.remove(i);
             if !status.success() {
                 // Client failed: we need to close other client processes and exit with an error
-                println!("Client {name} failed: {:?}", status);
+                println!("Client {name} failed: {status:?}");
                 success = false;
                 break;
             }
@@ -120,7 +120,7 @@ fn launch_clients(
     let mut launched_devices: usize = 0;
     for (node_idx, &device_count) in topology.iter().enumerate() {
         let client_data_port = node_idx as u16 + 3001;
-        let client_url = format!("ws://localhost:{}", client_data_port);
+        let client_url = format!("ws://localhost:{client_data_port}");
         let input_filename = format!("target/test_files/client_{}_in.txt", node_idx + 1);
         let output_filename = format!("target/test_files/client_{}_out.txt", node_idx + 1);
 
