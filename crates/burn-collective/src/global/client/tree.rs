@@ -26,10 +26,7 @@ where
         .map(|child| {
             let data_service = data_service.clone();
             async move {
-                let data = data_service
-                    .download_tensor(child, 0.into())
-                    .await
-                    .unwrap();
+                let data = data_service.download_tensor(child, 0.into()).await.unwrap();
 
                 B::float_from_data(data, device)
             }

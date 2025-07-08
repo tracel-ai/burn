@@ -113,11 +113,7 @@ async fn do_cycles<B, C, S>(
         let download = {
             let data_client = data_client.clone();
             let next_node = next_node.clone();
-            tokio::spawn(async move {
-                data_client
-                    .download_tensor(&next_node, transfer_id)
-                    .await
-            })
+            tokio::spawn(async move { data_client.download_tensor(&next_node, transfer_id).await })
         };
 
         let _ = upload.await.unwrap();
