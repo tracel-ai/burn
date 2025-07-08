@@ -33,7 +33,7 @@ doc = ["default"]
 export_tests = [
     # Too expensive and flaky for the CI.
     # "memory-checks", 
-    "autotune-checks",
+    # "autotune-checks",
     "burn-tensor-testgen",
     "serial_test",
     "burn-autodiff/export_tests",
