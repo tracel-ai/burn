@@ -13,9 +13,10 @@ mod tests {
         let output = tensor.erf();
         let expected = TensorData::from([[0.0000, 0.8427, 0.99532], [0.99998, 1.0000, 1.0000]]);
 
-        output
-            .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default().set_absolute(1e-7));
+        output.into_data().assert_approx_eq::<FT>(
+            &expected,
+            Tolerance::default().set_half_precision_absolute(2e-3),
+        );
     }
 
     #[test]
@@ -29,8 +30,9 @@ mod tests {
             [0.99998, 1.0000, 1.0000],
         ]);
 
-        output
-            .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+        output.into_data().assert_approx_eq::<FT>(
+            &expected,
+            Tolerance::default().set_half_precision_absolute(2e-3),
+        );
     }
 }

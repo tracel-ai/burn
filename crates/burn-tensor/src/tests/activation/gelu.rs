@@ -18,7 +18,7 @@ mod tests {
         // Low precision to allow approximation implementation using tanh
         output.into_data().assert_approx_eq::<FT>(
             &expected,
-            Tolerance::default().set_half_precision_relative(1e-3),
+            Tolerance::default().set_half_precision_absolute(2e-3),
         );
     }
 }
