@@ -79,12 +79,13 @@ impl<B: Backend> PrecisionMetric<B> {
             Micro => aggregated_metric,
             Macro => {
                 if aggregated_metric
+                    .clone()
                     .contains_nan()
                     .any()
                     .into_scalar()
                     .to_bool()
                 {
-                    let nan_mask = aggregated_metric.is_nan();
+                    let nan_mask = aggregated_metric.clone().is_nan();
                     aggregated_metric = aggregated_metric
                         .clone()
                         .select(0, nan_mask.bool_not().argwhere().squeeze(1))

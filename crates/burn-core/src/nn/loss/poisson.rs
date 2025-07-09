@@ -194,9 +194,7 @@ impl PoissonNllLoss {
         let targets_dims = targets.dims();
         assert!(
             predictions_dims == targets_dims,
-            "Shape of targets ({:?}) should correspond to outer shape of predictions ({:?}).",
-            targets_dims,
-            predictions_dims
+            "Shape of targets ({targets_dims:?}) should correspond to outer shape of predictions ({predictions_dims:?})."
         );
         assert!(
             targets
@@ -411,7 +409,7 @@ mod tests {
         let loss = config.init();
 
         assert_eq!(
-            alloc::format!("{}", loss),
+            alloc::format!("{loss}"),
             "PoissonNllLoss {log_input: true, full: false, eps: 0.00000001}"
         );
     }

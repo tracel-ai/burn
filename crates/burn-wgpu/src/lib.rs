@@ -4,7 +4,7 @@ extern crate alloc;
 
 #[cfg(feature = "template")]
 pub use burn_cubecl::{
-    kernel::{Kernel, into_contiguous},
+    kernel::{KernelMetadata, into_contiguous},
     kernel_source,
     template::{KernelSource, SourceKernel, SourceTemplate, build_info},
 };

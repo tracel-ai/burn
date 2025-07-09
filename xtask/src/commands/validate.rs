@@ -7,13 +7,14 @@ use crate::commands::{
 
 pub fn handle_command(
     args: &ValidateCmdArgs,
-    exec_env: &ExecutionEnvironment,
+    env: Environment,
+    context: Context,
 ) -> anyhow::Result<()> {
     let target = Target::Workspace;
     let exclude = vec![];
     let only = vec![];
 
-    if *exec_env == ExecutionEnvironment::Std || *exec_env == ExecutionEnvironment::All {
+    if context == Context::Std || context == Context::All {
         // ==============
         // std validation
         // ==============
@@ -28,13 +29,17 @@ pub fn handle_command(
         ]
         .iter()
         .try_for_each(|c| {
-            base_commands::check::handle_command(CheckCmdArgs {
-                target: target.clone(),
-                exclude: exclude.clone(),
-                only: only.clone(),
-                command: Some(c.clone()),
-                ignore_audit: args.ignore_audit,
-            })
+            base_commands::check::handle_command(
+                CheckCmdArgs {
+                    target: target.clone(),
+                    exclude: exclude.clone(),
+                    only: only.clone(),
+                    command: Some(c.clone()),
+                    ignore_audit: args.ignore_audit,
+                },
+                env.clone(),
+                context.clone(),
+            )
         })?;
 
         // build
@@ -44,8 +49,10 @@ pub fn handle_command(
                 exclude: exclude.clone(),
                 only: only.clone(),
                 ci: true,
+                release: args.release,
             },
-            ExecutionEnvironment::Std,
+            env.clone(),
+            Context::Std,
         )?;
 
         // tests
@@ -60,24 +67,33 @@ pub fn handle_command(
                 ci: CiTestType::GithubRunner,
                 features: None,
                 no_default_features: false,
+                release: args.release,
+                test: None,
+                force: false,
+                no_capture: false,
             },
-            ExecutionEnvironment::Std,
+            env.clone(),
+            Context::Std,
         )?;
 
         // documentation
         [DocSubCommand::Build, DocSubCommand::Tests]
             .iter()
             .try_for_each(|c| {
-                super::doc::handle_command(DocCmdArgs {
-                    target: target.clone(),
-                    exclude: exclude.clone(),
-                    only: only.clone(),
-                    command: Some(c.clone()),
-                })
+                super::doc::handle_command(
+                    DocCmdArgs {
+                        target: target.clone(),
+                        exclude: exclude.clone(),
+                        only: only.clone(),
+                        command: Some(c.clone()),
+                    },
+                    env.clone(),
+                    context.clone(),
+                )
             })?;
     }
 
-    if *exec_env == ExecutionEnvironment::NoStd || *exec_env == ExecutionEnvironment::All {
+    if context == Context::NoStd || context == Context::All {
         // =================
         // no-std validation
         // =================
@@ -92,8 +108,10 @@ pub fn handle_command(
                     exclude: exclude.clone(),
                     only: only.clone(),
                     ci: true,
+                    release: args.release,
                 },
-                ExecutionEnvironment::NoStd,
+                env.clone(),
+                Context::NoStd,
             )?;
 
             // tests
@@ -108,8 +126,13 @@ pub fn handle_command(
                     ci: CiTestType::GithubRunner,
                     features: None,
                     no_default_features: false,
+                    force: false,
+                    no_capture: false,
+                    release: args.release,
+                    test: None,
                 },
-                ExecutionEnvironment::NoStd,
+                env.clone(),
+                Context::NoStd,
             )?;
         }
     }

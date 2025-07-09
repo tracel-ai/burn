@@ -47,6 +47,6 @@ mod tests {
 
         output
             .into_data()
-            .assert_approx_eq::<FT>(&output_ref.into_data(), Tolerance::permissive());
+            .assert_approx_eq::<FT>(&output_ref.into_data(), Tolerance::rel_abs(0.01, 0.02));
     }
 }

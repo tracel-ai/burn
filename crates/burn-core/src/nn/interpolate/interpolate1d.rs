@@ -240,7 +240,7 @@ mod tests {
         let layer = config.init();
 
         assert_eq!(
-            alloc::format!("{}", layer),
+            alloc::format!("{layer}"),
             "Interpolate1d {mode: Nearest, output_size: Some(20), \
             scale_factor: None}"
         );

@@ -18,7 +18,6 @@ use serde::{Deserialize, Serialize};
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::reduce::args::FusedReduceArgs;
 use crate::shared::ir::{FusePrecision, RefLayout};
-use crate::shared::trace::executor::ScalarIds;
 use crate::shared::trace::{TraceError, TraceRunner};
 use crate::shared::trace::{TuneOutput, Vectorization};
 use crate::shared::{
@@ -62,7 +61,7 @@ pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
     fn run(&self, context: &mut Context<'_, CubeFusionHandle<R>>);
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct ReduceOptimizationState {
     trace: FuseTrace,
     trace_read_fallback: FuseTrace,
@@ -72,6 +71,15 @@ pub struct ReduceOptimizationState {
     pub(crate) reduce_shared_plane: FusedReduce,
     len: usize,
     len_read: usize,
+}
+
+impl core::fmt::Debug for ReduceOptimizationState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "{{ len_read: {}, len_total: {} }}",
+            self.len_read, self.len
+        ))
+    }
 }
 
 #[derive(new, Clone, Serialize, Deserialize, Debug)]
@@ -204,7 +212,6 @@ impl<R: Runtime> ReduceOptimization<R> {
             &self.device,
             context,
             &self.reduce,
-            &mut Default::default(),
         )
     }
 
@@ -218,7 +225,6 @@ impl<R: Runtime> ReduceOptimization<R> {
             &self.device,
             context,
             &self.reduce_plane,
-            &mut Default::default(),
         )
     }
 
@@ -232,7 +238,6 @@ impl<R: Runtime> ReduceOptimization<R> {
             &self.device,
             context,
             &self.reduce_shared_plane,
-            &mut Default::default(),
         )
     }
 
@@ -240,19 +245,10 @@ impl<R: Runtime> ReduceOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> TuneOutput<R> {
-        // We have to share the same scalar ids between the two traces (read & write).
-        let mut scalars = ScalarIds::default();
-
-        #[allow(unused_mut)] // It is used when #[cfg(test)] is true.
+        #[allow(unused_mut)] // It is used when `autotune-checks` is activated.
         let mut output_read = self
             .trace_read_fallback
-            .run::<R, BT, ElemwiseRunner>(
-                &self.client,
-                &self.device,
-                context,
-                &ElemwiseRunner,
-                &mut scalars,
-            )
+            .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
 
         self.fallback
@@ -275,13 +271,7 @@ impl<R: Runtime> ReduceOptimization<R> {
 
         let output_write = self
             .trace_write_fallback
-            .run::<R, BT, ElemwiseRunner>(
-                &self.client,
-                &self.device,
-                context,
-                &ElemwiseRunner,
-                &mut scalars,
-            )
+            .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
 
         output_read.merge(output_write)
@@ -316,7 +306,6 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
             }
             _ => inputs.shape_ref(&config_read.ref_layout, config_read.rank as usize),
         };
-
         let reduce_count: u32 = shape
             .iter()
             .enumerate()

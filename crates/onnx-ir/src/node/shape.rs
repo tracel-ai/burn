@@ -41,7 +41,7 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
 /// Update output type for Shape operation (rank 1).
 pub fn shape_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
-        panic!("Shape: multiple inputs are not supported: {:?}", node);
+        panic!("Shape: multiple inputs are not supported: {node:?}");
     }
     let (start, end) = shape_config(node);
     let dim = end - start;

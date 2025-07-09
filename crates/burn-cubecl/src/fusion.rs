@@ -10,7 +10,7 @@ use burn_cubecl_fusion::{CubeFusionHandle, FallbackOperation};
 use burn_cubecl_fusion::{
     CubeOptimization, CubeOptimizationState, elemwise::builder::ElementWiseBuilder,
 };
-use burn_fusion::stream::Operation;
+use burn_fusion::stream::{Operation, OrderedExecution};
 use burn_fusion::{FusionBackend, FusionRuntime, client::MutexFusionClient};
 use burn_ir::{BackendIr, TensorHandle};
 use burn_tensor::{DType, Shape};
@@ -28,33 +28,23 @@ where
             '_,
             <FusionCubeRuntime<R, BT> as FusionRuntime>::FusionHandle,
         >,
-        operations: &[Box<dyn Operation<FusionCubeRuntime<R, BT>>>],
+        execution: &OrderedExecution<FusionCubeRuntime<R, BT>>,
     ) {
         match self {
             Self::ElementWise(op) => op.execute::<BT>(context),
             Self::Matmul(op) => op.execute::<BT>(context, |index| {
-                Box::new(FallbackOperationUnsafe::new(operations, index))
+                let operation = execution.operation_within_optimization(index);
+                Box::new(FallbackOperationUnsafe::new(operation))
             }),
             Self::Reduce(op) => op.execute::<BT>(context, |index| {
-                Box::new(FallbackOperationUnsafe::new(operations, index))
+                let operation = execution.operation_within_optimization(index);
+                Box::new(FallbackOperationUnsafe::new(operation))
             }),
-        }
-    }
-
-    fn len(&self) -> usize {
-        match self {
-            Self::ElementWise(op) => op.num_ops_fused(),
-            Self::Matmul(op) => op.num_ops_fused(),
-            Self::Reduce(op) => op.num_ops_fused(),
         }
     }
 
     fn to_state(&self) -> CubeOptimizationState {
-        match self {
-            Self::ElementWise(value) => CubeOptimizationState::ElementWise(value.to_state()),
-            Self::Matmul(value) => CubeOptimizationState::Matmul(value.to_state()),
-            Self::Reduce(value) => CubeOptimizationState::Reduce(value.to_state()),
-        }
+        self.to_opt_state()
     }
 
     fn from_state(device: &R::Device, state: CubeOptimizationState) -> Self {
@@ -85,9 +75,8 @@ unsafe impl<O> Send for FallbackOperationUnsafe<O> {}
 unsafe impl<O> Sync for FallbackOperationUnsafe<O> {}
 
 impl<O> FallbackOperationUnsafe<O> {
-    fn new(operations: &[O], index: usize) -> Self {
-        let operation = operations.get(index).unwrap();
-        let ptr = core::ptr::from_ref(operation);
+    fn new(op: &O) -> Self {
+        let ptr = core::ptr::from_ref(op);
 
         Self { operation: ptr }
     }

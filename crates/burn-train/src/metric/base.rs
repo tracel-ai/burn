@@ -69,6 +69,10 @@ pub trait Adaptor<T> {
     fn adapt(&self) -> T;
 }
 
+impl<T> Adaptor<()> for T {
+    fn adapt(&self) {}
+}
+
 /// Declare a metric to be numeric.
 ///
 /// This is useful to plot the values of a metric during training.

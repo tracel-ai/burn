@@ -1,6 +1,6 @@
 use cubecl::{
     CubeElement as CubeElem, flex32,
-    linalg::matmul::components::MatmulPrecision,
+    matmul::components::MatmulPrecision,
     prelude::{Float, Int, Numeric},
     reduce::ReducePrecision,
 };

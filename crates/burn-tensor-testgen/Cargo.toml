@@ -8,6 +8,9 @@ readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor-testgen"
 version.workspace = true
 
+[lints]
+workspace = true
+
 [lib]
 proc-macro = true
 

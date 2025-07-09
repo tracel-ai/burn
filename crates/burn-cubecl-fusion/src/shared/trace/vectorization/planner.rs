@@ -7,11 +7,14 @@ use cubecl::{
     ir::{Elem, UIntKind},
 };
 
-use crate::{CubeFusionHandle, shared::settings::VectorizationSetting, shared::trace::Vect};
+use crate::{CubeFusionHandle, shared::settings::VectorizationSetting};
 
 use super::{
-    BlockPlan, FuseResources, HandleInput, HandleOutput, LaunchPlan, TensorView, Vectorization,
-    block::FuseBlock,
+    super::{
+        BlockPlan, FuseResources, HandleInput, HandleOutput, LaunchPlan, TensorView, Vectorization,
+        block::FuseBlock,
+    },
+    Vect,
 };
 
 /// Select the best vectorization factor for each tensor handle.
@@ -92,7 +95,8 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             .map(|item| !self.resources.indexed.contains_key(&item.relative_id))
             .collect::<Vec<_>>();
 
-        Runner::vectorization(
+        runner.vectorization(
+            context,
             &mut plan.vectorizations,
             plan.handle_inputs
                 .iter()

@@ -11,17 +11,8 @@ pub fn generate_autoregressive_mask<B: Backend>(
     seq_length: usize,
     device: &B::Device,
 ) -> Tensor<B, 3, Bool> {
-    // TODO replace with more efficient op of `triu_mask` and `expand`
-    let mut mask = Tensor::<B, 3, Int>::zeros([1, seq_length, seq_length], device);
-
-    for i in 0..(seq_length - 1) {
-        let values = Tensor::<B, 3, Int>::ones([1, 1, seq_length - (i + 1)], device);
-        mask = mask.slice_assign([0..1, i..i + 1, i + 1..seq_length], values);
-    }
-
-    mask = mask.repeat_dim(0, batch_size);
-
-    mask.equal_elem(1_i64.elem::<i64>())
+    let mask = Tensor::<B, 2, Bool>::tril_mask([seq_length, seq_length], 0, device);
+    mask.expand([batch_size, seq_length, seq_length])
 }
 
 /// Generate a padding attention mask.
@@ -60,22 +51,14 @@ pub fn generate_padding_mask<B: Backend>(
     tensor = tensor.add_scalar(pad_token as i64);
 
     for (index, tokens) in tokens_list.into_iter().enumerate() {
-        let mut seq_length = tokens.len();
-        let mut tokens = tokens;
-
-        if let Some(max_seq_length) = max_seq_length {
-            if seq_length > max_seq_length {
-                seq_length = max_seq_length;
-                let _ = tokens.split_off(seq_length);
-            }
-        }
-
+        let seq_length = tokens.len().min(max_size);
         tensor = tensor.slice_assign(
-            [index..index + 1, 0..tokens.len()],
+            [index..index + 1, 0..seq_length],
             Tensor::from_data(
                 TensorData::new(
                     tokens
                         .into_iter()
+                        .take(max_size)
                         .map(|e| (e as i64).elem::<IntElem<B>>())
                         .collect(),
                     Shape::new([1, seq_length]),

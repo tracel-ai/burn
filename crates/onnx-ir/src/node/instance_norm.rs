@@ -21,7 +21,6 @@ impl InstanceNormConfig {
 
 /// Create a InstanceNormConfig from the attributes of the node
 pub fn instance_norm_config(node: &Node) -> InstanceNormConfig {
-    log::debug!("... => '{:?}'", &node.inputs[1]);
     let weight_shape = node.inputs[1]
         .value
         .as_ref()

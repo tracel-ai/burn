@@ -75,10 +75,7 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
 
     // Check the pads are symmetric
     if pads.len() != 2 || pads[0] != pads[1] {
-        panic!(
-            "Asymmetric padding is not supported for ConvTranspose1d: {:?}",
-            pads
-        );
+        panic!("Asymmetric padding is not supported for ConvTranspose1d: {pads:?}");
     }
 
     let weight_shape = curr.inputs[1]

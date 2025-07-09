@@ -191,7 +191,7 @@ impl TryFrom<ValueInfoProto> for Argument {
         let proto_type = value.type_.unwrap();
 
         if !proto_type.has_tensor_type() {
-            panic!("Unsupported argument type {:?}", proto_type);
+            panic!("Unsupported argument type {proto_type:?}");
         }
 
         let tensor_proto = proto_type.tensor_type();

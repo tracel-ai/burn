@@ -109,7 +109,7 @@ mod tests {
         let pwff = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", pwff),
+            alloc::format!("{pwff}"),
             "PositionWiseFeedForward {d_model: 2, d_ff: 4, prob: 0.1, params: 22}"
         );
     }

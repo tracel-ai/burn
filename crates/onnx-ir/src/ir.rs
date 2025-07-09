@@ -484,7 +484,7 @@ fn trunc<T: fmt::Display>(v: &[T]) -> String {
         if i > BEGIN_INDEX {
             s.push_str(", ");
         }
-        s.push_str(&format!("{}", item));
+        s.push_str(&format!("{item}"));
         if i > MAX_LEN {
             s.push_str(", ...");
             break;
@@ -505,13 +505,13 @@ impl fmt::Debug for Data {
             Data::Int64s(v) => write!(f, "Int64s({})", trunc(v)),
             Data::Strings(v) => write!(f, "Strings({})", trunc(v)),
             Data::Bools(v) => write!(f, "Bools({})", trunc(v)),
-            Data::Float16(v) => write!(f, "Float16({})", v),
-            Data::Float32(v) => write!(f, "Float32({})", v),
-            Data::Float64(v) => write!(f, "Float64({})", v),
-            Data::Int32(v) => write!(f, "Int32({})", v),
-            Data::Int64(v) => write!(f, "Int64({})", v),
-            Data::String(v) => write!(f, "String({})", v),
-            Data::Bool(v) => write!(f, "Bool({})", v),
+            Data::Float16(v) => write!(f, "Float16({v})"),
+            Data::Float32(v) => write!(f, "Float32({v})"),
+            Data::Float64(v) => write!(f, "Float64({v})"),
+            Data::Int32(v) => write!(f, "Int32({v})"),
+            Data::Int64(v) => write!(f, "Int64({v})"),
+            Data::String(v) => write!(f, "String({v})"),
+            Data::Bool(v) => write!(f, "Bool({v})"),
         }
     }
 }
@@ -555,7 +555,7 @@ impl Data {
             Data::Float16(elem) => elem,
             Data::Float32(elem) => f16::from_f32(elem),
             Data::Float64(elem) => f16::from_f64(elem),
-            _ => panic!("Cannot convert {:?} to f16", self),
+            _ => panic!("Cannot convert {self:?} to f16"),
         }
     }
 
@@ -567,7 +567,7 @@ impl Data {
             Data::Int32(elem) => elem as f32,
             Data::Int64(elem) => elem as f32,
             Data::Float32s(elem) if elem.len() == 1 => elem[0],
-            _ => panic!("Cannot convert {:?} to f32", self),
+            _ => panic!("Cannot convert {self:?} to f32"),
         }
     }
 
@@ -579,7 +579,7 @@ impl Data {
             Data::Int32(elem) => elem as f64,
             Data::Int64(elem) => elem as f64,
             Data::Float64s(elem) if elem.len() == 1 => elem[0],
-            _ => panic!("Cannot convert {:?} to f64", self),
+            _ => panic!("Cannot convert {self:?} to f64"),
         }
     }
 
@@ -591,7 +591,7 @@ impl Data {
             Data::Float64(elem) => elem as i32,
             Data::Float32s(elem) if elem.len() == 1 => elem[0] as i32,
             Data::Int32s(elem) if elem.len() == 1 => elem[0],
-            _ => panic!("Cannot convert {:?} to i32", self),
+            _ => panic!("Cannot convert {self:?} to i32"),
         }
     }
 
@@ -602,7 +602,7 @@ impl Data {
             Data::Float32(elem) => elem as i64,
             Data::Float64(elem) => elem as i64,
             Data::Int64s(elem) if elem.len() == 1 => elem[0],
-            _ => panic!("Cannot convert {:?} to i64", self),
+            _ => panic!("Cannot convert {self:?} to i64"),
         }
     }
 
@@ -610,7 +610,7 @@ impl Data {
         if let Data::Bool(elem) = self {
             elem
         } else {
-            panic!("Expected Bool, got {:?}", self);
+            panic!("Expected Bool, got {self:?}");
         }
     }
 
@@ -618,7 +618,7 @@ impl Data {
         if let Data::String(elem) = self {
             elem
         } else {
-            panic!("Expected String, got {:?}", self);
+            panic!("Expected String, got {self:?}");
         }
     }
 
@@ -627,7 +627,7 @@ impl Data {
             Data::Float16s(elem) => elem,
             Data::Float32s(elem) => elem.into_iter().map(f16::from_f32).collect(),
             Data::Float64s(elem) => elem.into_iter().map(f16::from_f64).collect(),
-            _ => panic!("Cannot convert {:?} to Vec<f16>", self),
+            _ => panic!("Cannot convert {self:?} to Vec<f16>"),
         }
     }
 
@@ -638,7 +638,7 @@ impl Data {
             Data::Float64s(elem) => elem.into_iter().map(|x| x as f32).collect(),
             Data::Int32s(elem) => elem.into_iter().map(|x| x as f32).collect(),
             Data::Int64s(elem) => elem.into_iter().map(|x| x as f32).collect(),
-            _ => panic!("Cannot convert {:?} to Vec<f32>", self),
+            _ => panic!("Cannot convert {self:?} to Vec<f32>"),
         }
     }
 
@@ -649,7 +649,7 @@ impl Data {
             Data::Float64s(elem) => elem,
             Data::Int32s(elem) => elem.into_iter().map(|x| x as f64).collect(),
             Data::Int64s(elem) => elem.into_iter().map(|x| x as f64).collect(),
-            _ => panic!("Cannot convert {:?} to Vec<f64>", self),
+            _ => panic!("Cannot convert {self:?} to Vec<f64>"),
         }
     }
 
@@ -659,7 +659,7 @@ impl Data {
             Data::Int64s(elem) => elem.into_iter().map(|x| x as i32).collect(),
             Data::Float32s(elem) => elem.into_iter().map(|x| x as i32).collect(),
             Data::Float64s(elem) => elem.into_iter().map(|x| x as i32).collect(),
-            _ => panic!("Cannot convert {:?} to Vec<i32>", self),
+            _ => panic!("Cannot convert {self:?} to Vec<i32>"),
         }
     }
 
@@ -669,7 +669,7 @@ impl Data {
             Data::Int64s(elem) => elem,
             Data::Float32s(elem) => elem.into_iter().map(|x| x as i64).collect(),
             Data::Float64s(elem) => elem.into_iter().map(|x| x as i64).collect(),
-            _ => panic!("Cannot convert {:?} to Vec<i64>", self),
+            _ => panic!("Cannot convert {self:?} to Vec<i64>"),
         }
     }
 
@@ -679,7 +679,7 @@ impl Data {
             Data::Int64s(elem) => elem.into_iter().map(|x| x as usize).collect(),
             Data::Float32s(elem) => elem.into_iter().map(|x| x as usize).collect(),
             Data::Float64s(elem) => elem.into_iter().map(|x| x as usize).collect(),
-            _ => panic!("Cannot convert {:?} to Vec<usize>", self),
+            _ => panic!("Cannot convert {self:?} to Vec<usize>"),
         }
     }
 
@@ -687,7 +687,7 @@ impl Data {
         if let Data::Bools(elem) = self {
             elem
         } else {
-            panic!("Expected Bools, got {:?}", self);
+            panic!("Expected Bools, got {self:?}");
         }
     }
 
@@ -695,7 +695,7 @@ impl Data {
         if let Data::Strings(elem) = self {
             elem
         } else {
-            panic!("Expected Strings, got {:?}", self);
+            panic!("Expected Strings, got {self:?}");
         }
     }
 }
@@ -705,7 +705,7 @@ impl AttributeValue {
         if let AttributeValue::Float32(elem) = self {
             elem
         } else {
-            panic!("Expected Float32, got {:?}", self);
+            panic!("Expected Float32, got {self:?}");
         }
     }
 
@@ -713,7 +713,7 @@ impl AttributeValue {
         if let AttributeValue::Int64(elem) = self {
             elem as i32
         } else {
-            panic!("Expected Int32, got {:?}", self);
+            panic!("Expected Int32, got {self:?}");
         }
     }
 
@@ -721,7 +721,7 @@ impl AttributeValue {
         if let AttributeValue::Int64(elem) = self {
             elem
         } else {
-            panic!("Expected Int64, got {:?}", self);
+            panic!("Expected Int64, got {self:?}");
         }
     }
 
@@ -729,7 +729,7 @@ impl AttributeValue {
         if let AttributeValue::String(elem) = self {
             elem
         } else {
-            panic!("Expected String, got {:?}", self);
+            panic!("Expected String, got {self:?}");
         }
     }
 
@@ -737,7 +737,7 @@ impl AttributeValue {
         if let AttributeValue::Tensor(elem) = self {
             elem
         } else {
-            panic!("Expected Tensor, got {:?}", self);
+            panic!("Expected Tensor, got {self:?}");
         }
     }
 
@@ -745,7 +745,7 @@ impl AttributeValue {
         if let AttributeValue::Float32s(elem) = self {
             elem
         } else {
-            panic!("Expected Float32s, got {:?}", self);
+            panic!("Expected Float32s, got {self:?}");
         }
     }
 
@@ -753,7 +753,7 @@ impl AttributeValue {
         if let AttributeValue::Int64s(elem) = self {
             elem
         } else {
-            panic!("Expected Int64s, got {:?}", self);
+            panic!("Expected Int64s, got {self:?}");
         }
     }
 
@@ -761,7 +761,7 @@ impl AttributeValue {
         if let AttributeValue::Strings(elem) = self {
             elem
         } else {
-            panic!("Expected Strings, got {:?}", self);
+            panic!("Expected Strings, got {self:?}");
         }
     }
 
@@ -769,7 +769,7 @@ impl AttributeValue {
         if let AttributeValue::Tensors(elem) = self {
             elem
         } else {
-            panic!("Expected Tensors, got {:?}", self);
+            panic!("Expected Tensors, got {self:?}");
         }
     }
 }

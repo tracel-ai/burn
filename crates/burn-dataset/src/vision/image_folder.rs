@@ -98,6 +98,12 @@ pub struct ImageDatasetItem {
     /// Image as a vector with a valid image type.
     pub image: Vec<PixelDepth>,
 
+    /// Original source image width.
+    pub image_width: usize,
+
+    /// Original source image height.
+    pub image_height: usize,
+
     /// Annotation for the image.
     pub annotation: Annotation,
 
@@ -266,8 +272,7 @@ fn parse_coco_bbox_annotations(
 
             if bbox_coords.len() < BBOX_MIN_NUM_VALUES {
                 return Err(ImageLoaderError::ParsingError(format!(
-                    "not enough bounding box coordinates in annotation for image {}",
-                    image_id
+                    "not enough bounding box coordinates in annotation for image {image_id}",
                 )));
             }
 
@@ -357,6 +362,10 @@ impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageDatasetItem {
         // Load image from disk
         let image = image::open(&item.image_path).unwrap();
 
+        // Save image dimensions for manipulation
+        let img_width = image.width() as usize;
+        let img_height = image.height() as usize;
+
         // Image as Vec<PixelDepth>
         let img_vec = match image.color() {
             ColorType::L8 => image
@@ -414,6 +423,8 @@ impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageDatasetItem {
 
         ImageDatasetItem {
             image: img_vec,
+            image_width: img_width,
+            image_height: img_height,
             annotation,
             image_path: item.image_path.display().to_string(),
         }
@@ -650,9 +661,9 @@ impl ImageFolderDataset {
         images_path: I,
     ) -> Result<Self, ImageLoaderError> {
         let file = fs::File::open(annotations_json)
-            .map_err(|e| ImageLoaderError::IOError(format!("Failed to open annotations: {}", e)))?;
+            .map_err(|e| ImageLoaderError::IOError(format!("Failed to open annotations: {e}")))?;
         let json: Value = serde_json::from_reader(file).map_err(|e| {
-            ImageLoaderError::ParsingError(format!("Failed to parse annotations: {}", e))
+            ImageLoaderError::ParsingError(format!("Failed to parse annotations: {e}"))
         })?;
 
         let classes = parse_coco_classes(&json)?;
@@ -744,6 +755,46 @@ mod tests {
         // Dataset elements should be: orange (0), red (1)
         assert_eq!(dataset.get(0).unwrap().annotation, Annotation::Label(0));
         assert_eq!(dataset.get(1).unwrap().annotation, Annotation::Label(1));
+    }
+
+    #[test]
+    pub fn image_folder_dataset_with_items_sizes() {
+        let root = Path::new(DATASET_ROOT);
+        let items = vec![
+            (root.join("orange").join("dot.jpg"), "orange".to_string()),
+            (root.join("red").join("dot.jpg"), "red".to_string()),
+            (root.join("red").join("dot.png"), "red".to_string()),
+        ];
+        let dataset =
+            ImageFolderDataset::new_classification_with_items(items, &["orange", "red"]).unwrap();
+
+        // Dataset has 3 elements
+        assert_eq!(dataset.len(), 3);
+        assert_eq!(dataset.get(3), None);
+
+        // Test item sizes
+
+        assert_eq!(
+            (
+                dataset.get(0).unwrap().image_width,
+                dataset.get(0).unwrap().image_height
+            ),
+            (1, 1)
+        );
+        assert_eq!(
+            (
+                dataset.get(1).unwrap().image_width,
+                dataset.get(1).unwrap().image_height
+            ),
+            (1, 1)
+        );
+        assert_eq!(
+            (
+                dataset.get(2).unwrap().image_width,
+                dataset.get(2).unwrap().image_height
+            ),
+            (1, 1)
+        );
     }
 
     #[test]

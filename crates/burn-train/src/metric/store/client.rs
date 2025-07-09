@@ -60,7 +60,7 @@ impl EventStoreClient {
 
         match receiver.recv() {
             Ok(value) => value,
-            Err(err) => panic!("Event store thread crashed: {:?}", err),
+            Err(err) => panic!("Event store thread crashed: {err:?}"),
         }
     }
 
@@ -85,7 +85,7 @@ impl EventStoreClient {
 
         match receiver.recv() {
             Ok(value) => value,
-            Err(err) => panic!("Event store thread crashed: {:?}", err),
+            Err(err) => panic!("Event store thread crashed: {err:?}"),
         }
     }
 }

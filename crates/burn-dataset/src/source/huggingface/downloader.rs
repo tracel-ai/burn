@@ -66,6 +66,7 @@ pub struct HuggingfaceDatasetLoader {
     huggingface_cache_dir: Option<String>,
     huggingface_data_dir: Option<String>,
     trust_remote_code: bool,
+    use_python_venv: bool,
 }
 
 impl HuggingfaceDatasetLoader {
@@ -79,6 +80,7 @@ impl HuggingfaceDatasetLoader {
             huggingface_cache_dir: None,
             huggingface_data_dir: None,
             trust_remote_code: false,
+            use_python_venv: true,
         }
     }
 
@@ -134,6 +136,16 @@ impl HuggingfaceDatasetLoader {
         self
     }
 
+    /// Specify whether or not to use the burn-dataset Python
+    /// virtualenv for running the importer script. If false, local
+    /// `python3`'s environment is used.
+    ///
+    /// If not specified, the virtualenv is used.
+    pub fn with_use_python_venv(mut self, use_python_venv: bool) -> Self {
+        self.use_python_venv = use_python_venv;
+        self
+    }
+
     /// Load the dataset.
     pub fn dataset<I: DeserializeOwned + Clone>(
         self,
@@ -160,9 +172,9 @@ impl HuggingfaceDatasetLoader {
 
         // create the db file path
         let db_file_name = if let Some(subset) = self.subset.clone() {
-            format!("{}-{}.db", name, sanitize(subset.as_str()))
+            format!("{name}-{}.db", sanitize(subset.as_str()))
         } else {
-            format!("{}.db", name)
+            format!("{name}.db")
         };
 
         let db_file = base_dir.join(db_file_name);
@@ -178,6 +190,7 @@ impl HuggingfaceDatasetLoader {
                 self.huggingface_cache_dir,
                 self.huggingface_data_dir,
                 self.trust_remote_code,
+                self.use_python_venv,
             )?;
         }
 
@@ -196,10 +209,15 @@ fn import(
     huggingface_cache_dir: Option<String>,
     huggingface_data_dir: Option<String>,
     trust_remote_code: bool,
+    use_python_venv: bool,
 ) -> Result<(), ImporterError> {
-    let venv_python_path = install_python_deps(&base_dir)?;
+    let python_path = if use_python_venv {
+        install_python_deps(&base_dir)?
+    } else {
+        get_python_name()?.into()
+    };
 
-    let mut command = Command::new(venv_python_path);
+    let mut command = Command::new(python_path);
 
     command.arg(importer_script_path(&base_dir));
 
@@ -232,9 +250,14 @@ fn import(
         command.arg("True");
     }
     let mut handle = command.spawn().unwrap();
-    handle
+
+    let exit_status = handle
         .wait()
         .map_err(|err| ImporterError::Unknown(format!("{err:?}")))?;
+
+    if !exit_status.success() {
+        return Err(ImporterError::Unknown(format!("{exit_status}")));
+    }
 
     Ok(())
 }
@@ -298,7 +321,7 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
         let mut handle = command.spawn().unwrap();
 
         handle.wait().map_err(|err| {
-            ImporterError::FailToDownloadPythonDependencies(format!(" error: {}", err))
+            ImporterError::FailToDownloadPythonDependencies(format!(" error: {err}"))
         })?;
         // Check if the venv environment can be used successfully."
         if !check_python_version_is_3(venv_python_path.to_str().unwrap()) {
@@ -321,9 +344,9 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
 
     // Spawn the pip install process and wait for it to complete.
     let mut handle = command.spawn().unwrap();
-    handle.wait().map_err(|err| {
-        ImporterError::FailToDownloadPythonDependencies(format!(" error: {}", err))
-    })?;
+    handle
+        .wait()
+        .map_err(|err| ImporterError::FailToDownloadPythonDependencies(format!(" error: {err}")))?;
 
     Ok(venv_python_path)
 }

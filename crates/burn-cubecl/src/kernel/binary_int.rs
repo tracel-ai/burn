@@ -1,7 +1,7 @@
 use crate::{CubeRuntime, IntElement, ops::numeric::empty_device, tensor::CubeTensor};
 use burn_tensor::Shape;
 use cubecl::{
-    calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
+    calculate_cube_count_elemwise, prelude::*, std::tensor::index_offset_with_layout,
     tensor_line_size_parallel,
 };
 
@@ -170,7 +170,9 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFami
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
     unsafe {
-        if lhs.can_mut_broadcast(&rhs) {
+        // Only re-used lhs/rhs if contiguous for now, strided indices are not correctly accounted for
+        // and optimizations in fusion do not have this issue anyway
+        if lhs.can_mut_broadcast(&rhs) && lhs.is_contiguous() {
             kernel_binop_int::launch_unchecked::<E, O, R>(
                 &client,
                 cube_count,
@@ -184,7 +186,7 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFami
             );
 
             lhs
-        } else if rhs.can_mut_broadcast(&lhs) {
+        } else if rhs.can_mut_broadcast(&lhs) && rhs.is_contiguous() {
             kernel_binop_int::launch_unchecked::<E, O, R>(
                 &client,
                 cube_count,

@@ -389,6 +389,22 @@ mod tests {
     }
 
     #[test]
+    fn test_sum_dim_7_maybe_fused_on_read_reshaped() {
+        let tensor_1 = TestTensorInt::arange(0..16, &Default::default()).float();
+
+        let tensor_1 = tensor_1.reshape([4, 4]);
+
+        TestBackend::sync(&tensor_1.device());
+
+        let reshaped = tensor_1.reshape([1, 4, 4]);
+        let tmp = reshaped + 5.0;
+        let output = tmp.sum_dim(2);
+        let expected = TensorData::from([[[26.0], [42.0], [58.0], [74.0]]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
     fn test_mean_dim_2d() {
         let tensor =
             TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());

@@ -16,7 +16,7 @@ pub struct AvgPool1dConfig {
     /// The size of the kernel.
     pub kernel_size: usize,
     /// The stride.
-    #[config(default = "1")]
+    #[config(default = "kernel_size")]
     pub stride: usize,
     /// The padding configuration.
     ///
@@ -114,6 +114,7 @@ impl AvgPool1d {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     #[test]
     #[should_panic = "Same padding with an even kernel size is not supported"]
@@ -128,8 +129,21 @@ mod tests {
         let layer = config.init();
 
         assert_eq!(
-            alloc::format!("{}", layer),
-            "AvgPool1d {kernel_size: 3, stride: 1, padding: Valid, count_include_pad: true}"
+            alloc::format!("{layer}"),
+            "AvgPool1d {kernel_size: 3, stride: 3, padding: Valid, count_include_pad: true}"
+        );
+    }
+
+    #[rstest]
+    #[case(1)]
+    #[case(2)]
+    fn default_strides_match_kernel_size(#[case] kernel_size: usize) {
+        let config = AvgPool1dConfig::new(kernel_size);
+
+        assert_eq!(
+            config.stride, kernel_size,
+            "Expected stride ({:?}) to match kernel size ({:?}) in default AvgPool1dConfig::new constructor",
+            config.stride, config.kernel_size
         );
     }
 }

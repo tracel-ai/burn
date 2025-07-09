@@ -6,6 +6,9 @@ name = "simple-regression"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = ["burn/dataset", "burn/sqlite-bundled"]
 ndarray = ["burn/ndarray"]
@@ -26,4 +29,4 @@ serde = {workspace = true, features = ["std", "derive"]}
 
 # Displaying results
 textplots = "0.8.7"
-rgb = "0.8.50"
+rgb = "0.8.51"

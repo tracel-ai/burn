@@ -107,15 +107,12 @@ impl<B: Backend> PositionalEncoding<B> {
 
         assert!(
             max_sequence_size >= seq_length,
-            "max_sequence_size({}) must be greater or equal than length({seq_length})",
-            max_sequence_size,
+            "max_sequence_size({max_sequence_size}) must be greater or equal than length({seq_length})"
         );
 
         assert!(
             d_model_input == d_model,
-            "d_model({}) of the input must be equal to d_model of encoding({})",
-            d_model_input,
-            d_model,
+            "d_model({d_model_input}) of the input must be equal to d_model of encoding({d_model})"
         );
 
         let slices = [0..batch_size, 0..seq_length, 0..d_model];
@@ -286,7 +283,7 @@ mod tests {
         let pe = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", pe),
+            alloc::format!("{pe}"),
             "PositionalEncoding {d_model: 4, max_sequence_size: 5000, max_timescale: 10000}"
         );
     }

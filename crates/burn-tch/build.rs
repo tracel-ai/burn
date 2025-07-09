@@ -144,7 +144,7 @@ impl SystemInfo {
         } else {
             "src/cuda_hack/fake_cuda_dependency.cpp"
         };
-        println!("cargo:rerun-if-changed={}", cuda_dependency);
+        println!("cargo:rerun-if-changed={cuda_dependency}");
 
         match self.os {
             Os::Linux | Os::Macos => {
@@ -174,7 +174,7 @@ impl SystemInfo {
 
     fn make_cpu() {
         let cuda_dependency = "src/cuda_hack/fake_cuda_dependency.cpp";
-        println!("cargo:rerun-if-changed={}", cuda_dependency);
+        println!("cargo:rerun-if-changed={cuda_dependency}");
 
         let os = env::var("CARGO_CFG_TARGET_OS").expect("Unable to get TARGET_OS");
 

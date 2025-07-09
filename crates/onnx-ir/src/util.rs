@@ -171,7 +171,7 @@ mod tests {
 
         for (i, rank) in input_ranks.iter().enumerate() {
             inputs.push(Argument {
-                name: format!("input_{}", i),
+                name: format!("input_{i}"),
                 ty: ArgType::Tensor(TensorType {
                     elem_type: ElementType::Float32,
                     rank: *rank,
@@ -193,7 +193,7 @@ mod tests {
 
         Node {
             node_type: op_type.clone(),
-            name: format!("test_{:?}", op_type).to_lowercase(),
+            name: format!("test_{op_type:?}").to_lowercase(),
             inputs,
             outputs,
             attrs: HashMap::new(),

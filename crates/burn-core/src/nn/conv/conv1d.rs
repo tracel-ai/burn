@@ -153,7 +153,8 @@ impl<B: Backend> Conv1d<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::ops::FloatElem;
+    use burn_tensor::{ElementConversion, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     use super::*;
     use crate::TestBackend;
@@ -165,7 +166,7 @@ mod tests {
 
         let config = Conv1dConfig::new(5, 5, 5);
         let k = (config.channels_in * config.kernel_size) as f64;
-        let k = (config.groups as f64 / k).sqrt() as f32;
+        let k = (config.groups as f64 / k).sqrt().elem::<FT>();
         let conv = config.init::<TestBackend>(&Default::default());
 
         conv.weight.to_data().assert_within_range(-k..k);
@@ -179,10 +180,9 @@ mod tests {
         let conv = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(config.initializer, Initializer::Zeros);
-        conv.weight.to_data().assert_eq(
-            &TensorData::zeros::<FloatElem<TestBackend>, _>(conv.weight.shape()),
-            false,
-        );
+        conv.weight
+            .to_data()
+            .assert_eq(&TensorData::zeros::<FT, _>(conv.weight.shape()), false);
     }
 
     #[test]
@@ -199,7 +199,7 @@ mod tests {
         let conv = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", conv),
+            alloc::format!("{conv}"),
             "Conv1d {stride: 1, kernel_size: 5, dilation: 1, groups: 1, padding: Valid, params: 130}"
         );
     }

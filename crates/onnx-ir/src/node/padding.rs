@@ -13,7 +13,7 @@ impl fmt::Display for PaddingConfig1d {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PaddingConfig1d::Valid => write!(f, "Valid"),
-            PaddingConfig1d::Explicit(size) => write!(f, "Explicit({})", size),
+            PaddingConfig1d::Explicit(size) => write!(f, "Explicit({size})"),
         }
     }
 }
@@ -52,7 +52,7 @@ pub fn padding_config_1d(pads: &[i64]) -> PaddingConfig1d {
         PaddingConfig1d::Explicit(left as usize)
     } else {
         // Unaccounted for padding configuration
-        panic!("Padding configuration ({:?}) not supported", pads);
+        panic!("Padding configuration ({pads:?}) not supported");
     }
 }
 
@@ -70,7 +70,7 @@ impl fmt::Display for PaddingConfig2d {
         match self {
             PaddingConfig2d::Valid => write!(f, "Valid"),
             PaddingConfig2d::Explicit(width, height) => {
-                write!(f, "Explicit({}, {})", width, height)
+                write!(f, "Explicit({width}, {height})")
             }
         }
     }
@@ -90,7 +90,7 @@ impl fmt::Display for PaddingConfig3d {
         match self {
             PaddingConfig3d::Valid => write!(f, "Valid"),
             PaddingConfig3d::Explicit(width, height, depth) => {
-                write!(f, "Explicit({}, {}, {})", width, height, depth)
+                write!(f, "Explicit({width}, {height}, {depth})")
             }
         }
     }
@@ -128,7 +128,7 @@ pub fn padding_config_2d(pads: &[i64]) -> PaddingConfig2d {
         PaddingConfig2d::Explicit(top as usize, left as usize)
     } else {
         // Unaccounted for padding configuration
-        panic!("Padding configuration ({:?}) not supported", pads);
+        panic!("Padding configuration ({pads:?}) not supported");
     }
 }
 
@@ -165,7 +165,7 @@ pub fn padding_config_3d(pads: &[i64]) -> PaddingConfig3d {
         PaddingConfig3d::Explicit(front as usize, top as usize, left as usize)
     } else {
         // Unaccounted for padding configuration
-        panic!("Padding configuration ({:?}) not supported", pads);
+        panic!("Padding configuration ({pads:?}) not supported");
     }
 }
 

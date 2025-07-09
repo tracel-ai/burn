@@ -10,7 +10,7 @@ type B = NdArray<f32>;
 const WEIGHTS_FILE: &str = "weights/mnist.pt";
 
 pub fn main() {
-    println!("Loading PyTorch model weights from file: {}", WEIGHTS_FILE);
+    println!("Loading PyTorch model weights from file: {WEIGHTS_FILE}");
 
     // Load PyTorch weights into a model record.
     let record: ModelRecord<B> = PyTorchFileRecorder::<FullPrecisionSettings>::default()

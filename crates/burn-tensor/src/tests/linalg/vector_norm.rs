@@ -158,18 +158,12 @@ mod tests {
     fn test_normalize() {
         let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
 
-        linalg::vector_normalize(x.clone(), 1.0, 0, 0.25)
-            .into_data()
-            .assert_eq(
-                &TestTensor::<2>::from([[1. / 4., 2. / 6.], [3. / 4., 4. / 6.]]).into_data(),
-                true,
-            );
+        let expected = TensorData::from([[1. / 4., 2. / 6.], [3. / 4., 4. / 6.]]);
+        let output = linalg::vector_normalize(x.clone(), 1.0, 0, 0.25).into_data();
+        output.assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
 
-        linalg::vector_normalize(x.clone(), 1.0, 0, 5.)
-            .into_data()
-            .assert_eq(
-                &TestTensor::<2>::from([[1. / 5., 2. / 6.], [3. / 5., 4. / 6.]]).into_data(),
-                true,
-            );
+        let expected = TensorData::from([[1. / 5., 2. / 6.], [3. / 5., 4. / 6.]]);
+        let output = linalg::vector_normalize(x.clone(), 1.0, 0, 5.0).into_data();
+        output.assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
     }
 }

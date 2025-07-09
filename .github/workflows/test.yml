@@ -65,8 +65,11 @@ env:
 
   # GCP runners
   GCP_RUNNERS_IMAGE_FAMILY: "tracel-ci-ubuntu-2404-amd64-nvidia"
-  GCP_RUNNERS_TYPE: "g2-standard-4"
+  GCP_RUNNERS_MACHINE_TYPE: "g2-standard-4"
   GCP_RUNNERS_ZONE: "us-east1-c"
+
+  # Test in release mode (make it an empty string to test in debug mode)
+  TEST_RELEASE_FLAG: "--release"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -77,6 +80,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       rust-prev-version: ${{ env.RUST_PREVIOUS_VERSION }}
+      gcp_runners_image_family: ${{ env.GCP_RUNNERS_IMAGE_FAMILY }}
+      gcp_runners_machine_type: ${{ env.GCP_RUNNERS_MACHINE_TYPE }}
+      gcp_runners_zone: ${{ env.GCP_RUNNERS_ZONE }}
     steps:
       - name: Do Nothing
         if: false
@@ -93,7 +99,7 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v2
+        uses: tracel-ai/github-actions/setup-rust@v3
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -113,7 +119,7 @@ jobs:
         run: cargo xtask check lint
       # --------------------------------------------------------------------------------
       - name: Typos
-        uses: tracel-ai/github-actions/check-typos@v1
+        uses: tracel-ai/github-actions/check-typos@v3
 
   documentation:
     runs-on: ubuntu-22.04
@@ -126,7 +132,7 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v2
+        uses: tracel-ai/github-actions/setup-rust@v3
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -137,65 +143,16 @@ jobs:
       - name: Documentation Tests
         run: cargo xtask doc tests
 
-  linux-std-tests-gcp-launcher:
-    needs: [prepare-checks, code-quality]
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        rust: [stable]
-        backend: [cuda]
-        # backend: [cuda, vulkan]
-    outputs:
-      label_stable_cuda: ${{ steps.gen_output.outputs.label_stable_cuda }}
-      # label_stable_vulkan: ${{ steps.gen_output.outputs.label_stable_vulkan }}
-    steps:
-      - name: Create runners
-        id: create-runner
-        uses: related-sciences/gce-github-runner@v0.14
-        with:
-          ephemeral: true
-          image_family: ${{ env.GCP_RUNNERS_IMAGE_FAMILY }}
-          image_project: ${{ secrets.GCP_CI_PROJECT_ID }}
-          machine_type: ${{ env.GCP_RUNNERS_TYPE }}
-          machine_zone: ${{ env.GCP_RUNNERS_ZONE }}
-          maintenance_policy_terminate: true
-          project_id: ${{ secrets.GCP_CI_PROJECT_ID }}
-          service_account_key: ${{ secrets.GCP_SA_KEY }}
-          token: ${{ secrets.GCE_GITHUB_RUNNER_GH_TOKEN }}
-          vm_name_prefix: ${{ format('gce-gh-runner-linux-std-{0}-{1}-tests', matrix.rust, matrix.backend) }}
-      # --------------------------------------------------------------------------------
-      - name: Generate output
-        id: gen_output
-        run: |
-          rust=${{ matrix.rust }}
-          backend=${{ matrix.backend }}
-          label=${{ steps.create-runner.outputs.label }}
-          echo "label_${rust}_${backend}=${label}" >> "$GITHUB_OUTPUT"
-      # --------------------------------------------------------------------------------
-      # handle the case where we cancel the workflow while runners are being created
-      - name: Install gcloud
-        uses: google-github-actions/setup-gcloud@v2
-        if: cancelled()
-      # --------------------------------------------------------------------------------
-      - name: Gcloud authentication
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-          create_credentials_file: false
-        if: cancelled()
-      # --------------------------------------------------------------------------------
-      - name: Make sure ephemeral runners are deleted
-        if: cancelled()
-        run: >
-          gcloud compute instances delete
-          --project ${{ secrets.GCP_CI_PROJECT_ID }}
-          --zone ${{ env.GCP_RUNNERS_ZONE }}
-          --quiet
-          ${{ format('gce-gh-runner-linux-std-cuda-tests-{0}', matrix.rust) }}-${{ github.run_id }}-${{ github.run_attempt }}
-
   linux-std-cuda-tests:
-    needs: [prepare-checks, code-quality, linux-std-tests-gcp-launcher]
-    runs-on: ${{ needs.linux-std-tests-gcp-launcher.outputs[format('label_{0}_cuda', matrix.rust)] }}
+    needs: [prepare-checks, code-quality]
+    timeout-minutes: 60
+    # '@id:' label must be unique within this worklow
+    runs-on: [
+      '@id:burn-cuda-job-${{github.run_id}}-${{github.run_attempt}}',
+      '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
+      '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
+      '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
+      '@gpu:true' ]
     env:
       LD_LIBRARY_PATH: '/usr/local/cuda/lib64'
       # disable incremental compilation (reduces artifact size)
@@ -209,39 +166,73 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v2
+        uses: tracel-ai/github-actions/setup-rust@v3
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
       # --------------------------------------------------------------------------------
       - name: Tests (burn-cuda)
-        run: cargo xtask test --ci gcp-cuda-runner
+        run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci gcp-cuda-runner
 
-  ######################################################################################
-  ## Disable Vulkan tests as they are very long to run for now in GCP
-  ######################################################################################
-  # linux-std-vulkan-tests:
-  #   needs: [prepare-checks, code-quality, linux-std-tests-gcp-launcher]
-  #   runs-on: ${{ needs.linux-std-tests-gcp-launcher.outputs[format('label_{0}_vulkan', matrix.rust)] }}
-  #   env:
-  #     # disable incremental compilation (reduces artifact size)
-  #     CARGO_PROFILE_TEST_INCREMENTAL: 'false'
-  #   # Keep the stragegy to be able to easily add new rust versions if required
-  #   strategy:
-  #     matrix:
-  #       rust: [stable]
-  #       include:
-  #         - rust: stable
-  #           toolchain: stable
-  #   steps:
-  #     - name: Setup Rust
-  #       uses: tracel-ai/github-actions/setup-rust@v2
-  #       with:
-  #         rust-toolchain: ${{ matrix.toolchain }}
-  #         enable-cache: false
-  #     # --------------------------------------------------------------------------------
-  #     - name: Tests (burn-vulkan)
-  #       run: cargo xtask test --ci gcp-vulkan-runner
+  linux-std-vulkan-tests:
+    needs: [prepare-checks, code-quality]
+    timeout-minutes: 60
+    # '@id:' label must be unique within this worklow
+    runs-on: [
+      '@id:burn-vulkan-job-${{github.run_id}}-${{github.run_attempt}}',
+      '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
+      '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
+      '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
+      '@gpu:true' ]
+    env:
+      # disable incremental compilation (reduces artifact size)
+      CARGO_PROFILE_TEST_INCREMENTAL: 'false'
+    # Keep the stragegy to be able to easily add new rust versions if required
+    strategy:
+      matrix:
+        rust: [stable]
+        include:
+          - rust: stable
+            toolchain: stable
+    steps:
+      - name: Setup Rust
+        uses: tracel-ai/github-actions/setup-rust@v3
+        with:
+          rust-toolchain: ${{ matrix.toolchain }}
+          enable-cache: false
+      # --------------------------------------------------------------------------------
+      - name: Tests (burn-vulkan)
+        run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci gcp-vulkan-runner
+
+  linux-std-wgpu-tests:
+    needs: [prepare-checks, code-quality]
+    timeout-minutes: 60
+    # '@id:' label must be unique within this worklow
+    runs-on: [
+      '@id:burn-wgpu-job-${{github.run_id}}-${{github.run_attempt}}',
+      '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
+      '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
+      '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
+      '@gpu:true' ]
+    env:
+      # disable incremental compilation (reduces artifact size)
+      CARGO_PROFILE_TEST_INCREMENTAL: 'false'
+    # Keep the stragegy to be able to easily add new rust versions if required
+    strategy:
+      matrix:
+        rust: [stable]
+        include:
+          - rust: stable
+            toolchain: stable
+    steps:
+      - name: Setup Rust
+        uses: tracel-ai/github-actions/setup-rust@v3
+        with:
+          rust-toolchain: ${{ matrix.toolchain }}
+          enable-cache: false
+      # --------------------------------------------------------------------------------
+      - name: Tests (burn-wgpu)
+        run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci gcp-wgpu-runner
 
   linux-std-tests:
     runs-on: ubuntu-22.04
@@ -261,21 +252,13 @@ jobs:
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v2
+        uses: tracel-ai/github-actions/setup-rust@v3
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
           # Disable cache on linux-std (stable) runner which currently always runs out of disk space with tests + coverage
           enable-cache: ${{ matrix.rust != 'stable' }}
-      # --------------------------------------------------------------------------------
-      - name: Setup Linux runner
-        uses: tracel-ai/github-actions/setup-linux@v2
-        with:
-          vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
-          mesa-version: ${{ env.MESA_VERSION }}
-          mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
-          cargo-package-to-clean: burn-tch
-      # --------------------------------------------------------------------------------
+      # # --------------------------------------------------------------------------------
       - name: Install grcov
         if: matrix.rust == 'stable'
         shell: bash
@@ -285,7 +268,7 @@ jobs:
           cargo xtask coverage install
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask ${{ matrix.coverage }} test --ci github-runner
+        run: cargo xtask ${{ matrix.coverage }} test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
       # --------------------------------------------------------------------------------
       - name: Generate lcov.info
         if: matrix.rust == 'stable'
@@ -312,23 +295,23 @@ jobs:
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v2
+        uses: tracel-ai/github-actions/setup-rust@v3
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux-no-std
       # --------------------------------------------------------------------------------
       - name: Setup Linux runner
-        uses: tracel-ai/github-actions/setup-linux@v2
+        uses: tracel-ai/github-actions/setup-linux@v3
         with:
           vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
           mesa-version: ${{ env.MESA_VERSION }}
           mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
       # --------------------------------------------------------------------------------
       - name: Crates Build
-        run: cargo xtask --execution-environment no-std build --ci
+        run: cargo xtask --context no-std build --ci
       # --------------------------------------------------------------------------------
       - name: Crates Tests
-        run: cargo xtask --execution-environment no-std test --ci github-runner
+        run: cargo xtask --context no-std test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
 
   windows-std-tests:
     runs-on: windows-2022
@@ -344,14 +327,14 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v2
+        uses: tracel-ai/github-actions/setup-rust@v3
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-windows
       # --------------------------------------------------------------------------------
       - name: Setup Windows runner
         if: env.DISABLE_WGPU != '1'
-        uses: tracel-ai/github-actions/setup-windows@v1
+        uses: tracel-ai/github-actions/setup-windows@v3
         with:
           dxc-release: ${{ env.DXC_RELEASE }}
           dxc-filename: ${{ env.DXC_FILENAME }}
@@ -359,11 +342,12 @@ jobs:
           warp-version: ${{ env.WARP_VERSION }}
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask test --ci github-runner
+        run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
 
-  macos-std-tests:
+  macos-std-metal-tests:
     runs-on: blaze/macos-14
     needs: [prepare-checks, code-quality]
+    timeout-minutes: 60
     # Keep the stragegy to be able to easily add new rust versions if required
     strategy:
       matrix:
@@ -373,10 +357,10 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v2
+        uses: tracel-ai/github-actions/setup-rust@v3
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-macos
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: CUBECL_DEBUG_OPTION=profile cargo xtask test --ci github-runner
+        run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-mac-runner

@@ -91,10 +91,10 @@ impl DiabetesDataset {
         let file_name = example_dir.join("diabetes.csv");
 
         if file_name.exists() {
-            println!("File already downloaded at {:?}", file_name);
+            println!("File already downloaded at {file_name:?}");
         } else {
             // Get file from web
-            println!("Downloading file to {:?}", file_name);
+            println!("Downloading file to {file_name:?}");
             let url = "https://www4.stat.ncsu.edu/~boos/var.select/diabetes.tab.txt";
             let mut response = reqwest::blocking::get(url).unwrap();
 

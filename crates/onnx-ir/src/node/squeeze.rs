@@ -43,7 +43,7 @@ pub fn squeeze_update_output(node: &mut Node) {
 
     let input_rank = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
-        ty => panic!("Squeeze: invalid input type: {:?}", ty),
+        ty => panic!("Squeeze: invalid input type: {ty:?}"),
     };
 
     log::debug!("Squeeze input rank for {}: {}", node.name, input_rank);

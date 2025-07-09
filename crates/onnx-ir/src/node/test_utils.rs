@@ -266,11 +266,7 @@ impl NodeBuilder {
         static_shape: Option<Vec<usize>>,
     ) -> Self {
         for i in 0..count {
-            self = self.input_tensor_f32(
-                &format!("{}_{}", name_prefix, i),
-                rank,
-                static_shape.clone(),
-            );
+            self = self.input_tensor_f32(&format!("{name_prefix}_{i}"), rank, static_shape.clone());
         }
         self
     }

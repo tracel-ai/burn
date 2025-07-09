@@ -8,7 +8,7 @@ use burn::{
     },
     tensor::Shape,
 };
-use cubecl::{CubeCount, CubeDim, server::Bindings};
+use cubecl::{CubeCount, CubeDim, prelude::KernelId, server::Bindings};
 use derive_new::new;
 use std::marker::PhantomData;
 
@@ -35,8 +35,8 @@ impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
             .register("int", "i32")
     }
 
-    fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self>().info(self.cube_dim)
+    fn id(&self) -> KernelId {
+        KernelId::new::<Self>().info(self.cube_dim)
     }
 }
 

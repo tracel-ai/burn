@@ -1,21 +1,27 @@
+use std::sync::Arc;
+
+use crate::search::BlockOptimization;
+
 use super::{ExecutionPlanIndex, InsertQuery, SearchQuery};
 use burn_ir::OperationIr;
 use serde::{Deserialize, Serialize};
 
 /// The store that contains all explorations done on a device.
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default)]
 pub(crate) struct ExecutionPlanStore<O> {
     plans: Vec<ExecutionPlan<O>>,
     index: ExecutionPlanIndex,
 }
 
 /// How a list of operations should be executed.
-#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub(crate) enum ExecutionStrategy<O> {
     /// An optimization was found, and therefore should be executed.
-    Optimization(O),
+    Optimization { opt: O, ordering: Arc<Vec<usize>> },
     /// No optimization was found, each operation should be executed individually.
-    Operations,
+    Operations { ordering: Arc<Vec<usize>> },
+    /// A composition of multiple execution strategies.
+    Composed(Vec<Box<Self>>),
 }
 
 /// The trigger that indicates when to stop exploring.
@@ -30,14 +36,14 @@ pub(crate) enum ExecutionTrigger {
 pub(crate) type ExecutionPlanId = usize;
 
 /// The outcome of an exploration that can be stored.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug)]
 pub(crate) struct ExecutionPlan<O> {
     /// The operations on which the exploration is related to.
     pub(crate) operations: Vec<OperationIr>,
     /// The criteria that signal when this plan should be executed. Only one trigger is necessary.
     pub(crate) triggers: Vec<ExecutionTrigger>,
-    /// The strategy that should be used when executing this plan.
-    pub(crate) strategy: ExecutionStrategy<O>,
+    /// The optimization that should be used when executing this plan.
+    pub(crate) optimization: BlockOptimization<O>,
 }
 
 impl<O> ExecutionPlanStore<O> {
@@ -58,12 +64,6 @@ impl<O> ExecutionPlanStore<O> {
         }
 
         let id = self.plans.len();
-        log::trace!(
-            "New execution plan {} - Operations: {:?} - Triggers {:?}",
-            id,
-            exploration.operations.len(),
-            exploration.triggers.len(),
-        );
 
         self.index.insert(InsertQuery::NewPlan {
             operations: &exploration.operations,
@@ -84,11 +84,11 @@ impl<O> ExecutionPlanStore<O> {
     }
 
     /// Add a new end condition for an optimization.
-    pub fn add_trigger(&mut self, id: ExecutionPlanId, criterion: ExecutionTrigger) {
+    pub fn add_trigger(&mut self, id: ExecutionPlanId, trigger: ExecutionTrigger) {
         let criteria = &mut self.plans[id].triggers;
 
-        if !criteria.contains(&criterion) {
-            criteria.push(criterion);
+        if !criteria.contains(&trigger) {
+            criteria.push(trigger);
         }
     }
 }

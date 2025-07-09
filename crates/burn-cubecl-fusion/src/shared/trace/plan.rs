@@ -7,7 +7,7 @@ use crate::{
 use burn_ir::{TensorId, TensorIr};
 use cubecl::Runtime;
 
-use super::block::FuseBlock;
+use super::{block::FuseBlock, vectorization::Vect};
 
 /// The plan is responsible to keep runtime information related to the launch of a fused kernel
 /// at one place.
@@ -20,6 +20,7 @@ pub(crate) struct LaunchPlan<'a, R: Runtime> {
     pub rank: usize,
     pub blocks: Vec<BlockPlan<'a>>,
     pub vectorizations: BTreeMap<TensorId, Vect>,
+    pub cleared: Vec<TensorId>,
 }
 
 #[derive(Debug)]
@@ -83,32 +84,6 @@ impl ReferenceSelection {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum Vect {
-    Broadcasted,
-    Aligned(u8),
-}
-
-impl Vect {
-    pub fn line_size(&self) -> u8 {
-        match self {
-            Vect::Broadcasted => 1,
-            Vect::Aligned(val) => *val,
-        }
-    }
-
-    pub fn is_broadcast(&self) -> bool {
-        matches!(self, Vect::Broadcasted)
-    }
-
-    pub fn limit_to_one(&self) -> Self {
-        match self {
-            Vect::Broadcasted => Vect::Broadcasted,
-            Vect::Aligned(_) => Vect::Aligned(1),
-        }
-    }
-}
-
 impl<R: Runtime> LaunchPlan<'_, R> {
     pub fn new(fuse_blocks: &[FuseBlock]) -> Self {
         let mut rank = 0;
@@ -135,6 +110,7 @@ impl<R: Runtime> LaunchPlan<'_, R> {
             rank,
             blocks,
             vectorizations: Default::default(),
+            cleared: Default::default(),
         }
     }
 }

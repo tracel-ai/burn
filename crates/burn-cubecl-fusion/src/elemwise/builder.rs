@@ -18,6 +18,15 @@ pub struct ElementWiseBuilder<R: Runtime> {
     device: R::Device,
 }
 
+impl<R: Runtime> Clone for ElementWiseBuilder<R> {
+    fn clone(&self) -> Self {
+        Self {
+            builder: self.builder.clone(),
+            device: self.device.clone(),
+        }
+    }
+}
+
 impl<R: Runtime> ElementWiseBuilder<R> {
     pub fn new(device: R::Device, bool_precision: FusePrecision) -> Self {
         let client = R::client(&device);
@@ -69,5 +78,9 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ElementWiseBuilder
 
     fn len(&self) -> usize {
         self.builder.len()
+    }
+
+    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<CubeOptimization<R>>> {
+        Box::new(self.clone())
     }
 }

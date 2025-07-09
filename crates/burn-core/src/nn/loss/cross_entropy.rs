@@ -56,8 +56,7 @@ impl CrossEntropyLossConfig {
         if let Some(alpha) = self.smoothing {
             assert!(
                 (0.0..=1.).contains(&alpha),
-                "Alpha of Cross-entropy loss with smoothed labels should be in interval [0, 1]. Got {}",
-                alpha
+                "Alpha of Cross-entropy loss with smoothed labels should be in interval [0, 1]. Got {alpha}"
             );
         };
         if let Some(weights) = self.weights.as_ref() {
@@ -235,9 +234,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
         let [targets_height] = targets.dims();
         assert!(
             logits_height == targets_height,
-            "Shape of targets ({}) should correspond to outer shape of logits ({}).",
-            targets_height,
-            logits_height
+            "Shape of targets ({targets_height}) should correspond to outer shape of logits ({logits_height})."
         );
     }
 }
@@ -460,7 +457,7 @@ mod tests {
         let loss = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", loss),
+            alloc::format!("{loss}"),
             "CrossEntropyLoss {pad_tokens: None, weights: Tensor {rank: 1, shape: [3]}, smoothing: 0.5, logits: true}"
         );
     }

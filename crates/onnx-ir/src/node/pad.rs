@@ -67,7 +67,7 @@ pub fn pad_config(node: &Node) -> PadConfig {
                 "mode" => {
                     let mode = value.clone().into_string();
                     if mode != "constant" {
-                        panic!("only constant mode is supported, given mode is {}", mode);
+                        panic!("only constant mode is supported, given mode is {mode}");
                     }
                 }
 
