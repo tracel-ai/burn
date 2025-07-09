@@ -1,6 +1,6 @@
 use std::{collections::HashMap, marker::PhantomData, sync::Arc, time::Duration};
 
-use burn_network::network::{NetworkClient, NetworkStream};
+use burn_network::network::{NetworkClient, NetworkStream, NetworkAddress};
 use tokio::{
     runtime::Runtime,
     sync::{
@@ -53,17 +53,16 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
     pub(crate) fn new(
         runtime: &Runtime,
         cancel_token: CancellationToken,
-        server_address: &str,
+        server_address: &NetworkAddress,
     ) -> Self {
         let (request_sender, request_recv) = tokio::sync::mpsc::channel::<ClientRequest>(10);
 
         let state = Arc::new(Mutex::new(GlobalClientWorkerState::new()));
 
-        let server_address = server_address.to_owned();
         let handle = runtime.spawn(Self::start(
             state,
             cancel_token.clone(),
-            server_address,
+            server_address.clone(),
             request_recv,
         ));
 
@@ -79,13 +78,11 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
     async fn start(
         state: Arc<Mutex<GlobalClientWorkerState>>,
         cancel_token: CancellationToken,
-        server_address: String,
+        server_address: NetworkAddress,
         request_recv: Receiver<ClientRequest>,
     ) {
         // Init the connection.
-        let address_request = format!("{}/{}", server_address, "request");
-        let address_response = format!("{}/{}", server_address, "response");
-        let (request, response) = Self::init_connection(address_request, address_response).await;
+        let (request, response) = Self::init_connection(&server_address).await;
 
         // Websocket async worker loading responses from the server.
         let response_handle = tokio::spawn(Self::response_loader(
@@ -107,20 +104,19 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
         };
     }
 
-    async fn init_connection(
-        address_request: String,
-        address_response: String,
-    ) -> (C::ClientStream, C::ClientStream) {
+    async fn init_connection(address: &NetworkAddress) -> (C::Stream, C::Stream) {
         let session_id = SessionId::new();
 
         let stream_request_fut = Self::connect_with_retry(
-            address_request.clone(),
+            address.clone(),
+            "request",
             std::time::Duration::from_secs(1),
             None,
             session_id,
         );
         let stream_response_fut = Self::connect_with_retry(
-            address_response.clone(),
+            address.clone(),
+            "response",
             std::time::Duration::from_secs(1),
             None,
             session_id,
@@ -131,11 +127,12 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
 
     /// Connect with websocket with retries.
     async fn connect_with_retry(
-        address: String,
+        address: NetworkAddress,
+        route: &str,
         retry_pause: Duration,
         retry_max: Option<u32>,
         session_id: SessionId,
-    ) -> C::ClientStream {
+    ) -> C::Stream {
         let mut retries = 0;
         loop {
             if let Some(max) = retry_max {
@@ -146,7 +143,7 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
 
             // Try to connect to the request address.
             println!("Connecting to {address} ...");
-            let result = C::connect(address.clone()).await;
+            let result = C::connect(address.clone(), route).await;
 
             if let Some(mut stream) = result {
                 let init_msg = Message::Init(session_id);
@@ -183,7 +180,7 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
 
     async fn response_loader(
         state: Arc<Mutex<GlobalClientWorkerState>>,
-        mut stream_response: C::ClientStream,
+        mut stream_response: C::Stream,
         cancel_token: CancellationToken,
     ) {
         loop {
@@ -229,7 +226,7 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
     async fn request_sender(
         mut request_recv: Receiver<ClientRequest>,
         worker: Arc<Mutex<GlobalClientWorkerState>>,
-        mut stream_request: C::ClientStream,
+        mut stream_request: C::Stream,
         cancel_token: CancellationToken,
     ) {
         loop {

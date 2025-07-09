@@ -25,11 +25,11 @@ impl GlobalCollectiveServer {
         S::new(port)
             .route("/response", async |state, socket| {
                 state
-                    .handle_socket_response::<S::ServerStream>(socket)
+                    .handle_socket_response::<S::Stream>(socket)
                     .await
             })
             .route("/request", async |state, socket| {
-                state.handle_socket_request::<S::ServerStream>(socket).await
+                state.handle_socket_request::<S::Stream>(socket).await
             })
             .serve(server, shutdown_signal)
             .await;

@@ -1,3 +1,4 @@
+use burn_network::network::NetworkAddress;
 use burn_tensor::{Tensor, backend::Backend};
 use serde::{Deserialize, Serialize};
 
@@ -34,10 +35,10 @@ pub struct GlobalRegisterParams {
     pub node_id: u32,
     /// The number of nodes globally. Should be the same for all nodes.
     pub num_nodes: u32,
-    /// The url for the websocket connection to this client. Includes the port and the ws:// prefix.
-    pub server_url: String,
-    /// The url for the websocket connection to this client. Includes the port and the ws:// prefix.
-    pub client_url: String,
+    /// The address for the connection to this client.
+    pub server_address: NetworkAddress,
+    /// The address for the connection to this client.
+    pub client_address: NetworkAddress,
     /// The port on which to open the tensor data service for other clients. Should match the port
     /// given in the client url.
     pub client_data_port: u16,

@@ -7,14 +7,14 @@ use std::{
     },
 };
 
-use burn_network::websocket::{WsClient, WsServer};
+use burn_network::{data_service::TensorDataService, websocket::{WsClient, WsServer}};
 use burn_tensor::backend::Backend;
 use tokio::runtime::{Builder, Runtime};
 
 use crate::{
     AllReduceParams, AllReduceStrategy, GlobalAllReduceParams, RegisterParams,
     centralized::all_reduce_centralized,
-    global::client::{base::GlobalCollectiveClient, data_server::TensorDataService},
+    global::client::{base::GlobalCollectiveClient},
     ring::all_reduce_ring,
     tree::all_reduce_tree,
 };
@@ -293,8 +293,8 @@ impl<B: Backend> LocalCollectiveServer<B> {
         if let Some(global_params) = &params.global_params {
             if self.global_client.is_none() {
                 let client = GlobalCollectiveClient::new(
-                    &global_params.server_url,
-                    &global_params.client_url,
+                    &global_params.server_address,
+                    &global_params.client_address,
                     global_params.client_data_port,
                 );
                 self.global_client = Some(client)

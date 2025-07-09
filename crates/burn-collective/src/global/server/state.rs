@@ -3,10 +3,11 @@ use std::collections::HashMap;
 use crate::{
     GlobalAllReduceParams,
     global::shared::base::{
-        CentralizedAllReduceStrategy, MessageResponse, NodeAddress, RemoteRequest, RemoteResponse,
+        CentralizedAllReduceStrategy, MessageResponse, RemoteRequest, RemoteResponse,
         RequestId, SessionId,
     },
 };
+use burn_network::network::NetworkAddress;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 pub(crate) struct Session {
@@ -31,12 +32,12 @@ impl Session {
 pub(crate) struct GlobalCollectiveState {
     /// The ids passed to each register so far, and their addresses
     registered_nodes: HashMap<SessionId, u32>,
-    node_addresses: HashMap<u32, NodeAddress>,
+    node_addresses: HashMap<u32, NetworkAddress>,
     /// The params of the current operation, as defined by the first caller
     cur_params: Option<GlobalAllReduceParams>,
     num_global_devices: u32,
 
-    all_reduce_requests: Vec<(SessionId, RequestId, NodeAddress)>,
+    all_reduce_requests: Vec<(SessionId, RequestId, NetworkAddress)>,
     register_requests: Vec<(SessionId, RequestId)>,
 
     sessions: HashMap<SessionId, Session>,
@@ -170,7 +171,7 @@ impl GlobalCollectiveState {
         session_id: SessionId,
         request_id: RequestId,
         node_id: u32,
-        node_addr: NodeAddress,
+        node_addr: NetworkAddress,
         num_nodes: u32,
         num_devices: u32,
     ) {
@@ -242,7 +243,7 @@ impl GlobalCollectiveState {
 
             let mut requests_iter = requests.iter();
             let central_node = requests_iter.next().unwrap().2.clone();
-            let other_nodes: Vec<NodeAddress> =
+            let other_nodes: Vec<NetworkAddress> =
                 requests_iter.map(|(_, _, addr)| addr.clone()).collect();
 
             for (i, (session, request, addr)) in requests.iter().enumerate() {

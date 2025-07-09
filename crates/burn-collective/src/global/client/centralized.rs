@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use crate::global::shared::base::CentralizedAllReduceStrategy::{Central, Peripheral};
 use crate::global::{
-    client::data_server::{TensorDataClient, TensorDataService},
     shared::base::CentralizedAllReduceStrategy,
 };
+use burn_network::data_service::{TensorDataClient, TensorDataService};
 use burn_network::network::{NetworkClient, NetworkServer};
 use burn_tensor::backend::Backend;
 use futures::StreamExt;
@@ -26,12 +26,12 @@ where
             // Transfer 1: download tensors from other nodes
             let mut futures = other_nodes
                 .iter()
-                .map(|x| {
+                .map(|address| {
                     let device = device.clone(); // if device is Clone, otherwise ref
                     let data_service = data_service.clone();
                     async move {
                         let data = data_service
-                            .download_tensor(x, 0.into())
+                            .download_tensor(address.clone(), 0.into())
                             .await
                             .expect("Couldn't find the tensor for transfer id 0");
                         B::float_from_data(data, &device)
@@ -59,7 +59,7 @@ where
 
             // Transfer 2: Download result
             let data = data_service
-                .download_tensor(&central_node, 1.into())
+                .download_tensor(central_node, 1.into())
                 .await
                 .expect("Couldn't find the tensor for transfer id 1");
 

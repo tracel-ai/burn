@@ -1,4 +1,4 @@
-use burn_network::network::{NetworkClient, NetworkServer};
+use burn_network::{data_service::{TensorDataClient, TensorDataService}, network::{NetworkClient, NetworkServer, NetworkAddress}};
 use burn_tensor::{ElementConversion, backend::Backend};
 use std::{marker::PhantomData, sync::Arc};
 use tokio_util::sync::CancellationToken;
@@ -8,12 +8,11 @@ use crate::{
     global::{
         client::{
             centralized::centralized_all_reduce_sum,
-            data_server::{TensorDataClient, TensorDataService},
             ring::ring_all_reduce_sum,
             tree::tree_all_reduce_sum,
             worker::GlobalClientWorker,
         },
-        shared::base::{NodeAddress, RemoteRequest, RemoteResponse},
+        shared::base::{RemoteRequest, RemoteResponse},
     },
     local_server::get_server_runtime,
 };
@@ -25,7 +24,7 @@ where
     S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
 {
     data_service: TensorDataClient<B, C, S>,
-    data_client_address: Arc<NodeAddress>,
+    data_client_address: Arc<NetworkAddress>,
     worker: GlobalClientWorker<C>,
     num_global_devices: Option<u32>,
     _phantom_data: PhantomData<B>,
@@ -37,7 +36,7 @@ where
     C: NetworkClient,
     S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
 {
-    pub fn new(server_address: &str, client_address: &str, data_server_port: u16) -> Self {
+    pub fn new(server_address: &NetworkAddress, client_address: &NetworkAddress, data_server_port: u16) -> Self {
         let cancel_token = CancellationToken::new();
 
         let runtime = get_server_runtime();
@@ -48,7 +47,7 @@ where
 
         Self {
             data_service: data_client,
-            data_client_address: Arc::new(NodeAddress(client_address.to_owned())),
+            data_client_address: Arc::new(client_address.clone()),
             worker,
             num_global_devices: None,
             _phantom_data: PhantomData,

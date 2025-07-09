@@ -588,6 +588,7 @@ version = "0.18.0"
 dependencies = [
  "burn",
  "burn-common",
+ "burn-network",
  "serde",
  "serde_json",
  "tokio",
@@ -824,6 +825,7 @@ version = "0.18.0"
 dependencies = [
  "axum",
  "burn-common",
+ "burn-tensor",
  "bytes",
  "futures",
  "futures-util",

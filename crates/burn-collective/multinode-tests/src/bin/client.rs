@@ -41,8 +41,8 @@ fn test_all_reduce<B: Backend>(test_input: NodeTestData) {
     let global_params = Some(GlobalRegisterParams {
         node_id: test_input.node_id,
         num_nodes: test_input.node_count,
-        server_url: test_input.server_url,
-        client_url: test_input.client_url,
+        server_address: test_input.server_address,
+        client_address: test_input.client_address,
         client_data_port: test_input.client_data_port,
     });
     let reg_params = RegisterParams {

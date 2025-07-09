@@ -14,6 +14,9 @@ version.workspace = true
 [lints]
 workspace = true
 
+[features]
+data-service = ["burn-tensor"]
+
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.18.0", default-features = true }
 axum = { workspace = true, features = ["ws"] }
@@ -29,4 +32,7 @@ tokio-tungstenite = { workspace = true }
 tokio-util = { workspace = true }
 tracing-core = { workspace = true }
 tracing-subscriber = { workspace = true }
+
+# Tensor Data Service
+burn-tensor = { path = "../burn-tensor", version = "0.18.0", optional = true }
 

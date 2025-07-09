@@ -1,6 +1,6 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, str::FromStr};
 
-use crate::network::{NetworkClient, NetworkMessage, NetworkServer, NetworkStream};
+use crate::network::{NetworkAddress, NetworkClient, NetworkMessage, NetworkServer, NetworkStream};
 use axum::{
     Router,
     extract::{
@@ -11,6 +11,7 @@ use axum::{
 };
 use burn_common::future::DynFut;
 use futures::{SinkExt, StreamExt};
+use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async_with_config,
@@ -38,10 +39,42 @@ pub fn init_logging() {
     let _ = registry().with(layer).try_init();
 }
 
+/// Allows nodes to find each other
+/// TODO url validation and shouldn't be ws spesific
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct WsAddress{
+    /// A url that includes the port and the ws:// prefix.
+    inner: String
+}
+
+impl FromStr for WsAddress {
+    type Err = String; // TODO make Network Error type
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts = s.split("://").collect::<Vec<&str>>();
+        let num_parts = parts.len();
+        let url = if num_parts == 2 {
+            if parts[0] == "ws" {
+                s.to_owned()
+            } else {
+                panic!("Invalid prefix: {}", parts[0]);
+            }
+        } else if num_parts == 1 {
+            format!("ws://{}", s)
+        } else {
+            panic!("Invalid url: {}", s);
+        };
+
+        Ok(Self {
+            inner: url
+        })
+    }
+}
+
 pub struct WsClient;
 impl NetworkClient for WsClient {
-    type ClientStream = WsClientStream;
-    fn connect(address: String) -> DynFut<Option<WsClientStream>> {
+    type Stream = WsClientStream;
+    fn connect(address: NetworkAddress, route: &str) -> DynFut<Option<WsClientStream>> {
+        let address = format!("{}/{}", address, route);
         Box::pin(connect_ws(address))
     }
 }
@@ -89,7 +122,7 @@ pub struct WsClientStream {
 
 impl<S: Clone + Send + Sync + 'static> NetworkServer for WsServer<S> {
     type State = S;
-    type ServerStream = WsServerStream;
+    type Stream = WsServerStream;
 
     fn new(port: u16) -> Self {
         Self {

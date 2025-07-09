@@ -1,11 +1,11 @@
 use core::ops::Range;
 use std::sync::Arc;
 
-use crate::global::{
-    client::data_server::{TensorDataClient, TensorDataService},
-    shared::base::{NodeAddress, RingAllReduceStrategy},
+use crate::global::shared::base::RingAllReduceStrategy;
+use burn_network::{
+    data_service::{TensorDataClient, TensorDataService},
+    network::{NetworkClient, NetworkServer, NetworkAddress},
 };
-use burn_network::network::{NetworkClient, NetworkServer};
 use burn_tensor::{TensorMetadata, backend::Backend};
 
 // https://blog.dailydoseofds.com/p/all-reduce-and-ring-reduce-for-model
@@ -88,7 +88,7 @@ async fn do_cycles<B, C, S>(
     transfer_counter: &mut u32,
     send_slice_idx: &mut usize,
     is_phase_one: bool,
-    next_node: NodeAddress,
+    next_node: NetworkAddress,
     data_client: &TensorDataClient<B, C, S>,
     device: &B::Device,
 ) where
@@ -111,7 +111,7 @@ async fn do_cycles<B, C, S>(
         let download = {
             let data_client = data_client.clone();
             let next_node = next_node.clone();
-            tokio::spawn(async move { data_client.download_tensor(&next_node, transfer_id).await })
+            tokio::spawn(async move { data_client.download_tensor(next_node, transfer_id).await })
         };
 
         upload.await.unwrap();

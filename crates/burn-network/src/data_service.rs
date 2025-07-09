@@ -1,4 +1,4 @@
-use burn_network::network::{NetworkClient, NetworkServer, NetworkStream};
+use crate::network::{NetworkAddress, NetworkClient, NetworkServer, NetworkStream};
 use burn_tensor::{TensorData, backend::Backend};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
@@ -6,9 +6,7 @@ use tokio::sync::Mutex;
 use tokio::{runtime::Runtime, sync::Notify};
 use tokio_util::sync::CancellationToken;
 
-use crate::global::shared::base::NodeAddress;
-
-pub(crate) struct TensorDataClient<B, C, S>
+pub struct TensorDataClient<B, C, S>
 where
     B: Backend,
     C: NetworkClient,
@@ -19,7 +17,7 @@ where
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub(crate) struct TensorTransferId(u32);
+pub struct TensorTransferId(u32);
 
 impl From<u32> for TensorTransferId {
     fn from(value: u32) -> Self {
@@ -33,11 +31,11 @@ enum Message {
     Data(TensorData),
 }
 
-pub(crate) struct TensorDataService<B: Backend, C: NetworkClient> {
+pub struct TensorDataService<B: Backend, C: NetworkClient> {
     /// Maps tensor transfer IDs to their exposed state.
     pub exposed_tensors: Mutex<HashMap<TensorTransferId, TensorExposeState>>,
     /// Maps node addresses to their WebSocket streams.
-    pub streams: Mutex<HashMap<NodeAddress, Arc<Mutex<C::ClientStream>>>>,
+    pub streams: Mutex<HashMap<NetworkAddress, Arc<Mutex<C::Stream>>>>,
     /// Notify when a new tensor is exposed.
     pub new_tensor_notify: Arc<Notify>,
 
@@ -55,11 +53,11 @@ pub struct TensorExposeState {
     pub cur_download_count: u32,
 }
 
-impl<B, N, S> TensorDataClient<B, N, S>
+impl<B, C, S> TensorDataClient<B, C, S>
 where
     B: Backend,
-    N: NetworkClient,
-    S: NetworkServer<State = Arc<TensorDataService<B, N>>>,
+    C: NetworkClient,
+    S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
 {
     pub fn new(runtime: &Runtime, cancel_token: CancellationToken, data_server_port: u16) -> Self {
         let state = Arc::new(TensorDataService::new(cancel_token.clone()));
@@ -74,7 +72,7 @@ where
     /// Start the server on the given address.
     /// This will block until the server is stopped with the `cancel_token`.
     async fn start(
-        state: Arc<TensorDataService<B, N>>,
+        state: Arc<TensorDataService<B, C>>,
         cancel_token: CancellationToken,
         port: u16,
     ) {
@@ -82,7 +80,7 @@ where
 
         server = server.route(
             "/data",
-            async |state: Arc<TensorDataService<B, N>>, stream: S::ServerStream| {
+            async |state: Arc<TensorDataService<B, C>>, stream: S::Stream| {
                 Self::handle_stream(&state, stream).await;
             },
         );
@@ -96,7 +94,7 @@ where
     }
 
     /// Exposes a tensor to the data server, allowing it to be downloaded by other nodes.
-    pub(crate) async fn expose(
+    pub async fn expose(
         &self,
         tensor: <B as Backend>::FloatTensorPrimitive,
         max_downloads: u32,
@@ -106,20 +104,20 @@ where
     }
 
     /// Downloads a tensor that is exposed on another server. Requires a Tokio 1.x runtime
-    pub(crate) async fn download_tensor(
+    pub async fn download_tensor(
         &self,
-        remote: &NodeAddress,
+        remote: NetworkAddress,
         transfer_id: TensorTransferId,
     ) -> Option<TensorData> {
         self.state.download_tensor(remote, transfer_id).await
     }
 
-    pub(crate) async fn close(&mut self) {
+    pub async fn close(&mut self) {
         self.state.close().await;
     }
 
     /// Handle incoming connections for downloading tensors.
-    pub async fn handle_stream(state: &TensorDataService<B, N>, mut stream: S::ServerStream) {
+    pub async fn handle_stream(state: &TensorDataService<B, C>, mut stream: S::Stream) {
         log::info!("[Data Handler] New connection for download.");
 
         while !state.cancel_token.is_cancelled() {
@@ -148,7 +146,7 @@ where
     }
 }
 
-impl<B: Backend, N: NetworkClient> TensorDataService<B, N> {
+impl<B: Backend, C: NetworkClient> TensorDataService<B, C> {
     pub fn new(cancel_token: CancellationToken) -> Self {
         Self {
             exposed_tensors: Mutex::new(HashMap::new()),
@@ -160,7 +158,7 @@ impl<B: Backend, N: NetworkClient> TensorDataService<B, N> {
     }
 
     /// Exposes a tensor to the data server, allowing it to be downloaded by other nodes.
-    pub(crate) async fn expose(
+    pub async fn expose(
         &self,
         tensor: <B as Backend>::FloatTensorPrimitive,
         max_downloads: u32,
@@ -181,7 +179,7 @@ impl<B: Backend, N: NetworkClient> TensorDataService<B, N> {
         self.new_tensor_notify.notify_waiters();
     }
 
-    pub(crate) async fn close(&self) {
+    pub async fn close(&self) {
         // Send a closing message to every open WebSocket stream
 
         let mut streams = self.streams.lock().await;
@@ -196,12 +194,12 @@ impl<B: Backend, N: NetworkClient> TensorDataService<B, N> {
     }
 
     /// Downloads a tensor that is exposed on another server. Requires a Tokio 1.x runtime
-    pub(crate) async fn download_tensor(
+    pub async fn download_tensor(
         &self,
-        remote: &NodeAddress,
+        remote: NetworkAddress,
         transfer_id: TensorTransferId,
     ) -> Option<TensorData> {
-        log::info!("Downloading next tensor from {:?}", remote.0.as_str());
+        log::info!("Downloading next tensor from {:?}", remote);
 
         let stream = self.get_data_stream(remote).await;
         let mut stream = stream.lock().await;
@@ -233,16 +231,15 @@ impl<B: Backend, N: NetworkClient> TensorDataService<B, N> {
     }
 
     /// Get the WebSocket stream for the given address, or create a new one if it doesn't exist.
-    async fn get_data_stream(&self, address: &NodeAddress) -> Arc<Mutex<N::ClientStream>> {
+    async fn get_data_stream(&self, address: NetworkAddress) -> Arc<Mutex<C::Stream>> {
         let mut streams = self.streams.lock().await;
-        match streams.get(address) {
+        match streams.get(&address) {
             Some(stream) => stream.clone(),
             None => {
                 // Open a new WebSocket connection to the address
-                let address_request = format!("{}/{}", address.0.as_str(), "data");
-                let stream = N::connect(address_request).await;
+                let stream = C::connect(address.clone(), "data").await;
                 let Some(stream) = stream else {
-                    panic!("Failed to connect to data server at {}", address.0.as_str());
+                    panic!("Failed to connect to data server at {:?}", address);
                 };
 
                 let stream = Arc::new(Mutex::new(stream));

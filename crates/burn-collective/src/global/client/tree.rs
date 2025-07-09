@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
 use crate::global::{
-    client::data_server::{TensorDataClient, TensorDataService},
     shared::base::TreeAllReduceStrategy,
 };
-use burn_network::network::{NetworkClient, NetworkServer};
+use burn_network::{data_service::{TensorDataClient, TensorDataService}, network::{NetworkClient, NetworkServer}};
 use burn_tensor::backend::Backend;
 use futures::{StreamExt, stream::FuturesUnordered};
 
@@ -26,7 +25,7 @@ where
         .map(|child| {
             let data_service = data_service.clone();
             async move {
-                let data = data_service.download_tensor(child, 0.into()).await.unwrap();
+                let data = data_service.download_tensor(child.clone(), 0.into()).await.unwrap();
 
                 B::float_from_data(data, device)
             }
@@ -40,7 +39,7 @@ where
     }
 
     // Transfer #1: Expose the result to the parent
-    if let Some(parent) = &strategy.parent {
+    if let Some(parent) = strategy.parent {
         data_service.expose(result.clone(), 1, 0.into()).await;
 
         // Transfer #2: Download final tensor from parent
