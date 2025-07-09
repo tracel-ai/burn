@@ -209,8 +209,6 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.greater_elem(scalar)`                                   | `tensor.gt(scalar)`                            |
 | `tensor.greater_equal(other)`                                   | `tensor.ge(other)`                             |
 | `tensor.greater_equal_elem(scalar)`                             | `tensor.ge(scalar)`                            |
-| `tensor.is_close(other, atol, rtol)`                            | `torch.isclose(tensor, other, atol, rtol)`     |
-| `tensor.is_nan()`                                               | `torch.isnan(tensor)`                          |
 | `tensor.lower(other)`                                           | `tensor.lt(other)`                             |
 | `tensor.lower_elem(scalar)`                                     | `tensor.lt(scalar)`                            |
 | `tensor.lower_equal(other)`                                     | `tensor.le(other)`                             |
@@ -266,34 +264,38 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 Those operations are only available for `Float` tensors.
 
 | Burn API                                     | PyTorch Equivalent                      |
-| -------------------------------------------- | --------------------------------------- |
-| `tensor.cast(dtype)`                         | `tensor.to(dtype)`                      |
-| `tensor.ceil()`                              | `tensor.ceil()`                         |
-| `tensor.cos()`                               | `tensor.cos()`                          |
-| `tensor.cosh()`                              | `tensor.cosh()`                         |
-| `tensor.erf()`                               | `tensor.erf()`                          |
-| `tensor.exp()`                               | `tensor.exp()`                          |
-| `tensor.floor()`                             | `tensor.floor()`                        |
-| `tensor.from_floats(floats, device)`         | N/A                                     |
-| `tensor.from_full_precision(tensor)`         | N/A                                     |
-| `tensor.int()`                               | Similar to `tensor.to(torch.long)`      |
-| `tensor.log()`                               | `tensor.log()`                          |
-| `tensor.log1p()`                             | `tensor.log1p()`                        |
-| `tensor.matmul(other)`                       | `tensor.matmul(other)`                  |
-| `tensor.random(shape, distribution, device)` | N/A                                     |
-| `tensor.random_like(distribution)`           | `torch.rand_like()` only uniform        |
-| `tensor.recip()` or `1.0 / tensor`           | `tensor.reciprocal()` or `1.0 / tensor` |
-| `tensor.round()`                             | `tensor.round()`                        |
-| `tensor.sin()`                               | `tensor.sin()`                          |
-| `tensor.sinh()`                              | `tensor.sinh()`                         |
-| `tensor.sqrt()`                              | `tensor.sqrt()`                         |
-| `tensor.tan()`                               | `tensor.tan()`                          |
-| `tensor.tanh()`                              | `tensor.tanh()`                         |
-| `tensor.to_full_precision()`                 | `tensor.to(torch.float)`                |
-| `tensor.var(dim)`                            | `tensor.var(dim)`                       |
-| `tensor.var_bias(dim)`                       | N/A                                     |
-| `tensor.var_mean(dim)`                       | N/A                                     |
-| `tensor.var_mean_bias(dim)`                  | N/A                                     |
+| -------------------------------------------- | ---------------------------------------    |
+| `tensor.cast(dtype)`                         | `tensor.to(dtype)`                         |
+| `tensor.ceil()`                              | `tensor.ceil()`                            |
+| `tensor.cos()`                               | `tensor.cos()`                             |
+| `tensor.cosh()`                              | `tensor.cosh()`                            |
+| `tensor.erf()`                               | `tensor.erf()`                             |
+| `tensor.exp()`                               | `tensor.exp()`                             |
+| `tensor.floor()`                             | `tensor.floor()`                           |
+| `tensor.from_floats(floats, device)`         | N/A                                        |
+| `tensor.from_full_precision(tensor)`         | N/A                                        |
+| `tensor.int()`                               | Similar to `tensor.to(torch.long)`         |
+| `tensor.is_close(other, atol, rtol)`         | `torch.isclose(tensor, other, atol, rtol)` |
+| `tensor.is_finite()`                         | `torch.isfinite(tensor)`                   |
+| `tensor.is_inf()`                            | `torch.isinf(tensor)`                      |
+| `tensor.is_nan()`                            | `torch.isnan(tensor)`                      |
+| `tensor.log()`                               | `tensor.log()`                             |
+| `tensor.log1p()`                             | `tensor.log1p()`                           |
+| `tensor.matmul(other)`                       | `tensor.matmul(other)`                     |
+| `tensor.random(shape, distribution, device)` | N/A                                        |
+| `tensor.random_like(distribution)`           | `torch.rand_like()` only uniform           |
+| `tensor.recip()` or `1.0 / tensor`           | `tensor.reciprocal()` or `1.0 / tensor`    |
+| `tensor.round()`                             | `tensor.round()`                           |
+| `tensor.sin()`                               | `tensor.sin()`                             |
+| `tensor.sinh()`                              | `tensor.sinh()`                            |
+| `tensor.sqrt()`                              | `tensor.sqrt()`                            |
+| `tensor.tan()`                               | `tensor.tan()`                             |
+| `tensor.tanh()`                              | `tensor.tanh()`                            |
+| `tensor.to_full_precision()`                 | `tensor.to(torch.float)`                   |
+| `tensor.var(dim)`                            | `tensor.var(dim)`                          |
+| `tensor.var_bias(dim)`                       | N/A                                        |
+| `tensor.var_mean(dim)`                       | N/A                                        |
+| `tensor.var_mean_bias(dim)`                  | N/A                                        |
 
 ### Int Operations
 
