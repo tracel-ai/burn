@@ -1,7 +1,6 @@
 use burn_network::network::{NetworkClient, NetworkServer};
 use burn_tensor::{ElementConversion, backend::Backend};
 use std::{marker::PhantomData, sync::Arc};
-use tokio::runtime::Runtime;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -16,6 +15,7 @@ use crate::{
         },
         shared::base::{NodeAddress, RemoteRequest, RemoteResponse},
     },
+    local_server::get_server_runtime,
 };
 
 pub(crate) struct GlobalCollectiveClient<B, C, S>
@@ -28,7 +28,6 @@ where
     data_client_address: Arc<NodeAddress>,
     worker: GlobalClientWorker<C>,
     num_global_devices: Option<u32>,
-    _runtime: Runtime,
     _phantom_data: PhantomData<B>,
 }
 
@@ -41,10 +40,7 @@ where
     pub fn new(server_address: &str, client_address: &str, data_server_port: u16) -> Self {
         let cancel_token = CancellationToken::new();
 
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap();
+        let runtime = get_server_runtime();
 
         let data_client = TensorDataClient::new(&runtime, cancel_token.clone(), data_server_port);
 
@@ -55,7 +51,6 @@ where
             data_client_address: Arc::new(NodeAddress(client_address.to_owned())),
             worker,
             num_global_devices: None,
-            _runtime: runtime,
             _phantom_data: PhantomData,
         }
     }
@@ -79,7 +74,7 @@ where
     }
 
     pub async fn all_reduce(
-        &mut self,
+        &self,
         tensor: B::FloatTensorPrimitive,
         params: GlobalAllReduceParams,
         device: &B::Device,
@@ -107,7 +102,7 @@ where
             }
             RemoteResponse::Error(err) => panic!("Global collective server error: {err}"),
             resp => {
-                panic!("The response to a register request should be a RegisterAck, not {resp:?}")
+                panic!("The response to a all-reduce request should be a strategy, not {resp:?}")
             }
         };
 

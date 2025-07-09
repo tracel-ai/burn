@@ -34,9 +34,9 @@ pub struct GlobalRegisterParams {
     pub node_id: u32,
     /// The number of nodes globally. Should be the same for all nodes.
     pub num_nodes: u32,
-    /// The url for the websocket conneciton to this client. Includes the port and the ws:// prefix.
+    /// The url for the websocket connection to this client. Includes the port and the ws:// prefix.
     pub server_url: String,
-    /// The url for the websocket conneciton to this client. Includes the port and the ws:// prefix.
+    /// The url for the websocket connection to this client. Includes the port and the ws:// prefix.
     pub client_url: String,
     /// The port on which to open the tensor data service for other clients. Should match the port
     /// given in the client url.
@@ -56,10 +56,10 @@ pub fn reset_collective<B: Backend>() {
 }
 
 /// Registers a "node". `num_nodes` must be the same as the other calls to register,
-/// and `id` must be unique.
-pub fn register<B: Backend>(id: u32, params: RegisterParams) {
+/// and `device_id` must be unique.
+pub fn register<B: Backend>(device_id: u32, params: RegisterParams) {
     let mut client = get_collective_client::<B>();
-    client.register(id, params);
+    client.register(device_id, params);
 }
 
 /// Calls for an all-reduce operation with the given parameters, and returns the result.

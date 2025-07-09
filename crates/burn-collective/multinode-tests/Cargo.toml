@@ -15,10 +15,8 @@ path = "src/bin/client.rs"
 [dependencies]
 burn = { path = "../../burn", features = ["collective", "ndarray"] }
 burn-common = { path = "../../burn-common" }
-tokio = { version = "1.44", features = ["rt-multi-thread", "process"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "process"] }
 
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-log = "0.4.27"
-futures = "0.3.31"
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 

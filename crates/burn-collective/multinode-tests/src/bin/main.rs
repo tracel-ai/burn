@@ -27,7 +27,7 @@ async fn main() {
     fs::create_dir_all(test_files_dir).expect("Couldn't create test_files directory");
 
     let server_out_path = format!("{test_files_dir}/server_out.txt");
-    let server_out = File::create(server_out_path).expect("Could't create sever ouput file");
+    let server_out = File::create(server_out_path).expect("Could't create sever output file");
 
     let topology = vec![5, 5, 5, 5, 5];
     let tensor_shape = Shape { dims: vec![4] };
@@ -143,7 +143,7 @@ fn launch_clients(
         let file = File::create(&input_filename).expect("Failed to create file");
         to_writer_pretty(file, &data).expect("Failed to write JSON");
 
-        let client_out = File::create(output_filename).expect("Could't create client ouput file");
+        let client_out = File::create(output_filename).expect("Could't create client output file");
 
         let client: Child = Command::new("cargo")
             .args(["run", "--bin", "client", "--", &input_filename])

@@ -1,10 +1,10 @@
 #[cfg(all(
     test,
     any(
-        feature = "ndarray",
-        feature = "wgpu",
-        feature = "cuda",
-        feature = "metal"
+        feature = "test-ndarray",
+        feature = "test-wgpu",
+        feature = "test-cuda",
+        feature = "test-metal"
     )
 ))]
 mod tests {
@@ -15,19 +15,19 @@ mod tests {
 
     use serial_test::serial;
 
-    #[cfg(feature = "ndarray")]
+    #[cfg(feature = "test-ndarray")]
     pub type TestBackend = burn_ndarray::NdArray<f32>;
 
-    #[cfg(feature = "cuda")]
+    #[cfg(feature = "test-cuda")]
     pub type TestBackend = burn_cuda::Cuda<f32>;
 
-    #[cfg(feature = "wgpu")]
+    #[cfg(feature = "test-wgpu")]
     pub type TestBackend = burn_wgpu::Wgpu<f32>;
 
-    #[cfg(feature = "metal")]
+    #[cfg(feature = "test-metal")]
     pub type TestBackend = burn_wgpu::Wgpu<f32>;
 
-    #[cfg(feature = "vulkan")]
+    #[cfg(feature = "test-vulkan")]
     pub type TestBackend = burn_wgpu::Wgpu<f32>;
 
     use crate::{

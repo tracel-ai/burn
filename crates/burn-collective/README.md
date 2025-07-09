@@ -11,11 +11,11 @@ Threads can register to use collective operations with `register()`
 When a collective operation is called N times (N calls to `register`), 
 the collective server starts the collective operation. Every tensor passed is aggregated.  
 
-## Stategies
+## Srtategies
 
 ### Centralized
 
-An arbitrary tensor is designated as the base, and all others are transfered to the base's device.
+An arbitrary tensor is designated as the base, and all others are transferred to the base's device.
 The operation is done on that device.
 The resulting tensor then sent to the device corresponding to each original tensor.
 
@@ -79,7 +79,7 @@ x  3  3->
 This is done so that every device is both sending and receiving data at any moment. 
 This is an important part of this strategy's advantages.
 
-The ring strategy takes full advantage of the bandwith available. The latency scales with the 
+The ring strategy takes full advantage of the bandwidth available. The latency scales with the 
 number of devices. 
 
 So when the tensors are very small, or when the number of devices is very large, the latency is more 

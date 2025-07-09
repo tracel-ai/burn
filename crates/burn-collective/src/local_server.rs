@@ -57,7 +57,7 @@ pub(crate) enum Message<B: Backend> {
         callback: SyncSender<B::FloatTensorPrimitive>,
     },
     Register {
-        id: u32,
+        device_id: u32,
         params: RegisterParams,
         callback: SyncSender<()>,
     },
@@ -71,10 +71,24 @@ pub(crate) enum Message<B: Backend> {
 #[derive(Clone)]
 pub(crate) struct LocalCollectiveClient<B: Backend> {
     channel: SyncSender<Message<B>>,
-    _runtime: Arc<Runtime>,
 }
 
+// HashMap for each server by Backend type
 static STATE: Mutex<Option<HashMap<TypeId, Box<dyn Any + Send + Sync>>>> = Mutex::new(None);
+
+// Runtime for servers
+static SERVER_RUNTIME: Mutex<Option<Arc<Runtime>>> = Mutex::new(None);
+
+pub(crate) fn get_server_runtime() -> Arc<Runtime> {
+    let mut server = SERVER_RUNTIME.lock().unwrap();
+    if server.is_none() {
+        // Initialize runtime
+        let _runtime = Arc::new(Builder::new_multi_thread().enable_all().build().unwrap());
+        *server = Some(_runtime);
+    }
+
+    server.as_ref().unwrap().clone()
+}
 
 pub(crate) fn get_collective_client<B: Backend>() -> LocalCollectiveClient<B> {
     let mut state = STATE.lock().unwrap();
@@ -103,12 +117,12 @@ impl<B: Backend> LocalCollectiveClient<B> {
         self.channel.send(Message::Reset).unwrap();
     }
 
-    pub fn register(&mut self, id: u32, params: RegisterParams) {
+    pub fn register(&mut self, device_id: u32, params: RegisterParams) {
         let (callback, rec) = std::sync::mpsc::sync_channel::<()>(1);
 
         self.channel
             .send(Message::Register {
-                id,
+                device_id,
                 params,
                 callback,
             })
@@ -165,9 +179,9 @@ impl<B: Backend> LocalCollectiveServer<B> {
     pub(crate) fn start() -> LocalCollectiveClient<B> {
         let (sender, rec) = std::sync::mpsc::sync_channel::<Message<B>>(50);
 
-        let _runtime = Arc::new(Builder::new_multi_thread().enable_all().build().unwrap());
+        let runtime = get_server_runtime();
 
-        _runtime.spawn(async {
+        runtime.spawn(async {
             let mut aggregator = LocalCollectiveServer::new(rec);
 
             while let Ok(message) = aggregator.message_rec.recv() {
@@ -177,10 +191,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
             panic!("Aggregator message failed");
         });
 
-        LocalCollectiveClient {
-            channel: sender,
-            _runtime,
-        }
+        LocalCollectiveClient { channel: sender }
     }
 
     async fn process_message(&mut self, message: Message<B>) {
@@ -194,10 +205,13 @@ impl<B: Backend> LocalCollectiveServer<B> {
                     .await
             }
             Message::Register {
-                id,
+                device_id,
                 params,
                 callback,
-            } => self.process_register_message(id, params, callback).await,
+            } => {
+                self.process_register_message(device_id, params, callback)
+                    .await
+            }
             Message::Reset => self.reset(),
             Message::Finish { id, callback } => {
                 self.process_finish_message(id, callback).await;

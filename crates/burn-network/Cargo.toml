@@ -16,17 +16,17 @@ workspace = true
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.18.0", default-features = true }
+axum = { workspace = true, features = ["ws"] }
+bytes = { workspace = true }
+futures = { workspace = true }
+futures-util = { workspace = true }
 log = { workspace = true }
-tokio = { version = "1.45", features = ["rt-multi-thread", "sync", "signal"] }
+rmp-serde = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_bytes = { workspace = true }
-rmp-serde = { workspace = true }
-futures-util = { version = "0.3" }
-axum = { version = "0.8.3", features = ["ws"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "sync", "signal"] }
+tokio-tungstenite = { workspace = true }
+tokio-util = { workspace = true }
 tracing-core = { workspace = true }
 tracing-subscriber = { workspace = true }
-tokio-tungstenite = { version = "0.26" }
-bytes = { version = "1.0" }
-futures = { version = "0.3" }
-tokio-util = "0.7.15"
 

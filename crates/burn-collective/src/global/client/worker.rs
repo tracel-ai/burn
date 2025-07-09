@@ -270,7 +270,7 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
             .expect("Can send the close message on the websocket.");
     }
 
-    pub async fn request(&mut self, req: RemoteRequest) -> RemoteResponse {
+    pub async fn request(&self, req: RemoteRequest) -> RemoteResponse {
         let (callback, mut response_recv) = tokio::sync::mpsc::channel::<RemoteResponse>(10);
         let client_req = ClientRequest::new(req, callback);
         self.request_sender.send(client_req).await.unwrap();

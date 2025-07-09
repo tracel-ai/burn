@@ -120,7 +120,7 @@ async fn do_cycles<B, C, S>(
             let tensor = B::float_from_data(download.unwrap(), device);
             slices[recv_slice_idx] = B::float_add(slices[recv_slice_idx].clone(), tensor);
         } else {
-            // TODO check dimentions of new slice
+            // TODO check dimensions of new slice
             slices[recv_slice_idx] = B::float_from_data(download.unwrap(), device);
         }
 

@@ -8,4 +8,4 @@ pub use api::*;
 
 pub mod global;
 
-pub mod test;
+mod tests;

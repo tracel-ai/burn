@@ -75,7 +75,7 @@ pub(crate) fn all_reduce_ring<B: Backend>(
     results
 }
 
-/// Get the dimention to slice across: the largest dimention of the shape
+/// Get the dimension to slice across: the largest dimension of the shape
 pub(crate) fn get_slice_dim(shape: &Shape) -> usize {
     // get dimension with greatest size
     shape
