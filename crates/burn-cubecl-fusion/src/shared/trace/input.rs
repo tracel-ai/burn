@@ -26,7 +26,9 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
 
     pub fn run(self, context: &mut Context<'_, CubeFusionHandle<R>>, plan: &mut LaunchPlan<'a, R>) {
         for (pos, (tensor_relative, precision)) in self.resources.inputs.iter().enumerate() {
-            let mut tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
+            // Get mutable ref to get/keep an updated tensor representation
+            let tensor_global: &mut TensorIr =
+                context.tensors.get_mut(&tensor_relative.id).unwrap();
             let mut handle = context
                 .handles
                 .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
@@ -54,7 +56,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 vectorization: 1,
                 broadcated: false,
             });
-            plan.global_inputs.push(tensor_global);
+            plan.global_inputs.push(tensor_global.clone());
         }
     }
 

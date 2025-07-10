@@ -157,6 +157,34 @@ mod tests {
     }
 
     #[test]
+    fn should_support_multiple_reshapes_cloned_tensor() {
+        let device = Default::default();
+
+        let lhs = TestTensorInt::<1>::arange(0..16, &device).reshape([4, 4]);
+        // fusion should preserve correct strides when operating on the same tensor
+        let rhs = lhs.clone();
+
+        let lhs = lhs.reshape([4, 4, 1]);
+        let rhs = rhs.reshape([1, 4, 4]);
+
+        let p = lhs.mul(rhs);
+
+        let s = p.sum_dim(1);
+
+        let out = s.reshape([4, 4]);
+
+        out.into_data().assert_eq(
+            &TensorData::from([
+                [56, 62, 68, 74],
+                [152, 174, 196, 218],
+                [248, 286, 324, 362],
+                [344, 398, 452, 506],
+            ]),
+            false,
+        );
+    }
+
+    #[test]
     fn should_support_reshape_int() {
         let data = TensorData::from([0, 1, 2]);
         let tensor = TestTensorInt::<1>::from_data(data, &Default::default());
