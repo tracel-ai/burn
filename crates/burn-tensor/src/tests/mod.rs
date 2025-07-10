@@ -253,6 +253,8 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_remainder!();
         burn_tensor::testgen_cartesian_grid!();
         burn_tensor::testgen_nan!();
+        burn_tensor::testgen_inf!();
+        burn_tensor::testgen_finite!();
         burn_tensor::testgen_round!();
         burn_tensor::testgen_floor!();
         burn_tensor::testgen_ceil!();
@@ -319,7 +321,6 @@ macro_rules! testgen_with_bool_param {
         burn_tensor::testgen_full!();
         burn_tensor::testgen_map_comparison!();
         burn_tensor::testgen_mask!();
-        burn_tensor::testgen_nan!();
         burn_tensor::testgen_repeat_dim!();
         burn_tensor::testgen_repeat!();
         burn_tensor::testgen_reshape!();

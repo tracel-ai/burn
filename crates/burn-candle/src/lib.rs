@@ -93,6 +93,8 @@ mod tests {
     burn_tensor::testgen_argwhere_nonzero!();
     burn_tensor::testgen_sign!();
     burn_tensor::testgen_nan!();
+    burn_tensor::testgen_inf!();
+    burn_tensor::testgen_finite!();
     burn_tensor::testgen_round!();
     burn_tensor::testgen_floor!();
     burn_tensor::testgen_ceil!();

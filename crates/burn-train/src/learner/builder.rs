@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -57,7 +57,8 @@ where
     num_loggers: usize,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
     early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
-    summary_metrics: HashSet<String>,
+    // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
+    summary_metrics: BTreeSet<String>,
     summary: bool,
 }
 
@@ -105,7 +106,7 @@ where
                     .build(),
             ),
             early_stopping: None,
-            summary_metrics: HashSet::new(),
+            summary_metrics: BTreeSet::new(),
             summary: false,
         }
     }
