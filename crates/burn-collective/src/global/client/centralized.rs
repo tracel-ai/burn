@@ -1,25 +1,22 @@
 use std::sync::Arc;
 
+use crate::global::shared::base::CentralizedAllReduceStrategy;
 use crate::global::shared::base::CentralizedAllReduceStrategy::{Central, Peripheral};
-use crate::global::{
-    shared::base::CentralizedAllReduceStrategy,
-};
-use burn_network::data_service::{TensorDataClient, TensorDataService};
-use burn_network::network::{NetworkClient, NetworkServer};
+use burn_network::data_service::TensorDataService;
+use burn_network::network::Network;
 use burn_tensor::backend::Backend;
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
 
-pub(crate) async fn centralized_all_reduce_sum<B, C, S>(
-    data_service: &TensorDataClient<B, C, S>,
+pub(crate) async fn centralized_all_reduce_sum<B, N>(
+    data_service: &Arc<TensorDataService<B, N>>,
     tensor: B::FloatTensorPrimitive,
     device: &B::Device,
     strategy: CentralizedAllReduceStrategy,
 ) -> B::FloatTensorPrimitive
 where
     B: Backend,
-    C: NetworkClient,
-    S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
+    N: Network,
 {
     match strategy {
         Central { other_nodes } => {

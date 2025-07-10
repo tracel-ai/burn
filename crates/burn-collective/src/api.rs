@@ -2,7 +2,10 @@ use burn_network::network::NetworkAddress;
 use burn_tensor::{Tensor, backend::Backend};
 use serde::{Deserialize, Serialize};
 
-use crate::local_server::{LocalCollectiveClient, get_collective_client};
+use crate::{
+    global::server::base::GlobalCollectiveError,
+    local_server::{LocalCollectiveClient, get_collective_client},
+};
 
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum AllReduceStrategy {
@@ -27,6 +30,27 @@ pub struct AllReduceParams {
     pub kind: ReduceKind,
     pub local_strategy: AllReduceStrategy,
     pub global_strategy: Option<AllReduceStrategy>,
+}
+
+#[allow(unused)]
+#[derive(Debug)]
+pub(crate) enum CollectiveError {
+    // Cannot un-register a node twice
+    MultipleUnregister,
+    // Cannot register a node twice
+    MultipleRegister,
+    // Trying to register a different way than is currently being done
+    RegisterParamsMismatch,
+    // Trying to aggregate a different way than is currently being done
+    AllReduceParamsMismatch,
+    // Couldn't send a callback to a client
+    CallbackFailed,
+    // The Global collective server had an error
+    Global(GlobalCollectiveError),
+
+    // TODO handle case where register is not the first operation!
+    #[allow(unused)]
+    Other(String),
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]

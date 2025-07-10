@@ -1,60 +1,74 @@
-use burn_network::{data_service::{TensorDataClient, TensorDataService}, network::{NetworkClient, NetworkServer, NetworkAddress}};
+use burn_network::data_service::TensorDataServer;
+use burn_network::network::Network;
+use burn_network::{
+    data_service::TensorDataService,
+    network::{NetworkAddress, NetworkServer},
+};
 use burn_tensor::{ElementConversion, backend::Backend};
 use std::{marker::PhantomData, sync::Arc};
 use tokio_util::sync::CancellationToken;
 
+use crate::global::server::base::GlobalCollectiveError;
 use crate::{
     GlobalAllReduceParams, ReduceKind, RegisterParams,
     global::{
         client::{
-            centralized::centralized_all_reduce_sum,
-            ring::ring_all_reduce_sum,
-            tree::tree_all_reduce_sum,
-            worker::GlobalClientWorker,
+            centralized::centralized_all_reduce_sum, ring::ring_all_reduce_sum,
+            tree::tree_all_reduce_sum, worker::GlobalClientWorker,
         },
         shared::base::{RemoteRequest, RemoteResponse},
     },
     local_server::get_server_runtime,
 };
 
-pub(crate) struct GlobalCollectiveClient<B, C, S>
+pub(crate) struct GlobalCollectiveClient<B, N>
 where
     B: Backend,
-    C: NetworkClient,
-    S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
+    N: Network,
 {
-    data_service: TensorDataClient<B, C, S>,
+    data_service: Arc<TensorDataService<B, N>>,
     data_client_address: Arc<NetworkAddress>,
-    worker: GlobalClientWorker<C>,
+    worker: GlobalClientWorker<N::Client>,
     num_global_devices: Option<u32>,
-    _phantom_data: PhantomData<B>,
+    _n: PhantomData<N>,
 }
 
-impl<B, C, S> GlobalCollectiveClient<B, C, S>
+impl<B, N> GlobalCollectiveClient<B, N>
 where
     B: Backend,
-    C: NetworkClient,
-    S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
+    N: Network,
 {
-    pub fn new(server_address: &NetworkAddress, client_address: &NetworkAddress, data_server_port: u16) -> Self {
+    pub fn new(
+        server_address: &NetworkAddress,
+        client_address: &NetworkAddress,
+        data_server_port: u16,
+    ) -> Self {
         let cancel_token = CancellationToken::new();
 
-        let runtime = get_server_runtime();
+        let data_service = Arc::new(TensorDataService::new(cancel_token.clone()));
 
-        let data_client = TensorDataClient::new(&runtime, cancel_token.clone(), data_server_port);
+        let runtime = get_server_runtime();
+        let server = N::Server::new(data_server_port)
+            .route_tensor_data_service(data_service.clone())
+            .serve({
+                let cancel_token = cancel_token.clone();
+                async move { cancel_token.cancelled().await }
+            });
+
+        runtime.spawn(server);
 
         let worker = GlobalClientWorker::new(&runtime, cancel_token.clone(), server_address);
 
         Self {
-            data_service: data_client,
+            data_service,
             data_client_address: Arc::new(client_address.clone()),
             worker,
             num_global_devices: None,
-            _phantom_data: PhantomData,
+            _n: PhantomData,
         }
     }
 
-    pub async fn register(&mut self, params: RegisterParams) {
+    pub async fn register(&mut self, params: RegisterParams) -> Result<(), GlobalCollectiveError> {
         let node_addr = self.data_client_address.as_ref().clone();
         let global_params = params
             .global_params
@@ -65,11 +79,20 @@ where
             num_nodes: global_params.num_nodes,
             num_local_devices: params.num_devices,
         };
-        let resp = self.worker.request(req).await;
-        let RemoteResponse::RegisterAck { num_global_devices } = resp else {
-            panic!("The response to a register request should be a RegisterAck, not {resp:?}");
-        };
-        self.num_global_devices = Some(num_global_devices);
+        match self.worker.request(req).await {
+            RemoteResponse::RegisterAck { num_global_devices } => {
+                self.num_global_devices = Some(num_global_devices);
+            }
+            RemoteResponse::Error(err) => {
+                return Err(err);
+            }
+            resp => {
+                log::error!("Response to a register request should be an ack, not {resp:?}");
+                return Err(GlobalCollectiveError::WrongServerResponse);
+            }
+        }
+
+        Ok(())
     }
 
     pub async fn all_reduce(
@@ -78,7 +101,7 @@ where
         params: GlobalAllReduceParams,
         device: &B::Device,
         kind: ReduceKind,
-    ) -> B::FloatTensorPrimitive {
+    ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError> {
         let num_global_devices = self
             .num_global_devices
             .expect("Can't all-reduce before registering (global)");
@@ -94,14 +117,17 @@ where
                 centralized_all_reduce_sum(&self.data_service, tensor, device, strategy).await
             }
             RemoteResponse::TreeAllReduceStrategy(strategy) => {
-                tree_all_reduce_sum(&self.data_service, tensor, device, strategy).await
+                tree_all_reduce_sum(self.data_service.clone(), tensor, device, strategy).await
             }
             RemoteResponse::RingAllReduceStrategy(strategy) => {
-                ring_all_reduce_sum(&self.data_service, tensor, device, strategy).await
+                ring_all_reduce_sum(self.data_service.clone(), tensor, device, strategy).await
             }
-            RemoteResponse::Error(err) => panic!("Global collective server error: {err}"),
+            RemoteResponse::Error(err) => {
+                return Err(err);
+            }
             resp => {
-                panic!("The response to a all-reduce request should be a strategy, not {resp:?}")
+                log::error!("Response to a all-reduce request should be a strategy, not {resp:?}");
+                return Err(GlobalCollectiveError::WrongServerResponse);
             }
         };
 
@@ -109,11 +135,14 @@ where
             result = B::float_div_scalar(result, (num_global_devices).elem());
         }
 
-        result
+        Ok(result)
     }
 
     pub async fn finish(&mut self) {
-        self.worker.close_connection().await;
+        let res = self.worker.close_connection().await;
+        if let Err(err) = res {
+            log::error!("Global collective client error: {err:?}");
+        }
         self.data_service.close().await;
     }
 }

@@ -26,6 +26,7 @@ burn-ir = { path = "../burn-ir", version = "0.18.0", default-features = true }
 burn-tensor = { path = "../burn-tensor", version = "0.18.0", default-features = true }
 burn-common = { path = "../burn-common", version = "0.18.0", default-features = true }
 burn-router = { path = "../burn-router", version = "0.18.0", default-features = true }
+burn-network = { path = "../burn-network", version = "0.18.0", features = ["data-service"]}
 
 bytes = { workspace = true}
 
@@ -48,6 +49,7 @@ tokio-tungstenite = { workspace = true, optional = true }
 axum = { workspace = true, features = ["ws"], optional = true }
 tracing-core = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
+tokio-util ={ workspace = true }
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "0.18.0" }

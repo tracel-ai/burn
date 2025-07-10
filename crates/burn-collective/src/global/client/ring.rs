@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use crate::global::shared::base::RingAllReduceStrategy;
 use burn_network::{
-    data_service::{TensorDataClient, TensorDataService},
-    network::{NetworkClient, NetworkServer, NetworkAddress},
+    data_service::TensorDataService,
+    network::{Network, NetworkAddress},
 };
 use burn_tensor::{TensorMetadata, backend::Backend};
 
@@ -39,41 +39,40 @@ use burn_tensor::{TensorMetadata, backend::Backend};
 // 2  2  2
 
 /// Ring all-reduce algorithm with summation
-pub(crate) async fn ring_all_reduce_sum<B, C, S>(
-    data_client: &TensorDataClient<B, C, S>,
+pub(crate) async fn ring_all_reduce_sum<B, N>(
+    data_service: Arc<TensorDataService<B, N>>,
     tensor: B::FloatTensorPrimitive,
     device: &B::Device,
     strategy: RingAllReduceStrategy,
 ) -> B::FloatTensorPrimitive
 where
     B: Backend,
-    C: NetworkClient,
-    S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
+    N: Network,
 {
     let mut slices = slice_tensor::<B>(tensor, strategy.slice_dim, strategy.slice_ranges);
     let mut send_slice_idx = strategy.first_slice;
     let mut transfer_counter: u32 = 0;
 
     // Phase 1: add
-    do_cycles::<B, C, S>(
+    do_cycles::<B, N>(
         &mut slices,
         &mut transfer_counter,
         &mut send_slice_idx,
         true,
         strategy.next_node.clone(),
-        data_client,
+        &data_service,
         device,
     )
     .await;
 
     // Phase 2: replace
-    do_cycles::<B, C, S>(
+    do_cycles::<B, N>(
         &mut slices,
         &mut transfer_counter,
         &mut send_slice_idx,
         false,
         strategy.next_node,
-        data_client,
+        &data_service,
         device,
     )
     .await;
@@ -83,18 +82,17 @@ where
 }
 
 /// Do N-1 cycles of ring-reduce
-async fn do_cycles<B, C, S>(
+async fn do_cycles<B, N>(
     slices: &mut [B::FloatTensorPrimitive],
     transfer_counter: &mut u32,
     send_slice_idx: &mut usize,
     is_phase_one: bool,
     next_node: NetworkAddress,
-    data_client: &TensorDataClient<B, C, S>,
+    data_service: &Arc<TensorDataService<B, N>>,
     device: &B::Device,
 ) where
     B: Backend,
-    C: NetworkClient,
-    S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
+    N: Network,
 {
     let slice_count = slices.len();
     for _ in 0..(slice_count - 1) {
@@ -103,13 +101,15 @@ async fn do_cycles<B, C, S>(
         let slice_send = slices[*send_slice_idx].clone();
 
         let upload = {
-            let data_client = data_client.clone();
-            tokio::spawn(
-                async move { data_client.expose(slice_send.clone(), 1, transfer_id).await },
-            )
+            let data_service = data_service.clone();
+            tokio::spawn(async move {
+                data_service
+                    .expose(slice_send.clone(), 1, transfer_id)
+                    .await
+            })
         };
         let download = {
-            let data_client = data_client.clone();
+            let data_client = data_service.clone();
             let next_node = next_node.clone();
             tokio::spawn(async move { data_client.download_tensor(next_node, transfer_id).await })
         };

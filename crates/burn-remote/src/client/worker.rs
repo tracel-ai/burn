@@ -46,8 +46,8 @@ impl ClientWorker {
         );
 
         let (sender, rec) = async_channel::bounded(10);
-        let address_request = format!("{}/{}", device.address.as_str(), "request");
-        let address_response = format!("{}/{}", device.address.as_str(), "response");
+        let address_request = format!("{}/{}", device.address, "request");
+        let address_response = format!("{}/{}", device.address, "response");
 
         const MB: usize = 1024 * 1024;
 

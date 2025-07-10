@@ -7,7 +7,7 @@ use std::str::FromStr;
 /// Allows nodes to find each other
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub struct NetworkAddress {
-    inner: String
+    inner: String,
 }
 
 impl FromStr for NetworkAddress {
@@ -15,7 +15,7 @@ impl FromStr for NetworkAddress {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self {
-            inner: s.to_string()
+            inner: s.to_string(),
         })
     }
 }
@@ -26,8 +26,16 @@ impl Display for NetworkAddress {
     }
 }
 
-pub trait NetworkClient: Send + 'static {
-    type Stream: NetworkStream;
+pub trait Network: Clone + Send + Sync + 'static {
+    type Client: NetworkClient;
+    type Server: NetworkServer;
+}
+
+pub trait NetworkError: Debug + Send + 'static {}
+
+pub trait NetworkClient: Send + Sync + 'static {
+    type Stream: NetworkStream<Error = Self::Error>;
+    type Error: NetworkError;
 
     fn connect(address: NetworkAddress, route: &str) -> DynFut<Option<Self::Stream>>;
 }
@@ -36,22 +44,21 @@ pub struct NetworkMessage {
     pub data: bytes::Bytes,
 }
 
-pub trait NetworkServer: Send + Sync + 'static {
-    type State: Clone + Send + Sync + 'static;
-    type Stream: NetworkStream;
+pub trait NetworkServer: Sized + Send + Sync + 'static {
+    type Stream: NetworkStream<Error = Self::Error>;
+    type Error: NetworkError;
 
     fn new(port: u16) -> Self;
 
     fn route<C, Fut>(self, path: &str, callback: C) -> Self
     where
-        C: FnOnce(Self::State, Self::Stream) -> Fut + Clone + Send + Sync + 'static,
+        C: FnOnce(Self::Stream) -> Fut + Clone + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static;
 
     fn serve<F>(
         self,
-        state: Self::State,
         shutdown: F,
-    ) -> impl std::future::Future<Output = ()> + Send
+    ) -> impl Future<Output = Result<(), Self::Error>> + Send + 'static
     where
         F: Future<Output = ()> + Send + 'static;
 }

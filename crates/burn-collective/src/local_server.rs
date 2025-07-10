@@ -7,21 +7,18 @@ use std::{
     },
 };
 
-use burn_network::{data_service::TensorDataService, websocket::{WsClient, WsServer}};
+use burn_network::websocket::base::WsNetwork;
 use burn_tensor::backend::Backend;
 use tokio::runtime::{Builder, Runtime};
 
 use crate::{
-    AllReduceParams, AllReduceStrategy, GlobalAllReduceParams, RegisterParams,
-    centralized::all_reduce_centralized,
-    global::client::{base::GlobalCollectiveClient},
-    ring::all_reduce_ring,
-    tree::all_reduce_tree,
+    AllReduceParams, AllReduceStrategy, CollectiveError, GlobalAllReduceParams, RegisterParams,
+    centralized::all_reduce_centralized, global::client::base::GlobalCollectiveClient,
+    ring::all_reduce_ring, tree::all_reduce_tree,
 };
 
 // Define the client/server communication on the network
-type Client = WsClient;
-type Server<B> = WsServer<Arc<TensorDataService<B, Client>>>;
+type Network = WsNetwork;
 
 /// The local collective server that manages all the collective aggregation operations
 /// (like all-reduce) between local threads.
@@ -46,7 +43,7 @@ pub struct LocalCollectiveServer<B: Backend> {
     callbacks_allreduce: Vec<SyncSender<B::FloatTensorPrimitive>>,
 
     /// Client for global collective operations
-    global_client: Option<GlobalCollectiveClient<B, Client, Server<B>>>,
+    global_client: Option<GlobalCollectiveClient<B, Network>>,
 }
 
 #[derive(Debug)]
@@ -184,17 +181,27 @@ impl<B: Backend> LocalCollectiveServer<B> {
         runtime.spawn(async {
             let mut aggregator = LocalCollectiveServer::new(rec);
 
-            while let Ok(message) = aggregator.message_rec.recv() {
-                aggregator.process_message(message).await;
+            loop {
+                match aggregator.message_rec.recv() {
+                    Ok(message) => {
+                        if let Err(err) = aggregator.process_message(message).await {
+                            log::error!("Local collective server error: {err:?}");
+                        }
+                    }
+                    Err(err) => {
+                        log::error!(
+                            "Error receiving message from local collective server: {err:?}"
+                        );
+                        break;
+                    }
+                }
             }
-
-            panic!("Aggregator message failed");
         });
 
         LocalCollectiveClient { channel: sender }
     }
 
-    async fn process_message(&mut self, message: Message<B>) {
+    async fn process_message(&mut self, message: Message<B>) -> Result<(), CollectiveError> {
         match message {
             Message::AllReduce {
                 tensor,
@@ -212,10 +219,12 @@ impl<B: Backend> LocalCollectiveServer<B> {
                 self.process_register_message(device_id, params, callback)
                     .await
             }
-            Message::Reset => self.reset(),
-            Message::Finish { id, callback } => {
-                self.process_finish_message(id, callback).await;
+            Message::Reset => {
+                self.reset();
+
+                Ok(())
             }
+            Message::Finish { id, callback } => self.process_finish_message(id, callback).await,
         }
     }
 
@@ -225,9 +234,13 @@ impl<B: Backend> LocalCollectiveServer<B> {
         self.cur_allreduce_params = None;
     }
 
-    async fn process_finish_message(&mut self, id: u32, callback: SyncSender<()>) {
+    async fn process_finish_message(
+        &mut self,
+        id: u32,
+        callback: SyncSender<()>,
+    ) -> Result<(), CollectiveError> {
         if !self.registered_ids.contains(&id) {
-            panic!("Cannot un-register a node twice!");
+            return Err(CollectiveError::MultipleUnregister);
         }
 
         // Remove registered with id
@@ -239,7 +252,11 @@ impl<B: Backend> LocalCollectiveServer<B> {
             }
         }
 
-        callback.send(()).unwrap();
+        callback
+            .send(())
+            .map_err(|_| CollectiveError::CallbackFailed)?;
+
+        Ok(())
     }
 
     async fn process_all_reduce_message(
@@ -247,15 +264,11 @@ impl<B: Backend> LocalCollectiveServer<B> {
         tensor: <B as Backend>::FloatTensorPrimitive,
         params: AllReduceParams,
         callback: SyncSender<<B as Backend>::FloatTensorPrimitive>,
-    ) {
+    ) -> Result<(), CollectiveError> {
         if self.tensors.is_empty() || self.cur_allreduce_params.is_none() {
             self.cur_allreduce_params = Some(params);
         } else if self.cur_allreduce_params.clone().unwrap() != params {
-            panic!(
-                "Trying to aggregate a different way ({:?}) than is currently
-                    being done ({:?})",
-                params, self.cur_allreduce_params,
-            );
+            return Err(CollectiveError::AllReduceParamsMismatch);
         }
 
         self.tensors.push(tensor);
@@ -264,8 +277,10 @@ impl<B: Backend> LocalCollectiveServer<B> {
         let tensor_count = self.tensors.len();
         if tensor_count > 0 && tensor_count == self.registered_ids.len() {
             // all registered callers have sent a tensor to aggregate
-            self.all_reduce().await
+            return self.all_reduce().await;
         }
+
+        Ok(())
     }
 
     async fn process_register_message(
@@ -273,18 +288,14 @@ impl<B: Backend> LocalCollectiveServer<B> {
         id: u32,
         params: RegisterParams,
         callback: SyncSender<()>,
-    ) {
+    ) -> Result<(), CollectiveError> {
         if self.registered_ids.contains(&id) {
-            panic!("Cannot register a node twice!");
+            return Err(CollectiveError::MultipleRegister);
         }
         if self.registered_ids.is_empty() || self.cur_register_params.is_none() {
             self.cur_register_params = Some(params.clone());
         } else if self.cur_register_params.clone().unwrap() != params {
-            panic!(
-                "Trying to register a different way ({:?}) than is currently
-                        being done ({:?})",
-                params, self.cur_allreduce_params,
-            );
+            return Err(CollectiveError::RegisterParamsMismatch);
         }
 
         self.registered_ids.push(id);
@@ -304,17 +315,27 @@ impl<B: Backend> LocalCollectiveServer<B> {
         // All have registered, callback
         if self.registered_ids.len() == params.num_devices as usize {
             if params.global_params.is_some() {
-                let client = self.global_client.as_mut().unwrap();
-                client.register(params.clone()).await;
+                let client = self
+                    .global_client
+                    .as_mut()
+                    .expect("Global client should be initialized");
+                client
+                    .register(params.clone())
+                    .await
+                    .map_err(CollectiveError::Global)?;
             }
 
             for callback in self.callbacks_register.drain(..) {
-                callback.send(()).unwrap();
+                callback
+                    .send(())
+                    .map_err(|_| CollectiveError::CallbackFailed)?;
             }
         }
+
+        Ok(())
     }
 
-    async fn all_reduce(&mut self) {
+    async fn all_reduce(&mut self) -> Result<(), CollectiveError> {
         let params = self.cur_allreduce_params.as_ref().unwrap();
         let kind = &params.kind;
         let local_strategy = &params.local_strategy;
@@ -339,7 +360,9 @@ impl<B: Backend> LocalCollectiveServer<B> {
             let device = B::float_device(&tensor);
             tensor = global_client
                 .all_reduce(tensor, params, &device, *kind)
-                .await;
+                .await
+                .map_err(CollectiveError::Global)?;
+
             // replace all results with global aggregation result
             let len = outs.len() + 1;
             outs = vec![tensor; len];
@@ -348,7 +371,11 @@ impl<B: Backend> LocalCollectiveServer<B> {
         // Callbacks return results
         for callback in self.callbacks_allreduce.drain(..) {
             let out = outs.remove(0);
-            callback.send(out).unwrap();
+            callback
+                .send(out)
+                .map_err(|_| CollectiveError::CallbackFailed)?;
         }
+
+        Ok(())
     }
 }

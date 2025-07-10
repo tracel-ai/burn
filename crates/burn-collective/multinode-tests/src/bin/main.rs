@@ -1,8 +1,9 @@
+use burn_network::network::NetworkAddress;
 use std::{
     fs::{self, File},
-    process::{self, ExitStatus}, str::FromStr,
+    process::{self, ExitStatus},
+    str::FromStr,
 };
-use burn_network::network::NetworkAddress;
 use tokio::time::{Duration, Instant};
 
 use tokio::process::{Child, Command};

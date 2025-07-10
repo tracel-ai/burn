@@ -1,6 +1,6 @@
 use burn::{backend::collective::AllReduceParams, tensor::TensorData};
-use serde::{Deserialize, Serialize};
 use burn_network::network::NetworkAddress;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct NodeTestData {

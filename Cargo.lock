@@ -858,6 +858,7 @@ dependencies = [
  "burn-common",
  "burn-ir",
  "burn-ndarray",
+ "burn-network",
  "burn-router",
  "burn-tensor",
  "bytes",
@@ -869,6 +870,7 @@ dependencies = [
  "serde_bytes",
  "tokio",
  "tokio-tungstenite",
+ "tokio-util",
  "tracing-core",
  "tracing-subscriber",
 ]

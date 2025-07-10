@@ -1,6 +1,6 @@
 use std::{collections::HashMap, marker::PhantomData, sync::Arc, time::Duration};
 
-use burn_network::network::{NetworkClient, NetworkStream, NetworkAddress};
+use burn_network::network::{NetworkAddress, NetworkClient, NetworkStream};
 use tokio::{
     runtime::Runtime,
     sync::{
@@ -11,13 +11,14 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::global::shared::base::{
-    Message, MessageResponse, RemoteRequest, RemoteResponse, RequestId, SessionId,
+use crate::global::{
+    server::base::GlobalCollectiveError,
+    shared::base::{Message, MessageResponse, RemoteRequest, RemoteResponse, RequestId, SessionId},
 };
 
 /// Worker that handles communication with the server for global collective operations.
 pub(crate) struct GlobalClientWorker<N: NetworkClient> {
-    handle: Option<JoinHandle<()>>,
+    handle: Option<JoinHandle<Result<(), GlobalCollectiveError>>>,
     cancel_token: CancellationToken,
     request_sender: Sender<ClientRequest>,
     _phantom_data: PhantomData<N>,
@@ -80,9 +81,9 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
         cancel_token: CancellationToken,
         server_address: NetworkAddress,
         request_recv: Receiver<ClientRequest>,
-    ) {
+    ) -> Result<(), GlobalCollectiveError> {
         // Init the connection.
-        let (request, response) = Self::init_connection(&server_address).await;
+        let (request, response) = Self::init_connection(&server_address).await?;
 
         // Websocket async worker loading responses from the server.
         let response_handle = tokio::spawn(Self::response_loader(
@@ -99,30 +100,44 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
             cancel_token.clone(),
         ));
 
-        let (Ok(_), Ok(_)) = tokio::join!(response_handle, request_handle,) else {
-            panic!("Failed to join global collective client worker tasks.");
-        };
+        if let Err(e) = response_handle.await {
+            log::error!("Response handler failed: {e:?}");
+        }
+        if let Err(e) = request_handle.await {
+            log::error!("Request handler failed: {e:?}");
+        }
+
+        Ok(())
     }
 
-    async fn init_connection(address: &NetworkAddress) -> (C::Stream, C::Stream) {
+    async fn init_connection(
+        address: &NetworkAddress,
+    ) -> Result<(C::Stream, C::Stream), GlobalCollectiveError> {
         let session_id = SessionId::new();
 
-        let stream_request_fut = Self::connect_with_retry(
+        let stream_request = tokio::spawn(Self::connect_with_retry(
             address.clone(),
             "request",
             std::time::Duration::from_secs(1),
             None,
             session_id,
-        );
-        let stream_response_fut = Self::connect_with_retry(
+        ));
+        let stream_response = tokio::spawn(Self::connect_with_retry(
             address.clone(),
             "response",
             std::time::Duration::from_secs(1),
             None,
             session_id,
-        );
+        ));
 
-        tokio::join!(stream_request_fut, stream_response_fut,)
+        let Ok(Some(request)) = stream_request.await else {
+            return Err(GlobalCollectiveError::ServerUnreachable);
+        };
+        let Ok(Some(response)) = stream_response.await else {
+            return Err(GlobalCollectiveError::ServerUnreachable);
+        };
+
+        Ok((request, response))
     }
 
     /// Connect with websocket with retries.
@@ -132,12 +147,13 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
         retry_pause: Duration,
         retry_max: Option<u32>,
         session_id: SessionId,
-    ) -> C::Stream {
+    ) -> Option<C::Stream> {
         let mut retries = 0;
         loop {
             if let Some(max) = retry_max {
                 if retries >= max {
-                    panic!("Failed to connect to {address} after {max} retries.");
+                    log::warn!("Failed to connect to {address} after {max} retries.");
+                    return None;
                 }
             }
 
@@ -152,7 +168,7 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
                     .send(bytes)
                     .await
                     .expect("Can send the init message on the websocket.");
-                return stream;
+                return Some(stream);
             }
 
             println!("Failed to connect to {address}, retrying... Attempt #{retries}");
@@ -162,20 +178,25 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
     }
 
     /// Unregister the worker and close the connection.
-    pub async fn close_connection(&mut self) {
+    pub async fn close_connection(&mut self) -> Result<(), GlobalCollectiveError> {
         if let Some(handle) = self.handle.take() {
             // Un-register from server
             let req = RemoteRequest::Finish;
             let resp = self.request(req).await;
             if resp != RemoteResponse::FinishAck {
-                panic!("Requested to finish, did not get FinishAck; got {resp:?}");
+                log::error!("Requested to finish, did not get FinishAck; got {resp:?}");
+                return Err(GlobalCollectiveError::WrongServerResponse);
             }
 
             self.cancel_token.cancel();
             eprintln!("Cancelling worker tasks...");
 
-            handle.await.unwrap();
+            if let Err(e) = handle.await.unwrap() {
+                log::error!("Connection error {e:?}");
+            }
         }
+
+        Ok(())
     }
 
     async fn response_loader(
@@ -207,7 +228,7 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
                             let state_resp = state.lock().await;
                             let response_callback = state_resp
                                 .requests
-                                .get(&response.id)
+                                .get(&response.request_id)
                                 .expect("Got a response to an unknown request");
                             response_callback.send(response.content).await.unwrap();
                         }

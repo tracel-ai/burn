@@ -1,22 +1,19 @@
 use std::sync::Arc;
 
-use crate::global::{
-    shared::base::TreeAllReduceStrategy,
-};
-use burn_network::{data_service::{TensorDataClient, TensorDataService}, network::{NetworkClient, NetworkServer}};
+use crate::global::shared::base::TreeAllReduceStrategy;
+use burn_network::{data_service::TensorDataService, network::Network};
 use burn_tensor::backend::Backend;
 use futures::{StreamExt, stream::FuturesUnordered};
 
-pub(crate) async fn tree_all_reduce_sum<B, C, S>(
-    data_service: &TensorDataClient<B, C, S>,
+pub(crate) async fn tree_all_reduce_sum<B, N>(
+    data_service: Arc<TensorDataService<B, N>>,
     tensor: B::FloatTensorPrimitive,
     device: &B::Device,
     strategy: TreeAllReduceStrategy,
 ) -> B::FloatTensorPrimitive
 where
     B: Backend,
-    C: NetworkClient,
-    S: NetworkServer<State = Arc<TensorDataService<B, C>>>,
+    N: Network,
 {
     // Transfer #1: Download tensors from children async
     let mut downloads = strategy
@@ -25,7 +22,10 @@ where
         .map(|child| {
             let data_service = data_service.clone();
             async move {
-                let data = data_service.download_tensor(child.clone(), 0.into()).await.unwrap();
+                let data = data_service
+                    .download_tensor(child.clone(), 0.into())
+                    .await
+                    .unwrap();
 
                 B::float_from_data(data, device)
             }

@@ -5,7 +5,7 @@ use burn_common::id::IdGenerator;
 use burn_network::network::NetworkAddress;
 use serde::{Deserialize, Serialize};
 
-use crate::GlobalAllReduceParams;
+use crate::{GlobalAllReduceParams, global::server::base::GlobalCollectiveError};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct RequestId(u32);
@@ -47,7 +47,7 @@ pub enum Message {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MessageResponse {
-    pub id: RequestId,
+    pub request_id: RequestId,
     pub content: RemoteResponse,
 }
 
@@ -74,7 +74,7 @@ pub enum RemoteResponse {
     CentralizedAllReduceStrategy(CentralizedAllReduceStrategy),
     TreeAllReduceStrategy(TreeAllReduceStrategy),
     RingAllReduceStrategy(RingAllReduceStrategy),
-    Error(String),
+    Error(GlobalCollectiveError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
