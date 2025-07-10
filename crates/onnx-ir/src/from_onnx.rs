@@ -60,8 +60,6 @@ pub struct GraphData {
     pub(crate) initializers: HashMap<String, Argument>,
     /// Maps the original input name to a graph input
     input_name_map: HashMap<String, IOEntry>,
-    /// Maps the updated input name to the original input name. Required to check if the input is an initializer
-    input_key_map: HashMap<String, String>,
 }
 
 impl GraphData {
@@ -108,7 +106,6 @@ impl GraphData {
             initializers: constants,
             processed_nodes: Vec::new(),
             input_name_map,
-            input_key_map,
         }
     }
 
@@ -159,7 +156,7 @@ impl GraphData {
     }
 
     /// Consumes the graph data and returns the processed nodes, filtered inputs and outputs
-    fn consume(mut self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
+    fn consume(self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
         let outputs = self
             .outputs
             .into_iter()
