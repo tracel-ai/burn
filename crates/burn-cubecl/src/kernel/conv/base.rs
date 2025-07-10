@@ -27,12 +27,6 @@ pub enum ConvStrategy {
 
 impl Default for ConvStrategy {
     fn default() -> Self {
-        // if autotune is enabled, default to autotune
-        #[cfg(feature = "autotune")]
-        return ConvStrategy::Autotune;
-
-        // if autotune is disabled, default to the more memory-conservative algorithm
-        #[cfg(not(feature = "autotune"))]
         ConvStrategy::Direct
     }
 }
