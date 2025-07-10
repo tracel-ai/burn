@@ -5,7 +5,7 @@ use burn_tensor::{
     quantization::{QTensorPrimitive, QuantAccPrecision},
 };
 use cubecl::{
-    matmul::{components::Quantized, kernels::MatmulSetupError},
+    matmul::components::{MatmulSetupError, Quantized},
     prelude::TensorHandleRef,
 };
 
