@@ -1,9 +1,9 @@
 use burn_tensor::{DType, Element};
 use cubecl::{
     matmul::{
-        Strategy, SyncBufferLoadingStrategy, SyncLoadingStrategy,
+        Strategy, SyncLoadingStrategy, SyncPartialLoadingStrategy,
         components::MatmulKind,
-        kernels::matmul::{
+        kernels::layered::{
             Selection, TileSizeSelection, double_buffering::DoubleBufferingArgs,
             ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
             simple_unit::SimpleUnitSelectionArgs,
@@ -197,7 +197,7 @@ fn matmul_double_buffering<R: CubeRuntime, E: FloatElement>(
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
         &Strategy::DoubleBuffering(
-            SyncBufferLoadingStrategy::Tilewise,
+            SyncPartialLoadingStrategy::Tilewise,
             Selection::Inferred(DoubleBufferingArgs { specialized: false }),
         ),
         &lhs.client,
@@ -217,7 +217,7 @@ fn matmul_double_buffering_specialized<R: CubeRuntime, E: FloatElement>(
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
         &Strategy::DoubleBuffering(
-            SyncBufferLoadingStrategy::Tilewise,
+            SyncPartialLoadingStrategy::Tilewise,
             Selection::Inferred(DoubleBufferingArgs { specialized: true }),
         ),
         &lhs.client,

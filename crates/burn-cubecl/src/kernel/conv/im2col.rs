@@ -106,7 +106,7 @@ pub(crate) fn batches_per_run(
     batch_size: usize,
     out_shape: usize,
 ) -> Result<usize, ConvLaunchError> {
-    use cubecl::matmul::kernels::MatmulAvailabilityError;
+    use cubecl::matmul::components::MatmulAvailabilityError;
 
     let cube_count_per_batch = out_shape.div_ceil(cubecl::PLANE_DIM_APPROX);
     let max_cube_count = u16::MAX as usize;
