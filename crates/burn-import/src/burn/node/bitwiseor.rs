@@ -120,7 +120,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input1: Tensor<B, 2, Int>, input2: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
-                    let output = input1 | input2;
+                    let output = input1.bitwise_or(input2);
                     output
                 }
             }

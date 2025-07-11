@@ -87,8 +87,8 @@ mod tests {
 
         graph.register(BitwiseAndNode {
             inputs: vec![
-                TensorType::new_int("input1", 1),
-                TensorType::new_int("input2", 1),
+                Type::Tensor(TensorType::new_int("input1", 1)),
+                Type::Tensor(TensorType::new_int("input2", 1)),
             ],
             output: TensorType::new_int("output", 1),
         });
@@ -121,7 +121,7 @@ mod tests {
 
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input1: Tensor<B, 1, Int>, input2: Tensor<B, 1, Int>) -> Tensor<B, 1, Int> {
-                    let output = input1 & input2;
+                    let output = input1.bitwise_and(input2);
                     output
                 }
             }

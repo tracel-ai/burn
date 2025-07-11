@@ -125,7 +125,7 @@ mod tests {
                     input1: Tensor<B, 2, Int>,
                     input2: Tensor<B, 2, Int>
                 ) -> Tensor<B, 2, Int> {
-                    let output = input1 ^ input2;
+                    let output = input1.bitwise_xor(input2);
                     output
                 }
             }

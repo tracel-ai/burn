@@ -126,7 +126,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input1: Tensor<B, 1, Int>, input2: Tensor<B, 1, Int>) -> Tensor<B, 1, Int> {
-                    let output = input1 << input2;
+                    let output = input1.bitwise_left_shift(input2);
                     output
                 }
             }
@@ -176,7 +176,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input1: Tensor<B, 1, Int>, input2: Tensor<B, 1, Int>) -> Tensor<B, 1, Int> {
-                    let output = input1 >> input2;
+                    let output = input1.bitwise_right_shift(input2);
                     output
                 }
             }

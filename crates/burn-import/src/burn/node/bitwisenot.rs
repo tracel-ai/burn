@@ -86,7 +86,7 @@ mod tests {
 
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
-                    let output = !input;
+                    let output = input.bitwise_not();
                     output
                 }
             }
