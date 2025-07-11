@@ -56,7 +56,7 @@ where
                         sender_output.send(output).unwrap();
                     }
                     Err(_err) => {
-                        log::info!("Closing thread on device {:?}", device);
+                        log::info!("Closing thread on device {device:?}");
                         break;
                     }
                 }

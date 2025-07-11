@@ -45,7 +45,7 @@ where
             Distribution::Uniform(low, high) => {
                 random_uniform(shape, device, low.elem::<F>(), high.elem())
             }
-            Distribution::Bernoulli(prob) => random_bernoulli(shape, device, prob.elem::<F>()),
+            Distribution::Bernoulli(prob) => random_bernoulli::<R, F>(shape, device, prob as f32),
             Distribution::Normal(mean, std) => {
                 random_normal(shape, device, mean.elem::<F>(), std.elem())
             }
@@ -362,7 +362,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::sum::<R, E>(tensor, Default::default()).unwrap()
+            reduce::sum_fallback::<R, E>(tensor, Default::default()).unwrap()
         )
     }
 

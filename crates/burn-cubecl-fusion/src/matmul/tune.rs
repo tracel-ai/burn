@@ -1,17 +1,23 @@
 use crate::{
     CubeFusionHandle,
+    matmul::optimization::{
+        DoubleBuffering, DoubleUnit, Ordered, Simple, SimpleMultiRows, SimpleUnit, Specialized,
+    },
     shared::trace::TuneOutput,
     tune::{TuneContext, TuneInput},
 };
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
-    linalg::matmul::tune_key::MatmulAutotuneKey,
-    tune::{LocalTuner, TunableSet, local_tuner},
+    matmul::{
+        components::MatmulKind,
+        tune_key::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
+    },
+    tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use serde::{Deserialize, Serialize};
 
-use super::optimization::MatmulOptimization;
+use super::optimization::{MatmulOptimization, MatmulVariantSelection};
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
 pub struct FusedMatmulAutotuneKey {
@@ -29,15 +35,86 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
 ) {
     static TUNER: LocalTuner<FusedMatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
-        .with_tunable(tune_fallback::<R, BT>) // First one should always work.
-        .with_tunable(tune_simple_fused::<R, BT>)
-        .with_tunable(tune_double_buffering_fused::<R, BT>);
+    let tunables = TUNER.init(|| {
+        const PRIORITY_MAX: u8 = 3;
+        const PRIORITY_HIGH: u8 = 2;
+        const PRIORITY_MEDIUM: u8 = 1;
+        const PRIORITY_MIN: u8 = 0;
+
+        let cmma = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
+            if matches!(key.matmul_key.analysis.kind, MatmulKind::General) {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_MEDIUM
+            }
+        });
+
+        let odd = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
+            if key.matmul_key.definition.lhs_pow2_factor == 0
+                || key.matmul_key.definition.rhs_pow2_factor == 0
+            {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_MIN
+            }
+        });
+
+        let unit = TuneGroup::<FusedMatmulAutotuneKey>::new(|key| {
+            if !matches!(key.matmul_key.analysis.kind, MatmulKind::General)
+                || matches!(
+                    key.matmul_key.analysis.scale_global,
+                    MatmulGlobalScale::Small
+                )
+            {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_MIN
+            }
+        });
+
+        fn double_buffering_priority(key: &FusedMatmulAutotuneKey, max: u8, min: u8) -> u8 {
+            if should_tune_double_buffering(key.num_out_buffers > 1, &key.matmul_key) {
+                max
+            } else {
+                min
+            }
+        }
+
+        TunableSet::new(create_key::<R>, input_gen::<R>)
+            .with(Tunable::new(tune_fallback::<R, BT>)) // First one should always work.
+            .with(Tunable::new(tune_fused::<R, BT, SimpleUnit>).group(&unit, |_| PRIORITY_MAX))
+            .with(
+                Tunable::new(tune_fused::<R, BT, DoubleUnit>).group(&unit, |key| {
+                    double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
+                }),
+            )
+            .with(Tunable::new(tune_fused::<R, BT, Simple>).group(&cmma, |_| PRIORITY_MAX))
+            .with(Tunable::new(tune_fused::<R, BT, SimpleMultiRows>).group(&cmma, |_| PRIORITY_MAX))
+            .with(
+                Tunable::new(tune_fused::<R, BT, Ordered>).group(&cmma, |key| {
+                    double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
+                }),
+            )
+            .with(
+                Tunable::new(tune_fused::<R, BT, Specialized>)
+                    .group(&cmma, |key| {
+                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MIN)
+                    })
+                    .group(&odd, |_| PRIORITY_MAX),
+            )
+            .with(
+                Tunable::new(tune_fused::<R, BT, DoubleBuffering>)
+                    .group(&cmma, |key| {
+                        double_buffering_priority(key, PRIORITY_HIGH, PRIORITY_MEDIUM)
+                    })
+                    .group(&odd, |_| PRIORITY_MAX),
+            )
+    });
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&optimization.client, &optimization.device),
         &optimization.client,
-        &tunables,
+        tunables,
         TuneInput::new(context, optimization),
     );
 }
@@ -51,9 +128,9 @@ pub(crate) fn create_key<R: Runtime>(
         TuneContext::Fork(_) => panic!("Not supported when generating key"),
     };
 
-    let lhs = context.tensors.get(&opt.matmul_simple.op.lhs.id).unwrap();
-    let rhs = context.tensors.get(&opt.matmul_simple.op.rhs.id).unwrap();
-    let out = context.tensors.get(&opt.matmul_simple.op.out.id).unwrap();
+    let lhs = context.tensors.get(&opt.variants.simple.op.lhs.id).unwrap();
+    let rhs = context.tensors.get(&opt.variants.simple.op.rhs.id).unwrap();
+    let out = context.tensors.get(&opt.variants.simple.op.out.id).unwrap();
 
     let lhs_strides = context
         .handles
@@ -64,12 +141,14 @@ pub(crate) fn create_key<R: Runtime>(
         .get_handle(&rhs.id, &burn_ir::TensorStatus::ReadOnly)
         .strides;
 
-    let key = MatmulAutotuneKey::generate(
+    let key = MatmulAutotuneKey::generate::<R>(
+        &opt.client,
         &lhs.shape,
         &rhs.shape,
         &lhs_strides,
         &rhs_strides,
         lhs.dtype.into(),
+        rhs.dtype.into(),
         out.dtype.into(),
     );
     FusedMatmulAutotuneKey::new(key, opt.num_output_buffers(), opt.num_ops_fused())
@@ -82,33 +161,16 @@ fn input_gen<R: Runtime>(
     input.clone()
 }
 
-fn tune_simple_fused<R: Runtime, BT: CubeElement>(
+fn tune_fused<R: Runtime, BT: CubeElement, S: MatmulVariantSelection>(
     input: TuneInput<R, MatmulOptimization<R>>,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
     match context {
-        TuneContext::Original(context) => optimization.execute_simple_fused::<BT>(context),
+        TuneContext::Original(context) => optimization.execute_fused::<BT, S>(context),
         TuneContext::Fork(mut context_owned) => {
-            optimization.execute_simple_fused::<BT>(&mut context_owned.as_context())
-        }
-    }
-    .map_err(|e| format!("{e:?}"))
-}
-
-fn tune_double_buffering_fused<R: Runtime, BT: CubeElement>(
-    input: TuneInput<R, MatmulOptimization<R>>,
-) -> Result<TuneOutput<R>, String> {
-    let optimization = input.optimization();
-    let context = input.context();
-
-    match context {
-        TuneContext::Original(context) => {
-            optimization.execute_double_buffering_fused::<BT>(context)
-        }
-        TuneContext::Fork(mut context_owned) => {
-            optimization.execute_double_buffering_fused::<BT>(&mut context_owned.as_context())
+            optimization.execute_fused::<BT, S>(&mut context_owned.as_context())
         }
     }
     .map_err(|e| format!("{e:?}"))

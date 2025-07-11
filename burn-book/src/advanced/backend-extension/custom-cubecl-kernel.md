@@ -75,7 +75,7 @@ Now, let's proceed to write the fused kernel using the `cubecl` compiler fronten
 simple, we'll create a straightforward matmul kernel without employing any intricate techniques. We
 won't delve into the details of the `cube` macro, but if you're interested to learn more, please see
 [`cubecl` Book](https://github.com/tracel-ai/cubecl/tree/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/cubecl-book).
-the The actual matmul, add and relu computations are found at the end, after an extensive prelude
+The actual matmul, add and relu computations are found at the end, after an extensive prelude
 that serves to correctly map each compute unit to the data it is responsible for, with support for
 batches.
 

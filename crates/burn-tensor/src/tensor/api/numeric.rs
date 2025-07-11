@@ -1,8 +1,9 @@
 use alloc::vec::Vec;
 
-use crate::{alloc::borrow::ToOwned, cast::ToElement};
+use crate::{TensorMetadata, alloc::borrow::ToOwned};
 
 use crate::TensorPrimitive;
+use crate::quantization::QTensorPrimitive;
 use crate::{
     BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
     TensorKind,
@@ -11,12 +12,6 @@ use crate::{
     check::TensorCheck,
     ops::{Device, IntTensor},
 };
-
-/// Default RTOL value for `is_close` and `all_close`.
-pub const DEFAULT_RTOL: f64 = 1e-5;
-
-/// Default ATOL value for `is_close` and `all_close`.
-pub const DEFAULT_ATOL: f64 = 1e-8;
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -1618,99 +1613,6 @@ where
         Self::new(K::powi_scalar::<E>(self.primitive, other))
     }
 
-    /// Checks element wise if the tensor is close to another tensor.
-    ///
-    /// The tolerance is defined by the following equation:
-    ///
-    /// ```text
-    /// abs(a - b) <= (atol + rtol * abs(b))
-    ///
-    /// where `a` is the first tensor, `b` is the second tensor, `rtol` is the relative tolerance,
-    /// and `atol` is the absolute tolerance.
-    /// ```
-    ///
-    /// # Arguments
-    ///
-    /// * `other` - The tensor to compare with.
-    /// * `rtol` - Optional relative tolerance. Default is 1e-5; see `DEFAULT_RTOL`.
-    /// * `atol` - Optional absolute tolerance. Default is 1e-8; see `DEFAULT_ATOL`.
-    ///
-    /// # Returns
-    ///
-    /// A boolean tensor with the same shape as the input tensors.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor1.is_close(tensor2, None, None);
-    ///    println!("{tensor}");
-    ///    // [[true, true, true], [true, true, true]]
-    /// }
-    /// ```
-    pub fn is_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> Tensor<B, D, Bool> {
-        let rtol = rtol.unwrap_or(DEFAULT_RTOL);
-        let atol = atol.unwrap_or(DEFAULT_ATOL);
-
-        Tensor::new(K::lower_equal(
-            K::abs(K::sub(self.primitive, other.primitive.clone())),
-            K::add_scalar(K::mul_scalar(K::abs(other.primitive), rtol), atol),
-        ))
-    }
-
-    /// Checks if all elements are close to another tensor.
-    ///
-    /// The tolerance is defined by the following equation:
-    ///
-    /// ```text
-    ///
-    /// abs(a - b) <= (atol + rtol * abs(b))
-    ///
-    /// where `a` is the first tensor, `b` is the second tensor, `rtol` is the relative tolerance,
-    /// and `atol` is the absolute tolerance.
-    ///
-    /// ```
-    ///
-    /// # Arguments
-    ///
-    /// * `other` - The tensor to compare with.
-    /// * `rtol` - Optional relative tolerance. Default is 1e-5; see `DEFAULT_RTOL`.
-    /// * `atol` - Optional absolute tolerance. Default is 1e-8; see `DEFAULT_ATOL`.
-    ///
-    /// # Returns
-    ///
-    /// A boolean scalar.
-    ///
-    /// # Remarks
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let result = tensor1.all_close(tensor2, None, None);
-    ///    println!("{}", result);
-    ///    // true
-    /// }
-    /// ```
-    pub fn all_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> bool {
-        self.is_close(other, rtol, atol)
-            .all()
-            .into_scalar()
-            .to_bool()
-    }
-
     /// Converts the tensor to a boolean tensor by checking if the elements are non-zero.
     ///
     /// # Returns
@@ -2203,64 +2105,14 @@ where
         output.scatter(axis as usize, indices_unsqueezed, scatter_on_values)
     }
 
-    /// Returns a new tensor with boolean elements indicating whether each element of the input is NaN.
+    /// Applies the matrix multiplication operation.
     ///
-    /// # Returns
-    ///
-    /// A boolean tensor where `true` indicates NaN and `false` indicates a non-NaN value.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Bool, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, f64::NAN, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.is_nan();
-    ///    println!("{tensor}");
-    ///    // [[false, true, false], [false, false, false]]
-    /// }
+    /// ```math
+    /// C = AB
     /// ```
-    pub fn is_nan(&self) -> Tensor<B, D, Bool> {
-        // Check if the input tensor is NaN by comparing it to itself
-        // NaN is the only value that is not equal to itself
-        Tensor::new(K::not_equal(self.primitive.clone(), self.primitive.clone()))
-    }
-
-    /// Checks if the tensor contains any NaN values.
-    ///
-    /// # Returns
-    ///
-    /// A boolean tensor with a single element indicating whether the tensor contains any NaN values.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Bool, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///   let device = B::Device::default();
-    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [f64::NAN, 9.0, 6.0]], &device);
-    ///   let tensor = tensor.contains_nan();
-    ///   println!("{tensor}");
-    ///   // [true]
-    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let tensor = tensor.contains_nan();
-    ///   println!("{tensor}");
-    ///   // [false]
-    /// }
-    /// ```
-    pub fn contains_nan(&self) -> Tensor<B, 1, Bool> {
-        // Summing the tensor will result in NaN if the tensor contains any NaN values
-        // This is faster than checking each element individually
-        // because it rolls up the NaN values into a single value
-        let sum = K::sum(self.primitive.clone());
-
-        // Check if the sum is NaN by comparing it to itself
-        Tensor::new(K::not_equal(sum.clone(), sum))
+    pub fn matmul(self, other: Tensor<B, D, K>) -> Tensor<B, D, K> {
+        check!(TensorCheck::matmul(&self, &other));
+        Tensor::new(K::matmul(self.primitive, other.primitive))
     }
 }
 
@@ -3567,6 +3419,13 @@ where
         dim: usize,
         descending: bool,
     ) -> <Int as TensorKind<B>>::Primitive;
+
+    /// Applies the matrix multiplication operation.
+    ///
+    /// ```math
+    /// C = AB
+    /// ```
+    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 }
 
 impl<B: Backend> Numeric<B> for Int {
@@ -3830,6 +3689,37 @@ impl<B: Backend> Numeric<B> for Int {
         descending: bool,
     ) -> <Int as TensorKind<B>>::Primitive {
         B::int_argsort(tensor, dim, descending)
+    }
+
+    /// Applies the matrix multiplication operation.
+    ///
+    /// `C = AB`
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have a compatible shape.
+    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        let mut lhs_shape: Vec<usize> = lhs.shape().dims.clone();
+        lhs_shape.push(1);
+        let lhs_shape: Shape = Shape::from(lhs_shape);
+        let lhs = B::int_reshape(lhs, lhs_shape);
+
+        let mut rhs_shape: Vec<usize> = rhs.shape().dims.clone();
+        rhs_shape.insert(rhs_shape.len() - 2, 1);
+        let rhs_shape: Shape = Shape::from(rhs_shape);
+        let rhs = B::int_reshape(rhs, rhs_shape);
+
+        let p = B::int_mul(lhs, rhs);
+
+        let k = p.shape().num_dims();
+
+        let s = B::int_sum_dim(p, k - 2);
+
+        let mut s_shape = s.shape().dims.clone();
+        s_shape.remove(k - 2);
+        let s_shape = Shape::from(s_shape);
+
+        B::int_reshape(s, s_shape)
     }
 }
 
@@ -4294,6 +4184,35 @@ impl<B: Backend> Numeric<B> for Float {
             }
             TensorPrimitive::QFloat(tensor) => {
                 TensorPrimitive::QFloat(B::q_max_abs_dim(tensor, dim))
+            }
+        }
+    }
+
+    /// Applies the matrix multiplication operation.
+    ///
+    /// `C = AB`
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have a compatible shape.
+    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        match (lhs, rhs) {
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_matmul(lhs, rhs),
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_matmul(B::dequantize(lhs), rhs))
+            }
+            (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
+                // NOTE: in a typical workflow with linear layers (e.g., transformers), the rhs
+                // represents the weights.
+                //
+                // Since `q_matmul(lhs_f16, rhs_quant)` isn't currently supported, in practice it makes
+                // more sense to re-quantize the input back. Better usability.
+                //
+                // This might change in the future (dequantize on read in fusion?).
+                B::q_matmul(B::quantize_dynamic(lhs, rhs.scheme()), rhs)
+            }
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_matmul(lhs, rhs))
             }
         }
     }

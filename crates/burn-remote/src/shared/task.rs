@@ -39,6 +39,14 @@ impl SessionId {
 pub enum Task {
     Compute(ComputeTask, ConnectionId),
     Init(SessionId),
+    Close(SessionId),
+}
+
+#[allow(missing_docs)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TensorRemote {
+    pub id: TensorId,
+    pub address: String,
 }
 
 #[allow(missing_docs)]
@@ -46,9 +54,16 @@ pub enum Task {
 pub enum ComputeTask {
     RegisterOperation(Box<OperationIr>),
     RegisterTensor(TensorId, TensorData),
-    RegisterOrphan(TensorId),
+    RegisterTensorRemote(TensorRemote, TensorId),
+    ExposeTensorRemote { tensor: TensorIr, count: u32 },
     ReadTensor(TensorIr),
     SyncBackend,
+}
+
+/// Used by a server to request a tensor from another server
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RemoteTensorReq {
+    pub id: TensorId,
 }
 
 #[allow(missing_docs)]

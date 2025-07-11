@@ -1,15 +1,22 @@
-use crate::{Client, FusionBackend, FusionRuntime, client::FusionClient, stream::StreamId};
-use burn_ir::{TensorId, TensorIr, TensorStatus};
+use crate::{
+    Client, FusionBackend, FusionRuntime,
+    client::FusionClient,
+    stream::{Operation, OperationStreams, StreamId},
+};
+use burn_ir::{OperationIr, TensorId, TensorIr, TensorStatus};
 use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     quantization::{QTensorPrimitive, QuantScheme},
 };
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU32, Ordering},
+};
 
 /// Tensor primitive for the [fusion backend](crate::FusionBackend) for all kind.
 pub struct FusionTensor<R: FusionRuntime> {
     /// Tensor id.
-    pub id: Arc<TensorId>,
+    pub id: TensorId,
     /// The shape of the tensor.
     pub shape: Vec<usize>,
     /// The [fusion client](FusionClient).
@@ -18,22 +25,20 @@ pub struct FusionTensor<R: FusionRuntime> {
     pub dtype: DType,
     /// The current stream id this tensor is on.
     pub stream: StreamId,
-    // Orphan means that a tensor is never converted into a representation when it becomes `ReadWrite`.
-    //
-    // When a tensor is dropped and is still an orphan, we need to register it as such to avoid
-    // memory leak. Otherwise, the cleanup is going to happen during a graph execution.
-    pub(crate) is_orphan: bool,
+    pub(crate) count: Arc<AtomicU32>,
 }
 
 impl<R: FusionRuntime> Clone for FusionTensor<R> {
     fn clone(&self) -> Self {
+        self.count.fetch_add(1, Ordering::Relaxed);
+
         Self {
-            id: self.id.clone(),
+            id: self.id,
             shape: self.shape.clone(),
             client: self.client.clone(),
             dtype: self.dtype,
-            is_orphan: self.is_orphan,
             stream: self.stream,
+            count: self.count.clone(),
         }
     }
 }
@@ -42,10 +47,9 @@ impl<R: FusionRuntime> core::fmt::Debug for FusionTensor<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(
             format!(
-                "{{ id: {:?}, shape: {:?}, should_drop: {:?}, device: {:?} }}",
+                "{{ id: {:?}, shape: {:?}, device: {:?} }}",
                 self.id,
                 self.shape,
-                self.is_orphan,
                 self.client.device().clone(),
             )
             .as_str(),
@@ -65,7 +69,7 @@ impl<R: FusionRuntime> TensorMetadata for FusionTensor<R> {
 
 impl<R: FusionRuntime> FusionTensor<R> {
     pub(crate) fn new(
-        id: Arc<TensorId>,
+        id: TensorId,
         shape: Vec<usize>,
         dtype: DType,
         client: Client<R>,
@@ -76,13 +80,13 @@ impl<R: FusionRuntime> FusionTensor<R> {
             shape,
             client,
             dtype,
-            is_orphan: true,
             stream,
+            count: Arc::new(AtomicU32::new(1)),
         }
     }
 
-    fn status(&self) -> TensorStatus {
-        if Arc::strong_count(&self.id) <= 1 {
+    fn status(&self, count: u32) -> TensorStatus {
+        if count <= 1 {
             TensorStatus::ReadWrite
         } else {
             TensorStatus::ReadOnly
@@ -94,25 +98,31 @@ impl<R: FusionRuntime> FusionTensor<R> {
         TensorIr {
             status: TensorStatus::NotInit,
             shape: self.shape.clone(),
-            id: *self.id.as_ref(),
+            id: self.id,
             dtype: self.dtype,
         }
     }
 
     /// Intermediate representation to be used when using an initialized tensor used as input.
     pub fn into_ir(mut self) -> TensorIr {
-        let status = self.status();
+        let count = self.count.load(Ordering::Relaxed);
+        let status = self.status(count);
+
         let mut shape_out = Vec::new();
         core::mem::swap(&mut self.shape, &mut shape_out);
 
         if let TensorStatus::ReadWrite = status {
-            self.is_orphan = false;
+            // Avoids an unwanted drop on the same thread.
+            //
+            // Since `drop` is called after `into_ir`, we must not register a drop if the tensor
+            // was consumed with a `ReadWrite` status.
+            self.count.fetch_add(1, Ordering::Relaxed);
         }
 
         TensorIr {
             status,
             shape: shape_out,
-            id: *self.id.as_ref(),
+            id: self.id,
             dtype: self.dtype,
         }
     }
@@ -162,15 +172,37 @@ impl<R: FusionRuntime> FusionTensor<R> {
     }
 }
 
+#[derive(new, Debug)]
+pub(crate) struct DropOp {
+    pub(crate) id: TensorId,
+}
+
+impl<RO: FusionRuntime> Operation<RO> for DropOp {
+    fn execute(&self, handles: &mut burn_ir::HandleContainer<RO::FusionHandle>) {
+        handles.remove_handle(self.id);
+    }
+}
+
 impl<R: FusionRuntime> Drop for FusionTensor<R> {
     fn drop(&mut self) {
-        if !self.is_orphan {
-            return;
-        }
+        let count = self.count.fetch_sub(1, Ordering::Relaxed);
 
-        match self.status() {
+        match self.status(count) {
             TensorStatus::ReadWrite => {
-                self.client.register_orphan(&self.id);
+                let mut shape = Vec::new();
+                core::mem::swap(&mut shape, &mut self.shape);
+
+                let ir = TensorIr {
+                    id: self.id,
+                    shape,
+                    status: TensorStatus::ReadWrite,
+                    dtype: self.dtype,
+                };
+                let mut streams = OperationStreams::default();
+                streams.tensor(self);
+
+                self.client
+                    .register(streams, OperationIr::Drop(ir), DropOp { id: self.id });
             }
             TensorStatus::ReadOnly => {}
             TensorStatus::NotInit => {}

@@ -7,12 +7,11 @@ use crate::config::Config;
 /// Padding configuration for 1D operators.
 #[derive(Config, Debug, PartialEq)]
 pub enum PaddingConfig1d {
-    /// Dynamically calculate the amount of padding necessary to ensure that the output size will be
-    /// the same as the input.
+    /// Dynamically calculates padding to ensure output size matches input size.
     Same,
-    /// Same as no padding.
+    /// No padding applied.
     Valid,
-    /// Applies the specified amount of padding to all inputs.
+    /// Applies a specific amount of padding to all inputs.
     Explicit(usize),
 }
 
@@ -35,12 +34,11 @@ impl PaddingConfig1d {
 /// Padding configuration for 2D operators.
 #[derive(Config, Debug, PartialEq)]
 pub enum PaddingConfig2d {
-    /// Dynamically calculate the amount of padding necessary to ensure that the output size will be
-    /// the same as the input.
+    /// Dynamically calculates padding to preserve input dimensions in output.
     Same,
-    /// Same as no padding.
+    /// No padding applied.
     Valid,
-    /// Applies the specified amount of padding to all inputs.
+    /// Applies specified padding values to height and width dimensions.
     Explicit(usize, usize),
 }
 
@@ -70,12 +68,11 @@ impl PaddingConfig2d {
 /// Padding configuration for 3D operators.
 #[derive(Config, Debug, PartialEq)]
 pub enum PaddingConfig3d {
-    /// Dynamically calculate the amount of padding necessary to ensure that the output size will be
-    /// the same as the input.
+    /// Dynamically calculates padding to preserve input dimensions in output.
     Same,
-    /// Same as no padding.
+    /// No padding applied.
     Valid,
-    /// Applies the specified amount of padding to all inputs.
+    /// Applies specified padding values to depth, height, and width dimensions.
     Explicit(usize, usize, usize),
 }
 

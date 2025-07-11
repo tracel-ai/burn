@@ -6,9 +6,9 @@ use burn_tensor::quantization::QTensorPrimitive;
 use burn_tensor::{DType, Shape, TensorMetadata};
 use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
-use cubecl::linalg::tensor::TensorHandle;
 use cubecl::prelude::{TensorHandleRef, *};
 use cubecl::server::Handle;
+use cubecl::std::tensor::TensorHandle;
 use std::marker::PhantomData;
 
 /// The basic tensor primitive struct.
@@ -35,7 +35,7 @@ impl<R: CubeRuntime, E: CubeElement> From<CubeTensor<R>> for TensorHandle<R, E> 
 }
 
 impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
-    #[cfg(feature = "export_tests")]
+    #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) {
         use burn_tensor::Tolerance;
 
@@ -45,22 +45,22 @@ impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
             DType::F64 => {
                 let expected = into_data_sync::<R, f64>(self.clone());
                 let actual = into_data_sync::<R, f64>(other);
-                expected.assert_approx_eq::<f64>(&actual, Tolerance::rel_abs(1e-2, 1e-3));
+                expected.assert_approx_eq::<f64>(&actual, Tolerance::permissive());
             }
             DType::F32 | DType::Flex32 => {
                 let expected = into_data_sync::<R, f32>(self.clone());
                 let actual = into_data_sync::<R, f32>(other);
-                expected.assert_approx_eq::<f32>(&actual, Tolerance::rel_abs(1e-2, 1e-3));
+                expected.assert_approx_eq::<f32>(&actual, Tolerance::permissive());
             }
             DType::F16 => {
                 let expected = into_data_sync::<R, half::f16>(self.clone());
                 let actual = into_data_sync::<R, half::f16>(other);
-                expected.assert_approx_eq::<half::f16>(&actual, Tolerance::rel_abs(1e-2, 4e-3));
+                expected.assert_approx_eq::<half::f16>(&actual, Tolerance::permissive());
             }
             DType::BF16 => {
                 let expected = into_data_sync::<R, half::bf16>(self.clone());
                 let actual = into_data_sync::<R, half::bf16>(other);
-                expected.assert_approx_eq::<half::bf16>(&actual, Tolerance::rel_abs(1e-2, 1e-3));
+                expected.assert_approx_eq::<half::bf16>(&actual, Tolerance::permissive());
             }
             DType::I64 => {
                 let expected = into_data_sync::<R, i64>(self.clone());

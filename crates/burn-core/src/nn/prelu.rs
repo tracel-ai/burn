@@ -82,7 +82,7 @@ mod tests {
         let layer = PReluConfig::new().init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", layer),
+            alloc::format!("{layer}"),
             "PRelu {num_parameters: 1, alpha_value: 0.25, params: 1}"
         );
     }

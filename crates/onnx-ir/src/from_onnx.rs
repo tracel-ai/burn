@@ -19,8 +19,10 @@ use super::rank_inference::rank_inference;
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 16] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 18] = [
     NodeType::BatchNormalization,
+    NodeType::InstanceNormalization,
+    NodeType::GroupNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
     NodeType::Conv2d,
@@ -119,10 +121,7 @@ impl GraphData {
                 if let Some(init_arg) = self.initializers.get(proto_str) {
                     init_arg.clone()
                 } else {
-                    log::warn!(
-                        "Input {} not found, should only happen when peeking",
-                        proto_str
-                    );
+                    log::warn!("Input {proto_str} not found, should only happen when peeking");
                     Argument::new(proto_str.to_string())
                 }
             }
@@ -279,7 +278,7 @@ impl OnnxGraphBuilder {
         } else if self.constants_types.contains(&node.node_type) {
             log::debug!("checking node {} for constants", &node.name);
             for input in node.inputs.iter_mut().skip(1) {
-                log::debug!("checking input {:?} for const", input);
+                log::debug!("checking input {input:?} for const");
                 if let Some(const_idx) = self.constants_map.get(&input.name) {
                     let constant = &graph_data.processed_nodes[*const_idx];
                     log::debug!(
@@ -367,10 +366,9 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     // Check opset versions - must be >= MIN_OPSET_VERSION
     if !verify_opsets(&onnx_model.opset_import, MIN_OPSET_VERSION) {
         panic!(
-            "Unsupported ONNX opset version. This implementation requires opset {} or higher. \
+            "Unsupported ONNX opset version. This implementation requires opset {MIN_OPSET_VERSION} or higher. \
             Please upgrade your model using the ONNX shape inference tool. \
-            See documentation (https://burn.dev/burn-book/import/onnx-model.html) for details.",
-            MIN_OPSET_VERSION
+            See documentation (https://burn.dev/burn-book/import/onnx-model.html) for details."
         );
     }
 
@@ -452,15 +450,8 @@ trait TopologicalSortable {
 
 impl TopologicalSortable for Vec<NodeProto> {
     fn is_top_sorted(&self) -> bool {
-        // Create a hashmap to store the position of each node in the vector
-        let position: HashMap<String, usize> = self
-            .iter()
-            .enumerate()
-            .map(|(idx, node)| (node.name.clone(), idx))
-            .collect();
-
         // Iterate over each node in the vector
-        for node in self {
+        for (node_position, node) in self.iter().enumerate() {
             // Iterate over each output of the node
             for output in &node.output {
                 // If the output is empty, we don't want to check the rest of the graph, inputs and outputs that are optional
@@ -469,11 +460,11 @@ impl TopologicalSortable for Vec<NodeProto> {
                     continue;
                 }
                 // Iterate over each other node in the vector
-                for other_node in self {
+                for (other_node_position, other_node) in self.iter().enumerate() {
                     // If the other node has an input that matches the current output
                     if other_node.input.contains(output) {
                         // If the position of the current node is greater than the position of the other node
-                        if position[&node.name] > position[&other_node.name] {
+                        if node_position > other_node_position {
                             // The vector is not topologically sorted
                             return false;
                         }

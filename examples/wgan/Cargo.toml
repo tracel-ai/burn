@@ -3,6 +3,9 @@ name = "wgan"
 version = "0.2.0"
 edition.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 ndarray = ["burn/ndarray"]
 ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]

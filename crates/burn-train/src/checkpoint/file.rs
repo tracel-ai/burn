@@ -77,7 +77,7 @@ where
         );
 
         if std::path::Path::new(&file_to_remove).exists() {
-            log::info!("Removing checkpoint {}", file_to_remove);
+            log::info!("Removing checkpoint {file_to_remove}");
             std::fs::remove_file(file_to_remove).map_err(CheckpointerError::IOError)?;
         }
 

@@ -4,9 +4,12 @@ mod tests {
     use core::f32;
 
     use burn_tensor::{Distribution, Int, Shape, Tensor, backend::Backend, ops::IntTensorOps};
+    use burn_tensor::{ElementConversion, Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
-    use burn_cubecl::kernel::prng::tests_utils::calculate_bin_stats;
     use serial_test::serial;
+
+    use cubecl::random::{assert_at_least_one_value_per_bin, assert_wald_wolfowitz_runs_test};
 
     #[test]
     #[serial]
@@ -16,7 +19,9 @@ mod tests {
         let device = Default::default();
 
         let tensor = Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device);
-        tensor.to_data().assert_within_range(0..1);
+        tensor
+            .to_data()
+            .assert_within_range::<FT>(0.elem()..1.elem());
     }
 
     #[test]
@@ -28,7 +33,9 @@ mod tests {
 
         let tensor =
             Tensor::<TestBackend, 2>::random(shape, Distribution::Uniform(5., 17.), &device);
-        tensor.to_data().assert_within_range(5..17);
+        tensor
+            .to_data()
+            .assert_within_range::<FT>(5.elem()..17.elem());
     }
 
     #[test]
@@ -41,13 +48,9 @@ mod tests {
         let tensor =
             Tensor::<TestBackend, 2>::random(shape, Distribution::Uniform(-5., 10.), &device)
                 .into_data();
-        let numbers = tensor
-            .as_slice::<<TestBackend as Backend>::FloatElem>()
-            .unwrap();
-        let stats = calculate_bin_stats(numbers, 3, -5., 10.);
-        assert!(stats[0].count >= 1);
-        assert!(stats[1].count >= 1);
-        assert!(stats[2].count >= 1);
+        let numbers = tensor.as_slice::<FT>().unwrap();
+
+        assert_at_least_one_value_per_bin(numbers, 3, -5., 10.);
     }
 
     #[test]
@@ -59,22 +62,9 @@ mod tests {
         let tensor =
             Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device).into_data();
 
-        let numbers = tensor
-            .as_slice::<<TestBackend as Backend>::FloatElem>()
-            .unwrap();
-        let stats = calculate_bin_stats(numbers, 2, 0., 1.);
-        let n_0 = stats[0].count as f32;
-        let n_1 = stats[1].count as f32;
-        let n_runs = (stats[0].n_runs + stats[1].n_runs) as f32;
+        let numbers = tensor.as_slice::<FT>().unwrap();
 
-        let expectation = (2. * n_0 * n_1) / (n_0 + n_1) + 1.0;
-        let variance = ((2. * n_0 * n_1) * (2. * n_0 * n_1 - n_0 - n_1))
-            / ((n_0 + n_1).powf(2.) * (n_0 + n_1 - 1.));
-        let z = (n_runs - expectation) / variance.sqrt();
-
-        // below 2 means we can have good confidence in the randomness
-        // we put 2.5 to make sure it passes even when very unlucky
-        assert!(z.abs() < 2.5);
+        assert_wald_wolfowitz_runs_test(numbers, 0., 1.);
     }
 
     #[test]
@@ -103,13 +93,9 @@ mod tests {
 
         let data_float = tensor.float().into_data();
 
-        let numbers = data_float
-            .as_slice::<<TestBackend as Backend>::FloatElem>()
-            .unwrap();
-        let stats = calculate_bin_stats(numbers, 10, -10., 10.);
-        assert!(stats[0].count >= 1);
-        assert!(stats[1].count >= 1);
-        assert!(stats[2].count >= 1);
+        let numbers = data_float.as_slice::<FT>().unwrap();
+
+        assert_at_least_one_value_per_bin(numbers, 10, -10., 10.);
     }
 
     #[test]

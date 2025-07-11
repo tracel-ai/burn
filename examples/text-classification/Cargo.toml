@@ -6,6 +6,9 @@ name = "text-classification"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = []
 f16 = []
@@ -37,7 +40,7 @@ burn = { path = "../../crates/burn", features = [
 ], default-features = false }
 
 # Tokenizer
-tokenizers = { version = "0.21.1", default-features = false, features = [
+tokenizers = { version = "0.21.2", default-features = false, features = [
     "onig",
     "http",
 ] }

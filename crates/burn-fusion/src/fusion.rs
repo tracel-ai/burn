@@ -62,7 +62,7 @@ impl FusionClientLocator {
 
         if let Some(clients) = clients {
             if clients.contains_key(&key) {
-                panic!("Client already created for device {:?}", key);
+                panic!("Client already created for device {key:?}");
             }
 
             clients.insert(key, Box::new(client));

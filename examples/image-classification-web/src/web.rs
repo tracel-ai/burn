@@ -78,7 +78,7 @@ impl ImageClassifier {
 
         let duration = start.elapsed();
 
-        log::debug!("Inference is completed in {:?}", duration);
+        log::debug!("Inference is completed in {duration:?}");
 
         top_5_classes(result)
     }
@@ -90,7 +90,7 @@ impl ImageClassifier {
         let device = Default::default();
         self.model = ModelType::WithCandleBackend(Model::new(&device));
         let duration = start.elapsed();
-        log::debug!("Model is loaded to the Candle backend in {:?}", duration);
+        log::debug!("Model is loaded to the Candle backend in {duration:?}");
         Ok(())
     }
 
@@ -101,7 +101,7 @@ impl ImageClassifier {
         let device = Default::default();
         self.model = ModelType::WithNdArrayBackend(Model::new(&device));
         let duration = start.elapsed();
-        log::debug!("Model is loaded to the NdArray backend in {:?}", duration);
+        log::debug!("Model is loaded to the NdArray backend in {duration:?}");
         Ok(())
     }
 
@@ -113,13 +113,13 @@ impl ImageClassifier {
         init_setup_async::<AutoGraphicsApi>(&device, Default::default()).await;
         self.model = ModelType::WithWgpuBackend(Model::new(&device));
         let duration = start.elapsed();
-        log::debug!("Model is loaded to the Wgpu backend in {:?}", duration);
+        log::debug!("Model is loaded to the Wgpu backend in {duration:?}");
 
         log::debug!("Warming up the model");
         let start = Instant::now();
         let _ = self.inference(&[0.0; HEIGHT * WIDTH * CHANNELS]).await;
         let duration = start.elapsed();
-        log::debug!("Warming up is completed in {:?}", duration);
+        log::debug!("Warming up is completed in {duration:?}");
         Ok(())
     }
 }

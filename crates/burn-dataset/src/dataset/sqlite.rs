@@ -339,14 +339,13 @@ impl SqliteDatasetStorage {
     ///
     /// * A `PathBuf` instance representing the file path.
     pub fn db_file(&self) -> PathBuf {
-        let db_file = match &self.db_file {
+        match &self.db_file {
             Some(db_file) => db_file.clone(),
             None => {
                 let name = sanitize(self.name.as_ref().expect("Name is not set"));
                 Self::base_dir(self.base_dir.to_owned()).join(format!("{name}.db"))
             }
-        };
-        db_file
+        }
     }
 
     /// Determines the base directory for storing the dataset.
@@ -545,7 +544,7 @@ where
         pragma_update_with_error_handling(&conn, "journal_mode", "OFF")?;
 
         // Insert the serialized item into the database
-        let insert_statement = format!("insert into {split} (item) values (?)", split = split);
+        let insert_statement = format!("insert into {split} (item) values (?)");
         conn.execute(insert_statement.as_str(), [serialized_item])?;
 
         // Get the primary key of the last inserted row and convert to index (row_id-1)
@@ -823,7 +822,7 @@ mod tests {
         (0..record_count).into_par_iter().for_each(|index: i64| {
             let thread_id: std::thread::ThreadId = std::thread::current().id();
             let sample = Complex {
-                column_str: format!("test_{:?}_{}", thread_id, index),
+                column_str: format!("test_{thread_id:?}_{index}"),
                 column_bytes: vec![index as u8, 2, 3],
                 column_int: index,
                 column_bool: true,

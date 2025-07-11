@@ -161,7 +161,7 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use crate::tensor::TensorData;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn_tensor::{ElementConversion, Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]
@@ -170,7 +170,7 @@ mod tests {
 
         let config = ConvTranspose2dConfig::new([5, 1], [5, 5]);
         let k = (config.channels[1] * config.kernel_size[0] * config.kernel_size[1]) as f64;
-        let k = (config.groups as f64 / k).sqrt() as f32;
+        let k = (config.groups as f64 / k).sqrt().elem::<FT>();
         let conv = config.init::<TestBackend>(&Default::default());
 
         conv.weight.to_data().assert_within_range(-k..k);
@@ -197,7 +197,7 @@ mod tests {
         let conv = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            format!("{}", conv),
+            format!("{conv}"),
             "ConvTranspose2d {channels: [5, 2], stride: [1, 1], kernel_size: [5, 5], dilation: [1, 1], groups: 1, padding: [0, 0], padding_out: [0, 0], params: 252}"
         );
     }

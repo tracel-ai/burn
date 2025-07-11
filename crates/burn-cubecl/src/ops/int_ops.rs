@@ -206,7 +206,7 @@ where
     }
 
     fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::sum::<R, I>(tensor, Default::default()).unwrap()
+        reduce::sum_fallback::<R, I>(tensor, Default::default()).unwrap()
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
@@ -333,18 +333,16 @@ where
         distribution: Distribution,
         device: &Device<Self>,
     ) -> IntTensor<Self> {
-        let float_tensor = match distribution {
-            Distribution::Default => random_uniform(shape, device, 0.elem::<F>(), 255.elem()),
+        match distribution {
+            Distribution::Default => random_uniform(shape, device, 0.elem::<I>(), 255.elem()),
             Distribution::Uniform(low, high) => {
-                random_uniform(shape, device, low.elem::<F>(), high.elem())
+                random_uniform(shape, device, low.elem::<I>(), high.elem())
             }
-            Distribution::Bernoulli(prob) => random_bernoulli(shape, device, prob.elem::<F>()),
+            Distribution::Bernoulli(prob) => random_bernoulli::<R, I>(shape, device, prob as f32),
             Distribution::Normal(mean, std) => {
-                random_normal(shape, device, mean.elem::<F>(), std.elem())
+                random_normal(shape, device, mean.elem::<I>(), std.elem())
             }
-        };
-
-        kernel::cast::<R, F, I>(float_tensor)
+        }
     }
 
     fn int_permute(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {

@@ -1,4 +1,4 @@
-use burn_common::tensor::is_contiguous;
+use burn_common::tensor::{contiguous_strides, is_contiguous};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use burn_tensor::DType;
@@ -6,13 +6,16 @@ use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::Elem};
 
 use crate::{
     CubeFusionHandle, elem_dtype,
-    shared::ir::{Arg, FuseOp, LayoutInfo},
+    shared::{
+        ir::{Arg, FuseOp, LayoutInfo},
+        settings::RefLayoutSetting,
+    },
     strides_dyn_rank,
 };
 
 use super::{
     super::ir::FusePrecision, BlockPlan, FuseResources, HandleInput, HandleOutput, InputReference,
-    LaunchPlan, ReferenceSelection, TensorView,
+    LaunchPlan, ReferenceSelection, TensorView, block::FuseBlock,
 };
 
 /// Create or reuse handles for the outputs.
@@ -23,6 +26,7 @@ pub struct OutputPlanner<'a, R: Runtime> {
     outputs_sorted: Vec<OutputSorted<'a>>,
     handles: Vec<Option<HandleOutput<R>>>,
     globals: Vec<Option<TensorIr>>,
+    blocks: &'a Vec<FuseBlock>,
 }
 
 #[derive(Debug)]
@@ -43,7 +47,7 @@ enum OutputKind {
 }
 
 impl<'a, R: Runtime> OutputPlanner<'a, R> {
-    pub fn new(resources: &'a FuseResources) -> Self {
+    pub fn new(resources: &'a FuseResources, blocks: &'a Vec<FuseBlock>) -> Self {
         let mut outputs_sorted: Vec<_> = resources
             .outputs
             .iter()
@@ -75,6 +79,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             outputs_sorted,
             handles,
             globals,
+            blocks,
         }
     }
 
@@ -96,8 +101,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 .unwrap()
                 .clone();
             let strides = strides_dyn_rank(&tensor_global.shape);
-
             let (kind, block_idx) = self.output_kind(plan, &tensor_global, &output, &strides);
+
             match kind {
                 OutputKind::Inplace { input_pos } => {
                     self.inplace_output(context, plan, output, tensor_global, input_pos, block_idx);
@@ -148,29 +153,74 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             plan.global_outputs.push(global.unwrap());
         }
 
-        for block in plan.blocks.iter_mut() {
+        for (i, block) in plan.blocks.iter_mut().enumerate() {
             if !block.reference.is_found() {
-                Self::select_reference_from_inputs(block, &plan.handle_inputs);
+                Self::select_reference_from_inputs(
+                    self.blocks[i].settings.ref_layout,
+                    block,
+                    &plan.handle_inputs,
+                );
             } else {
                 Self::add_layout_info_inputs(block, &plan.handle_inputs);
             }
         }
+
+        // Make sure dropped are correctly executed.
+        for id in self.resources.dropped.iter() {
+            if let Some(tensor_global) = context.tensors.get(id) {
+                context.handles.remove_handle(tensor_global.id);
+            }
+        }
+        for id in plan.cleared.drain(..) {
+            context.handles.remove_handle(id);
+        }
     }
 
-    fn select_reference_from_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput<R>]) {
+    fn select_reference_from_inputs(
+        ref_layout_setting: RefLayoutSetting,
+        block: &mut BlockPlan<'_>,
+        handle_inputs: &[HandleInput<R>],
+    ) {
         if let Some(input_ref) = block.potential_reference_input.take() {
             match input_ref {
                 InputReference::Normal { input_pos } => {
                     let reference = handle_inputs.get(input_pos).unwrap();
-                    block.reference = ReferenceSelection::Concrete {
-                        layout: Arg::Input(
-                            input_pos as u32,
-                            reference.precision,
-                            LayoutInfo::IsRef,
-                        ),
-                        shape: reference.global_shape.clone(),
-                        strides: reference.handle.strides.clone(),
+
+                    let set_ref_as_concrete = |block: &mut BlockPlan<'_>| {
+                        block.reference = ReferenceSelection::Concrete {
+                            layout: Arg::Input(
+                                input_pos as u32,
+                                reference.precision,
+                                LayoutInfo::IsRef,
+                            ),
+                            shape: reference.global_shape.clone(),
+                            strides: reference.handle.strides.clone(),
+                        };
                     };
+
+                    let set_ref_as_virtual = |block: &mut BlockPlan<'_>| {
+                        block.reference = ReferenceSelection::VirtualShape {
+                            original: Arg::Input(
+                                input_pos as u32,
+                                reference.precision,
+                                LayoutInfo::Unknown,
+                            ),
+                            shape: reference.global_shape.clone(),
+                            strides: contiguous_strides(&reference.global_shape),
+                        };
+                    };
+
+                    match ref_layout_setting {
+                        RefLayoutSetting::Any => set_ref_as_concrete(block),
+                        RefLayoutSetting::OnlyContiguous => {
+                            if is_contiguous(&reference.global_shape, &reference.handle.strides) {
+                                set_ref_as_concrete(block)
+                            } else {
+                                set_ref_as_virtual(block)
+                            }
+                        }
+                    }
+
                     Self::add_layout_info_inputs(block, handle_inputs);
                 }
                 InputReference::SwapDims { original_pos, dims } => {
@@ -195,7 +245,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
     fn add_layout_info_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput<R>]) {
         for hi in handle_inputs.iter() {
-            if let ReferenceSelection::Concrete { strides, shape, .. } = &block.reference {
+            if let ReferenceSelection::Concrete { strides, shape, .. }
+            | ReferenceSelection::VirtualShape { strides, shape, .. } = &block.reference
+            {
                 if strides == &hi.handle.strides && shape == &hi.global_shape {
                     if let Some(ops) = block.reads.get_mut(&hi.relative_id) {
                         for op in ops.iter_mut() {
@@ -324,7 +376,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     ) {
         let block = &mut plan.blocks[block_idx];
 
-        if !block.reference.is_found() {
+        if !block.reference.is_found()
+            && self.blocks[block_idx].shape_ref == output.tensor_relative.shape
+        {
             block.reference = ReferenceSelection::Concrete {
                 layout: Arg::Output(
                     output.pos_original as u32,

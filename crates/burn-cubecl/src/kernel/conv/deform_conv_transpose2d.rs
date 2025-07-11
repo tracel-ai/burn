@@ -5,8 +5,8 @@ use burn_tensor::{
     ops::{DeformConv2dBackward, DeformConvOptions, FloatTensorOps as _},
 };
 use cubecl::{
-    AtomicFeature, CubeDim, CubeLaunch, Feature, calculate_cube_count_elemwise, cube, ir::Elem,
-    linalg::convolution::ConvLaunchError, prelude::*,
+    AtomicFeature, CubeDim, CubeLaunch, Feature, calculate_cube_count_elemwise,
+    convolution::ConvLaunchError, cube, ir::Elem, prelude::*,
 };
 
 use crate::{

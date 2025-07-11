@@ -87,6 +87,6 @@ mod tests {
     #[test]
     fn display() {
         let loss = MseLoss::new();
-        assert_eq!(alloc::format!("{}", loss), "MseLoss");
+        assert_eq!(alloc::format!("{loss}"), "MseLoss");
     }
 }

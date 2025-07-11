@@ -1,7 +1,10 @@
 mod activation;
 mod clone_invariance;
 mod grid;
+mod linalg;
 mod module;
+#[cfg(feature = "std")]
+mod multi_threads;
 mod ops;
 mod primitive;
 mod quantization;
@@ -158,6 +161,10 @@ macro_rules! testgen_with_float_param {
         // test grid
         burn_tensor::testgen_meshgrid!();
 
+        // test linalg
+        burn_tensor::testgen_vector_norm!();
+        burn_tensor::testgen_cosine_similarity!();
+
         // test module
         burn_tensor::testgen_module_conv1d!();
         burn_tensor::testgen_module_conv2d!();
@@ -177,6 +184,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_module_nearest_interpolate!();
         burn_tensor::testgen_module_bilinear_interpolate!();
         burn_tensor::testgen_module_bicubic_interpolate!();
+        burn_tensor::testgen_module_linear!();
 
         // test ops
         burn_tensor::testgen_gather_scatter!();
@@ -216,6 +224,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_repeat_dim!();
         burn_tensor::testgen_repeat!();
         burn_tensor::testgen_reshape!();
+        burn_tensor::testgen_roll!();
         burn_tensor::testgen_sin!();
         burn_tensor::testgen_sinh!();
         burn_tensor::testgen_slice!();
@@ -244,6 +253,8 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_remainder!();
         burn_tensor::testgen_cartesian_grid!();
         burn_tensor::testgen_nan!();
+        burn_tensor::testgen_inf!();
+        burn_tensor::testgen_finite!();
         burn_tensor::testgen_round!();
         burn_tensor::testgen_floor!();
         burn_tensor::testgen_ceil!();
@@ -310,7 +321,6 @@ macro_rules! testgen_with_bool_param {
         burn_tensor::testgen_full!();
         burn_tensor::testgen_map_comparison!();
         burn_tensor::testgen_mask!();
-        burn_tensor::testgen_nan!();
         burn_tensor::testgen_repeat_dim!();
         burn_tensor::testgen_repeat!();
         burn_tensor::testgen_reshape!();
@@ -332,6 +342,10 @@ macro_rules! testgen_no_param {
 
         // test primitive
         burn_tensor::testgen_primitive!();
+
+        // test multi threads
+        #[cfg(feature = "std")]
+        burn_tensor::testgen_multi_threads!();
     };
 }
 

@@ -5,7 +5,10 @@ use burn_tensor::{DType, Shape};
 pub use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
 use cubecl::{
     AutotuneKey,
+    client::ComputeClient,
+    frontend::{Atomic, CubePrimitive},
     reduce::{
+        ReduceError,
         instructions::{ReduceFn, ReduceFnConfig},
         shared_sum,
     },
@@ -22,6 +25,31 @@ pub struct SumAutotuneKey {
     pub length: usize,
 }
 
+/// Check if the client supports atomic add for the given element type.
+fn supports_atomic_add<R: CubeRuntime, E: CubeElement>(
+    client: &ComputeClient<R::Server, R::Channel>,
+) -> bool {
+    let atomic_elem = Atomic::<E>::as_elem_native_unchecked();
+    client
+        .properties()
+        .feature_enabled(cubecl::Feature::Type(atomic_elem))
+        && client
+            .properties()
+            .feature_enabled(cubecl::Feature::AtomicFloat(cubecl::AtomicFeature::Add))
+}
+
+/// [Sum](sum) with fallback when `client` doesn't support atomic add for the type `E`.
+pub fn sum_fallback<R: CubeRuntime, E: CubeElement>(
+    tensor: CubeTensor<R>,
+    mut strategy: SumStrategy,
+) -> Result<CubeTensor<R>, ReduceError> {
+    // Early check before creating output and fallback
+    if matches!(strategy, SumStrategy::OneShot(_)) && !supports_atomic_add::<R, E>(&tensor.client) {
+        strategy = SumStrategy::Chained(Default::default());
+    }
+    sum::<R, E>(tensor, strategy)
+}
+
 /// Specialize reduce function to compute the sum of all elements of the `input` tensor and return
 /// the value into a single-element tensor of shape `1 x 1 x 1 x ...` with the same rank as `input`.
 ///
@@ -30,12 +58,12 @@ pub struct SumAutotuneKey {
 /// Return an error if the `client` doesn't support atomic add for the type `E`.
 pub fn sum<Run: CubeRuntime, E: CubeElement>(
     tensor: CubeTensor<Run>,
-    cube_count: SumStrategy,
-) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
+    strategy: SumStrategy,
+) -> Result<CubeTensor<Run>, ReduceError> {
     let client = tensor.client.clone();
     let device = tensor.device.clone();
 
-    match cube_count {
+    match strategy {
         SumStrategy::OneShot(cube_count) => {
             let handle = client.create(E::as_bytes(&[E::from_int(0)]));
             let output =
@@ -137,6 +165,7 @@ pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: Cube
             rank: input.shape.num_dims(),
         },
     )?;
+
     let result = match strategy {
         ReduceStrategy::Unspecified => cubecl::reduce::reduce::<Run, (In, Acc), Out, ReduceFn>(
             &client,

@@ -304,6 +304,7 @@ pub fn write<C: CubePrimitive>(
             };
             let tensor = outputs.tensors.index_mut(pos);
             set_polyfill::<NumericExpand<DYN_ELEM_ID>>(comptime![precision.into_elem()]);
+
             tensor.tensor[offset] = Line::cast_from(value);
         }
         Arg::Local(pos, precision) => match comptime![precision] {
@@ -429,7 +430,8 @@ pub fn ref_buffer_len(
             Arg::Output(index, _, _) => global_buffer_len(outputs, index),
             _ => panic!("Invalid concrete ref layout."),
         },
-        RefLayout::Virtual(VirtualLayout::Reshaped(..)) => num_elements(locals, config),
+        RefLayout::Virtual(VirtualLayout::Reshaped { .. }) => num_elements(locals, config),
+        RefLayout::Virtual(VirtualLayout::Shape(..)) => num_elements(locals, config),
     }
 }
 

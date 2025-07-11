@@ -1,5 +1,5 @@
 use super::args::FusedMatmulArgs;
-use cubecl::linalg::matmul::components::{MatmulPrecision, MatmulSpec};
+use cubecl::matmul::components::{MatmulPrecision, MatmulSpec};
 use std::marker::PhantomData;
 
 /// Specification for a fused standard matmul.

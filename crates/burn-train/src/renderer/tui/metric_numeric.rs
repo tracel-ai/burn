@@ -6,7 +6,7 @@ use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::Line,
-    widgets::{Axis, Block, Borders, Chart, Paragraph, Tabs},
+    widgets::{Axis, Block, Borders, Chart, LegendPosition, Paragraph, Tabs},
 };
 use std::collections::HashMap;
 
@@ -173,9 +173,11 @@ impl NumericMetricsState {
                     .labels(axes.labels_y.clone().into_iter().map(|s| s.bold()))
                     .bounds(axes.bounds_y),
             )
+            .legend_position(Some(LegendPosition::Right))
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(new)]
 pub(crate) enum NumericMetricView<'a> {
     Plots(&'a [String], usize, Chart<'a>, PlotKind),

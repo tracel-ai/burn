@@ -6,6 +6,9 @@ name = "mnist"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = ["burn/dataset", "burn/vision"]
 ndarray = ["burn/ndarray"]
@@ -16,6 +19,7 @@ tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 metal = ["burn/metal"]
+remote = ["burn/remote"]
 
 [dependencies]
 burn = { path = "../../crates/burn", features = ["train"] }

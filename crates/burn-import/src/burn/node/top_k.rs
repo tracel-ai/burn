@@ -1,15 +1,9 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{Scope, TensorType, Type};
-use burn::config::Config;
 use burn::record::PrecisionSettings;
+use onnx_ir::node::topk::TopKConfig;
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
-
-#[derive(Config, Debug)]
-pub struct TopKConfig {
-    pub axis: usize,
-    pub k: usize,
-}
 
 #[derive(Debug, Clone, new)]
 pub struct TopKNode {

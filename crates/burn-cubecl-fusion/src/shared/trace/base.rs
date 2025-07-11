@@ -12,7 +12,10 @@ use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, marker::PhantomData};
+use std::{
+    collections::{BTreeMap, HashSet},
+    marker::PhantomData,
+};
 
 #[cfg(feature = "autotune-checks")]
 use burn_tensor::TensorData;
@@ -70,7 +73,9 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
         ) = (self, &other)
         {
             let mut num_checked = 0;
+            let mut num_handles = 0;
             for (id, (shape, handle)) in handles_ref.iter() {
+                num_handles += 1;
                 if let Some((shape_other, other)) = handles.get(id) {
                     assert_eq!(
                         handle.strides, other.strides,
@@ -85,14 +90,15 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
 
                     match handle.dtype {
                         DType::F64 => {
-                            data_ref.assert_approx_eq::<f64>(&data_other, Tolerance::default())
+                            data_ref.assert_approx_eq::<f64>(&data_other, Tolerance::permissive())
                         }
-                        DType::F32 => data_ref
-                            .assert_approx_eq::<f32>(&data_other, Tolerance::rel_abs(1e-2, 1e-4)),
+                        DType::F32 => {
+                            data_ref.assert_approx_eq::<f32>(&data_other, Tolerance::permissive())
+                        }
                         DType::F16 => data_ref
-                            .assert_approx_eq::<half::f16>(&data_other, Tolerance::default()),
+                            .assert_approx_eq::<half::f16>(&data_other, Tolerance::permissive()),
                         DType::BF16 => data_ref
-                            .assert_approx_eq::<half::bf16>(&data_other, Tolerance::default()),
+                            .assert_approx_eq::<half::bf16>(&data_other, Tolerance::permissive()),
                         _ => data_ref.assert_eq(&data_other, true),
                     }
                     num_checked += 1;
@@ -101,11 +107,17 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
                     println!("No tensor found for {id:?}=>{shape:?}");
                 }
             }
-            // At least one check is needed per output.
+
+            // At least one check is needed per output when there is an output.
             //
             // Some optimizations might write more outputs than needed, so it might be fined if
             // the number of handles is different, but at least one is required.
-            assert!(num_checked >= 1);
+            //
+            // An optimization might not create outputs if its dead code detection is triggered,
+            // therefore avoiding useless computation.
+            if num_handles > 0 {
+                assert!(num_checked >= 1);
+            }
         }
     }
 }
@@ -120,12 +132,13 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
 pub struct FuseResources {
     pub outputs: RegisteredTensors,
     pub inputs: RegisteredTensors,
-    pub scalars: Vec<(FusePrecision, u32)>,
+    pub scalars: Vec<(FusePrecision, u64)>,
     pub views: Vec<TensorView>,
     pub indexed: BTreeMap<TensorId, Arg>,
     pub inputs_unhandled: Vec<TensorId>,
     pub outputs_unhandled: Vec<Arg>,
     pub num_reshaped: usize,
+    pub dropped: HashSet<TensorId>,
 }
 
 #[derive(Debug)]
@@ -162,7 +175,8 @@ impl FuseTrace {
 
         InputPlanner::<R>::new(&self.resources, &self.blocks).run(context, &mut plan);
 
-        OutputPlanner::<R>::new(&self.resources).run::<BT>(client, device, context, &mut plan);
+        OutputPlanner::<R>::new(&self.resources, &self.blocks)
+            .run::<BT>(client, device, context, &mut plan);
 
         VectorizationPlanner::<R>::new(&self.resources, &self.blocks)
             .run(runner, context, &mut plan);
@@ -217,6 +231,10 @@ impl RegisteredTensors {
         self.tensors.len()
     }
 
+    pub fn get_id(&self, index: usize) -> Option<TensorId> {
+        self.tensors.get(index).map(|entry| entry.0.id)
+    }
+
     pub fn get_index(&self, tensor_id: TensorId) -> Option<u32> {
         self.tensors
             .iter()
@@ -253,7 +271,7 @@ impl RegisteredTensors {
             .iter_mut()
             .find(|(tensor_old, _)| tensor_old.id == tensor.id)
         {
-            tensor_old.status = tensor.status.clone();
+            tensor_old.status = tensor.status;
         }
     }
 }

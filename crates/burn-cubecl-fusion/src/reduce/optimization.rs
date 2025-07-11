@@ -6,7 +6,7 @@ use cubecl::prelude::*;
 use cubecl::reduce::instructions::{ReduceFn, ReduceFnConfig};
 use cubecl::reduce::{
     BoundChecksInner, ReduceFamily, ReduceParams, ReduceStrategy, init_tensors,
-    reduce_kernel_virtal,
+    reduce_kernel_virtual,
 };
 use cubecl::{
     CubeCount, CubeDim, Runtime,
@@ -61,7 +61,7 @@ pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
     fn run(&self, context: &mut Context<'_, CubeFusionHandle<R>>);
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct ReduceOptimizationState {
     trace: FuseTrace,
     trace_read_fallback: FuseTrace,
@@ -71,6 +71,15 @@ pub struct ReduceOptimizationState {
     pub(crate) reduce_shared_plane: FusedReduce,
     len: usize,
     len_read: usize,
+}
+
+impl core::fmt::Debug for ReduceOptimizationState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "{{ len_read: {}, len_total: {} }}",
+            self.len_read, self.len
+        ))
+    }
 }
 
 #[derive(new, Clone, Serialize, Deserialize, Debug)]
@@ -236,7 +245,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> TuneOutput<R> {
-        #[allow(unused_mut)] // It is used when #[cfg(test)] is true.
+        #[allow(unused_mut)] // It is used when `autotune-checks` is activated.
         let mut output_read = self
             .trace_read_fallback
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
@@ -248,12 +257,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             .run(context);
 
         #[cfg(feature = "autotune-checks")]
-        let mut output_checks = TuneOutput::<R>::Checked {
-            handles: Default::default(),
-        };
-
-        #[cfg(feature = "autotune-checks")]
-        if let TuneOutput::Checked { handles } = &mut output_checks {
+        if let TuneOutput::Checked { handles } = &mut output_read {
             let out_desc = context.tensors.get(&self.reduce.op.out.id).unwrap();
             let handle_out = context
                 .handles
@@ -270,11 +274,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
 
-        #[cfg(feature = "autotune-checks")]
-        return output_read.merge(output_write).merge(output_checks);
-
-        #[cfg(not(feature = "autotune-checks"))]
-        return output_read.merge(output_write);
+        output_read.merge(output_write)
     }
     /// Returns the number of output buffers added by fusion.
     pub fn num_ops_fused(&self) -> usize {
@@ -306,7 +306,6 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
             }
             _ => inputs.shape_ref(&config_read.ref_layout, config_read.rank as usize),
         };
-
         let reduce_count: u32 = shape
             .iter()
             .enumerate()
@@ -314,7 +313,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
             .product();
 
         let line_mode = match self.axis == config_read.rank as usize - 1 {
-            true => LineMode::Parallel, // axis de vectorization == axis de reduce.
+            true => LineMode::Parallel,
             false => LineMode::Perpendicular,
         };
 
@@ -462,7 +461,7 @@ pub fn reduce_kernel<R: ReduceFamily>(
     let (input, mut output) =
         init_tensors::<FusedReduceArgs, NumericExpand<INPUT>, NumericExpand<OUTPUT>>(input, output);
 
-    reduce_kernel_virtal::<NumericExpand<INPUT>, NumericExpand<OUTPUT>, NumericExpand<ACC>, R>(
+    reduce_kernel_virtual::<NumericExpand<INPUT>, NumericExpand<OUTPUT>, NumericExpand<ACC>, R>(
         &input,
         &mut output,
         axis_reduce,

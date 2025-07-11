@@ -14,6 +14,9 @@ readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-vision"
 version.workspace = true
 
+[lints]
+workspace = true
+
 
 [features]
 candle = ["burn-candle"]
@@ -28,8 +31,9 @@ tch = ["burn-tch"]
 # Test features
 test-cpu = ["export-tests"]
 test-cuda = ["cubecl-backend", "export-tests"]
-test-vulkan = ["burn-wgpu/vulkan", "cubecl-backend", "export-tests"]
 test-wgpu = ["cubecl-backend", "export-tests"]
+test-vulkan = ["burn-wgpu/vulkan", "test-wgpu"]
+test-metal = ["burn-wgpu/metal", "test-wgpu"]
 
 [dependencies]
 bon = { workspace = true }

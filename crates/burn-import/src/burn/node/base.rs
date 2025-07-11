@@ -1,24 +1,25 @@
 use std::marker::PhantomData;
 
 use super::{
-    argmax::ArgMaxNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
+    argmax::ArgMaxNode, argmin::ArgMinNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
     batch_norm::BatchNormNode, binary::BinaryNode, bitshift::BitShiftNode,
     bitwiseand::BitwiseAndNode, bitwisenot::BitwiseNotNode, bitwiseor::BitwiseOrNode,
-    bitwisexor::BitwiseXorNode, clip::ClipNode, concat::ConcatNode, constant::ConstantNode,
+    bitwisexor::BitwiseXorNode, ceil::CeilNode, clip::ClipNode, concat::ConcatNode, constant::ConstantNode,
     constant_of_shape::ConstantOfShapeNode, conv_transpose_1d::ConvTranspose1dNode,
     conv_transpose_2d::ConvTranspose2dNode, conv_transpose_3d::ConvTranspose3dNode,
-    conv1d::Conv1dNode, conv2d::Conv2dNode, conv3d::Conv3dNode, dropout::DropoutNode,
-    expand::ExpandNode, floor::FloorNode, gather::GatherNode, gather_elements::GatherElementsNode,
-    gemm::GemmNode, global_avg_pool::GlobalAvgPoolNode, layer_norm::LayerNormNode,
+    conv1d::Conv1dNode, conv2d::Conv2dNode, conv3d::Conv3dNode, depth_to_space::DepthToSpaceNode,
+    dropout::DropoutNode, expand::ExpandNode, floor::FloorNode, gather::GatherNode,
+    gather_elements::GatherElementsNode, gemm::GemmNode, global_avg_pool::GlobalAvgPoolNode,
+    group_norm::GroupNormNode, instance_norm::InstanceNormNode, layer_norm::LayerNormNode,
     linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode, max_pool1d::MaxPool1dNode,
     max_pool2d::MaxPool2dNode, mean::MeanNode, one_hot::OneHotNode, pad::PadNode, prelu::PReluNode,
     random_normal::RandomNormalNode, random_normal_like::RandomNormalLikeNode,
     random_uniform::RandomUniformNode, random_uniform_like::RandomUniformLikeNode,
-    range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode, split::SplitNode,
-    squeeze::SqueezeNode, sum::SumNode, tile::TileNode, top_k::TopKNode, trilu::TriluNode,
-    unary::UnaryNode, unsqueeze::UnsqueezeNode,
+    range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, round::RoundNode, slice::SliceNode,
+    split::SplitNode, squeeze::SqueezeNode, sum::SumNode, tile::TileNode, top_k::TopKNode,
+    trilu::TriluNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
 };
-use crate::burn::{BurnImports, Scope, Type};
+use crate::burn::{BurnImports, Scope, Type, node::space_to_depth::SpaceToDepthNode};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use serde::Serialize;
@@ -86,6 +87,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 #[derive(Debug, Clone)]
 pub enum Node<PS: PrecisionSettings> {
     ArgMax(ArgMaxNode),
+    ArgMin(ArgMinNode),
     AvgPool1d(AvgPool1dNode),
     AvgPool2d(AvgPool2dNode),
     BatchNorm(BatchNormNode),
@@ -104,15 +106,19 @@ pub enum Node<PS: PrecisionSettings> {
     ConvTranspose1d(ConvTranspose1dNode),
     ConvTranspose2d(ConvTranspose2dNode),
     ConvTranspose3d(ConvTranspose3dNode),
+    DepthToSpace(DepthToSpaceNode),
     PRelu(PReluNode),
     Dropout(DropoutNode),
     Expand(ExpandNode),
     Floor(FloorNode),
+    Ceil(CeilNode),
     Gather(GatherNode),
     GatherElements(GatherElementsNode),
     Gemm(GemmNode),
     GlobalAvgPool(GlobalAvgPoolNode),
+    InstanceNorm(InstanceNormNode),
     LayerNorm(LayerNormNode),
+    GroupNorm(GroupNormNode),
     Linear(LinearNode),
     Matmul(MatmulNode),
     MaxPool1d(MaxPool1dNode),
@@ -123,8 +129,10 @@ pub enum Node<PS: PrecisionSettings> {
     Range(RangeNode),
     Reshape(ReshapeNode),
     Resize(ResizeNode),
+    Round(RoundNode),
     Slice(SliceNode),
     Squeeze(SqueezeNode),
+    SpaceToDepth(SpaceToDepthNode),
     Split(SplitNode),
     Sum(SumNode),
     Tile(TileNode),
@@ -148,6 +156,7 @@ macro_rules! match_all {
         #[allow(clippy::redundant_closure_call)]
         match $self {
             Node::ArgMax(node) => $func(node),
+            Node::ArgMin(node) => $func(node),
             Node::AvgPool1d(node) => $func(node),
             Node::AvgPool2d(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
@@ -166,15 +175,19 @@ macro_rules! match_all {
             Node::ConvTranspose1d(node) => $func(node),
             Node::ConvTranspose2d(node) => $func(node),
             Node::ConvTranspose3d(node) => $func(node),
+            Node::DepthToSpace(node) => $func(node),
             Node::PRelu(node) => $func(node),
             Node::Dropout(node) => $func(node),
             Node::Expand(node) => $func(node),
             Node::Floor(node) => $func(node),
+            Node::Ceil(node) => $func(node),
             Node::Gather(node) => $func(node),
             Node::GatherElements(node) => $func(node),
             Node::Gemm(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
+            Node::InstanceNorm(node) => $func(node),
             Node::LayerNorm(node) => $func(node),
+            Node::GroupNorm(node) => $func(node),
             Node::Linear(node) => $func(node),
             Node::Matmul(node) => $func(node),
             Node::MaxPool1d(node) => $func(node),
@@ -185,7 +198,9 @@ macro_rules! match_all {
             Node::Range(node) => $func(node),
             Node::Reshape(node) => $func(node),
             Node::Resize(node) => $func(node),
+            Node::Round(node) => $func(node),
             Node::Slice(node) => $func(node),
+            Node::SpaceToDepth(node) => $func(node),
             Node::Squeeze(node) => $func(node),
             Node::Sum(node) => $func(node),
             Node::Tile(node) => $func(node),
@@ -218,6 +233,7 @@ impl<PS: PrecisionSettings> Node<PS> {
     pub fn name(&self) -> &str {
         match self {
             Node::ArgMax(_) => "argmax",
+            Node::ArgMin(_) => "argmin",
             Node::AvgPool1d(_) => "avg_pool1d",
             Node::AvgPool2d(_) => "avg_pool2d",
             Node::BatchNorm(_) => "batch_norm",
@@ -236,15 +252,19 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::ConvTranspose1d(_) => "conv_transpose1d",
             Node::ConvTranspose2d(_) => "conv_transpose2d",
             Node::ConvTranspose3d(_) => "conv_transpose3d",
+            Node::DepthToSpace(_) => "depth_to_space",
             Node::PRelu(_) => "prelu",
             Node::Dropout(_) => "dropout",
             Node::Expand(_) => "expand",
             Node::Floor(_) => "floor",
+            Node::Ceil(_) => "ceil",
             Node::Gather(_) => "gather",
             Node::GatherElements(_) => "gather_elements",
             Node::Gemm(_) => "gemm",
             Node::GlobalAvgPool(_) => "global_avg_pool",
+            Node::InstanceNorm(_) => "instance_norm",
             Node::LayerNorm(_) => "layer_norm",
+            Node::GroupNorm(_) => "group_norm",
             Node::Linear(_) => "linear",
             Node::Matmul(_) => "matmul",
             Node::MaxPool1d(_) => "max_pool1d",
@@ -255,7 +275,9 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Range(_) => "range",
             Node::Reshape(_) => "reshape",
             Node::Resize(_) => "resize",
+            Node::Round(_) => "round",
             Node::Slice(_) => "slice",
+            Node::SpaceToDepth(_) => "space_to_depth",
             Node::Squeeze(_) => "squeeze",
             Node::Sum(_) => "add",
             Node::Tile(_) => "tile",
@@ -324,10 +346,8 @@ pub(crate) mod tests {
         graph::BurnGraph,
         node::{NodeCodegen, conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens},
     };
-    use burn::{
-        nn::PaddingConfig2d, nn::conv::Conv2dConfig, record::FullPrecisionSettings,
-        tensor::TensorData,
-    };
+    use burn::{record::FullPrecisionSettings, tensor::TensorData};
+    use onnx_ir::node::{conv2d::Conv2dConfig, padding::PaddingConfig2d};
     use proc_macro2::TokenStream;
     use quote::quote;
 
@@ -389,7 +409,15 @@ pub(crate) mod tests {
             TensorType::new_float("tensor4", 4),
             TensorData::from([2f32]),
             None,
-            Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
+            Conv2dConfig::new(
+                [3, 3],
+                [3, 3],
+                [1, 1],
+                PaddingConfig2d::Valid,
+                [1, 1],
+                1,
+                true,
+            ),
         ));
 
         graph.register_input_output(
@@ -462,7 +490,15 @@ pub(crate) mod tests {
             TensorType::new_float("tensor4", 4),
             TensorData::from([2f32]),
             None,
-            Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
+            Conv2dConfig::new(
+                [3, 3],
+                [3, 3],
+                [1, 1],
+                PaddingConfig2d::Valid,
+                [1, 1],
+                1,
+                true,
+            ),
         ));
         graph.register(MatmulNode::new(
             TensorType::new_float("tensor3", 4),

@@ -89,12 +89,13 @@ impl<B: Backend> FBetaScoreMetric<B> {
             Micro => aggregated_metric,
             Macro => {
                 if aggregated_metric
+                    .clone()
                     .contains_nan()
                     .any()
                     .into_scalar()
                     .to_bool()
                 {
-                    let nan_mask = aggregated_metric.is_nan();
+                    let nan_mask = aggregated_metric.clone().is_nan();
                     aggregated_metric = aggregated_metric
                         .clone()
                         .select(0, nan_mask.bool_not().argwhere().squeeze(1))
@@ -168,10 +169,8 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
         let mut metric = FBetaScoreMetric::binary(beta, threshold);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value()]).assert_approx_eq::<f32>(
-            &TensorData::from([expected * 100.0]),
-            Tolerance::rel_abs(1e-5, 1e-5),
-        )
+        TensorData::from([metric.value()])
+            .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
 
     #[rstest]
@@ -192,10 +191,8 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multiclass).into();
         let mut metric = FBetaScoreMetric::multiclass(beta, top_k, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value()]).assert_approx_eq::<f32>(
-            &TensorData::from([expected * 100.0]),
-            Tolerance::rel_abs(1e-5, 1e-5),
-        )
+        TensorData::from([metric.value()])
+            .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
 
     #[rstest]
@@ -212,10 +209,8 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multilabel).into();
         let mut metric = FBetaScoreMetric::multilabel(beta, threshold, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value()]).assert_approx_eq::<f32>(
-            &TensorData::from([expected * 100.0]),
-            Tolerance::rel_abs(1e-5, 1e-5),
-        )
+        TensorData::from([metric.value()])
+            .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
 
     #[test]

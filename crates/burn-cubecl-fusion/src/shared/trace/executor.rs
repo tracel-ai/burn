@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use burn_fusion::stream::Context;
+use burn_fusion::stream::{Context, ScalarId, ScalarValue};
 use burn_tensor::DType;
 use cubecl::{
     CubeElement, Runtime,
@@ -85,11 +85,17 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         for (block_plan, block) in plan.blocks.into_iter().zip(self.blocks) {
             let reference = match block_plan.reference {
                 ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
+                ReferenceSelection::VirtualShape { original, .. } => {
+                    RefLayout::Virtual(VirtualLayout::Shape(original, block_plan.width as u32))
+                }
                 ReferenceSelection::SwapDims { original, dims } => {
                     RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
                 }
                 ReferenceSelection::Reshaped { reshape_pos } => {
-                    RefLayout::Virtual(VirtualLayout::Reshaped(reshape_pos as u32))
+                    RefLayout::Virtual(VirtualLayout::Reshaped {
+                        reshape_pos: reshape_pos as u32,
+                        line_size: block_plan.width as u32,
+                    })
                 }
                 ReferenceSelection::NotFound | ReferenceSelection::Searching => {
                     return Err(ExecutionError::new(
@@ -210,90 +216,100 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
 }
 
 fn register_scalars<'h, R: Runtime>(
-    scalars: impl Iterator<Item = &'h (FusePrecision, u32)>,
+    scalars: impl Iterator<Item = &'h (FusePrecision, u64)>,
     views: impl DoubleEndedIterator<Item = &'h TensorView>,
     context: &mut Context<'_, CubeFusionHandle<R>>,
     inputs: &mut GlobalArgsLaunch<'h, R>,
 ) {
-    let mut index_f32 = 0;
-    let mut index_f16 = 0;
-    let mut index_bf16 = 0;
-    let mut index_u64 = 0;
-    let mut index_u32 = 0;
-    let mut index_u16 = 0;
-    let mut index_u8 = 0;
-    let mut index_i64 = 0;
-    let mut index_i32 = 0;
-    let mut index_i16 = 0;
-    let mut index_i8 = 0;
-
-    for (precision, _pos) in scalars {
+    for (precision, id) in scalars {
         match precision {
             FusePrecision::F32 | FusePrecision::Flex32 => {
-                inputs
-                    .scalars
-                    .push(GlobalScalar::F32(context.scalar_f32[index_f32]));
-                index_f32 += 1;
+                inputs.scalars.push(GlobalScalar::F32(
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::F32(val)) => *val,
+                        _ => panic!(),
+                    },
+                ));
             }
             FusePrecision::F16 => {
-                inputs
-                    .scalars
-                    .push(GlobalScalar::F16(context.scalar_f16[index_f16]));
-                index_f16 += 1;
+                inputs.scalars.push(GlobalScalar::F16(
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::F16(val)) => *val,
+                        _ => panic!(),
+                    },
+                ));
             }
             FusePrecision::BF16 => {
-                inputs
-                    .scalars
-                    .push(GlobalScalar::BF16(context.scalar_bf16[index_bf16]));
-                index_bf16 += 1;
+                inputs.scalars.push(GlobalScalar::BF16(
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::BF16(val)) => *val,
+                        _ => panic!(),
+                    },
+                ));
             }
             FusePrecision::I64 => {
-                inputs
-                    .scalars
-                    .push(GlobalScalar::I64(context.scalar_i64[index_i64]));
-                index_i64 += 1;
+                inputs.scalars.push(GlobalScalar::I64(
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::I64(val)) => *val,
+                        _ => panic!(),
+                    },
+                ));
             }
             FusePrecision::I32 => {
-                inputs
-                    .scalars
-                    .push(GlobalScalar::I32(context.scalar_i32[index_i32]));
-                index_i32 += 1;
+                inputs.scalars.push(GlobalScalar::I32(
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::I32(val)) => *val,
+                        _ => panic!(),
+                    },
+                ));
             }
             FusePrecision::I16 => {
-                inputs
-                    .scalars
-                    .push(GlobalScalar::I16(context.scalar_i16[index_i16]));
-                index_i16 += 1;
+                inputs.scalars.push(GlobalScalar::I16(
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::I16(val)) => *val,
+                        _ => panic!(),
+                    },
+                ));
             }
             FusePrecision::I8 => {
-                inputs
-                    .scalars
-                    .push(GlobalScalar::I8(context.scalar_i8[index_i8]));
-                index_i8 += 1;
+                inputs.scalars.push(GlobalScalar::I8(
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::I8(val)) => *val,
+                        _ => panic!(),
+                    },
+                ));
             }
             FusePrecision::U64 => {
-                inputs
-                    .scalars
-                    .push(GlobalScalar::U64(context.scalar_u64[index_u64]));
-                index_u64 += 1;
+                inputs.scalars.push(GlobalScalar::U64(
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::U64(val)) => *val,
+                        _ => panic!(),
+                    },
+                ));
             }
             FusePrecision::U32 => {
-                inputs
-                    .scalars
-                    .push(GlobalScalar::U32(context.scalar_u32[index_u32]));
-                index_u32 += 1;
+                inputs.scalars.push(GlobalScalar::U32(
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::U32(val)) => *val,
+                        _ => panic!(),
+                    },
+                ));
             }
             FusePrecision::U16 => {
-                inputs
-                    .scalars
-                    .push(GlobalScalar::U16(context.scalar_u16[index_u16]));
-                index_u16 += 1;
+                inputs.scalars.push(GlobalScalar::U16(
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::U16(val)) => *val,
+                        _ => panic!(),
+                    },
+                ));
             }
             FusePrecision::U8 => {
-                inputs
-                    .scalars
-                    .push(GlobalScalar::U8(context.scalar_u8[index_u8]));
-                index_u8 += 1;
+                inputs.scalars.push(GlobalScalar::U8(
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::U8(val)) => *val,
+                        _ => panic!(),
+                    },
+                ));
             }
             FusePrecision::Bool => todo!(),
         }

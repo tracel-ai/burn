@@ -48,7 +48,27 @@ pub fn fuse_on_read<E: CubePrimitive>(
         let arg = comptime![read_args.index(i).clone()];
         let value = read::<E>(inputs, outputs, locals, read_pos, arg, config);
 
-        output.push(value);
+        let value_line_size = value.line_size();
+        let output_line_size = comptime!(config.width as u32);
+
+        // We currently don't support broadcasting __across__ blocks.
+        if comptime!(value_line_size != output_line_size) {
+            let mut tmp = Line::<E>::empty(comptime!(config.width as u32));
+            comptime!(
+                assert_eq!(value_line_size, 1, "The input line_size must be 1 or the same as the config width.");
+            );
+
+            let val = value[0];
+
+            #[unroll]
+            for i in 0..comptime!(config.width as u32) {
+                tmp[i] = val;
+            }
+
+            output.push(tmp);
+        } else {
+            output.push(value);
+        }
     }
 
     output
@@ -126,8 +146,12 @@ pub fn init_locals(
                     layout.tensor.line_size(),
                 )
             }
-            VirtualLayout::Reshaped(start) => {
+            VirtualLayout::Reshaped {
+                reshape_pos,
+                line_size,
+            } => {
                 let mut stride_curr = 1u32;
+                let start = reshape_pos * config.rank;
 
                 #[unroll]
                 #[allow(clippy::clone_on_copy)]
@@ -142,7 +166,29 @@ pub fn init_locals(
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
 
-                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), 1u32)
+                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), line_size)
+            }
+            VirtualLayout::Shape(original, line_size) => {
+                let layout = match comptime![original.clone()] {
+                    Arg::Input(pos, ..) => inputs.tensors.index(pos),
+                    Arg::Output(pos, ..) => outputs.tensors.index(pos),
+                    _ => comptime![panic!("Unsupported")],
+                };
+                let mut stride_curr = 1u32;
+
+                #[unroll]
+                #[allow(clippy::clone_on_copy)]
+                for i in 0..config.rank {
+                    let reverse = reverse_index(config.rank, i);
+                    let shape = layout.tensor.shape(reverse);
+
+                    ref_shape[comptime![reverse]] = shape;
+                    ref_strides[comptime![reverse]] = stride_curr;
+
+                    stride_curr *= ref_shape[comptime![reverse]];
+                }
+
+                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), line_size)
             }
         },
     }
@@ -179,6 +225,9 @@ fn fuse(
             }
             FuseOp::Erf(op) => {
                 erf::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            FuseOp::Sqrt(op) => {
+                sqrt::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
             }
             FuseOp::Abs(op) => {
                 abs::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
@@ -355,17 +404,25 @@ fn gather<C: Numeric>(
     #[comptime] output: Arg,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    let mut index = read::<u32>(inputs, outputs, locals, write_pos, indices, config);
-    let (pos, _precision) = comptime! {
+    let line_size = locals.ref_line_size;
+
+    let pos_input = comptime! {
         match input {
-            Arg::Input(pos, precision, _) => (pos, precision),
+            Arg::Input(pos, ..) => pos,
             _ => panic!("Input tensor isn't an input"),
         }
     };
-    let line_size = locals.ref_line_size;
-    let stride = global_stride(inputs, dim, pos);
+    let pos_indices = comptime! {
+        match indices {
+            Arg::Input(pos, ..) => pos,
+            _ => panic!("Indices tensor isn't an input"),
+        }
+    };
 
-    index *= Line::new(stride);
+    let stride_input_dim = global_stride(inputs, dim, pos_input);
+
+    let mut index = 0u32;
+    let mut result = Line::empty(line_size);
 
     if comptime![dim > 0] {
         let index_before = global_offset(
@@ -377,7 +434,7 @@ fn gather<C: Numeric>(
             comptime![Some((0u32, dim))],
             config,
         );
-        index += Line::new(index_before);
+        index += index_before;
     }
 
     if comptime![dim + 1 < config.rank] {
@@ -390,17 +447,75 @@ fn gather<C: Numeric>(
             comptime![Some((dim + 1, config.rank))],
             config,
         );
-        index += Line::new(index_after);
+        index += index_after;
     }
 
-    let mut result = Line::empty(line_size);
+    let index_offset = global_offset(
+        inputs,
+        outputs,
+        locals,
+        write_pos,
+        indices,
+        comptime![Some((0u32, config.rank))],
+        config,
+    );
 
-    #[unroll]
-    for i in 0..line_size {
-        let index = index[i];
+    if comptime![dim == config.rank - 1] {
+        // Per-element indexing (along the dimension)
+        #[unroll]
+        for i in 0..line_size {
+            let offset = read_input::<u32>(
+                inputs,
+                locals,
+                pos_indices,
+                index_offset + i,
+                LayoutInfo::IsRef,
+                config,
+                None,
+            );
 
-        let input = read_input::<C>(inputs, locals, pos, index, LayoutInfo::IsRef, config, None);
-        result[i] = input[0];
+            let input = read_input::<C>(
+                inputs,
+                locals,
+                pos_input,
+                index + (offset[0] * stride_input_dim),
+                LayoutInfo::IsRef,
+                config,
+                None,
+            );
+
+            result[i] = input[0];
+        }
+    } else {
+        // Shared index for whole line
+        let stride_input_line = global_stride(inputs, comptime!(config.rank - 1), pos_input);
+
+        let offset = read_input::<u32>(
+            inputs,
+            locals,
+            pos_indices,
+            index_offset,
+            LayoutInfo::IsRef,
+            config,
+            None,
+        );
+
+        index += offset[0] * stride_input_dim;
+
+        #[unroll]
+        for i in 0..line_size {
+            let input = read_input::<C>(
+                inputs,
+                locals,
+                pos_input,
+                index + i * stride_input_line,
+                LayoutInfo::IsRef,
+                config,
+                None,
+            );
+
+            result[i] = input[0];
+        }
     }
 
     write::<C>(inputs, outputs, locals, write_pos, result, output, config);
@@ -598,6 +713,7 @@ binary_func!(powf, Line::<C>::powf, Float);
 unary_func!(exp, Line::<C>::exp, Float);
 unary_func!(log, Line::<C>::log, Float);
 unary_func!(log1p, Line::<C>::log1p, Float);
+unary_func!(sqrt, Line::<C>::sqrt, Float);
 unary_func!(cos, Line::<C>::cos, Float);
 unary_func!(sin, Line::<C>::sin, Float);
 unary_func!(tanh, Line::<C>::tanh, Float);

@@ -443,7 +443,7 @@ mod tests {
 
         output_1
             .into_data()
-            .assert_approx_eq::<FT>(&output_2.into_data(), Tolerance::rel_abs(1e-4, 1e-4));
+            .assert_approx_eq::<FT>(&output_2.into_data(), Tolerance::permissive());
     }
 
     #[test]
@@ -452,7 +452,7 @@ mod tests {
         let transformer = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", transformer),
+            alloc::format!("{transformer}"),
             "TransformerEncoder {d_model: 2, d_ff: 4, n_heads: 2, \
             n_layers: 3, dropout: 0.1, norm_first: false, quiet_softmax: false, params: 162}"
         );

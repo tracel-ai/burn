@@ -27,11 +27,13 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
     pub fn run(self, context: &mut Context<'_, CubeFusionHandle<R>>, plan: &mut LaunchPlan<'a, R>) {
         for (pos, (tensor_relative, precision)) in self.resources.inputs.iter().enumerate() {
             let mut tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
-            // Important to take the status of the relative graph and not
-            // the global graph, since the status of the global graph
-            // might be of a later operation on the same tensor id.
-            let status = &tensor_relative.status;
-            let mut handle = context.handles.get_handle(&tensor_global.id, status);
+            let mut handle = context
+                .handles
+                .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
+
+            if let TensorStatus::ReadWrite = tensor_relative.status {
+                plan.cleared.push(tensor_global.id);
+            }
 
             self.analyze(plan, pos, tensor_relative, &handle);
 
@@ -77,17 +79,14 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 }
             }
 
-            // Views can't be used inplace.
-            if is_a_view {
-                return;
+            if !is_a_view {
+                self.analyze_normal(plan, pos, tensor_relative, handle);
             }
-
-            self.analyze_potential_inplace(plan, pos, tensor_relative, handle);
         }
     }
 
     /// Analyzes if the given tensor can be used inplace in one of the block.
-    fn analyze_potential_inplace(
+    fn analyze_normal(
         &self,
         plan: &mut LaunchPlan<'a, R>,
         pos: usize,
@@ -124,15 +123,14 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
             }
 
             let block_plan = &mut plan.blocks[idx];
-            if tensor_relative.status == TensorStatus::ReadWrite
-                && handle.handle.can_mut()
-                && self.blocks[idx].settings.inplace
-            {
-                block_plan.potential_inplaces.push(PotentialInplace {
-                    input_pos: pos,
-                    tensor_relative,
-                    strides: handle.strides.clone(),
-                });
+            if tensor_relative.status == TensorStatus::ReadWrite {
+                if self.blocks[idx].settings.inplace && handle.handle.can_mut() {
+                    block_plan.potential_inplaces.push(PotentialInplace {
+                        input_pos: pos,
+                        tensor_relative,
+                        strides: handle.strides.clone(),
+                    });
+                }
                 // Inplace tensors are normally really good as the reference layout, since
                 // it's normally better to be based on writes rather than on reads.
                 block_plan.potential_reference_input =

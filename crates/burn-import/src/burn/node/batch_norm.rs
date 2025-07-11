@@ -2,10 +2,11 @@ use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
-    nn::{BatchNormConfig, BatchNormRecord},
+    nn::BatchNormRecord,
     record::{PrecisionSettings, Record},
     tensor::{Tensor, TensorData},
 };
+use onnx_ir::node::batch_norm::BatchNormConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
@@ -171,7 +172,7 @@ mod tests {
             TensorData::from([2f32]),
             TensorData::from([2f32]),
             TensorData::from([2f32]),
-            BatchNormConfig::new(128),
+            BatchNormConfig::new(128, 0.00001, 0.1),
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);

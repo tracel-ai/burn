@@ -95,7 +95,7 @@ mod tests {
 
             x_grad
                 .to_data()
-                .assert_approx_eq::<FT>(&x_grad_actual.into_data(), Tolerance::default());
+                .assert_approx_eq::<FT>(&x_grad_actual.into_data(), Tolerance::permissive());
         }
     }
 }

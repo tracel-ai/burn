@@ -1,15 +1,24 @@
-# Importing Models
+# Burn Import
 
-The Burn project supports the import of models from various frameworks, emphasizing efficiency and
-compatibility. Currently, it handles two primary model formats:
+The `burn-import` crate enables seamless integration of pre-trained models from popular machine
+learning frameworks into the Burn ecosystem. This functionality allows you to leverage existing
+models while benefiting from Burn's performance optimizations and native Rust integration.
 
-1. [ONNX](https://burn.dev/burn-book/import/onnx-model.html): Facilitates direct import, ensuring the
-   model's performance and structure are maintained.
+## Supported Import Formats
 
-2. [PyTorch](https://burn.dev/burn-book/import/pytorch-model.html): Enables the loading of PyTorch model
-   weights into Burn’s native model architecture, ensuring seamless integration.
+Burn currently supports three primary model import formats, each serving different use cases:
 
-## Contribution
+| Format                                                                              | Description                               | Use Case                                                                                               |
+| ----------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| [**ONNX** (Guide)](https://burn.dev/burn-book/import/onnx-model.html)               | Open Neural Network Exchange format       | Direct import of complete model architectures and weights from any framework that supports ONNX export |
+| [**PyTorch** (Guide)](https://burn.dev/burn-book/import/pytorch-model.html)         | PyTorch weights (.pt, .pth)               | Loading weights from PyTorch models into a matching Burn architecture                                  |
+| [**Safetensors** (Guide)](https://burn.dev/burn-book/import/safetensors-model.html) | Hugging Face's model serialization format | Loading a model's tensor weights into a matching Burn architecture                                     |
 
-Interested in contributing to `burn-import`? Check out our [development guide](DEVELOPMENT.md) for
-more information.
+## ONNX Contributor Resources
+
+- [ONNX to Burn conversion guide](https://burn.dev/contributor-book/guides/onnx-to-burn-conversion-tool.html) -
+  Instructions for adding support for additional ONNX operators
+- [ONNX tests README](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/README.md) -
+  Testing procedures for ONNX operators
+- [Supported ONNX Operators table](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/SUPPORTED-ONNX-OPS.md) -
+  Complete list of currently supported ONNX operators

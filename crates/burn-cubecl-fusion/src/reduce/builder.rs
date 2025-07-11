@@ -8,7 +8,7 @@ use crate::{
     shared::{
         builder::FuseOptimizationBuilder,
         ir::FusePrecision,
-        settings::{FuseSettings, VectorizationSetting},
+        settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
 };
 
@@ -24,22 +24,37 @@ pub struct ReduceBuilder<R: Runtime> {
     status: OptimizationStatus,
 }
 
+impl<R: Runtime> Clone for ReduceBuilder<R> {
+    fn clone(&self) -> Self {
+        Self {
+            builder: self.builder.clone(),
+            builder_read_fallback: self.builder_read_fallback.clone(),
+            builder_write_fallback: self.builder_write_fallback.clone(),
+            device: self.device.clone(),
+            reduce: self.reduce.clone(),
+            status: self.status,
+        }
+    }
+}
+
 impl<R: Runtime> ReduceBuilder<R> {
     pub fn new(device: R::Device, bool_precision: FusePrecision) -> Self {
         let client = R::client(&device);
         let props = client.properties();
-        let max_bindings = props.hardware_properties().max_bindings;
+        let max_bindings = props.hardware.max_bindings;
         let settings_read = FuseSettings {
             broadcast: true,
             output_shape_updates: true,
-            inplace: true,
+            inplace: false,
             vectorization: VectorizationSetting::Activated,
+            ref_layout: RefLayoutSetting::OnlyContiguous,
         };
         let settings_write = FuseSettings {
             broadcast: true,
             output_shape_updates: false,
             inplace: true,
             vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock,
+            ref_layout: RefLayoutSetting::Any,
         };
 
         Self {
@@ -266,5 +281,9 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
 
     fn len(&self) -> usize {
         self.builder.len() + if self.reduce.is_some() { 1 } else { 0 }
+    }
+
+    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<CubeOptimization<R>>> {
+        Box::new(self.clone())
     }
 }

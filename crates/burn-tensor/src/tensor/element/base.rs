@@ -329,7 +329,7 @@ impl From<cubecl::ir::Elem> for DType {
                 cubecl::ir::FloatKind::Flex32 => DType::Flex32,
                 cubecl::ir::FloatKind::F32 => DType::F32,
                 cubecl::ir::FloatKind::F64 => DType::F64,
-                cubecl::ir::FloatKind::TF32 => panic!("Not a valid DType for tensors."),
+                _ => panic!("{value:?} is not a valid DType for tensors."),
             },
             cubecl::ir::Elem::Int(int_kind) => match int_kind {
                 cubecl::ir::IntKind::I8 => DType::I8,

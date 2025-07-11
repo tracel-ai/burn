@@ -67,6 +67,11 @@ pub type TestBackend = burn_cuda::Cuda;
 #[cfg(test)]
 pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
+#[cfg(all(test, feature = "test-memory-checks"))]
+mod tests {
+    burn_fusion::memory_checks!();
+}
+
 /// Type alias for the learning rate.
 ///
 /// LearningRate also implements [learning rate scheduler](crate::lr_scheduler::LrScheduler) so it

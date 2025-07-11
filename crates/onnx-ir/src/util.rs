@@ -1,4 +1,5 @@
-use crate::ir::{ArgType, Node};
+use crate::ir::{ArgType, Node, TensorType};
+
 use crate::protos::OperatorSetIdProto;
 
 pub fn shape_config(curr: &Node) -> (usize, usize) {
@@ -80,4 +81,191 @@ pub fn verify_opsets(opsets: &[OperatorSetIdProto], min_version: i64) -> bool {
         }
     }
     true
+}
+
+/// Preserve input rank for operations like Relu, Sigmoid, etc.
+pub fn same_as_input(node: &mut Node) {
+    log::debug!("Copying input type to output for node {}", node.name);
+
+    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
+        log::debug!("Input rank for {}: {}", node.name, tensor.rank);
+    } else if let ArgType::Scalar(_) = &node.inputs[0].ty {
+        log::debug!("Input is scalar for {}", node.name);
+    }
+
+    node.outputs[0].ty = node.inputs[0].ty.clone();
+    log::debug!("Output type is same as input for {}", node.name);
+}
+
+/// Update output rank for broadcasting operations (e.g., Add, Sub) to max input rank.
+pub fn same_as_input_broadcast(node: &mut Node) {
+    log::debug!("Broadcasting operation for node {}", node.name);
+
+    let max_rank = node.inputs.iter().fold(0, |acc, input| match &input.ty {
+        ArgType::Tensor(tensor) => acc.max(tensor.rank),
+        ArgType::Scalar(_) => acc,
+        _ => panic!("Unsupported input type for broadcasting operation"),
+    });
+
+    log::debug!("Max rank for broadcasting node {}: {}", node.name, max_rank);
+
+    if max_rank == 0 {
+        node.outputs[0].ty = ArgType::Scalar(node.inputs[0].ty.elem_type().clone());
+        log::debug!("Scalar result for node {}", node.name);
+    } else {
+        let elem_type = node
+            .inputs
+            .iter()
+            .find_map(|input| match &input.ty {
+                ArgType::Tensor(tensor) => Some(tensor.elem_type.clone()),
+                _ => None,
+            })
+            .unwrap_or_else(|| node.inputs[0].ty.elem_type().clone());
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type,
+            rank: max_rank,
+            static_shape: None,
+        });
+        log::debug!(
+            "Tensor result for node {} with rank {}",
+            node.name,
+            max_rank
+        );
+    }
+}
+
+/// Temporary stub preserves input type for unhandled operations.
+pub fn temporary_pass_through_stub(node: &mut Node) {
+    log::warn!(
+        "Must implement rank inference for node type {:?} (name: {})",
+        node.node_type,
+        node.name
+    );
+
+    if let Some(input_rank) = node.inputs.first().map(|input| match &input.ty {
+        ArgType::Tensor(tensor) => tensor.rank,
+        ArgType::Scalar(_) => 0,
+        _ => 0,
+    }) {
+        log::debug!(
+            "Passing through input rank {} for unhandled node {}",
+            input_rank,
+            node.name
+        );
+    }
+
+    node.outputs[0].ty = node.inputs[0].ty.clone();
+    log::debug!(
+        "Using pass-through inference for unhandled node type {:?} ({})",
+        node.node_type,
+        node.name
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ir::{Argument, ElementType, NodeType};
+    use std::collections::HashMap;
+
+    fn create_test_node(op_type: NodeType, input_ranks: Vec<usize>) -> Node {
+        let mut inputs = Vec::new();
+
+        for (i, rank) in input_ranks.iter().enumerate() {
+            inputs.push(Argument {
+                name: format!("input_{i}"),
+                ty: ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Float32,
+                    rank: *rank,
+                    static_shape: None,
+                }),
+                value: None,
+                passed: true,
+            });
+        }
+
+        let outputs = vec![Argument {
+            name: "output".to_string(),
+            ty: ArgType::Tensor(TensorType {
+                elem_type: ElementType::Float32,
+                rank: 0, // Will be updated
+                static_shape: None,
+            }),
+            value: None,
+            passed: true,
+        }];
+
+        Node {
+            node_type: op_type.clone(),
+            name: format!("test_{op_type:?}").to_lowercase(),
+            inputs,
+            outputs,
+            attrs: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn test_same_as_input() {
+        let mut node = create_test_node(NodeType::Relu, vec![3]);
+        same_as_input(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.rank, 3);
+            }
+            _ => panic!("Expected tensor output"),
+        }
+    }
+
+    #[test]
+    fn test_same_as_input_broadcast_max_rank() {
+        let mut node = create_test_node(NodeType::Add, vec![2, 4, 3]);
+        same_as_input_broadcast(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.rank, 4); // max(2, 4, 3) = 4
+            }
+            _ => panic!("Expected tensor output"),
+        }
+    }
+
+    #[test]
+    fn test_same_as_input_broadcast_with_scalar() {
+        let mut node = create_test_node(NodeType::Add, vec![3]);
+        // Add a scalar input
+        node.inputs.push(Argument {
+            name: "scalar_input".to_string(),
+            ty: ArgType::Scalar(ElementType::Float32),
+            value: None,
+            passed: true,
+        });
+
+        same_as_input_broadcast(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.rank, 3); // Scalar doesn't affect rank
+            }
+            _ => panic!("Expected tensor output"),
+        }
+    }
+
+    #[test]
+    fn test_temporary_pass_through_stub() {
+        let mut node = create_test_node(NodeType::Identity, vec![5]);
+        temporary_pass_through_stub(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.rank, 5);
+            }
+            _ => panic!("Expected tensor output"),
+        }
+    }
 }

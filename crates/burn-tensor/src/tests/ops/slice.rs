@@ -1,7 +1,38 @@
 #[burn_tensor_testgen::testgen(slice)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, Tensor, TensorData, as_type, s};
+    use burn_tensor::{Int, Slice, Tensor, TensorData, as_type, s};
+
+    #[test]
+    fn should_support_slice_dim_1d() {
+        let data = TensorData::from([0.0, 1.0, 2.0]);
+        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
+
+        let output = tensor.slice_dim(0, -2..);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([1.0, 2.0]), false);
+    }
+
+    #[test]
+    #[should_panic(expected = "The provided dimension exceeds the tensor dimensions")]
+    fn should_panic_when_slice_dim_1d_bad_dim() {
+        let data = TensorData::from([0.0, 1.0, 2.0]);
+        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
+
+        let _output = tensor.slice_dim(1, 1..);
+    }
+
+    #[test]
+    fn should_support_slice_dim_2d() {
+        let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = TestTensor::<2>::from_data(data.clone(), &Default::default());
+
+        let output = tensor.slice_dim(1, 1..);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[1.0, 2.0], [4.0, 5.0]]), false);
+    }
 
     #[test]
     fn should_support_full_sliceing_1d() {
@@ -116,6 +147,45 @@ mod tests {
 
         let output = tensor.slice_assign([1..2, 0..2], tensor_assigned);
         let expected = TensorData::from([[0.0, 1.0, 2.0], [10.0, 5.0, 5.0]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_support_slice_fill_1d() {
+        let data = TensorData::from([0.0, 1.0, 2.0]);
+
+        let device = Default::default();
+        let tensor = TestTensor::<1>::from_data(data, &device);
+
+        let output = tensor.slice_fill([0..2], -1.0);
+        let expected = TensorData::from([-1.0, -1.0, 2.0]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_support_slice_fill_1d_neg() {
+        let data = TensorData::from([0.0, 1.0, 2.0]);
+
+        let device = Default::default();
+        let tensor = TestTensor::<1>::from_data(data, &device);
+
+        let output = tensor.slice_fill([-1..], -1.0);
+        let expected = TensorData::from([0.0, 1.0, -1.0]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_support_slice_fill_2d() {
+        let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+
+        let device = Default::default();
+        let tensor = TestTensor::<2>::from_data(data, &device);
+
+        let output = tensor.slice_fill([1..2, 0..2], -1.0);
+        let expected = TensorData::from([[0.0, 1.0, 2.0], [-1.0, -1.0, 5.0]]);
 
         output.into_data().assert_eq(&expected, false);
     }

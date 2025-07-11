@@ -114,13 +114,13 @@ fn strip_labeling<I: Int, BT: CubePrimitive>(
             }
 
             // Only needed pre-Volta, but we can't check that at present
-            sync_units();
+            sync_cube();
 
             if UNIT_POS_X == 0 {
                 shared_pixels[UNIT_POS_Y] = pixels_y;
             }
 
-            sync_units();
+            sync_cube();
 
             // Requires if and not select, because `select` may execute the then branch even if the
             // condition is false (on non-CUDA backends), which can lead to OOB reads.
@@ -245,7 +245,7 @@ fn strip_merge<I: Int, BT: CubePrimitive>(
                     last_dist_up_vec[UNIT_POS_Z] = start_distance(pixels_up, 32);
                 }
 
-                sync_units();
+                sync_cube();
 
                 if CUBE_POS_X == 0 || UNIT_POS_Z > 0 {
                     let last_dist = if UNIT_POS_Z > 0 {
@@ -475,9 +475,16 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
         return Err("Requires plane instructions".into());
     }
 
-    let props = client.properties().hardware_properties();
+    let props = &client.properties().hardware;
 
-    if props.plane_size_min < 32 {
+    if props.plane_size_min == 32 && props.plane_size_max == 32 {
+        return Err("Requires plane size of at least 32".into());
+    }
+
+    // Somehow the kernel doesn't work on AMD and Apple Silicon.
+    //
+    // The check invalidates those, but probably not for the right reason.
+    if props.plane_size_max != 32 {
         return Err("Requires plane size of at least 32".into());
     }
 

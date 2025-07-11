@@ -6,7 +6,7 @@ use crate::{
     shared::{
         builder::FuseOptimizationBuilder,
         ir::FusePrecision,
-        settings::{FuseSettings, VectorizationSetting},
+        settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
 };
 
@@ -18,11 +18,20 @@ pub struct ElementWiseBuilder<R: Runtime> {
     device: R::Device,
 }
 
+impl<R: Runtime> Clone for ElementWiseBuilder<R> {
+    fn clone(&self) -> Self {
+        Self {
+            builder: self.builder.clone(),
+            device: self.device.clone(),
+        }
+    }
+}
+
 impl<R: Runtime> ElementWiseBuilder<R> {
     pub fn new(device: R::Device, bool_precision: FusePrecision) -> Self {
         let client = R::client(&device);
         let props = client.properties();
-        let max_bindings = props.hardware_properties().max_bindings;
+        let max_bindings = props.hardware.max_bindings;
 
         Self {
             builder: FuseOptimizationBuilder::new(
@@ -33,6 +42,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                     output_shape_updates: true,
                     inplace: true,
                     vectorization: VectorizationSetting::Activated,
+                    ref_layout: RefLayoutSetting::Any,
                 },
             ),
             device,
@@ -68,5 +78,9 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ElementWiseBuilder
 
     fn len(&self) -> usize {
         self.builder.len()
+    }
+
+    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<CubeOptimization<R>>> {
+        Box::new(self.clone())
     }
 }

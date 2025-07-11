@@ -1,4 +1,4 @@
-use cubecl::{calculate_cube_count_elemwise, linalg::convolution::ConvLaunchError, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, convolution::ConvLaunchError, prelude::*};
 
 use crate::{
     CubeRuntime,

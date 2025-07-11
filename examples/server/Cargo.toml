@@ -6,9 +6,12 @@ name = "server"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = ["webgpu"]
-cuda = ["burn/cuda"]
+cuda = ["burn/cuda", "cubecl/compilation-cache"]
 webgpu = ["burn/webgpu"]
 vulkan = ["burn/vulkan"]
 ndarray = ["burn/ndarray"]
@@ -16,3 +19,4 @@ ndarray = ["burn/ndarray"]
 [dependencies]
 cfg-if = { workspace = true }
 burn = { path = "../../crates/burn", version = "0.18.0", features = ["server"] }
+cubecl = { workspace = true }

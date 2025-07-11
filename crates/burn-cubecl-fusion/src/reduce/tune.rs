@@ -7,7 +7,7 @@ use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
     reduce::tune_key::ReduceAutotuneKey,
-    tune::{LocalTuner, TunableSet, local_tuner},
+    tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use serde::{Deserialize, Serialize};
 
@@ -31,16 +31,18 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
 ) {
     static TUNER: LocalTuner<FusedReduceAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
-        .with_tunable(tune_fallback::<R, BT>) // First one should always work.
-        .with_tunable(tune_reduce::<R, BT>)
-        .with_tunable(tune_reduce_plane::<R, BT>)
-        .with_tunable(tune_reduce_shared_plane::<R, BT>);
+    let tunables = TUNER.init(|| {
+        TunableSet::new(create_key::<R>, input_gen::<R>)
+            .with(Tunable::new(tune_fallback::<R, BT>)) // First one should always work.
+            .with(Tunable::new(tune_reduce::<R, BT>))
+            .with(Tunable::new(tune_reduce_plane::<R, BT>))
+            .with(Tunable::new(tune_reduce_shared_plane::<R, BT>))
+    });
 
     TUNER.execute(
         &CubeTuneId::new::<R>(&optimization.client, &optimization.device),
         &optimization.client,
-        &tunables,
+        tunables,
         TuneInput::new(context, optimization),
     );
 }

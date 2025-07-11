@@ -90,8 +90,7 @@ impl TensorData {
         let num_data = data.len();
         assert_eq!(
             expected_data_len, num_data,
-            "Shape {:?} is invalid for input of size {:?}",
-            shape, num_data,
+            "Shape {shape:?} is invalid for input of size {num_data:?}",
         );
     }
 
@@ -545,7 +544,7 @@ impl TensorData {
                 if q == q_other {
                     self.assert_eq_elem::<i8>(other)
                 } else {
-                    panic!("Quantization schemes differ ({:?} != {:?})", q, q_other)
+                    panic!("Quantization schemes differ ({q:?} != {q_other:?})")
                 }
             }
         }
@@ -579,7 +578,7 @@ impl TensorData {
         }
 
         if !message.is_empty() {
-            panic!("Tensors are not eq:{}", message);
+            panic!("Tensors are not eq:{message}");
         }
     }
 
@@ -624,7 +623,8 @@ impl TensorData {
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     let diff_abs = ToPrimitive::to_f64(&(a - b).abs()).unwrap();
-                    let diff_rel = diff_abs / ToPrimitive::to_f64(&(a + b).abs()).unwrap();
+                    let max = F::max(a.abs(), b.abs());
+                    let diff_rel = diff_abs / ToPrimitive::to_f64(&max).unwrap();
 
                     let tol_rel = ToPrimitive::to_f64(&tolerance.relative).unwrap();
                     let tol_abs = ToPrimitive::to_f64(&tolerance.absolute).unwrap();
@@ -643,7 +643,7 @@ impl TensorData {
         }
 
         if !message.is_empty() {
-            panic!("Tensors are not approx eq:{}", message);
+            panic!("Tensors are not approx eq:{message}");
         }
     }
 
@@ -658,11 +658,8 @@ impl TensorData {
     /// If any value is not within the half-open range bounded inclusively below
     /// and exclusively above (`start..end`).
     pub fn assert_within_range<E: Element>(&self, range: core::ops::Range<E>) {
-        let start = range.start.elem::<f32>();
-        let end = range.end.elem::<f32>();
-
-        for elem in self.iter::<f32>() {
-            if elem < start || elem >= end {
+        for elem in self.iter::<E>() {
+            if elem.cmp(&range.start).is_lt() || elem.cmp(&range.end).is_ge() {
                 panic!("Element ({elem:?}) is not within range {range:?}");
             }
         }
@@ -678,11 +675,11 @@ impl TensorData {
     ///
     /// If any value is not within the half-open range bounded inclusively (`start..=end`).
     pub fn assert_within_range_inclusive<E: Element>(&self, range: core::ops::RangeInclusive<E>) {
-        let start = range.start().elem::<f32>();
-        let end = range.end().elem::<f32>();
+        let start = range.start();
+        let end = range.end();
 
-        for elem in self.iter::<f32>() {
-            if elem < start || elem > end {
+        for elem in self.iter::<E>() {
+            if elem.cmp(start).is_lt() || elem.cmp(end).is_gt() {
                 panic!("Element ({elem:?}) is not within range {range:?}");
             }
         }
@@ -853,14 +850,33 @@ pub struct Tolerance<F> {
 
 impl<F: Float> Default for Tolerance<F> {
     fn default() -> Self {
-        Self {
-            relative: F::from(64).unwrap() * F::epsilon(),
-            absolute: F::from(16).unwrap() * F::min_positive_value(),
-        }
+        Self::balanced()
     }
 }
 
 impl<F: Float> Tolerance<F> {
+    /// Create a tolerance with strict precision setting.
+    pub fn strict() -> Self {
+        Self {
+            relative: F::from(0.00).unwrap(),
+            absolute: F::from(64).unwrap() * F::min_positive_value(),
+        }
+    }
+    /// Create a tolerance with balanced precision setting.
+    pub fn balanced() -> Self {
+        Self {
+            relative: F::from(0.005).unwrap(), // 0.5%
+            absolute: F::from(1e-5).unwrap(),
+        }
+    }
+
+    /// Create a tolerance with permissive precision setting.
+    pub fn permissive() -> Self {
+        Self {
+            relative: F::from(0.01).unwrap(), // 1.0%
+            absolute: F::from(0.01).unwrap(),
+        }
+    }
     /// When comparing two numbers, this uses both the relative and absolute differences.
     ///
     /// That is, `x` and `y` are approximately equal if
@@ -882,7 +898,7 @@ impl<F: Float> Tolerance<F> {
     /// That is, `x` and `y` are approximately equal if
     ///
     /// ```text
-    /// |x - y| < R * (|x + y|)
+    /// |x - y| < R * max(|x|, |y|)
     /// ```
     ///
     /// where `R` is the relative `tolerance`.
@@ -985,11 +1001,9 @@ impl<F: Float> Tolerance<F> {
         }
 
         let diff = (x - y).abs();
+        let max = F::max(x.abs(), y.abs());
 
-        let norm = (x + y).abs();
-        let norm = norm.min(F::max_value()); // In case |a + b| -> inf.
-
-        diff < self.absolute.max(self.relative * norm)
+        diff < self.absolute.max(self.relative * max)
     }
 
     fn check_relative<FF: ToPrimitive>(tolerance: FF) -> F {

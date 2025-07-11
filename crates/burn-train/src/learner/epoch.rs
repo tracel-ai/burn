@@ -111,7 +111,7 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
         while let Some(item) = iterator.next() {
             iteration += 1;
             let lr = scheduler.step();
-            log::info!("Iteration {}", iteration);
+            log::info!("Iteration {iteration}");
 
             let progress = iterator.progress();
             let item = model.step(item);

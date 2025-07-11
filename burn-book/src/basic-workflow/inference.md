@@ -32,7 +32,7 @@ pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MnistItem)
     let output = model.forward(batch.images);
     let predicted = output.argmax(1).flatten::<1>(0, 1).into_scalar();
 
-    println!("Predicted {} Expected {}", predicted, label);
+    println!("Predicted {predicted} Expected {label}");
 }
 ```
 
@@ -46,6 +46,7 @@ By running the infer function, you should see the predictions of your model!
 Add the call to `infer` to the `main.rs` file after the `train` function call:
 
 ```rust , ignore
+# #![recursion_limit = "256"]
 # mod data;
 # mod inference;
 # mod model;

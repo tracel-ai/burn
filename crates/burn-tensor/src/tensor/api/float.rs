@@ -1,37 +1,27 @@
+use crate::FloatDType;
 use crate::Tensor;
-use crate::check::TensorCheck;
-use crate::quantization::{QTensorPrimitive, QuantScheme, QuantizationParameters};
+use crate::cast::ToElement;
+use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
-use crate::{FloatDType, check};
 use crate::{Int, TensorPrimitive};
+
+use super::Bool;
+
+/// Default RTOL value for `is_close` and `all_close`.
+pub const DEFAULT_RTOL: f64 = 1e-5;
+
+/// Default ATOL value for `is_close` and `all_close`.
+pub const DEFAULT_ATOL: f64 = 1e-8;
 
 impl<const D: usize, B> Tensor<B, D>
 where
     B: Backend,
 {
-    /// Executes an operation on the tensor and modifies its value.
-    ///
-    /// # Notes
-    ///
-    /// This won't necessarily reuse the same tensor data/buffer, but it should if there is
-    /// no other reference pointing to the same tensor.
-    ///
-    /// Wrapping operations with inplace is not an optimization, it's mainly there if you
-    /// want to mutate a tensor by using owned operations. A plausible usage would be to
-    /// update the weights of a mutable model reference.
-    pub fn inplace<F: FnOnce(Self) -> Self>(&mut self, func: F) {
-        let mut tensor_owned = Tensor::empty([0; D], &self.device());
-        core::mem::swap(&mut tensor_owned, self);
-
-        let mut tensor_new = func(tensor_owned);
-        core::mem::swap(&mut tensor_new, self);
-    }
-
     /// Applies element wise exponential operation.
     ///
-    /// `y = e^x`
+    /// $y_i = e^{x_i}$
     pub fn exp(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_exp(
             self.primitive.tensor(),
@@ -40,7 +30,7 @@ where
 
     /// Applies element wise natural log operation *ln*.
     ///
-    /// `y = log(x)`
+    /// $y_i = \log_e\(x_i\)$
     pub fn log(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_log(
             self.primitive.tensor(),
@@ -49,7 +39,7 @@ where
 
     /// Applies the natural logarithm of one plus the input tensor, element-wise.
     ///
-    /// `y = log(x+1)`
+    /// $y_i = \log_e\(x_i + 1\)$
     pub fn log1p(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_log1p(
             self.primitive.tensor(),
@@ -58,7 +48,11 @@ where
 
     /// Applies the [error function](https://en.wikipedia.org/wiki/Error_function) element wise.
     ///
-    /// `y = erf(x)`
+    /// $y_i = \text{erf}\(x_i\)$
+    ///
+    /// The error function is defined as:
+    ///
+    /// $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     pub fn erf(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_erf(
             self.primitive.tensor(),
@@ -68,7 +62,7 @@ where
     /// Applies [reciprocal operation](https://en.wikipedia.org/wiki/Multiplicative_inverse)
     /// (or multiplicative inverse) element wise.
     ///
-    /// `y = 1/x`
+    /// $y_i = \frac{1}{x_i}$
     pub fn recip(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_recip(
             self.primitive.tensor(),
@@ -76,6 +70,8 @@ where
     }
 
     /// Applies element wise root square operation.
+    ///
+    /// $y_i = \sqrt{x_i}$
     pub fn sqrt(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_sqrt(
             self.primitive.tensor(),
@@ -83,6 +79,8 @@ where
     }
 
     /// Applies element wise cosine operation.
+    ///
+    /// $y_i = \cos\(x_i\)$
     pub fn cos(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_cos(
             self.primitive.tensor(),
@@ -90,6 +88,8 @@ where
     }
 
     /// Applies element wise sine operation.
+    ///
+    /// $y_i = \sin\(x_i\)$
     pub fn sin(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_sin(
             self.primitive.tensor(),
@@ -97,6 +97,8 @@ where
     }
 
     /// Applies element wise tangent operation.
+    ///
+    /// $y_i = \tan\(x_i\)$
     pub fn tan(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_tan(
             self.primitive.tensor(),
@@ -104,6 +106,22 @@ where
     }
 
     /// Applies element wise hyperbolic cosine operation.
+    ///
+    /// $y_i = \cosh\(x_i\)$
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 3>::from_data([0.0, -1.0, 2.0], &device);
+    ///     println!("{}", tensor.cosh()); // [1.0, 1.5430, 3.7621]
+    /// }
+    /// ```
     pub fn cosh(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_cosh(
             self.primitive.tensor(),
@@ -111,6 +129,22 @@ where
     }
 
     /// Applies element wise hyperbolic sine operation.
+    ///
+    /// $y_i = \sinh\(x_i\)$
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 3>::from_data([0.0, -1.0, 2.0], &device);
+    ///     println!("{}", tensor.sinh()); // [0.0, -1.1752, 3.6269]
+    /// }
+    /// ```
     pub fn sinh(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_sinh(
             self.primitive.tensor(),
@@ -118,6 +152,22 @@ where
     }
 
     /// Applies element wise hyperbolic tangent operation.
+    ///
+    /// $y_i = \tanh\(x_i\)$
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 3>::from_data([0.0, -1.0, 2.0], &device);
+    ///     println!("{}", tensor.sinh()); // [0.0, -0.7616, 0.9640]
+    /// }
+    /// ```
     pub fn tanh(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_tanh(
             self.primitive.tensor(),
@@ -193,38 +243,6 @@ where
             distribution,
             &self.device(),
         )))
-    }
-
-    /// Applies the matrix multiplication operation.
-    ///
-    /// `C = AB`
-    ///
-    /// # Panics
-    ///
-    /// If the two tensors don't have a compatible shape.
-    pub fn matmul(self, other: Self) -> Self {
-        check!(TensorCheck::matmul(&self, &other));
-        match (self.primitive, other.primitive) {
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
-                Self::new(B::q_matmul(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => Self::new(
-                TensorPrimitive::Float(B::float_matmul(B::dequantize(lhs), rhs)),
-            ),
-            (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
-                // NOTE: in a typical workflow with linear layers (e.g., transformers), the rhs
-                // represents the weights.
-                //
-                // Since `q_matmul(lhs_f16, rhs_quant)` isn't currently supported, in practice it makes
-                // more sense to re-quantize the input back. Better usability.
-                //
-                // This might change in the future (dequantize on read in fusion?).
-                Self::new(B::q_matmul(B::quantize_dynamic(lhs, rhs.scheme()), rhs))
-            }
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                Self::new(TensorPrimitive::Float(B::float_matmul(lhs, rhs)))
-            }
-        }
     }
 
     /// Calculate the variance along the given dimension.
@@ -376,5 +394,223 @@ where
     /// The dequantized tensor.
     pub fn dequantize(self) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::Float(self.primitive.tensor()))
+    }
+
+    /// Checks element wise if the tensor is close to another tensor.
+    ///
+    /// The tolerance is defined by the following equation:
+    ///
+    /// ```text
+    /// abs(a - b) <= (atol + rtol * abs(b))
+    ///
+    /// where `a` is the first tensor, `b` is the second tensor, `rtol` is the relative tolerance,
+    /// and `atol` is the absolute tolerance.
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The tensor to compare with.
+    /// * `rtol` - Optional relative tolerance. Default is 1e-5; see `DEFAULT_RTOL`.
+    /// * `atol` - Optional absolute tolerance. Default is 1e-8; see `DEFAULT_ATOL`.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensors.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = tensor1.is_close(tensor2, None, None);
+    ///    println!("{tensor}");
+    ///    // [[true, true, true], [true, true, true]]
+    /// }
+    /// ```
+    pub fn is_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> Tensor<B, D, Bool> {
+        let rtol = rtol.unwrap_or(DEFAULT_RTOL);
+        let atol = atol.unwrap_or(DEFAULT_ATOL);
+
+        // check finite difference is close
+        let is_close_finite_val = self
+            .clone()
+            .sub(other.clone())
+            .abs()
+            .lower_equal(other.clone().abs().mul_scalar(rtol).add_scalar(atol))
+            .bool_and(self.clone().is_finite())
+            .bool_and(other.clone().is_finite());
+
+        // check if both are infinite and have same sign
+        let inf_same_sign = self
+            .clone()
+            .is_finite()
+            .bool_not()
+            .bool_and(other.clone().is_finite().bool_not())
+            .bool_and(self.equal(other));
+
+        is_close_finite_val.bool_or(inf_same_sign)
+    }
+
+    /// Checks if all elements are close to another tensor.
+    ///
+    /// The tolerance is defined by the following equation:
+    ///
+    /// ```text
+    ///
+    /// abs(a - b) <= (atol + rtol * abs(b))
+    ///
+    /// where `a` is the first tensor, `b` is the second tensor, `rtol` is the relative tolerance,
+    /// and `atol` is the absolute tolerance.
+    ///
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The tensor to compare with.
+    /// * `rtol` - Optional relative tolerance. Default is 1e-5; see `DEFAULT_RTOL`.
+    /// * `atol` - Optional absolute tolerance. Default is 1e-8; see `DEFAULT_ATOL`.
+    ///
+    /// # Returns
+    ///
+    /// A boolean scalar.
+    ///
+    /// # Remarks
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let result = tensor1.all_close(tensor2, None, None);
+    ///    println!("{}", result);
+    ///    // true
+    /// }
+    /// ```
+    pub fn all_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> bool {
+        self.is_close(other, rtol, atol)
+            .all()
+            .into_scalar()
+            .to_bool()
+    }
+
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is NaN.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where `true` indicates NaN and `false` indicates a non-NaN value.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, f64::NAN, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = tensor.is_nan();
+    ///    println!("{tensor}");
+    ///    // [[false, true, false], [false, false, false]]
+    /// }
+    /// ```
+    pub fn is_nan(self) -> Tensor<B, D, Bool> {
+        // Check if the input tensor is NaN by comparing it to itself
+        // NaN is the only value that is not equal to itself
+        self.clone().not_equal(self)
+    }
+
+    /// Checks if the tensor contains any NaN values.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with a single element indicating whether the tensor contains any NaN values.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///   let device = B::Device::default();
+    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    ///   let tensor = tensor.contains_nan();
+    ///   println!("{tensor}");
+    ///   // [true]
+    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = tensor.contains_nan();
+    ///   println!("{tensor}");
+    ///   // [false]
+    /// }
+    /// ```
+    pub fn contains_nan(self) -> Tensor<B, 1, Bool> {
+        // Summing the tensor will result in NaN if the tensor contains any NaN values
+        // This is faster than checking each element individually
+        // because it rolls up the NaN values into a single value
+        let sum = self.sum();
+
+        sum.is_nan()
+    }
+
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is infinite (either +INF or -INF).
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where `true` indicates that the value is infinite
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    ///    let tensor = tensor.is_finite();
+    ///    println!("{tensor}");
+    ///    // [[false, true, false], [false, false, false]]
+    /// }
+    /// ```
+    pub fn is_inf(self) -> Tensor<B, D, Bool> {
+        self.abs().equal_elem(f64::INFINITY)
+    }
+
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is finite
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where `true` indicates that the value is finite and `false` indicates
+    /// either INF, -INF or NAN
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    ///    let tensor = tensor.is_finite();
+    ///    println!("{tensor}");
+    ///    // [[true, false, true], [false, true, true]]
+    /// }
+    /// ```
+    pub fn is_finite(self) -> Tensor<B, D, Bool> {
+        self.clone()
+            .is_nan()
+            .bool_not()
+            .bool_and(self.is_inf().bool_not())
     }
 }

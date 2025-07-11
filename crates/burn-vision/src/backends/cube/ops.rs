@@ -76,7 +76,9 @@ where
 mod fusion {
     use super::*;
     use burn_fusion::{
-        Fusion, FusionBackend, FusionRuntime, client::FusionClient, stream::Operation,
+        Fusion, FusionBackend, FusionRuntime,
+        client::FusionClient,
+        stream::{Operation, OperationStreams},
     };
     use burn_ir::{CustomOpIr, HandleContainer, OperationIr};
 
@@ -86,7 +88,7 @@ mod fusion {
             let width = img.shape[1];
             let client = img.client.clone();
 
-            #[derive(derive_new::new, Clone)]
+            #[derive(derive_new::new, Clone, Debug)]
             struct ConnComp<B> {
                 desc: CustomOpIr,
                 conn: Connectivity,
@@ -108,13 +110,14 @@ mod fusion {
                 }
             }
 
-            let stream = img.stream;
+            let mut streams = OperationStreams::default();
+            streams.tensor(&img);
             let out = client.tensor_uninitialized(vec![height, width], B::IntElem::dtype());
 
             let desc =
                 CustomOpIr::new("connected_components", &[img.into_ir()], &[out.to_ir_out()]);
             client.register(
-                vec![stream],
+                streams,
                 OperationIr::Custom(desc.clone()),
                 ConnComp::<B>::new(desc, conn),
             );
@@ -131,7 +134,7 @@ mod fusion {
             let width = img.shape[1];
             let client = img.client.clone();
 
-            #[derive(derive_new::new, Clone)]
+            #[derive(derive_new::new, Clone, Debug)]
             struct ConnCompStats<B> {
                 desc: CustomOpIr,
                 conn: Connectivity,
@@ -162,7 +165,8 @@ mod fusion {
                 }
             }
 
-            let stream = img.stream;
+            let mut streams = OperationStreams::default();
+            streams.tensor(&img);
             let out = client.tensor_uninitialized(vec![height, width], B::IntElem::dtype());
             let area = client.tensor_uninitialized(vec![height * width], B::IntElem::dtype());
             let left = client.tensor_uninitialized(vec![height * width], B::IntElem::dtype());
@@ -185,7 +189,7 @@ mod fusion {
                 ],
             );
             client.register(
-                vec![stream],
+                streams,
                 OperationIr::Custom(desc.clone()),
                 ConnCompStats::<B>::new(desc, conn, opts),
             );
