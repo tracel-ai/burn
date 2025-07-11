@@ -9,7 +9,7 @@ pub mod argmax;
 pub mod argmin;
 pub mod avg_pool;
 pub mod batch_norm;
-// pub mod bitshift; // Temporarily disabled due to complex ONNX implementation
+pub mod bitshift;
 pub mod bitwise_and;
 pub mod bitwise_not;
 pub mod bitwise_or;
