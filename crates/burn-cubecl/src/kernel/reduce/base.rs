@@ -44,9 +44,7 @@ pub fn sum_fallback<R: CubeRuntime, E: CubeElement>(
     mut strategy: SumStrategy,
 ) -> Result<CubeTensor<R>, ReduceError> {
     // Early check before creating output and fallback
-    if let SumStrategy::OneShot(_) = &strategy
-        && !supports_atomic_add::<R, E>(&tensor.client)
-    {
+    if matches!(strategy, SumStrategy::OneShot(_)) && !supports_atomic_add::<R, E>(&tensor.client) {
         strategy = SumStrategy::Chained(Default::default());
     }
     sum::<R, E>(tensor, strategy)
