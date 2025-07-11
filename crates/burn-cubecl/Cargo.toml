@@ -23,7 +23,7 @@ autotune-checks = [
 ]
 memory-checks = ["burn-fusion?/memory-checks"]
 default = [
-    "autotune",
+    # "autotune",
     "std",
     "fusion",
     "cubecl/default",

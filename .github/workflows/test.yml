@@ -363,5 +363,4 @@ jobs:
           cache-key: ${{ matrix.rust }}-macos
       # --------------------------------------------------------------------------------
       - name: Tests
-        # run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-mac-runner
-        run: cargo test --lib --bins --examples -p burn-wgpu --color=always --features metal --release conv -- --color=always
+        run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-mac-runner
