@@ -62,7 +62,10 @@ pub fn check_opset_version(opset: &OperatorSetIdProto, min_version: i64) -> bool
         "ai.onnx.ml" => opset.version >= 1, // ML operators are generally stable from version 1
         // Add support for other domains as needed
         _ => {
-            panic!("Unsupported ONNX domain: '{}'. Only standard ONNX ('') and ML ('ai.onnx.ml') domains are supported", opset.domain);
+            panic!(
+                "Unsupported ONNX domain: '{}'. Only standard ONNX ('') and ML ('ai.onnx.ml') domains are supported",
+                opset.domain
+            );
         }
     }
 }
