@@ -49,7 +49,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
 
             plan.handle_inputs.push(HandleInput::new(
                 &tensor_global,
-                &tensor_relative,
+                tensor_relative,
                 *precision,
                 handle,
                 new_strides,
