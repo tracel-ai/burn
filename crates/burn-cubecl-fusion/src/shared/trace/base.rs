@@ -201,7 +201,7 @@ impl FuseTrace {
         for input in handle_inputs {
             context
                 .handles
-                .register_handle(input.global_id, input.handle);
+                .register_handle(input.global_id, input.handle_rollback());
         }
         for output in handle_outputs {
             if let HandleOutput::Owned {

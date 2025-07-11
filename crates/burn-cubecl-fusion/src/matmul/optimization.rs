@@ -137,7 +137,7 @@ impl<R: Runtime> MatmulOptimization<R> {
         fused_matmul_autotune::<R, BT>(self, context);
 
         #[cfg(not(feature = "autotune"))]
-        if self.execute_standard_fused::<BT>(context).is_err() {
+        if self.execute_fused::<BT, Simple>(context).is_err() {
             self.execute_fallback::<BT>(context);
         }
     }

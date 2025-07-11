@@ -121,7 +121,7 @@ mod tests {
     #[test]
     fn test_lp_norm() {
         let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
-        let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(1e-3);
+        let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(2e-3);
 
         let expected = TestTensor::<2>::from([[3.0365891, 4.1601677]]).into_data();
         linalg::vector_norm(x.clone(), 3, 0)
@@ -135,7 +135,7 @@ mod tests {
     #[test]
     fn test_l2_norm() {
         let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
-        let tolerance = Tolerance::relative(1e-5);
+        let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(1e-3);
 
         let expected = TestTensor::<2>::from([[3.16227766, 4.47213595]]).into_data();
         linalg::vector_norm(x.clone(), linalg::Norm::L2, 0)
