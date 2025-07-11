@@ -28,7 +28,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseOrNode {
             }
             _ => panic!("BitwiseOrNode only supports tensor and scalar inputs"),
         };
-        
+
         let rhs = match &self.inputs[1] {
             Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
             Type::Scalar(scalar) => {

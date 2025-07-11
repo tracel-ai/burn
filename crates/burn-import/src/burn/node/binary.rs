@@ -183,11 +183,7 @@ impl BinaryNode {
             (Type::Scalar(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #rhs.powf(#lhs) },
             (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.powf(#rhs) },
             _ => {
-                log::error!(
-                    "Unsupported types for powf: lhs = {:?}, rhs = {:?}",
-                    lhs,
-                    rhs
-                );
+                log::error!("Unsupported types for powf: lhs = {lhs:?}, rhs = {rhs:?}");
                 panic!("powf is supported for tensor and scalar only");
             }
         };
