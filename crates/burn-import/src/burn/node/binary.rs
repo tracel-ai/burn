@@ -176,16 +176,12 @@ impl BinaryNode {
 
         Self::new(lhs, rhs, output, BinaryType::Equal, Arc::new(function))
     }
+
     pub(crate) fn powf(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
             (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.powf(#rhs) },
             (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.powf_scalar(#rhs) },
-            (Type::Scalar(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #rhs.powf(#lhs) },
-            (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.powf(#rhs) },
-            _ => {
-                log::error!("Unsupported types for powf: lhs = {lhs:?}, rhs = {rhs:?}");
-                panic!("powf is supported for tensor and scalar only");
-            }
+            _ => panic!("pow is supported for tensor only"),
         };
         Self::new(lhs, rhs, output, BinaryType::Powf, Arc::new(function))
     }
@@ -193,9 +189,7 @@ impl BinaryNode {
         let function = match (&lhs, &rhs) {
             (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.powi(#rhs) },
             (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.powi_scalar(#rhs) },
-            (Type::Scalar(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #rhs.powi(#lhs) },
-            (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.powi(#rhs) },
-            _ => panic!("powi is supported for tensor and scalar only"),
+            _ => panic!("pow is supported for tensor only"),
         };
         Self::new(lhs, rhs, output, BinaryType::Powi, Arc::new(function))
     }
