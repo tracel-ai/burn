@@ -362,7 +362,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::sum::<R, E>(tensor, Default::default()).unwrap()
+            reduce::sum_fallback::<R, E>(tensor, Default::default()).unwrap()
         )
     }
 
