@@ -1,6 +1,11 @@
 // Include the models for this node type
 use crate::include_models;
-include_models!(bitshift_left, bitshift_left_scalar, bitshift_right, bitshift_right_scalar);
+include_models!(
+    bitshift_left,
+    bitshift_left_scalar,
+    bitshift_right,
+    bitshift_right_scalar
+);
 
 #[cfg(test)]
 mod tests {
