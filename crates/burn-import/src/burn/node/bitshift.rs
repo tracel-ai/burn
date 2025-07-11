@@ -1,12 +1,12 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorKind, TensorType, Type};
+use crate::burn::{BurnImports, Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 
 #[derive(Debug, Clone, new)]
 pub struct BitShiftNode {
-    pub inputs: Vec<TensorType>,
+    pub inputs: Vec<Type>,
     pub output: TensorType,
     pub direction: String,
 }
@@ -17,36 +17,42 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
     }
 
     fn input_types(&self) -> Vec<Type> {
-        self.inputs
-            .iter()
-            .map(|t| {
-                if t.kind != TensorKind::Int {
-                    panic!("BitShiftNode only supports Int TensorType inputs");
-                }
-                Type::Tensor(t.clone())
-            })
-            .collect()
+        self.inputs.clone()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let inputs: Vec<TokenStream> = self
-            .inputs
-            .iter()
-            .map(|t| scope.tensor_use_owned(t, node_position))
-            .collect();
-        let output = &self.output.name;
-        let direction = &self.direction;
-        let shift_op = match direction.to_lowercase().as_str() {
-            "left" => quote!(<<),
-            "right" => quote !(>>),
-            _ => panic!("Invalid bit shift direction"),
+        let lhs = match &self.inputs[0] {
+            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
+            Type::Scalar(scalar) => {
+                let name = &scalar.name;
+                quote! { #name }
+            }
+            _ => panic!("BitShiftNode only supports tensor and scalar inputs"),
+        };
+        
+        let rhs = match &self.inputs[1] {
+            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
+            Type::Scalar(scalar) => {
+                let name = &scalar.name;
+                quote! { #name }
+            }
+            _ => panic!("BitShiftNode only supports tensor and scalar inputs"),
         };
 
-        let input_0 = &inputs[0];
-        let input_1 = &inputs[1];
+        let output = &self.output.name;
+        let direction = &self.direction;
+
+        // Choose the correct method based on direction and whether the second input is a scalar
+        let operation = match (direction.to_lowercase().as_str(), &self.inputs[1]) {
+            ("left", Type::Scalar(_)) => quote! { #lhs.bitwise_left_shift_scalar(#rhs.elem()) },
+            ("left", Type::Tensor(_)) => quote! { #lhs.bitwise_left_shift(#rhs) },
+            ("right", Type::Scalar(_)) => quote! { #lhs.bitwise_right_shift_scalar(#rhs.elem()) },
+            ("right", Type::Tensor(_)) => quote! { #lhs.bitwise_right_shift(#rhs) },
+            _ => panic!("Invalid bit shift direction or input type"),
+        };
 
         quote! {
-            let #output = #input_0 #shift_op #input_1;
+            let #output = #operation;
         }
     }
 
@@ -55,6 +61,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
             panic!("BitShiftNode only supports Int TensorType outputs");
         }
         Node::BitShift(self)
+    }
+
+    fn register_imports(&self, imports: &mut BurnImports) {
+        // Register ElementConversion for scalar operations
+        for input in &self.inputs {
+            if matches!(input, Type::Scalar(_)) {
+                imports.register("burn::tensor::ElementConversion");
+                break;
+            }
+        }
     }
 }
 
@@ -75,8 +91,8 @@ mod tests {
 
         graph.register(BitShiftNode::new(
             vec![
-                TensorType::new_int("input1", 1),
-                TensorType::new_int("input2", 1),
+                Type::Tensor(TensorType::new_int("input1", 1)),
+                Type::Tensor(TensorType::new_int("input2", 1)),
             ],
             TensorType::new_int("output", 1),
             "left".to_string(),
@@ -125,8 +141,8 @@ mod tests {
 
         graph.register(BitShiftNode::new(
             vec![
-                TensorType::new_int("input1", 1),
-                TensorType::new_int("input2", 1),
+                Type::Tensor(TensorType::new_int("input1", 1)),
+                Type::Tensor(TensorType::new_int("input2", 1)),
             ],
             TensorType::new_int("output", 1),
             "right".to_string(),

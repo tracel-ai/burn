@@ -29,7 +29,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseNotNode {
         let output = &self.output.name;
 
         quote! {
-            let #output = !#input;
+            let #output = #input.bitwise_not();
         }
     }
 

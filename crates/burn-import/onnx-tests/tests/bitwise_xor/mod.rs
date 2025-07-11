@@ -17,7 +17,7 @@ mod tests {
         let input1 = Tensor::<Backend, 2, Int>::from_ints([[1, 2, 3, 4]], &device);
         let input2 = Tensor::<Backend, 2, Int>::from_ints([[1, 1, 2, 2]], &device);
         let output = model.forward(input1, input2);
-        let expected = TensorData::from([[0i64, 2, 1, 6]]);
+        let expected = TensorData::from([[0i64, 3, 1, 6]]);
         output.to_data().assert_eq(&expected, true);
     }
 

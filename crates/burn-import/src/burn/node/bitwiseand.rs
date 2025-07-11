@@ -1,12 +1,12 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorKind, TensorType, Type};
+use crate::burn::{BurnImports, Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 
 #[derive(Debug, Clone, new)]
 pub struct BitwiseAndNode {
-    pub inputs: Vec<TensorType>,
+    pub inputs: Vec<Type>,
     pub output: TensorType,
 }
 
@@ -16,27 +16,39 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseAndNode {
     }
 
     fn input_types(&self) -> Vec<Type> {
-        self.inputs
-            .iter()
-            .map(|t| {
-                if t.kind != TensorKind::Int {
-                    panic!("BitwiseAndNode only supports Int TensorType inputs");
-                }
-                Type::Tensor(t.clone())
-            })
-            .collect()
+        self.inputs.clone()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let inputs = self
-            .inputs
-            .iter()
-            .map(|t| scope.tensor_use_owned(t, node_position))
-            .collect::<Vec<_>>();
+        let lhs = match &self.inputs[0] {
+            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
+            Type::Scalar(scalar) => {
+                let name = &scalar.name;
+                quote! { #name }
+            }
+            _ => panic!("BitwiseAndNode only supports tensor and scalar inputs"),
+        };
+        
+        let rhs = match &self.inputs[1] {
+            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
+            Type::Scalar(scalar) => {
+                let name = &scalar.name;
+                quote! { #name }
+            }
+            _ => panic!("BitwiseAndNode only supports tensor and scalar inputs"),
+        };
+
         let output = &self.output.name;
 
+        // Check if the second input is a scalar
+        let operation = match &self.inputs[1] {
+            Type::Scalar(_) => quote! { #lhs.bitwise_and_scalar(#rhs.elem()) },
+            Type::Tensor(_) => quote! { #lhs.bitwise_and(#rhs) },
+            _ => panic!("BitwiseAndNode only supports tensor and scalar inputs"),
+        };
+
         quote! {
-            let #output = #(#inputs)&*;
+            let #output = #operation;
         }
     }
 
@@ -45,6 +57,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseAndNode {
             panic!("BitwiseAndNode only supports Int TensorType outputs");
         }
         Node::BitwiseAnd(self)
+    }
+
+    fn register_imports(&self, imports: &mut BurnImports) {
+        // Register ElementConversion for scalar operations
+        for input in &self.inputs {
+            if matches!(input, Type::Scalar(_)) {
+                imports.register("burn::tensor::ElementConversion");
+                break;
+            }
+        }
     }
 }
 

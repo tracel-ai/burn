@@ -9,6 +9,11 @@ pub mod argmax;
 pub mod argmin;
 pub mod avg_pool;
 pub mod batch_norm;
+// pub mod bitshift; // Temporarily disabled due to complex ONNX implementation
+pub mod bitwise_and;
+pub mod bitwise_not;
+pub mod bitwise_or;
+pub mod bitwise_xor;
 pub mod cast;
 pub mod ceil;
 pub mod clip;
