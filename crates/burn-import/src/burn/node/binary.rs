@@ -176,6 +176,7 @@ impl BinaryNode {
 
         Self::new(lhs, rhs, output, BinaryType::Equal, Arc::new(function))
     }
+
     pub(crate) fn powf(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
             (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.powf(#rhs) },
