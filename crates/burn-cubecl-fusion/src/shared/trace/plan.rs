@@ -150,6 +150,38 @@ pub struct HandleInput<R: Runtime> {
     pub global_shape: Vec<usize>,
     pub vectorization: u8,
     pub broadcated: bool,
+    // Strides can be modified during plan execution, but need to be restored on rollback
+    pub orig_strides: Vec<usize>,
+}
+
+impl<R: Runtime> HandleInput<R> {
+    pub fn new(
+        tensor_global: &TensorIr,
+        tensor_relative: &TensorIr,
+        precision: FusePrecision,
+        mut handle: CubeFusionHandle<R>,
+        mut strides: Vec<usize>,
+    ) -> Self {
+        // let orig_strides = handle.strides.clone(); // for rollback
+        // handle.strides = strides;
+        // For rollback
+        core::mem::swap(&mut handle.strides, &mut strides);
+        Self {
+            precision,
+            handle,
+            relative_id: tensor_relative.id,
+            global_id: tensor_global.id,
+            global_shape: tensor_global.shape.clone(),
+            vectorization: 1,
+            broadcated: false,
+            orig_strides: strides,
+        }
+    }
+
+    pub fn handle_rollback(mut self) -> CubeFusionHandle<R> {
+        core::mem::swap(&mut self.handle.strides, &mut self.orig_strides);
+        self.handle
+    }
 }
 
 #[derive(Debug)]
