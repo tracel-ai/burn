@@ -7,11 +7,8 @@ use axum::{
     response::IntoResponse,
     routing::any,
 };
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use tokio::time::Duration;
 
 use burn_ir::{BackendIr, TensorId};
 use burn_tensor::Device;
@@ -52,7 +49,7 @@ impl<B: BackendIr> WsServer<B> {
         log::info!("Start server {address} on device {device:?}");
 
         let state = Arc::new(TensorDataService {
-            exposed_tensors: Mutex::new(HashMap::new()),
+            exposed_tensors: tokio::sync::Mutex::new(HashMap::new()),
         });
         let server = Self {
             session_manager: Arc::new(SessionManager::<B>::new(device, state.clone())),
@@ -174,6 +171,9 @@ impl<B: BackendIr> WsServer<B> {
                     ComputeTask::RegisterTensor(id, data) => {
                         stream.register_tensor(id, data).await;
                     }
+                    ComputeTask::RegisterEmptyTensor(id, shape, dtype) => {
+                        stream.register_empty_tensor(id, shape, dtype).await;
+                    }
                     ComputeTask::ReadTensor(tensor) => {
                         stream.read_tensor(connection_id, tensor).await;
                     }
@@ -226,29 +226,23 @@ impl<B: BackendIr> WsServer<B> {
 
     async fn get_exposed_tensor_bytes(id: TensorId, state: Arc<TensorDataService>) -> bytes::Bytes {
         loop {
-            if let Ok(mut exposed_tensors) = state.exposed_tensors.try_lock() {
-                log::info!("Looking for tensor (id: {id:?})");
-                // take the tensor out of the hashmap while we download
-                if let Some(mut exposed_state) = exposed_tensors.remove(&id) {
-                    log::info!("Tensor found (id: {id:?})");
-
-                    exposed_state.cur_download_count += 1;
-                    if exposed_state.cur_download_count == exposed_state.max_downloads {
-                        return exposed_state.bytes;
-                    } else {
-                        let bytes = exposed_state.bytes.clone();
-                        exposed_tensors.insert(id, exposed_state);
-                        return bytes;
-                    }
+            let mut exposed_tensors = state.exposed_tensors.lock().await;
+            // take the tensor out of the hashmap while we download
+            if let Some(mut exposed_state) = exposed_tensors.remove(&id) {
+                exposed_state.cur_download_count += 1;
+                if exposed_state.cur_download_count == exposed_state.max_downloads {
+                    return exposed_state.bytes;
                 } else {
-                    //panic!("A tensor was requested (id: {id:?}) that isn't being served");
+                    let bytes = exposed_state.bytes.clone();
+                    exposed_tensors.insert(id, exposed_state);
+                    return bytes;
                 }
             } else {
-                // TODO should i add a
-                // Optional: Add a small pause to reduce CPU usage
-                // thread::yield_now();
-                log::info!("Failed to find tensor in exposed_tensors");
+                // Tensor not in exposed list: wait a bit
+                tokio::time::sleep(Duration::from_millis(10)).await;
             }
+
+            core::mem::drop(exposed_tensors);
         }
     }
 }
