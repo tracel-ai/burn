@@ -40,6 +40,7 @@ pub use __client::*;
 mod tests {
     use crate::RemoteBackend;
     use burn_ndarray::NdArray;
+    use burn_network::websocket::base::WsNetwork;
     use burn_tensor::{Distribution, Tensor};
 
     #[test]
@@ -49,11 +50,11 @@ mod tests {
             .build()
             .unwrap();
 
-        rt.spawn(crate::server::start_async::<NdArray>(
+        rt.spawn(crate::server::start_async::<NdArray, WsNetwork>(
             Default::default(),
             3000,
         ));
-        rt.spawn(crate::server::start_async::<NdArray>(
+        rt.spawn(crate::server::start_async::<NdArray, WsNetwork>(
             Default::default(),
             3010,
         ));

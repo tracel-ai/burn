@@ -1,4 +1,5 @@
 use burn_ir::TensorIr;
+use burn_network::data_service::TensorTransferId;
 use burn_router::{RouterTensor, RunnerChannel, get_client};
 
 use crate::shared::{ComputeTask, TensorRemote};
@@ -44,10 +45,13 @@ impl RunnerChannel for WsChannel {
         shape: Vec<usize>,
         dtype: burn_tensor::DType,
     ) -> RouterTensor<Self::Client> {
+        // Transfer id is none, so any transfer with no id will be used.
+        // This is case that should be rare.
         let remote_tensor = TensorRemote {
-            id: handle.tensor.id,
-            address: client.device.address.to_string(),
+            transfer_id: TensorTransferId::none(),
+            address: (*client.device.address).clone(),
         };
+
         let new_id = client.sender.new_tensor_id();
         client
             .sender

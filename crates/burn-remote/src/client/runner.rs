@@ -1,5 +1,6 @@
 use burn_common::future::DynFut;
 use burn_ir::TensorIr;
+use burn_network::{data_service::TensorTransferId, network::NetworkAddress};
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 use burn_tensor::{
     DType, TensorData,
@@ -7,7 +8,8 @@ use burn_tensor::{
 };
 use std::{
     hash::{DefaultHasher, Hash, Hasher},
-    sync::Arc,
+    str::FromStr,
+    sync::{Arc, Mutex},
 };
 
 use crate::shared::{ComputeTask, TaskResponseContent, TensorRemote};
@@ -91,7 +93,7 @@ impl RunnerClient for WsClient {
 #[derive(Clone, PartialEq, Eq, Debug)]
 /// The device contains the connection information of the server.
 pub struct WsDevice {
-    pub(crate) address: Arc<String>,
+    pub(crate) address: Arc<NetworkAddress>,
     // Unique ID generated from hash of the address
     pub(crate) id: u32,
 }
@@ -113,7 +115,7 @@ impl WsDevice {
         let id = hasher.finish() as u32;
 
         Self {
-            address: Arc::new(address),
+            address: Arc::new(NetworkAddress::from_str(&address).unwrap()),
             id,
         }
     }
@@ -146,16 +148,34 @@ pub struct RemoteTensorHandle {
     pub(crate) tensor: TensorIr,
 }
 
+static TRANSFER_COUNTER: Mutex<Option<TensorTransferId>> = Mutex::new(None);
+
+fn get_next_transfer_id() -> TensorTransferId {
+    let mut transfer_counter = TRANSFER_COUNTER.lock().unwrap();
+    if transfer_counter.is_none() {
+        *transfer_counter = Some(0.into());
+
+        transfer_counter.unwrap()
+    } else {
+        let mut transfer_counter = transfer_counter.unwrap();
+        transfer_counter.next();
+
+        transfer_counter
+    }
+}
+
 impl RemoteTensorHandle {
-    /// Changes the backend of the tensor via a WebSocket.
+    /// Changes the backend of the tensor via a dWebSocket.
     /// We ask the original server to expose the tensor, then ask the target server to fetch
     /// the tensor. The target server will open a new websocket connection to the original server
     /// to download the data.
     /// This way the client never sees the tensor's data, and we avoid a bottleneck.
     pub(crate) fn change_backend(mut self, target_device: &WsDevice) -> Self {
+        let transfer_id = get_next_transfer_id();
         self.client.sender.send(ComputeTask::ExposeTensorRemote {
             tensor: self.tensor.clone(),
             count: 1,
+            transfer_id,
         });
 
         let target_client: WsClient = get_client::<WsChannel>(target_device);
@@ -163,8 +183,8 @@ impl RemoteTensorHandle {
         let new_id = target_client.sender.new_tensor_id();
 
         let remote_tensor = TensorRemote {
-            id: self.tensor.id,
-            address: self.client.device.address.to_string(),
+            transfer_id,
+            address: (*self.client.device.address).clone(),
         };
         target_client
             .sender

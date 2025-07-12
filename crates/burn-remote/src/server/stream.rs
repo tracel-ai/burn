@@ -3,11 +3,12 @@ use std::sync::Arc;
 
 use crate::shared::{ConnectionId, TaskResponse, TensorRemote};
 
-use super::{
-    processor::{Processor, ProcessorTask},
-    tensor_data_service::TensorDataService,
-};
+use super::processor::{Processor, ProcessorTask};
 use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
+use burn_network::{
+    data_service::{TensorDataService, TensorTransferId},
+    network::Network,
+};
 use burn_router::Runner;
 use burn_tensor::TensorData;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -15,24 +16,34 @@ use tokio::sync::mpsc::{Receiver, Sender};
 /// A stream makes sure all operations registered are executed in the order they were sent to the
 /// server, protentially waiting to reconstruct consistency.
 #[derive(Clone)]
-pub struct Stream<B: BackendIr> {
+pub struct Stream<B, N>
+where
+    B: BackendIr,
+    N: Network,
+{
     compute_sender: Sender<ProcessorTask>,
     writer_sender: Sender<Receiver<TaskResponse>>,
     _p: PhantomData<B>,
+    _n: PhantomData<N>,
 }
 
-impl<B: BackendIr> Stream<B> {
+impl<B, N> Stream<B, N>
+where
+    B: BackendIr,
+    N: Network,
+{
     pub async fn new(
         runner: Runner<B>,
         writer_sender: Sender<Receiver<TaskResponse>>,
-        state: Arc<TensorDataService>,
+        data_service: Arc<TensorDataService<B, N>>,
     ) -> Self {
-        let sender = Processor::start(runner, state).await;
+        let sender = Processor::<B, N>::start(runner, data_service).await;
 
         Self {
             compute_sender: sender,
             writer_sender,
             _p: PhantomData,
+            _n: PhantomData,
         }
     }
 
@@ -57,9 +68,18 @@ impl<B: BackendIr> Stream<B> {
             .unwrap();
     }
 
-    pub async fn expose_tensor_remote(&self, tensor: TensorIr, count: u32) {
+    pub async fn expose_tensor_remote(
+        &self,
+        tensor: TensorIr,
+        count: u32,
+        transfer_id: TensorTransferId,
+    ) {
         self.compute_sender
-            .send(ProcessorTask::ExposeTensorRemote { tensor, count })
+            .send(ProcessorTask::ExposeTensorRemote {
+                tensor,
+                count,
+                transfer_id,
+            })
             .await
             .unwrap();
     }
