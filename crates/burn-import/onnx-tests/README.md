@@ -230,11 +230,25 @@ Run all tests with:
 ```sh
 cargo test
 ```
+This command runs all tests using the default backend: `burn_ndarray::NdArray<f32>`.
+
+To run tests with an alternative backend (e.g. `burn_autodiff::Autodiff<burn_wgpu::Wgpu>`), use:
+```
+cargo test --features backend-autodiff-wgpu
+```
+Currently supported backends:
+*	`burn_ndarray::NdArray<f32> (default)`
+*	`burn_autodiff::Autodiff<burn_wgpu::Wgpu>`
 
 Run tests for a specific operator with:
 
 ```sh
 cargo test --test test_mod my_new_op::test_my_new_op
+```
+
+Run a specific test with a selected backend:
+```
+cargo test --test test_mod my_new_op::test_my_new_op --features backend-autodiff-wgpu
 ```
 
 ## Debugging Failed Tests
