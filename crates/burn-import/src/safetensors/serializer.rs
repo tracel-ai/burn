@@ -95,7 +95,7 @@ impl std::fmt::Display for Error {
         match self {
             Error::UnsupportedType => write!(f, "Unsupported type TensorData"),
             Error::NotFromTensorData => write!(f, "The field cannot be from a TensorData"),
-            Error::Custom(msg) => write!(f, "{}", msg),
+            Error::Custom(msg) => write!(f, "{msg}"),
         }
     }
 }
