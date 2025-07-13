@@ -5,7 +5,7 @@ include_models!(graph_multiple_output_tracking);
 mod tests {
     use super::*;
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
 
     #[test]
     fn graph_multiple_output_tracking() {

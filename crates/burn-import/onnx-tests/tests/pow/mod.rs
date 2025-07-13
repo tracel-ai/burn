@@ -6,7 +6,7 @@ mod tests {
     use super::*;
     use burn::tensor::{Int, Tensor, TensorData};
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
 
     #[test]
     fn pow_int_with_tensor_and_scalar() {
