@@ -8,7 +8,7 @@ mod tests {
         record::Recorder,
     };
     use burn_import::safetensors::{
-        export::to_safetensors, AdapterType, LoadArgs, SafetensorsFileRecorder,
+        AdapterType, LoadArgs, SafetensorsFileRecorder, to_safetensors,
     };
     use std::fs::File;
     use std::io::Write;
@@ -46,24 +46,25 @@ mod tests {
         }
         .load_record(record);
 
-        dbg!(&model.l1.weight.val());
-        dbg!(&model_deserialized.l1.weight.val());
-
-        assert!(model_deserialized
-            .l1
-            .weight
-            .val()
-            .all_close(model.l1.weight.val(), None, None));
+        assert!(
+            model_deserialized
+                .l1
+                .weight
+                .val()
+                .all_close(model.l1.weight.val(), None, None)
+        );
         assert!(model_deserialized.l1.bias.unwrap().val().all_close(
             model.l1.bias.unwrap().val(),
             None,
             None,
         ));
-        assert!(model_deserialized
-            .l2
-            .weight
-            .val()
-            .all_close(model.l2.weight.val(), None, None));
+        assert!(
+            model_deserialized
+                .l2
+                .weight
+                .val()
+                .all_close(model.l2.weight.val(), None, None)
+        );
         assert!(model_deserialized.l2.bias.unwrap().val().all_close(
             model.l2.bias.unwrap().val(),
             None,

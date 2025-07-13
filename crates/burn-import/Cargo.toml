@@ -26,6 +26,7 @@ safetensors = [
     "thiserror",
     "zip",
     "candle-core",
+    "dep:safetensors",
 ]
 
 [dependencies]
@@ -49,7 +50,7 @@ thiserror = { workspace = true, optional = true }
 tracing-core = { workspace = true }
 tracing-subscriber = { workspace = true }
 zip = { workspace = true, optional = true }
-safetensors = { workspace = true }
+safetensors = { workspace = true, optional = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
