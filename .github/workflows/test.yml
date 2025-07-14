@@ -275,7 +275,7 @@ jobs:
       - name: Generate lcov.info
         if: matrix.rust == 'stable'
         # /* is to exclude std library code coverage from analysis
-        run: cargo xtask coverage generate --ignore "/*,xtask/*,examples/*"
+        run: cargo xtask coverage generate --ignore "/*,xtask/*,examples/*" --profile release
       # --------------------------------------------------------------------------------
       - name: Codecov upload lcov.info
         if: matrix.rust == 'stable'
