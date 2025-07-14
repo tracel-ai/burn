@@ -260,14 +260,7 @@ jobs:
           cache-key: ${{ matrix.rust }}-linux
           # Disable cache on linux-std (stable) runner which currently always runs out of disk space with tests + coverage
           enable-cache: ${{ matrix.rust != 'stable' }}
-      # --------------------------------------------------------------------------------
-      - name: Setup Linux runner
-        uses: tracel-ai/github-actions/setup-linux@v3
-        with:
-          vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
-          mesa-version: ${{ env.MESA_VERSION }}
-          mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
-      # --------------------------------------------------------------------------------
+      # # --------------------------------------------------------------------------------
       - name: Install grcov
         if: matrix.rust == 'stable'
         shell: bash

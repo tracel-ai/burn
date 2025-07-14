@@ -53,6 +53,7 @@ pub(crate) fn handle_command(
                         // "burn-router" uses "burn-wgpu" for the tests.
                         "burn-router".to_string(),
                         "burn-tch".to_string(),
+                        "burn-wgpu".to_string(),
                     ]);
 
                     // Burn remote tests don't work on windows for now
