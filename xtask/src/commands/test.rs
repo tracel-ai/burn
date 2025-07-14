@@ -65,9 +65,9 @@ pub(crate) fn handle_command(
                 CiTestType::GithubMacRunner => {
                     args.target = Target::AllPackages;
                     args.only.push("burn-wgpu".to_string());
-                    // args.features
-                    //     .get_or_insert_with(Vec::new)
-                    //     .push("metal".to_string());
+                    args.features
+                        .get_or_insert_with(Vec::new)
+                        .push("metal".to_string());
                 }
                 CiTestType::GcpCudaRunner => {
                     args.target = Target::AllPackages;
@@ -175,20 +175,20 @@ pub(crate) fn handle_command(
                         None,
                         "std blas-accelerate",
                     )?;
-                    // helpers::custom_crates_tests(
-                    //     vec!["burn-core"],
-                    //     handle_test_args(&["--features", "test-metal"], args.release),
-                    //     None,
-                    //     None,
-                    //     "std metal",
-                    // )?;
-                    // helpers::custom_crates_tests(
-                    //     vec!["burn-vision"],
-                    //     handle_test_args(&["--features", "test-metal"], args.release),
-                    //     None,
-                    //     None,
-                    //     "std metal",
-                    // )?;
+                    helpers::custom_crates_tests(
+                        vec!["burn-core"],
+                        handle_test_args(&["--features", "test-metal"], args.release),
+                        None,
+                        None,
+                        "std metal",
+                    )?;
+                    helpers::custom_crates_tests(
+                        vec!["burn-vision"],
+                        handle_test_args(&["--features", "test-metal"], args.release),
+                        None,
+                        None,
+                        "std metal",
+                    )?;
                 }
             }
             Ok(())
