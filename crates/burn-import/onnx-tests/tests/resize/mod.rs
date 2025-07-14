@@ -14,7 +14,7 @@ mod tests {
     use burn::tensor::{Tensor, TensorData, ops::FloatElem};
     use float_cmp::ApproxEq;
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
     type FT = FloatElem<Backend>;
 
     #[test]
