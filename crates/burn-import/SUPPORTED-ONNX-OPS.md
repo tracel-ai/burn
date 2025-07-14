@@ -206,6 +206,32 @@ functionality.
 | [Xor][192]                       | ✅             | ✅           |
 | [Unsqueeze][193]                 | ✅             | ✅           |
 
+## ai.onnx.ml Domain Operators
+
+The following operators from the ai.onnx.ml domain are not currently supported:
+
+| ONNX ML OP                       | Import Support | Burn Support |
+|----------------------------------|:--------------:|:------------:|
+| [ArrayFeatureExtractor][200]     | ❌             | ❌           |
+| [Binarizer][201]                 | ❌             | ❌           |
+| [CastMap][202]                   | ❌             | ❌           |
+| [CategoryMapper][203]            | ❌             | ❌           |
+| [DictVectorizer][204]            | ❌             | ❌           |
+| [FeatureVectorizer][205]         | ❌             | ❌           |
+| [Imputer][206]                   | ❌             | ❌           |
+| [LabelEncoder][207]              | ❌             | ❌           |
+| [LinearClassifier][208]          | ❌             | ❌           |
+| [LinearRegressor][209]           | ❌             | ❌           |
+| [Normalizer][210]                | ❌             | ❌           |
+| [OneHotEncoder][211]             | ❌             | ❌           |
+| [Scaler][212]                    | ❌             | ❌           |
+| [SVMClassifier][213]             | ❌             | ❌           |
+| [SVMRegressor][214]              | ❌             | ❌           |
+| [TreeEnsemble][215]              | ❌             | ❌           |
+| [TreeEnsembleClassifier][216]    | ❌             | ❌           |
+| [TreeEnsembleRegressor][217]     | ❌             | ❌           |
+| [ZipMap][218]                    | ❌             | ❌           |
+
 [1]: https://onnx.ai/onnx/operators/onnx__Abs.html "ONNX Abs"
 [2]: https://onnx.ai/onnx/operators/onnx__Acos.html "ONNX Acos"
 [3]: https://onnx.ai/onnx/operators/onnx__Acosh.html "ONNX Acosh"
@@ -396,3 +422,22 @@ functionality.
 [193]: https://onnx.ai/onnx/operators/onnx__Unsqueeze.html "ONNX Unsqueeze"
 [194]: https://onnx.ai/onnx/operators/onnx__Attention.html "ONNX Attention"
 [196]: https://onnx.ai/onnx/operators/onnx__DeformConv.html "ONNX DeformConv"
+[200]: https://onnx.ai/onnx/operators/onnx_aionnxml_ArrayFeatureExtractor.html "ONNX ML ArrayFeatureExtractor"
+[201]: https://onnx.ai/onnx/operators/onnx_aionnxml_Binarizer.html "ONNX ML Binarizer"
+[202]: https://onnx.ai/onnx/operators/onnx_aionnxml_CastMap.html "ONNX ML CastMap"
+[203]: https://onnx.ai/onnx/operators/onnx_aionnxml_CategoryMapper.html "ONNX ML CategoryMapper"
+[204]: https://onnx.ai/onnx/operators/onnx_aionnxml_DictVectorizer.html "ONNX ML DictVectorizer"
+[205]: https://onnx.ai/onnx/operators/onnx_aionnxml_FeatureVectorizer.html "ONNX ML FeatureVectorizer"
+[206]: https://onnx.ai/onnx/operators/onnx_aionnxml_Imputer.html "ONNX ML Imputer"
+[207]: https://onnx.ai/onnx/operators/onnx_aionnxml_LabelEncoder.html "ONNX ML LabelEncoder"
+[208]: https://onnx.ai/onnx/operators/onnx_aionnxml_LinearClassifier.html "ONNX ML LinearClassifier"
+[209]: https://onnx.ai/onnx/operators/onnx_aionnxml_LinearRegressor.html "ONNX ML LinearRegressor"
+[210]: https://onnx.ai/onnx/operators/onnx_aionnxml_Normalizer.html "ONNX ML Normalizer"
+[211]: https://onnx.ai/onnx/operators/onnx_aionnxml_OneHotEncoder.html "ONNX ML OneHotEncoder"
+[212]: https://onnx.ai/onnx/operators/onnx_aionnxml_Scaler.html "ONNX ML Scaler"
+[213]: https://onnx.ai/onnx/operators/onnx_aionnxml_SVMClassifier.html "ONNX ML SVMClassifier"
+[214]: https://onnx.ai/onnx/operators/onnx_aionnxml_SVMRegressor.html "ONNX ML SVMRegressor"
+[215]: https://onnx.ai/onnx/operators/onnx_aionnxml_TreeEnsemble.html "ONNX ML TreeEnsemble"
+[216]: https://onnx.ai/onnx/operators/onnx_aionnxml_TreeEnsembleClassifier.html "ONNX ML TreeEnsembleClassifier"
+[217]: https://onnx.ai/onnx/operators/onnx_aionnxml_TreeEnsembleRegressor.html "ONNX ML TreeEnsembleRegressor"
+[218]: https://onnx.ai/onnx/operators/onnx_aionnxml_ZipMap.html "ONNX ML ZipMap"
