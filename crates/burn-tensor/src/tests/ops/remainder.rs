@@ -54,7 +54,9 @@ mod tests {
         let expected = TensorData::from([1.0, 2.0, 0.0949, 0.0698, 0.2824]);
 
         // Metal has less precise remainder function
-        let tolerance = Tolerance::default().set_half_precision_relative(1e-2);
+        let tolerance = Tolerance::default()
+            .set_half_precision_relative(1e-2)
+            .set_half_precision_absolute(2e-3);
 
         output
             .into_data()

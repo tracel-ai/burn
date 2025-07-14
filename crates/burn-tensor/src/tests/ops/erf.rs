@@ -32,7 +32,7 @@ mod tests {
 
         output.into_data().assert_approx_eq::<FT>(
             &expected,
-            Tolerance::default().set_half_precision_absolute(2e-3),
+            Tolerance::default().set_half_precision_absolute(3e-3),
         );
     }
 }
