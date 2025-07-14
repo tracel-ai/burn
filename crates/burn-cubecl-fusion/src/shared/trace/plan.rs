@@ -162,8 +162,6 @@ impl<R: Runtime> HandleInput<R> {
         mut handle: CubeFusionHandle<R>,
         mut strides: Vec<usize>,
     ) -> Self {
-        // let orig_strides = handle.strides.clone(); // for rollback
-        // handle.strides = strides;
         // For rollback
         core::mem::swap(&mut handle.strides, &mut strides);
         Self {
