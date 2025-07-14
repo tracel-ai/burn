@@ -241,6 +241,8 @@ jobs:
       DISABLE_WGPU_SPIRV: '1'
       # disable incremental compilation (reduces artifact size)
       CARGO_PROFILE_TEST_INCREMENTAL: 'false'
+      # enable debug symbols for grcov (only with stable)
+      CARGO_PROFILE_RELEASE_DEBUG: ${{ matrix.rust == 'stable' }}
     strategy:
       matrix:
         rust: [stable, prev]
