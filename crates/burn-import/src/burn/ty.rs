@@ -66,29 +66,21 @@ impl Type {
     // used as a variable name, or contain invalid identifier characters.
     // TODO (antimora) push the name sanitization upstream to onnx-ir; this is simple for now
     pub fn format_name(name: &str) -> String {
-        let name_is_number = name.bytes().all(|digit| digit.is_ascii_digit());
-        if name_is_number {
-            format!("_{name}")
-        } else {
-            // Sanitize the name by replacing invalid identifier characters with underscores
-            let sanitized = name
-                .chars()
-                .map(|c| {
-                    if c.is_ascii_alphanumeric() || c == '_' {
-                        c
-                    } else {
-                        '_'
-                    }
-                })
-                .collect::<String>();
-
-            // Ensure the name starts with a letter or underscore
-            if sanitized.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_') {
-                sanitized
+        let mut result = String::with_capacity(name.len());
+        // Sanitize the name by replacing invalid identifier characters with underscores
+        for c in name.chars() {
+            if c.is_ascii_alphanumeric() || c == '_' {
+                result.push(c);
             } else {
-                format!("_{sanitized}")
+                result.push('_');
             }
         }
+
+        // Ensure the first character is valid to start an identifier
+        if !result.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_') {
+            result = format!("_{result}");
+        }
+        result
     }
     pub fn name(&self) -> &Ident {
         match self {
