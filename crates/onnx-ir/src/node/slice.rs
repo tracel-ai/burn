@@ -19,7 +19,10 @@ pub fn slice_config(node: &Node) -> Vec<Option<(i64, i64)>> {
                 ..
             }) => shape.clone(),
 
-            _ => panic!("Tensor data type must be int64"),
+            v => panic!(
+                "Tensor data type for input at index {} must be int64 but got {:?}",
+                index, v
+            ),
         }
     }
 
