@@ -1,38 +1,69 @@
+use crate::Argument;
 use crate::ir::{ArgType, Data, Node, TensorData};
 
+/// Configuration for the Slice operation.
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone)]
+pub enum SliceConfig {
+    /// Static slice with constant ranges known at compile time.
+    Static(Vec<Option<(i64, i64)>>),
+    /// Runtime slice with arguments for starts and ends determined during execution.
+    Runtime {
+        starts: Argument,
+        ends: Argument,
+        axes: Option<Argument>,
+        steps: Option<Argument>,
+    },
+}
+
 /// Creates a configuration for tensor slicing based on the ONNX Slice operator.
-/// Returns a vector of optional ranges representing start and end indices for each dimension.
+/// Returns either static ranges or runtime arguments for slicing.
 ///
 /// Note: we leave the negative indices as is, but we need to handle them properly when slicing
-/// during the actual slicing operation using the dynamic shape information.
-pub fn slice_config(node: &Node) -> Vec<Option<(i64, i64)>> {
-    /// Extracts int64 values from a node's input at the specified index.
-    /// Returns an empty vector if the input is not provided.
-    fn get_input_values(node: &Node, index: usize) -> Vec<i64> {
-        if node.inputs.get(index).is_none() {
-            return Vec::new();
-        }
+/// during the actual slicing operation using the runtime shape information.
+pub fn slice_config(node: &Node) -> SliceConfig {
+    /// Extracts int64 values from a node's input at the specified index if it has a static value.
+    /// Returns None if the input doesn't exist or doesn't have a static value.
+    fn get_static_input_values(node: &Node, index: usize) -> Option<Vec<i64>> {
+        node.inputs.get(index)?;
 
         match &node.inputs[index].value {
             Some(TensorData {
                 data: Data::Int64s(shape),
                 ..
-            }) => shape.clone(),
-
-            v => panic!(
-                "Tensor data type for input at index {} must be int64 but got {:?}",
-                index, v
-            ),
+            }) => Some(shape.clone()),
+            Some(v) => {
+                panic!("Tensor data type for input at index {index} must be int64 but got {v:?}")
+            }
+            None => None, // Input exists but has no static value (dynamic)
         }
     }
 
-    let mut starts = get_input_values(node, 1);
-    let mut ends = get_input_values(node, 2);
-    let mut axes = get_input_values(node, 3);
-    let mut steps = get_input_values(node, 4);
+    // Check if we have runtime inputs (inputs without static values)
+    let has_runtime_starts = node.inputs.len() > 1 && node.inputs[1].value.is_none();
+    let has_runtime_ends = node.inputs.len() > 2 && node.inputs[2].value.is_none();
 
-    // Reference: https://burn.dev/docs/burn/prelude/struct.Tensor.html#method.slice
-    // TODO: Default missing axes ranges to the full range of the corresponding axis
+    // If either starts or ends are runtime, use runtime configuration
+    if has_runtime_starts || has_runtime_ends {
+        if node.inputs.len() < 3 {
+            panic!("Slice: runtime slicing requires at least starts and ends inputs");
+        }
+
+        return SliceConfig::Runtime {
+            starts: node.inputs[1].clone(),
+            ends: node.inputs[2].clone(),
+            axes: node.inputs.get(3).cloned(),
+            steps: node.inputs.get(4).cloned(),
+        };
+    }
+
+    // Handle static case (existing behavior)
+    let mut starts = get_static_input_values(node, 1).unwrap_or_default();
+    let mut ends = get_static_input_values(node, 2).unwrap_or_default();
+    let mut axes = get_static_input_values(node, 3).unwrap_or_default();
+    let mut steps = get_static_input_values(node, 4).unwrap_or_default();
+
+    // Fall back to attributes if inputs are not provided
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
             "starts" => starts = value.clone().into_i64s(),
@@ -78,7 +109,7 @@ pub fn slice_config(node: &Node) -> Vec<Option<(i64, i64)>> {
         ranges[axis] = Some((starts[i], ends[i]));
     }
 
-    ranges
+    SliceConfig::Static(ranges)
 }
 
 /// Update output type for Slice operation.
@@ -98,23 +129,34 @@ pub fn slice_update_output_rank(node: &mut Node) {
             // Slicing a Shape extracts a sub-part, resulting in a rank-1 Tensor.
             log::debug!("Slice input for {} is Shape", node.name);
             let config = slice_config(node);
-            assert_eq!(
-                config.len(),
-                1,
-                "Slice on Shape input requires exactly one dimension slice config for node {}",
-                node.name
-            );
 
-            let (start, end) = config[0].unwrap_or_else(|| {
-                panic!(
-                    "Slice config for Shape input must contain start and end indices for node {}",
-                    node.name
-                )
-            });
+            match config {
+                SliceConfig::Static(ranges) => {
+                    assert_eq!(
+                        ranges.len(),
+                        1,
+                        "Slice on Shape input requires exactly one dimension slice config for node {}",
+                        node.name
+                    );
 
-            let output_len = end as usize - start as usize;
+                    let (start, end) = ranges[0].unwrap_or_else(|| {
+                        panic!(
+                            "Slice config for Shape input must contain start and end indices for node {}",
+                            node.name
+                        )
+                    });
 
-            node.outputs[0].ty = ArgType::Shape(output_len);
+                    let output_len = end as usize - start as usize;
+                    node.outputs[0].ty = ArgType::Shape(output_len);
+                }
+                SliceConfig::Runtime { .. } => {
+                    // For runtime slice on Shape, we can't determine the output size at compile time
+                    panic!(
+                        "Runtime slice on Shape input is not supported for node {}",
+                        node.name
+                    );
+                }
+            }
         }
         // Handle unsupported input types
         unsupported_type => {
@@ -181,6 +223,17 @@ mod tests {
             .build()
     }
 
+    fn create_runtime_slice_node() -> Node {
+        NodeBuilder::new(NodeType::Slice, "test_runtime_slice")
+            .input_tensor_f32("data", 2, None)
+            .input_tensor_i64("starts", 0, None) // No static value - runtime input
+            .input_tensor_i64("ends", 0, None) // No static value - runtime input
+            .input_tensor_i64_data("axes", vec![0], vec![1])
+            .input_tensor_i64_data("steps", vec![1], vec![1])
+            .output_default("output")
+            .build()
+    }
+
     #[test]
     fn test_slice_config_basic() {
         // Create a node with inputs for basic slicing
@@ -188,10 +241,15 @@ mod tests {
 
         let result = slice_config(&node);
 
-        assert_eq!(result.len(), 3);
-        assert_eq!(result[0], Some((1, 3)));
-        assert_eq!(result[1], None);
-        assert_eq!(result[2], Some((0, 2)));
+        match result {
+            SliceConfig::Static(ranges) => {
+                assert_eq!(ranges.len(), 3);
+                assert_eq!(ranges[0], Some((1, 3)));
+                assert_eq!(ranges[1], None);
+                assert_eq!(ranges[2], Some((0, 2)));
+            }
+            SliceConfig::Runtime { .. } => panic!("Expected static config"),
+        }
     }
 
     #[test]
@@ -201,10 +259,15 @@ mod tests {
 
         let result = slice_config(&node);
 
-        assert_eq!(result.len(), 3);
-        assert_eq!(result[0], Some((1, 3)));
-        assert_eq!(result[1], None);
-        assert_eq!(result[2], Some((0, 2)));
+        match result {
+            SliceConfig::Static(ranges) => {
+                assert_eq!(ranges.len(), 3);
+                assert_eq!(ranges[0], Some((1, 3)));
+                assert_eq!(ranges[1], None);
+                assert_eq!(ranges[2], Some((0, 2)));
+            }
+            SliceConfig::Runtime { .. } => panic!("Expected static config"),
+        }
     }
 
     #[test]
@@ -214,10 +277,15 @@ mod tests {
 
         let result = slice_config(&node);
 
-        assert_eq!(result.len(), 3);
-        assert_eq!(result[0], Some((1, 3))); // -3 -> 0 (first dimension)
-        assert_eq!(result[1], None);
-        assert_eq!(result[2], None);
+        match result {
+            SliceConfig::Static(ranges) => {
+                assert_eq!(ranges.len(), 3);
+                assert_eq!(ranges[0], Some((1, 3))); // -3 -> 0 (first dimension)
+                assert_eq!(ranges[1], None);
+                assert_eq!(ranges[2], None);
+            }
+            SliceConfig::Runtime { .. } => panic!("Expected static config"),
+        }
     }
 
     #[test]
@@ -227,10 +295,40 @@ mod tests {
 
         let result = slice_config(&node);
 
-        assert_eq!(result.len(), 3);
-        assert_eq!(result[0], Some((1, 3)));
-        assert_eq!(result[1], Some((2, 4)));
-        assert_eq!(result[2], None);
+        match result {
+            SliceConfig::Static(ranges) => {
+                assert_eq!(ranges.len(), 3);
+                assert_eq!(ranges[0], Some((1, 3)));
+                assert_eq!(ranges[1], Some((2, 4)));
+                assert_eq!(ranges[2], None);
+            }
+            SliceConfig::Runtime { .. } => panic!("Expected static config"),
+        }
+    }
+
+    #[test]
+    fn test_slice_config_runtime() {
+        // Test with runtime inputs (no static values)
+        let node = create_runtime_slice_node();
+
+        let result = slice_config(&node);
+
+        match result {
+            SliceConfig::Runtime {
+                starts,
+                ends,
+                axes,
+                steps,
+            } => {
+                assert_eq!(starts.name, "starts");
+                assert_eq!(ends.name, "ends");
+                assert!(axes.is_some());
+                assert_eq!(axes.unwrap().name, "axes");
+                assert!(steps.is_some());
+                assert_eq!(steps.unwrap().name, "steps");
+            }
+            SliceConfig::Static(_) => panic!("Expected runtime config"),
+        }
     }
 
     #[test]

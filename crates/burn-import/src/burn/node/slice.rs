@@ -4,36 +4,54 @@ use burn::record::PrecisionSettings;
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
+#[derive(Debug, Clone)]
 pub struct SliceNode {
     pub input: Type,
     pub output: Type,
-    pub ranges: Vec<Option<(i64, i64)>>,
+    pub config: SliceNodeConfig,
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
-    fn output_types(&self) -> Vec<Type> {
-        vec![self.output.clone()]
-    }
-    fn input_types(&self) -> Vec<Type> {
-        vec![self.input.clone()]
-    }
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name();
+#[derive(Debug, Clone)]
+pub enum SliceNodeConfig {
+    Static { ranges: Vec<Option<(i64, i64)>> },
+    Runtime { starts: Type, ends: Type },
+}
 
+impl SliceNode {
+    pub fn new_static(input: Type, output: Type, ranges: Vec<Option<(i64, i64)>>) -> Self {
+        Self {
+            input,
+            output,
+            config: SliceNodeConfig::Static { ranges },
+        }
+    }
+
+    pub fn new_runtime(input: Type, output: Type, starts: Type, ends: Type) -> Self {
+        Self {
+            input,
+            output,
+            config: SliceNodeConfig::Runtime { starts, ends },
+        }
+    }
+
+    fn generate_static_slice(
+        &self,
+        ranges: &[Option<(i64, i64)>],
+        scope: &mut Scope,
+        node_position: usize,
+        output: &proc_macro2::Ident,
+    ) -> TokenStream {
         let output_rank = match self.output {
             Type::Tensor(ref tensor) => tensor.rank,
             Type::Shape(ref shape) => shape.rank,
             _ => panic!("Invalid output type"),
         };
-        // Use unsuffixed literal to avoid output like `1usize`
         let output_rank = Literal::usize_unsuffixed(output_rank);
 
-        let ranges = self.ranges.iter().map(|range| match range {
+        let ranges = ranges.iter().map(|range| match range {
             Some((start, end)) => {
                 let start = start.to_tokens();
                 let end = end.to_tokens();
-
                 quote! { #start..#end}
             }
             None => quote! { .. },
@@ -48,20 +66,85 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
             }
             Type::Shape(shape) => {
                 let shape_len = shape.rank;
-                let shape_len = Literal::usize_unsuffixed(shape_len); // Use unsuffixed literal
+                let shape_len = Literal::usize_unsuffixed(shape_len);
                 let shape = shape.name.clone();
 
-                // first item from the range
                 let mut ranges = ranges;
                 let range = ranges.next().unwrap();
 
                 quote! {
                     let #output: [usize; #output_rank] = #shape[s![#range].into_ranges([#shape_len].into())[0].clone()].try_into().unwrap();
-
                 }
             }
             _ => {
                 panic!("Unsupported input type for SliceNode");
+            }
+        }
+    }
+
+    fn generate_runtime_slice(
+        &self,
+        starts: &Type,
+        ends: &Type,
+        scope: &mut Scope,
+        node_position: usize,
+        output: &proc_macro2::Ident,
+    ) -> TokenStream {
+        match &self.input {
+            Type::Tensor(tensor) => {
+                let input = scope.tensor_use_owned(tensor, node_position);
+
+                let starts_var = match starts {
+                    Type::Scalar(scalar) => {
+                        let name = scalar.name.clone();
+                        quote! { #name as usize }
+                    }
+                    _ => panic!("starts must be a scalar for runtime slice"),
+                };
+
+                let ends_var = match ends {
+                    Type::Scalar(scalar) => {
+                        let name = scalar.name.clone();
+                        quote! { #name as usize }
+                    }
+                    _ => panic!("ends must be a scalar for runtime slice"),
+                };
+
+                quote! {
+                    let #output = #input.slice(s![#starts_var..#ends_var, ..]);
+                }
+            }
+            Type::Shape(_) => {
+                panic!("Runtime slice on Shape input is not supported");
+            }
+            _ => {
+                panic!("Unsupported input type for runtime SliceNode");
+            }
+        }
+    }
+}
+
+impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
+    fn output_types(&self) -> Vec<Type> {
+        vec![self.output.clone()]
+    }
+    fn input_types(&self) -> Vec<Type> {
+        match &self.config {
+            SliceNodeConfig::Static { .. } => vec![self.input.clone()],
+            SliceNodeConfig::Runtime { starts, ends } => {
+                vec![self.input.clone(), starts.clone(), ends.clone()]
+            }
+        }
+    }
+    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+        let output = &self.output.name();
+
+        match &self.config {
+            SliceNodeConfig::Static { ranges } => {
+                self.generate_static_slice(ranges, scope, node_position, output)
+            }
+            SliceNodeConfig::Runtime { starts, ends } => {
+                self.generate_runtime_slice(starts, ends, scope, node_position, output)
             }
         }
     }
@@ -93,7 +176,7 @@ mod tests {
     #[test]
     fn test_codegen_slice_tensor() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        graph.register(SliceNode::new(
+        graph.register(SliceNode::new_static(
             Type::Tensor(TensorType::new_float("tensor1", 4)),
             Type::Tensor(TensorType::new_float("tensor2", 4)),
             vec![Some((0, 1)), None, None, None],
@@ -135,7 +218,7 @@ mod tests {
     #[test]
     fn test_codegen_slice_shape() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        graph.register(SliceNode::new(
+        graph.register(SliceNode::new_static(
             Type::Shape(ShapeType::new("shape1", 4)),
             Type::Shape(ShapeType::new("shape2", 2)),
             vec![Some((1, 3))],
@@ -179,7 +262,7 @@ mod tests {
     #[test]
     fn test_codegen_slice_shape_full_range() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        graph.register(SliceNode::new(
+        graph.register(SliceNode::new_static(
             Type::Shape(ShapeType::new("shape1", 4)),
             Type::Shape(ShapeType::new("shape2", 4)),
             vec![None],
@@ -213,6 +296,62 @@ mod tests {
                     // Use s!, ensure no usize suffix
                      let shape2: [usize; 4] = shape1[s![..].into_ranges([4].into())[0].clone()].try_into().unwrap();
                      shape2
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_slice_runtime() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+        graph.register(SliceNode::new_runtime(
+            Type::Tensor(TensorType::new_float("tensor1", 2)),
+            Type::Tensor(TensorType::new_float("tensor2", 2)),
+            Type::Scalar(crate::burn::ScalarType::new(
+                "start",
+                crate::burn::ScalarKind::Int64,
+            )),
+            Type::Scalar(crate::burn::ScalarType::new(
+                "end",
+                crate::burn::ScalarKind::Int64,
+            )),
+        ));
+        graph.register_input_output(
+            vec![
+                "tensor1".to_string(),
+                "start".to_string(),
+                "end".to_string(),
+            ],
+            vec!["tensor2".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::tensor::s;
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, tensor1: Tensor<B, 2>, start: i64, end: i64) -> Tensor<B, 2> {
+                    let tensor2 = tensor1.slice(s![start as usize..end as usize, ..]);
+                    tensor2
                 }
             }
         };

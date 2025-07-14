@@ -83,23 +83,53 @@ use onnx_ir::{
         TensorType as OnnxTensorType,
     },
     node::{
-        argmax::argmax_config, argmin::argmin_config, avg_pool1d::avg_pool1d_config,
-        avg_pool2d::avg_pool2d_config, batch_norm::batch_norm_config, clip::clip_config,
-        concat::concat_config, conv_transpose1d::conv_transpose1d_config,
-        conv_transpose2d::conv_transpose2d_config, conv_transpose3d::conv_transpose3d_config,
-        conv1d::conv1d_config, conv2d::conv2d_config, conv3d::conv3d_config,
-        depth_to_space::depth_to_space_config, dropout::dropout_config, expand::expand_config,
-        flatten::flatten_config, gather::gather_config, gemm::gemm_config,
-        group_norm::group_norm_config, hard_sigmoid::hard_sigmoid_config,
-        instance_norm::instance_norm_config, layer_norm::layer_norm_config,
-        leaky_relu::leaky_relu_config, linear::linear_config, log_softmax::log_softmax_config,
-        max_pool1d::max_pool1d_config, max_pool2d::max_pool2d_config, one_hot::one_hot_config,
-        pad::pad_config, reduce_max::reduce_max_config, reduce_mean::reduce_mean_config,
-        reduce_min::reduce_min_config, reduce_prod::reduce_prod_config,
-        reduce_sum::reduce_sum_config, reshape::reshape_config, resize::resize_config,
-        slice::slice_config, softmax::softmax_config, space_to_depth::space_to_depth_config,
-        split::split_config, squeeze::squeeze_config, tile::tile_config, topk::top_k_config,
-        transpose::transpose_config, trilu::trilu_config, unsqueeze::unsqueeze_config,
+        argmax::argmax_config,
+        argmin::argmin_config,
+        avg_pool1d::avg_pool1d_config,
+        avg_pool2d::avg_pool2d_config,
+        batch_norm::batch_norm_config,
+        clip::clip_config,
+        concat::concat_config,
+        conv_transpose1d::conv_transpose1d_config,
+        conv_transpose2d::conv_transpose2d_config,
+        conv_transpose3d::conv_transpose3d_config,
+        conv1d::conv1d_config,
+        conv2d::conv2d_config,
+        conv3d::conv3d_config,
+        depth_to_space::depth_to_space_config,
+        dropout::dropout_config,
+        expand::expand_config,
+        flatten::flatten_config,
+        gather::gather_config,
+        gemm::gemm_config,
+        group_norm::group_norm_config,
+        hard_sigmoid::hard_sigmoid_config,
+        instance_norm::instance_norm_config,
+        layer_norm::layer_norm_config,
+        leaky_relu::leaky_relu_config,
+        linear::linear_config,
+        log_softmax::log_softmax_config,
+        max_pool1d::max_pool1d_config,
+        max_pool2d::max_pool2d_config,
+        one_hot::one_hot_config,
+        pad::pad_config,
+        reduce_max::reduce_max_config,
+        reduce_mean::reduce_mean_config,
+        reduce_min::reduce_min_config,
+        reduce_prod::reduce_prod_config,
+        reduce_sum::reduce_sum_config,
+        reshape::reshape_config,
+        resize::resize_config,
+        slice::{SliceConfig, slice_config},
+        softmax::softmax_config,
+        space_to_depth::space_to_depth_config,
+        split::split_config,
+        squeeze::squeeze_config,
+        tile::tile_config,
+        topk::top_k_config,
+        transpose::transpose_config,
+        trilu::trilu_config,
+        unsqueeze::unsqueeze_config,
     },
     parse_onnx,
     util::shape_config,
@@ -919,9 +949,16 @@ impl ParsedOnnxGraph {
     fn slice_conversion(node: Node) -> SliceNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        let ranges = slice_config(&node);
+        let config = slice_config(&node);
 
-        SliceNode::new(input, output, ranges)
+        match config {
+            SliceConfig::Static(ranges) => SliceNode::new_static(input, output, ranges),
+            SliceConfig::Runtime { starts, ends, .. } => {
+                let starts_type = Type::from(&starts);
+                let ends_type = Type::from(&ends);
+                SliceNode::new_runtime(input, output, starts_type, ends_type)
+            }
+        }
     }
 
     fn space_to_depth_conversion(node: Node) -> SpaceToDepthNode {

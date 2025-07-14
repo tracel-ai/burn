@@ -1,6 +1,6 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(slice, slice_shape);
+include_models!(slice, slice_shape, slice_scalar);
 
 #[cfg(test)]
 mod tests {
@@ -45,5 +45,20 @@ mod tests {
         let output = model.forward(input);
 
         assert_eq!(output, [2, 3]);
+    }
+
+    #[test]
+    fn slice_scalar() {
+        let model: slice_scalar::Model<Backend> = slice_scalar::Model::default();
+        let device = Default::default();
+
+        let input = Tensor::<Backend, 2>::ones([5, 3], &device);
+        let start = 1;
+        let end = 4;
+
+        let output = model.forward(input, start, end);
+
+        let expected_shape = [3, 3];
+        assert_eq!(output.shape().dims, expected_shape);
     }
 }
