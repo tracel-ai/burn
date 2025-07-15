@@ -12,13 +12,19 @@ use burn_tensor::backend::Backend;
 use tokio::runtime::{Builder, Runtime};
 
 use crate::{
-    AllReduceParams, AllReduceStrategy, CollectiveError, GlobalAllReduceParams, RegisterParams,
+    AllReduceParams, AllReduceStrategy, CollectiveError, RegisterParams,
     centralized::all_reduce_centralized, global::client::base::GlobalCollectiveClient,
     ring::all_reduce_ring, tree::all_reduce_tree,
 };
 
 // Define the client/server communication on the network
 type Network = WsNetwork;
+/// Type sent to the collective client upon completion of a register request
+type RegisterResult = Result<(), CollectiveError>;
+/// Type sent to the collective client upon completion of a all-reduce aggregation
+type AllReduceResult<T> = Result<T, CollectiveError>;
+/// Type sent to the collective client upon completion of a finish request
+type FinishResult = Result<(), CollectiveError>;
 
 /// The local collective server that manages all the collective aggregation operations
 /// (like all-reduce) between local threads.
@@ -38,9 +44,9 @@ pub struct LocalCollectiveServer<B: Backend> {
     /// The tensor primitives passed by each operation call
     tensors: Vec<B::FloatTensorPrimitive>,
     /// Callbacks for when all registers are done
-    callbacks_register: Vec<SyncSender<()>>,
+    callbacks_register: Vec<SyncSender<RegisterResult>>,
     /// Callbacks for when aggregate is done
-    callbacks_allreduce: Vec<SyncSender<B::FloatTensorPrimitive>>,
+    callbacks_all_reduce: Vec<SyncSender<AllReduceResult<B::FloatTensorPrimitive>>>,
 
     /// Client for global collective operations
     global_client: Option<GlobalCollectiveClient<B, Network>>,
@@ -51,17 +57,17 @@ pub(crate) enum Message<B: Backend> {
     AllReduce {
         tensor: B::FloatTensorPrimitive,
         params: AllReduceParams,
-        callback: SyncSender<B::FloatTensorPrimitive>,
+        callback: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
     },
     Register {
         device_id: u32,
         params: RegisterParams,
-        callback: SyncSender<()>,
+        callback: SyncSender<RegisterResult>,
     },
     Reset,
     Finish {
         id: u32,
-        callback: SyncSender<()>,
+        callback: SyncSender<FinishResult>,
     },
 }
 
@@ -100,7 +106,7 @@ pub(crate) fn get_collective_client<B: Backend>() -> LocalCollectiveClient<B> {
     let val = match hashmap.get(&typeid) {
         Some(val) => val,
         None => {
-            let client = LocalCollectiveServer::start();
+            let client = LocalCollectiveServer::<B>::start();
             hashmap.insert(typeid, Box::new(client.clone()));
             return client;
         }
@@ -114,8 +120,8 @@ impl<B: Backend> LocalCollectiveClient<B> {
         self.channel.send(Message::Reset).unwrap();
     }
 
-    pub fn register(&mut self, device_id: u32, params: RegisterParams) {
-        let (callback, rec) = std::sync::mpsc::sync_channel::<()>(1);
+    pub fn register(&mut self, device_id: u32, params: RegisterParams) -> RegisterResult {
+        let (callback, rec) = std::sync::mpsc::sync_channel::<RegisterResult>(1);
 
         self.channel
             .send(Message::Register {
@@ -125,20 +131,21 @@ impl<B: Backend> LocalCollectiveClient<B> {
             })
             .unwrap();
 
-        rec.recv().unwrap();
+        rec.recv()
+            .unwrap_or(Err(CollectiveError::LocalServerMissing))
     }
 
     pub fn all_reduce(
         &self,
         tensor: B::FloatTensorPrimitive,
-        params: AllReduceParams,
-    ) -> B::FloatTensorPrimitive {
-        let (callback, rec) = std::sync::mpsc::sync_channel::<B::FloatTensorPrimitive>(1);
+        params: &AllReduceParams,
+    ) -> AllReduceResult<B::FloatTensorPrimitive> {
+        let (callback, rec) = std::sync::mpsc::sync_channel::<AllReduceResult<B::FloatTensorPrimitive>>(1);
 
         self.channel
             .send(Message::AllReduce {
                 tensor,
-                params,
+                params: params.clone(),
                 callback,
             })
             .unwrap();
@@ -146,15 +153,15 @@ impl<B: Backend> LocalCollectiveClient<B> {
         // returns a tensor primitive that may or may not be on the correct device,
         // depending on the strategy used.
         rec.recv()
-            .expect("Failed to receive callback from collective server")
+            .unwrap_or(Err(CollectiveError::LocalServerMissing))
     }
 
-    pub fn finish(&self, id: u32) {
-        let (callback, rec) = std::sync::mpsc::sync_channel::<()>(1);
+    pub fn finish(&self, id: u32) -> FinishResult {
+        let (callback, rec) = std::sync::mpsc::sync_channel::<FinishResult>(1);
         self.channel.send(Message::Finish { id, callback }).unwrap();
 
         rec.recv()
-            .expect("Failed to receive response from collective server for finish operation")
+            .unwrap_or(Err(CollectiveError::LocalServerMissing))
     }
 }
 
@@ -167,7 +174,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
             cur_allreduce_params: None,
             tensors: vec![],
             callbacks_register: vec![],
-            callbacks_allreduce: vec![],
+            callbacks_all_reduce: vec![],
             global_client: None,
         }
     }
@@ -179,15 +186,13 @@ impl<B: Backend> LocalCollectiveServer<B> {
         let runtime = get_server_runtime();
 
         runtime.spawn(async {
+            let typeid = core::any::TypeId::of::<B>();
+            eprintln!("Starting server for backend: {typeid:?}");
             let mut aggregator = LocalCollectiveServer::new(rec);
 
             loop {
                 match aggregator.message_rec.recv() {
-                    Ok(message) => {
-                        if let Err(err) = aggregator.process_message(message).await {
-                            log::error!("Local collective server error: {err:?}");
-                        }
-                    }
+                    Ok(message) => aggregator.process_message(message).await,
                     Err(err) => {
                         log::error!(
                             "Error receiving message from local collective server: {err:?}"
@@ -201,7 +206,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         LocalCollectiveClient { channel: sender }
     }
 
-    async fn process_message(&mut self, message: Message<B>) -> Result<(), CollectiveError> {
+    async fn process_message(&mut self, message: Message<B>) {
         match message {
             Message::AllReduce {
                 tensor,
@@ -219,11 +224,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
                 self.process_register_message(device_id, params, callback)
                     .await
             }
-            Message::Reset => {
-                self.reset();
-
-                Ok(())
-            }
+            Message::Reset => self.reset(),
             Message::Finish { id, callback } => self.process_finish_message(id, callback).await,
         }
     }
@@ -234,13 +235,11 @@ impl<B: Backend> LocalCollectiveServer<B> {
         self.cur_allreduce_params = None;
     }
 
-    async fn process_finish_message(
-        &mut self,
-        id: u32,
-        callback: SyncSender<()>,
-    ) -> Result<(), CollectiveError> {
+    async fn process_finish_message(&mut self, id: u32, callback: SyncSender<RegisterResult>) {
         if !self.registered_ids.contains(&id) {
-            return Err(CollectiveError::MultipleUnregister);
+            callback
+                .send(Err(CollectiveError::MultipleUnregister))
+                .unwrap();
         }
 
         // Remove registered with id
@@ -252,54 +251,55 @@ impl<B: Backend> LocalCollectiveServer<B> {
             }
         }
 
-        callback
-            .send(())
-            .map_err(|_| CollectiveError::CallbackFailed)?;
-
-        Ok(())
+        callback.send(Ok(())).unwrap();
     }
 
     async fn process_all_reduce_message(
         &mut self,
         tensor: <B as Backend>::FloatTensorPrimitive,
         params: AllReduceParams,
-        callback: SyncSender<<B as Backend>::FloatTensorPrimitive>,
-    ) -> Result<(), CollectiveError> {
+        callback: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
+    ) {
         if self.tensors.is_empty() || self.cur_allreduce_params.is_none() {
             self.cur_allreduce_params = Some(params);
         } else if self.cur_allreduce_params.clone().unwrap() != params {
-            return Err(CollectiveError::AllReduceParamsMismatch);
+            callback
+                .send(Err(CollectiveError::AllReduceParamsMismatch))
+                .unwrap();
+            return;
         }
 
         self.tensors.push(tensor);
-        self.callbacks_allreduce.push(callback);
+        self.callbacks_all_reduce.push(callback);
 
         let tensor_count = self.tensors.len();
         if tensor_count > 0 && tensor_count == self.registered_ids.len() {
             // all registered callers have sent a tensor to aggregate
-            return self.all_reduce().await;
+            self.all_reduce().await;
         }
-
-        Ok(())
     }
 
     async fn process_register_message(
         &mut self,
         id: u32,
         params: RegisterParams,
-        callback: SyncSender<()>,
-    ) -> Result<(), CollectiveError> {
+        callback: SyncSender<RegisterResult>,
+    ) {
         if self.registered_ids.contains(&id) {
-            return Err(CollectiveError::MultipleRegister);
+            let result = Err(CollectiveError::MultipleRegister);
+            callback.send(result).unwrap();
+            return;
         }
         if self.registered_ids.is_empty() || self.cur_register_params.is_none() {
             self.cur_register_params = Some(params.clone());
         } else if self.cur_register_params.clone().unwrap() != params {
-            return Err(CollectiveError::RegisterParamsMismatch);
+            let result = Err(CollectiveError::RegisterParamsMismatch);
+            callback.send(result).unwrap();
+            return;
         }
 
         self.registered_ids.push(id);
-        self.callbacks_register.push(callback);
+        self.callbacks_register.push(callback.clone());
 
         if let Some(global_params) = &params.global_params {
             if self.global_client.is_none() {
@@ -319,23 +319,22 @@ impl<B: Backend> LocalCollectiveServer<B> {
                     .global_client
                     .as_mut()
                     .expect("Global client should be initialized");
-                client
-                    .register(params.clone())
-                    .await
-                    .map_err(CollectiveError::Global)?;
+
+                let res = client.register(params.clone()).await;
+
+                if let Err(err) = res {
+                    callback.send(Err(CollectiveError::Global(err))).unwrap();
+                    return;
+                }
             }
 
             for callback in self.callbacks_register.drain(..) {
-                callback
-                    .send(())
-                    .map_err(|_| CollectiveError::CallbackFailed)?;
+                callback.send(Ok(())).unwrap();
             }
         }
-
-        Ok(())
     }
 
-    async fn all_reduce(&mut self) -> Result<(), CollectiveError> {
+    async fn all_reduce(&mut self) {
         let params = self.cur_allreduce_params.as_ref().unwrap();
         let kind = &params.kind;
         let local_strategy = &params.local_strategy;
@@ -352,30 +351,43 @@ impl<B: Backend> LocalCollectiveServer<B> {
         };
 
         if let Some(global_client) = &mut self.global_client {
-            let mut tensor = outs.remove(0);
-            let params = GlobalAllReduceParams {
-                strategy: global_strategy.unwrap(),
-            };
+            let tensor = outs.remove(0);
+            let params = global_strategy.as_ref().unwrap();
 
             let device = B::float_device(&tensor);
-            tensor = global_client
+            let tensor = global_client
                 .all_reduce(tensor, params, &device, *kind)
-                .await
-                .map_err(CollectiveError::Global)?;
+                .await;
 
-            // replace all results with global aggregation result
-            let len = outs.len() + 1;
-            outs = vec![tensor; len];
+            match tensor {
+                Err(err) => {
+                    self.send_err_all_reduce_callbacks(CollectiveError::Global(err));
+                    return;
+                }
+                Ok(tensor) => {
+                    // replace all results with global aggregation result
+                    let len = outs.len() + 1;
+                    outs = vec![tensor; len];
+                }
+            }
         }
 
         // Callbacks return results
-        for callback in self.callbacks_allreduce.drain(..) {
-            let out = outs.remove(0);
+        for callback in self.callbacks_all_reduce.drain(..) {
+            let result = Ok(outs.remove(0));
             callback
-                .send(out)
-                .map_err(|_| CollectiveError::CallbackFailed)?;
+                .send(result)
+                .unwrap();
         }
+    }
 
-        Ok(())
+    /// Send an error to all the subscrived all-reduce callbacks, and drain the list
+    fn send_err_all_reduce_callbacks(&mut self, err: CollectiveError) {
+        for callback in self.callbacks_all_reduce.drain(..) {
+            let result = Err(err.clone());
+            callback
+                .send(result)
+                .unwrap();
+        }
     }
 }

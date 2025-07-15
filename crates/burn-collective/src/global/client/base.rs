@@ -98,7 +98,7 @@ where
     pub async fn all_reduce(
         &self,
         tensor: B::FloatTensorPrimitive,
-        params: GlobalAllReduceParams,
+        params: &GlobalAllReduceParams,
         device: &B::Device,
         kind: ReduceKind,
     ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError> {

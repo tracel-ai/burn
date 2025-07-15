@@ -1,10 +1,9 @@
 use std::str::FromStr;
 
 use crate::{
-    network::Network,
+    network::{Network, NetworkAddress},
     websocket::{client::WsClient, server::WsServer},
 };
-use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
 pub struct WsNetwork {}
@@ -13,18 +12,12 @@ impl Network for WsNetwork {
     type Server = WsServer;
 }
 
-/// Allows nodes to find each other
-/// TODO url validation and shouldn't be ws spesific
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct WsAddress {
-    /// A url that includes the port and the ws:// prefix.
-    inner: String,
-}
+pub struct WsAddress(NetworkAddress);
 
 impl FromStr for WsAddress {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<WsAddress, String> {
         let parts = s.split("://").collect::<Vec<&str>>();
         let num_parts = parts.len();
         let url = if num_parts == 2 {
@@ -39,6 +32,6 @@ impl FromStr for WsAddress {
             panic!("Invalid url: {s}");
         };
 
-        Ok(Self { inner: url })
+        NetworkAddress::from_str(s).map(Self)
     }
 }

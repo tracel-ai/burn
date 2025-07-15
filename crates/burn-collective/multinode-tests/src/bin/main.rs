@@ -36,7 +36,9 @@ async fn main() {
     let aggregate_params = AllReduceParams {
         kind: ReduceKind::Sum,
         local_strategy: AllReduceStrategy::Tree(2),
-        global_strategy: Some(AllReduceStrategy::Ring),
+        global_strategy: Some(burn::collective::GlobalAllReduceParams {
+            strategy: AllReduceStrategy::Ring,
+        }),
     };
 
     let mut server: Child = Command::new("cargo")

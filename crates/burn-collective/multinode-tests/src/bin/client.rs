@@ -96,7 +96,7 @@ pub fn run_peer<B: Backend>(
 
     let tensor = Tensor::<B, 1>::from_data(input, &device);
 
-    let tensor = all_reduce(tensor, params);
+    let tensor = all_reduce(tensor, &params).unwrap();
 
     output.send(tensor).unwrap();
 
