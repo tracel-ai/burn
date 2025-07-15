@@ -174,4 +174,4 @@ debug = 0 # Speed up compilation time and not necessary.
 
 
 [patch.crates-io]
-tracel-xtask = { git = "https://github.com/tracel-ai/xtask", rev = "5a2915262bd67f18461608a0e38e25cb64ce936a"}
+tracel-xtask = { git = "https://github.com/tracel-ai/xtask", rev = "889f7beb49814978ad133f1d045c0f713962141a"}

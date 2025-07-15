@@ -1,6 +1,6 @@
 use tracel_xtask::{
     prelude::{clap::ValueEnum, *},
-    utils::process::ProcessExitError,
+    utils::process::{ExitSignal, ProcessExitError},
 };
 
 use crate::NO_STD_CRATES;
@@ -113,8 +113,9 @@ pub(crate) fn handle_command(
                         .downcast_ref::<ProcessExitError>()
                         .filter(|e| {
                             let signal = e.status.signal();
-                            println!("ProcessExitError {signal:?}");
+                            println!("ProcessExitError {signal:?} {:?}", e.signal);
                             signal == Some(11)
+                                || matches!(e.signal, Some(ExitSignal { code: 11, .. }))
                         })
                         .map(|e| {
                             e.message.contains("burn-wgpu")
