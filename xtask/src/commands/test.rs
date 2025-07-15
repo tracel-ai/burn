@@ -1,4 +1,7 @@
-use tracel_xtask::prelude::{clap::ValueEnum, *};
+use tracel_xtask::{
+    prelude::{clap::ValueEnum, *},
+    utils::process::ProcessExitError,
+};
 
 use crate::NO_STD_CRATES;
 
@@ -89,7 +92,41 @@ pub(crate) fn handle_command(
             }
 
             // test workspace
-            base_commands::test::handle_command(args.clone().try_into().unwrap(), env, context)?;
+            #[cfg(not(unix))]
+            {
+                base_commands::test::handle_command(
+                    args.clone().try_into().unwrap(),
+                    env,
+                    context,
+                )?;
+            }
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::process::ExitStatusExt;
+                if let Err(err) = base_commands::test::handle_command(
+                    args.clone().try_into().unwrap(),
+                    env,
+                    context,
+                ) {
+                    let should_ignore = err
+                        .downcast_ref::<ProcessExitError>()
+                        .filter(|e| e.status.signal() == Some(11))
+                        .map(|e| {
+                            e.message.contains("burn-wgpu") || e.message.contains("burn-router")
+                        })
+                        .unwrap_or(false);
+
+                    if should_ignore {
+                        // Ignore intermittent sucessful failures
+                        // https://github.com/gfx-rs/wgpu/issues/2949
+                        // https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/4391
+                        eprintln!("⚠️ Ignored SIGSEGV in wgpu test");
+                    } else {
+                        return Err(err);
+                    }
+                }
+            }
 
             // 2) Specific additional commands to test specific features
             // ---------------------------------------------------------
