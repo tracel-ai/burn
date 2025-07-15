@@ -235,14 +235,14 @@ fn matmul_ordered_double_buffering<R: CubeRuntime, E: FloatElement>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    let partition_k = match lhs.dtype {
+    let row_count = match lhs.dtype {
         DType::F16 | DType::BF16 => 8,
         _ => 4,
     };
     cubecl::matmul::launch_ref::<R, E>(
         &Strategy::OrderedDoubleBuffering(Selection::Inferred(OrderedSelectionArgs {
-            partition_k: Some(partition_k),
-            row_count: Some(2),
+            partition_k: Some(2),
+            row_count: Some(row_count),
             rows_per_plane: Some(2),
         })),
         &lhs.client,
