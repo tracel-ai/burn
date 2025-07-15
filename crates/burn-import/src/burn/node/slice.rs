@@ -8,14 +8,8 @@ use quote::quote;
 pub struct SliceNode {
     pub input: Type,
     pub output: Type,
-    pub config: SliceNodeConfig,
-}
-
-#[derive(Debug, Clone)]
-pub enum SliceNodeConfig {
-    Static { ranges: Vec<Option<(i64, i64)>> },
-    Runtime { starts: Type, ends: Type },
-    Mixed { starts: SliceParam, ends: SliceParam },
+    pub starts: SliceParam,
+    pub ends: SliceParam,
 }
 
 #[derive(Debug, Clone)]
@@ -25,175 +19,137 @@ pub enum SliceParam {
 }
 
 impl SliceNode {
-    pub fn new_static(input: Type, output: Type, ranges: Vec<Option<(i64, i64)>>) -> Self {
+    pub fn new(input: Type, output: Type, starts: SliceParam, ends: SliceParam) -> Self {
         Self {
             input,
             output,
-            config: SliceNodeConfig::Static { ranges },
+            starts,
+            ends,
         }
     }
 
-    pub fn new_runtime(input: Type, output: Type, starts: Type, ends: Type) -> Self {
-        Self {
-            input,
-            output,
-            config: SliceNodeConfig::Runtime { starts, ends },
+    fn generate_slice(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+        let output = &self.output.name();
+
+        match &self.input {
+            Type::Tensor(tensor) => {
+                self.generate_tensor_slice(tensor, scope, node_position, output)
+            }
+            Type::Shape(shape) => self.generate_shape_slice(shape, scope, node_position, output),
+            _ => panic!("Unsupported input type for SliceNode"),
         }
     }
 
-    pub fn new_mixed(input: Type, output: Type, starts: SliceParam, ends: SliceParam) -> Self {
-        Self {
-            input,
-            output,
-            config: SliceNodeConfig::Mixed { starts, ends },
-        }
-    }
-
-    fn generate_static_slice(
+    fn generate_tensor_slice(
         &self,
-        ranges: &[Option<(i64, i64)>],
+        tensor: &crate::burn::TensorType,
         scope: &mut Scope,
         node_position: usize,
         output: &proc_macro2::Ident,
     ) -> TokenStream {
-        let output_rank = match self.output {
-            Type::Tensor(ref tensor) => tensor.rank,
-            Type::Shape(ref shape) => shape.rank,
-            _ => panic!("Invalid output type"),
-        };
-        let output_rank = Literal::usize_unsuffixed(output_rank);
+        let input = scope.tensor_use_owned(tensor, node_position);
 
-        let ranges = ranges.iter().map(|range| match range {
-            Some((start, end)) => {
-                let start = start.to_tokens();
-                let end = end.to_tokens();
-                quote! { #start..#end}
-            }
-            None => quote! { .. },
-        });
+        match (&self.starts, &self.ends) {
+            (SliceParam::Static(starts), SliceParam::Static(ends)) if starts.len() == 1 => {
+                // Simple static case
+                let start = starts[0].to_tokens();
+                let end = ends[0].to_tokens();
+                let rank = tensor.rank;
+                let mut ranges = vec![quote! { .. }; rank];
+                ranges[0] = quote! { #start..#end };
 
-        match &self.input {
-            Type::Tensor(tensor) => {
-                let input = scope.tensor_use_owned(tensor, node_position);
                 quote! {
                     let #output = #input.slice(s![#(#ranges),*]);
                 }
             }
-            Type::Shape(shape) => {
-                let shape_len = shape.rank;
-                let shape_len = Literal::usize_unsuffixed(shape_len);
-                let shape = shape.name.clone();
-
-                let mut ranges = ranges;
-                let range = ranges.next().unwrap();
+            (SliceParam::Runtime(start_type), SliceParam::Runtime(end_type)) => {
+                // Both runtime
+                let start_expr = self.get_scalar_expr(start_type);
+                let end_expr = self.get_scalar_expr(end_type);
+                let rank = tensor.rank;
+                let mut ranges = vec![quote! { .. }; rank];
+                ranges[0] = quote! { #start_expr..#end_expr };
 
                 quote! {
-                    let #output: [usize; #output_rank] = #shape[s![#range].into_ranges([#shape_len].into())[0].clone()].try_into().unwrap();
+                    let #output = #input.slice(s![#(#ranges),*]);
                 }
             }
-            _ => {
-                panic!("Unsupported input type for SliceNode");
+            (SliceParam::Static(starts), SliceParam::Runtime(end_type)) if starts.len() == 1 => {
+                // Static start, runtime end
+                let start = starts[0].to_tokens();
+                let end_expr = self.get_scalar_expr(end_type);
+                let rank = tensor.rank;
+                let mut ranges = vec![quote! { .. }; rank];
+                ranges[0] = quote! { #start..#end_expr };
+
+                quote! {
+                    let #output = #input.slice(s![#(#ranges),*]);
+                }
             }
+            (SliceParam::Runtime(start_type), SliceParam::Static(ends)) if ends.len() == 1 => {
+                // Runtime start, static end
+                let start_expr = self.get_scalar_expr(start_type);
+                let end = ends[0].to_tokens();
+                let rank = tensor.rank;
+                let mut ranges = vec![quote! { .. }; rank];
+                ranges[0] = quote! { #start_expr..#end };
+
+                quote! {
+                    let #output = #input.slice(s![#(#ranges),*]);
+                }
+            }
+            (SliceParam::Static(starts), SliceParam::Static(ends)) => {
+                // Complex static case with multiple dimensions
+                let rank = tensor.rank;
+                let mut ranges = vec![quote! { .. }; rank];
+
+                // Assuming axes are sequential from 0
+                for i in 0..starts.len().min(ends.len()) {
+                    let start = starts[i].to_tokens();
+                    let end = ends[i].to_tokens();
+                    ranges[i] = quote! { #start..#end };
+                }
+
+                quote! {
+                    let #output = #input.slice(s![#(#ranges),*]);
+                }
+            }
+            _ => panic!("Unsupported slice configuration"),
         }
     }
 
-    fn generate_runtime_slice(
+    fn generate_shape_slice(
         &self,
-        starts: &Type,
-        ends: &Type,
-        scope: &mut Scope,
-        node_position: usize,
+        shape: &crate::burn::ShapeType,
+        _scope: &mut Scope,
+        _node_position: usize,
         output: &proc_macro2::Ident,
     ) -> TokenStream {
-        match &self.input {
-            Type::Tensor(tensor) => {
-                let input = scope.tensor_use_owned(tensor, node_position);
-
-                let starts_var = match starts {
-                    Type::Scalar(scalar) => {
-                        let name = scalar.name.clone();
-                        quote! { #name as usize }
-                    }
-                    _ => panic!("starts must be a scalar for runtime slice"),
-                };
-
-                let ends_var = match ends {
-                    Type::Scalar(scalar) => {
-                        let name = scalar.name.clone();
-                        quote! { #name as usize }
-                    }
-                    _ => panic!("ends must be a scalar for runtime slice"),
-                };
+        // Shape slicing only supports static slicing
+        match (&self.starts, &self.ends) {
+            (SliceParam::Static(starts), SliceParam::Static(ends)) if starts.len() == 1 => {
+                let start = starts[0].to_tokens();
+                let end = ends[0].to_tokens();
+                let shape_name = &shape.name;
+                let shape_len = Literal::usize_unsuffixed(shape.rank);
+                let output_len = (ends[0] - starts[0]) as usize;
+                let output_rank = Literal::usize_unsuffixed(output_len);
 
                 quote! {
-                    let #output = #input.slice(s![#starts_var..#ends_var, ..]);
+                    let #output: [usize; #output_rank] = #shape_name[s![#start..#end].into_ranges([#shape_len].into())[0].clone()].try_into().unwrap();
                 }
             }
-            Type::Shape(_) => {
-                panic!("Runtime slice on Shape input is not supported");
-            }
-            _ => {
-                panic!("Unsupported input type for runtime SliceNode");
-            }
+            _ => panic!("Shape slicing only supports static slicing"),
         }
     }
 
-    fn generate_mixed_slice(
-        &self,
-        starts: &SliceParam,
-        ends: &SliceParam,
-        scope: &mut Scope,
-        node_position: usize,
-        output: &proc_macro2::Ident,
-    ) -> TokenStream {
-        match &self.input {
-            Type::Tensor(tensor) => {
-                let input = scope.tensor_use_owned(tensor, node_position);
-
-                let starts_expr = match starts {
-                    SliceParam::Static(values) => {
-                        if values.len() != 1 {
-                            panic!("Mixed slice currently supports only single dimension");
-                        }
-                        let start = values[0].to_tokens();
-                        quote! { #start }
-                    }
-                    SliceParam::Runtime(scalar_type) => {
-                        let name = match scalar_type {
-                            Type::Scalar(scalar) => scalar.name.clone(),
-                            _ => panic!("Runtime starts must be a scalar"),
-                        };
-                        quote! { #name as usize }
-                    }
-                };
-
-                let ends_expr = match ends {
-                    SliceParam::Static(values) => {
-                        if values.len() != 1 {
-                            panic!("Mixed slice currently supports only single dimension");
-                        }
-                        let end = values[0].to_tokens();
-                        quote! { #end }
-                    }
-                    SliceParam::Runtime(scalar_type) => {
-                        let name = match scalar_type {
-                            Type::Scalar(scalar) => scalar.name.clone(),
-                            _ => panic!("Runtime ends must be a scalar"),
-                        };
-                        quote! { #name as usize }
-                    }
-                };
-
-                quote! {
-                    let #output = #input.slice(s![#starts_expr..#ends_expr, ..]);
-                }
+    fn get_scalar_expr(&self, scalar_type: &Type) -> TokenStream {
+        match scalar_type {
+            Type::Scalar(scalar) => {
+                let name = &scalar.name;
+                quote! { #name as usize }
             }
-            Type::Shape(_) => {
-                panic!("Mixed slice on Shape input is not supported");
-            }
-            _ => {
-                panic!("Unsupported input type for mixed SliceNode");
-            }
+            _ => panic!("Expected scalar type for runtime slice parameter"),
         }
     }
 }
@@ -203,37 +159,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
         vec![self.output.clone()]
     }
     fn input_types(&self) -> Vec<Type> {
-        match &self.config {
-            SliceNodeConfig::Static { .. } => vec![self.input.clone()],
-            SliceNodeConfig::Runtime { starts, ends } => {
-                vec![self.input.clone(), starts.clone(), ends.clone()]
-            }
-            SliceNodeConfig::Mixed { starts, ends } => {
-                let mut inputs = vec![self.input.clone()];
-                if let SliceParam::Runtime(start_type) = starts {
-                    inputs.push(start_type.clone());
-                }
-                if let SliceParam::Runtime(end_type) = ends {
-                    inputs.push(end_type.clone());
-                }
-                inputs
-            }
-        }
-    }
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name();
+        let mut inputs = vec![self.input.clone()];
 
-        match &self.config {
-            SliceNodeConfig::Static { ranges } => {
-                self.generate_static_slice(ranges, scope, node_position, output)
-            }
-            SliceNodeConfig::Runtime { starts, ends } => {
-                self.generate_runtime_slice(starts, ends, scope, node_position, output)
-            }
-            SliceNodeConfig::Mixed { starts, ends } => {
-                self.generate_mixed_slice(starts, ends, scope, node_position, output)
-            }
+        match &self.starts {
+            SliceParam::Runtime(start_type) => inputs.push(start_type.clone()),
+            _ => {}
         }
+        match &self.ends {
+            SliceParam::Runtime(end_type) => inputs.push(end_type.clone()),
+            _ => {}
+        }
+
+        inputs
+    }
+
+    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+        self.generate_slice(scope, node_position)
     }
     fn into_node(self) -> Node<PS> {
         Node::Slice(self)
@@ -263,10 +204,11 @@ mod tests {
     #[test]
     fn test_codegen_slice_tensor() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        graph.register(SliceNode::new_static(
+        graph.register(SliceNode::new(
             Type::Tensor(TensorType::new_float("tensor1", 4)),
             Type::Tensor(TensorType::new_float("tensor2", 4)),
-            vec![Some((0, 1)), None, None, None],
+            SliceParam::Static(vec![0]),
+            SliceParam::Static(vec![1]),
         ));
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
@@ -305,10 +247,11 @@ mod tests {
     #[test]
     fn test_codegen_slice_shape() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        graph.register(SliceNode::new_static(
+        graph.register(SliceNode::new(
             Type::Shape(ShapeType::new("shape1", 4)),
             Type::Shape(ShapeType::new("shape2", 2)),
-            vec![Some((1, 3))],
+            SliceParam::Static(vec![1]),
+            SliceParam::Static(vec![3]),
         ));
         graph.register_input_output(vec!["shape1".to_string()], vec!["shape2".to_string()]);
 
@@ -349,10 +292,11 @@ mod tests {
     #[test]
     fn test_codegen_slice_shape_full_range() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        graph.register(SliceNode::new_static(
+        graph.register(SliceNode::new(
             Type::Shape(ShapeType::new("shape1", 4)),
             Type::Shape(ShapeType::new("shape2", 4)),
-            vec![None],
+            SliceParam::Static(vec![0]),
+            SliceParam::Static(vec![4]),
         ));
         graph.register_input_output(vec!["shape1".to_string()], vec!["shape2".to_string()]);
 
@@ -381,7 +325,7 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, shape1: [usize; 4]) -> [usize; 4] {
                     // Use s!, ensure no usize suffix
-                     let shape2: [usize; 4] = shape1[s![..].into_ranges([4].into())[0].clone()].try_into().unwrap();
+                     let shape2: [usize; 4] = shape1[s![0..4].into_ranges([4].into())[0].clone()].try_into().unwrap();
                      shape2
                 }
             }
@@ -393,17 +337,17 @@ mod tests {
     #[test]
     fn test_codegen_slice_runtime() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        graph.register(SliceNode::new_runtime(
+        graph.register(SliceNode::new(
             Type::Tensor(TensorType::new_float("tensor1", 2)),
             Type::Tensor(TensorType::new_float("tensor2", 2)),
-            Type::Scalar(crate::burn::ScalarType::new(
+            SliceParam::Runtime(Type::Scalar(crate::burn::ScalarType::new(
                 "start",
                 crate::burn::ScalarKind::Int64,
-            )),
-            Type::Scalar(crate::burn::ScalarType::new(
+            ))),
+            SliceParam::Runtime(Type::Scalar(crate::burn::ScalarType::new(
                 "end",
                 crate::burn::ScalarKind::Int64,
-            )),
+            ))),
         ));
         graph.register_input_output(
             vec![
@@ -449,7 +393,7 @@ mod tests {
     #[test]
     fn test_codegen_slice_mixed() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        graph.register(SliceNode::new_mixed(
+        graph.register(SliceNode::new(
             Type::Tensor(TensorType::new_float("tensor1", 2)),
             Type::Tensor(TensorType::new_float("tensor2", 2)),
             SliceParam::Static(vec![1]), // Static start
