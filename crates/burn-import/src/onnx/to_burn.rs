@@ -120,7 +120,7 @@ use onnx_ir::{
         reduce_sum::reduce_sum_config,
         reshape::reshape_config,
         resize::resize_config,
-        slice::{SliceConfig, slice_config},
+        slice::{slice_config},
         softmax::softmax_config,
         space_to_depth::space_to_depth_config,
         split::split_config,
@@ -951,27 +951,73 @@ impl ParsedOnnxGraph {
         let output = Type::from(node.outputs.first().unwrap());
         let config = slice_config(&node);
 
-        match config {
-            SliceConfig::Static(ranges) => SliceNode::new_static(input, output, ranges),
-            SliceConfig::Runtime { starts, ends, .. } => {
-                let starts_type = Type::from(&starts);
-                let ends_type = Type::from(&ends);
-                SliceNode::new_runtime(input, output, starts_type, ends_type)
+        use crate::burn::node::slice::{SliceParam};
+        use onnx_ir::node::slice::SliceInput;
+
+        // Convert starts parameter
+        let starts_param = match config.starts {
+            SliceInput::Static(values) => SliceParam::Static(values),
+            SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+        };
+
+        // Convert ends parameter  
+        let ends_param = match config.ends {
+            SliceInput::Static(values) => SliceParam::Static(values),
+            SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+        };
+
+        // Check if we have a purely static case (for backward compatibility)
+        match (&starts_param, &ends_param) {
+            (SliceParam::Static(starts), SliceParam::Static(ends)) => {
+                // Handle static case - need to convert to ranges format
+                
+                // Validate steps if present
+                if let Some(SliceInput::Static(steps)) = &config.steps {
+                    if steps.iter().any(|&x| x != 1) {
+                        panic!("Slice: steps other than 1 are not supported");
+                    }
+                }
+                
+                // Extract the rank of the input tensor
+                let input_rank = match input {
+                    Type::Tensor(ref tensor) => tensor.rank,
+                    Type::Shape(ref shape) => shape.rank,
+                    _ => panic!("Only tensor input is valid"),
+                };
+
+                // Get axes values or default to sequential axes
+                let axes = match &config.axes {
+                    Some(SliceInput::Static(axes)) => {
+                        let mut axes = axes.clone();
+                        // Convert negative axes indices to positive
+                        for axis in &mut axes {
+                            if *axis < 0 {
+                                *axis += input_rank as i64;
+                            }
+                        }
+                        axes
+                    }
+                    None => {
+                        // Default to all axes if not specified
+                        (0..starts.len() as i64).collect()
+                    }
+                    Some(SliceInput::Runtime(_)) => {
+                        // Can't have runtime axes with static starts/ends in static path
+                        panic!("Runtime axes not supported with static starts/ends");
+                    }
+                };
+
+                // Create ranges vector with None for dimensions not being sliced
+                let mut ranges: Vec<Option<(i64, i64)>> = vec![None; input_rank];
+                for i in 0..axes.len() {
+                    let axis = axes[i] as usize;
+                    ranges[axis] = Some((starts[i], ends[i]));
+                }
+
+                SliceNode::new_static(input, output, ranges)
             }
-            SliceConfig::Mixed { starts, ends, .. } => {
-                use crate::burn::node::slice::{SliceParam};
-                use onnx_ir::node::slice::SliceInput;
-                
-                let starts_param = match starts {
-                    SliceInput::Static(values) => SliceParam::Static(values),
-                    SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
-                };
-                
-                let ends_param = match ends {
-                    SliceInput::Static(values) => SliceParam::Static(values),
-                    SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
-                };
-                
+            _ => {
+                // Mixed or runtime case
                 SliceNode::new_mixed(input, output, starts_param, ends_param)
             }
         }
