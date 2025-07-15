@@ -111,7 +111,11 @@ pub(crate) fn handle_command(
                 ) {
                     let should_ignore = err
                         .downcast_ref::<ProcessExitError>()
-                        .filter(|e| e.status.signal() == Some(11))
+                        .filter(|e| {
+                            let signal = e.status.signal();
+                            println!("ProcessExitError {signal:?}");
+                            signal == Some(11)
+                        })
                         .map(|e| {
                             e.message.contains("burn-wgpu")
                                 || e.message.contains("burn-router")
