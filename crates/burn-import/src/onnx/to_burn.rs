@@ -958,6 +958,22 @@ impl ParsedOnnxGraph {
                 let ends_type = Type::from(&ends);
                 SliceNode::new_runtime(input, output, starts_type, ends_type)
             }
+            SliceConfig::Mixed { starts, ends, .. } => {
+                use crate::burn::node::slice::{SliceParam};
+                use onnx_ir::node::slice::SliceInput;
+                
+                let starts_param = match starts {
+                    SliceInput::Static(values) => SliceParam::Static(values),
+                    SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+                };
+                
+                let ends_param = match ends {
+                    SliceInput::Static(values) => SliceParam::Static(values),
+                    SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+                };
+                
+                SliceNode::new_mixed(input, output, starts_param, ends_param)
+            }
         }
     }
 

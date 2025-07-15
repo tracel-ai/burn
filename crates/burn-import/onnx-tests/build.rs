@@ -124,6 +124,7 @@ fn main() {
         .input("tests/slice/slice.onnx")
         .input("tests/slice/slice_shape.onnx")
         .input("tests/slice/slice_scalar.onnx")
+        .input("tests/slice/slice_mixed.onnx")
         .input("tests/softmax/softmax.onnx")
         .input("tests/space_to_depth/space_to_depth.onnx")
         .input("tests/sqrt/sqrt.onnx")

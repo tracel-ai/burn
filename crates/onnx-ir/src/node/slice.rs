@@ -14,6 +14,22 @@ pub enum SliceConfig {
         axes: Option<Argument>,
         steps: Option<Argument>,
     },
+    /// Mixed slice with some static and some runtime parameters.
+    Mixed {
+        starts: SliceInput,
+        ends: SliceInput,
+        axes: Option<Argument>,
+        steps: Option<Argument>,
+    },
+}
+
+/// Represents either a static value or a runtime argument for slice parameters.
+#[derive(Debug, Clone)]
+pub enum SliceInput {
+    /// Static value known at compile time.
+    Static(Vec<i64>),
+    /// Runtime argument determined during execution.
+    Runtime(Argument),
 }
 
 /// Creates a configuration for tensor slicing based on the ONNX Slice operator.
@@ -43,15 +59,38 @@ pub fn slice_config(node: &Node) -> SliceConfig {
     let has_runtime_starts = node.inputs.len() > 1 && node.inputs[1].value.is_none();
     let has_runtime_ends = node.inputs.len() > 2 && node.inputs[2].value.is_none();
 
-    // If either starts or ends are runtime, use runtime configuration
+    // Handle mixed or fully runtime cases
     if has_runtime_starts || has_runtime_ends {
         if node.inputs.len() < 3 {
             panic!("Slice: runtime slicing requires at least starts and ends inputs");
         }
 
-        return SliceConfig::Runtime {
-            starts: node.inputs[1].clone(),
-            ends: node.inputs[2].clone(),
+        // If both are runtime, use existing Runtime config
+        if has_runtime_starts && has_runtime_ends {
+            return SliceConfig::Runtime {
+                starts: node.inputs[1].clone(),
+                ends: node.inputs[2].clone(),
+                axes: node.inputs.get(3).cloned(),
+                steps: node.inputs.get(4).cloned(),
+            };
+        }
+
+        // Mixed case: some static, some runtime
+        let starts_input = if has_runtime_starts {
+            SliceInput::Runtime(node.inputs[1].clone())
+        } else {
+            SliceInput::Static(get_static_input_values(node, 1).unwrap_or_default())
+        };
+
+        let ends_input = if has_runtime_ends {
+            SliceInput::Runtime(node.inputs[2].clone())
+        } else {
+            SliceInput::Static(get_static_input_values(node, 2).unwrap_or_default())
+        };
+
+        return SliceConfig::Mixed {
+            starts: starts_input,
+            ends: ends_input,
             axes: node.inputs.get(3).cloned(),
             steps: node.inputs.get(4).cloned(),
         };
@@ -149,10 +188,10 @@ pub fn slice_update_output_rank(node: &mut Node) {
                     let output_len = end as usize - start as usize;
                     node.outputs[0].ty = ArgType::Shape(output_len);
                 }
-                SliceConfig::Runtime { .. } => {
-                    // For runtime slice on Shape, we can't determine the output size at compile time
+                SliceConfig::Runtime { .. } | SliceConfig::Mixed { .. } => {
+                    // For runtime/mixed slice on Shape, we can't determine the output size at compile time
                     panic!(
-                        "Runtime slice on Shape input is not supported for node {}",
+                        "Runtime or mixed slice on Shape input is not supported for node {}",
                         node.name
                     );
                 }
@@ -234,6 +273,28 @@ mod tests {
             .build()
     }
 
+    fn create_mixed_slice_node_runtime_start() -> Node {
+        NodeBuilder::new(NodeType::Slice, "test_mixed_slice")
+            .input_tensor_f32("data", 2, None)
+            .input_tensor_i64("starts", 0, None) // Runtime input
+            .input_tensor_i64_data("ends", vec![3], vec![1]) // Static input
+            .input_tensor_i64_data("axes", vec![0], vec![1])
+            .input_tensor_i64_data("steps", vec![1], vec![1])
+            .output_default("output")
+            .build()
+    }
+
+    fn create_mixed_slice_node_runtime_end() -> Node {
+        NodeBuilder::new(NodeType::Slice, "test_mixed_slice")
+            .input_tensor_f32("data", 2, None)
+            .input_tensor_i64_data("starts", vec![1], vec![1]) // Static input
+            .input_tensor_i64("ends", 0, None) // Runtime input
+            .input_tensor_i64_data("axes", vec![0], vec![1])
+            .input_tensor_i64_data("steps", vec![1], vec![1])
+            .output_default("output")
+            .build()
+    }
+
     #[test]
     fn test_slice_config_basic() {
         // Create a node with inputs for basic slicing
@@ -248,7 +309,7 @@ mod tests {
                 assert_eq!(ranges[1], None);
                 assert_eq!(ranges[2], Some((0, 2)));
             }
-            SliceConfig::Runtime { .. } => panic!("Expected static config"),
+            SliceConfig::Runtime { .. } | SliceConfig::Mixed { .. } => panic!("Expected static config"),
         }
     }
 
@@ -266,7 +327,7 @@ mod tests {
                 assert_eq!(ranges[1], None);
                 assert_eq!(ranges[2], Some((0, 2)));
             }
-            SliceConfig::Runtime { .. } => panic!("Expected static config"),
+            SliceConfig::Runtime { .. } | SliceConfig::Mixed { .. } => panic!("Expected static config"),
         }
     }
 
@@ -284,7 +345,7 @@ mod tests {
                 assert_eq!(ranges[1], None);
                 assert_eq!(ranges[2], None);
             }
-            SliceConfig::Runtime { .. } => panic!("Expected static config"),
+            SliceConfig::Runtime { .. } | SliceConfig::Mixed { .. } => panic!("Expected static config"),
         }
     }
 
@@ -302,7 +363,7 @@ mod tests {
                 assert_eq!(ranges[1], Some((2, 4)));
                 assert_eq!(ranges[2], None);
             }
-            SliceConfig::Runtime { .. } => panic!("Expected static config"),
+            SliceConfig::Runtime { .. } | SliceConfig::Mixed { .. } => panic!("Expected static config"),
         }
     }
 
@@ -327,7 +388,7 @@ mod tests {
                 assert!(steps.is_some());
                 assert_eq!(steps.unwrap().name, "steps");
             }
-            SliceConfig::Static(_) => panic!("Expected runtime config"),
+            SliceConfig::Static(_) | SliceConfig::Mixed { .. } => panic!("Expected runtime config"),
         }
     }
 
@@ -363,5 +424,49 @@ mod tests {
         // After calling, output should be ArgType::Shape with the calculated length
         // start = 1, end = 3 => output_len = 3 - 1 = 2
         assert!(matches!(&node.outputs[0].ty, ArgType::Shape(2)));
+    }
+
+    #[test]
+    fn test_slice_config_mixed_runtime_start() {
+        // Test with runtime start but static end
+        let node = create_mixed_slice_node_runtime_start();
+
+        let result = slice_config(&node);
+
+        match result {
+            SliceConfig::Mixed { starts, ends, .. } => {
+                match starts {
+                    SliceInput::Runtime(arg) => assert_eq!(arg.name, "starts"),
+                    _ => panic!("Expected runtime starts"),
+                }
+                match ends {
+                    SliceInput::Static(values) => assert_eq!(values, vec![3]),
+                    _ => panic!("Expected static ends"),
+                }
+            }
+            _ => panic!("Expected mixed config"),
+        }
+    }
+
+    #[test]
+    fn test_slice_config_mixed_runtime_end() {
+        // Test with static start but runtime end
+        let node = create_mixed_slice_node_runtime_end();
+
+        let result = slice_config(&node);
+
+        match result {
+            SliceConfig::Mixed { starts, ends, .. } => {
+                match starts {
+                    SliceInput::Static(values) => assert_eq!(values, vec![1]),
+                    _ => panic!("Expected static starts"),
+                }
+                match ends {
+                    SliceInput::Runtime(arg) => assert_eq!(arg.name, "ends"),
+                    _ => panic!("Expected runtime ends"),
+                }
+            }
+            _ => panic!("Expected mixed config"),
+        }
     }
 }

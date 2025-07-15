@@ -15,6 +15,13 @@ pub struct SliceNode {
 pub enum SliceNodeConfig {
     Static { ranges: Vec<Option<(i64, i64)>> },
     Runtime { starts: Type, ends: Type },
+    Mixed { starts: SliceParam, ends: SliceParam },
+}
+
+#[derive(Debug, Clone)]
+pub enum SliceParam {
+    Static(Vec<i64>),
+    Runtime(Type),
 }
 
 impl SliceNode {
@@ -31,6 +38,14 @@ impl SliceNode {
             input,
             output,
             config: SliceNodeConfig::Runtime { starts, ends },
+        }
+    }
+
+    pub fn new_mixed(input: Type, output: Type, starts: SliceParam, ends: SliceParam) -> Self {
+        Self {
+            input,
+            output,
+            config: SliceNodeConfig::Mixed { starts, ends },
         }
     }
 
@@ -122,6 +137,65 @@ impl SliceNode {
             }
         }
     }
+
+    fn generate_mixed_slice(
+        &self,
+        starts: &SliceParam,
+        ends: &SliceParam,
+        scope: &mut Scope,
+        node_position: usize,
+        output: &proc_macro2::Ident,
+    ) -> TokenStream {
+        match &self.input {
+            Type::Tensor(tensor) => {
+                let input = scope.tensor_use_owned(tensor, node_position);
+
+                let starts_expr = match starts {
+                    SliceParam::Static(values) => {
+                        if values.len() != 1 {
+                            panic!("Mixed slice currently supports only single dimension");
+                        }
+                        let start = values[0].to_tokens();
+                        quote! { #start }
+                    }
+                    SliceParam::Runtime(scalar_type) => {
+                        let name = match scalar_type {
+                            Type::Scalar(scalar) => scalar.name.clone(),
+                            _ => panic!("Runtime starts must be a scalar"),
+                        };
+                        quote! { #name as usize }
+                    }
+                };
+
+                let ends_expr = match ends {
+                    SliceParam::Static(values) => {
+                        if values.len() != 1 {
+                            panic!("Mixed slice currently supports only single dimension");
+                        }
+                        let end = values[0].to_tokens();
+                        quote! { #end }
+                    }
+                    SliceParam::Runtime(scalar_type) => {
+                        let name = match scalar_type {
+                            Type::Scalar(scalar) => scalar.name.clone(),
+                            _ => panic!("Runtime ends must be a scalar"),
+                        };
+                        quote! { #name as usize }
+                    }
+                };
+
+                quote! {
+                    let #output = #input.slice(s![#starts_expr..#ends_expr, ..]);
+                }
+            }
+            Type::Shape(_) => {
+                panic!("Mixed slice on Shape input is not supported");
+            }
+            _ => {
+                panic!("Unsupported input type for mixed SliceNode");
+            }
+        }
+    }
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
@@ -134,6 +208,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
             SliceNodeConfig::Runtime { starts, ends } => {
                 vec![self.input.clone(), starts.clone(), ends.clone()]
             }
+            SliceNodeConfig::Mixed { starts, ends } => {
+                let mut inputs = vec![self.input.clone()];
+                if let SliceParam::Runtime(start_type) = starts {
+                    inputs.push(start_type.clone());
+                }
+                if let SliceParam::Runtime(end_type) = ends {
+                    inputs.push(end_type.clone());
+                }
+                inputs
+            }
         }
     }
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
@@ -145,6 +229,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
             }
             SliceNodeConfig::Runtime { starts, ends } => {
                 self.generate_runtime_slice(starts, ends, scope, node_position, output)
+            }
+            SliceNodeConfig::Mixed { starts, ends } => {
+                self.generate_mixed_slice(starts, ends, scope, node_position, output)
             }
         }
     }
@@ -351,6 +438,55 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 2>, start: i64, end: i64) -> Tensor<B, 2> {
                     let tensor2 = tensor1.slice(s![start as usize..end as usize, ..]);
+                    tensor2
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_slice_mixed() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+        graph.register(SliceNode::new_mixed(
+            Type::Tensor(TensorType::new_float("tensor1", 2)),
+            Type::Tensor(TensorType::new_float("tensor2", 2)),
+            SliceParam::Static(vec![1]), // Static start
+            SliceParam::Runtime(Type::Scalar(crate::burn::ScalarType::new(
+                "end",
+                crate::burn::ScalarKind::Int64,
+            ))), // Runtime end
+        ));
+        graph.register_input_output(
+            vec!["tensor1".to_string(), "end".to_string()],
+            vec!["tensor2".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::tensor::s;
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, tensor1: Tensor<B, 2>, end: i64) -> Tensor<B, 2> {
+                    let tensor2 = tensor1.slice(s![1..end as usize, ..]);
                     tensor2
                 }
             }
