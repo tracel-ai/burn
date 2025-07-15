@@ -45,6 +45,11 @@ mod wgpu {
 
     pub fn run() {
         let device = WgpuDevice::default();
+
+        let typeid_a = core::any::TypeId::of::<Autodiff<Wgpu>>();
+        let typeid_b = core::any::TypeId::of::<Wgpu>();
+
+        eprintln!("Autodiff<Wgpu>, Wgpu: {typeid_a:?}, {typeid_b:?}");
         training::run::<Autodiff<Wgpu>>(device);
     }
 }

@@ -1,3 +1,4 @@
+use burn_core::collective::config::CollectiveConfig;
 use burn_core::data::dataloader::DataLoader;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_core::{
@@ -95,6 +96,7 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
         scheduler: &mut LC::LrScheduler,
         processor: &mut LC::EventProcessor,
         interrupter: &TrainingInterrupter,
+        collective_config: &Option<CollectiveConfig>,
     ) -> (LC::Model, LC::Optimizer)
     where
         LC::EventProcessor: EventProcessor<ItemTrain = TO>,
@@ -108,6 +110,8 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
 
+        let all_reduce_params = collective_config.as_ref().map(CollectiveConfig::all_reduce_params);
+
         while let Some(item) = iterator.next() {
             iteration += 1;
             let lr = scheduler.step();
@@ -116,9 +120,16 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
             let progress = iterator.progress();
             let item = model.step(item);
 
+            let grads = if let Some(ref all_reduce_params) = all_reduce_params {
+                // Sync grads
+                item.grads.all_reduce(&all_reduce_params, &model)
+            } else {
+                item.grads
+            };
+
             match self.grad_accumulation {
                 Some(accumulation) => {
-                    accumulator.accumulate(&model, item.grads);
+                    accumulator.accumulate(&model, grads);
                     accumulation_current += 1;
 
                     if accumulation <= accumulation_current {
@@ -127,7 +138,7 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
                         accumulation_current = 0;
                     }
                 }
-                None => model = model.optimize(&mut optim, lr, item.grads),
+                None => model = model.optimize(&mut optim, lr, grads),
             }
 
             let item = LearnerItem::new(
@@ -168,7 +179,7 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    pub fn run_multi_device<LC: LearnerComponents<Backend = B>, TO>(
+    pub fn _run_multi_device<LC: LearnerComponents<Backend = B>, TO>(
         &mut self,
         mut model: LC::Model,
         mut optim: LC::Optimizer,

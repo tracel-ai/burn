@@ -1,10 +1,11 @@
+use burn_collective::AllReduceParams;
 use burn_tensor::{
     Tensor,
     backend::{AutodiffBackend, Backend},
     container::TensorContainer,
 };
 
-use crate::module::{AutodiffModule, ParamId};
+use crate::{module::{AutodiffModule, ParamId}, optim::visitor::GradientsParamsAllReduce};
 
 use super::visitor::{GradientsParamsChangeDevice, GradientsParamsConverter};
 
@@ -106,6 +107,17 @@ impl GradientsParams {
         module: &M,
     ) -> Self {
         let mut visitor = GradientsParamsChangeDevice::<M, B>::new(device, &mut self);
+        module.visit(&mut visitor);
+        self
+    }
+
+    /// All-Reduce the gradients for the given [module](AutodiffModule).
+    pub fn all_reduce<B: AutodiffBackend, M: AutodiffModule<B>>(
+        mut self,
+        params: &AllReduceParams,
+        module: &M,
+    ) -> Self {
+        let mut visitor = GradientsParamsAllReduce::<M, B>::new(params, &mut self);
         module.visit(&mut visitor);
         self
     }

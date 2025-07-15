@@ -1,6 +1,7 @@
 use crate::components::{LearnerComponents, TrainBackend, ValidBackend};
 use crate::metric::processor::{Event, EventProcessor};
 use crate::{Learner, TrainEpoch, ValidEpoch};
+use burn_core::collective;
 use burn_core::data::dataloader::DataLoader;
 use burn_core::data::dataloader::split::split_dataloader;
 use burn_core::module::{AutodiffModule, Module};
@@ -160,25 +161,22 @@ impl<LC: LearnerComponents> Learner<LC> {
             self.grad_accumulation,
         );
 
+        if let Some(ref collective_config) = self.collective_config {
+            let register_params = collective_config.register_params()
+                .expect("Invalid collective config");
+            collective::register::<<LC::Backend as AutodiffBackend>::InnerBackend>(0, register_params)
+                .expect("Couldn't register for collective operations!");
+        }
+
         for epoch in starting_epoch..self.num_epochs + 1 {
-            if self.devices.len() > 1 {
-                (self.model, self.optim) = epoch_train.run_multi_device::<LC, OutputTrain>(
-                    self.model,
-                    self.optim,
-                    &mut self.lr_scheduler,
-                    &mut self.event_processor,
-                    self.devices.clone(),
-                    &self.interrupter,
-                )
-            } else {
-                (self.model, self.optim) = epoch_train.run::<LC, OutputTrain>(
-                    self.model,
-                    self.optim,
-                    &mut self.lr_scheduler,
-                    &mut self.event_processor,
-                    &self.interrupter,
-                );
-            }
+            (self.model, self.optim) = epoch_train.run::<LC, OutputTrain>(
+                self.model,
+                self.optim,
+                &mut self.lr_scheduler,
+                &mut self.event_processor,
+                &self.interrupter,
+                &self.collective_config,
+            );
 
             if self.interrupter.should_stop() {
                 break;

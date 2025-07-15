@@ -19,6 +19,7 @@ use crate::{
     ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerCheckpointer,
     LearnerSummaryConfig,
 };
+use burn_core::collective::config::CollectiveConfig;
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
 use burn_core::optim::Optimizer;
@@ -49,6 +50,7 @@ where
     directory: PathBuf,
     grad_accumulation: Option<usize>,
     devices: Vec<B::Device>,
+    collective_config: Option<CollectiveConfig>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     metrics: Metrics<T, V>,
     event_store: LogEventStore,
@@ -86,6 +88,7 @@ where
             directory,
             grad_accumulation: None,
             devices: vec![B::Device::default()],
+            collective_config: None,
             metrics: Metrics::default(),
             event_store: LogEventStore::default(),
             renderer: None,
@@ -216,6 +219,12 @@ where
     /// Run the training loop on multiple devices.
     pub fn devices(mut self, devices: Vec<B::Device>) -> Self {
         self.devices = devices;
+        self
+    }
+
+    /// Set the configuration for collective operations
+    pub fn with_collective_config(mut self, config: CollectiveConfig) -> Self {
+        self.collective_config = Some(config);
         self
     }
 
@@ -360,6 +369,7 @@ where
             checkpoint: self.checkpoint,
             grad_accumulation: self.grad_accumulation,
             devices: self.devices,
+            collective_config: self.collective_config,
             interrupter: self.interrupter,
             early_stopping: self.early_stopping,
             summary,
