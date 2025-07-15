@@ -112,9 +112,7 @@ pub(crate) fn handle_command(
                     let should_ignore = err
                         .downcast_ref::<ProcessExitError>()
                         .filter(|e| {
-                            let signal = e.status.signal();
-                            println!("ProcessExitError {signal:?} {:?}", e.signal);
-                            signal == Some(11)
+                            e.status.signal() == Some(11)
                                 || matches!(e.signal, Some(ExitSignal { code: 11, .. }))
                         })
                         .map(|e| {
