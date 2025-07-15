@@ -241,8 +241,6 @@ jobs:
       DISABLE_WGPU_SPIRV: '1'
       # disable incremental compilation (reduces artifact size)
       CARGO_PROFILE_TEST_INCREMENTAL: 'false'
-      # enable debug symbols for grcov (only with stable)
-      # CARGO_PROFILE_RELEASE_DEBUG: ${{ matrix.rust == 'stable' && '1' || '0' }}
     strategy:
       matrix:
         rust: [stable, prev]
@@ -346,26 +344,27 @@ jobs:
       - name: Tests
         run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
 
-  macos-std-metal-tests:
-    runs-on: blaze/macos-14
-    needs: [prepare-checks, code-quality]
-    timeout-minutes: 60
-    # Keep the stragegy to be able to easily add new rust versions if required
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
-    steps:
-      - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v3
-        with:
-          rust-toolchain: ${{ matrix.toolchain }}
-          cache-key: ${{ matrix.rust }}-macos
-      # --------------------------------------------------------------------------------
-      - name: Device check
-        run: system_profiler SPHardwareDataType
-      # --------------------------------------------------------------------------------
-      - name: Tests
-        run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-mac-runner
+# TODO: fix macos CI tests (M2 virtualization)
+  # macos-std-metal-tests:
+  #   runs-on: blaze/macos-14
+  #   needs: [prepare-checks, code-quality]
+  #   timeout-minutes: 60
+  #   # Keep the stragegy to be able to easily add new rust versions if required
+  #   strategy:
+  #     matrix:
+  #       rust: [stable]
+  #       include:
+  #         - rust: stable
+  #           toolchain: stable
+  #   steps:
+  #     - name: Setup Rust
+  #       uses: tracel-ai/github-actions/setup-rust@v3
+  #       with:
+  #         rust-toolchain: ${{ matrix.toolchain }}
+  #         cache-key: ${{ matrix.rust }}-macos
+  #     # --------------------------------------------------------------------------------
+  #     - name: Device check
+  #       run: system_profiler SPHardwareDataType
+  #     # --------------------------------------------------------------------------------
+  #     - name: Tests
+  #       run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-mac-runner

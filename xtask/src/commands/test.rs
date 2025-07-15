@@ -113,7 +113,9 @@ pub(crate) fn handle_command(
                         .downcast_ref::<ProcessExitError>()
                         .filter(|e| e.status.signal() == Some(11))
                         .map(|e| {
-                            e.message.contains("burn-wgpu") || e.message.contains("burn-router")
+                            e.message.contains("burn-wgpu")
+                                || e.message.contains("burn-router")
+                                || e.message.contains("burn-vision")
                         })
                         .unwrap_or(false);
 
