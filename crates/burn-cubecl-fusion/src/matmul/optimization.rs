@@ -23,20 +23,20 @@ use cubecl::matmul::components::AvailableLineSizes;
 use cubecl::matmul::components::MatmulLineSizes;
 use cubecl::matmul::components::MatmulPrecision;
 use cubecl::matmul::components::MatmulProblem;
+use cubecl::matmul::components::MatmulSetupError;
 use cubecl::matmul::components::tile::TileMatmulFamily;
 use cubecl::matmul::components::tile::accelerated::AcceleratedMatmul;
-use cubecl::matmul::kernels::MatmulSetupError;
-use cubecl::matmul::kernels::matmul::Algorithm;
-use cubecl::matmul::kernels::matmul::Selection;
-use cubecl::matmul::kernels::matmul::double_buffering::CyclicDoubleBufferingAlgorithm;
-use cubecl::matmul::kernels::matmul::double_buffering::DoubleBufferingArgs;
-use cubecl::matmul::kernels::matmul::double_unit::DoubleUnitAlgorithm;
-use cubecl::matmul::kernels::matmul::launch_kernel_virtual;
-use cubecl::matmul::kernels::matmul::ordered_double_buffering::OrderedDoubleBufferingAlgorithm;
-use cubecl::matmul::kernels::matmul::ordered_double_buffering::OrderedSelectionArgs;
-use cubecl::matmul::kernels::matmul::simple::SimpleAlgorithm;
-use cubecl::matmul::kernels::matmul::simple::SimpleArgs;
-use cubecl::matmul::kernels::matmul::simple_unit::SimpleUnitAlgorithm;
+use cubecl::matmul::kernels::layered::Algorithm;
+use cubecl::matmul::kernels::layered::Selection;
+use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
+use cubecl::matmul::kernels::layered::double_buffering::DoubleBufferingArgs;
+use cubecl::matmul::kernels::layered::double_unit::DoubleUnitAlgorithm;
+use cubecl::matmul::kernels::layered::launch_kernel_virtual;
+use cubecl::matmul::kernels::layered::ordered_double_buffering::OrderedDoubleBufferingAlgorithm;
+use cubecl::matmul::kernels::layered::ordered_double_buffering::OrderedSelectionArgs;
+use cubecl::matmul::kernels::layered::simple::SimpleAlgorithm;
+use cubecl::matmul::kernels::layered::simple::SimpleArgs;
+use cubecl::matmul::kernels::layered::simple_unit::SimpleUnitAlgorithm;
 use cubecl::std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
 use half::{bf16, f16};
@@ -387,10 +387,8 @@ impl FusedMatmul {
             m: m as usize,
             n: n as usize,
             k: k as usize,
-            batches: (
-                lhs_shape[..lhs_shape.len() - 2].to_vec(),
-                rhs_shape[..rhs_shape.len() - 2].to_vec(),
-            ),
+            lhs_batches: lhs_shape[..lhs_shape.len() - 2].to_vec(),
+            rhs_batches: rhs_shape[..rhs_shape.len() - 2].to_vec(),
             lhs_layout: match lhs_transposed {
                 true => components::MatrixLayout::ColMajor,
                 false => components::MatrixLayout::RowMajor,
@@ -437,7 +435,7 @@ impl FusedMatmul {
                 }
             }
             FusedMatmulSelector::OrderedDoubleBuffering => {
-                let partition_k = match self.lhs.precision() {
+                let row_count = match self.lhs.precision() {
                     FusePrecision::F16 | FusePrecision::BF16 => 8,
                     _ => 4,
                 };
@@ -453,7 +451,7 @@ impl FusedMatmul {
                     problem,
                     line_sizes,
                     &Selection::Inferred(OrderedSelectionArgs {
-                        row_count: Some(partition_k),
+                        row_count: Some(row_count),
                         rows_per_plane: Some(2),
                         partition_k: Some(2),
                     }),
@@ -511,7 +509,7 @@ fn launch_inner_fix_dtype<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
 
     let plane_size = fix_plane_dim(A::select_plane_dim::<R>(client));
 
-    if <A::TileMatmul as TileMatmulFamily>::requires_tensor_cores()
+    if <A::TileMatmul as TileMatmulFamily>::requires_accelerator()
         && TypeId::of::<EG::ES>() == TypeId::of::<f32>()
         && tf32::is_supported(client)
     {

@@ -90,11 +90,8 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
             )
             .with(Tunable::new(tune_fused::<R, BT, Simple>).group(&cmma, |_| PRIORITY_MAX))
             .with(Tunable::new(tune_fused::<R, BT, SimpleMultiRows>).group(&cmma, |_| PRIORITY_MAX))
-            .with(
-                Tunable::new(tune_fused::<R, BT, Ordered>).group(&cmma, |key| {
-                    double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
-                }),
-            )
+            // Ordered should be tried most of the time.
+            .with(Tunable::new(tune_fused::<R, BT, Ordered>).group(&cmma, |_| PRIORITY_MAX))
             .with(
                 Tunable::new(tune_fused::<R, BT, Specialized>)
                     .group(&cmma, |key| {
