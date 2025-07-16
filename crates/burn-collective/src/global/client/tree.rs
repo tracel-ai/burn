@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::global::{server::base::GlobalCollectiveError, shared::base::TreeAllReduceStrategy};
-use burn_communication::{data_service::TensorDataService, network::Network};
+use burn_communication::{Protocol, data_service::TensorDataService};
 use burn_tensor::{TensorMetadata, backend::Backend};
 use futures::{StreamExt, stream::FuturesUnordered};
 
@@ -13,7 +13,7 @@ pub(crate) async fn tree_all_reduce_sum<B, N>(
 ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError>
 where
     B: Backend,
-    N: Network,
+    N: Protocol,
 {
     let shape = tensor.shape();
 

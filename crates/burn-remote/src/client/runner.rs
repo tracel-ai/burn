@@ -1,5 +1,5 @@
 use burn_common::future::DynFut;
-use burn_communication::{data_service::TensorTransferId, network::NetworkAddress};
+use burn_communication::{Address, data_service::TensorTransferId};
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 use burn_tensor::{
@@ -93,7 +93,7 @@ impl RunnerClient for WsClient {
 #[derive(Clone, PartialEq, Eq, Debug)]
 /// The device contains the connection information of the server.
 pub struct WsDevice {
-    pub(crate) address: Arc<NetworkAddress>,
+    pub(crate) address: Arc<Address>,
     // Unique ID generated from hash of the address
     pub(crate) id: u32,
 }
@@ -115,7 +115,7 @@ impl WsDevice {
         let id = hasher.finish() as u32;
 
         Self {
-            address: Arc::new(NetworkAddress::from_str(&address).unwrap()),
+            address: Arc::new(Address::from_str(&address).unwrap()),
             id,
         }
     }

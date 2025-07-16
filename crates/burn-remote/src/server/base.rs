@@ -1,6 +1,6 @@
 use burn_communication::{
+    CommunicationChannel, Message, Protocol, ProtocolServer,
     data_service::{TensorDataServer, TensorDataService},
-    network::{Network, NetworkServer, NetworkStream},
     util::os_shutdown_signal,
     websocket::base::WsNetwork,
 };
@@ -17,7 +17,7 @@ use super::session::SessionManager;
 pub struct RemoteServer<B, N>
 where
     B: BackendIr,
-    N: Network,
+    N: Protocol,
 {
     _b: PhantomData<B>,
     _n: PhantomData<N>,
@@ -26,7 +26,7 @@ where
 impl<B, N> RemoteServer<B, N>
 where
     B: BackendIr,
-    N: Network,
+    N: Protocol,
 {
     /// Start the server on the given address.
     pub async fn start(device: Device<B>, port: u16) {
@@ -50,7 +50,7 @@ where
 
     async fn handle_socket_response(
         session_manager: Arc<SessionManager<B, N>>,
-        mut socket: <N::Server as NetworkServer>::Stream,
+        mut socket: <N::Server as ProtocolServer>::Channel,
     ) {
         log::info!("[Response Handler] On new connection.");
 
@@ -83,13 +83,13 @@ where
             let response = callback.recv().await.unwrap();
             let bytes = rmp_serde::to_vec(&response).unwrap();
 
-            socket.send(bytes.into()).await.unwrap();
+            socket.send(Message::new(bytes.into())).await.unwrap();
         }
     }
 
     async fn handle_socket_request(
         session_manager: Arc<SessionManager<B, N>>,
-        mut socket: <N::Server as NetworkServer>::Stream,
+        mut socket: <N::Server as ProtocolServer>::Channel,
     ) {
         log::info!("[Request Handler] On new connection.");
         let mut session_id = None;
@@ -166,7 +166,7 @@ where
 pub async fn start_async<B, N>(device: Device<B>, port: u16)
 where
     B: BackendIr,
-    N: Network,
+    N: Protocol,
 {
     RemoteServer::<B, N>::start(device, port).await;
 }

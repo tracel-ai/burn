@@ -5,8 +5,8 @@ use crate::shared::{ConnectionId, TaskResponse, TensorRemote};
 
 use super::processor::{Processor, ProcessorTask};
 use burn_communication::{
+    Protocol,
     data_service::{TensorDataService, TensorTransferId},
-    network::Network,
 };
 use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
 use burn_router::Runner;
@@ -19,7 +19,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 pub struct Stream<B, N>
 where
     B: BackendIr,
-    N: Network,
+    N: Protocol,
 {
     compute_sender: Sender<ProcessorTask>,
     writer_sender: Sender<Receiver<TaskResponse>>,
@@ -30,7 +30,7 @@ where
 impl<B, N> Stream<B, N>
 where
     B: BackendIr,
-    N: Network,
+    N: Protocol,
 {
     pub async fn new(
         runner: Runner<B>,

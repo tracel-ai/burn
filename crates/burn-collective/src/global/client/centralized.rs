@@ -3,8 +3,8 @@ use std::sync::Arc;
 use crate::global::server::base::GlobalCollectiveError;
 use crate::global::shared::base::CentralizedAllReduceStrategy;
 use crate::global::shared::base::CentralizedAllReduceStrategy::{Central, Peripheral};
+use burn_communication::Protocol;
 use burn_communication::data_service::TensorDataService;
-use burn_communication::network::Network;
 use burn_tensor::TensorMetadata;
 use burn_tensor::backend::Backend;
 use futures::StreamExt;
@@ -18,7 +18,7 @@ pub(crate) async fn centralized_all_reduce_sum<B, N>(
 ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError>
 where
     B: Backend,
-    N: Network,
+    N: Protocol,
 {
     let shape = tensor.shape();
 

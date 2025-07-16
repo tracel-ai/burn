@@ -1,3 +1,3 @@
-# Burn Network
+# Burn Communication
 
 Abstractions for network communication

@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use crate::{
-    network::{NetworkError, NetworkMessage, NetworkServer, NetworkStream},
+    base::{CommunicationChannel, CommunicationError, Message, ProtocolServer},
     util::init_logging,
 };
 use axum::{
@@ -24,8 +24,8 @@ pub struct WsServerStream {
     inner: WebSocket,
 }
 
-impl NetworkServer for WsServer {
-    type Stream = WsServerStream;
+impl ProtocolServer for WsServer {
+    type Channel = WsServerStream;
     type Error = WsServerError;
 
     fn new(port: u16) -> Self {
@@ -81,19 +81,19 @@ impl NetworkServer for WsServer {
     }
 }
 
-impl NetworkStream for WsServerStream {
+impl CommunicationChannel for WsServerStream {
     type Error = WsServerError;
 
-    async fn send(&mut self, bytes: bytes::Bytes) -> Result<(), WsServerError> {
-        self.inner.send(ws::Message::Binary(bytes)).await?;
+    async fn send(&mut self, message: Message) -> Result<(), WsServerError> {
+        self.inner.send(ws::Message::Binary(message.data)).await?;
 
         Ok(())
     }
 
-    async fn recv(&mut self) -> Result<Option<NetworkMessage>, WsServerError> {
+    async fn recv(&mut self) -> Result<Option<Message>, WsServerError> {
         match self.inner.next().await {
             Some(next) => match next {
-                Ok(ws::Message::Binary(data)) => Ok(Some(NetworkMessage { data })),
+                Ok(ws::Message::Binary(data)) => Ok(Some(Message { data })),
                 Ok(ws::Message::Close(_close_frame)) => Ok(None),
                 Err(err) => Err(WsServerError::Axum(err)),
                 msg => Err(WsServerError::UnknownMessage(format!("{msg:?}"))),
@@ -123,7 +123,7 @@ pub enum WsServerError {
     UnknownMessage(String),
     Other(String),
 }
-impl NetworkError for WsServerError {}
+impl CommunicationError for WsServerError {}
 
 impl From<std::io::Error> for WsServerError {
     fn from(err: std::io::Error) -> Self {

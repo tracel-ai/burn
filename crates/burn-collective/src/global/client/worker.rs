@@ -1,6 +1,6 @@
 use std::{collections::HashMap, marker::PhantomData, sync::Arc, time::Duration};
 
-use burn_communication::network::{NetworkAddress, NetworkClient, NetworkStream};
+use burn_communication::{Address, CommunicationChannel, Message, ProtocolClient};
 use tokio::{
     runtime::Runtime,
     sync::{
@@ -13,11 +13,14 @@ use tokio_util::sync::CancellationToken;
 
 use crate::global::{
     server::base::GlobalCollectiveError,
-    shared::base::{Message, MessageResponse, RemoteRequest, RemoteResponse, RequestId, SessionId},
+    shared::base::{
+        CollectiveMessage, CollectiveMessageResponse, RemoteRequest, RemoteResponse, RequestId,
+        SessionId,
+    },
 };
 
 /// Worker that handles communication with the server for global collective operations.
-pub(crate) struct GlobalClientWorker<N: NetworkClient> {
+pub(crate) struct GlobalClientWorker<N: ProtocolClient> {
     handle: Option<JoinHandle<Result<(), GlobalCollectiveError>>>,
     cancel_token: CancellationToken,
     request_sender: Sender<ClientRequest>,
@@ -49,12 +52,12 @@ impl ClientRequest {
     }
 }
 
-impl<C: NetworkClient> GlobalClientWorker<C> {
+impl<C: ProtocolClient> GlobalClientWorker<C> {
     /// Create a new global client worker and start the tasks.
     pub(crate) fn new(
         runtime: &Runtime,
         cancel_token: CancellationToken,
-        server_address: &NetworkAddress,
+        server_address: &Address,
     ) -> Self {
         let (request_sender, request_recv) = tokio::sync::mpsc::channel::<ClientRequest>(10);
 
@@ -79,7 +82,7 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
     async fn start(
         state: Arc<Mutex<GlobalClientWorkerState>>,
         cancel_token: CancellationToken,
-        server_address: NetworkAddress,
+        server_address: Address,
         request_recv: Receiver<ClientRequest>,
     ) -> Result<(), GlobalCollectiveError> {
         // Init the connection.
@@ -111,8 +114,8 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
     }
 
     async fn init_connection(
-        address: &NetworkAddress,
-    ) -> Result<(C::Stream, C::Stream), GlobalCollectiveError> {
+        address: &Address,
+    ) -> Result<(C::Channel, C::Channel), GlobalCollectiveError> {
         let session_id = SessionId::new();
 
         let stream_request = tokio::spawn(Self::connect_with_retry(
@@ -142,12 +145,12 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
 
     /// Connect with websocket with retries.
     async fn connect_with_retry(
-        address: NetworkAddress,
+        address: Address,
         route: &str,
         retry_pause: Duration,
         retry_max: Option<u32>,
         session_id: SessionId,
-    ) -> Option<C::Stream> {
+    ) -> Option<C::Channel> {
         let mut retries = 0;
         loop {
             if let Some(max) = retry_max {
@@ -162,10 +165,10 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
             let result = C::connect(address.clone(), route).await;
 
             if let Some(mut stream) = result {
-                let init_msg = Message::Init(session_id);
+                let init_msg = CollectiveMessage::Init(session_id);
                 let bytes: bytes::Bytes = rmp_serde::to_vec(&init_msg).unwrap().into();
                 stream
-                    .send(bytes)
+                    .send(Message::new(bytes))
                     .await
                     .expect("Can send the init message on the websocket.");
                 return Some(stream);
@@ -201,7 +204,7 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
 
     async fn response_loader(
         state: Arc<Mutex<GlobalClientWorkerState>>,
-        mut stream_response: C::Stream,
+        mut stream_response: C::Channel,
         cancel_token: CancellationToken,
     ) {
         loop {
@@ -223,7 +226,7 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
                                 break;
                             };
 
-                            let response: MessageResponse = rmp_serde::from_slice(&response.data)
+                            let response: CollectiveMessageResponse = rmp_serde::from_slice(&response.data)
                                 .expect("Can deserialize messages from the websocket.");
                             let state_resp = state.lock().await;
                             let response_callback = state_resp
@@ -247,7 +250,7 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
     async fn request_sender(
         mut request_recv: Receiver<ClientRequest>,
         worker: Arc<Mutex<GlobalClientWorkerState>>,
-        mut stream_request: C::Stream,
+        mut stream_request: C::Channel,
         cancel_token: CancellationToken,
     ) {
         loop {
@@ -268,13 +271,13 @@ impl<C: NetworkClient> GlobalClientWorker<C> {
                         state.requests.insert(id, request.callback);
                     }
 
-                    let request = Message::Request(id, request.request);
+                    let request = CollectiveMessage::Request(id, request.request);
 
-                    let bytes = rmp_serde::to_vec::<Message>(&request)
+                    let bytes = rmp_serde::to_vec::<CollectiveMessage>(&request)
                         .expect("Can serialize tasks to bytes.")
                         .into();
                     stream_request
-                        .send(bytes)
+                        .send(Message::new(bytes))
                         .await
                         .expect("Can send the message on the websocket.");
                 }

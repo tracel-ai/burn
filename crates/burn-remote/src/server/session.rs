@@ -1,5 +1,5 @@
 use burn_common::id::StreamId;
-use burn_communication::{data_service::TensorDataService, network::Network};
+use burn_communication::{Protocol, data_service::TensorDataService};
 use burn_ir::BackendIr;
 use burn_router::Runner;
 use burn_tensor::Device;
@@ -20,7 +20,7 @@ use super::stream::Stream;
 pub struct SessionManager<B, N>
 where
     B: BackendIr,
-    N: Network,
+    N: Protocol,
 {
     runner: Runner<B>,
     sessions: Mutex<HashMap<SessionId, Session<B, N>>>,
@@ -30,7 +30,7 @@ where
 struct Session<B, N>
 where
     B: BackendIr,
-    N: Network,
+    N: Protocol,
 {
     runner: Runner<B>,
     streams: HashMap<StreamId, Stream<B, N>>,
@@ -42,7 +42,7 @@ where
 impl<B, N> SessionManager<B, N>
 where
     B: BackendIr,
-    N: Network,
+    N: Protocol,
 {
     pub fn new(device: Device<B>, data_service: Arc<TensorDataService<B, N>>) -> Self {
         Self {
@@ -122,7 +122,7 @@ where
 impl<B, N> Session<B, N>
 where
     B: BackendIr,
-    N: Network,
+    N: Protocol,
 {
     fn new(runner: Runner<B>, data_service: Arc<TensorDataService<B, N>>) -> Self {
         let (sender, receiver) = tokio::sync::mpsc::channel(1);

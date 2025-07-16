@@ -1,6 +1,6 @@
 use burn_communication::{
+    Protocol,
     data_service::{TensorDataService, TensorTransferId},
-    network::Network,
 };
 use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
 use burn_router::{Runner, RunnerClient};
@@ -15,7 +15,7 @@ use crate::shared::{ConnectionId, TaskResponse, TaskResponseContent, TensorRemot
 pub struct Processor<B, N>
 where
     B: BackendIr,
-    N: Network,
+    N: Protocol,
 {
     p: PhantomData<B>,
     n: PhantomData<N>,
@@ -40,7 +40,7 @@ pub enum ProcessorTask {
 impl<B: BackendIr, N> Processor<B, N>
 where
     B: BackendIr,
-    N: Network,
+    N: Protocol,
 {
     pub async fn start(
         runner: Runner<B>,

@@ -1,4 +1,4 @@
-use burn_communication::network::NetworkAddress;
+use burn_communication::Address;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -17,8 +17,8 @@ pub struct CollectiveConfig {
     // Global parameters (all are optional, but if one is defined they should all be)
     pub node_id: Option<NodeId>,
     pub num_nodes: Option<u32>,
-    pub server_address: Option<NetworkAddress>,
-    pub client_address: Option<NetworkAddress>,
+    pub server_address: Option<Address>,
+    pub client_address: Option<Address>,
     pub client_data_port: Option<u16>,
     pub global_strategy: Option<AllReduceStrategy>,
 }
@@ -71,12 +71,12 @@ impl CollectiveConfig {
         self
     }
 
-    pub fn with_server_address(mut self, addr: NetworkAddress) -> Self {
+    pub fn with_server_address(mut self, addr: Address) -> Self {
         self.server_address = Some(addr);
         self
     }
 
-    pub fn with_client_address(mut self, addr: NetworkAddress) -> Self {
+    pub fn with_client_address(mut self, addr: Address) -> Self {
         self.client_address = Some(addr);
         self
     }

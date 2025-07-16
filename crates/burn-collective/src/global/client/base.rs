@@ -1,9 +1,6 @@
+use burn_communication::Protocol;
 use burn_communication::data_service::TensorDataServer;
-use burn_communication::network::Network;
-use burn_communication::{
-    data_service::TensorDataService,
-    network::{NetworkAddress, NetworkServer},
-};
+use burn_communication::{Address, ProtocolServer, data_service::TensorDataService};
 use burn_tensor::{ElementConversion, backend::Backend};
 use std::{marker::PhantomData, sync::Arc};
 use tokio_util::sync::CancellationToken;
@@ -25,10 +22,10 @@ use crate::{
 pub(crate) struct GlobalCollectiveClient<B, N>
 where
     B: Backend,
-    N: Network,
+    N: Protocol,
 {
     data_service: Arc<TensorDataService<B, N>>,
-    data_client_address: Arc<NetworkAddress>,
+    data_client_address: Arc<Address>,
     worker: GlobalClientWorker<N::Client>,
     num_global_devices: Option<u32>,
     _n: PhantomData<N>,
@@ -37,13 +34,9 @@ where
 impl<B, N> GlobalCollectiveClient<B, N>
 where
     B: Backend,
-    N: Network,
+    N: Protocol,
 {
-    pub fn new(
-        server_address: &NetworkAddress,
-        client_address: &NetworkAddress,
-        data_server_port: u16,
-    ) -> Self {
+    pub fn new(server_address: &Address, client_address: &Address, data_server_port: u16) -> Self {
         let cancel_token = CancellationToken::new();
 
         let data_service = Arc::new(TensorDataService::new(cancel_token.clone()));

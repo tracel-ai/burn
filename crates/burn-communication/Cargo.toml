@@ -19,6 +19,7 @@ burn-common = { path = "../burn-common", version = "0.18.0", default-features = 
 axum = { workspace = true, features = ["ws"] }
 bytes = { workspace = true }
 futures = { workspace = true }
+derive-new = { workspace = true }
 futures-util = { workspace = true }
 log = { workspace = true }
 rmp-serde = { workspace = true }

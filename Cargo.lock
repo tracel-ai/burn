@@ -650,6 +650,7 @@ dependencies = [
  "burn-common",
  "burn-tensor",
  "bytes",
+ "derive-new",
  "futures",
  "futures-util",
  "log",

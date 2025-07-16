@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use burn_common::id::{IdGenerator, StreamId};
-use burn_communication::{data_service::TensorTransferId, network::NetworkAddress};
+use burn_communication::{Address, data_service::TensorTransferId};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::TensorData;
 use serde::{Deserialize, Serialize};
@@ -47,7 +47,7 @@ pub enum Task {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TensorRemote {
     pub transfer_id: TensorTransferId,
-    pub address: NetworkAddress,
+    pub address: Address,
 }
 
 #[allow(missing_docs)]

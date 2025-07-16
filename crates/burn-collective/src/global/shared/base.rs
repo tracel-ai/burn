@@ -2,7 +2,7 @@ use core::ops::Range;
 use std::sync::atomic::AtomicU32;
 
 use burn_common::id::IdGenerator;
-use burn_communication::network::NetworkAddress;
+use burn_communication::Address;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -51,13 +51,13 @@ impl From<u32> for NodeId {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Message {
+pub enum CollectiveMessage {
     Init(SessionId),
     Request(RequestId, RemoteRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MessageResponse {
+pub struct CollectiveMessageResponse {
     pub request_id: RequestId,
     pub content: RemoteResponse,
 }
@@ -69,7 +69,7 @@ pub enum RemoteRequest {
     },
     Register {
         node_id: NodeId,
-        node_addr: NetworkAddress,
+        node_addr: Address,
         num_local_devices: u32,
         shared_params: SharedGlobalRegisterParams,
     },
@@ -91,21 +91,21 @@ pub enum RemoteResponse {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CentralizedAllReduceStrategy {
     /// The central node is the one that will perform the all-reduce operation
-    Central { other_nodes: Vec<NetworkAddress> },
+    Central { other_nodes: Vec<Address> },
     /// The peripheral nodes are the ones that will send their tensors to the central node
-    Peripheral { central_node: NetworkAddress },
+    Peripheral { central_node: Address },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TreeAllReduceStrategy {
-    pub children: Vec<NetworkAddress>,
-    pub parent: Option<NetworkAddress>,
+    pub children: Vec<Address>,
+    pub parent: Option<Address>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RingAllReduceStrategy {
     // Position in ring
-    pub next_node: NetworkAddress,
+    pub next_node: Address,
 
     // Slicing strategy
     pub slice_dim: usize,

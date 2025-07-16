@@ -5,11 +5,10 @@ use tokio::sync::Mutex;
 
 use crate::global::{
     server::state::GlobalCollectiveState,
-    shared::base::{Message, NodeId},
+    shared::base::{CollectiveMessage, NodeId},
 };
 use burn_communication::{
-    network::{NetworkError, NetworkServer, NetworkStream},
-    util::os_shutdown_signal,
+    CommunicationChannel, CommunicationError, Message, ProtocolServer, util::os_shutdown_signal,
 };
 
 #[allow(unused)]
@@ -45,7 +44,7 @@ pub enum GlobalCollectiveError {
     ServerUnreachable,
 }
 
-impl<E: NetworkError> From<E> for GlobalCollectiveError {
+impl<E: CommunicationError> From<E> for GlobalCollectiveError {
     fn from(err: E) -> Self {
         Self::Server(format!("{err:?}"))
     }
@@ -57,7 +56,7 @@ pub struct GlobalCollectiveServer {
 }
 
 impl GlobalCollectiveServer {
-    pub(crate) async fn start<F, S: NetworkServer + Debug>(
+    pub(crate) async fn start<F, S: ProtocolServer + Debug>(
         shutdown_signal: F,
         port: u16,
     ) -> Result<(), GlobalCollectiveError>
@@ -93,9 +92,9 @@ impl GlobalCollectiveServer {
         Ok(())
     }
 
-    async fn handle_socket_response<S: NetworkServer>(
+    async fn handle_socket_response<S: ProtocolServer>(
         self,
-        mut stream: S::Stream,
+        mut stream: S::Channel,
     ) -> Result<(), GlobalCollectiveError> {
         log::info!("[Response Handler] On new connection.");
 
@@ -108,10 +107,10 @@ impl GlobalCollectiveServer {
             return Ok(());
         };
 
-        let msg = rmp_serde::from_slice::<Message>(&msg.data)
+        let msg = rmp_serde::from_slice::<CollectiveMessage>(&msg.data)
             .map_err(|_| GlobalCollectiveError::InvalidMessage)?;
 
-        let Message::Init(id) = msg else {
+        let CollectiveMessage::Init(id) = msg else {
             return Err(GlobalCollectiveError::FirstMsgNotInit);
         };
 
@@ -123,16 +122,16 @@ impl GlobalCollectiveServer {
         while let Some(response) = receiver.recv().await {
             let bytes = rmp_serde::to_vec(&response).unwrap();
 
-            stream.send(bytes.into()).await?;
+            stream.send(Message::new(bytes.into())).await?;
         }
 
         log::info!("[Response Handler] Closing connection.");
         Ok(())
     }
 
-    async fn handle_socket_request<S: NetworkServer>(
+    async fn handle_socket_request<S: ProtocolServer>(
         self,
-        mut stream: S::Stream,
+        mut stream: S::Channel,
     ) -> Result<(), GlobalCollectiveError> {
         log::info!("[Request Handler] On new connection.");
 
@@ -147,14 +146,14 @@ impl GlobalCollectiveServer {
 
             let mut state = self.state.lock().await;
 
-            let msg = rmp_serde::from_slice::<Message>(&msg.data)
+            let msg = rmp_serde::from_slice::<CollectiveMessage>(&msg.data)
                 .map_err(|_| GlobalCollectiveError::InvalidMessage)?;
             match msg {
-                Message::Init(id) => {
+                CollectiveMessage::Init(id) => {
                     state.init_session(id);
                     session_id = Some(id);
                 }
-                Message::Request(request_id, remote_request) => {
+                CollectiveMessage::Request(request_id, remote_request) => {
                     let session_id = session_id.ok_or(GlobalCollectiveError::FirstMsgNotInit)?;
                     state.process(session_id, request_id, remote_request).await;
                 }
@@ -166,7 +165,7 @@ impl GlobalCollectiveServer {
 }
 
 /// Start the server on the given port
-pub async fn start<S: NetworkServer + Debug>(port: u16) {
+pub async fn start<S: ProtocolServer + Debug>(port: u16) {
     let res = GlobalCollectiveServer::start::<_, S>(os_shutdown_signal(), port).await;
     if let Err(err) = res {
         eprintln!("Global Collective Server error: {err:?}");

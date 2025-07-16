@@ -1,4 +1,4 @@
-use burn_communication::network::NetworkAddress;
+use burn_communication::Address;
 use burn_tensor::{Tensor, backend::Backend};
 use serde::{Deserialize, Serialize};
 
@@ -24,9 +24,9 @@ pub struct GlobalRegisterParams {
     /// The id of this node, should be unique.
     pub node_id: NodeId,
     /// The address for the connection to this client.
-    pub server_address: NetworkAddress,
+    pub server_address: Address,
     /// The address for the connection to this client.
-    pub client_address: NetworkAddress,
+    pub client_address: Address,
     /// The port on which to open the tensor data service for other clients. Should match the port
     /// given in the client url.
     pub client_data_port: u16,
