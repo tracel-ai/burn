@@ -5,6 +5,8 @@
 // For half precision, we use a different tolerance because the output is
 // different.
 
+mod backend;
+
 macro_rules! test_model {
     ($mod_name:ident) => {
         test_model!($mod_name, 1.0e-4); // Default tolerance
@@ -44,11 +46,10 @@ macro_rules! test_model {
 
 #[cfg(test)]
 mod tests {
+    use crate::backend::Backend;
     use burn::tensor::{Shape, Tensor};
     use float_cmp::ApproxEq;
     use std::f64::consts;
-
-    type Backend = burn_ndarray::NdArray<f32>;
 
     test_model!(named_mpk);
     test_model!(named_mpk_half, 1.0e-2); // Reduce tolerance for half precision
