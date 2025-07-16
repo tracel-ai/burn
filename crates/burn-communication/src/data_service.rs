@@ -15,23 +15,17 @@ use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TensorTransferId(Option<u32>);
+pub struct TensorTransferId(u32);
 
 impl From<u32> for TensorTransferId {
     fn from(value: u32) -> Self {
-        Self(Some(value))
+        Self(value)
     }
 }
 
 impl TensorTransferId {
-    pub fn none() -> Self {
-        Self(None)
-    }
-
     pub fn next(&mut self) {
-        if let Some(id) = &mut self.0 {
-            *id += 1;
-        }
+        self.0 += 1;
     }
 }
 
@@ -41,13 +35,13 @@ enum DataServiceMessage {
     Tensor(TensorData),
 }
 
-type ClientStreamRef<C> = Arc<Mutex<<C as ProtocolClient>::Channel>>;
+type ClientChannelRef<C> = Arc<Mutex<<C as ProtocolClient>::Channel>>;
 
 pub struct TensorDataService<B: Backend, N: Protocol<Client: ProtocolClient>> {
     /// Maps tensor transfer IDs to their exposed state.
     pub exposed_tensors: Mutex<HashMap<TensorTransferId, TensorExposeState>>,
-    /// Maps node addresses to their WebSocket streams.
-    pub streams: Mutex<HashMap<Address, ClientStreamRef<N::Client>>>,
+    /// Maps node addresses to their channels.
+    pub channels: Mutex<HashMap<Address, ClientChannelRef<N::Client>>>,
     /// Notify when a new tensor is exposed.
     pub new_tensor_notify: Arc<Notify>,
 
@@ -74,7 +68,7 @@ impl<B: Backend, S: ProtocolServer + Sized, N: Protocol<Server = S> + 'static>
 {
     fn route_tensor_data_service(self, state: Arc<TensorDataService<B, N>>) -> Self {
         self.route("/data", async move |stream: S::Channel| {
-            state.handle_data_stream(stream).await;
+            state.handle_data_channel(stream).await;
         })
     }
 }
@@ -83,7 +77,7 @@ impl<B: Backend, N: Protocol> TensorDataService<B, N> {
     pub fn new(cancel_token: CancellationToken) -> Self {
         Self {
             exposed_tensors: Mutex::new(HashMap::new()),
-            streams: Mutex::new(HashMap::new()),
+            channels: Mutex::new(HashMap::new()),
             new_tensor_notify: Arc::new(Notify::new()),
             cancel_token,
             _phantom_data: PhantomData::<B>,
@@ -127,7 +121,7 @@ impl<B: Backend, N: Protocol> TensorDataService<B, N> {
     pub async fn close(&self) {
         // Send a closing message to every open WebSocket stream
 
-        let mut streams = self.streams.lock().await;
+        let mut streams = self.channels.lock().await;
         for (_, stream) in streams.drain() {
             let mut stream = stream.lock().await;
 
@@ -181,7 +175,7 @@ impl<B: Backend, N: Protocol> TensorDataService<B, N> {
         &self,
         address: Address,
     ) -> Arc<Mutex<<N::Client as ProtocolClient>::Channel>> {
-        let mut streams = self.streams.lock().await;
+        let mut streams = self.channels.lock().await;
         match streams.get(&address) {
             Some(stream) => stream.clone(),
             None => {
@@ -227,14 +221,14 @@ impl<B: Backend, N: Protocol> TensorDataService<B, N> {
     }
 
     /// Handle incoming connections for downloading tensors.
-    pub(crate) async fn handle_data_stream(
+    pub(crate) async fn handle_data_channel(
         &self,
-        mut stream: <N::Server as ProtocolServer>::Channel,
+        mut channel: <N::Server as ProtocolServer>::Channel,
     ) {
         log::info!("[Data Handler] New connection for download.");
 
         while !self.cancel_token.is_cancelled() {
-            match stream.recv().await {
+            match channel.recv().await {
                 Ok(message) => {
                     if let Some(msg) = message {
                         let bytes = msg.data;
@@ -246,7 +240,7 @@ impl<B: Backend, N: Protocol> TensorDataService<B, N> {
 
                         let bytes = self.get_exposed_tensor_bytes(transfer_id).await.unwrap();
 
-                        stream.send(Message::new(bytes)).await.unwrap();
+                        channel.send(Message::new(bytes)).await.unwrap();
                     } else {
                         eprintln!("Closed connection");
                         return;
