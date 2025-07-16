@@ -43,7 +43,7 @@ fn create_artifact_dir(artifact_dir: &str) {
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
-pub fn run<B: AutodiffBackend>(device: B::Device) {
+pub fn run<B: AutodiffBackend>(devices: Vec<B::Device>) {
     create_artifact_dir(ARTIFACT_DIR);
     // Config
     let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
@@ -51,7 +51,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let config = MnistTrainingConfig::new(config_optimizer, collective);
     B::seed(config.seed);
 
-    let model = Model::<B>::new(&device);
+    let model = Model::<B>::new(&devices.first().unwrap());
 
     // Data
     let batcher = MnistBatcher::default();
@@ -87,7 +87,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             Split::Valid,
             StoppingCondition::NoImprovementSince { n_epochs: 1 },
         ))
-        .devices(vec![device.clone()])
+        .devices(devices)
         .with_collective_config(config.collective.clone())
         .num_epochs(config.num_epochs)
         .summary()

@@ -3,7 +3,6 @@ use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy
 use crate::components::LearnerComponents;
 use crate::learner::EarlyStoppingStrategy;
 use crate::metric::store::EventStoreClient;
-use burn_core::collective::config::CollectiveConfig;
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
 use burn_core::optim::Optimizer;
@@ -11,6 +10,9 @@ use burn_core::tensor::Device;
 use burn_core::tensor::backend::Backend;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+
+#[cfg(feature = "collective")]
+use burn_core::collective::config::CollectiveConfig;
 
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 ///
@@ -24,12 +26,14 @@ pub struct Learner<LC: LearnerComponents> {
     pub(crate) grad_accumulation: Option<usize>,
     pub(crate) checkpointer: Option<LearnerCheckpointer<LC>>,
     pub(crate) devices: Vec<<LC::Backend as Backend>::Device>,
-    pub(crate) collective_config: Option<CollectiveConfig>,
     pub(crate) interrupter: TrainingInterrupter,
     pub(crate) early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
     pub(crate) event_processor: LC::EventProcessor,
     pub(crate) event_store: Arc<EventStoreClient>,
     pub(crate) summary: Option<LearnerSummaryConfig>,
+
+    #[cfg(feature = "collective")]
+    pub(crate) collective_config: Option<CollectiveConfig>,
 }
 
 #[derive(new)]

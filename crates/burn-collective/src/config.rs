@@ -2,7 +2,7 @@ use burn_network::network::NetworkAddress;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AllReduceStrategy, DeviceId, GlobalRegisterParams, ReduceKind, RegisterParams,
+    AllReduceStrategy, DeviceId, GlobalRegisterParams, ReduceKind,
     SharedAllReduceParams, SharedGlobalRegisterParams, SharedRegisterParams,
     global::shared::base::NodeId,
 };
@@ -44,6 +44,11 @@ impl CollectiveConfig {
             client_data_port: None,
             global_strategy: None,
         }
+    }
+
+    pub fn with_device_id(mut self, id: DeviceId) -> Self {
+        self.device_id = id;
+        self
     }
 
     pub fn with_num_devices(mut self, num: u32) -> Self {
@@ -91,9 +96,16 @@ impl CollectiveConfig {
         self
     }
 
-    /// Converts the config into `RegisterParams`, returning an error if only partial global fields are set.
-    pub fn register_params(&self) -> Option<RegisterParams> {
-        let global = match (
+    /// Get the shared parameters for a register op
+    pub fn register_shared_params(&self) -> SharedRegisterParams {
+        SharedRegisterParams {
+            num_devices: self.num_devices,
+        }
+    }
+
+    /// Get the global parameters for a register op
+    pub fn register_global_params(&self) -> Option<GlobalRegisterParams> {
+        match (
             self.node_id,
             self.num_nodes,
             &self.server_address,
@@ -111,20 +123,11 @@ impl CollectiveConfig {
                 })
             }
             _ => return None,
-        };
-
-        let shared = SharedRegisterParams {
-            num_devices: self.num_devices,
-        };
-
-        Some(RegisterParams {
-            device_id: self.device_id,
-            shared,
-            global,
-        })
+        }
     }
 
-    /// Converts the config into `AllReduceParams`, using optional global strategy.
+
+    /// Get the shared parameters for an all-reduce
     pub fn all_reduce_params(&self) -> SharedAllReduceParams {
         SharedAllReduceParams {
             kind: self.all_reduce_kind,

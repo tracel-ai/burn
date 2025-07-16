@@ -1,6 +1,5 @@
 use super::GradientsParams;
 use crate::module::{AutodiffModule, ModuleVisitor, ParamId};
-use crate::collective::{all_reduce, AllReduceParams};
 use burn_tensor::{Tensor, backend::AutodiffBackend};
 use core::marker::PhantomData;
 
@@ -20,14 +19,6 @@ pub struct GradientsParamsChangeDevice<'a, M: AutodiffModule<B>, B: AutodiffBack
     device: &'a B::Device,
     grads: &'a mut GradientsParams,
     phatom: PhantomData<M>,
-}
-
-#[derive(new)]
-pub struct GradientsParamsAllReduce<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
-    params: &'a AllReduceParams,
-    grads: &'a mut GradientsParams,
-    m: PhantomData<M>,
-    b: PhantomData<B>,
 }
 
 impl<B, M> ModuleVisitor<B> for GradientsParamsConverter<'_, M, B>
@@ -64,19 +55,37 @@ where
     }
 }
 
-impl<B, M> ModuleVisitor<B> for GradientsParamsAllReduce<'_, M, B>
-where
-    B: AutodiffBackend,
-    M: AutodiffModule<B>,
-{
-    fn visit_float<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D>) {
-        let Some(mut grad) = self.grads.remove::<B::InnerBackend, D>(id) else {
-            return;
-        };
+#[cfg(feature = "collective")]
+pub mod collective_gradient_ops {
+    use super::*;
 
-        grad = all_reduce(grad, self.params).unwrap();
+    use crate::{
+        collective::{DeviceId, SharedAllReduceParams, all_reduce},
+        optim::GradientsParams,
+    };
 
-        self.grads
-            .register::<B::InnerBackend, D>(id, grad);
+    #[derive(new)]
+    pub struct GradientsParamsAllReduce<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
+        device_id: DeviceId,
+        params: SharedAllReduceParams,
+        grads: &'a mut GradientsParams,
+        m: PhantomData<M>,
+        b: PhantomData<B>,
+    }
+
+    impl<B, M> ModuleVisitor<B> for GradientsParamsAllReduce<'_, M, B>
+    where
+        B: AutodiffBackend,
+        M: AutodiffModule<B>,
+    {
+        fn visit_float<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D>) {
+            let Some(mut grad) = self.grads.remove::<B::InnerBackend, D>(id) else {
+                return;
+            };
+
+            grad = all_reduce(self.device_id, grad, &self.params).unwrap();
+
+            self.grads.register::<B::InnerBackend, D>(id, grad);
+        }
     }
 }

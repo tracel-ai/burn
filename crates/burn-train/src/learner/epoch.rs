@@ -1,4 +1,5 @@
-use burn_core::collective::config::CollectiveConfig;
+#[cfg(feature = "collective")]
+use burn_collective::config::CollectiveConfig;
 use burn_core::data::dataloader::DataLoader;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_core::{
@@ -96,7 +97,6 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
         scheduler: &mut LC::LrScheduler,
         processor: &mut LC::EventProcessor,
         interrupter: &TrainingInterrupter,
-        collective_config: &Option<CollectiveConfig>,
     ) -> (LC::Model, LC::Optimizer)
     where
         LC::EventProcessor: EventProcessor<ItemTrain = TO>,
@@ -110,8 +110,6 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
 
-        let all_reduce_params = collective_config.as_ref().map(CollectiveConfig::all_reduce_params);
-
         while let Some(item) = iterator.next() {
             iteration += 1;
             let lr = scheduler.step();
@@ -120,16 +118,9 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
             let progress = iterator.progress();
             let item = model.step(item);
 
-            let grads = if let Some(ref all_reduce_params) = all_reduce_params {
-                // Sync grads
-                item.grads.all_reduce(&all_reduce_params, &model)
-            } else {
-                item.grads
-            };
-
             match self.grad_accumulation {
                 Some(accumulation) => {
-                    accumulator.accumulate(&model, grads);
+                    accumulator.accumulate(&model, item.grads);
                     accumulation_current += 1;
 
                     if accumulation <= accumulation_current {
@@ -138,7 +129,7 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
                         accumulation_current = 0;
                     }
                 }
-                None => model = model.optimize(&mut optim, lr, grads),
+                None => model = model.optimize(&mut optim, lr, item.grads),
             }
 
             let item = LearnerItem::new(
@@ -165,6 +156,7 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     }
 }
 
+/// The non-collective implementation of run_multi_device
 impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     /// Runs the training epoch on multiple devices.
     ///
@@ -179,7 +171,7 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    pub fn _run_multi_device<LC: LearnerComponents<Backend = B>, TO>(
+    pub fn run_multi_device<LC: LearnerComponents<Backend = B>, TO>(
         &mut self,
         mut model: LC::Model,
         mut optim: LC::Optimizer,
@@ -253,6 +245,94 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
             }
 
             if interrupted {
+                break;
+            }
+        }
+
+        processor.process_train(Event::EndEpoch(self.epoch));
+
+        self.epoch += 1;
+
+        (model, optim)
+    }
+}
+
+#[cfg(feature = "collective")]
+impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
+
+    /// Runs the training epoch on multiple devices.
+    ///
+    /// # Arguments
+    ///
+    /// * `model` - The model to train.
+    /// * `optim` - The optimizer to use.
+    /// * `lr_scheduler` - The learning rate scheduler to use.
+    /// * `processor` - The event processor to use.
+    /// * `devices` - The devices to use.
+    ///
+    /// # Returns
+    ///
+    /// The trained model and the optimizer.
+    pub fn run_multi_device_collective<LC: LearnerComponents<Backend = B>, TO>(
+        &mut self,
+        mut model: LC::Model,
+        mut optim: LC::Optimizer,
+        lr_scheduler: &mut LC::LrScheduler,
+        processor: &mut LC::EventProcessor,
+        devices: Vec<<LC::Backend as Backend>::Device>,
+        interrupter: &TrainingInterrupter,
+        collective_config: &CollectiveConfig,
+    ) -> (LC::Model, LC::Optimizer)
+    where
+        LC::EventProcessor: EventProcessor<ItemTrain = TO>,
+        LC::Model: TrainStep<TI, TO>,
+        TO: Send + 'static,
+        TI: Send + 'static,
+    {
+        use crate::collective::CollectiveTrainStep;
+
+        log::info!(
+            "Executing training step for epoch {} on devices {:?}",
+            self.epoch,
+            devices
+        );
+
+        let mut iterators = self.dataloader.iter().map(|d| d.iter()).collect::<Vec<_>>();
+        let mut iteration = 0;
+        let mut accumulator = GradientsAccumulator::new();
+        let mut accumulation_current = 0;
+
+        let accumulation = self.grad_accumulation.unwrap_or(1) * devices.len();
+        let step = CollectiveTrainStep::new(&devices, collective_config);
+
+        loop {
+            let (item, progress) = step.step(iterators.as_mut_slice(), &model);
+
+            iteration += 1;
+            let lr = lr_scheduler.step();
+
+            accumulator.accumulate(&model, item.grads);
+            accumulation_current += 1;
+
+            if accumulation <= accumulation_current {
+                let grads = accumulator.grads();
+                model = model.optimize(&mut optim, lr, grads);
+                accumulation_current = 0;
+            }
+
+            let item = LearnerItem::new(
+                item.item,
+                progress.clone(),
+                self.epoch,
+                self.epoch_total,
+                iteration,
+                Some(lr),
+            );
+
+            processor.process_train(Event::ProcessedItem(item));
+
+            if interrupter.should_stop() {
+                log::info!("Training interrupted.");
                 break;
             }
         }

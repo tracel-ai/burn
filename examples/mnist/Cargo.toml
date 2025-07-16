@@ -22,7 +22,7 @@ metal = ["burn/metal"]
 remote = ["burn/remote"]
 
 [dependencies]
-burn = { path = "../../crates/burn", features = ["train"] }
+burn = { path = "../../crates/burn", features = ["train", "collective"] }
 
 # Serialization
 log = { workspace = true }
