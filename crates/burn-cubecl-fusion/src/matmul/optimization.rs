@@ -435,7 +435,7 @@ impl FusedMatmul {
                 }
             }
             FusedMatmulSelector::OrderedDoubleBuffering => {
-                let partition_k = match self.lhs.precision() {
+                let row_count = match self.lhs.precision() {
                     FusePrecision::F16 | FusePrecision::BF16 => 8,
                     _ => 4,
                 };
@@ -451,7 +451,7 @@ impl FusedMatmul {
                     problem,
                     line_sizes,
                     &Selection::Inferred(OrderedSelectionArgs {
-                        row_count: Some(partition_k),
+                        row_count: Some(row_count),
                         rows_per_plane: Some(2),
                         partition_k: Some(2),
                     }),
