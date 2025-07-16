@@ -1,8 +1,5 @@
 use burn_communication::{
-    CommunicationChannel, Message, Protocol, ProtocolServer,
-    data_service::{TensorDataServer, TensorDataService},
-    util::os_shutdown_signal,
-    websocket::base::WebSocket,
+    data_service::{TensorDataServer, TensorDataService}, util::os_shutdown_signal, websocket::{base::WebSocket, server::WsServer}, CommunicationChannel, Message, Protocol, ProtocolServer
 };
 use std::{marker::PhantomData, sync::Arc};
 use tokio_util::sync::CancellationToken;
@@ -14,27 +11,27 @@ use crate::shared::{ComputeTask, Task};
 
 use super::session::SessionManager;
 
-pub struct RemoteServer<B, N>
+pub struct RemoteServer<B, P>
 where
     B: BackendIr,
-    N: Protocol,
+    P: Protocol,
 {
     _b: PhantomData<B>,
-    _n: PhantomData<N>,
+    _n: PhantomData<P>,
 }
 
-impl<B, N> RemoteServer<B, N>
+impl<B, P> RemoteServer<B, P>
 where
     B: BackendIr,
-    N: Protocol,
+    P: Protocol,
 {
     /// Start the server on the given address.
-    pub async fn start(device: Device<B>, port: u16) {
+    pub async fn start(device: Device<B>, server: P::Server) {
         let cancel_token = CancellationToken::new();
-        let data_service = Arc::new(TensorDataService::<B, N>::new(cancel_token));
-        let session_manager = Arc::new(SessionManager::<B, N>::new(device, data_service.clone()));
+        let data_service = Arc::new(TensorDataService::<B, P>::new(cancel_token));
+        let session_manager = Arc::new(SessionManager::<B, P>::new(device, data_service.clone()));
 
-        let _server = N::Server::new(port)
+        let _server = server
             .route("/response", {
                 let session_manager = session_manager.clone();
                 move |stream| Self::handle_socket_response(session_manager, stream)
@@ -49,8 +46,8 @@ where
     }
 
     async fn handle_socket_response(
-        session_manager: Arc<SessionManager<B, N>>,
-        mut socket: <N::Server as ProtocolServer>::Channel,
+        session_manager: Arc<SessionManager<B, P>>,
+        mut socket: <P::Server as ProtocolServer>::Channel,
     ) {
         log::info!("[Response Handler] On new connection.");
 
@@ -88,8 +85,8 @@ where
     }
 
     async fn handle_socket_request(
-        session_manager: Arc<SessionManager<B, N>>,
-        mut socket: <N::Server as ProtocolServer>::Channel,
+        session_manager: Arc<SessionManager<B, P>>,
+        mut socket: <P::Server as ProtocolServer>::Channel,
     ) {
         log::info!("[Request Handler] On new connection.");
         let mut session_id = None;
@@ -163,16 +160,14 @@ where
     }
 }
 
-pub async fn start_async<B, N>(device: Device<B>, port: u16)
-where
-    B: BackendIr,
-    N: Protocol,
-{
-    RemoteServer::<B, N>::start(device, port).await;
+/// Start the server on the given port and [device](Device).
+pub async fn start_websocket_async<B: BackendIr>(device: Device<B>, port: u16) {
+    let server = WsServer::new(port);
+    RemoteServer::<B, WebSocket>::start(device, server).await;
 }
 
 #[tokio::main]
 /// Start the server on the given port and [device](Device).
 pub async fn start_websocket<B: BackendIr>(device: Device<B>, port: u16) {
-    start_async::<B, WebSocket>(device, port).await
+    start_websocket_async::<B>(device, port).await;
 }

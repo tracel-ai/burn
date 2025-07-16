@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    AllReduceStrategy, SharedGlobalRegisterParams,
+    AllReduceStrategy,
     global::{
         server::base::GlobalCollectiveError,
         shared::base::{
@@ -39,8 +39,8 @@ pub(crate) struct GlobalCollectiveState {
     /// The params of the current all-reduce operation, as defined by the first caller
     cur_all_reduce_strategy: Option<AllReduceStrategy>,
 
-    /// The params of the current register operation, as defined by the first caller
-    cur_shared_params: Option<SharedGlobalRegisterParams>,
+    /// How many total nodes for the currrent register operation, as defined by the first caller
+    cur_num_nodes: Option<u32>,
     num_global_devices: u32,
 
     all_reduce_requests: Vec<(SessionId, RequestId, Address)>,
@@ -55,7 +55,7 @@ impl GlobalCollectiveState {
             registered_nodes: HashMap::new(),
             node_addresses: HashMap::new(),
             cur_all_reduce_strategy: None,
-            cur_shared_params: None,
+            cur_num_nodes: None,
             num_global_devices: 0,
             all_reduce_requests: Vec::new(),
             register_requests: Vec::new(),
@@ -104,16 +104,16 @@ impl GlobalCollectiveState {
             RemoteRequest::Register {
                 node_id,
                 node_addr,
-                num_local_devices,
-                shared_params,
+                num_nodes,
+                num_devices,
             } => {
                 self.register(
                     session_id,
                     request_id,
                     node_id,
                     node_addr,
-                    num_local_devices,
-                    shared_params,
+                    num_nodes,
+                    num_devices,
                 )
                 .await
             }
@@ -210,8 +210,8 @@ impl GlobalCollectiveState {
         request_id: RequestId,
         node_id: NodeId,
         node_addr: Address,
+        num_nodes: u32,
         num_devices: u32,
-        shared_params: SharedGlobalRegisterParams,
     ) -> Result<(), GlobalCollectiveError> {
         if self.node_addresses.contains_key(&node_id)
             || self.registered_nodes.contains_key(&session_id)
@@ -224,18 +224,18 @@ impl GlobalCollectiveState {
         self.register_requests.push((session_id, request_id));
 
         self.num_global_devices += num_devices;
-        match &self.cur_shared_params {
-            Some(cur_shared_params) => {
-                if *cur_shared_params != shared_params {
+        match &self.cur_num_nodes {
+            Some(cur_num_nodes) => {
+                if *cur_num_nodes != num_nodes {
                     return Err(GlobalCollectiveError::RegisterParamsMismatch);
                 }
             }
             None => {
-                self.cur_shared_params = Some(shared_params.clone());
+                self.cur_num_nodes = Some(num_nodes);
             }
         }
 
-        if self.registered_nodes.len() == shared_params.num_nodes as usize {
+        if self.registered_nodes.len() == num_nodes as usize {
             let mut callbacks = vec![];
             core::mem::swap(&mut callbacks, &mut self.register_requests);
 

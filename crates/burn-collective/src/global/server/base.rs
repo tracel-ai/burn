@@ -58,7 +58,7 @@ pub struct GlobalCollectiveServer {
 impl GlobalCollectiveServer {
     pub(crate) async fn start<F, S: ProtocolServer + Debug>(
         shutdown_signal: F,
-        port: u16,
+        comms_server: S,
     ) -> Result<(), GlobalCollectiveError>
     where
         F: Future<Output = ()> + Send + 'static,
@@ -68,8 +68,7 @@ impl GlobalCollectiveServer {
             state: Arc::new(tokio::sync::Mutex::new(state)),
         };
 
-        S::new(port)
-            .route("/response", {
+        comms_server.route("/response", {
                 let server = server.clone();
                 async move |socket| {
                     if let Err(err) = server.handle_socket_response::<S>(socket).await {
@@ -165,8 +164,8 @@ impl GlobalCollectiveServer {
 }
 
 /// Start the server on the given port
-pub async fn start<S: ProtocolServer + Debug>(port: u16) {
-    let res = GlobalCollectiveServer::start::<_, S>(os_shutdown_signal(), port).await;
+pub async fn start<S: ProtocolServer + Debug>(server: S) {
+    let res = GlobalCollectiveServer::start::<_, S>(os_shutdown_signal(), server).await;
     if let Err(err) = res {
         eprintln!("Global Collective Server error: {err:?}");
     }

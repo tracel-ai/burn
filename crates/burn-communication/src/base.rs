@@ -64,9 +64,6 @@ pub trait ProtocolServer: Sized + Send + Sync + 'static {
     /// The error type.
     type Error: CommunicationError;
 
-    /// TODO: Remove from the trait.
-    fn new(port: u16) -> Self;
-
     /// Defines an endpoint with the function that responds.
     fn route<C, Fut>(self, path: &str, callback: C) -> Self
     where

@@ -16,28 +16,28 @@ use tokio::sync::mpsc::{Receiver, Sender};
 /// A stream makes sure all operations registered are executed in the order they were sent to the
 /// server, protentially waiting to reconstruct consistency.
 #[derive(Clone)]
-pub struct Stream<B, N>
+pub struct Stream<B, P>
 where
     B: BackendIr,
-    N: Protocol,
+    P: Protocol,
 {
     compute_sender: Sender<ProcessorTask>,
     writer_sender: Sender<Receiver<TaskResponse>>,
     _p: PhantomData<B>,
-    _n: PhantomData<N>,
+    _n: PhantomData<P>,
 }
 
-impl<B, N> Stream<B, N>
+impl<B, P> Stream<B, P>
 where
     B: BackendIr,
-    N: Protocol,
+    P: Protocol,
 {
     pub async fn new(
         runner: Runner<B>,
         writer_sender: Sender<Receiver<TaskResponse>>,
-        data_service: Arc<TensorDataService<B, N>>,
+        data_service: Arc<TensorDataService<B, P>>,
     ) -> Self {
-        let sender = Processor::<B, N>::start(runner, data_service).await;
+        let sender = Processor::<B, P>::start(runner, data_service).await;
 
         Self {
             compute_sender: sender,

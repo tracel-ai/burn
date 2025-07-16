@@ -7,17 +7,17 @@ use std::{
     },
 };
 
-use burn_communication::websocket::base::WebSocket;
+use burn_communication::websocket::{base::WebSocket, server::WsServer};
 use burn_tensor::backend::Backend;
 use tokio::runtime::{Builder, Runtime};
 
 use crate::{
-    AllReduceStrategy, CollectiveError, DeviceId, RegisterParams, SharedAllReduceParams,
-    SharedRegisterParams, centralized::all_reduce_centralized,
+    AllReduceStrategy, CollectiveError, DeviceId, GlobalRegisterParams,
+    SharedAllReduceParams, centralized::all_reduce_centralized,
     global::client::base::GlobalCollectiveClient, ring::all_reduce_ring, tree::all_reduce_tree,
 };
 
-// Define the client/server communication on the network
+/// Define the client/server communication on the network
 type Network = WebSocket;
 /// Type sent to the collective client upon completion of a register request
 type RegisterResult = Result<(), CollectiveError>;
@@ -31,14 +31,14 @@ type FinishResult = Result<(), CollectiveError>;
 /// This thread takes in messages from different clients. The clients must register, than they can
 /// send an aggregate message. They must all use the same parameters for the same aggregate
 /// operation.
-pub struct LocalCollectiveServer<B: Backend> {
+pub(crate) struct LocalCollectiveServer<B: Backend> {
     /// Channel receiver for messages from clients
     message_rec: Receiver<Message<B>>,
 
     /// The ids passed to each register so far
     registered_ids: Vec<DeviceId>,
     /// The params of the current operation, as defined by the first caller
-    cur_register_params: Option<SharedRegisterParams>,
+    cur_num_devices: Option<u32>,
     /// The params of the current operation, as defined by the first caller
     cur_allreduce_params: Option<SharedAllReduceParams>,
     /// The tensor primitives passed by each operation call
@@ -52,6 +52,7 @@ pub struct LocalCollectiveServer<B: Backend> {
     global_client: Option<GlobalCollectiveClient<B, Network>>,
 }
 
+
 #[derive(Debug)]
 pub(crate) enum Message<B: Backend> {
     AllReduce {
@@ -61,7 +62,9 @@ pub(crate) enum Message<B: Backend> {
         callback: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
     },
     Register {
-        params: RegisterParams,
+        device_id: DeviceId,
+        num_devices: u32,
+        global_params: Option<GlobalRegisterParams>,
         callback: SyncSender<RegisterResult>,
     },
     Reset,
@@ -116,22 +119,32 @@ pub(crate) fn get_collective_client<B: Backend>() -> LocalCollectiveClient<B> {
 }
 
 impl<B: Backend> LocalCollectiveClient<B> {
-    pub fn reset(&self) {
+    pub(crate) fn reset(&self) {
         self.channel.send(Message::Reset).unwrap();
     }
 
-    pub fn register(&mut self, params: RegisterParams) -> RegisterResult {
+    pub(crate) fn register(
+        &mut self,
+        device_id: DeviceId,
+        num_devices: u32,
+        global_params: Option<GlobalRegisterParams>,
+    ) -> RegisterResult {
         let (callback, rec) = std::sync::mpsc::sync_channel::<RegisterResult>(1);
 
         self.channel
-            .send(Message::Register { params, callback })
+            .send(Message::Register {
+                device_id,
+                num_devices,
+                global_params,
+                callback,
+            })
             .unwrap();
 
         rec.recv()
             .unwrap_or(Err(CollectiveError::LocalServerMissing))
     }
 
-    pub fn all_reduce(
+    pub(crate) fn all_reduce(
         &self,
         device_id: DeviceId,
         tensor: B::FloatTensorPrimitive,
@@ -155,7 +168,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
             .unwrap_or(Err(CollectiveError::LocalServerMissing))
     }
 
-    pub fn finish(&self, id: DeviceId) -> FinishResult {
+    pub(crate) fn finish(&self, id: DeviceId) -> FinishResult {
         let (callback, rec) = std::sync::mpsc::sync_channel::<FinishResult>(1);
         self.channel.send(Message::Finish { id, callback }).unwrap();
 
@@ -169,7 +182,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         Self {
             message_rec: rec,
             registered_ids: vec![],
-            cur_register_params: None,
+            cur_num_devices: None,
             cur_allreduce_params: None,
             tensors: vec![],
             callbacks_register: vec![],
@@ -216,9 +229,12 @@ impl<B: Backend> LocalCollectiveServer<B> {
                 self.process_all_reduce_message(device_id, tensor, params, callback)
                     .await
             }
-            Message::Register { params, callback } => {
-                self.process_register_message(params, callback).await
-            }
+            Message::Register {
+                device_id,
+                num_devices, 
+                global_params: global,
+                callback,
+            } => self.process_register_message(device_id, num_devices, global, callback).await,
             Message::Reset => self.reset(),
             Message::Finish { id, callback } => self.process_finish_message(id, callback).await,
         }
@@ -285,47 +301,48 @@ impl<B: Backend> LocalCollectiveServer<B> {
 
     async fn process_register_message(
         &mut self,
-        params: RegisterParams,
+        device_id: DeviceId,
+        num_devices: u32,
+        global_params: Option<GlobalRegisterParams>,
         callback: SyncSender<RegisterResult>,
     ) {
-        let id = params.device_id;
-
-        if self.registered_ids.contains(&id) {
+        if self.registered_ids.contains(&device_id) {
             let result = Err(CollectiveError::MultipleRegister);
             callback.send(result).unwrap();
             return;
         }
-        if self.registered_ids.is_empty() || self.cur_register_params.is_none() {
-            self.cur_register_params = Some(params.shared.clone());
-        } else if self.cur_register_params.clone().unwrap() != params.shared {
+        if self.registered_ids.is_empty() || self.cur_num_devices.is_none() {
+            self.cur_num_devices = Some(num_devices);
+        } else if self.cur_num_devices.unwrap() != num_devices {
             let result = Err(CollectiveError::RegisterParamsMismatch);
             callback.send(result).unwrap();
             return;
         }
 
-        self.registered_ids.push(id);
+        self.registered_ids.push(device_id);
         self.callbacks_register.push(callback.clone());
 
-        if let Some(global_params) = &params.global {
+        if let Some(global_params) = &global_params {
             if self.global_client.is_none() {
+                let server = WsServer::new(global_params.client_data_port);
                 let client = GlobalCollectiveClient::new(
                     &global_params.server_address,
                     &global_params.client_address,
-                    global_params.client_data_port,
+                    server,
                 );
                 self.global_client = Some(client)
             }
         }
 
         // All have registered, callback
-        if self.registered_ids.len() == params.shared.num_devices as usize {
-            if let Some(global_params) = params.global {
+        if self.registered_ids.len() == num_devices as usize {
+            if let Some(global_params) = global_params {
                 let client = self
                     .global_client
                     .as_mut()
                     .expect("Global client should be initialized");
 
-                let res = client.register(params.shared, global_params).await;
+                let res = client.register(num_devices, global_params).await;
 
                 if let Err(err) = res {
                     callback.send(Err(CollectiveError::Global(err))).unwrap();

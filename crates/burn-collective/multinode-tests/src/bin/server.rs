@@ -9,5 +9,6 @@ pub async fn main() {
     let args: Vec<String> = env::args().collect();
 
     let port = args[1].parse::<u16>().expect("invalid port");
-    start::<WsServer>(port).await;
+    let server = WsServer::new(port);
+    start(server).await;
 }

@@ -2,8 +2,8 @@ use burn_communication::Address;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AllReduceStrategy, DeviceId, GlobalRegisterParams, ReduceKind, RegisterParams,
-    SharedAllReduceParams, SharedGlobalRegisterParams, SharedRegisterParams,
+    AllReduceStrategy, DeviceId, ReduceKind,
+    SharedAllReduceParams,
     global::shared::base::NodeId,
 };
 
@@ -89,39 +89,6 @@ impl CollectiveConfig {
     pub fn with_global_strategy(mut self, strategy: AllReduceStrategy) -> Self {
         self.global_strategy = Some(strategy);
         self
-    }
-
-    /// Converts the config into `RegisterParams`, returning an error if only partial global fields are set.
-    pub fn register_params(&self) -> Option<RegisterParams> {
-        let global = match (
-            self.node_id,
-            self.num_nodes,
-            &self.server_address,
-            &self.client_address,
-            self.client_data_port,
-        ) {
-            (None, None, None, None, None) => None, // fully local
-            (Some(node_id), Some(num_nodes), Some(server_addr), Some(client_addr), Some(port)) => {
-                Some(GlobalRegisterParams {
-                    node_id,
-                    server_address: server_addr.clone(),
-                    client_address: client_addr.clone(),
-                    client_data_port: port,
-                    shared_params: SharedGlobalRegisterParams { num_nodes },
-                })
-            }
-            _ => return None,
-        };
-
-        let shared = SharedRegisterParams {
-            num_devices: self.num_devices,
-        };
-
-        Some(RegisterParams {
-            device_id: self.device_id,
-            shared,
-            global,
-        })
     }
 
     /// Converts the config into `AllReduceParams`, using optional global strategy.

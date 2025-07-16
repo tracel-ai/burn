@@ -1,5 +1,5 @@
 use burn_common::future::DynFut;
-use burn_communication::{Address, data_service::TensorTransferId};
+use burn_communication::{data_service::TensorTransferId, Address, ProtocolClient};
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 use burn_tensor::{
@@ -7,22 +7,20 @@ use burn_tensor::{
     backend::{DeviceId, DeviceOps},
 };
 use std::{
-    hash::{DefaultHasher, Hash, Hasher},
-    str::FromStr,
-    sync::{Arc, Mutex},
+    hash::{DefaultHasher, Hash, Hasher}, marker::PhantomData, str::FromStr, sync::Mutex
 };
 
 use crate::shared::{ComputeTask, TaskResponseContent, TensorRemote};
 
-use super::{WsChannel, WsClient};
+use super::{RemoteChannel, RemoteClient};
 
 // It is very important to block on any request made with the sender, since ordering is crucial
 // when registering operation or creating tensors.
 //
 // The overhead is minimal, since we only wait for the task to be sent to the async
-// channel, but not sent to the websocket server and even less processed by the server.
-impl RunnerClient for WsClient {
-    type Device = WsDevice;
+// channel, but not sent to the server and even less processed by the server.
+impl RunnerClient for RemoteClient {
+    type Device = RemoteDevice;
 
     fn register(&self, op: burn_ir::OperationIr) {
         self.sender
@@ -92,36 +90,27 @@ impl RunnerClient for WsClient {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 /// The device contains the connection information of the server.
-pub struct WsDevice {
-    pub(crate) address: Arc<Address>,
+pub struct RemoteDevice {
+    pub(crate) address: Address,
     // Unique ID generated from hash of the address
     pub(crate) id: u32,
 }
 
-impl WsDevice {
+impl RemoteDevice {
     /// Create a device from an url.
-    pub fn new(url: &str) -> Self {
-        let mut address = String::new();
-
-        if !url.starts_with("ws://") {
-            address += "ws://";
-            address += url;
-        } else {
-            address += url;
-        };
-
+    pub fn new(address: &str) -> Self {
         let mut hasher = DefaultHasher::new();
         address.hash(&mut hasher);
         let id = hasher.finish() as u32;
 
         Self {
-            address: Arc::new(Address::from_str(&address).unwrap()),
+            address: Address::from_str(address).unwrap(),
             id,
         }
     }
 }
 
-impl Default for WsDevice {
+impl Default for RemoteDevice {
     fn default() -> Self {
         let address = match std::env::var("BURN_REMOTE_ADDRESS") {
             Ok(address) => address,
@@ -132,7 +121,7 @@ impl Default for WsDevice {
     }
 }
 
-impl DeviceOps for WsDevice {
+impl DeviceOps for RemoteDevice {
     fn id(&self) -> DeviceId {
         DeviceId {
             type_id: 0,
@@ -141,11 +130,14 @@ impl DeviceOps for WsDevice {
     }
 }
 
-pub struct WsBridge;
+pub struct RemoteBridge<C: ProtocolClient> {
+    _p: PhantomData<C>,
+}
 
-pub struct RemoteTensorHandle {
-    pub(crate) client: WsClient,
+pub struct RemoteTensorHandle<C: ProtocolClient> {
+    pub(crate) client: RemoteClient,
     pub(crate) tensor: TensorIr,
+    pub(crate) _p: PhantomData<C>
 }
 
 static TRANSFER_COUNTER: Mutex<Option<TensorTransferId>> = Mutex::new(None);
@@ -164,13 +156,13 @@ fn get_next_transfer_id() -> TensorTransferId {
     }
 }
 
-impl RemoteTensorHandle {
+impl<C: ProtocolClient> RemoteTensorHandle<C> {
     /// Changes the backend of the tensor via a dWebSocket.
     /// We ask the original server to expose the tensor, then ask the target server to fetch
-    /// the tensor. The target server will open a new websocket connection to the original server
+    /// the tensor. The target server will open a new network connection to the original server
     /// to download the data.
     /// This way the client never sees the tensor's data, and we avoid a bottleneck.
-    pub(crate) fn change_backend(mut self, target_device: &WsDevice) -> Self {
+    pub(crate) fn change_backend(mut self, target_device: &RemoteDevice) -> Self {
         let transfer_id = get_next_transfer_id();
         self.client.sender.send(ComputeTask::ExposeTensorRemote {
             tensor: self.tensor.clone(),
@@ -178,13 +170,13 @@ impl RemoteTensorHandle {
             transfer_id,
         });
 
-        let target_client: WsClient = get_client::<WsChannel>(target_device);
+        let target_client = get_client::<RemoteChannel<C>>(target_device);
 
         let new_id = target_client.sender.new_tensor_id();
 
         let remote_tensor = TensorRemote {
             transfer_id,
-            address: (*self.client.device.address).clone(),
+            address: self.client.device.address.clone(),
         };
         target_client
             .sender
@@ -197,9 +189,9 @@ impl RemoteTensorHandle {
     }
 }
 
-impl MultiBackendBridge for WsBridge {
-    type TensorHandle = RemoteTensorHandle;
-    type Device = WsDevice;
+impl<C: ProtocolClient> MultiBackendBridge for RemoteBridge<C> {
+    type TensorHandle = RemoteTensorHandle<C>;
+    type Device = RemoteDevice;
 
     fn change_backend_float(
         tensor: Self::TensorHandle,

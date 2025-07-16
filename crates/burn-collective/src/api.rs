@@ -7,18 +7,7 @@ use crate::{
     local_server::get_collective_client,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RegisterParams {
-    pub device_id: DeviceId,
-    pub shared: SharedRegisterParams,
-    pub global: Option<GlobalRegisterParams>,
-}
-
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct SharedRegisterParams {
-    pub num_devices: u32,
-}
-
+/// Paramters for registering a node on the global level
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GlobalRegisterParams {
     /// The id of this node, should be unique.
@@ -31,16 +20,11 @@ pub struct GlobalRegisterParams {
     /// given in the client url.
     pub client_data_port: u16,
 
-    /// Parameters that should be shared between different nodes
-    pub shared_params: SharedGlobalRegisterParams,
-}
-
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct SharedGlobalRegisterParams {
-    /// The number of nodes globally.
+    /// The number of nodes globally. Should be the same between different nodes
     pub num_nodes: u32,
 }
 
+/// Parameters for an all-reduce that should be the same between all devices
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct SharedAllReduceParams {
     pub kind: ReduceKind,
@@ -48,41 +32,58 @@ pub struct SharedAllReduceParams {
     pub global_strategy: Option<AllReduceStrategy>,
 }
 
+/// Reduce can be done different ways
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum ReduceKind {
     Sum,
     Mean,
 }
 
+/// All reduce can be implemented with different algorithms, which all have the same result.
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum AllReduceStrategy {
+    /// One device is the "central". The other devices, "peripherals", send their tensors to the 
+    /// central. The central does the reduction, and sends the result back to each peripheral.  
     Centralized,
+
+    /// Devices are organized in a tree structure (with a given arity). Each node reduces its 
+    /// children's tensors with its own, and sends the result to its parent. Leaf nodes will 
+    /// simply send their tensors to their parents. 
+    /// When the root node calculates the result, it is propagated down the tree.
     Tree(u32),
+    
+    /// Devices are organized in a ring. The tensors are split into N slices, where N is the 
+    /// number of devices participating. The slices are progressively sent around the ring until 
+    /// every device has one fully reduced slice of the tensor. Then, the resulting slices are sent 
+    /// around until every device has the full result.
+    /// See `ring.rs` for details.
     Ring,
 }
 
+/// Errors from collective operations
 #[allow(unused)]
 #[derive(Debug, Clone)]
 pub enum CollectiveError {
-    // Cannot un-register a node twice
+    /// Cannot un-register a node twice
     MultipleUnregister,
-    // Cannot register a node twice
+    /// Cannot register a node twice
     MultipleRegister,
-    // Trying to register a different way than is currently being done
+    /// Trying to register a different way than is currently being done
     RegisterParamsMismatch,
-    // Trying to aggregate a different way than is currently being done
+    /// Trying to aggregate a different way than is currently being done
     AllReduceParamsMismatch,
-    // Local collective server couldn't respond
+    /// Local collective server couldn't respond
     LocalServerMissing,
-    // Another operation was called before Register
+    /// Another operation was called before Register
     RegisterNotFirstOperation,
-    // The Global collective server had an error
+    /// The Global collective server had an error
     Global(GlobalCollectiveError),
 
     #[allow(unused)]
     Other(String),
 }
 
+/// A unique identifier for a device in the context of collective operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DeviceId(u32);
 
@@ -94,9 +95,9 @@ impl From<u32> for DeviceId {
 
 /// Registers a "node". `num_nodes` must be the same as the other calls to register,
 /// and `device_id` must be unique. Registering is done per Backend.
-pub fn register<B: Backend>(params: RegisterParams) -> Result<(), CollectiveError> {
+pub fn register<B: Backend>(device_id: DeviceId, num_devices: u32, global_params: Option<GlobalRegisterParams>) -> Result<(), CollectiveError> {
     let mut client = get_collective_client::<B>();
-    client.register(params)
+    client.register(device_id, num_devices, global_params)
 }
 
 /// Calls for an all-reduce operation with the given parameters, and returns the result.
@@ -117,6 +118,7 @@ pub fn all_reduce<B: Backend, const D: usize>(
     Ok(tensor)
 }
 
+/// Closes the collective session, unregistering the device
 pub fn finish_collective<B: Backend>(id: DeviceId) -> Result<(), CollectiveError> {
     let client = get_collective_client::<B>();
     client.finish(id)

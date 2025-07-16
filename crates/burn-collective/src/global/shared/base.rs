@@ -6,7 +6,7 @@ use burn_communication::Address;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AllReduceStrategy, SharedGlobalRegisterParams, global::server::base::GlobalCollectiveError,
+    AllReduceStrategy, global::server::base::GlobalCollectiveError,
 };
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -70,8 +70,10 @@ pub enum RemoteRequest {
     Register {
         node_id: NodeId,
         node_addr: Address,
-        num_local_devices: u32,
-        shared_params: SharedGlobalRegisterParams,
+        /// Number of total nodes
+        num_nodes: u32,
+        /// Number of local devices on the requesting node 
+        num_devices: u32,
     },
     Reset,
     /// Unregister node

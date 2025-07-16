@@ -12,13 +12,13 @@ use tokio::sync::mpsc::Sender;
 use crate::shared::{ConnectionId, TaskResponse, TaskResponseContent, TensorRemote};
 
 /// The goal of the processor is to asynchronously process compute tasks on it own thread.
-pub struct Processor<B, N>
+pub struct Processor<B, P>
 where
     B: BackendIr,
-    N: Protocol,
+    P: Protocol,
 {
     p: PhantomData<B>,
-    n: PhantomData<N>,
+    n: PhantomData<P>,
 }
 
 pub type Callback<M> = Sender<M>;
@@ -37,14 +37,14 @@ pub enum ProcessorTask {
     Close,
 }
 
-impl<B: BackendIr, N> Processor<B, N>
+impl<B: BackendIr, P> Processor<B, P>
 where
     B: BackendIr,
-    N: Protocol,
+    P: Protocol,
 {
     pub async fn start(
         runner: Runner<B>,
-        data_service: Arc<TensorDataService<B, N>>,
+        data_service: Arc<TensorDataService<B, P>>,
     ) -> Sender<ProcessorTask> {
         // channel for tasks to execute
         let (task_sender, mut task_rec) = tokio::sync::mpsc::channel(1);

@@ -8,7 +8,7 @@ use tokio_util::sync::CancellationToken;
 use crate::global::server::base::GlobalCollectiveError;
 use crate::{AllReduceStrategy, GlobalRegisterParams};
 use crate::{
-    ReduceKind, SharedRegisterParams,
+    ReduceKind,
     global::{
         client::{
             centralized::centralized_all_reduce_sum, ring::ring_all_reduce_sum,
@@ -36,13 +36,13 @@ where
     B: Backend,
     N: Protocol,
 {
-    pub fn new(server_address: &Address, client_address: &Address, data_server_port: u16) -> Self {
+    pub fn new(server_address: &Address, client_address: &Address, comms_server: N::Server) -> Self {
         let cancel_token = CancellationToken::new();
 
         let data_service = Arc::new(TensorDataService::new(cancel_token.clone()));
 
         let runtime = get_server_runtime();
-        let server = N::Server::new(data_server_port)
+        let server = comms_server
             .route_tensor_data_service(data_service.clone())
             .serve({
                 let cancel_token = cancel_token.clone();
@@ -64,7 +64,7 @@ where
 
     pub async fn register(
         &mut self,
-        params: SharedRegisterParams,
+        num_devices: u32,
         global_params: GlobalRegisterParams,
     ) -> Result<(), GlobalCollectiveError> {
         let node_addr = self.data_client_address.as_ref().clone();
@@ -72,8 +72,8 @@ where
         let req = RemoteRequest::Register {
             node_id: global_params.node_id,
             node_addr,
-            shared_params: global_params.shared_params,
-            num_local_devices: params.num_devices,
+            num_nodes: global_params.num_nodes,
+            num_devices,
         };
         match self.worker.request(req).await {
             RemoteResponse::RegisterAck { num_global_devices } => {

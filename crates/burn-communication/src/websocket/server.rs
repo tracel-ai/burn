@@ -24,16 +24,18 @@ pub struct WsServerChannel {
     inner: WebSocket,
 }
 
-impl ProtocolServer for WsServer {
-    type Channel = WsServerChannel;
-    type Error = WsServerError;
-
-    fn new(port: u16) -> Self {
+impl WsServer {
+    pub fn new(port: u16) -> Self {
         Self {
             port,
             router: Router::new(),
         }
     }
+}
+
+impl ProtocolServer for WsServer {
+    type Channel = WsServerChannel;
+    type Error = WsServerError;
 
     async fn serve<F>(self, shutdown: F) -> Result<(), Self::Error>
     where
