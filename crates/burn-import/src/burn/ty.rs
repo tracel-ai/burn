@@ -63,14 +63,24 @@ pub enum Type {
 
 impl Type {
     // This is used, because types might have number literal name, which cannot be
-    // used as a variable name.
+    // used as a variable name, or contain invalid identifier characters.
+    // TODO (antimora) push the name sanitization upstream to onnx-ir; this is simple for now
     pub fn format_name(name: &str) -> String {
-        let name_is_number = name.bytes().all(|digit| digit.is_ascii_digit());
-        if name_is_number {
-            format!("_{name}")
-        } else {
-            name.to_string()
+        let mut result = String::with_capacity(name.len());
+        // Sanitize the name by replacing invalid identifier characters with underscores
+        for c in name.chars() {
+            if c.is_ascii_alphanumeric() || c == '_' {
+                result.push(c);
+            } else {
+                result.push('_');
+            }
         }
+
+        // Ensure the first character is valid to start an identifier
+        if !result.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_') {
+            result = format!("_{result}");
+        }
+        result
     }
     pub fn name(&self) -> &Ident {
         match self {
@@ -251,5 +261,55 @@ impl OtherType {
     }
     pub fn ty(&self) -> TokenStream {
         self.ty.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_name_with_problematic_characters() {
+        // Test the problematic node name from GitHub issue #2878
+        let problematic_name = "jax2tf_rhs_/pjit_silu_/Const_2:0";
+        let sanitized = Type::format_name(problematic_name);
+        assert_eq!(sanitized, "jax2tf_rhs__pjit_silu__Const_2_0");
+    }
+
+    #[test]
+    fn test_format_name_edge_cases() {
+        // Test various edge cases
+        assert_eq!(Type::format_name("normal_name"), "normal_name");
+        assert_eq!(Type::format_name("123"), "_123");
+        assert_eq!(Type::format_name("name:with:colons"), "name_with_colons");
+        assert_eq!(Type::format_name("name/with/slashes"), "name_with_slashes");
+        assert_eq!(Type::format_name("name-with-dashes"), "name_with_dashes");
+        assert_eq!(Type::format_name("name.with.dots"), "name_with_dots");
+        assert_eq!(Type::format_name("name with spaces"), "name_with_spaces");
+        assert_eq!(
+            Type::format_name("9starts_with_number"),
+            "_9starts_with_number"
+        );
+        assert_eq!(
+            Type::format_name(":starts_with_colon"),
+            "_starts_with_colon"
+        );
+    }
+
+    #[test]
+    fn test_format_name_preserves_valid_identifiers() {
+        // Test that valid identifiers are preserved
+        assert_eq!(Type::format_name("valid_name"), "valid_name");
+        assert_eq!(Type::format_name("_underscore_start"), "_underscore_start");
+        assert_eq!(Type::format_name("CamelCase"), "CamelCase");
+        assert_eq!(Type::format_name("snake_case"), "snake_case");
+        assert_eq!(Type::format_name("name123"), "name123");
+    }
+
+    #[test]
+    fn test_tensor_type_creation_with_problematic_name() {
+        // Test that TensorType can be created with problematic names
+        let tensor = TensorType::new("jax2tf_rhs_/pjit_silu_/Const_2:0", 2, TensorKind::Float);
+        assert_eq!(tensor.name.to_string(), "jax2tf_rhs__pjit_silu__Const_2_0");
     }
 }
