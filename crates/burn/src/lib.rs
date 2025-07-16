@@ -113,3 +113,6 @@ pub mod backend;
 
 #[cfg(feature = "server")]
 pub use burn_remote::server;
+
+#[cfg(feature = "collective")]
+pub mod collective;

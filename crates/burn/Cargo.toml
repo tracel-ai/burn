@@ -19,6 +19,7 @@ workspace = true
 default = [
     "burn-core/default",
     "burn-train?/default",
+    "burn-collective?/default",
     "std",
     # Backends
     "burn-candle?/default",
@@ -36,6 +37,7 @@ doc = [
     "train",
     "burn-core/doc",
     "burn-train/doc",
+    "burn-collective/doc",
     # Backends
     "burn-candle/doc",
     "burn-ndarray/doc",

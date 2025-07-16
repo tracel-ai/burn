@@ -40,9 +40,6 @@ pub mod record;
 /// Module for the tensor.
 pub mod tensor;
 
-#[cfg(feature = "collective")]
-pub mod collective;
-
 extern crate alloc;
 
 /// Backend for test cases
