@@ -48,11 +48,11 @@ impl SliceNode {
         output: &proc_macro2::Ident,
     ) -> TokenStream {
         let input = scope.tensor_use_owned(tensor, node_position);
-        
+
         // Create slice ranges for all dimensions
         let rank = tensor.rank;
         let mut ranges = vec![quote! { .. }; rank];
-        
+
         // Handle different slice configurations
         match (&self.starts, &self.ends) {
             (SliceParam::Static(starts), SliceParam::Static(ends)) => {
@@ -69,23 +69,23 @@ impl SliceNode {
                 ranges[0] = quote! { #start_expr..#end_expr };
             }
         }
-        
+
         quote! {
             let #output = #input.slice(s![#(#ranges),*]);
         }
     }
-    
+
     fn get_slice_range_expressions(&self) -> (TokenStream, TokenStream) {
         let start_expr = match &self.starts {
             SliceParam::Static(starts) => starts[0].to_tokens(),
             SliceParam::Runtime(start_type) => self.get_scalar_expr(start_type),
         };
-        
+
         let end_expr = match &self.ends {
             SliceParam::Static(ends) => ends[0].to_tokens(),
             SliceParam::Runtime(end_type) => self.get_scalar_expr(end_type),
         };
-        
+
         (start_expr, end_expr)
     }
 

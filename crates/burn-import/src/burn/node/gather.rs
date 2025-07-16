@@ -4,12 +4,40 @@ use crate::burn::{BurnImports, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
+#[derive(Debug, Clone)]
 pub struct GatherNode {
     pub input: Type,
-    pub index: Type,
+    pub index: GatherIndices,
     pub output: Type,
     pub dim: usize,
+}
+
+#[derive(Debug, Clone)]
+pub enum GatherIndices {
+    /// Static indices known at compile time
+    Static(Vec<i64>),
+    /// Runtime indices as a Type
+    Runtime(Type),
+}
+
+impl GatherNode {
+    pub fn new(input: Type, index: Type, output: Type, dim: usize) -> Self {
+        Self {
+            input,
+            index: GatherIndices::Runtime(index),
+            output,
+            dim,
+        }
+    }
+
+    pub fn with_static_indices(input: Type, indices: Vec<i64>, output: Type, dim: usize) -> Self {
+        Self {
+            input,
+            index: GatherIndices::Static(indices),
+            output,
+            dim,
+        }
+    }
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
@@ -18,7 +46,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
     }
 
     fn input_types(&self) -> Vec<crate::burn::Type> {
-        vec![self.input.clone(), self.index.clone()]
+        match &self.index {
+            GatherIndices::Runtime(index_type) => vec![self.input.clone(), index_type.clone()],
+            GatherIndices::Static(_) => vec![self.input.clone()],
+        }
     }
 
     fn forward(
@@ -45,12 +76,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
             match &self.output {
                 Type::Shape(out_shape) => {
                     match &self.index {
-                        Type::Tensor(idx_tensor) => {
+                        GatherIndices::Runtime(Type::Tensor(idx_tensor)) => {
                             let index = scope.tensor_use_owned(idx_tensor, node_position);
                             let index_rank = idx_tensor.rank;
                             let output_rank = out_shape.rank;
                             let input_shape_name = &input_shape.name;
-                            
+
                             if index_rank == 1 {
                                 quote! {
                                     let input_shape = &#input_shape_name;
@@ -63,13 +94,43 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
                                     let #output: [usize; #output_rank] = output_shape.try_into().unwrap();
                                 }
                             } else {
-                                panic!("Multi-dimensional indices for Shape gather not yet supported");
+                                panic!(
+                                    "Multi-dimensional indices for Shape gather not yet supported"
+                                );
                             }
                         }
-                        _ => panic!("Gather from Shape to Shape needs Tensor index, got {:?}!", self.index),
+                        GatherIndices::Static(indices) => {
+                            let output_rank = out_shape.rank;
+                            let input_shape_name = &input_shape.name;
+                            let indices_len = indices.len();
+
+                            if indices_len != output_rank {
+                                panic!(
+                                    "Static indices length {indices_len} doesn't match output rank {output_rank}"
+                                );
+                            }
+
+                            // Generate static gathering code
+                            let gather_elements = indices.iter().map(|&idx| {
+                                let idx_usize = idx as usize;
+                                quote! { input_shape[#idx_usize] }
+                            });
+
+                            quote! {
+                                let input_shape = &#input_shape_name;
+                                let #output: [usize; #output_rank] = [#(#gather_elements),*];
+                            }
+                        }
+                        _ => panic!(
+                            "Gather from Shape to Shape needs Tensor index, got {:?}!",
+                            self.index
+                        ),
                     }
                 }
-                _ => panic!("Gather from Shape input can only output Shape, got {:?}!", self.output),
+                _ => panic!(
+                    "Gather from Shape input can only output Shape, got {:?}!",
+                    self.output
+                ),
             }
         } else {
             // Handle Tensor input with tensor operations
@@ -81,13 +142,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
             match &self.output {
                 Type::Tensor(_) => {
                     match &self.index {
-                        Type::Scalar(idx_scalar) => {
+                        GatherIndices::Runtime(Type::Scalar(idx_scalar)) => {
                             // To do a scalar select (select just a single index in one dim),
                             // convert the 0-D index to a 1-D Tensor with len 1 to use burn's select,
                             // then squeeze the dimension to reduce the rank
                             let index = &idx_scalar.name;
                             let output_rank = input_rank - 1;
-                            
+
                             if output_rank == 0 {
                                 // If output rank is 0, squeeze and keep as 1D tensor
                                 quote! {
@@ -102,24 +163,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
                                 }
                             }
                         }
-                        Type::Tensor(idx_tensor) => {
+                        GatherIndices::Runtime(Type::Tensor(idx_tensor)) => {
                             let index = scope.tensor_use_owned(idx_tensor, node_position);
                             let index_rank = idx_tensor.rank;
                             let output_rank = index_rank + input_rank - 1;
                             let final_rank = output_rank.max(1); // Ensure minimum rank of 1
-                            
+
                             match index_rank {
                                 1 => {
-                                    if output_rank == 0 {
-                                        quote! {
-                                            let indices = #index;
-                                            let #output = Tensor::select(#input, #dim, indices);
-                                        }
-                                    } else {
-                                        quote! {
-                                            let indices = #index;
-                                            let #output = Tensor::select(#input, #dim, indices);
-                                        }
+                                    quote! {
+                                        let indices = #index;
+                                        let #output = Tensor::select(#input, #dim, indices);
                                     }
                                 }
                                 _ => quote! {
@@ -143,13 +197,33 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
                                 },
                             }
                         }
+                        GatherIndices::Static(indices) => {
+                            // Static indices for tensor gathering
+                            let indices_tokens = indices
+                                .iter()
+                                .map(|&idx| quote! { #idx })
+                                .collect::<Vec<_>>();
+
+                            // Calculate output rank based on indices dimensionality
+                            let indices_rank = 1; // Static indices are always 1D
+                            let output_rank = indices_rank + input_rank - 1;
+
+                            if output_rank == 0 {
+                                quote! {
+                                    let indices = Tensor::<B, 1, _>::from_data([#(#indices_tokens),*], &*self.device);
+                                    let #output = Tensor::select(#input, #dim, indices);
+                                }
+                            } else {
+                                quote! {
+                                    let indices = Tensor::<B, 1, _>::from_data([#(#indices_tokens),*], &*self.device);
+                                    let #output = Tensor::select(#input, #dim, indices);
+                                }
+                            }
+                        }
                         _ => panic!("Gather needs Scalar or Tensor index, got {:?}!", self.index),
                     }
                 }
-                _ => panic!(
-                    "Gather needs Tensor output, got {:?}!",
-                    self.output
-                ),
+                _ => panic!("Gather needs Tensor output, got {:?}!", self.output),
             }
         }
     }
@@ -414,4 +488,102 @@ mod tests {
     }
 
     // Scalar output test removed - no longer supported
+
+    #[test]
+    fn test_codegen_gather_static_indices() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(GatherNode::with_static_indices(
+            Type::Tensor(TensorType::new_float("tensor1", 2)),
+            vec![0, 2, 1],
+            Type::Tensor(TensorType::new_float("tensor2", 2)),
+            0,
+        ));
+
+        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(
+                    &self,
+                    tensor1: Tensor<B, 2>
+                ) -> Tensor<B, 2> {
+                    let indices = Tensor::<B, 1, _>::from_data([0i64, 2i64, 1i64], &*self.device);
+                    let tensor2 = Tensor::select(tensor1, 0, indices);
+                    tensor2
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_gather_static_shape_indices() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(GatherNode::with_static_indices(
+            Type::Shape(ShapeType::new("shape1", 4)),
+            vec![0, 2],
+            Type::Shape(ShapeType::new("shape2", 2)),
+            0,
+        ));
+
+        graph.register_input_output(vec!["shape1".to_string()], vec!["shape2".to_string()]);
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(
+                    &self,
+                    shape1: [usize; 4]
+                ) -> [usize; 2] {
+                    let input_shape = &shape1;
+                    let shape2: [usize; 2usize] = [input_shape[0usize], input_shape[2usize]];
+                    shape2
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
 }

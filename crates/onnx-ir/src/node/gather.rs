@@ -1,4 +1,21 @@
-use crate::ir::{ArgType, Node, TensorType};
+use crate::Argument;
+use crate::ir::{ArgType, Data, Node, TensorType};
+
+/// Configuration for the Gather operation.
+#[derive(Debug, Clone)]
+pub struct GatherConfig {
+    pub indices: GatherInput,
+    pub axis: usize,
+}
+
+/// Represents either a static value or a runtime argument for gather indices.
+#[derive(Debug, Clone)]
+pub enum GatherInput {
+    /// Static value known at compile time.
+    Static(Vec<i64>),
+    /// Runtime argument determined during execution.
+    Runtime(Argument),
+}
 
 /// Update output rank for Gather based on input and indices ranks.
 pub fn gather_update_outputs(node: &mut Node) {
@@ -53,7 +70,7 @@ pub fn gather_update_outputs(node: &mut Node) {
 }
 
 /// Create a GatherConfig from the attributes of the node
-pub fn gather_config(curr: &Node) -> usize {
+pub fn gather_config(curr: &Node) -> GatherConfig {
     // Default: 0 per ONNX spec
     let mut dim: i64 = 0;
 
@@ -81,7 +98,24 @@ pub fn gather_config(curr: &Node) -> usize {
         dim += input_dim;
     }
 
-    dim as usize
+    // Get indices input - similar to how slice handles its inputs
+    let indices_input = &curr.inputs[1];
+    let indices = if let Some(value) = &indices_input.value {
+        // Static indices
+        match &value.data {
+            Data::Int64s(vals) => GatherInput::Static(vals.clone()),
+            Data::Int32s(vals) => GatherInput::Static(vals.iter().map(|&v| v as i64).collect()),
+            other => panic!("Gather indices must be int32 or int64, got {other:?}"),
+        }
+    } else {
+        // Runtime indices
+        GatherInput::Runtime(indices_input.clone())
+    };
+
+    GatherConfig {
+        indices,
+        axis: dim as usize,
+    }
 }
 
 #[cfg(test)]
@@ -112,21 +146,21 @@ mod tests {
     fn test_gather_config_basic() {
         let node = create_test_node(0, 3, false);
         let config = gather_config(&node);
-        assert_eq!(config, 0);
+        assert_eq!(config.axis, 0);
     }
 
     #[test]
     fn test_gather_config_negative_axis() {
         let node = create_test_node(-2, 3, false);
         let config = gather_config(&node);
-        assert_eq!(config, 1); // -2 + 3 = 1
+        assert_eq!(config.axis, 1); // -2 + 3 = 1
     }
 
     #[test]
     fn test_gather_config_shape_input() {
         let node = create_test_node(0, 4, true); // Shape of a 4D tensor
         let config = gather_config(&node);
-        assert_eq!(config, 0);
+        assert_eq!(config.axis, 0);
     }
 
     #[test]
@@ -135,5 +169,51 @@ mod tests {
         let mut node = create_test_node(0, 3, false);
         node.inputs.pop(); // Remove the indices input
         let _ = gather_config(&node);
+    }
+
+    fn create_runtime_gather_node(axis: i64, input_rank: usize) -> Node {
+        let builder = NodeBuilder::new(NodeType::Gather, "test_runtime_gather")
+            .attr_int("axis", axis)
+            .input_tensor_f32("data", input_rank, None)
+            .input_tensor_i64("indices", 1, None) // No static value - runtime input
+            .output_tensor_f32("output", input_rank, None);
+
+        builder.build()
+    }
+
+    #[test]
+    fn test_gather_config_runtime_indices() {
+        let node = create_runtime_gather_node(0, 3);
+        let config = gather_config(&node);
+        assert_eq!(config.axis, 0);
+
+        // Check that indices is runtime
+        match config.indices {
+            GatherInput::Runtime(arg) => {
+                assert_eq!(arg.name, "indices");
+            }
+            _ => panic!("Expected runtime indices"),
+        }
+    }
+
+    #[test]
+    fn test_gather_config_static_indices() {
+        let builder = NodeBuilder::new(NodeType::Gather, "test_static_gather")
+            .attr_int("axis", 1)
+            .input_tensor_f32("data", 3, None)
+            .input_tensor_i64_data("indices", vec![0, 2, 1], vec![3])
+            .output_tensor_f32("output", 3, None);
+
+        let node = builder.build();
+        let config = gather_config(&node);
+        assert_eq!(config.axis, 1);
+
+        // Check that indices is static
+        match config.indices {
+            GatherInput::Static(vals) => {
+                assert_eq!(vals, vec![0, 2, 1]);
+            }
+            _ => panic!("Expected static indices"),
+        }
     }
 }

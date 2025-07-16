@@ -69,10 +69,10 @@ pub fn slice_config(node: &Node) -> SliceConfig {
 
     let starts = get_slice_input(node, 1, "starts")
         .unwrap_or_else(|| panic!("Slice: starts parameter is required"));
-    
+
     let ends = get_slice_input(node, 2, "ends")
         .unwrap_or_else(|| panic!("Slice: ends parameter is required"));
-    
+
     let axes = get_slice_input(node, 3, "axes");
     let steps = get_slice_input(node, 4, "steps");
 
