@@ -81,7 +81,9 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
 
         TunableSet::new(create_key::<R>, matmul_input_gen::<R>)
             .with(Tunable::new(naive::<R, E>).group(&unit, |key| {
-                if matches!(key.analysis.kind, MatmulKind::InnerProduct) {
+                if matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
+                    || matches!(key.analysis.kind, MatmulKind::InnerProduct)
+                {
                     PRIORITY_MAX
                 } else {
                     PRIORITY_MIN
@@ -103,9 +105,9 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
             .with(Tunable::new(matmul_simple::<R, E>).group(&cmma, |_| PRIORITY_MAX))
             .with(Tunable::new(matmul_simple_multi_rows::<R, E>).group(&cmma, |_| PRIORITY_MAX))
             .with(
-                Tunable::new(matmul_ordered_double_buffering::<R, E>).group(&cmma, |key| {
-                    double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
-                }),
+                // Ordered should be tried most of the time.
+                Tunable::new(matmul_ordered_double_buffering::<R, E>)
+                    .group(&cmma, |_| PRIORITY_MAX),
             )
             .with(
                 Tunable::new(matmul_double_buffering_specialized::<R, E>)
