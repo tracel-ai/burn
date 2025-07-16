@@ -143,12 +143,12 @@ pub(crate) fn handle_command(
                         .get_or_insert_with(Vec::new)
                         .push("vulkan".to_string());
 
-                    handle_wgpu_test("burn-wgpu", &args_vulkan.clone().try_into().unwrap())?;
+                    let mut args_vulkan = args_vulkan.clone().try_into().unwrap();
+                    handle_wgpu_test("burn-wgpu", &args_vulkan)?;
 
                     args_vulkan.features = Some(vec!["test-vulkan".into()]);
-                    let test_args = args_vulkan.try_into().unwrap();
-                    handle_wgpu_test("burn-core", &test_args)?;
-                    handle_wgpu_test("burn-vision", &test_args)?;
+                    handle_wgpu_test("burn-core", &args_vulkan)?;
+                    handle_wgpu_test("burn-vision", &args_vulkan)?;
                 }
                 CiTestType::GcpWgpuRunner => {
                     args.target = Target::AllPackages;
@@ -158,9 +158,8 @@ pub(crate) fn handle_command(
                     handle_wgpu_test("burn-router", &args_wgpu)?;
 
                     args_wgpu.features = Some(vec!["test-wgpu".into()]);
-                    let test_args = args_wgpu.try_into().unwrap();
-                    handle_wgpu_test("burn-core", &test_args)?;
-                    handle_wgpu_test("burn-vision", &test_args)?;
+                    handle_wgpu_test("burn-core", &args_wgpu)?;
+                    handle_wgpu_test("burn-vision", &args_wgpu)?;
                 }
             }
 
