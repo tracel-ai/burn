@@ -3,6 +3,7 @@ use tracing_subscriber::{
     Layer, filter::filter_fn, layer::SubscriberExt, registry, util::SubscriberInitExt,
 };
 
+/// Utilities to help handle communication termination.
 pub async fn os_shutdown_signal() {
     let ctrl_c = async {
         tokio::signal::ctrl_c()
@@ -27,7 +28,7 @@ pub async fn os_shutdown_signal() {
     }
 }
 
-pub fn init_logging() {
+pub(crate) fn init_logging() {
     let layer = tracing_subscriber::fmt::layer()
         .with_filter(LevelFilter::INFO)
         .with_filter(filter_fn(|m| {

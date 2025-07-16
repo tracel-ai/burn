@@ -1,8 +1,5 @@
-use burn_communication::data_service::TensorTransferId;
 use burn_ir::TensorIr;
 use burn_router::{RouterTensor, RunnerChannel, get_client};
-
-use crate::shared::{ComputeTask, TensorRemote};
 
 use super::{
     WsClient,
@@ -40,24 +37,15 @@ impl RunnerChannel for WsChannel {
     }
 
     fn register_tensor(
-        client: &Self::Client,
-        handle: RemoteTensorHandle,
-        shape: Vec<usize>,
-        dtype: burn_tensor::DType,
+        _client: &Self::Client,
+        _handle: RemoteTensorHandle,
+        _shape: Vec<usize>,
+        _dtype: burn_tensor::DType,
     ) -> RouterTensor<Self::Client> {
-        // Transfer id is none, so any transfer with no id will be used.
-        // This is case that should be rare.
-        let remote_tensor = TensorRemote {
-            transfer_id: TensorTransferId::none(),
-            address: (*client.device.address).clone(),
-        };
-
-        let new_id = client.sender.new_tensor_id();
-        client
-            .sender
-            .send(ComputeTask::RegisterTensorRemote(remote_tensor, new_id));
-
-        RouterTensor::new(handle.tensor.id, shape, dtype, client.clone())
+        // This function is normally only used to move a tensor from a device to another.
+        //
+        // In other words, to change the client.
+        panic!("Can't register manually a tensor on a remote channel.");
     }
 
     fn change_client_backend(

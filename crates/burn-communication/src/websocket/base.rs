@@ -4,14 +4,17 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub struct WsNetwork {}
-impl Protocol for WsNetwork {
+/// A websocket implements a [communication protocol](Protocol) that can be used to communicate
+/// over the internet.
+pub struct WebSocket {}
+
+impl Protocol for WebSocket {
     type Client = WsClient;
     type Server = WsServer;
 }
 
 /// Parse an address, add the ws:// prefix if needed, and return an error if the address is invalid
-pub fn parse_ws_address(mut address: Address) -> Result<Address, String> {
+pub(crate) fn parse_ws_address(mut address: Address) -> Result<Address, String> {
     let s = &address.inner;
     let parts = s.split("://").collect::<Vec<&str>>();
     let num_parts = parts.len();

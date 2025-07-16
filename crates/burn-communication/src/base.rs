@@ -86,11 +86,13 @@ pub trait ProtocolServer: Sized + Send + Sync + 'static {
 pub trait CommunicationChannel: Send + 'static {
     type Error: CommunicationError;
 
+    /// Send a [message](Message) on the channel.
     fn send(
         &mut self,
         message: Message,
     ) -> impl std::future::Future<Output = Result<(), Self::Error>> + Send;
 
+    /// Receive a [message](Message) on the channel and returns a new [response message](Message).
     fn recv(
         &mut self,
     ) -> impl std::future::Future<Output = Result<Option<Message>, Self::Error>> + Send;

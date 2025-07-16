@@ -12,17 +12,18 @@ use tokio_tungstenite::{
 
 #[derive(Clone)]
 pub struct WsClient;
+
 impl ProtocolClient for WsClient {
-    type Channel = WsClientStream;
+    type Channel = WsClientChannel;
     type Error = WsClientError;
 
-    fn connect(address: Address, route: &str) -> DynFut<Option<WsClientStream>> {
+    fn connect(address: Address, route: &str) -> DynFut<Option<WsClientChannel>> {
         Box::pin(connect_ws(address, route.to_owned()))
     }
 }
 
 /// Open a new WebSocket connection to the address
-async fn connect_ws(address: Address, route: String) -> Option<WsClientStream> {
+async fn connect_ws(address: Address, route: String) -> Option<WsClientChannel> {
     let address = parse_ws_address(address).ok()?;
     let address = format!("{address}/{route}");
     const MB: usize = 1024 * 1024;
@@ -41,13 +42,13 @@ async fn connect_ws(address: Address, route: String) -> Option<WsClientStream> {
     .await
     .ok()?;
 
-    Some(WsClientStream { inner: stream })
+    Some(WsClientChannel { inner: stream })
 }
-pub struct WsClientStream {
+pub struct WsClientChannel {
     inner: WebSocketStream<MaybeTlsStream<TcpStream>>,
 }
 
-impl CommunicationChannel for WsClientStream {
+impl CommunicationChannel for WsClientChannel {
     type Error = WsClientError;
 
     async fn send(&mut self, msg: Message) -> Result<(), WsClientError> {

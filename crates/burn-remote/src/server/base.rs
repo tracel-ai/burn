@@ -2,7 +2,7 @@ use burn_communication::{
     CommunicationChannel, Message, Protocol, ProtocolServer,
     data_service::{TensorDataServer, TensorDataService},
     util::os_shutdown_signal,
-    websocket::base::WsNetwork,
+    websocket::base::WebSocket,
 };
 use std::{marker::PhantomData, sync::Arc};
 use tokio_util::sync::CancellationToken;
@@ -174,5 +174,5 @@ where
 #[tokio::main]
 /// Start the server on the given port and [device](Device).
 pub async fn start_websocket<B: BackendIr>(device: Device<B>, port: u16) {
-    start_async::<B, WsNetwork>(device, port).await
+    start_async::<B, WebSocket>(device, port).await
 }

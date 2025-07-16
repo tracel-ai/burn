@@ -7,7 +7,7 @@ use std::{
     },
 };
 
-use burn_communication::websocket::base::WsNetwork;
+use burn_communication::websocket::base::WebSocket;
 use burn_tensor::backend::Backend;
 use tokio::runtime::{Builder, Runtime};
 
@@ -18,7 +18,7 @@ use crate::{
 };
 
 // Define the client/server communication on the network
-type Network = WsNetwork;
+type Network = WebSocket;
 /// Type sent to the collective client upon completion of a register request
 type RegisterResult = Result<(), CollectiveError>;
 /// Type sent to the collective client upon completion of a all-reduce aggregation

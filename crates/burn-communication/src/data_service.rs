@@ -1,3 +1,9 @@
+//! This module enables direct data transfer between servers without blocking the client or any server.
+//!
+//! It eliminates the need for intermediate data transfer through the client, avoiding the process of downloading data from one server and reuploading it to another.
+//!
+//! The module provides an optimized mechanism for servers to communicate directly, streamlining data movement between them without involving the client.
+
 use crate::Message;
 use crate::base::Protocol;
 use crate::base::{Address, CommunicationChannel, ProtocolClient, ProtocolServer};
@@ -31,8 +37,8 @@ impl TensorTransferId {
 
 #[derive(Debug, Serialize, Deserialize)]
 enum DataServiceMessage {
-    Request(TensorTransferId),
-    Data(TensorData),
+    TensorRequest(TensorTransferId),
+    Tensor(TensorData),
 }
 
 type ClientStreamRef<C> = Arc<Mutex<<C as ProtocolClient>::Channel>>;
@@ -102,7 +108,7 @@ impl<B: Backend, N: Protocol> TensorDataService<B, N> {
         max_downloads: u32,
         transfer_id: TensorTransferId,
     ) {
-        let bytes: bytes::Bytes = rmp_serde::to_vec(&DataServiceMessage::Data(tensor_data))
+        let bytes: bytes::Bytes = rmp_serde::to_vec(&DataServiceMessage::Tensor(tensor_data))
             .unwrap()
             .into();
         let mut exposed_tensors = self.exposed_tensors.lock().await;
@@ -144,9 +150,10 @@ impl<B: Backend, N: Protocol> TensorDataService<B, N> {
         let mut stream = stream.lock().await;
 
         // Send the download request with the download id
-        let bytes: bytes::Bytes = rmp_serde::to_vec(&DataServiceMessage::Request(transfer_id))
-            .unwrap()
-            .into();
+        let bytes: bytes::Bytes =
+            rmp_serde::to_vec(&DataServiceMessage::TensorRequest(transfer_id))
+                .unwrap()
+                .into();
         stream
             .send(Message::new(bytes))
             .await
@@ -158,7 +165,7 @@ impl<B: Backend, N: Protocol> TensorDataService<B, N> {
                 return None;
             };
 
-            let DataServiceMessage::Data(data) = rmp_serde::from_slice(&msg.data)
+            let DataServiceMessage::Tensor(data) = rmp_serde::from_slice(&msg.data)
                 .expect("Can deserialize messages from the websocket.")
             else {
                 panic!("Message should have been TensorData")
@@ -233,7 +240,7 @@ impl<B: Backend, N: Protocol> TensorDataService<B, N> {
                         let bytes = msg.data;
                         let msg: DataServiceMessage = rmp_serde::from_slice(&bytes)
                             .expect("Can deserialize messages from the websocket.");
-                        let DataServiceMessage::Request(transfer_id) = msg else {
+                        let DataServiceMessage::TensorRequest(transfer_id) = msg else {
                             panic!("Received a message that wasn't a tensor request! {msg:?}");
                         };
 

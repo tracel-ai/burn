@@ -20,12 +20,12 @@ pub struct WsServer {
     router: Router<()>,
 }
 
-pub struct WsServerStream {
+pub struct WsServerChannel {
     inner: WebSocket,
 }
 
 impl ProtocolServer for WsServer {
-    type Channel = WsServerStream;
+    type Channel = WsServerChannel;
     type Error = WsServerError;
 
     fn new(port: u16) -> Self {
@@ -59,7 +59,7 @@ impl ProtocolServer for WsServer {
 
     fn route<C, Fut>(mut self, path: &str, callback: C) -> Self
     where
-        C: FnOnce(WsServerStream) -> Fut + Clone + Send + Sync + 'static,
+        C: FnOnce(WsServerChannel) -> Fut + Clone + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
         // Format path: should start with a /
@@ -71,7 +71,7 @@ impl ProtocolServer for WsServer {
 
         let method = get(|ws: WebSocketUpgrade, _: State<()>| async {
             ws.on_upgrade(async move |socket| {
-                callback(WsServerStream { inner: socket }).await;
+                callback(WsServerChannel { inner: socket }).await;
             })
         });
 
@@ -81,7 +81,7 @@ impl ProtocolServer for WsServer {
     }
 }
 
-impl CommunicationChannel for WsServerStream {
+impl CommunicationChannel for WsServerChannel {
     type Error = WsServerError;
 
     async fn send(&mut self, message: Message) -> Result<(), WsServerError> {
@@ -123,6 +123,7 @@ pub enum WsServerError {
     UnknownMessage(String),
     Other(String),
 }
+
 impl CommunicationError for WsServerError {}
 
 impl From<std::io::Error> for WsServerError {
