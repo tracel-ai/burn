@@ -48,7 +48,9 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([[-4.3939, -4.3939], [-12.9709, -12.9709]]);
-        let tolerance = Tolerance::permissive().set_half_precision_relative(1.5e-2);
+        // f16 gradients from log-softmax + matmul amplify error, so we we increase the tolerance
+        // to account for limited precision and large representable step sizes in this range.
+        let tolerance = Tolerance::permissive().set_half_precision_relative(6e-2);
 
         grad_1
             .to_data()
