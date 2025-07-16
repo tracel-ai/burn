@@ -94,12 +94,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "TODO: Fix gather constant handling in ONNX import"]
     fn slice_shape_gather() {
-        // This test is currently ignored because the ONNX import doesn't properly handle
-        // the gather_indices constant. The generated code tries to reference 'gather_indices'
-        // as a variable instead of using the constant value.
-        
         let model: slice_shape_gather::Model<Backend> = slice_shape_gather::Model::default();
         let device = Default::default();
 

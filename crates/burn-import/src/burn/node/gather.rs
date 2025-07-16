@@ -104,21 +104,38 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
                             let input_shape_name = &input_shape.name;
                             let indices_len = indices.len();
 
-                            if indices_len != output_rank {
-                                panic!(
-                                    "Static indices length {indices_len} doesn't match output rank {output_rank}"
-                                );
-                            }
+                            if output_rank == 0 {
+                                // Scalar output case - gather a single element
+                                if indices_len != 1 {
+                                    panic!(
+                                        "Static indices length {} doesn't match scalar output", 
+                                        indices_len
+                                    );
+                                }
+                                let idx = indices[0] as usize;
+                                quote! {
+                                    let input_shape = &#input_shape_name;
+                                    let #output = input_shape[#idx];
+                                }
+                            } else {
+                                // Array output case
+                                if indices_len != output_rank {
+                                    panic!(
+                                        "Static indices length {} doesn't match output rank {}",
+                                        indices_len, output_rank
+                                    );
+                                }
+                                
+                                // Generate static gathering code
+                                let gather_elements = indices.iter().map(|&idx| {
+                                    let idx_usize = idx as usize;
+                                    quote! { input_shape[#idx_usize] }
+                                });
 
-                            // Generate static gathering code
-                            let gather_elements = indices.iter().map(|&idx| {
-                                let idx_usize = idx as usize;
-                                quote! { input_shape[#idx_usize] }
-                            });
-
-                            quote! {
-                                let input_shape = &#input_shape_name;
-                                let #output: [usize; #output_rank] = [#(#gather_elements),*];
+                                quote! {
+                                    let input_shape = &#input_shape_name;
+                                    let #output: [usize; #output_rank] = [#(#gather_elements),*];
+                                }
                             }
                         }
                         _ => panic!(

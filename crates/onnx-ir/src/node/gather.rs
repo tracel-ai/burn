@@ -100,15 +100,26 @@ pub fn gather_config(curr: &Node) -> GatherConfig {
 
     // Get indices input - similar to how slice handles its inputs
     let indices_input = &curr.inputs[1];
+    log::debug!("Gather indices input for {}: {:?}", curr.name, indices_input);
+    
     let indices = if let Some(value) = &indices_input.value {
         // Static indices
+        log::debug!("Gather {} has static indices value: {:?}", curr.name, value);
         match &value.data {
-            Data::Int64s(vals) => GatherInput::Static(vals.clone()),
-            Data::Int32s(vals) => GatherInput::Static(vals.iter().map(|&v| v as i64).collect()),
+            Data::Int64s(vals) => {
+                log::debug!("Gather {} static indices: {:?}", curr.name, vals);
+                GatherInput::Static(vals.clone())
+            }
+            Data::Int32s(vals) => {
+                let int64_vals = vals.iter().map(|&v| v as i64).collect::<Vec<_>>();
+                log::debug!("Gather {} static indices (from int32): {:?}", curr.name, int64_vals);
+                GatherInput::Static(int64_vals)
+            }
             other => panic!("Gather indices must be int32 or int64, got {other:?}"),
         }
     } else {
         // Runtime indices
+        log::debug!("Gather {} has runtime indices", curr.name);
         GatherInput::Runtime(indices_input.clone())
     };
 
