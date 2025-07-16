@@ -7519,7 +7519,7 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 [[package]]
 name = "tracel-xtask"
 version = "2.1.6"
-source = "git+https://github.com/tracel-ai/xtask?rev=889f7beb49814978ad133f1d045c0f713962141a#889f7beb49814978ad133f1d045c0f713962141a"
+source = "git+https://github.com/tracel-ai/xtask?rev=d74c9893036c03ae372699489f359bc0a639e537#d74c9893036c03ae372699489f359bc0a639e537"
 dependencies = [
  "anyhow",
  "clap",
@@ -7539,7 +7539,7 @@ dependencies = [
 [[package]]
 name = "tracel-xtask-macros"
 version = "2.1.6"
-source = "git+https://github.com/tracel-ai/xtask?rev=889f7beb49814978ad133f1d045c0f713962141a#889f7beb49814978ad133f1d045c0f713962141a"
+source = "git+https://github.com/tracel-ai/xtask?rev=d74c9893036c03ae372699489f359bc0a639e537#d74c9893036c03ae372699489f359bc0a639e537"
 dependencies = [
  "proc-macro2",
  "quote",
