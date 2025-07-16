@@ -48,74 +48,45 @@ impl SliceNode {
         output: &proc_macro2::Ident,
     ) -> TokenStream {
         let input = scope.tensor_use_owned(tensor, node_position);
-
+        
+        // Create slice ranges for all dimensions
+        let rank = tensor.rank;
+        let mut ranges = vec![quote! { .. }; rank];
+        
+        // Handle different slice configurations
         match (&self.starts, &self.ends) {
-            (SliceParam::Static(starts), SliceParam::Static(ends)) if starts.len() == 1 => {
-                // Simple static case
-                let start = starts[0].to_tokens();
-                let end = ends[0].to_tokens();
-                let rank = tensor.rank;
-                let mut ranges = vec![quote! { .. }; rank];
-                ranges[0] = quote! { #start..#end };
-
-                quote! {
-                    let #output = #input.slice(s![#(#ranges),*]);
-                }
-            }
-            (SliceParam::Runtime(start_type), SliceParam::Runtime(end_type)) => {
-                // Both runtime
-                let start_expr = self.get_scalar_expr(start_type);
-                let end_expr = self.get_scalar_expr(end_type);
-                let rank = tensor.rank;
-                let mut ranges = vec![quote! { .. }; rank];
-                ranges[0] = quote! { #start_expr..#end_expr };
-
-                quote! {
-                    let #output = #input.slice(s![#(#ranges),*]);
-                }
-            }
-            (SliceParam::Static(starts), SliceParam::Runtime(end_type)) if starts.len() == 1 => {
-                // Static start, runtime end
-                let start = starts[0].to_tokens();
-                let end_expr = self.get_scalar_expr(end_type);
-                let rank = tensor.rank;
-                let mut ranges = vec![quote! { .. }; rank];
-                ranges[0] = quote! { #start..#end_expr };
-
-                quote! {
-                    let #output = #input.slice(s![#(#ranges),*]);
-                }
-            }
-            (SliceParam::Runtime(start_type), SliceParam::Static(ends)) if ends.len() == 1 => {
-                // Runtime start, static end
-                let start_expr = self.get_scalar_expr(start_type);
-                let end = ends[0].to_tokens();
-                let rank = tensor.rank;
-                let mut ranges = vec![quote! { .. }; rank];
-                ranges[0] = quote! { #start_expr..#end };
-
-                quote! {
-                    let #output = #input.slice(s![#(#ranges),*]);
-                }
-            }
             (SliceParam::Static(starts), SliceParam::Static(ends)) => {
-                // Complex static case with multiple dimensions
-                let rank = tensor.rank;
-                let mut ranges = vec![quote! { .. }; rank];
-
-                // Assuming axes are sequential from 0
-                for i in 0..starts.len().min(ends.len()) {
+                // Handle all static cases (single or multi-dimensional)
+                for i in 0..starts.len().min(ends.len()).min(rank) {
                     let start = starts[i].to_tokens();
                     let end = ends[i].to_tokens();
                     ranges[i] = quote! { #start..#end };
                 }
-
-                quote! {
-                    let #output = #input.slice(s![#(#ranges),*]);
-                }
             }
-            _ => panic!("Unsupported slice configuration"),
+            _ => {
+                // Runtime cases (currently single dimension only)
+                let (start_expr, end_expr) = self.get_slice_range_expressions();
+                ranges[0] = quote! { #start_expr..#end_expr };
+            }
         }
+        
+        quote! {
+            let #output = #input.slice(s![#(#ranges),*]);
+        }
+    }
+    
+    fn get_slice_range_expressions(&self) -> (TokenStream, TokenStream) {
+        let start_expr = match &self.starts {
+            SliceParam::Static(starts) => starts[0].to_tokens(),
+            SliceParam::Runtime(start_type) => self.get_scalar_expr(start_type),
+        };
+        
+        let end_expr = match &self.ends {
+            SliceParam::Static(ends) => ends[0].to_tokens(),
+            SliceParam::Runtime(end_type) => self.get_scalar_expr(end_type),
+        };
+        
+        (start_expr, end_expr)
     }
 
     fn generate_shape_slice(
