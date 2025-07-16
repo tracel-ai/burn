@@ -1,6 +1,6 @@
-use burn_network::data_service::TensorDataServer;
-use burn_network::network::Network;
-use burn_network::{
+use burn_communication::data_service::TensorDataServer;
+use burn_communication::network::Network;
+use burn_communication::{
     data_service::TensorDataService,
     network::{NetworkAddress, NetworkServer},
 };

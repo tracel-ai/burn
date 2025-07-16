@@ -1,4 +1,4 @@
-use burn_network::network::NetworkAddress;
+use burn_communication::network::NetworkAddress;
 use std::{
     fs::{self, File},
     process::{self, ExitStatus},

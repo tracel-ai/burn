@@ -2,7 +2,7 @@ use core::ops::Range;
 use std::sync::atomic::AtomicU32;
 
 use burn_common::id::IdGenerator;
-use burn_network::network::NetworkAddress;
+use burn_communication::network::NetworkAddress;
 use serde::{Deserialize, Serialize};
 
 use crate::{

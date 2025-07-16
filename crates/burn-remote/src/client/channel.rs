@@ -1,5 +1,5 @@
+use burn_communication::data_service::TensorTransferId;
 use burn_ir::TensorIr;
-use burn_network::data_service::TensorTransferId;
 use burn_router::{RouterTensor, RunnerChannel, get_client};
 
 use crate::shared::{ComputeTask, TensorRemote};

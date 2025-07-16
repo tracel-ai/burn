@@ -15,10 +15,9 @@ path = "src/bin/client.rs"
 [dependencies]
 burn = { path = "../../burn", features = ["ndarray"] }
 burn-common = { path = "../../burn-common" }
-burn-network = { path = "../../burn-network" }
+burn-communication = { path = "../../burn-communication" }
 burn-collective = { path = ".." }
 tokio = { workspace = true, features = ["rt-multi-thread", "process"] }
 
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-

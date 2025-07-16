@@ -1,14 +1,11 @@
 [package]
-authors = [
-    "Guilhem Ané (@Cielbird)",
-    "Nathaniel Simard (@nathanielsimard)",
-]
+authors = ["Guilhem Ané (@Cielbird)", "Nathaniel Simard (@nathanielsimard)"]
 description = "Abstractions for network communication for Burn"
 edition.workspace = true
 license.workspace = true
-name = "burn-network"
+name = "burn-communication"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-network"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-communication"
 version.workspace = true
 
 [lints]
@@ -35,4 +32,3 @@ tracing-subscriber = { workspace = true }
 
 # Tensor Data Service
 burn-tensor = { path = "../burn-tensor", version = "0.18.0", optional = true }
-

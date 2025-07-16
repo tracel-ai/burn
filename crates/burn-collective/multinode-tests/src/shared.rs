@@ -1,6 +1,6 @@
 use burn::tensor::TensorData;
 use burn_collective::{SharedAllReduceParams, global::shared::base::NodeId};
-use burn_network::network::NetworkAddress;
+use burn_communication::network::NetworkAddress;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]

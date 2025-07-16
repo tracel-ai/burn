@@ -4,11 +4,11 @@ use std::sync::Arc;
 use crate::shared::{ConnectionId, TaskResponse, TensorRemote};
 
 use super::processor::{Processor, ProcessorTask};
-use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
-use burn_network::{
+use burn_communication::{
     data_service::{TensorDataService, TensorTransferId},
     network::Network,
 };
+use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
 use burn_router::Runner;
 use burn_tensor::TensorData;
 use tokio::sync::mpsc::{Receiver, Sender};

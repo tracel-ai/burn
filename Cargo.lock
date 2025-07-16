@@ -601,9 +601,9 @@ name = "burn-collective"
 version = "0.18.0"
 dependencies = [
  "burn-common",
+ "burn-communication",
  "burn-cuda",
  "burn-ndarray",
- "burn-network",
  "burn-tensor",
  "burn-wgpu",
  "bytes",
@@ -623,7 +623,7 @@ dependencies = [
  "burn",
  "burn-collective",
  "burn-common",
- "burn-network",
+ "burn-communication",
  "serde",
  "serde_json",
  "tokio",
@@ -640,6 +640,27 @@ dependencies = [
  "reqwest",
  "serde",
  "tokio",
+]
+
+[[package]]
+name = "burn-communication"
+version = "0.18.0"
+dependencies = [
+ "axum",
+ "burn-common",
+ "burn-tensor",
+ "bytes",
+ "futures",
+ "futures-util",
+ "log",
+ "rmp-serde",
+ "serde",
+ "serde_bytes",
+ "tokio",
+ "tokio-tungstenite",
+ "tokio-util",
+ "tracing-core",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -856,27 +877,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "burn-network"
-version = "0.18.0"
-dependencies = [
- "axum",
- "burn-common",
- "burn-tensor",
- "bytes",
- "futures",
- "futures-util",
- "log",
- "rmp-serde",
- "serde",
- "serde_bytes",
- "tokio",
- "tokio-tungstenite",
- "tokio-util",
- "tracing-core",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "burn-no-std-tests"
 version = "0.18.0"
 dependencies = [
@@ -892,9 +892,9 @@ dependencies = [
  "async-channel",
  "axum",
  "burn-common",
+ "burn-communication",
  "burn-ir",
  "burn-ndarray",
- "burn-network",
  "burn-router",
  "burn-tensor",
  "bytes",

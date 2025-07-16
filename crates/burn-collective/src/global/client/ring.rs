@@ -2,7 +2,7 @@ use core::ops::Range;
 use std::sync::Arc;
 
 use crate::global::{server::base::GlobalCollectiveError, shared::base::RingAllReduceStrategy};
-use burn_network::{
+use burn_communication::{
     data_service::TensorDataService,
     network::{Network, NetworkAddress},
 };

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, marker::PhantomData, sync::Arc, time::Duration};
 
-use burn_network::network::{NetworkAddress, NetworkClient, NetworkStream};
+use burn_communication::network::{NetworkAddress, NetworkClient, NetworkStream};
 use tokio::{
     runtime::Runtime,
     sync::{

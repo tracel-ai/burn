@@ -1,6 +1,6 @@
 use burn_common::id::StreamId;
+use burn_communication::{data_service::TensorDataService, network::Network};
 use burn_ir::BackendIr;
-use burn_network::{data_service::TensorDataService, network::Network};
 use burn_router::Runner;
 use burn_tensor::Device;
 use std::{collections::HashMap, sync::Arc};

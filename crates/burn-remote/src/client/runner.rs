@@ -1,6 +1,6 @@
 use burn_common::future::DynFut;
+use burn_communication::{data_service::TensorTransferId, network::NetworkAddress};
 use burn_ir::TensorIr;
-use burn_network::{data_service::TensorTransferId, network::NetworkAddress};
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 use burn_tensor::{
     DType, TensorData,

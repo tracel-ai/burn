@@ -7,7 +7,7 @@ use crate::global::{
     server::state::GlobalCollectiveState,
     shared::base::{Message, NodeId},
 };
-use burn_network::{
+use burn_communication::{
     network::{NetworkError, NetworkServer, NetworkStream},
     util::os_shutdown_signal,
 };

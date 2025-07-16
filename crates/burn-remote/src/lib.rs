@@ -39,8 +39,8 @@ pub use __client::*;
 #[cfg(all(test, feature = "client", feature = "server"))]
 mod tests {
     use crate::RemoteBackend;
+    use burn_communication::websocket::base::WsNetwork;
     use burn_ndarray::NdArray;
-    use burn_network::websocket::base::WsNetwork;
     use burn_tensor::{Distribution, Tensor};
 
     #[test]

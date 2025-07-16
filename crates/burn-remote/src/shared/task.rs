@@ -1,8 +1,8 @@
 use std::fmt::Display;
 
 use burn_common::id::{IdGenerator, StreamId};
+use burn_communication::{data_service::TensorTransferId, network::NetworkAddress};
 use burn_ir::{OperationIr, TensorId, TensorIr};
-use burn_network::{data_service::TensorTransferId, network::NetworkAddress};
 use burn_tensor::TensorData;
 use serde::{Deserialize, Serialize};
 

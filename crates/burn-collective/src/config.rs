@@ -1,4 +1,4 @@
-use burn_network::network::NetworkAddress;
+use burn_communication::network::NetworkAddress;
 use serde::{Deserialize, Serialize};
 
 use crate::{

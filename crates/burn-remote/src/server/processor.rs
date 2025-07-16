@@ -1,8 +1,8 @@
-use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
-use burn_network::{
+use burn_communication::{
     data_service::{TensorDataService, TensorTransferId},
     network::Network,
 };
+use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
 use burn_router::{Runner, RunnerClient};
 use burn_tensor::TensorData;
 use core::marker::PhantomData;

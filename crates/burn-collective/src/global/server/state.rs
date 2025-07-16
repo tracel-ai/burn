@@ -10,7 +10,7 @@ use crate::{
         },
     },
 };
-use burn_network::network::NetworkAddress;
+use burn_communication::network::NetworkAddress;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 pub(crate) struct Session {

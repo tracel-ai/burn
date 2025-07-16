@@ -1,7 +1,7 @@
 use std::env;
 
 use burn_collective::global::server::base::start;
-use burn_network::websocket::server::WsServer;
+use burn_communication::websocket::server::WsServer;
 
 #[tokio::main]
 /// Start the server on the given port and [device](Device).

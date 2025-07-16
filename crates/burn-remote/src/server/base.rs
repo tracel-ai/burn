@@ -1,4 +1,4 @@
-use burn_network::{
+use burn_communication::{
     data_service::{TensorDataServer, TensorDataService},
     network::{Network, NetworkServer, NetworkStream},
     util::os_shutdown_signal,
