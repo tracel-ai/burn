@@ -1,6 +1,12 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(slice, slice_shape, slice_scalar, slice_mixed, slice_shape_gather);
+include_models!(
+    slice,
+    slice_shape,
+    slice_scalar,
+    slice_mixed,
+    slice_shape_gather
+);
 
 #[cfg(test)]
 mod tests {
@@ -84,11 +90,7 @@ mod tests {
         let output = model.forward(input, end);
 
         // Expected: input[1:4, :] should give us rows 1, 2, 3 (3 rows total)
-        let expected = TensorData::from([
-            [4.0f32, 5.0, 6.0],
-            [7.0, 8.0, 9.0],
-            [10.0, 11.0, 12.0],
-        ]);
+        let expected = TensorData::from([[4.0f32, 5.0, 6.0], [7.0, 8.0, 9.0], [10.0, 11.0, 12.0]]);
 
         output.to_data().assert_eq(&expected, true);
     }
@@ -109,9 +111,9 @@ mod tests {
         // Slice uses starts=[0], ends=4, axes=[1], steps=[1]
         // So it slices axis 1 from 0:4, which is the full dimension
         // Result should be same shape as input: [2, 4, 6, 8]
-        
+
         assert_eq!(output.shape().dims, [2, 4, 6, 8]);
-        
+
         // Since we're slicing the full dimension (0:4), output should equal input
         let input_data = input.to_data();
         let output_data = output.to_data();

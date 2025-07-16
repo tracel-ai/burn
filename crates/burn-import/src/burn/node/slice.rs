@@ -120,12 +120,9 @@ impl SliceNode {
                 let name = &scalar.name;
                 quote! { #name as usize }
             }
-            Type::Shape(shape) if shape.rank == 0 => {
-                // Shape(0) is a scalar shape value
-                let name = &shape.name;
-                quote! { #name }
-            }
-            _ => panic!("Expected scalar type for runtime slice parameter, got {:?}", scalar_type),
+            _ => panic!(
+                "Expected scalar type for runtime slice parameter, got {scalar_type:?}"
+            ),
         }
     }
 }

@@ -74,6 +74,39 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
             };
 
             match &self.output {
+                Type::Scalar(_) => {
+                    // Gathering a single element from a shape produces a scalar
+                    match &self.index {
+                        GatherIndices::Runtime(Type::Scalar(idx_scalar)) => {
+                            let index = &idx_scalar.name;
+                            let input_shape_name = &input_shape.name;
+                            let output = &self.output.name();
+                            quote! {
+                                let input_shape = &#input_shape_name;
+                                let #output = input_shape[#index as usize];
+                            }
+                        }
+                        GatherIndices::Static(indices) => {
+                            if indices.len() != 1 {
+                                panic!(
+                                    "Static indices length {} doesn't match scalar output",
+                                    indices.len()
+                                );
+                            }
+                            let idx = indices[0] as usize;
+                            let input_shape_name = &input_shape.name;
+                            let output = &self.output.name();
+                            quote! {
+                                let input_shape = &#input_shape_name;
+                                let #output = input_shape[#idx] as i64;
+                            }
+                        }
+                        _ => panic!(
+                            "Gather from Shape to Scalar needs scalar index, got {:?}!",
+                            self.index
+                        ),
+                    }
+                }
                 Type::Shape(out_shape) => {
                     match &self.index {
                         GatherIndices::Runtime(Type::Tensor(idx_tensor)) => {
@@ -104,38 +137,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
                             let input_shape_name = &input_shape.name;
                             let indices_len = indices.len();
 
-                            if output_rank == 0 {
-                                // Scalar output case - gather a single element
-                                if indices_len != 1 {
-                                    panic!(
-                                        "Static indices length {} doesn't match scalar output", 
-                                        indices_len
-                                    );
-                                }
-                                let idx = indices[0] as usize;
-                                quote! {
-                                    let input_shape = &#input_shape_name;
-                                    let #output = input_shape[#idx];
-                                }
-                            } else {
-                                // Array output case
-                                if indices_len != output_rank {
-                                    panic!(
-                                        "Static indices length {} doesn't match output rank {}",
-                                        indices_len, output_rank
-                                    );
-                                }
-                                
-                                // Generate static gathering code
-                                let gather_elements = indices.iter().map(|&idx| {
-                                    let idx_usize = idx as usize;
-                                    quote! { input_shape[#idx_usize] }
-                                });
+                            if indices_len != output_rank {
+                                panic!(
+                                    "Static indices length {indices_len} doesn't match output rank {output_rank}"
+                                );
+                            }
 
-                                quote! {
-                                    let input_shape = &#input_shape_name;
-                                    let #output: [usize; #output_rank] = [#(#gather_elements),*];
-                                }
+                            // Generate static gathering code
+                            let gather_elements = indices.iter().map(|&idx| {
+                                let idx_usize = idx as usize;
+                                quote! { input_shape[#idx_usize] }
+                            });
+
+                            quote! {
+                                let input_shape = &#input_shape_name;
+                                let #output: [usize; #output_rank] = [#(#gather_elements),*];
                             }
                         }
                         _ => panic!(
@@ -145,7 +161,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
                     }
                 }
                 _ => panic!(
-                    "Gather from Shape input can only output Shape, got {:?}!",
+                    "Gather from Shape input can only output Shape or Scalar, got {:?}!",
                     self.output
                 ),
             }
@@ -597,6 +613,55 @@ mod tests {
                     let input_shape = &shape1;
                     let shape2: [usize; 2usize] = [input_shape[0usize], input_shape[2usize]];
                     shape2
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_gather_scalar_from_shape() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(GatherNode::with_static_indices(
+            Type::Shape(ShapeType::new("shape1", 4)),
+            vec![1],
+            Type::Scalar(ScalarType::new("dim1", ScalarKind::Int64)),
+            0,
+        ));
+
+        graph.register_input_output(vec!["shape1".to_string()], vec!["dim1".to_string()]);
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(
+                    &self,
+                    shape1: [usize; 4]
+                ) -> i64 {
+                    let input_shape = &shape1;
+                    let dim1 = input_shape[1usize];
+                    dim1
                 }
             }
         };

@@ -57,13 +57,20 @@ pub fn gather_update_outputs(node: &mut Node) {
         }
         ArgType::Shape(_shape_rank) => {
             log::debug!("Gather input is shape for {}", node.name);
-            // When gathering from a shape, output is always shape with same rank as indices
-            node.outputs[0].ty = ArgType::Shape(indices_rank);
-            log::debug!(
-                "Gather result for {} is shape with rank {} (from shape)",
-                node.name,
-                indices_rank
-            );
+            // When gathering from a shape:
+            // - If indices are scalar (rank 0), output is a scalar (single dimension value)
+            // - Otherwise, output is a shape with same rank as indices
+            if indices_rank == 0 {
+                node.outputs[0].ty = ArgType::Scalar(crate::ir::ElementType::Int64);
+                log::debug!("Gather result for {} is scalar (from shape)", node.name);
+            } else {
+                node.outputs[0].ty = ArgType::Shape(indices_rank);
+                log::debug!(
+                    "Gather result for {} is shape with rank {} (from shape)",
+                    node.name,
+                    indices_rank
+                );
+            }
         }
         ty => panic!("Only tensor/shape input is valid, got {ty:?}"),
     }
@@ -100,8 +107,12 @@ pub fn gather_config(curr: &Node) -> GatherConfig {
 
     // Get indices input - similar to how slice handles its inputs
     let indices_input = &curr.inputs[1];
-    log::debug!("Gather indices input for {}: {:?}", curr.name, indices_input);
-    
+    log::debug!(
+        "Gather indices input for {}: {:?}",
+        curr.name,
+        indices_input
+    );
+
     let indices = if let Some(value) = &indices_input.value {
         // Static indices
         log::debug!("Gather {} has static indices value: {:?}", curr.name, value);
@@ -112,7 +123,11 @@ pub fn gather_config(curr: &Node) -> GatherConfig {
             }
             Data::Int32s(vals) => {
                 let int64_vals = vals.iter().map(|&v| v as i64).collect::<Vec<_>>();
-                log::debug!("Gather {} static indices (from int32): {:?}", curr.name, int64_vals);
+                log::debug!(
+                    "Gather {} static indices (from int32): {:?}",
+                    curr.name,
+                    int64_vals
+                );
                 GatherInput::Static(int64_vals)
             }
             other => panic!("Gather indices must be int32 or int64, got {other:?}"),
