@@ -1,4 +1,4 @@
-use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::ir::{ArgType, Node, TensorType};
 
 /// Update output rank for Gather based on input and indices ranks.
 pub fn gather_update_outputs(node: &mut Node) {
@@ -26,48 +26,27 @@ pub fn gather_update_outputs(node: &mut Node) {
             let output_rank = indices_rank + input_tensor.rank - 1;
             log::debug!("Gather output rank for {}: {}", node.name, output_rank);
 
-            if output_rank == 0 {
-                node.outputs[0].ty = ArgType::Scalar(input_tensor.elem_type.clone());
-                log::debug!("Gather result for {} is scalar", node.name);
-            } else {
-                node.outputs[0].ty = ArgType::Tensor(TensorType {
-                    elem_type: input_tensor.elem_type.clone(),
-                    rank: output_rank,
-                    static_shape: None,
-                });
-                log::debug!(
-                    "Gather result for {} is tensor with rank {}",
-                    node.name,
-                    output_rank
-                );
-            }
-        }
-        ArgType::Shape(_) => {
-            log::debug!("Gather input is shape for {}", node.name);
-            let shape_rank = 1;
-            // Output of rank q+(r-1), where q is rank of indices tensor and r is rank of input
-            let output_rank = indices_rank + shape_rank - 1;
+            // Always output tensor, even if rank is 0 (scalar tensor)
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: input_tensor.elem_type.clone(),
+                rank: output_rank.max(1), // Ensure minimum rank of 1
+                static_shape: None,
+            });
             log::debug!(
-                "Gather output rank for {} with shape input: {}",
+                "Gather result for {} is tensor with rank {}",
                 node.name,
-                output_rank
+                output_rank.max(1)
             );
-
-            if output_rank == 0 {
-                node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
-                log::debug!("Gather result for {} is scalar (from shape)", node.name);
-            } else {
-                node.outputs[0].ty = ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: output_rank,
-                    static_shape: None,
-                });
-                log::debug!(
-                    "Gather result for {} is tensor with rank {} (from shape)",
-                    node.name,
-                    output_rank
-                );
-            }
+        }
+        ArgType::Shape(_shape_rank) => {
+            log::debug!("Gather input is shape for {}", node.name);
+            // When gathering from a shape, output is always shape with same rank as indices
+            node.outputs[0].ty = ArgType::Shape(indices_rank);
+            log::debug!(
+                "Gather result for {} is shape with rank {} (from shape)",
+                node.name,
+                indices_rank
+            );
         }
         ty => panic!("Only tensor/shape input is valid, got {ty:?}"),
     }
@@ -86,7 +65,7 @@ pub fn gather_config(curr: &Node) -> usize {
     // extract the shape of the input tensor
     let input_dim = match curr.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor.rank as i64,
-        ArgType::Shape(_shape) => 1, // Shape is always 1-D
+        ArgType::Shape(shape_rank) => shape_rank as i64, // Shape dimension
         other => panic!("Only tensor or shape input is valid, got {other:?}"),
     };
 
@@ -116,7 +95,7 @@ mod tests {
         let mut builder = NodeBuilder::new(NodeType::Gather, "test_gather").attr_int("axis", axis);
 
         if is_shape {
-            builder = builder.add_input("data", ArgType::Shape(1));
+            builder = builder.add_input("data", ArgType::Shape(input_rank));
         } else {
             builder = builder.input_tensor_f32("data", input_rank, None);
         }
@@ -145,7 +124,7 @@ mod tests {
 
     #[test]
     fn test_gather_config_shape_input() {
-        let node = create_test_node(0, 0, true);
+        let node = create_test_node(0, 4, true); // Shape of a 4D tensor
         let config = gather_config(&node);
         assert_eq!(config, 0);
     }
