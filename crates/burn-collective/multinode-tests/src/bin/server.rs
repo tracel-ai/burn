@@ -1,6 +1,6 @@
 use std::env;
 
-use burn::backend::collective::global::server::base::start;
+use burn_collective::global::server::base::start;
 use burn_network::websocket::server::WsServer;
 
 #[tokio::main]

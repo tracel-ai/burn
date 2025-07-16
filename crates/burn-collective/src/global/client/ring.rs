@@ -1,7 +1,7 @@
 use core::ops::Range;
 use std::sync::Arc;
 
-use crate::global::shared::base::RingAllReduceStrategy;
+use crate::global::{server::base::GlobalCollectiveError, shared::base::RingAllReduceStrategy};
 use burn_network::{
     data_service::TensorDataService,
     network::{Network, NetworkAddress},
@@ -44,7 +44,7 @@ pub(crate) async fn ring_all_reduce_sum<B, N>(
     tensor: B::FloatTensorPrimitive,
     device: &B::Device,
     strategy: RingAllReduceStrategy,
-) -> B::FloatTensorPrimitive
+) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError>
 where
     B: Backend,
     N: Network,
@@ -63,7 +63,7 @@ where
         &data_service,
         device,
     )
-    .await;
+    .await?;
 
     // Phase 2: replace
     do_cycles::<B, N>(
@@ -75,10 +75,10 @@ where
         &data_service,
         device,
     )
-    .await;
+    .await?;
 
     // merge slices
-    B::float_cat(slices, strategy.slice_dim)
+    Ok(B::float_cat(slices, strategy.slice_dim))
 }
 
 /// Do N-1 cycles of ring-reduce
@@ -90,7 +90,8 @@ async fn do_cycles<B, N>(
     next_node: NetworkAddress,
     data_service: &Arc<TensorDataService<B, N>>,
     device: &B::Device,
-) where
+) -> Result<(), GlobalCollectiveError>
+where
     B: Backend,
     N: Network,
 {
@@ -120,14 +121,20 @@ async fn do_cycles<B, N>(
             let tensor = B::float_from_data(download.unwrap(), device);
             slices[recv_slice_idx] = B::float_add(slices[recv_slice_idx].clone(), tensor);
         } else {
-            // TODO check dimensions of new slice
-            slices[recv_slice_idx] = B::float_from_data(download.unwrap(), device);
+            let tensor = B::float_from_data(download.unwrap(), device);
+            let old_shape = slices[recv_slice_idx].shape();
+            if old_shape != tensor.shape() {
+                return Err(GlobalCollectiveError::PeerSentIncoherentTensor);
+            }
+            slices[recv_slice_idx] = tensor;
         }
 
         // Move slice index
         *send_slice_idx = (*send_slice_idx - 1) % slice_count;
         *transfer_counter += 1;
     }
+
+    Ok(())
 }
 
 fn slice_tensor<B: Backend>(

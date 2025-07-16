@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
+use crate::global::server::base::GlobalCollectiveError;
 use crate::global::shared::base::CentralizedAllReduceStrategy;
 use crate::global::shared::base::CentralizedAllReduceStrategy::{Central, Peripheral};
 use burn_network::data_service::TensorDataService;
 use burn_network::network::Network;
+use burn_tensor::TensorMetadata;
 use burn_tensor::backend::Backend;
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
@@ -13,11 +15,13 @@ pub(crate) async fn centralized_all_reduce_sum<B, N>(
     tensor: B::FloatTensorPrimitive,
     device: &B::Device,
     strategy: CentralizedAllReduceStrategy,
-) -> B::FloatTensorPrimitive
+) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError>
 where
     B: Backend,
     N: Network,
 {
+    let shape = tensor.shape();
+
     match strategy {
         Central { other_nodes } => {
             // Transfer 1: download tensors from other nodes
@@ -39,7 +43,9 @@ where
             // Sum all downloads async
             let mut sum = tensor;
             while let Some(res) = futures.next().await {
-                // If the tensor is empty, we can skip it
+                if shape != res.shape() {
+                    return Err(GlobalCollectiveError::PeerSentIncoherentTensor);
+                }
                 sum = B::float_add(sum, res);
             }
 
@@ -48,7 +54,7 @@ where
                 .expose(sum.clone(), other_nodes.len() as u32, 1.into())
                 .await;
 
-            sum
+            Ok(sum)
         }
         Peripheral { central_node } => {
             // Transfer 1: Expose input
@@ -60,7 +66,11 @@ where
                 .await
                 .expect("Couldn't find the tensor for transfer id 1");
 
-            B::float_from_data(data, device)
+            let res = B::float_from_data(data, device);
+            if shape != res.shape() {
+                return Err(GlobalCollectiveError::PeerSentIncoherentTensor);
+            }
+            Ok(res)
         }
     }
 }

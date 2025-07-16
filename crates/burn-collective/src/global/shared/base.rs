@@ -5,7 +5,9 @@ use burn_common::id::IdGenerator;
 use burn_network::network::NetworkAddress;
 use serde::{Deserialize, Serialize};
 
-use crate::{GlobalAllReduceParams, global::server::base::GlobalCollectiveError};
+use crate::{
+    AllReduceStrategy, SharedGlobalRegisterParams, global::server::base::GlobalCollectiveError,
+};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct RequestId(u32);
@@ -39,6 +41,15 @@ impl SessionId {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct NodeId(u32);
+
+impl From<u32> for NodeId {
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Message {
     Init(SessionId),
@@ -54,13 +65,13 @@ pub struct MessageResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RemoteRequest {
     AllReduce {
-        params: GlobalAllReduceParams,
+        strategy: AllReduceStrategy,
     },
     Register {
-        node_id: u32,
+        node_id: NodeId,
         node_addr: NetworkAddress,
-        num_nodes: u32,
         num_local_devices: u32,
+        shared_params: SharedGlobalRegisterParams,
     },
     Reset,
     /// Unregister node

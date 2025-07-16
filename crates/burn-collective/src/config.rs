@@ -1,22 +1,26 @@
 use burn_network::network::NetworkAddress;
 use serde::{Deserialize, Serialize};
 
-use crate::{AllReduceParams, AllReduceStrategy, GlobalAllReduceParams, GlobalRegisterParams, ReduceKind, RegisterParams};
+use crate::{
+    AllReduceStrategy, DeviceId, GlobalRegisterParams, ReduceKind, RegisterParams,
+    SharedAllReduceParams, SharedGlobalRegisterParams, SharedRegisterParams,
+    global::shared::base::NodeId,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectiveConfig {
+    pub device_id: DeviceId,
     pub num_devices: u32,
     pub all_reduce_kind: ReduceKind,
     pub local_strategy: AllReduceStrategy,
 
-    // Global parameters (optional)
-    pub node_id: Option<u32>,
+    // Global parameters (all are optional, but if one is defined they should all be)
+    pub node_id: Option<NodeId>,
     pub num_nodes: Option<u32>,
     pub server_address: Option<NetworkAddress>,
     pub client_address: Option<NetworkAddress>,
     pub client_data_port: Option<u16>,
     pub global_strategy: Option<AllReduceStrategy>,
-    
 }
 
 impl Default for CollectiveConfig {
@@ -28,6 +32,7 @@ impl Default for CollectiveConfig {
 impl CollectiveConfig {
     fn new() -> Self {
         Self {
+            device_id: 0.into(),
             num_devices: 1,
             all_reduce_kind: ReduceKind::Mean,
             local_strategy: AllReduceStrategy::Tree(2),
@@ -56,7 +61,7 @@ impl CollectiveConfig {
         self
     }
 
-    pub fn with_node_id(mut self, id: u32) -> Self {
+    pub fn with_node_id(mut self, id: NodeId) -> Self {
         self.node_id = Some(id);
         self
     }
@@ -88,7 +93,7 @@ impl CollectiveConfig {
 
     /// Converts the config into `RegisterParams`, returning an error if only partial global fields are set.
     pub fn register_params(&self) -> Option<RegisterParams> {
-        let global_params = match (
+        let global = match (
             self.node_id,
             self.num_nodes,
             &self.server_address,
@@ -99,29 +104,32 @@ impl CollectiveConfig {
             (Some(node_id), Some(num_nodes), Some(server_addr), Some(client_addr), Some(port)) => {
                 Some(GlobalRegisterParams {
                     node_id,
-                    num_nodes,
                     server_address: server_addr.clone(),
                     client_address: client_addr.clone(),
                     client_data_port: port,
+                    shared_params: SharedGlobalRegisterParams { num_nodes },
                 })
             }
             _ => return None,
         };
 
-        Some(RegisterParams {
+        let shared = SharedRegisterParams {
             num_devices: self.num_devices,
-            global_params,
+        };
+
+        Some(RegisterParams {
+            device_id: self.device_id,
+            shared,
+            global,
         })
     }
 
     /// Converts the config into `AllReduceParams`, using optional global strategy.
-    pub fn all_reduce_params(&self) -> AllReduceParams {
-        AllReduceParams {
+    pub fn all_reduce_params(&self) -> SharedAllReduceParams {
+        SharedAllReduceParams {
             kind: self.all_reduce_kind,
             local_strategy: self.local_strategy,
-            global_strategy: self.global_strategy.map(|s| GlobalAllReduceParams {
-                strategy: s,
-            }),
+            global_strategy: self.global_strategy,
         }
     }
 }

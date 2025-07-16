@@ -1,15 +1,13 @@
 use std::{env, sync::mpsc::SyncSender};
 
 use burn::{
-    backend::{
-        NdArray,
-        collective::{
-            AllReduceParams, GlobalRegisterParams, RegisterParams, all_reduce, finish_collective,
-            register, reset_collective,
-        },
-    },
+    backend::NdArray,
     prelude::Backend,
     tensor::{Tensor, TensorData, Tolerance},
+};
+use burn_collective::{
+    GlobalRegisterParams, RegisterParams, SharedAllReduceParams, SharedGlobalRegisterParams,
+    SharedRegisterParams, all_reduce, finish_collective, register, reset_collective,
 };
 use burn_collective_multinode_tests::shared::NodeTestData;
 
@@ -38,16 +36,21 @@ fn test_all_reduce<B: Backend>(test_input: NodeTestData) {
 
     let device_count = test_input.device_count;
 
-    let global_params = Some(GlobalRegisterParams {
+    let global = Some(GlobalRegisterParams {
         node_id: test_input.node_id,
-        num_nodes: test_input.node_count,
         server_address: test_input.server_address,
         client_address: test_input.client_address,
         client_data_port: test_input.client_data_port,
+        shared_params: SharedGlobalRegisterParams {
+            num_nodes: test_input.node_count,
+        },
     });
     let reg_params = RegisterParams {
-        num_devices: device_count,
-        global_params,
+        device_id: 0.into(),
+        shared: SharedRegisterParams {
+            num_devices: test_input.device_count,
+        },
+        global,
     };
 
     let (send, recv) = std::sync::mpsc::sync_channel(32);
@@ -55,10 +58,11 @@ fn test_all_reduce<B: Backend>(test_input: NodeTestData) {
     let mut handles = vec![];
     for id in 0..device_count {
         let send = send.clone();
-        let reg_params = reg_params.clone();
+        let mut reg_params = reg_params.clone();
+        reg_params.device_id = id.into();
         let params = test_input.aggregate_params.clone();
         let input = test_input.inputs[id as usize].clone();
-        let handle = std::thread::spawn(move || run_peer::<B>(id, reg_params, params, input, send));
+        let handle = std::thread::spawn(move || run_peer::<B>(reg_params, params, input, send));
         handles.push(handle);
     }
 
@@ -84,21 +88,21 @@ fn test_all_reduce<B: Backend>(test_input: NodeTestData) {
 
 /// Runs a thread in the all-reduce test.
 pub fn run_peer<B: Backend>(
-    id: u32,
     reg_params: RegisterParams,
-    params: AllReduceParams,
+    all_reduce_params: SharedAllReduceParams,
     input: TensorData,
     output: SyncSender<Tensor<B, 1>>,
 ) {
     let device = B::Device::default();
+    let id = reg_params.device_id;
 
-    register::<B>(id, reg_params);
+    register::<B>(reg_params).unwrap();
 
     let tensor = Tensor::<B, 1>::from_data(input, &device);
 
-    let tensor = all_reduce(tensor, &params).unwrap();
+    let tensor = all_reduce(id, tensor, &all_reduce_params).unwrap();
 
     output.send(tensor).unwrap();
 
-    finish_collective::<B>(id);
+    finish_collective::<B>(id).unwrap();
 }

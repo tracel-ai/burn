@@ -9,13 +9,11 @@ use tokio::time::{Duration, Instant};
 use tokio::process::{Child, Command};
 
 use burn::{
-    backend::{
-        NdArray,
-        collective::{AllReduceParams, AllReduceStrategy, ReduceKind},
-    },
+    backend::NdArray,
     prelude::Backend,
     tensor::{Shape, Tensor, TensorData},
 };
+use burn_collective::{AllReduceStrategy, ReduceKind, SharedAllReduceParams};
 use burn_collective_multinode_tests::shared::NodeTestData;
 use burn_common::rand::{SeedableRng, StdRng};
 
@@ -33,12 +31,10 @@ async fn main() {
 
     let topology = vec![5, 5, 5, 5, 5];
     let tensor_shape = Shape { dims: vec![4] };
-    let aggregate_params = AllReduceParams {
+    let aggregate_params = SharedAllReduceParams {
         kind: ReduceKind::Sum,
         local_strategy: AllReduceStrategy::Tree(2),
-        global_strategy: Some(burn::collective::GlobalAllReduceParams {
-            strategy: AllReduceStrategy::Ring,
-        }),
+        global_strategy: Some(AllReduceStrategy::Ring),
     };
 
     let mut server: Child = Command::new("cargo")
@@ -111,7 +107,7 @@ async fn main() {
 fn launch_clients(
     topology: Vec<u32>,
     tensor_shape: Shape,
-    aggregate_params: AllReduceParams,
+    aggregate_params: SharedAllReduceParams,
 ) -> Vec<(String, Child)> {
     let total_device_count = topology.iter().sum();
     let (inputs, expected) =
@@ -136,7 +132,7 @@ fn launch_clients(
 
         let data = NodeTestData {
             device_count,
-            node_id: node_idx as u32,
+            node_id: (node_idx as u32).into(),
             node_count: node_count as u32,
             server_address: server_address.clone(),
             client_address,

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use crate::global::shared::base::TreeAllReduceStrategy;
+use crate::global::{server::base::GlobalCollectiveError, shared::base::TreeAllReduceStrategy};
 use burn_network::{data_service::TensorDataService, network::Network};
-use burn_tensor::backend::Backend;
+use burn_tensor::{TensorMetadata, backend::Backend};
 use futures::{StreamExt, stream::FuturesUnordered};
 
 pub(crate) async fn tree_all_reduce_sum<B, N>(
@@ -10,11 +10,13 @@ pub(crate) async fn tree_all_reduce_sum<B, N>(
     tensor: B::FloatTensorPrimitive,
     device: &B::Device,
     strategy: TreeAllReduceStrategy,
-) -> B::FloatTensorPrimitive
+) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError>
 where
     B: Backend,
     N: Network,
 {
+    let shape = tensor.shape();
+
     // Transfer #1: Download tensors from children async
     let mut downloads = strategy
         .children
@@ -35,6 +37,9 @@ where
     // Sum download results
     let mut result = tensor;
     while let Some(res) = downloads.next().await {
+        if shape != res.shape() {
+            return Err(GlobalCollectiveError::PeerSentIncoherentTensor);
+        }
         result = B::float_add(result, res);
     }
 
@@ -48,6 +53,9 @@ where
             .await
             .unwrap();
         let parent_tensor = B::float_from_data(data, device);
+        if shape != parent_tensor.shape() {
+            return Err(GlobalCollectiveError::PeerSentIncoherentTensor);
+        }
         result = parent_tensor;
     }
 
@@ -58,5 +66,5 @@ where
             .await;
     }
 
-    result
+    Ok(result)
 }

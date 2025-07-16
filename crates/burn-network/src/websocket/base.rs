@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use crate::{
     network::{Network, NetworkAddress},
     websocket::{client::WsClient, server::WsServer},
@@ -12,26 +10,23 @@ impl Network for WsNetwork {
     type Server = WsServer;
 }
 
-pub struct WsAddress(NetworkAddress);
-
-impl FromStr for WsAddress {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<WsAddress, String> {
-        let parts = s.split("://").collect::<Vec<&str>>();
-        let num_parts = parts.len();
-        let url = if num_parts == 2 {
-            if parts[0] == "ws" {
-                s.to_owned()
-            } else {
-                panic!("Invalid prefix: {}", parts[0]);
-            }
-        } else if num_parts == 1 {
-            format!("ws://{s}")
+/// Parse an address, add the ws:// prefix if needed, and return an error if the address is invalid
+pub fn parse_ws_address(mut address: NetworkAddress) -> Result<NetworkAddress, String> {
+    let s = &address.inner;
+    let parts = s.split("://").collect::<Vec<&str>>();
+    let num_parts = parts.len();
+    let url = if num_parts == 2 {
+        if parts[0] == "ws" {
+            s.to_owned()
         } else {
-            panic!("Invalid url: {s}");
-        };
+            return Err(format!("Invalid prefix: {}", parts[0]));
+        }
+    } else if num_parts == 1 {
+        return Err(format!("ws://{s}"));
+    } else {
+        return Err(format!("Invalid url: {s}"));
+    };
 
-        NetworkAddress::from_str(s).map(Self)
-    }
+    address.inner = url;
+    Ok(address)
 }

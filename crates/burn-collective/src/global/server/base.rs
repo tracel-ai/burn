@@ -3,7 +3,10 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::global::{server::state::GlobalCollectiveState, shared::base::Message};
+use crate::global::{
+    server::state::GlobalCollectiveState,
+    shared::base::{Message, NodeId},
+};
 use burn_network::{
     network::{NetworkError, NetworkServer, NetworkStream},
     util::os_shutdown_signal,
@@ -16,13 +19,13 @@ pub enum GlobalCollectiveError {
     AllReduceBeforeRegister,
 
     // Can't register a node twice
-    MultipleRegister(u32),
+    MultipleRegister(NodeId),
     // Either a node has unregisterd twice, or a Finish has been called before a Register
     NotRegisteredOnFinish,
     // Finish has been called before a Register operation was finished
     PendingRegisterOnFinish,
     // Trying to register a different way than is currently being done
-    RegisterParamsMismatch, // TODO find this
+    RegisterParamsMismatch,
     // Trying to aggregate a different way than is currently being done
     AllReduceParamsMismatch,
 
@@ -30,6 +33,8 @@ pub enum GlobalCollectiveError {
     FirstMsgNotInit,
     // Messages should be rmp_serde serialized `Message` types
     InvalidMessage,
+    // A peer behaved unexpectedly
+    PeerSentIncoherentTensor,
     // Error from the server
     Server(String),
 

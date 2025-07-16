@@ -587,6 +587,7 @@ name = "burn-collective-multinode-tests"
 version = "0.18.0"
 dependencies = [
  "burn",
+ "burn-collective",
  "burn-common",
  "burn-network",
  "serde",
@@ -621,7 +622,6 @@ dependencies = [
  "burn-derive",
  "burn-fusion",
  "burn-ndarray",
- "burn-network",
  "burn-remote",
  "burn-rocm",
  "burn-router",

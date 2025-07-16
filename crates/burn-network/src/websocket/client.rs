@@ -1,4 +1,7 @@
-use crate::network::{NetworkAddress, NetworkClient, NetworkError, NetworkMessage, NetworkStream};
+use crate::{
+    network::{NetworkAddress, NetworkClient, NetworkError, NetworkMessage, NetworkStream},
+    websocket::base::parse_ws_address,
+};
 use burn_common::future::DynFut;
 use futures::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
@@ -14,13 +17,14 @@ impl NetworkClient for WsClient {
     type Error = WsClientError;
 
     fn connect(address: NetworkAddress, route: &str) -> DynFut<Option<WsClientStream>> {
-        let address = format!("{address}/{route}");
-        Box::pin(connect_ws(address))
+        Box::pin(connect_ws(address, route.to_owned()))
     }
 }
 
-async fn connect_ws(address: String) -> Option<WsClientStream> {
-    // Open a new WebSocket connection to the address
+/// Open a new WebSocket connection to the address
+async fn connect_ws(address: NetworkAddress, route: String) -> Option<WsClientStream> {
+    let address = parse_ws_address(address).ok()?;
+    let address = format!("{address}/{route}");
     const MB: usize = 1024 * 1024;
     let (stream, _) = connect_async_with_config(
         address.clone(),

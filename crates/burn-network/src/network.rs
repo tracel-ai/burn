@@ -7,7 +7,7 @@ use std::str::FromStr;
 /// Allows nodes to find each other
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub struct NetworkAddress {
-    inner: String,
+    pub(crate) inner: String,
 }
 
 impl FromStr for NetworkAddress {

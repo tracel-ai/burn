@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use crate::{
-    GlobalAllReduceParams,
+    AllReduceStrategy, SharedGlobalRegisterParams,
     global::{
         server::base::GlobalCollectiveError,
         shared::base::{
-            CentralizedAllReduceStrategy, MessageResponse, RemoteRequest, RemoteResponse,
+            CentralizedAllReduceStrategy, MessageResponse, NodeId, RemoteRequest, RemoteResponse,
             RequestId, SessionId,
         },
     },
@@ -34,14 +34,13 @@ impl Session {
 
 pub(crate) struct GlobalCollectiveState {
     /// The ids passed to each register so far, and their addresses
-    // TODO make a type for node IDs for easier refactoring
-    registered_nodes: HashMap<SessionId, u32>,
-    node_addresses: HashMap<u32, NetworkAddress>,
+    registered_nodes: HashMap<SessionId, NodeId>,
+    node_addresses: HashMap<NodeId, NetworkAddress>,
     /// The params of the current all-reduce operation, as defined by the first caller
-    cur_all_reduce_params: Option<GlobalAllReduceParams>,
+    cur_all_reduce_strategy: Option<AllReduceStrategy>,
 
     /// The params of the current register operation, as defined by the first caller
-    cur_num_nodes: Option<u32>,
+    cur_shared_params: Option<SharedGlobalRegisterParams>,
     num_global_devices: u32,
 
     all_reduce_requests: Vec<(SessionId, RequestId, NetworkAddress)>,
@@ -55,8 +54,8 @@ impl GlobalCollectiveState {
         Self {
             registered_nodes: HashMap::new(),
             node_addresses: HashMap::new(),
-            cur_all_reduce_params: None,
-            cur_num_nodes: None,
+            cur_all_reduce_strategy: None,
+            cur_shared_params: None,
             num_global_devices: 0,
             all_reduce_requests: Vec::new(),
             register_requests: Vec::new(),
@@ -92,22 +91,22 @@ impl GlobalCollectiveState {
         request: RemoteRequest,
     ) {
         if let Err(err) = match request {
-            RemoteRequest::AllReduce { params } => {
-                self.all_reduce(session_id, request_id, params).await
+            RemoteRequest::AllReduce { strategy } => {
+                self.all_reduce(session_id, request_id, strategy).await
             }
             RemoteRequest::Register {
                 node_id,
                 node_addr,
-                num_nodes,
                 num_local_devices,
+                shared_params,
             } => {
                 self.register(
                     session_id,
                     request_id,
                     node_id,
                     node_addr,
-                    num_nodes,
                     num_local_devices,
+                    shared_params,
                 )
                 .await
             }
@@ -133,7 +132,7 @@ impl GlobalCollectiveState {
     fn reset(&mut self) {
         self.registered_nodes.clear();
         self.node_addresses.clear();
-        self.cur_all_reduce_params = None;
+        self.cur_all_reduce_strategy = None;
         self.num_global_devices = 0;
         self.all_reduce_requests.clear();
         self.register_requests.clear();
@@ -202,10 +201,10 @@ impl GlobalCollectiveState {
         &mut self,
         session_id: SessionId,
         request_id: RequestId,
-        node_id: u32,
+        node_id: NodeId,
         node_addr: NetworkAddress,
-        num_nodes: u32,
         num_devices: u32,
+        shared_params: SharedGlobalRegisterParams,
     ) -> Result<(), GlobalCollectiveError> {
         if self.node_addresses.contains_key(&node_id)
             || self.registered_nodes.contains_key(&session_id)
@@ -218,18 +217,18 @@ impl GlobalCollectiveState {
         self.register_requests.push((session_id, request_id));
 
         self.num_global_devices += num_devices;
-        match self.cur_num_nodes {
-            Some(cur_num_nodes) => {
-                if cur_num_nodes != num_nodes {
+        match &self.cur_shared_params {
+            Some(cur_shared_params) => {
+                if *cur_shared_params != shared_params {
                     return Err(GlobalCollectiveError::RegisterParamsMismatch);
                 }
             }
             None => {
-                self.cur_num_nodes = Some(num_nodes);
+                self.cur_shared_params = Some(shared_params.clone());
             }
         }
 
-        if self.registered_nodes.len() == num_nodes as usize {
+        if self.registered_nodes.len() == shared_params.num_nodes as usize {
             let mut callbacks = vec![];
             core::mem::swap(&mut callbacks, &mut self.register_requests);
 
@@ -252,21 +251,21 @@ impl GlobalCollectiveState {
         &mut self,
         session_id: SessionId,
         request_id: RequestId,
-        params: GlobalAllReduceParams,
+        strategy: AllReduceStrategy,
     ) -> Result<(), GlobalCollectiveError> {
         let node_id = *self
             .registered_nodes
             .get(&session_id)
             .ok_or(GlobalCollectiveError::AllReduceBeforeRegister)?;
 
-        if self.all_reduce_requests.is_empty() || self.cur_all_reduce_params.is_none() {
-            self.cur_all_reduce_params = Some(params);
-        } else if *self.cur_all_reduce_params.as_ref().unwrap() != params {
+        if self.all_reduce_requests.is_empty() || self.cur_all_reduce_strategy.is_none() {
+            self.cur_all_reduce_strategy = Some(strategy);
+        } else if *self.cur_all_reduce_strategy.as_ref().unwrap() != strategy {
             log::error!(
                 "Trying to all_reduce a different way ({:?}) than is currently
                     being done ({:?})",
-                params,
-                self.cur_all_reduce_params,
+                strategy,
+                self.cur_all_reduce_strategy,
             );
             return Err(GlobalCollectiveError::AllReduceParamsMismatch);
         }

@@ -31,31 +31,30 @@ mod tests {
     pub type TestBackend = burn_wgpu::Wgpu<f32>;
 
     use crate::{
-        AllReduceParams, AllReduceStrategy, ReduceKind, RegisterParams,
+        AllReduceStrategy, ReduceKind, RegisterParams, SharedAllReduceParams, SharedRegisterParams,
         api::{all_reduce, register, reset_collective},
     };
 
     pub fn run_peer<B: Backend>(
-        id: u32,
         reg_params: RegisterParams,
-        params: AllReduceParams,
+        all_reduce_params: &SharedAllReduceParams,
         input: TensorData,
         output: SyncSender<Tensor<B, 1>>,
     ) {
         let device = B::Device::default();
 
-        register::<B>(id, reg_params);
+        register::<B>(reg_params.clone()).unwrap();
 
         let tensor = Tensor::<B, 1>::from_data(input, &device);
 
-        let tensor = all_reduce(tensor, params);
+        let tensor = all_reduce(reg_params.device_id, tensor, all_reduce_params).unwrap();
 
         output.send(tensor).unwrap();
     }
 
     fn generate_random_input(
         shape: Shape,
-        params: AllReduceParams,
+        reduce_kind: ReduceKind,
         thread_count: u32,
     ) -> (Vec<TensorData>, TensorData) {
         let input: Vec<TensorData> = (0..thread_count)
@@ -75,7 +74,7 @@ mod tests {
             let input_tensor = Tensor::<TestBackend, 1>::from_data(item.clone(), &device);
             expected_tensor = expected_tensor.add(input_tensor);
         }
-        if params.kind == ReduceKind::Mean {
+        if reduce_kind == ReduceKind::Mean {
             expected_tensor = expected_tensor.div_scalar(thread_count);
         }
 
@@ -84,7 +83,11 @@ mod tests {
         (input, expected)
     }
 
-    fn test_all_reduce<B: Backend>(device_count: u32, params: AllReduceParams, tensor_size: usize) {
+    fn test_all_reduce<B: Backend>(
+        device_count: u32,
+        all_reduce_params: SharedAllReduceParams,
+        tensor_size: usize,
+    ) {
         reset_collective::<TestBackend>();
 
         let (send, recv) = std::sync::mpsc::sync_channel(32);
@@ -93,18 +96,21 @@ mod tests {
             dims: vec![tensor_size],
         };
 
-        let (input, expected) = generate_random_input(shape, params.clone(), device_count);
+        let (input, expected) = generate_random_input(shape, all_reduce_params.kind, device_count);
         let mut global_idx: usize = 0;
-        let reg_params = RegisterParams {
-            num_devices: device_count,
-            global_params: None,
-        };
+
         for id in 0..device_count {
             let send = send.clone();
-            let reg_params = reg_params.clone();
-            let params = params.clone();
+            let reg_params = RegisterParams {
+                device_id: id.into(),
+                shared: SharedRegisterParams {
+                    num_devices: device_count,
+                },
+                global: None,
+            };
             let input = input[global_idx].clone();
-            std::thread::spawn(move || run_peer::<B>(id, reg_params, params, input, send));
+            let all_reduce_params = all_reduce_params.clone();
+            std::thread::spawn(move || run_peer::<B>(reg_params, &all_reduce_params, input, send));
 
             global_idx += 1;
         }
@@ -124,7 +130,7 @@ mod tests {
     pub fn test_all_reduce_centralized_sum() {
         test_all_reduce::<TestBackend>(
             4,
-            AllReduceParams {
+            SharedAllReduceParams {
                 kind: ReduceKind::Sum,
                 local_strategy: AllReduceStrategy::Centralized,
                 global_strategy: None,
@@ -138,7 +144,7 @@ mod tests {
     pub fn test_all_reduce_centralized_mean() {
         test_all_reduce::<TestBackend>(
             4,
-            AllReduceParams {
+            SharedAllReduceParams {
                 kind: ReduceKind::Mean,
                 local_strategy: AllReduceStrategy::Centralized,
                 global_strategy: None,
@@ -152,7 +158,7 @@ mod tests {
     pub fn test_all_reduce_binary_tree_sum() {
         test_all_reduce::<TestBackend>(
             4,
-            AllReduceParams {
+            SharedAllReduceParams {
                 kind: ReduceKind::Sum,
                 local_strategy: AllReduceStrategy::Tree(2),
                 global_strategy: None,
@@ -166,7 +172,7 @@ mod tests {
     pub fn test_all_reduce_binary_tree_mean() {
         test_all_reduce::<TestBackend>(
             4,
-            AllReduceParams {
+            SharedAllReduceParams {
                 kind: ReduceKind::Mean,
                 local_strategy: AllReduceStrategy::Tree(2),
                 global_strategy: None,
@@ -180,7 +186,7 @@ mod tests {
     pub fn test_all_reduce_5_tree_sum() {
         test_all_reduce::<TestBackend>(
             4,
-            AllReduceParams {
+            SharedAllReduceParams {
                 kind: ReduceKind::Sum,
                 local_strategy: AllReduceStrategy::Tree(5),
                 global_strategy: None,
@@ -194,7 +200,7 @@ mod tests {
     pub fn test_all_reduce_5_tree_mean() {
         test_all_reduce::<TestBackend>(
             4,
-            AllReduceParams {
+            SharedAllReduceParams {
                 kind: ReduceKind::Mean,
                 local_strategy: AllReduceStrategy::Tree(5),
                 global_strategy: None,
@@ -208,7 +214,7 @@ mod tests {
     pub fn test_all_reduce_ring_sum() {
         test_all_reduce::<TestBackend>(
             3,
-            AllReduceParams {
+            SharedAllReduceParams {
                 kind: ReduceKind::Sum,
                 local_strategy: AllReduceStrategy::Ring,
                 global_strategy: None,
@@ -222,7 +228,7 @@ mod tests {
     pub fn test_all_reduce_ring_mean() {
         test_all_reduce::<TestBackend>(
             3,
-            AllReduceParams {
+            SharedAllReduceParams {
                 kind: ReduceKind::Mean,
                 local_strategy: AllReduceStrategy::Ring,
                 global_strategy: None,
@@ -237,7 +243,7 @@ mod tests {
         // this should trigger the fallback algorithm when the tensor is too small.
         test_all_reduce::<TestBackend>(
             4,
-            AllReduceParams {
+            SharedAllReduceParams {
                 kind: ReduceKind::Sum,
                 local_strategy: AllReduceStrategy::Ring,
                 global_strategy: None,

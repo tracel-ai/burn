@@ -9,8 +9,9 @@ use std::{marker::PhantomData, sync::Arc};
 use tokio_util::sync::CancellationToken;
 
 use crate::global::server::base::GlobalCollectiveError;
+use crate::{AllReduceStrategy, GlobalRegisterParams};
 use crate::{
-    GlobalAllReduceParams, ReduceKind, RegisterParams,
+    ReduceKind, SharedRegisterParams,
     global::{
         client::{
             centralized::centralized_all_reduce_sum, ring::ring_all_reduce_sum,
@@ -68,15 +69,17 @@ where
         }
     }
 
-    pub async fn register(&mut self, params: RegisterParams) -> Result<(), GlobalCollectiveError> {
+    pub async fn register(
+        &mut self,
+        params: SharedRegisterParams,
+        global_params: GlobalRegisterParams,
+    ) -> Result<(), GlobalCollectiveError> {
         let node_addr = self.data_client_address.as_ref().clone();
-        let global_params = params
-            .global_params
-            .expect("Must have global params for global register");
+
         let req = RemoteRequest::Register {
             node_id: global_params.node_id,
             node_addr,
-            num_nodes: global_params.num_nodes,
+            shared_params: global_params.shared_params,
             num_local_devices: params.num_devices,
         };
         match self.worker.request(req).await {
@@ -98,7 +101,7 @@ where
     pub async fn all_reduce(
         &self,
         tensor: B::FloatTensorPrimitive,
-        params: &GlobalAllReduceParams,
+        strategy: AllReduceStrategy,
         device: &B::Device,
         kind: ReduceKind,
     ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError> {
@@ -107,20 +110,18 @@ where
             .expect("Can't all-reduce before registering (global)");
 
         // Get strategy from server
-        let req = RemoteRequest::AllReduce {
-            params: params.clone(),
-        };
+        let req = RemoteRequest::AllReduce { strategy };
         let resp = self.worker.request(req).await;
 
         let mut result = match resp {
             RemoteResponse::CentralizedAllReduceStrategy(strategy) => {
-                centralized_all_reduce_sum(&self.data_service, tensor, device, strategy).await
+                centralized_all_reduce_sum(&self.data_service, tensor, device, strategy).await?
             }
             RemoteResponse::TreeAllReduceStrategy(strategy) => {
-                tree_all_reduce_sum(self.data_service.clone(), tensor, device, strategy).await
+                tree_all_reduce_sum(self.data_service.clone(), tensor, device, strategy).await?
             }
             RemoteResponse::RingAllReduceStrategy(strategy) => {
-                ring_all_reduce_sum(self.data_service.clone(), tensor, device, strategy).await
+                ring_all_reduce_sum(self.data_service.clone(), tensor, device, strategy).await?
             }
             RemoteResponse::Error(err) => {
                 return Err(err);
