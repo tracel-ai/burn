@@ -96,7 +96,11 @@ impl SliceNode {
         _node_position: usize,
         output: &proc_macro2::Ident,
     ) -> TokenStream {
-        // Shape slicing only supports static slicing
+        // TODO: Shape slicing has the following limitations:
+        // 1. Does not support Shape type inputs for 'starts' and 'ends' parameters
+        // 2. Only accepts static (compile-time) scalar values
+        // 3. Runtime scalar inputs are not supported (will panic)
+        // 4. Only supports single-dimensional slicing (multi-dimensional slicing not implemented)
         match (&self.starts, &self.ends) {
             (SliceParam::Static(starts), SliceParam::Static(ends)) if starts.len() == 1 => {
                 let start = starts[0].to_tokens();
