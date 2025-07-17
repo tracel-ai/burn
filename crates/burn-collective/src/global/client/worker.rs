@@ -12,10 +12,9 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use crate::global::{
-    server::base::GlobalCollectiveError,
-    shared::base::{
+    shared::{
         CollectiveMessage, CollectiveMessageResponse, RemoteRequest, RemoteResponse, RequestId,
-        SessionId,
+        SessionId, GlobalCollectiveError,
     },
 };
 
@@ -47,7 +46,7 @@ pub(crate) struct ClientRequest {
 }
 
 impl ClientRequest {
-    pub fn new(request: RemoteRequest, callback: Sender<RemoteResponse>) -> Self {
+    pub(crate) fn new(request: RemoteRequest, callback: Sender<RemoteResponse>) -> Self {
         Self { request, callback }
     }
 }
@@ -181,7 +180,7 @@ impl<C: ProtocolClient> GlobalClientWorker<C> {
     }
 
     /// Unregister the worker and close the connection.
-    pub async fn close_connection(&mut self) -> Result<(), GlobalCollectiveError> {
+    pub(crate) async fn close_connection(&mut self) -> Result<(), GlobalCollectiveError> {
         if let Some(handle) = self.handle.take() {
             // Un-register from server
             let req = RemoteRequest::Finish;
@@ -291,7 +290,7 @@ impl<C: ProtocolClient> GlobalClientWorker<C> {
             .expect("Can send the close message on the websocket.");
     }
 
-    pub async fn request(&self, req: RemoteRequest) -> RemoteResponse {
+    pub(crate) async fn request(&self, req: RemoteRequest) -> RemoteResponse {
         let (callback, mut response_recv) = tokio::sync::mpsc::channel::<RemoteResponse>(10);
         let client_req = ClientRequest::new(req, callback);
         self.request_sender.send(client_req).await.unwrap();

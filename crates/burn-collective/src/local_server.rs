@@ -7,14 +7,14 @@ use std::{
     },
 };
 
-use burn_communication::websocket::{base::WebSocket, server::WsServer};
+use burn_communication::websocket::{WsServer, WebSocket};
 use burn_tensor::backend::Backend;
 use tokio::runtime::{Builder, Runtime};
 
 use crate::{
-    AllReduceStrategy, CollectiveError, DeviceId, GlobalRegisterParams,
-    SharedAllReduceParams, centralized::all_reduce_centralized,
-    global::client::base::GlobalCollectiveClient, ring::all_reduce_ring, tree::all_reduce_tree,
+    AllReduceStrategy, CollectiveError, DeviceId, GlobalRegisterParams, SharedAllReduceParams,
+    centralized::all_reduce_centralized, global::client::base::GlobalCollectiveClient,
+    ring::all_reduce_ring, tree::all_reduce_tree,
 };
 
 /// Define the client/server communication on the network
@@ -51,7 +51,6 @@ pub(crate) struct LocalCollectiveServer<B: Backend> {
     /// Client for global collective operations
     global_client: Option<GlobalCollectiveClient<B, Network>>,
 }
-
 
 #[derive(Debug)]
 pub(crate) enum Message<B: Backend> {
@@ -231,10 +230,13 @@ impl<B: Backend> LocalCollectiveServer<B> {
             }
             Message::Register {
                 device_id,
-                num_devices, 
+                num_devices,
                 global_params: global,
                 callback,
-            } => self.process_register_message(device_id, num_devices, global, callback).await,
+            } => {
+                self.process_register_message(device_id, num_devices, global, callback)
+                    .await
+            }
             Message::Reset => self.reset(),
             Message::Finish { id, callback } => self.process_finish_message(id, callback).await,
         }

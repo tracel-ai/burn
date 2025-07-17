@@ -5,7 +5,6 @@ use burn_tensor::{ElementConversion, backend::Backend};
 use std::{marker::PhantomData, sync::Arc};
 use tokio_util::sync::CancellationToken;
 
-use crate::global::server::base::GlobalCollectiveError;
 use crate::{AllReduceStrategy, GlobalRegisterParams};
 use crate::{
     ReduceKind,
@@ -14,7 +13,7 @@ use crate::{
             centralized::centralized_all_reduce_sum, ring::ring_all_reduce_sum,
             tree::tree_all_reduce_sum, worker::GlobalClientWorker,
         },
-        shared::base::{RemoteRequest, RemoteResponse},
+        shared::{RemoteRequest, RemoteResponse, GlobalCollectiveError},
     },
     local_server::get_server_runtime,
 };
@@ -36,7 +35,11 @@ where
     B: Backend,
     N: Protocol,
 {
-    pub fn new(server_address: &Address, client_address: &Address, comms_server: N::Server) -> Self {
+    pub fn new(
+        server_address: &Address,
+        client_address: &Address,
+        comms_server: N::Server,
+    ) -> Self {
         let cancel_token = CancellationToken::new();
 
         let data_service = Arc::new(TensorDataService::new(cancel_token.clone()));

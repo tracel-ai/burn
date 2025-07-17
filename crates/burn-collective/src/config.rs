@@ -1,11 +1,7 @@
 use burn_communication::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    AllReduceStrategy, DeviceId, ReduceKind,
-    SharedAllReduceParams,
-    global::shared::base::NodeId,
-};
+use crate::{AllReduceStrategy, DeviceId, NodeId, ReduceKind, SharedAllReduceParams};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectiveConfig {

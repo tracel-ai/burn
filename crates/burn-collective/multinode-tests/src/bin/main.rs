@@ -81,6 +81,7 @@ async fn main() {
 
     if start.elapsed() > timeout {
         println!("Test timed out after {} seconds", start.elapsed().as_secs());
+        success = false;
     }
 
     // In case of failure

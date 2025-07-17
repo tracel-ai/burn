@@ -3,7 +3,7 @@ use burn_tensor::{Tensor, backend::Backend};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    global::{server::base::GlobalCollectiveError, shared::base::NodeId},
+    global::{NodeId, shared::GlobalCollectiveError},
     local_server::get_collective_client,
 };
 
@@ -42,19 +42,19 @@ pub enum ReduceKind {
 /// All reduce can be implemented with different algorithms, which all have the same result.
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum AllReduceStrategy {
-    /// One device is the "central". The other devices, "peripherals", send their tensors to the 
+    /// One device is the "central". The other devices, "peripherals", send their tensors to the
     /// central. The central does the reduction, and sends the result back to each peripheral.  
     Centralized,
 
-    /// Devices are organized in a tree structure (with a given arity). Each node reduces its 
-    /// children's tensors with its own, and sends the result to its parent. Leaf nodes will 
-    /// simply send their tensors to their parents. 
+    /// Devices are organized in a tree structure (with a given arity). Each node reduces its
+    /// children's tensors with its own, and sends the result to its parent. Leaf nodes will
+    /// simply send their tensors to their parents.
     /// When the root node calculates the result, it is propagated down the tree.
     Tree(u32),
-    
-    /// Devices are organized in a ring. The tensors are split into N slices, where N is the 
-    /// number of devices participating. The slices are progressively sent around the ring until 
-    /// every device has one fully reduced slice of the tensor. Then, the resulting slices are sent 
+
+    /// Devices are organized in a ring. The tensors are split into N slices, where N is the
+    /// number of devices participating. The slices are progressively sent around the ring until
+    /// every device has one fully reduced slice of the tensor. Then, the resulting slices are sent
     /// around until every device has the full result.
     /// See `ring.rs` for details.
     Ring,
@@ -93,9 +93,15 @@ impl From<u32> for DeviceId {
     }
 }
 
-/// Registers a "node". `num_nodes` must be the same as the other calls to register,
-/// and `device_id` must be unique. Registering is done per Backend.
-pub fn register<B: Backend>(device_id: DeviceId, num_devices: u32, global_params: Option<GlobalRegisterParams>) -> Result<(), CollectiveError> {
+/// Registers a device. `num_devices` must be the same for every register,
+/// and `device_id` must be unique. 
+/// 
+/// With Autdodiff backends, make sure to use the inner backend.
+pub fn register<B: Backend>(
+    device_id: DeviceId,
+    num_devices: u32,
+    global_params: Option<GlobalRegisterParams>,
+) -> Result<(), CollectiveError> {
     let mut client = get_collective_client::<B>();
     client.register(device_id, num_devices, global_params)
 }

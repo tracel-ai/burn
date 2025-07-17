@@ -1,5 +1,8 @@
 use burn_communication::{
-    data_service::{TensorDataServer, TensorDataService}, util::os_shutdown_signal, websocket::{base::WebSocket, server::WsServer}, CommunicationChannel, Message, Protocol, ProtocolServer
+    CommunicationChannel, Message, Protocol, ProtocolServer,
+    data_service::{TensorDataServer, TensorDataService},
+    util::os_shutdown_signal,
+    websocket::{WebSocket, WsServer},
 };
 use std::{marker::PhantomData, sync::Arc};
 use tokio_util::sync::CancellationToken;

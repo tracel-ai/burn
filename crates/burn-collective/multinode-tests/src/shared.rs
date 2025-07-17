@@ -1,5 +1,5 @@
 use burn::tensor::TensorData;
-use burn_collective::{SharedAllReduceParams, global::shared::base::NodeId};
+use burn_collective::{NodeId, SharedAllReduceParams};
 use burn_communication::Address;
 use serde::{Deserialize, Serialize};
 

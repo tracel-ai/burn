@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use crate::global::server::base::GlobalCollectiveError;
-use crate::global::shared::base::CentralizedAllReduceStrategy;
-use crate::global::shared::base::CentralizedAllReduceStrategy::{Central, Peripheral};
+use crate::global::shared::{
+    CentralizedAllReduceStrategy::{self, Central, Peripheral},
+    GlobalCollectiveError,
+};
 use burn_communication::Protocol;
 use burn_communication::data_service::TensorDataService;
 use burn_tensor::TensorMetadata;

@@ -1,5 +1,5 @@
 use burn_common::future::DynFut;
-use burn_communication::{data_service::TensorTransferId, Address, ProtocolClient};
+use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId};
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 use burn_tensor::{
@@ -7,7 +7,10 @@ use burn_tensor::{
     backend::{DeviceId, DeviceOps},
 };
 use std::{
-    hash::{DefaultHasher, Hash, Hasher}, marker::PhantomData, str::FromStr, sync::Mutex
+    hash::{DefaultHasher, Hash, Hasher},
+    marker::PhantomData,
+    str::FromStr,
+    sync::Mutex,
 };
 
 use crate::shared::{ComputeTask, TaskResponseContent, TensorRemote};
@@ -137,7 +140,7 @@ pub struct RemoteBridge<C: ProtocolClient> {
 pub struct RemoteTensorHandle<C: ProtocolClient> {
     pub(crate) client: RemoteClient,
     pub(crate) tensor: TensorIr,
-    pub(crate) _p: PhantomData<C>
+    pub(crate) _p: PhantomData<C>,
 }
 
 static TRANSFER_COUNTER: Mutex<Option<TensorTransferId>> = Mutex::new(None);

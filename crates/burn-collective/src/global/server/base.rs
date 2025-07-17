@@ -1,61 +1,23 @@
-use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::global::{
     server::state::GlobalCollectiveState,
-    shared::base::{CollectiveMessage, NodeId},
+    shared::{CollectiveMessage, GlobalCollectiveError},
 };
 use burn_communication::{
-    CommunicationChannel, CommunicationError, Message, ProtocolServer, util::os_shutdown_signal,
+    CommunicationChannel, Message, ProtocolServer, util::os_shutdown_signal, websocket::WsServer,
 };
 
-#[allow(unused)]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum GlobalCollectiveError {
-    // Operations that can't be done before registering
-    AllReduceBeforeRegister,
-
-    // Can't register a node twice
-    MultipleRegister(NodeId),
-    // Either a node has unregisterd twice, or a Finish has been called before a Register
-    NotRegisteredOnFinish,
-    // Finish has been called before a Register operation was finished
-    PendingRegisterOnFinish,
-    // Trying to register a different way than is currently being done
-    RegisterParamsMismatch,
-    // Trying to aggregate a different way than is currently being done
-    AllReduceParamsMismatch,
-
-    // First message on socket should be Message::Init
-    FirstMsgNotInit,
-    // Messages should be rmp_serde serialized `Message` types
-    InvalidMessage,
-    // A peer behaved unexpectedly
-    PeerSentIncoherentTensor,
-    // Error from the server
-    Server(String),
-
-    // Global Client errors
-    // The global collective client received an invalid response
-    WrongServerResponse,
-    // Client couldn't connect to server
-    ServerUnreachable,
-}
-
-impl<E: CommunicationError> From<E> for GlobalCollectiveError {
-    fn from(err: E) -> Self {
-        Self::Server(format!("{err:?}"))
-    }
-}
-
+/// The global collective state manages collective operations on the global level
 #[derive(Clone)]
-pub struct GlobalCollectiveServer {
+pub(crate) struct GlobalCollectiveServer {
     state: Arc<Mutex<GlobalCollectiveState>>,
 }
 
 impl GlobalCollectiveServer {
+    /// Starts the comms server with two routes: "/request" and "/response"
     pub(crate) async fn start<F, S: ProtocolServer + Debug>(
         shutdown_signal: F,
         comms_server: S,
@@ -68,7 +30,8 @@ impl GlobalCollectiveServer {
             state: Arc::new(tokio::sync::Mutex::new(state)),
         };
 
-        comms_server.route("/response", {
+        comms_server
+            .route("/response", {
                 let server = server.clone();
                 async move |socket| {
                     if let Err(err) = server.handle_socket_response::<S>(socket).await {
@@ -163,9 +126,10 @@ impl GlobalCollectiveServer {
     }
 }
 
-/// Start the server on the given port
-pub async fn start<S: ProtocolServer + Debug>(server: S) {
-    let res = GlobalCollectiveServer::start::<_, S>(os_shutdown_signal(), server).await;
+/// Start a global collective server with WebSocket on the given port
+pub async fn start_ws(port: u16) {
+    let server = WsServer::new(port);
+    let res = GlobalCollectiveServer::start(os_shutdown_signal(), server).await;
     if let Err(err) = res {
         eprintln!("Global Collective Server error: {err:?}");
     }

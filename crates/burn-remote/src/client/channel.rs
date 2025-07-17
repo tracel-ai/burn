@@ -6,7 +6,7 @@ use burn_router::{RouterTensor, RunnerChannel, get_client};
 
 use super::{
     RemoteClient,
-    runner::{RemoteTensorHandle, RemoteBridge, RemoteDevice},
+    runner::{RemoteBridge, RemoteDevice, RemoteTensorHandle},
 };
 
 /// A local channel with direct connection to the backend runner clients.
@@ -74,11 +74,8 @@ impl<C: ProtocolClient> RunnerChannel for RemoteChannel<C> {
     }
 }
 
-
 impl<C: ProtocolClient> Clone for RemoteChannel<C> {
     fn clone(&self) -> Self {
-        RemoteChannel {
-            _p: PhantomData,
-        }
+        RemoteChannel { _p: PhantomData }
     }
 }

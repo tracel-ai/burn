@@ -21,4 +21,6 @@ each with 5 threads (devices).
 The global collective server (`server.rs`) is also launched.
 
 ## Output
-The outputs and inputs for each client and server are written to the `target/test` folder
+The outputs and inputs for each client and server are written to the `target/test_files` folder
+
+If the clients or server stall, there is a timeout.

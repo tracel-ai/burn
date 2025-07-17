@@ -5,9 +5,9 @@ mod base;
 pub use base::*;
 
 pub mod util;
-pub mod websocket;
 
-pub use websocket::base::WebSocket;
+#[cfg(feature = "websocket")]
+pub mod websocket;
 
 #[cfg(feature = "data-service")]
 pub mod data_service;

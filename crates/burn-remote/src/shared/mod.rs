@@ -4,4 +4,4 @@ mod task;
 pub(crate) use task::*;
 
 /// We define the communication protocol here
-pub(crate) type RemoteProtocol = burn_communication::WebSocket;
+pub(crate) type RemoteProtocol = burn_communication::websocket::WebSocket;

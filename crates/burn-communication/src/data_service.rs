@@ -59,7 +59,9 @@ pub struct TensorExposeState {
     pub cur_download_count: u32,
 }
 
+/// Provides a routing function for a tensor data service for a communications server
 pub trait TensorDataServer<B: Backend, N: Protocol> {
+    /// Routes the tensor data service to the "/data" route
     fn route_tensor_data_service(self, state: Arc<TensorDataService<B, N>>) -> Self;
 }
 

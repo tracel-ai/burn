@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use crate::{
     AllReduceStrategy,
     global::{
-        server::base::GlobalCollectiveError,
-        shared::base::{
-            CentralizedAllReduceStrategy, CollectiveMessageResponse, NodeId, RemoteRequest,
-            RemoteResponse, RequestId, SessionId,
+        NodeId,
+        shared::{
+            CentralizedAllReduceStrategy, CollectiveMessageResponse, RemoteRequest, RemoteResponse,
+            RequestId, SessionId, GlobalCollectiveError,
         },
     },
 };
@@ -117,10 +117,6 @@ impl GlobalCollectiveState {
                 )
                 .await
             }
-            RemoteRequest::Reset => {
-                self.reset();
-                Ok(())
-            }
             RemoteRequest::Finish => self.finish(session_id, request_id).await,
         } {
             // Error occured, send it as response
@@ -134,16 +130,6 @@ impl GlobalCollectiveState {
             )
             .await;
         }
-    }
-
-    fn reset(&mut self) {
-        self.registered_nodes.clear();
-        self.node_addresses.clear();
-        self.cur_all_reduce_strategy = None;
-        self.num_global_devices = 0;
-        self.all_reduce_requests.clear();
-        self.register_requests.clear();
-        self.sessions.clear();
     }
 
     /// Un-register a node. Any pending requests will be cancelled, returning error responses.

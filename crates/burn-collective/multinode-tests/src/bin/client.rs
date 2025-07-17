@@ -6,10 +6,8 @@ use burn::{
     tensor::{Tensor, TensorData, Tolerance},
 };
 use burn_collective::{
-    GlobalRegisterParams,
-    SharedAllReduceParams,
-    all_reduce, finish_collective, register, reset_collective,
-    DeviceId,
+    DeviceId, GlobalRegisterParams, SharedAllReduceParams, all_reduce, finish_collective, register,
+    reset_collective,
 };
 use burn_collective_multinode_tests::shared::NodeTestData;
 
@@ -54,7 +52,9 @@ fn test_all_reduce<B: Backend>(test_input: NodeTestData) {
         let params = test_input.aggregate_params.clone();
         let input = test_input.inputs[id as usize].clone();
         let send = send.clone();
-        let handle = std::thread::spawn(move || run_peer::<B>(id.into(), device_count, global, params, input, send));
+        let handle = std::thread::spawn(move || {
+            run_peer::<B>(id.into(), device_count, global, params, input, send)
+        });
         handles.push(handle);
     }
 

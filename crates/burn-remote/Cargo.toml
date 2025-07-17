@@ -35,6 +35,7 @@ burn-common = { path = "../burn-common", version = "0.18.0", default-features = 
 burn-router = { path = "../burn-router", version = "0.18.0", default-features = true }
 burn-communication = { path = "../burn-communication", version = "0.18.0", features = [
     "data-service",
+    "websocket",
 ] }
 
 bytes = { workspace = true }
