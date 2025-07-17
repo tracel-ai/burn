@@ -38,8 +38,8 @@ mod tests {
         let input = Tensor::ones(shape, &device);
         let (f_output, i_output, b_output) = model.forward(input);
 
-        assert!(f_output.equal(f_expected).all().into_scalar());
-        assert!(i_output.equal(i_expected).all().into_scalar());
-        assert!(b_output.equal(b_expected).all().into_scalar());
+        f_output.to_data().assert_eq(&f_expected.to_data(), true);
+        i_output.to_data().assert_eq(&i_expected.to_data(), true);
+        b_output.to_data().assert_eq(&b_expected.to_data(), true);
     }
 }
