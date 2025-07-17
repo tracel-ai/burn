@@ -16,6 +16,7 @@ use burn_ir::{BackendIr, TensorHandle};
 use burn_tensor::{DType, Shape};
 use core::marker::PhantomData;
 use half::{bf16, f16};
+use std::sync::Arc;
 
 impl<R, BT> burn_fusion::Optimization<FusionCubeRuntime<R, BT>> for CubeOptimization<R>
 where
@@ -34,11 +35,11 @@ where
             Self::ElementWise(op) => op.execute::<BT>(context),
             Self::Matmul(op) => op.execute::<BT>(context, |index| {
                 let operation = execution.operation_within_optimization(index);
-                Box::new(FallbackOperationUnsafe::new(operation))
+                Box::new(FallbackOperationWrapper::new(operation))
             }),
             Self::Reduce(op) => op.execute::<BT>(context, |index| {
                 let operation = execution.operation_within_optimization(index);
-                Box::new(FallbackOperationUnsafe::new(operation))
+                Box::new(FallbackOperationWrapper::new(operation))
             }),
         }
     }
@@ -62,33 +63,21 @@ where
     }
 }
 
-/// This is only safe because we know the fallback must be executed before the cubecl context is dropped.
-///
-/// The safer alternatives would require fused operation to be cloned, so that it could
-/// escape the lifetime of the context's execution, which doesn't make sense since
-/// its only goal is to modify the context it operates on.
-struct FallbackOperationUnsafe<O> {
-    operation: *const O,
+struct FallbackOperationWrapper<O: Clone> {
+    operation: O,
 }
 
-unsafe impl<O> Send for FallbackOperationUnsafe<O> {}
-unsafe impl<O> Sync for FallbackOperationUnsafe<O> {}
-
-impl<O> FallbackOperationUnsafe<O> {
-    fn new(op: &O) -> Self {
-        let ptr = core::ptr::from_ref(op);
-
-        Self { operation: ptr }
+impl<O: Clone> FallbackOperationWrapper<O> {
+    fn new(op: O) -> Self {
+        Self { operation: op }
     }
 }
 
 impl<R: CubeRuntime, BT: BoolElement> FallbackOperation<R>
-    for FallbackOperationUnsafe<Box<dyn Operation<FusionCubeRuntime<R, BT>>>>
+    for FallbackOperationWrapper<Arc<dyn Operation<FusionCubeRuntime<R, BT>>>>
 {
     fn run(&self, context: &mut burn_fusion::stream::Context<'_, CubeFusionHandle<R>>) {
-        unsafe {
-            self.operation.as_ref().unwrap().execute(context.handles);
-        }
+        self.operation.as_ref().execute(context.handles);
     }
 }
 
