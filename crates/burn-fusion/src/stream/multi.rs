@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr, TensorStatus};
 use hashbrown::{HashMap, HashSet};
 
@@ -47,7 +49,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         &mut self,
         streams: OperationStreams,
         mut repr: OperationIr,
-        operation: Box<dyn Operation<R>>,
+        operation: Arc<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
         let id = self.resolve_streams(&streams, handles, &mut repr);
@@ -133,7 +135,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         id: StreamId,
         repr: OperationIr,
         streams: &OperationStreams,
-        operation: Box<dyn Operation<R>>,
+        operation: Arc<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) -> usize {
         let stream = match self.streams.get_mut(&id) {
@@ -355,7 +357,7 @@ impl<R: FusionRuntime> MultiStream<R> {
                 current,
             };
 
-            let op = Box::new(DropOp { id: tensor.id });
+            let op = Arc::new(DropOp { id: tensor.id });
             self.register(streams, OperationIr::Drop(tensor), op, handles);
         }
     }
