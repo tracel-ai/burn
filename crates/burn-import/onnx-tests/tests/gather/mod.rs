@@ -54,6 +54,11 @@ mod tests {
         // shape(input) = [2, 3]
         let index = Tensor::<Backend, 1, Int>::from_ints([0], &device);
         let output = model.forward(input, index);
+
+        #[cfg(feature = "int-i32")]
+        let expected = TensorData::from([2i32]);
+
+        #[cfg(not(feature = "int-i32"))]
         let expected = TensorData::from([2i64]);
 
         assert_eq!(output.to_data(), expected);

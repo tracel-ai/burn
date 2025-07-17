@@ -185,6 +185,20 @@ fn test_my_new_op() {
 
 Your test will be automatically included in the main test suite through `tests/test_mod.rs`.
 
+Note:
+- Be aware that different backends use different data types. For example, the `NdArray` backend uses native `bool`, while the `Wgpu` backend uses `u32` for boolean values. Feature flags are used to select the appropriate types depending on the backend. In test code, you might write:
+
+```rust
+    #[cfg(feature = "bool-u32")]
+    let expected = TensorData::from([[1u32, 0, 1, 1]]);
+
+    #[cfg(not(feature = "bool-u32"))]
+    let expected = TensorData::from([[true, false, true, true]]);
+```
+- Refer to `Cargo.toml` and `backend.rs` for how these features are defined and used.
+
+- The `bool-u32` feature only takes effect when using the `backend-autodiff-wgpu` backend. When using `NdArray`, native `bool` is always used, regardless of feature flags.
+
 ## Best Practices for ONNX Testing
 
 ### Model Generation
@@ -234,7 +248,7 @@ This command runs all tests using the default backend: `burn_ndarray::NdArray<f3
 
 To run tests with an alternative backend (e.g. `burn_autodiff::Autodiff<burn_wgpu::Wgpu>`), use:
 ```
-cargo test --features backend-autodiff-wgpu
+cargo test --features backend-autodiff-wgpu-default
 ```
 Currently supported backends:
 *	`burn_ndarray::NdArray<f32> (default)`
@@ -248,7 +262,7 @@ cargo test --test test_mod my_new_op::test_my_new_op
 
 Run a specific test with a selected backend:
 ```
-cargo test --test test_mod my_new_op::test_my_new_op --features backend-autodiff-wgpu
+cargo test --test test_mod my_new_op::test_my_new_op --features backend-autodiff-wgpu-default
 ```
 
 ## Debugging Failed Tests

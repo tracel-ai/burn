@@ -19,10 +19,16 @@ mod tests {
 
         let scalar = 2f64;
         let (tensor_out, scalar_out) = model.forward(input, scalar);
+
+        #[cfg(feature = "bool-u32")]
+        let expected_tensor = TensorData::from([[[[1u32, 1, 1, 1]]]]);
+
+        #[cfg(not(feature = "bool-u32"))]
         let expected_tensor = TensorData::from([[[[true, true, true, true]]]]);
-        let expected_scalar = false;
 
         tensor_out.to_data().assert_eq(&expected_tensor, true);
+
+        let expected_scalar = false;
         assert_eq!(scalar_out, expected_scalar);
     }
 }

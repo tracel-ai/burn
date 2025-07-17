@@ -6,6 +6,10 @@ license.workspace = true
 
 [features]
 backend-autodiff-wgpu = ["burn-autodiff", "burn-wgpu"]
+int-i32 = []
+bool-u32 = []
+
+backend-autodiff-wgpu-default = ["backend-autodiff-wgpu", "int-i32", "bool-u32"]
 
 [dev-dependencies]
 burn = { path = "../../burn" }

@@ -21,6 +21,11 @@ mod tests {
             &device,
         );
         let output = model.forward(input);
+
+        #[cfg(feature = "int-i32")]
+        let expected = TensorData::from([[2i32], [0]]);
+
+        #[cfg(not(feature = "int-i32"))]
         let expected = TensorData::from([[2i64], [0]]);
 
         output.to_data().assert_eq(&expected, true);

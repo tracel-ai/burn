@@ -18,6 +18,11 @@ mod tests {
         // Run the model
         let input = Tensor::<Backend, 2>::from_floats([[1., 2., 3.], [4., 5., 6.]], &device);
         let output = model.forward(input);
+
+        #[cfg(feature = "int-i32")]
+        let expected = TensorData::from([[2i32], [2]]);
+
+        #[cfg(not(feature = "int-i32"))]
         let expected = TensorData::from([[2i64], [2]]);
 
         output.to_data().assert_eq(&expected, true);
