@@ -1,14 +1,15 @@
 use burn_communication::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::{AllReduceStrategy, DeviceId, NodeId, ReduceKind, SharedAllReduceParams};
+use crate::{AllReduceStrategy, GlobalRegisterParams, NodeId, ReduceKind, SharedAllReduceParams};
 
+/// A builder struct for a given node to help in registering and all-reducing
+/// All devices of the same node share the same [config](CollectiveConfig)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectiveConfig {
-    pub device_id: DeviceId,
-    pub num_devices: u32,
     pub all_reduce_kind: ReduceKind,
     pub local_strategy: AllReduceStrategy,
+    // num_devices is not included because it should be known already
 
     // Global parameters (all are optional, but if one is defined they should all be)
     pub node_id: Option<NodeId>,
@@ -28,8 +29,6 @@ impl Default for CollectiveConfig {
 impl CollectiveConfig {
     fn new() -> Self {
         Self {
-            device_id: 0.into(),
-            num_devices: 1,
             all_reduce_kind: ReduceKind::Mean,
             local_strategy: AllReduceStrategy::Tree(2),
 
@@ -40,16 +39,6 @@ impl CollectiveConfig {
             client_data_port: None,
             global_strategy: None,
         }
-    }
-
-    pub fn with_device_id(mut self, id: DeviceId) -> Self {
-        self.device_id = id;
-        self
-    }
-
-    pub fn with_num_devices(mut self, num: u32) -> Self {
-        self.num_devices = num;
-        self
     }
 
     pub fn with_all_reduce_kind(mut self, kind: ReduceKind) -> Self {
@@ -92,13 +81,6 @@ impl CollectiveConfig {
         self
     }
 
-    /// Get the shared parameters for a register op
-    pub fn register_shared_params(&self) -> SharedRegisterParams {
-        SharedRegisterParams {
-            num_devices: self.num_devices,
-        }
-    }
-
     /// Get the global parameters for a register op
     pub fn register_global_params(&self) -> Option<GlobalRegisterParams> {
         match (
@@ -115,13 +97,12 @@ impl CollectiveConfig {
                     server_address: server_addr.clone(),
                     client_address: client_addr.clone(),
                     client_data_port: port,
-                    shared_params: SharedGlobalRegisterParams { num_nodes },
+                    num_nodes,
                 })
             }
-            _ => return None,
+            _ => None,
         }
     }
-
 
     /// Get the shared parameters for an all-reduce
     pub fn all_reduce_params(&self) -> SharedAllReduceParams {

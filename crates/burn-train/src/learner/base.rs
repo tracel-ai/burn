@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(feature = "collective")]
-use burn_core::collective::config::CollectiveConfig;
+use burn_collective::CollectiveConfig;
 
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 ///

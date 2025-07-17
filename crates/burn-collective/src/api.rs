@@ -94,8 +94,8 @@ impl From<u32> for DeviceId {
 }
 
 /// Registers a device. `num_devices` must be the same for every register,
-/// and `device_id` must be unique. 
-/// 
+/// and `device_id` must be unique.
+///
 /// With Autdodiff backends, make sure to use the inner backend.
 pub fn register<B: Backend>(
     device_id: DeviceId,
@@ -120,7 +120,6 @@ pub fn all_reduce<B: Backend, const D: usize>(
     let tensor =
         Tensor::from_primitive(burn_tensor::TensorPrimitive::Float(primitive)).to_device(&device);
 
-    eprintln!("All-Reduce done");
     Ok(tensor)
 }
 

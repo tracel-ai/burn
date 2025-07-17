@@ -1,11 +1,13 @@
 use crate::{TrainOutput, TrainStep};
-use burn_collective::config::CollectiveConfig;
-use burn_collective::{GlobalRegisterParams, RegisterParams, SharedAllReduceParams, SharedRegisterParams};
-use burn_core::collective;
+use burn_collective::{self, CollectiveConfig, DeviceId, SharedAllReduceParams, all_reduce};
 use burn_core::data::dataloader::Progress;
+use burn_core::module::{ModuleVisitor, ParamId};
+use burn_core::optim::GradientsParams;
+use burn_core::tensor::Tensor;
 use burn_core::{
     data::dataloader::DataLoaderIterator, module::AutodiffModule, tensor::backend::AutodiffBackend,
 };
+use std::marker::PhantomData;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
 
@@ -23,10 +25,7 @@ struct Message<M, TI> {
 struct Worker<B: AutodiffBackend, M, TI> {
     sender_input: Sender<Message<M, TI>>,
     device: B::Device,
-    device_id: burn_collective::DeviceId,
-    register_shared_params: SharedRegisterParams,
-    register_global_params: Option<GlobalRegisterParams>,
-    all_reduce_params: SharedAllReduceParams,
+    collective_config: CollectiveConfig,
 }
 
 impl<B, M, TI> Worker<B, M, TI>
@@ -46,43 +45,62 @@ where
         &self,
         sender_output: Sender<TrainOutput<TO>>,
         receiver_input: Receiver<Message<M, TI>>,
+        device_id: DeviceId,
+        num_devices: u32,
     ) where
         TI: Send + 'static,
         TO: Send + 'static,
         M: TrainStep<TI, TO> + Send + 'static,
     {
+        let global_params = self.collective_config.register_global_params();
         let device = self.device.clone();
-
-        let params = RegisterParams {
-            device_id: self.device_id,
-            shared: self.register_shared_params.clone(),
-            global: self.register_global_params.clone(),
-        };
-        collective::register::<B::InnerBackend>(params)
-            .expect("Couldn't register for collective operations!");
-
-        let params = self.all_reduce_params.clone();
-        let device_id = self.device_id;
+        let all_reduce_params = self.collective_config.all_reduce_params();
 
         spawn(move || {
-            loop {
-                match receiver_input.recv() {
-                    Ok(item) => {
-                        let model = item.model.fork(&device);
-                        let mut output = model.step(item.item);
+            burn_collective::register::<B::InnerBackend>(device_id, num_devices, global_params)
+                .expect("Couldn't register for collective operations!");
 
-                        // Sync with collective
-                        output.grads = output.grads.all_reduce(device_id, params.clone(), &model);
+            Self::handle_input(
+                sender_output,
+                receiver_input,
+                device,
+                device_id,
+                all_reduce_params,
+            )
+        });
+    }
 
-                        sender_output.send(output).unwrap();
-                    }
-                    Err(_err) => {
-                        log::info!("Closing thread on device {device:?}");
-                        break;
-                    }
+    fn handle_input<TO>(
+        sender_output: Sender<TrainOutput<TO>>,
+        receiver_input: Receiver<Message<M, TI>>,
+        device: B::Device,
+        device_id: DeviceId,
+        all_reduce_params: SharedAllReduceParams,
+    ) where
+        TI: Send + 'static,
+        TO: Send + 'static,
+        M: TrainStep<TI, TO> + Send + 'static,
+    {
+        loop {
+            match receiver_input.recv() {
+                Ok(item) => {
+                    let model = item.model.fork(&device);
+                    let mut output = model.step(item.item);
+
+                    // Sync with collective
+                    output.grads =
+                        output
+                            .grads
+                            .all_reduce(device_id, all_reduce_params.clone(), &model);
+
+                    sender_output.send(output).unwrap();
+                }
+                Err(_err) => {
+                    log::info!("Closing thread on device {device:?}");
+                    break;
                 }
             }
-        });
+        }
     }
 }
 
@@ -106,26 +124,28 @@ where
     where
         TI: Send + 'static,
     {
-        let register_shared_params = collective_config.register_shared_params();
-        let register_global_params = collective_config.register_global_params();
-        let all_reduce_params = collective_config.all_reduce_params();
- 
         let (sender_output, receiver_output) = std::sync::mpsc::channel();
         let workers = devices
             .iter()
             .enumerate()
             .map(|(idx, device)| {
                 let (sender_input, receiver_input) = std::sync::mpsc::channel();
+
+                let collective_config = collective_config.clone();
+
                 let worker = Worker {
                     sender_input,
                     device: device.clone(),
-                    device_id: (idx as u32).into(),
-                    register_shared_params: register_shared_params.clone(),
-                    register_global_params: register_global_params.clone(),
-                    all_reduce_params: all_reduce_params.clone(),
+                    collective_config,
                 };
 
-                worker.start(sender_output.clone(), receiver_input);
+                let device_id = (idx as u32).into();
+                worker.start(
+                    sender_output.clone(),
+                    receiver_input,
+                    device_id,
+                    devices.len() as u32,
+                );
                 worker
             })
             .collect();
@@ -174,7 +194,54 @@ where
             self.receiver.recv().unwrap();
         }
 
-
         (output, Progress::new(items_processed, items_total))
+    }
+}
+
+#[derive(new)]
+struct GradientsParamsAllReduce<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
+    device_id: DeviceId,
+    params: SharedAllReduceParams,
+    grads: &'a mut GradientsParams,
+    m: PhantomData<M>,
+    b: PhantomData<B>,
+}
+
+impl<B, M> ModuleVisitor<B> for GradientsParamsAllReduce<'_, M, B>
+where
+    B: AutodiffBackend,
+    M: AutodiffModule<B>,
+{
+    fn visit_float<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D>) {
+        let Some(mut grad) = self.grads.remove::<B::InnerBackend, D>(id) else {
+            return;
+        };
+
+        grad = all_reduce::<B::InnerBackend, D>(self.device_id, grad, &self.params).unwrap();
+
+        self.grads.register::<B::InnerBackend, D>(id, grad);
+    }
+}
+
+trait GradientsParamsCollectiveExt {
+    fn all_reduce<B: AutodiffBackend, M: AutodiffModule<B>>(
+        self,
+        device_id: burn_collective::DeviceId,
+        params: burn_collective::SharedAllReduceParams,
+        module: &M,
+    ) -> Self;
+}
+
+impl GradientsParamsCollectiveExt for GradientsParams {
+    /// All-Reduce the gradients for the given [module](AutodiffModule).
+    fn all_reduce<B: AutodiffBackend, M: AutodiffModule<B>>(
+        mut self,
+        device_id: burn_collective::DeviceId,
+        params: burn_collective::SharedAllReduceParams,
+        module: &M,
+    ) -> Self {
+        let mut visitor = GradientsParamsAllReduce::<M, B>::new(device_id, params, &mut self);
+        module.visit(&mut visitor);
+        self
     }
 }

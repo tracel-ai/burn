@@ -19,7 +19,7 @@ use crate::{
     ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerCheckpointer,
     LearnerSummaryConfig,
 };
-use burn_core::collective::config::CollectiveConfig;
+use burn_collective::CollectiveConfig;
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
 use burn_core::optim::Optimizer;

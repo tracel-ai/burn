@@ -1,7 +1,7 @@
 use crate::{data::MnistBatcher, model::Model};
 
 use burn::{
-    collective::config::CollectiveConfig,
+    collective::CollectiveConfig,
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     optim::{AdamConfig, decay::WeightDecayConfig},
     prelude::*,
@@ -47,11 +47,13 @@ pub fn run<B: AutodiffBackend>(devices: Vec<B::Device>) {
     create_artifact_dir(ARTIFACT_DIR);
     // Config
     let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
+
     let collective = CollectiveConfig::default();
+
     let config = MnistTrainingConfig::new(config_optimizer, collective);
     B::seed(config.seed);
 
-    let model = Model::<B>::new(&devices.first().unwrap());
+    let model = Model::<B>::new(devices.first().unwrap());
 
     // Data
     let batcher = MnistBatcher::default();

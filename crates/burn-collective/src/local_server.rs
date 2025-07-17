@@ -7,7 +7,7 @@ use std::{
     },
 };
 
-use burn_communication::websocket::{WsServer, WebSocket};
+use burn_communication::websocket::{WebSocket, WsServer};
 use burn_tensor::backend::Backend;
 use tokio::runtime::{Builder, Runtime};
 

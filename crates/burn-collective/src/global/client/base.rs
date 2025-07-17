@@ -13,7 +13,7 @@ use crate::{
             centralized::centralized_all_reduce_sum, ring::ring_all_reduce_sum,
             tree::tree_all_reduce_sum, worker::GlobalClientWorker,
         },
-        shared::{RemoteRequest, RemoteResponse, GlobalCollectiveError},
+        shared::{GlobalCollectiveError, RemoteRequest, RemoteResponse},
     },
     local_server::get_server_runtime,
 };

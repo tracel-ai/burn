@@ -1,5 +1,5 @@
 #[cfg(feature = "collective")]
-use burn_collective::config::CollectiveConfig;
+use burn_collective::CollectiveConfig;
 use burn_core::data::dataloader::DataLoader;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_core::{
@@ -257,9 +257,9 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(feature = "collective")]
 impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
-
     /// Runs the training epoch on multiple devices.
     ///
     /// # Arguments
