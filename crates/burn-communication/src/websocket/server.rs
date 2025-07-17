@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use crate::{
-    network::{NetworkError, NetworkMessage, NetworkServer, NetworkStream},
+    base::{CommunicationChannel, CommunicationError, Message, ProtocolServer},
     util::init_logging,
 };
 use axum::{
@@ -20,20 +20,22 @@ pub struct WsServer {
     router: Router<()>,
 }
 
-pub struct WsServerStream {
+pub struct WsServerChannel {
     inner: WebSocket,
 }
 
-impl NetworkServer for WsServer {
-    type Stream = WsServerStream;
-    type Error = WsServerError;
-
-    fn new(port: u16) -> Self {
+impl WsServer {
+    pub fn new(port: u16) -> Self {
         Self {
             port,
             router: Router::new(),
         }
     }
+}
+
+impl ProtocolServer for WsServer {
+    type Channel = WsServerChannel;
+    type Error = WsServerError;
 
     async fn serve<F>(self, shutdown: F) -> Result<(), Self::Error>
     where
@@ -59,7 +61,7 @@ impl NetworkServer for WsServer {
 
     fn route<C, Fut>(mut self, path: &str, callback: C) -> Self
     where
-        C: FnOnce(WsServerStream) -> Fut + Clone + Send + Sync + 'static,
+        C: FnOnce(WsServerChannel) -> Fut + Clone + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
         // Format path: should start with a /
@@ -71,7 +73,7 @@ impl NetworkServer for WsServer {
 
         let method = get(|ws: WebSocketUpgrade, _: State<()>| async {
             ws.on_upgrade(async move |socket| {
-                callback(WsServerStream { inner: socket }).await;
+                callback(WsServerChannel { inner: socket }).await;
             })
         });
 
@@ -81,19 +83,19 @@ impl NetworkServer for WsServer {
     }
 }
 
-impl NetworkStream for WsServerStream {
+impl CommunicationChannel for WsServerChannel {
     type Error = WsServerError;
 
-    async fn send(&mut self, bytes: bytes::Bytes) -> Result<(), WsServerError> {
-        self.inner.send(ws::Message::Binary(bytes)).await?;
+    async fn send(&mut self, message: Message) -> Result<(), WsServerError> {
+        self.inner.send(ws::Message::Binary(message.data)).await?;
 
         Ok(())
     }
 
-    async fn recv(&mut self) -> Result<Option<NetworkMessage>, WsServerError> {
+    async fn recv(&mut self) -> Result<Option<Message>, WsServerError> {
         match self.inner.next().await {
             Some(next) => match next {
-                Ok(ws::Message::Binary(data)) => Ok(Some(NetworkMessage { data })),
+                Ok(ws::Message::Binary(data)) => Ok(Some(Message { data })),
                 Ok(ws::Message::Close(_close_frame)) => Ok(None),
                 Err(err) => Err(WsServerError::Axum(err)),
                 msg => Err(WsServerError::UnknownMessage(format!("{msg:?}"))),
@@ -123,7 +125,8 @@ pub enum WsServerError {
     UnknownMessage(String),
     Other(String),
 }
-impl NetworkError for WsServerError {}
+
+impl CommunicationError for WsServerError {}
 
 impl From<std::io::Error> for WsServerError {
     fn from(err: std::io::Error) -> Self {

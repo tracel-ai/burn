@@ -1,7 +1,7 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
-description = "Backend router decorator over websocket."
+description = "Backend router decorator over the network."
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
@@ -18,7 +18,14 @@ workspace = true
 default = ["client", "server"]
 doc = []
 client = ["tokio-tungstenite", "async-channel", "tokio/sync"]
-server = ["tokio-tungstenite", "async-channel", "tokio/sync", "axum", "tracing-core", "tracing-subscriber"]
+server = [
+    "tokio-tungstenite",
+    "async-channel",
+    "tokio/sync",
+    "axum",
+    "tracing-core",
+    "tracing-subscriber",
+]
 
 
 [dependencies]
@@ -26,9 +33,12 @@ burn-ir = { path = "../burn-ir", version = "0.18.0", default-features = true }
 burn-tensor = { path = "../burn-tensor", version = "0.18.0", default-features = true }
 burn-common = { path = "../burn-common", version = "0.18.0", default-features = true }
 burn-router = { path = "../burn-router", version = "0.18.0", default-features = true }
-burn-network = { path = "../burn-network", version = "0.18.0", features = ["data-service"]}
+burn-communication = { path = "../burn-communication", version = "0.18.0", features = [
+    "data-service",
+    "websocket",
+] }
 
-bytes = { workspace = true}
+bytes = { workspace = true }
 
 # Basic dependencies
 derive-new = { workspace = true }
@@ -49,7 +59,7 @@ tokio-tungstenite = { workspace = true, optional = true }
 axum = { workspace = true, features = ["ws"], optional = true }
 tracing-core = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
-tokio-util ={ workspace = true }
+tokio-util = { workspace = true }
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "0.18.0" }

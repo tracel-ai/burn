@@ -31,23 +31,24 @@ mod tests {
     pub type TestBackend = burn_wgpu::Wgpu<f32>;
 
     use crate::{
-        AllReduceStrategy, ReduceKind, RegisterParams, SharedAllReduceParams, SharedRegisterParams,
-        api::{all_reduce, register, reset_collective},
+        AllReduceStrategy, ReduceKind, SharedAllReduceParams,
+        api::{DeviceId, all_reduce, register, reset_collective},
     };
 
     pub fn run_peer<B: Backend>(
-        reg_params: RegisterParams,
+        device_id: DeviceId,
+        num_devices: u32,
         all_reduce_params: &SharedAllReduceParams,
         input: TensorData,
         output: SyncSender<Tensor<B, 1>>,
     ) {
         let device = B::Device::default();
 
-        register::<B>(reg_params.clone()).unwrap();
+        register::<B>(device_id, num_devices, None).unwrap();
 
         let tensor = Tensor::<B, 1>::from_data(input, &device);
 
-        let tensor = all_reduce(reg_params.device_id, tensor, all_reduce_params).unwrap();
+        let tensor = all_reduce(device_id, tensor, all_reduce_params).unwrap();
 
         output.send(tensor).unwrap();
     }
@@ -101,16 +102,11 @@ mod tests {
 
         for id in 0..device_count {
             let send = send.clone();
-            let reg_params = RegisterParams {
-                device_id: id.into(),
-                shared: SharedRegisterParams {
-                    num_devices: device_count,
-                },
-                global: None,
-            };
             let input = input[global_idx].clone();
             let all_reduce_params = all_reduce_params.clone();
-            std::thread::spawn(move || run_peer::<B>(reg_params, &all_reduce_params, input, send));
+            std::thread::spawn(move || {
+                run_peer::<B>(id.into(), device_count, &all_reduce_params, input, send)
+            });
 
             global_idx += 1;
         }

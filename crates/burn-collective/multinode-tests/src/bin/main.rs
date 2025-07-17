@@ -1,4 +1,4 @@
-use burn_network::network::NetworkAddress;
+use burn_communication::Address;
 use std::{
     fs::{self, File},
     process::{self, ExitStatus},
@@ -81,6 +81,7 @@ async fn main() {
 
     if start.elapsed() > timeout {
         println!("Test timed out after {} seconds", start.elapsed().as_secs());
+        success = false;
     }
 
     // In case of failure
@@ -114,7 +115,7 @@ fn launch_clients(
         generate_random_input(tensor_shape, aggregate_params.kind, total_device_count, 42);
 
     let server_url = "ws://localhost:3000";
-    let server_address = NetworkAddress::from_str(server_url).unwrap();
+    let server_address = Address::from_str(server_url).unwrap();
 
     let node_count = topology.len();
     let mut clients = vec![];
@@ -122,7 +123,7 @@ fn launch_clients(
     for (node_idx, &device_count) in topology.iter().enumerate() {
         let client_data_port = node_idx as u16 + 3001;
         let client_url = format!("ws://localhost:{client_data_port}");
-        let client_address = NetworkAddress::from_str(&client_url).unwrap();
+        let client_address = Address::from_str(&client_url).unwrap();
         let input_filename = format!("target/test_files/client_{}_in.txt", node_idx + 1);
         let output_filename = format!("target/test_files/client_{}_out.txt", node_idx + 1);
 

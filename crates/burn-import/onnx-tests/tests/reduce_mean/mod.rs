@@ -7,7 +7,7 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData};
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
 
     #[test]
     fn reduce_mean() {

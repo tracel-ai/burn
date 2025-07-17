@@ -1,5 +1,12 @@
-use crate::network::Network;
-use crate::network::{NetworkAddress, NetworkClient, NetworkServer, NetworkStream};
+//! This module enables direct data transfer between servers without blocking the client or any server.
+//!
+//! It eliminates the need for intermediate data transfer through the client, avoiding the process of downloading data from one server and reuploading it to another.
+//!
+//! The module provides an optimized mechanism for servers to communicate directly, streamlining data movement between them without involving the client.
+
+use crate::Message;
+use crate::base::Protocol;
+use crate::base::{Address, CommunicationChannel, ProtocolClient, ProtocolServer};
 use burn_tensor::{TensorData, backend::Backend};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
@@ -8,39 +15,33 @@ use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TensorTransferId(Option<u32>);
+pub struct TensorTransferId(u32);
 
 impl From<u32> for TensorTransferId {
     fn from(value: u32) -> Self {
-        Self(Some(value))
+        Self(value)
     }
 }
 
 impl TensorTransferId {
-    pub fn none() -> Self {
-        Self(None)
-    }
-
     pub fn next(&mut self) {
-        if let Some(id) = &mut self.0 {
-            *id += 1;
-        }
+        self.0 += 1;
     }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-enum Message {
-    Request(TensorTransferId),
-    Data(TensorData),
+enum DataServiceMessage {
+    TensorRequest(TensorTransferId),
+    Tensor(TensorData),
 }
 
-type ClientStreamRef<C> = Arc<Mutex<<C as NetworkClient>::Stream>>;
+type ClientChannelRef<C> = Arc<Mutex<<C as ProtocolClient>::Channel>>;
 
-pub struct TensorDataService<B: Backend, N: Network<Client: NetworkClient>> {
+pub struct TensorDataService<B: Backend, N: Protocol<Client: ProtocolClient>> {
     /// Maps tensor transfer IDs to their exposed state.
     pub exposed_tensors: Mutex<HashMap<TensorTransferId, TensorExposeState>>,
-    /// Maps node addresses to their WebSocket streams.
-    pub streams: Mutex<HashMap<NetworkAddress, ClientStreamRef<N::Client>>>,
+    /// Maps node addresses to their channels.
+    pub channels: Mutex<HashMap<Address, ClientChannelRef<N::Client>>>,
     /// Notify when a new tensor is exposed.
     pub new_tensor_notify: Arc<Notify>,
 
@@ -58,25 +59,27 @@ pub struct TensorExposeState {
     pub cur_download_count: u32,
 }
 
-pub trait TensorDataServer<B: Backend, N: Network> {
+/// Provides a routing function for a tensor data service for a communications server
+pub trait TensorDataServer<B: Backend, N: Protocol> {
+    /// Routes the tensor data service to the "/data" route
     fn route_tensor_data_service(self, state: Arc<TensorDataService<B, N>>) -> Self;
 }
 
-impl<B: Backend, S: NetworkServer + Sized, N: Network<Server = S> + 'static> TensorDataServer<B, N>
-    for S
+impl<B: Backend, S: ProtocolServer + Sized, N: Protocol<Server = S> + 'static>
+    TensorDataServer<B, N> for S
 {
     fn route_tensor_data_service(self, state: Arc<TensorDataService<B, N>>) -> Self {
-        self.route("/data", async move |stream: S::Stream| {
-            state.handle_data_stream(stream).await;
+        self.route("/data", async move |stream: S::Channel| {
+            state.handle_data_channel(stream).await;
         })
     }
 }
 
-impl<B: Backend, N: Network> TensorDataService<B, N> {
+impl<B: Backend, N: Protocol> TensorDataService<B, N> {
     pub fn new(cancel_token: CancellationToken) -> Self {
         Self {
             exposed_tensors: Mutex::new(HashMap::new()),
-            streams: Mutex::new(HashMap::new()),
+            channels: Mutex::new(HashMap::new()),
             new_tensor_notify: Arc::new(Notify::new()),
             cancel_token,
             _phantom_data: PhantomData::<B>,
@@ -101,7 +104,7 @@ impl<B: Backend, N: Network> TensorDataService<B, N> {
         max_downloads: u32,
         transfer_id: TensorTransferId,
     ) {
-        let bytes: bytes::Bytes = rmp_serde::to_vec(&Message::Data(tensor_data))
+        let bytes: bytes::Bytes = rmp_serde::to_vec(&DataServiceMessage::Tensor(tensor_data))
             .unwrap()
             .into();
         let mut exposed_tensors = self.exposed_tensors.lock().await;
@@ -120,7 +123,7 @@ impl<B: Backend, N: Network> TensorDataService<B, N> {
     pub async fn close(&self) {
         // Send a closing message to every open WebSocket stream
 
-        let mut streams = self.streams.lock().await;
+        let mut streams = self.channels.lock().await;
         for (_, stream) in streams.drain() {
             let mut stream = stream.lock().await;
 
@@ -134,7 +137,7 @@ impl<B: Backend, N: Network> TensorDataService<B, N> {
     /// Downloads a tensor that is exposed on another server. Requires a Tokio 1.x runtime
     pub async fn download_tensor(
         &self,
-        remote: NetworkAddress,
+        remote: Address,
         transfer_id: TensorTransferId,
     ) -> Option<TensorData> {
         log::info!("Downloading tensor from {remote:?}");
@@ -143,11 +146,12 @@ impl<B: Backend, N: Network> TensorDataService<B, N> {
         let mut stream = stream.lock().await;
 
         // Send the download request with the download id
-        let bytes: bytes::Bytes = rmp_serde::to_vec(&Message::Request(transfer_id))
-            .unwrap()
-            .into();
+        let bytes: bytes::Bytes =
+            rmp_serde::to_vec(&DataServiceMessage::TensorRequest(transfer_id))
+                .unwrap()
+                .into();
         stream
-            .send(bytes)
+            .send(Message::new(bytes))
             .await
             .expect("Failed to send download id");
 
@@ -157,7 +161,7 @@ impl<B: Backend, N: Network> TensorDataService<B, N> {
                 return None;
             };
 
-            let Message::Data(data) = rmp_serde::from_slice(&msg.data)
+            let DataServiceMessage::Tensor(data) = rmp_serde::from_slice(&msg.data)
                 .expect("Can deserialize messages from the websocket.")
             else {
                 panic!("Message should have been TensorData")
@@ -171,9 +175,9 @@ impl<B: Backend, N: Network> TensorDataService<B, N> {
     /// Get the WebSocket stream for the given address, or create a new one if it doesn't exist.
     async fn get_data_stream(
         &self,
-        address: NetworkAddress,
-    ) -> Arc<Mutex<<N::Client as NetworkClient>::Stream>> {
-        let mut streams = self.streams.lock().await;
+        address: Address,
+    ) -> Arc<Mutex<<N::Client as ProtocolClient>::Channel>> {
+        let mut streams = self.channels.lock().await;
         match streams.get(&address) {
             Some(stream) => stream.clone(),
             None => {
@@ -219,26 +223,26 @@ impl<B: Backend, N: Network> TensorDataService<B, N> {
     }
 
     /// Handle incoming connections for downloading tensors.
-    pub(crate) async fn handle_data_stream(
+    pub(crate) async fn handle_data_channel(
         &self,
-        mut stream: <N::Server as NetworkServer>::Stream,
+        mut channel: <N::Server as ProtocolServer>::Channel,
     ) {
         log::info!("[Data Handler] New connection for download.");
 
         while !self.cancel_token.is_cancelled() {
-            match stream.recv().await {
+            match channel.recv().await {
                 Ok(message) => {
                     if let Some(msg) = message {
                         let bytes = msg.data;
-                        let msg: Message = rmp_serde::from_slice(&bytes)
+                        let msg: DataServiceMessage = rmp_serde::from_slice(&bytes)
                             .expect("Can deserialize messages from the websocket.");
-                        let Message::Request(transfer_id) = msg else {
+                        let DataServiceMessage::TensorRequest(transfer_id) = msg else {
                             panic!("Received a message that wasn't a tensor request! {msg:?}");
                         };
 
                         let bytes = self.get_exposed_tensor_bytes(transfer_id).await.unwrap();
 
-                        stream.send(bytes).await.unwrap();
+                        channel.send(Message::new(bytes)).await.unwrap();
                     } else {
                         eprintln!("Closed connection");
                         return;

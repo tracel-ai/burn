@@ -102,40 +102,9 @@ fn get_shape<B: Backend>(tensors: &mut Vec<B::FloatTensorPrimitive>) -> Option<S
     shape
 }
 
-/// Get the index ranges for the slices to split a tensor across a given axis
-pub(crate) fn get_ranges(
-    dim_size: usize,
-    tensor_count: usize,
-    shape: Shape,
-    slice_dim: usize,
-) -> Vec<Vec<Range<usize>>> {
-    let mut ranges: Vec<Vec<Range<usize>>> = vec![];
-
-    let slice_size = dim_size / tensor_count;
-    for i in 0..tensor_count {
-        let start = i * slice_size;
-        let end = start + slice_size;
-
-        let mut range_vec = vec![];
-        for (dim, size) in shape.dims.iter().enumerate() {
-            let range = if dim == slice_dim {
-                Range { start, end }
-            } else {
-                Range {
-                    start: 0,
-                    end: *size,
-                }
-            };
-            range_vec.push(range);
-        }
-
-        ranges.push(range_vec);
-    }
-    ranges.last_mut().unwrap()[slice_dim].end = dim_size;
-
-    ranges
-}
-
+/// With a ring of N tensors, send the tensors N-1 times, either for the first of second phase.
+/// During the first phase, the tensor slices are summed. 
+/// During the second, the slices are replaced.
 fn ring_cycles<B: Backend>(
     sliced_tensors: &mut [Vec<B::FloatTensorPrimitive>],
     is_phase_one: bool,
@@ -179,6 +148,8 @@ fn ring_cycles<B: Backend>(
     }
 }
 
+/// Slice a list of tensors the same way, evenly across a given dimention. 
+/// The given `shape` should be the same for every tensor.
 fn slice_tensors<B: Backend>(
     tensors: &mut Vec<B::FloatTensorPrimitive>,
     dim_size: usize,
@@ -200,4 +171,40 @@ fn slice_tensors<B: Backend>(
     }
 
     sliced_tensors
+}
+
+
+/// Get the index ranges for the slices to split a tensor evently across a given axis. 
+/// Returns a vector of dimentions for each slice. 
+pub(crate) fn get_ranges(
+    dim_size: usize,
+    tensor_count: usize,
+    shape: Shape,
+    slice_dim: usize,
+) -> Vec<Vec<Range<usize>>> {
+    let mut ranges: Vec<Vec<Range<usize>>> = vec![];
+
+    let slice_size = dim_size / tensor_count;
+    for i in 0..tensor_count {
+        let start = i * slice_size;
+        let end = start + slice_size;
+
+        let mut range_vec = vec![];
+        for (dim, size) in shape.dims.iter().enumerate() {
+            let range = if dim == slice_dim {
+                Range { start, end }
+            } else {
+                Range {
+                    start: 0,
+                    end: *size,
+                }
+            };
+            range_vec.push(range);
+        }
+
+        ranges.push(range_vec);
+    }
+    ranges.last_mut().unwrap()[slice_dim].end = dim_size;
+
+    ranges
 }

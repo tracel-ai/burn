@@ -1,17 +1,23 @@
 # burn-collective
 
-Tools for collective operations on tensors
+Collective operations on tensors
 
-The collective operations are the following:
+There is only one collective operation so far:
 - `all-reduce`
+    Aggregates a tensor between all deveices, and distributes the result to all devices. 
+    Different strategies can be used on the local and global levels. The result can only be 
+    returned when all devices have called the all-reduce.
 
+Threads must call `register` before calling any other operation. 
+The total number of devices on the node, or nodes in the collective, must be known ahead of time.
 
-Threads can register to use collective operations with `register()`
+## Local and Global
 
-When a collective operation is called N times (N calls to `register`), 
-the collective server starts the collective operation. Every tensor passed is aggregated.  
+There are two levels to the collective operations: local and global. "Local" operations are done 
+within the same process, usually with a thread for each local device. "Global" operations are 
+multi-node operations. Operations are done on the local level, then optionally on the global level.
 
-## Srtategies
+## Strategies
 
 ### Centralized
 
@@ -90,11 +96,4 @@ the better.
 ### Double binary tree
 
 https://developer.nvidia.com/blog/massively-scale-deep-learning-training-nccl-2-4/
-
-
-## Local and Global
-
-Local threads register to the Local Collective Server. If configured during registration, 
-the Local Collective Server will register to a remote Global Collective Server. If configured, 
-there are two levels in aggregation.
 

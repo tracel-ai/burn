@@ -1,33 +1,33 @@
 use std::collections::HashMap;
 
 use crate::{
-    AllReduceStrategy, SharedGlobalRegisterParams,
+    AllReduceStrategy,
     global::{
-        server::base::GlobalCollectiveError,
-        shared::base::{
-            CentralizedAllReduceStrategy, MessageResponse, NodeId, RemoteRequest, RemoteResponse,
-            RequestId, SessionId,
+        NodeId,
+        shared::{
+            CentralizedAllReduceStrategy, CollectiveMessageResponse, RemoteRequest, RemoteResponse,
+            RequestId, SessionId, GlobalCollectiveError,
         },
     },
 };
-use burn_network::network::NetworkAddress;
+use burn_communication::Address;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 pub(crate) struct Session {
-    response_sender: Sender<MessageResponse>,
-    response_receiver: Option<Receiver<MessageResponse>>,
+    response_sender: Sender<CollectiveMessageResponse>,
+    response_receiver: Option<Receiver<CollectiveMessageResponse>>,
 }
 
 impl Session {
     fn new() -> Self {
-        let (response_sender, recv) = tokio::sync::mpsc::channel::<MessageResponse>(1);
+        let (response_sender, recv) = tokio::sync::mpsc::channel::<CollectiveMessageResponse>(1);
         Self {
             response_sender,
             response_receiver: Some(recv),
         }
     }
 
-    async fn respond(&mut self, response: MessageResponse) {
+    async fn respond(&mut self, response: CollectiveMessageResponse) {
         self.response_sender.send(response).await.unwrap();
     }
 }
@@ -35,15 +35,15 @@ impl Session {
 pub(crate) struct GlobalCollectiveState {
     /// The ids passed to each register so far, and their addresses
     registered_nodes: HashMap<SessionId, NodeId>,
-    node_addresses: HashMap<NodeId, NetworkAddress>,
+    node_addresses: HashMap<NodeId, Address>,
     /// The params of the current all-reduce operation, as defined by the first caller
     cur_all_reduce_strategy: Option<AllReduceStrategy>,
 
-    /// The params of the current register operation, as defined by the first caller
-    cur_shared_params: Option<SharedGlobalRegisterParams>,
+    /// How many total nodes for the currrent register operation, as defined by the first caller
+    cur_num_nodes: Option<u32>,
     num_global_devices: u32,
 
-    all_reduce_requests: Vec<(SessionId, RequestId, NetworkAddress)>,
+    all_reduce_requests: Vec<(SessionId, RequestId, Address)>,
     register_requests: Vec<(SessionId, RequestId)>,
 
     sessions: HashMap<SessionId, Session>,
@@ -55,7 +55,7 @@ impl GlobalCollectiveState {
             registered_nodes: HashMap::new(),
             node_addresses: HashMap::new(),
             cur_all_reduce_strategy: None,
-            cur_shared_params: None,
+            cur_num_nodes: None,
             num_global_devices: 0,
             all_reduce_requests: Vec::new(),
             register_requests: Vec::new(),
@@ -71,7 +71,10 @@ impl GlobalCollectiveState {
     }
 
     /// Create the session with given id if necessary, and get the response receiver
-    pub(crate) fn get_session_responder(&mut self, id: SessionId) -> Receiver<MessageResponse> {
+    pub(crate) fn get_session_responder(
+        &mut self,
+        id: SessionId,
+    ) -> Receiver<CollectiveMessageResponse> {
         self.init_session(id);
         let session = self.sessions.get_mut(&id).unwrap();
         let response_recv = session.response_receiver.take();
@@ -79,7 +82,11 @@ impl GlobalCollectiveState {
         response_recv.unwrap()
     }
 
-    pub(crate) async fn respond(&mut self, session_id: SessionId, response: MessageResponse) {
+    pub(crate) async fn respond(
+        &mut self,
+        session_id: SessionId,
+        response: CollectiveMessageResponse,
+    ) {
         let session = self.sessions.get_mut(&session_id).unwrap();
         session.respond(response).await;
     }
@@ -97,22 +104,18 @@ impl GlobalCollectiveState {
             RemoteRequest::Register {
                 node_id,
                 node_addr,
-                num_local_devices,
-                shared_params,
+                num_nodes,
+                num_devices,
             } => {
                 self.register(
                     session_id,
                     request_id,
                     node_id,
                     node_addr,
-                    num_local_devices,
-                    shared_params,
+                    num_nodes,
+                    num_devices,
                 )
                 .await
-            }
-            RemoteRequest::Reset => {
-                self.reset();
-                Ok(())
             }
             RemoteRequest::Finish => self.finish(session_id, request_id).await,
         } {
@@ -120,23 +123,13 @@ impl GlobalCollectiveState {
             let content = RemoteResponse::Error(err);
             self.respond(
                 session_id,
-                MessageResponse {
+                CollectiveMessageResponse {
                     request_id,
                     content,
                 },
             )
             .await;
         }
-    }
-
-    fn reset(&mut self) {
-        self.registered_nodes.clear();
-        self.node_addresses.clear();
-        self.cur_all_reduce_strategy = None;
-        self.num_global_devices = 0;
-        self.all_reduce_requests.clear();
-        self.register_requests.clear();
-        self.sessions.clear();
     }
 
     /// Un-register a node. Any pending requests will be cancelled, returning error responses.
@@ -157,7 +150,7 @@ impl GlobalCollectiveState {
             if session == session_id {
                 // Send a response if we are finishing a session with a pending register request
                 let content = RemoteResponse::Error(GlobalCollectiveError::PendingRegisterOnFinish);
-                let response = MessageResponse {
+                let response = CollectiveMessageResponse {
                     request_id: req,
                     content,
                 };
@@ -174,7 +167,7 @@ impl GlobalCollectiveState {
             if session == session_id {
                 // Send a response if we are finishing a session with a pending register request
                 let content = RemoteResponse::Error(GlobalCollectiveError::PendingRegisterOnFinish);
-                let response = MessageResponse {
+                let response = CollectiveMessageResponse {
                     request_id: req,
                     content,
                 };
@@ -187,7 +180,7 @@ impl GlobalCollectiveState {
 
         self.respond(
             session_id,
-            MessageResponse {
+            CollectiveMessageResponse {
                 request_id,
                 content: RemoteResponse::FinishAck,
             },
@@ -202,9 +195,9 @@ impl GlobalCollectiveState {
         session_id: SessionId,
         request_id: RequestId,
         node_id: NodeId,
-        node_addr: NetworkAddress,
+        node_addr: Address,
+        num_nodes: u32,
         num_devices: u32,
-        shared_params: SharedGlobalRegisterParams,
     ) -> Result<(), GlobalCollectiveError> {
         if self.node_addresses.contains_key(&node_id)
             || self.registered_nodes.contains_key(&session_id)
@@ -217,18 +210,18 @@ impl GlobalCollectiveState {
         self.register_requests.push((session_id, request_id));
 
         self.num_global_devices += num_devices;
-        match &self.cur_shared_params {
-            Some(cur_shared_params) => {
-                if *cur_shared_params != shared_params {
+        match &self.cur_num_nodes {
+            Some(cur_num_nodes) => {
+                if *cur_num_nodes != num_nodes {
                     return Err(GlobalCollectiveError::RegisterParamsMismatch);
                 }
             }
             None => {
-                self.cur_shared_params = Some(shared_params.clone());
+                self.cur_num_nodes = Some(num_nodes);
             }
         }
 
-        if self.registered_nodes.len() == shared_params.num_nodes as usize {
+        if self.registered_nodes.len() == num_nodes as usize {
             let mut callbacks = vec![];
             core::mem::swap(&mut callbacks, &mut self.register_requests);
 
@@ -236,7 +229,7 @@ impl GlobalCollectiveState {
                 let content = RemoteResponse::RegisterAck {
                     num_global_devices: self.num_global_devices,
                 };
-                let resp = MessageResponse {
+                let resp = CollectiveMessageResponse {
                     request_id: request,
                     content,
                 };
@@ -288,7 +281,7 @@ impl GlobalCollectiveState {
 
             let mut requests_iter = requests.iter();
             let central_node = requests_iter.next().unwrap().2.clone();
-            let other_nodes: Vec<NetworkAddress> =
+            let other_nodes: Vec<Address> =
                 requests_iter.map(|(_, _, addr)| addr.clone()).collect();
 
             for (i, (session, request, _)) in requests.iter().enumerate() {
@@ -302,7 +295,7 @@ impl GlobalCollectiveState {
                         central_node: central_node.clone(),
                     }
                 };
-                let resp = MessageResponse {
+                let resp = CollectiveMessageResponse {
                     request_id: *request,
                     content: RemoteResponse::CentralizedAllReduceStrategy(strategy),
                 };

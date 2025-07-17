@@ -6,8 +6,8 @@ use burn::{
     tensor::{Tensor, TensorData, Tolerance},
 };
 use burn_collective::{
-    GlobalRegisterParams, RegisterParams, SharedAllReduceParams, SharedGlobalRegisterParams,
-    SharedRegisterParams, all_reduce, finish_collective, register, reset_collective,
+    DeviceId, GlobalRegisterParams, SharedAllReduceParams, all_reduce, finish_collective, register,
+    reset_collective,
 };
 use burn_collective_multinode_tests::shared::NodeTestData;
 
@@ -41,28 +41,20 @@ fn test_all_reduce<B: Backend>(test_input: NodeTestData) {
         server_address: test_input.server_address,
         client_address: test_input.client_address,
         client_data_port: test_input.client_data_port,
-        shared_params: SharedGlobalRegisterParams {
-            num_nodes: test_input.node_count,
-        },
+        num_nodes: test_input.node_count,
     });
-    let reg_params = RegisterParams {
-        device_id: 0.into(),
-        shared: SharedRegisterParams {
-            num_devices: test_input.device_count,
-        },
-        global,
-    };
 
     let (send, recv) = std::sync::mpsc::sync_channel(32);
 
     let mut handles = vec![];
     for id in 0..device_count {
-        let send = send.clone();
-        let mut reg_params = reg_params.clone();
-        reg_params.device_id = id.into();
+        let global = global.clone();
         let params = test_input.aggregate_params.clone();
         let input = test_input.inputs[id as usize].clone();
-        let handle = std::thread::spawn(move || run_peer::<B>(reg_params, params, input, send));
+        let send = send.clone();
+        let handle = std::thread::spawn(move || {
+            run_peer::<B>(id.into(), device_count, global, params, input, send)
+        });
         handles.push(handle);
     }
 
@@ -88,21 +80,22 @@ fn test_all_reduce<B: Backend>(test_input: NodeTestData) {
 
 /// Runs a thread in the all-reduce test.
 pub fn run_peer<B: Backend>(
-    reg_params: RegisterParams,
+    device_id: DeviceId,
+    num_devices: u32,
+    global_params: Option<GlobalRegisterParams>,
     all_reduce_params: SharedAllReduceParams,
     input: TensorData,
     output: SyncSender<Tensor<B, 1>>,
 ) {
     let device = B::Device::default();
-    let id = reg_params.device_id;
 
-    register::<B>(reg_params).unwrap();
+    register::<B>(device_id, num_devices, global_params).unwrap();
 
     let tensor = Tensor::<B, 1>::from_data(input, &device);
 
-    let tensor = all_reduce(id, tensor, &all_reduce_params).unwrap();
+    let tensor = all_reduce(device_id, tensor, &all_reduce_params).unwrap();
 
     output.send(tensor).unwrap();
 
-    finish_collective::<B>(id).unwrap();
+    finish_collective::<B>(device_id).unwrap();
 }

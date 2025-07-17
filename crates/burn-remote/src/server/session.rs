@@ -1,6 +1,6 @@
 use burn_common::id::StreamId;
+use burn_communication::{Protocol, data_service::TensorDataService};
 use burn_ir::BackendIr;
-use burn_network::{data_service::TensorDataService, network::Network};
 use burn_router::Runner;
 use burn_tensor::Device;
 use std::{collections::HashMap, sync::Arc};
@@ -17,34 +17,34 @@ use super::stream::Stream;
 ///
 /// Each session manages its own stream, spawning one thread per stream to mimic the same behavior
 /// a native backend would have.
-pub struct SessionManager<B, N>
+pub struct SessionManager<B, P>
 where
     B: BackendIr,
-    N: Network,
+    P: Protocol,
 {
     runner: Runner<B>,
-    sessions: Mutex<HashMap<SessionId, Session<B, N>>>,
-    data_service: Arc<TensorDataService<B, N>>,
+    sessions: Mutex<HashMap<SessionId, Session<B, P>>>,
+    data_service: Arc<TensorDataService<B, P>>,
 }
 
-struct Session<B, N>
+struct Session<B, P>
 where
     B: BackendIr,
-    N: Network,
+    P: Protocol,
 {
     runner: Runner<B>,
-    streams: HashMap<StreamId, Stream<B, N>>,
+    streams: HashMap<StreamId, Stream<B, P>>,
     sender: Sender<Receiver<TaskResponse>>,
     receiver: Option<Receiver<Receiver<TaskResponse>>>,
-    data_service: Arc<TensorDataService<B, N>>,
+    data_service: Arc<TensorDataService<B, P>>,
 }
 
-impl<B, N> SessionManager<B, N>
+impl<B, P> SessionManager<B, P>
 where
     B: BackendIr,
-    N: Network,
+    P: Protocol,
 {
-    pub fn new(device: Device<B>, data_service: Arc<TensorDataService<B, N>>) -> Self {
+    pub fn new(device: Device<B>, data_service: Arc<TensorDataService<B, P>>) -> Self {
         Self {
             runner: Runner::new(device),
             sessions: Mutex::new(Default::default()),
@@ -71,7 +71,7 @@ where
         &self,
         session_id: &mut Option<SessionId>,
         task: Task,
-    ) -> Option<(Stream<B, N>, ConnectionId, ComputeTask)> {
+    ) -> Option<(Stream<B, P>, ConnectionId, ComputeTask)> {
         let mut sessions = self.sessions.lock().await;
 
         let session_id = match session_id {
@@ -110,7 +110,7 @@ where
         }
     }
 
-    fn register_session(&self, sessions: &mut HashMap<SessionId, Session<B, N>>, id: SessionId) {
+    fn register_session(&self, sessions: &mut HashMap<SessionId, Session<B, P>>, id: SessionId) {
         sessions.entry(id).or_insert_with(|| {
             log::info!("Creating a new session {id}");
 
@@ -119,12 +119,12 @@ where
     }
 }
 
-impl<B, N> Session<B, N>
+impl<B, P> Session<B, P>
 where
     B: BackendIr,
-    N: Network,
+    P: Protocol,
 {
-    fn new(runner: Runner<B>, data_service: Arc<TensorDataService<B, N>>) -> Self {
+    fn new(runner: Runner<B>, data_service: Arc<TensorDataService<B, P>>) -> Self {
         let (sender, receiver) = tokio::sync::mpsc::channel(1);
 
         Self {
@@ -143,12 +143,12 @@ where
     }
 
     /// Select the current [stream](Stream) based on the given task.
-    async fn select(&mut self, stream_id: StreamId) -> Stream<B, N> {
+    async fn select(&mut self, stream_id: StreamId) -> Stream<B, P> {
         // We return the stream.
         match self.streams.get(&stream_id) {
             Some(stream) => stream.clone(),
             None => {
-                let stream = Stream::<B, N>::new(
+                let stream = Stream::<B, P>::new(
                     self.runner.clone(),
                     self.sender.clone(),
                     self.data_service.clone(),

@@ -1,22 +1,23 @@
+use std::marker::PhantomData;
+
+use burn_communication::ProtocolClient;
 use burn_ir::TensorIr;
-use burn_network::data_service::TensorTransferId;
 use burn_router::{RouterTensor, RunnerChannel, get_client};
 
-use crate::shared::{ComputeTask, TensorRemote};
-
 use super::{
-    WsClient,
-    runner::{RemoteTensorHandle, WsBridge, WsDevice},
+    RemoteClient,
+    runner::{RemoteBridge, RemoteDevice, RemoteTensorHandle},
 };
 
 /// A local channel with direct connection to the backend runner clients.
-#[derive(Clone)]
-pub struct WsChannel;
+pub struct RemoteChannel<C: ProtocolClient> {
+    _p: PhantomData<C>,
+}
 
-impl RunnerChannel for WsChannel {
-    type Device = WsDevice;
-    type Bridge = WsBridge;
-    type Client = WsClient;
+impl<C: ProtocolClient> RunnerChannel for RemoteChannel<C> {
+    type Device = RemoteDevice;
+    type Bridge = RemoteBridge<C>;
+    type Client = RemoteClient;
 
     type FloatElem = f32;
 
@@ -29,35 +30,27 @@ impl RunnerChannel for WsChannel {
     }
 
     fn init_client(device: &Self::Device) -> Self::Client {
-        WsClient::init(device.clone())
+        RemoteClient::init::<C>(device.clone())
     }
 
-    fn get_tensor_handle(tensor: &TensorIr, client: &Self::Client) -> RemoteTensorHandle {
+    fn get_tensor_handle(tensor: &TensorIr, client: &Self::Client) -> RemoteTensorHandle<C> {
         RemoteTensorHandle {
             client: client.clone(),
             tensor: tensor.clone(),
+            _p: PhantomData,
         }
     }
 
     fn register_tensor(
-        client: &Self::Client,
-        handle: RemoteTensorHandle,
-        shape: Vec<usize>,
-        dtype: burn_tensor::DType,
+        _client: &Self::Client,
+        _handle: RemoteTensorHandle<C>,
+        _shape: Vec<usize>,
+        _dtype: burn_tensor::DType,
     ) -> RouterTensor<Self::Client> {
-        // Transfer id is none, so any transfer with no id will be used.
-        // This is case that should be rare.
-        let remote_tensor = TensorRemote {
-            transfer_id: TensorTransferId::none(),
-            address: (*client.device.address).clone(),
-        };
-
-        let new_id = client.sender.new_tensor_id();
-        client
-            .sender
-            .send(ComputeTask::RegisterTensorRemote(remote_tensor, new_id));
-
-        RouterTensor::new(handle.tensor.id, shape, dtype, client.clone())
+        // This function is normally only used to move a tensor from a device to another.
+        //
+        // In other words, to change the client.
+        panic!("Can't register manually a tensor on a remote channel.");
     }
 
     fn change_client_backend(
@@ -74,9 +67,15 @@ impl RunnerChannel for WsChannel {
         let id = handle.tensor.id;
 
         let target_client = get_client::<Self>(target_device);
-        let router_tensor: RouterTensor<WsClient> =
+        let router_tensor: RouterTensor<RemoteClient> =
             RouterTensor::new(id, handle.tensor.shape, handle.tensor.dtype, target_client);
 
         router_tensor
+    }
+}
+
+impl<C: ProtocolClient> Clone for RemoteChannel<C> {
+    fn clone(&self) -> Self {
+        RemoteChannel { _p: PhantomData }
     }
 }

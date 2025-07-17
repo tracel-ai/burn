@@ -4,4 +4,4 @@ pub(crate) mod stream;
 
 mod base;
 
-pub use base::{start_async, start_websocket};
+pub use base::{start_websocket, start_websocket_async};

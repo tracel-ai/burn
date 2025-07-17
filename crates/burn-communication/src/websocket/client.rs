@@ -1,5 +1,5 @@
 use crate::{
-    network::{NetworkAddress, NetworkClient, NetworkError, NetworkMessage, NetworkStream},
+    base::{Address, CommunicationChannel, CommunicationError, Message, ProtocolClient},
     websocket::base::parse_ws_address,
 };
 use burn_common::future::DynFut;
@@ -12,17 +12,18 @@ use tokio_tungstenite::{
 
 #[derive(Clone)]
 pub struct WsClient;
-impl NetworkClient for WsClient {
-    type Stream = WsClientStream;
+
+impl ProtocolClient for WsClient {
+    type Channel = WsClientChannel;
     type Error = WsClientError;
 
-    fn connect(address: NetworkAddress, route: &str) -> DynFut<Option<WsClientStream>> {
+    fn connect(address: Address, route: &str) -> DynFut<Option<WsClientChannel>> {
         Box::pin(connect_ws(address, route.to_owned()))
     }
 }
 
 /// Open a new WebSocket connection to the address
-async fn connect_ws(address: NetworkAddress, route: String) -> Option<WsClientStream> {
+async fn connect_ws(address: Address, route: String) -> Option<WsClientChannel> {
     let address = parse_ws_address(address).ok()?;
     let address = format!("{address}/{route}");
     const MB: usize = 1024 * 1024;
@@ -41,25 +42,27 @@ async fn connect_ws(address: NetworkAddress, route: String) -> Option<WsClientSt
     .await
     .ok()?;
 
-    Some(WsClientStream { inner: stream })
+    Some(WsClientChannel { inner: stream })
 }
-pub struct WsClientStream {
+pub struct WsClientChannel {
     inner: WebSocketStream<MaybeTlsStream<TcpStream>>,
 }
 
-impl NetworkStream for WsClientStream {
+impl CommunicationChannel for WsClientChannel {
     type Error = WsClientError;
 
-    async fn send(&mut self, bytes: bytes::Bytes) -> Result<(), WsClientError> {
-        self.inner.send(tungstenite::Message::Binary(bytes)).await?;
+    async fn send(&mut self, msg: Message) -> Result<(), WsClientError> {
+        self.inner
+            .send(tungstenite::Message::Binary(msg.data))
+            .await?;
 
         Ok(())
     }
 
-    async fn recv(&mut self) -> Result<Option<NetworkMessage>, WsClientError> {
+    async fn recv(&mut self) -> Result<Option<Message>, WsClientError> {
         match self.inner.next().await {
             Some(next) => match next {
-                Ok(tungstenite::Message::Binary(data)) => Ok(Some(NetworkMessage { data })),
+                Ok(tungstenite::Message::Binary(data)) => Ok(Some(Message { data })),
                 Ok(tungstenite::Message::Close(_close_frame)) => Ok(None),
                 Err(err) => Err(WsClientError::Tungstenite(err)),
                 msg => Err(WsClientError::UnknownMessage(format!("{msg:?}"))),
@@ -91,7 +94,7 @@ pub enum WsClientError {
     UnknownMessage(String),
     Other(String),
 }
-impl NetworkError for WsClientError {}
+impl CommunicationError for WsClientError {}
 
 impl From<std::io::Error> for WsClientError {
     fn from(err: std::io::Error) -> Self {

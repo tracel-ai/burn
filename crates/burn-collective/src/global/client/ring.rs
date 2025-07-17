@@ -1,11 +1,8 @@
 use core::ops::Range;
 use std::sync::Arc;
 
-use crate::global::{server::base::GlobalCollectiveError, shared::base::RingAllReduceStrategy};
-use burn_network::{
-    data_service::TensorDataService,
-    network::{Network, NetworkAddress},
-};
+use crate::global::shared::{GlobalCollectiveError, RingAllReduceStrategy};
+use burn_communication::{Address, Protocol, data_service::TensorDataService};
 use burn_tensor::{TensorMetadata, backend::Backend};
 
 // https://blog.dailydoseofds.com/p/all-reduce-and-ring-reduce-for-model
@@ -47,7 +44,7 @@ pub(crate) async fn ring_all_reduce_sum<B, N>(
 ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError>
 where
     B: Backend,
-    N: Network,
+    N: Protocol,
 {
     let mut slices = slice_tensor::<B>(tensor, strategy.slice_dim, strategy.slice_ranges);
     let mut send_slice_idx = strategy.first_slice;
@@ -87,13 +84,13 @@ async fn do_cycles<B, N>(
     transfer_counter: &mut u32,
     send_slice_idx: &mut usize,
     is_phase_one: bool,
-    next_node: NetworkAddress,
+    next_node: Address,
     data_service: &Arc<TensorDataService<B, N>>,
     device: &B::Device,
 ) -> Result<(), GlobalCollectiveError>
 where
     B: Backend,
-    N: Network,
+    N: Protocol,
 {
     let slice_count = slices.len();
     for _ in 0..(slice_count - 1) {

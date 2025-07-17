@@ -1,23 +1,19 @@
-use burn_network::data_service::TensorDataServer;
-use burn_network::network::Network;
-use burn_network::{
-    data_service::TensorDataService,
-    network::{NetworkAddress, NetworkServer},
-};
+use burn_communication::Protocol;
+use burn_communication::data_service::TensorDataServer;
+use burn_communication::{Address, ProtocolServer, data_service::TensorDataService};
 use burn_tensor::{ElementConversion, backend::Backend};
 use std::{marker::PhantomData, sync::Arc};
 use tokio_util::sync::CancellationToken;
 
-use crate::global::server::base::GlobalCollectiveError;
 use crate::{AllReduceStrategy, GlobalRegisterParams};
 use crate::{
-    ReduceKind, SharedRegisterParams,
+    ReduceKind,
     global::{
         client::{
             centralized::centralized_all_reduce_sum, ring::ring_all_reduce_sum,
             tree::tree_all_reduce_sum, worker::GlobalClientWorker,
         },
-        shared::base::{RemoteRequest, RemoteResponse},
+        shared::{RemoteRequest, RemoteResponse, GlobalCollectiveError},
     },
     local_server::get_server_runtime,
 };
@@ -25,10 +21,10 @@ use crate::{
 pub(crate) struct GlobalCollectiveClient<B, N>
 where
     B: Backend,
-    N: Network,
+    N: Protocol,
 {
     data_service: Arc<TensorDataService<B, N>>,
-    data_client_address: Arc<NetworkAddress>,
+    data_client_address: Arc<Address>,
     worker: GlobalClientWorker<N::Client>,
     num_global_devices: Option<u32>,
     _n: PhantomData<N>,
@@ -37,19 +33,19 @@ where
 impl<B, N> GlobalCollectiveClient<B, N>
 where
     B: Backend,
-    N: Network,
+    N: Protocol,
 {
     pub fn new(
-        server_address: &NetworkAddress,
-        client_address: &NetworkAddress,
-        data_server_port: u16,
+        server_address: &Address,
+        client_address: &Address,
+        comms_server: N::Server,
     ) -> Self {
         let cancel_token = CancellationToken::new();
 
         let data_service = Arc::new(TensorDataService::new(cancel_token.clone()));
 
         let runtime = get_server_runtime();
-        let server = N::Server::new(data_server_port)
+        let server = comms_server
             .route_tensor_data_service(data_service.clone())
             .serve({
                 let cancel_token = cancel_token.clone();
@@ -71,7 +67,7 @@ where
 
     pub async fn register(
         &mut self,
-        params: SharedRegisterParams,
+        num_devices: u32,
         global_params: GlobalRegisterParams,
     ) -> Result<(), GlobalCollectiveError> {
         let node_addr = self.data_client_address.as_ref().clone();
@@ -79,8 +75,8 @@ where
         let req = RemoteRequest::Register {
             node_id: global_params.node_id,
             node_addr,
-            shared_params: global_params.shared_params,
-            num_local_devices: params.num_devices,
+            num_nodes: global_params.num_nodes,
+            num_devices,
         };
         match self.worker.request(req).await {
             RemoteResponse::RegisterAck { num_global_devices } => {
