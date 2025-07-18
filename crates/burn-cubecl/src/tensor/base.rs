@@ -104,6 +104,11 @@ impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
             }
             DType::Bool => (),
             DType::QFloat(..) => (),
+            DType::Complex32 | DType::Complex64 => {
+                // Complex numbers don't implement Float trait, so we can't use assert_approx_eq
+                // For now, just skip the assertion since complex ops are not implemented yet
+                ()
+            }
         }
     }
 }
