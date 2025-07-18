@@ -13,8 +13,9 @@ pub(crate) mod shared;
 mod __client {
     use super::*;
 
+    use crate::{client::RemoteChannel, shared::RemoteProtocol};
+    use burn_communication::Protocol;
     use burn_router::BackendRouter;
-    use client::WsChannel;
 
     /// The remote backend allows you to run computation on a remote device.
     ///
@@ -29,9 +30,9 @@ mod __client {
     ///     burn::server::start::<burn::backend::Wgpu>(device, port);
     /// }
     ///```
-    pub type RemoteBackend = BackendRouter<WsChannel>;
+    pub type RemoteBackend = BackendRouter<RemoteChannel<<RemoteProtocol as Protocol>::Client>>;
 
-    pub use client::WsDevice as RemoteDevice;
+    pub use client::RemoteDevice;
 }
 #[cfg(feature = "client")]
 pub use __client::*;
@@ -49,11 +50,11 @@ mod tests {
             .build()
             .unwrap();
 
-        rt.spawn(crate::server::start_async::<NdArray>(
+        rt.spawn(crate::server::start_websocket_async::<NdArray>(
             Default::default(),
             3000,
         ));
-        rt.spawn(crate::server::start_async::<NdArray>(
+        rt.spawn(crate::server::start_websocket_async::<NdArray>(
             Default::default(),
             3010,
         ));

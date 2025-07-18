@@ -1,264 +1,176 @@
-use axum::{
-    Router,
-    extract::{
-        State,
-        ws::{self, WebSocket, WebSocketUpgrade},
-    },
-    response::IntoResponse,
-    routing::any,
+use burn_communication::{
+    CommunicationChannel, Message, Protocol, ProtocolServer,
+    data_service::{TensorDataServer, TensorDataService},
+    util::os_shutdown_signal,
+    websocket::{WebSocket, WsServer},
 };
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    sync::{Arc, Mutex},
-};
+use std::{marker::PhantomData, sync::Arc};
+use tokio_util::sync::CancellationToken;
 
-use burn_ir::{BackendIr, TensorId};
+use burn_ir::BackendIr;
 use burn_tensor::Device;
-use tracing_core::{Level, LevelFilter};
-use tracing_subscriber::prelude::*;
-use tracing_subscriber::{filter::filter_fn, registry};
 
-use crate::shared::{ComputeTask, RemoteTensorReq, Task};
+use crate::shared::{ComputeTask, Task};
 
 use super::session::SessionManager;
-use super::tensor_data_service::TensorDataService;
 
-#[derive(Clone)]
-pub struct WsServer<B: BackendIr> {
-    session_manager: Arc<SessionManager<B>>,
-    state: Arc<TensorDataService>,
+pub struct RemoteServer<B, P>
+where
+    B: BackendIr,
+    P: Protocol,
+{
+    _b: PhantomData<B>,
+    _n: PhantomData<P>,
 }
 
-impl<B: BackendIr> WsServer<B> {
+impl<B, P> RemoteServer<B, P>
+where
+    B: BackendIr,
+    P: Protocol,
+{
     /// Start the server on the given address.
-    pub async fn start(device: Device<B>, port: u16) {
-        let layer = tracing_subscriber::fmt::layer()
-            .with_filter(LevelFilter::INFO)
-            .with_filter(filter_fn(|m| {
-                if let Some(path) = m.module_path() {
-                    // The wgpu crate is logging too much, so we skip `info` level.
-                    if path.starts_with("wgpu") && *m.level() >= Level::INFO {
-                        return false;
-                    }
-                }
-                true
-            }));
+    pub async fn start(device: Device<B>, server: P::Server) {
+        let cancel_token = CancellationToken::new();
+        let data_service = Arc::new(TensorDataService::<B, P>::new(cancel_token));
+        let session_manager = Arc::new(SessionManager::<B, P>::new(device, data_service.clone()));
 
-        // If we start multiple servers in the same process, this will fail, it's ok
-        let _ = registry().with(layer).try_init();
-
-        let address = format!("0.0.0.0:{port}");
-        log::info!("Start server {address} on device {device:?}");
-
-        let state = Arc::new(TensorDataService {
-            exposed_tensors: Mutex::new(HashMap::new()),
-        });
-        let server = Self {
-            session_manager: Arc::new(SessionManager::<B>::new(device, state.clone())),
-            state,
-        };
-
-        // build our application with some routes
-        let app = Router::new()
-            .route("/response", any(Self::handler_response))
-            .route("/request", any(Self::handler_request))
-            .route("/data", any(Self::handler_data))
-            .with_state(server);
-
-        // run it with hyper
-        let listener = tokio::net::TcpListener::bind(address).await.unwrap();
-        axum::serve(
-            listener,
-            app.into_make_service_with_connect_info::<SocketAddr>(),
-        )
-        .await
-        .unwrap();
+        let _server = server
+            .route("/response", {
+                let session_manager = session_manager.clone();
+                move |stream| Self::handle_socket_response(session_manager, stream)
+            })
+            .route("/request", {
+                let session_manager = session_manager.clone();
+                move |stream| Self::handle_socket_request(session_manager, stream)
+            })
+            .route_tensor_data_service(data_service)
+            .serve(os_shutdown_signal())
+            .await;
     }
 
-    async fn handler_response(
-        ws: WebSocketUpgrade,
-        State(state): State<Self>,
-    ) -> impl IntoResponse {
-        ws.on_upgrade(move |socket| state.handle_socket_response(socket))
-    }
-
-    async fn handler_request(ws: WebSocketUpgrade, State(state): State<Self>) -> impl IntoResponse {
-        ws.on_upgrade(move |socket| state.handle_socket_request(socket))
-    }
-
-    async fn handler_data(ws: WebSocketUpgrade, State(state): State<Self>) -> impl IntoResponse {
-        ws.on_upgrade(move |socket| state.handle_socket_data(socket))
-    }
-
-    async fn handle_socket_response(self, mut socket: WebSocket) {
+    async fn handle_socket_response(
+        session_manager: Arc<SessionManager<B, P>>,
+        mut socket: <P::Server as ProtocolServer>::Channel,
+    ) {
         log::info!("[Response Handler] On new connection.");
 
         let packet = socket.recv().await;
         let msg = match packet {
-            Some(msg) => msg,
-            None => panic!("Still no message"),
+            Ok(Some(msg)) => msg,
+            Ok(None) => {
+                log::info!("Response stream closed");
+                return;
+            }
+            Err(e) => {
+                log::info!("Response stream error on init: {e:?}");
+                return;
+            }
         };
 
-        match msg {
-            Ok(ws::Message::Binary(bytes)) => {
-                let task = match rmp_serde::from_slice::<Task>(&bytes) {
-                    Ok(val) => val,
-                    Err(err) => panic!("Only bytes messages are supported {err:?}"),
-                };
-                let id = match task {
-                    Task::Init(id) => id,
-                    _ => panic!("Response handler not initialized."),
-                };
-
-                let mut receiver = self.session_manager.register_responder(id).await;
-
-                log::info!("Response handler connection active");
-
-                while let Some(mut callback) = receiver.recv().await {
-                    let response = callback.recv().await.unwrap();
-                    let bytes = rmp_serde::to_vec(&response).unwrap();
-
-                    socket
-                        .send(ws::Message::Binary(bytes.into()))
-                        .await
-                        .unwrap();
-                }
+        let id = match rmp_serde::from_slice::<Task>(&msg.data) {
+            Ok(Task::Init(session_id)) => session_id,
+            msg => {
+                log::error!("Message is not a valid initialization task {msg:?}");
+                return;
             }
-            Err(err) => panic!("Can't start the response handler {err:?}"),
-            _ => panic!("Unsupported message type"),
+        };
+
+        let mut receiver = session_manager.register_responder(id).await;
+
+        log::info!("Response handler connection active");
+
+        while let Some(mut callback) = receiver.recv().await {
+            let response = callback.recv().await.unwrap();
+            let bytes = rmp_serde::to_vec(&response).unwrap();
+
+            socket.send(Message::new(bytes.into())).await.unwrap();
         }
     }
 
-    async fn handle_socket_request(self, mut socket: WebSocket) {
+    async fn handle_socket_request(
+        session_manager: Arc<SessionManager<B, P>>,
+        mut socket: <P::Server as ProtocolServer>::Channel,
+    ) {
         log::info!("[Request Handler] On new connection.");
         let mut session_id = None;
 
         loop {
             let packet = socket.recv().await;
             let msg = match packet {
-                Some(msg) => msg,
-                None => {
-                    log::info!("Still no message");
-                    continue;
+                Ok(Some(msg)) => msg,
+                Ok(None) => {
+                    log::info!("Request stream closed");
+                    break;
+                }
+                Err(e) => {
+                    log::info!("Request stream error: {e:?}, Closing.");
+                    break;
                 }
             };
 
-            if let Ok(ws::Message::Binary(bytes)) = msg {
-                let task = match rmp_serde::from_slice::<Task>(&bytes) {
-                    Ok(val) => val,
-                    Err(err) => {
-                        log::info!("Only bytes message in the json format are supported {err:?}");
-                        break;
+            let task = match rmp_serde::from_slice::<Task>(&msg.data) {
+                Ok(val) => val,
+                Err(err) => {
+                    log::info!("Only bytes message in the json format are supported {err:?}");
+                    break;
+                }
+            };
+
+            if let Task::Close(id) = task {
+                session_id = Some(id);
+                break;
+            }
+
+            let (stream, connection_id, task) =
+                match session_manager.stream(&mut session_id, task).await {
+                    Some(val) => val,
+                    None => {
+                        log::info!("Ops session activated {session_id:?}");
+                        continue;
                     }
                 };
 
-                if let Task::Close(id) = task {
-                    session_id = Some(id);
-                    break;
+            match task {
+                ComputeTask::RegisterOperation(op) => {
+                    stream.register_operation(op).await;
                 }
-
-                let (stream, connection_id, task) =
-                    match self.session_manager.stream(&mut session_id, task).await {
-                        Some(val) => val,
-                        None => {
-                            log::info!("Ops session activated {session_id:?}");
-                            continue;
-                        }
-                    };
-
-                match task {
-                    ComputeTask::RegisterOperation(op) => {
-                        stream.register_operation(op).await;
-                    }
-                    ComputeTask::RegisterTensor(id, data) => {
-                        stream.register_tensor(id, data).await;
-                    }
-                    ComputeTask::ReadTensor(tensor) => {
-                        stream.read_tensor(connection_id, tensor).await;
-                    }
-                    ComputeTask::SyncBackend => {
-                        stream.sync(connection_id).await;
-                    }
-                    ComputeTask::RegisterTensorRemote(tensor, new_id) => {
-                        stream.register_tensor_remote(tensor, new_id).await;
-                    }
-                    ComputeTask::ExposeTensorRemote { tensor, count } => {
-                        stream.expose_tensor_remote(tensor, count).await;
-                    }
+                ComputeTask::RegisterTensor(id, data) => {
+                    stream.register_tensor(id, data).await;
                 }
-            } else {
-                log::info!("Not a binary message, closing, received {msg:?}");
-                break;
-            };
+                ComputeTask::ReadTensor(tensor) => {
+                    stream.read_tensor(connection_id, tensor).await;
+                }
+                ComputeTask::SyncBackend => {
+                    stream.sync(connection_id).await;
+                }
+                ComputeTask::RegisterTensorRemote(tensor, new_id) => {
+                    stream.register_tensor_remote(tensor, new_id).await;
+                }
+                ComputeTask::ExposeTensorRemote {
+                    tensor,
+                    count,
+                    transfer_id,
+                } => {
+                    stream
+                        .expose_tensor_remote(tensor, count, transfer_id)
+                        .await;
+                }
+            }
         }
 
         log::info!("Closing session {session_id:?}");
-        self.session_manager.close(session_id).await;
-    }
-
-    async fn handle_socket_data(self, mut socket: WebSocket) {
-        log::info!("[Data Handler] New connection for download.");
-
-        let packet = socket.recv().await;
-        let msg = match packet {
-            Some(msg) => msg,
-            None => panic!("Still no message"),
-        };
-
-        match msg {
-            Ok(ws::Message::Binary(bytes)) => {
-                let id = match rmp_serde::from_slice::<RemoteTensorReq>(&bytes) {
-                    Ok(val) => val.id,
-                    Err(err) => panic!("Only bytes messages are supported {err:?}"),
-                };
-
-                // Get the requested exposed tensor data
-                let bytes: bytes::Bytes = Self::get_exposed_tensor_bytes(id, self.state).await;
-
-                // Send tensor and increment its counter
-                socket.send(ws::Message::Binary(bytes)).await.unwrap();
-            }
-            Err(err) => panic!("Can't start the response handler {err:?}"),
-            _ => panic!("Unsupported message type"),
-        }
-    }
-
-    async fn get_exposed_tensor_bytes(id: TensorId, state: Arc<TensorDataService>) -> bytes::Bytes {
-        loop {
-            if let Ok(mut exposed_tensors) = state.exposed_tensors.try_lock() {
-                log::info!("Looking for tensor (id: {id:?})");
-                // take the tensor out of the hashmap while we download
-                if let Some(mut exposed_state) = exposed_tensors.remove(&id) {
-                    log::info!("Tensor found (id: {id:?})");
-
-                    exposed_state.cur_download_count += 1;
-                    if exposed_state.cur_download_count == exposed_state.max_downloads {
-                        return exposed_state.bytes;
-                    } else {
-                        let bytes = exposed_state.bytes.clone();
-                        exposed_tensors.insert(id, exposed_state);
-                        return bytes;
-                    }
-                } else {
-                    //panic!("A tensor was requested (id: {id:?}) that isn't being served");
-                }
-            } else {
-                // TODO should i add a
-                // Optional: Add a small pause to reduce CPU usage
-                // thread::yield_now();
-                log::info!("Failed to find tensor in exposed_tensors");
-            }
-        }
+        session_manager.close(session_id).await;
     }
 }
 
-pub async fn start_async<B: BackendIr>(device: Device<B>, port: u16) {
-    WsServer::<B>::start(device, port).await;
+/// Start the server on the given port and [device](Device).
+pub async fn start_websocket_async<B: BackendIr>(device: Device<B>, port: u16) {
+    let server = WsServer::new(port);
+    RemoteServer::<B, WebSocket>::start(device, server).await;
 }
 
 #[tokio::main]
 /// Start the server on the given port and [device](Device).
-pub async fn start<B: BackendIr>(device: Device<B>, port: u16) {
-    start_async::<B>(device, port).await
+pub async fn start_websocket<B: BackendIr>(device: Device<B>, port: u16) {
+    start_websocket_async::<B>(device, port).await;
 }

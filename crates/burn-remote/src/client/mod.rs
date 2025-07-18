@@ -5,4 +5,4 @@ mod worker;
 
 pub use base::*;
 pub use channel::*;
-pub use runner::WsDevice;
+pub use runner::RemoteDevice;

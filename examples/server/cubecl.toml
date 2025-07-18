@@ -2,8 +2,10 @@
 logger = { log = "info", level = "disabled" }
 
 [autotune]
-logger = { log = "info", level = "full" }
+logger = { log = "info", level = "disabled" }
+# logger = { log = "info", level = "full" }
 
 [compilation]
-logger = { log = "info", level = "full" }
+logger = { log = "info", level = "disabled" }
+# logger = { log = "info", level = "full" }
 cache = "target"

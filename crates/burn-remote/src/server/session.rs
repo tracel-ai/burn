@@ -1,4 +1,5 @@
 use burn_common::id::StreamId;
+use burn_communication::{Protocol, data_service::TensorDataService};
 use burn_ir::BackendIr;
 use burn_router::Runner;
 use burn_tensor::Device;
@@ -10,32 +11,44 @@ use tokio::sync::{
 
 use crate::shared::{ComputeTask, ConnectionId, SessionId, Task, TaskResponse};
 
-use super::{stream::Stream, tensor_data_service::TensorDataService};
+use super::stream::Stream;
 
 /// A session manager control the creation of sessions.
 ///
 /// Each session manages its own stream, spawning one thread per stream to mimic the same behavior
 /// a native backend would have.
-pub struct SessionManager<B: BackendIr> {
+pub struct SessionManager<B, P>
+where
+    B: BackendIr,
+    P: Protocol,
+{
     runner: Runner<B>,
-    sessions: Mutex<HashMap<SessionId, Session<B>>>,
-    server_state: Arc<TensorDataService>,
+    sessions: Mutex<HashMap<SessionId, Session<B, P>>>,
+    data_service: Arc<TensorDataService<B, P>>,
 }
 
-struct Session<B: BackendIr> {
+struct Session<B, P>
+where
+    B: BackendIr,
+    P: Protocol,
+{
     runner: Runner<B>,
-    streams: HashMap<StreamId, Stream<B>>,
+    streams: HashMap<StreamId, Stream<B, P>>,
     sender: Sender<Receiver<TaskResponse>>,
     receiver: Option<Receiver<Receiver<TaskResponse>>>,
-    server_state: Arc<TensorDataService>,
+    data_service: Arc<TensorDataService<B, P>>,
 }
 
-impl<B: BackendIr> SessionManager<B> {
-    pub fn new(device: Device<B>, server_state: Arc<TensorDataService>) -> Self {
+impl<B, P> SessionManager<B, P>
+where
+    B: BackendIr,
+    P: Protocol,
+{
+    pub fn new(device: Device<B>, data_service: Arc<TensorDataService<B, P>>) -> Self {
         Self {
             runner: Runner::new(device),
             sessions: Mutex::new(Default::default()),
-            server_state,
+            data_service,
         }
     }
 
@@ -58,7 +71,7 @@ impl<B: BackendIr> SessionManager<B> {
         &self,
         session_id: &mut Option<SessionId>,
         task: Task,
-    ) -> Option<(Stream<B>, ConnectionId, ComputeTask)> {
+    ) -> Option<(Stream<B, P>, ConnectionId, ComputeTask)> {
         let mut sessions = self.sessions.lock().await;
 
         let session_id = match session_id {
@@ -97,17 +110,21 @@ impl<B: BackendIr> SessionManager<B> {
         }
     }
 
-    fn register_session(&self, sessions: &mut HashMap<SessionId, Session<B>>, id: SessionId) {
+    fn register_session(&self, sessions: &mut HashMap<SessionId, Session<B, P>>, id: SessionId) {
         sessions.entry(id).or_insert_with(|| {
             log::info!("Creating a new session {id}");
 
-            Session::new(self.runner.clone(), self.server_state.clone())
+            Session::new(self.runner.clone(), self.data_service.clone())
         });
     }
 }
 
-impl<B: BackendIr> Session<B> {
-    fn new(runner: Runner<B>, server_state: Arc<TensorDataService>) -> Self {
+impl<B, P> Session<B, P>
+where
+    B: BackendIr,
+    P: Protocol,
+{
+    fn new(runner: Runner<B>, data_service: Arc<TensorDataService<B, P>>) -> Self {
         let (sender, receiver) = tokio::sync::mpsc::channel(1);
 
         Self {
@@ -115,7 +132,7 @@ impl<B: BackendIr> Session<B> {
             streams: Default::default(),
             sender,
             receiver: Some(receiver),
-            server_state,
+            data_service,
         }
     }
 
@@ -126,15 +143,15 @@ impl<B: BackendIr> Session<B> {
     }
 
     /// Select the current [stream](Stream) based on the given task.
-    async fn select(&mut self, stream_id: StreamId) -> Stream<B> {
+    async fn select(&mut self, stream_id: StreamId) -> Stream<B, P> {
         // We return the stream.
         match self.streams.get(&stream_id) {
             Some(stream) => stream.clone(),
             None => {
-                let stream = Stream::<B>::new(
+                let stream = Stream::<B, P>::new(
                     self.runner.clone(),
                     self.sender.clone(),
-                    self.server_state.clone(),
+                    self.data_service.clone(),
                 )
                 .await;
                 self.streams.insert(stream_id, stream.clone());
