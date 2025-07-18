@@ -29,8 +29,7 @@ version = "0.19.0"
 [workspace.dependencies]
 atomic_float = "1"
 bytemuck = "1.23.1"
-candle-core = { version = "0.8.4" }
-clap = { version = "4.5.41", features = ["derive"] }
+candle-core = { version = "0.9.1" }
 colored = "3.0.0"
 console_error_panic_hook = "0.1.7"
 csv = "1.3.1"
@@ -42,7 +41,7 @@ dirs = "6.0.0"
 fake = "4.3.0"
 flate2 = "1.1.2"
 float-cmp = "0.10.0"
-gix-tempfile = { version = "17.1.0", features = ["signals"] }
+gix-tempfile = { version = "18.0.0", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.15.4"
 hound = "3.5.1"
@@ -51,9 +50,7 @@ indicatif = "0.18.0"
 js-sys = "0.3.72"
 libm = "0.2.14"
 log = { default-features = false, version = "0.4.27" }
-md5 = "0.7.0"
 paste = "1"
-percent-encoding = "2.3.1"
 polars = { version = "0.49.1", features = ["lazy"] }
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.94"
@@ -101,13 +98,6 @@ ratatui = "0.29.0"
 
 # WGPU stuff
 text_placeholder = "0.5.1"
-wgpu = "25.0.0"
-
-# Benchmarks and Burnbench
-arboard = "3.5.0"
-chrono = "0.4.39"
-os_info = "3.10.0"
-wsl = "0.1.0"
 
 bincode = { version = "2.0.1", features = [
     "alloc",

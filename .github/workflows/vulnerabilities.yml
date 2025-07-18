@@ -13,7 +13,7 @@ env:
   #
 
   # careful version
-  CAREFUL_VERSION: "0.4.0"
+  CAREFUL_VERSION: "0.4.8"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
