@@ -17,9 +17,10 @@ updates:
     schedule:
       interval: "weekly"
 
-  - package-ecosystem: "pip"
-    directories:
-      - "crates/burn-import/onnx-tests"
-      - "examples/raspberry-pi-pico/tensorflow"
-    schedule:
-      interval: "weekly"
+# Disable automatic pip updates in tests and examples
+#  - package-ecosystem: "pip"
+#    directories:
+#      - "crates/burn-import/onnx-tests"
+#      - "examples/raspberry-pi-pico/tensorflow"
+#    schedule:
+#      interval: "weekly"
