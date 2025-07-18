@@ -16,7 +16,7 @@ Burn currently supports three primary model import formats, each serving differe
 
 ## ONNX Contributor Resources
 
-- [ONNX to Burn conversion guide](https://burn.dev/contributor-book/guides/onnx-to-burn-conversion-tool.html) -
+- [ONNX to Burn conversion guide](https://burn.dev/books/contributor/guides/onnx-to-burn-conversion-tool.html) -
   Instructions for adding support for additional ONNX operators
 - [ONNX tests README](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/README.md) -
   Testing procedures for ONNX operators
