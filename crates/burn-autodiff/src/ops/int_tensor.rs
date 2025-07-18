@@ -313,6 +313,10 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_sort_with_indices(tensor, dim, descending)
     }
 
+    fn int_cast(tensor: IntTensor<Self>, dtype: burn_tensor::IntDType) -> IntTensor<Self> {
+        B::int_cast(tensor, dtype)
+    }
+
     fn int_argsort(tensor: IntTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
         B::int_argsort(tensor, dim, descending)
     }
