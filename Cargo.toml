@@ -29,7 +29,7 @@ version = "0.18.0"
 [workspace.dependencies]
 atomic_float = "1"
 bytemuck = "1.23.1"
-candle-core = { version = "0.8.4" }
+candle-core = { version = "0.9.1" }
 clap = { version = "4.5.41", features = ["derive"] }
 colored = "3.0.0"
 console_error_panic_hook = "0.1.7"
@@ -42,7 +42,7 @@ dirs = "6.0.0"
 fake = "4.3.0"
 flate2 = "1.1.2"
 float-cmp = "0.10.0"
-gix-tempfile = { version = "17.1.0", features = ["signals"] }
+gix-tempfile = { version = "18.0.0", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.15.4"
 hound = "3.5.1"
@@ -51,7 +51,7 @@ indicatif = "0.18.0"
 js-sys = "0.3.72"
 libm = "0.2.14"
 log = { default-features = false, version = "0.4.27" }
-md5 = "0.7.0"
+md5 = "0.8.0"
 paste = "1"
 percent-encoding = "2.3.1"
 polars = { version = "0.49.1", features = ["lazy"] }
@@ -101,7 +101,7 @@ ratatui = "0.29.0"
 
 # WGPU stuff
 text_placeholder = "0.5.1"
-wgpu = "25.0.0"
+wgpu = "26.0.1"
 
 # Benchmarks and Burnbench
 arboard = "3.5.0"
@@ -149,8 +149,8 @@ libc = "0.2.174"
 nvml-wrapper = "0.11.0"
 sysinfo = "0.36.0"
 systemstat = "0.2.3"
-tch = "0.19.0"
-torch-sys = "0.19.0"    # matches what tch is using, required for lib detection
+tch = "0.20.0"
+torch-sys = "0.20.0"    # matches what tch is using, required for lib detection
 
 ahash = { version = "0.8.11", default-features = false }
 portable-atomic = { version = "1.11.1" }

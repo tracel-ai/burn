@@ -7,6 +7,19 @@ updates:
       interval: "daily"
 
   - package-ecosystem: "cargo"
-    directory: "/"
+    directories:
+      - "/"
+      - "crates/burn"
+      - "crates/burn-*"
+      - "crates/burn-import/*-tests"
+      - "examples/*"
+      - "xtask"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "pip"
+    directories:
+      - "crates/burn-import/onnx-tests"
+      - "examples/raspberry-pi-pico/tensorflow"
     schedule:
       interval: "weekly"
