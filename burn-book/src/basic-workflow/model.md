@@ -10,8 +10,9 @@ cargo new guide
 As [mentioned previously](../getting-started.md#creating-a-burn-application), this will initialize
 your `guide` project directory with a `Cargo.toml` and a `src/main.rs` file.
 
-In the `Cargo.toml` file, add the `burn` dependency with `train`, `wgpu` and `vision` features.
-Then run `cargo build` to build the project and import all the dependencies.
+In the `Cargo.toml` file, add the `burn` dependency with `train`, `vision` and `wgpu` features.
+Since we disable the default features, we also want to enable `std`, `tui` (for the dashboard) and
+`fusion` for wgpu. Then run `cargo build` to build the project and import all the dependencies.
 
 ```toml
 [package]
@@ -20,7 +21,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-burn = { version = "~0.18", features = ["train", "wgpu", "vision"] }
+# Disable autotune default for convolutions
+burn = { version = "~0.18", features = ["std", "tui", "train", "vision", "fusion"], default-features = false }
+# burn = { version = "~0.18", features = ["train", "vision", "wgpu"] }
 ```
 
 Our goal will be to create a basic convolutional neural network used for image classification. We
@@ -159,9 +162,9 @@ There are two major things going on in this code sample.
 
    </details><br>
 
-Note that each time you create a new file in the `src` directory you also need to explicitly add this
-module to the `main.rs` file. For instance after creating the `model.rs`, you need to add the following
-at the top of the main file:
+Note that each time you create a new file in the `src` directory you also need to explicitly add
+this module to the `main.rs` file. For instance after creating the `model.rs`, you need to add the
+following at the top of the main file:
 
 ```rust , ignore
 mod model;
@@ -217,7 +220,6 @@ impl ModelConfig {
 }
 ```
 
-
 At a glance, you can view the model configuration by printing the model instance:
 
 ```rust , ignore
@@ -251,8 +253,6 @@ Model {
   params: 531178
 }
 ```
-
-
 
 <details>
 <summary><strong>🦀 References</strong></summary>
