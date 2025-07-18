@@ -22,7 +22,7 @@ edition = "2024"
 
 [dependencies]
 # Disable autotune default for convolutions
-burn = { version = "~0.18", features = ["std", "tui", "train", "vision", "fusion"], default-features = false }
+burn = { version = "~0.18", features = ["std", "tui", "train", "vision", "wgpu", "fusion"], default-features = false }
 # burn = { version = "~0.18", features = ["train", "vision", "wgpu"] }
 ```
 
