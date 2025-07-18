@@ -87,7 +87,17 @@ where
     fn initialize(&self) -> &[BatchDataLoader<B, I, O>] {
         self.dataloaders
             .get_or_init(|| {
-                let datasets = PartialDataset::split(self.dataset.clone(), self.num_threads);
+                let mut dataset = self.dataset.clone();
+                if let Some(rng) = self.rng.as_ref() {
+                    // Pre-shuffle the dataset before split if shuffle is enabled.
+                    // This ensures that each thread gets a uniform random sample of the dataset.
+                    let mut rng = rng.clone();
+                    dataset = Arc::new(burn_dataset::transform::ShuffledDataset::new(
+                        dataset, &mut rng,
+                    ));
+                }
+
+                let datasets = PartialDataset::split(dataset, self.num_threads);
 
                 // Create more rngs from the first one, one for each new dataloader.
                 let mut rng = self.rng.clone();
