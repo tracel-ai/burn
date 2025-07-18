@@ -14,6 +14,9 @@ use std::thread::spawn;
 /// Multi devices train step using collective ops.
 pub struct CollectiveTrainStep<B: AutodiffBackend, M, TI, TO> {
     workers: Vec<Worker<B, M, TI>>,
+    // The result from the main worker
+    main_receiver: Receiver<TrainOutput<TO>>,
+    // Results from other workers
     receiver: Receiver<TrainOutput<TO>>,
 }
 
@@ -124,7 +127,9 @@ where
     where
         TI: Send + 'static,
     {
+        let (main_sender_output, main_receiver_output) = std::sync::mpsc::channel();
         let (sender_output, receiver_output) = std::sync::mpsc::channel();
+        
         let workers = devices
             .iter()
             .enumerate()
@@ -140,8 +145,13 @@ where
                 };
 
                 let device_id = (idx as u32).into();
+                let sender_output = if idx == 0 {
+                    main_sender_output.clone()
+                } else {
+                    sender_output.clone()
+                };
                 worker.start(
-                    sender_output.clone(),
+                    sender_output,
                     receiver_input,
                     device_id,
                     devices.len() as u32,
@@ -152,6 +162,7 @@ where
 
         Self {
             workers,
+            main_receiver: main_receiver_output,
             receiver: receiver_output,
         }
     }
@@ -187,9 +198,9 @@ where
             }
         }
 
-        // We only need to receive the output from one worker, since they have synced
-        // the outputs should all be the same. But we will still wait for every worker to finish.
-        let output = self.receiver.recv().unwrap();
+        // We only need to receive the output from the first worker, since it corresponds to the 
+        // But we will still wait for every worker to finish.
+        let output = self.main_receiver.recv().unwrap();
         for _ in 1..num_send {
             self.receiver.recv().unwrap();
         }

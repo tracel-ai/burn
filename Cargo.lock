@@ -4370,6 +4370,7 @@ name = "mnist"
 version = "0.18.0"
 dependencies = [
  "burn",
+ "burn-router",
  "log",
  "serde",
 ]

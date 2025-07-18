@@ -44,9 +44,29 @@ mod wgpu {
     use mnist::training;
 
     pub fn run() {
-        let gpu_device = WgpuDevice::BestAvailable;
+        let gpu_device = WgpuDevice::default();
 
         training::run::<Autodiff<Wgpu>>(vec![gpu_device]);
+    }
+}
+
+#[cfg(feature = "wgpu-ndarray")]
+mod wgpu_ndarray {
+    use burn::backend::{
+        Autodiff,
+        wgpu::{Wgpu, WgpuDevice},
+        ndarray::{NdArray, NdArrayDevice},
+    };
+    use mnist::training;
+    use burn_router::{duo, Router};
+
+    pub fn run() {
+        type DualBackend = Router<(Wgpu, NdArray)>;
+
+        let gpu_device = duo::MultiDevice::B1(WgpuDevice::default());
+        let cpu_device = duo::MultiDevice::B2(NdArrayDevice::Cpu);
+
+        training::run::<Autodiff<DualBackend>>(vec![gpu_device, cpu_device]);
     }
 }
 
@@ -88,6 +108,8 @@ fn main() {
     tch_cpu::run();
     #[cfg(any(feature = "wgpu", feature = "metal"))]
     wgpu::run();
+    #[cfg(any(feature = "wgpu-ndarray"))]
+    wgpu_ndarray::run();
     #[cfg(feature = "remote")]
     remote::run();
 }

@@ -306,11 +306,15 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
         let step = CollectiveTrainStep::new(&devices, collective_config);
 
         loop {
-            let (item, progress) = step.step(iterators.as_mut_slice(), &model);
+            use burn_core::module::Module;
+
+            let (mut item, progress) = step.step(iterators.as_mut_slice(), &model);
 
             iteration += 1;
             let lr = lr_scheduler.step();
 
+            eprintln!("model devices: {:?}", model.devices());
+            item.grads = item.grads.to_device(devices.first().unwrap(), &model);
             accumulator.accumulate(&model, item.grads);
             accumulation_current += 1;
 

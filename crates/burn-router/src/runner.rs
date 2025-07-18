@@ -101,6 +101,8 @@ impl<B: BackendIr> Runner<B> {
             let tensor = B::float_from_data(data, &self.device);
             ctx.handles.register_float_tensor::<B>(&id, tensor)
         } else if dtype.is_int() {
+            // Backends may have different int types, convert data before registering
+            let data = data.convert::<B::IntElem>();
             let tensor = B::int_from_data(data, &self.device);
             ctx.handles.register_int_tensor::<B>(&id, tensor)
         } else if dtype.is_bool() {

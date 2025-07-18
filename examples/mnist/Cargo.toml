@@ -20,9 +20,11 @@ tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 metal = ["burn/metal"]
 remote = ["burn/remote"]
+wgpu-ndarray = ["burn/wgpu", "burn/ndarray", "burn-router"]
 
 [dependencies]
 burn = { path = "../../crates/burn", features = ["train", "collective"] }
+burn-router = { path = "../../crates/burn-router", default-features = true, optional = true}
 
 # Serialization
 log = { workspace = true }
