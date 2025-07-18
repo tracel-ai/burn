@@ -368,7 +368,7 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
         panic!(
             "Unsupported ONNX opset version. This implementation requires opset {MIN_OPSET_VERSION} or higher. \
             Please upgrade your model using the ONNX shape inference tool. \
-            See documentation (https://burn.dev/books/burn//import/onnx-model.html) for details."
+            See documentation (https://burn.dev/books/burn/import/onnx-model.html) for details."
         );
     }
 

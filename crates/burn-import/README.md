@@ -10,9 +10,9 @@ Burn currently supports three primary model import formats, each serving differe
 
 | Format                                                                              | Description                               | Use Case                                                                                               |
 | ----------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| [**ONNX** (Guide)](https://burn.dev/books/burn//import/onnx-model.html)               | Open Neural Network Exchange format       | Direct import of complete model architectures and weights from any framework that supports ONNX export |
-| [**PyTorch** (Guide)](https://burn.dev/books/burn//import/pytorch-model.html)         | PyTorch weights (.pt, .pth)               | Loading weights from PyTorch models into a matching Burn architecture                                  |
-| [**Safetensors** (Guide)](https://burn.dev/books/burn//import/safetensors-model.html) | Hugging Face's model serialization format | Loading a model's tensor weights into a matching Burn architecture                                     |
+| [**ONNX** (Guide)](https://burn.dev/books/burn/import/onnx-model.html)               | Open Neural Network Exchange format       | Direct import of complete model architectures and weights from any framework that supports ONNX export |
+| [**PyTorch** (Guide)](https://burn.dev/books/burn/import/pytorch-model.html)         | PyTorch weights (.pt, .pth)               | Loading weights from PyTorch models into a matching Burn architecture                                  |
+| [**Safetensors** (Guide)](https://burn.dev/books/burn/import/safetensors-model.html) | Hugging Face's model serialization format | Loading a model's tensor weights into a matching Burn architecture                                     |
 
 ## ONNX Contributor Resources
 
