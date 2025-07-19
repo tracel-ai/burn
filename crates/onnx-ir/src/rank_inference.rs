@@ -60,6 +60,7 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::ConvTranspose1d => same_as_input(node),
         NodeType::ConvTranspose2d => same_as_input(node),
         NodeType::InstanceNormalization => same_as_input(node),
+        NodeType::IsNaN => elementwise_comparison_outputs(node),
         NodeType::LayerNormalization => same_as_input(node),
         NodeType::GroupNormalization => same_as_input(node),
         NodeType::DepthToSpace => depth_to_space_update_outputs(node),

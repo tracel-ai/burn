@@ -30,6 +30,7 @@ pub enum UnaryNodeKind {
     Gelu,
     LeakyRelu,
     HardSigmoid,
+    IsNaN,
     Log,
     LogSoftmax,
     Neg,
@@ -66,6 +67,7 @@ impl UnaryNodeKind {
             Self::Gelu => "gelu",
             Self::LeakyRelu => "leaky_relu",
             Self::HardSigmoid => "hard_sigmoid",
+            Self::IsNaN => "is_nan",
             Self::Log => "log",
             Self::LogSoftmax => "log_softmax",
             Self::Neg => "neg",
@@ -163,6 +165,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
                 }
                 if input_kind == TensorKind::Int || output_kind == TensorKind::Int {
                     imports.register("burn::tensor::Int");
+                }
+            }
+            UnaryNodeKind::IsNaN => {
+                if matches!(self.output, Type::Tensor(_)) {
+                    imports.register("burn::tensor::Bool");
                 }
             }
             _ => {}
@@ -519,6 +526,11 @@ impl UnaryNode {
     pub(crate) fn size(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.shape.num_elements()};
         Self::new(input, output, UnaryNodeKind::Size, Rc::new(function))
+    }
+
+    pub(crate) fn is_nan(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.is_nan() };
+        Self::new(input, output, UnaryNodeKind::IsNaN, Rc::new(function))
     }
 }
 
@@ -1238,6 +1250,24 @@ mod tests {
             },
             vec!["tensor1".to_string()],
             vec!["scalar1".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_is_nan() {
+        one_node_graph(
+            UnaryNode::is_nan(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_bool("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
+                    let tensor2 = tensor1.is_nan();
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
         );
     }
 }

@@ -410,6 +410,7 @@ impl ParsedOnnxGraph {
                 }
                 NodeType::Split => graph.register(Self::split_conversion(node)),
                 NodeType::Gemm => graph.register(Self::gemm_conversion(node)),
+                NodeType::IsNaN => graph.register(Self::is_nan_conversion(node)),
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -1501,6 +1502,12 @@ impl ParsedOnnxGraph {
         let output = TensorType::from(node.outputs.first().unwrap());
         let (alpha, beta, trans_a, trans_b) = gemm_config(&node);
         GemmNode::new(a, b, c, output, alpha, beta, trans_a, trans_b)
+    }
+
+    fn is_nan_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        UnaryNode::is_nan(input, output)
     }
 }
 
