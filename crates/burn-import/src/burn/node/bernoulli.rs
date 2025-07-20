@@ -1,4 +1,4 @@
-use super::{NdeCodegen, Node};
+use super::{Node, NodeCodegen};
 use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
