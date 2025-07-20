@@ -1269,5 +1269,20 @@ mod tests {
             vec!["tensor1".to_string()],
             vec!["tensor2".to_string()],
         );
+
+        one_node_graph(
+            UnaryNode::is_nan(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float32)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: f32) -> bool {
+                    let scalar2 = scalar1.is_nan();
+                    scalar2
+                }
+            },
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
+        );
     }
 }
