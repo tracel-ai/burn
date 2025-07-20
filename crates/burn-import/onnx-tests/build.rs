@@ -14,6 +14,7 @@ fn main() {
         .input("tests/avg_pool1d/avg_pool1d.onnx")
         .input("tests/avg_pool2d/avg_pool2d.onnx")
         .input("tests/batch_norm/batch_norm.onnx")
+        .input("tests/bernoulli/bernoulli.onnx")
         .input("tests/cast/cast.onnx")
         .input("tests/ceil/ceil.onnx")
         .input("tests/clip/clip.onnx")
