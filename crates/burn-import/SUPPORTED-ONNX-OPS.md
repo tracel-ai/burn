@@ -92,8 +92,8 @@ functionality.
 | [If][77]                         | ❌             | ✅           |
 | [Im][78]                         | ❌             | ❌           |
 | [InstanceNormalization][79]      | ✅             | ✅           |
-| [IsInf][80]                      | ❌             | ❌           |
-| [IsNaN][81]                      | ❌             | ✅           |
+| [IsInf][80]                      | ✅             | ✅           |
+| [IsNaN][81]                      | ✅             | ✅           |
 | [LayerNormalization][82]         | ✅             | ✅           |
 | [LeakyRelu][83]                  | ✅             | ✅           |
 | [Less][84]                       | ✅             | ✅           |

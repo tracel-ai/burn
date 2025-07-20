@@ -36,6 +36,7 @@ pub mod gemm;
 pub mod group_norm;
 pub mod hard_sigmoid;
 pub mod instance_norm;
+pub mod is_inf;
 pub mod layer_norm;
 pub mod leaky_relu;
 pub mod linear;
