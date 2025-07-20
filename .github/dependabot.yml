@@ -7,6 +7,13 @@ updates:
       interval: "daily"
 
   - package-ecosystem: "cargo"
-    directory: "/"
+    directories:
+      - "/"
+      - "crates/burn"
+      - "crates/burn-*"
+      - "crates/burn-import/*-tests"
+      - "examples/*"
+      - "xtask"
     schedule:
       interval: "weekly"
+

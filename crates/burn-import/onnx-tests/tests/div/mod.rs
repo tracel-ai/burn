@@ -7,7 +7,7 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData};
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
 
     #[test]
     fn div_tensor_by_scalar_and_tensor_by_tensor() {

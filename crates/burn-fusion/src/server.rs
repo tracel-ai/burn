@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     FusionBackend, FusionRuntime,
     stream::{MultiStream, OperationStreams, StreamId, execution::Operation},
@@ -25,7 +27,7 @@ where
         &mut self,
         streams: OperationStreams,
         repr: OperationIr,
-        operation: Box<dyn Operation<R>>,
+        operation: Arc<dyn Operation<R>>,
     ) {
         self.streams
             .register(streams, repr, operation, &mut self.handles)

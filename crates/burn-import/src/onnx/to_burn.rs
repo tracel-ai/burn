@@ -96,7 +96,7 @@ use onnx_ir::{
         depth_to_space::depth_to_space_config, dropout::dropout_config, expand::expand_config,
         flatten::flatten_config, gather::gather_config, gemm::gemm_config,
         group_norm::group_norm_config, hard_sigmoid::hard_sigmoid_config,
-        instance_norm::instance_norm_config, layer_norm::layer_norm_config,
+        instance_norm::instance_norm_config, is_inf::is_inf_config, layer_norm::layer_norm_config,
         leaky_relu::leaky_relu_config, linear::linear_config, log_softmax::log_softmax_config,
         max_pool1d::max_pool1d_config, max_pool2d::max_pool2d_config, one_hot::one_hot_config,
         pad::pad_config, reduce_max::reduce_max_config, reduce_mean::reduce_mean_config,
@@ -422,6 +422,8 @@ impl ParsedOnnxGraph {
                 }
                 NodeType::Split => graph.register(Self::split_conversion(node)),
                 NodeType::Gemm => graph.register(Self::gemm_conversion(node)),
+                NodeType::IsNaN => graph.register(Self::is_nan_conversion(node)),
+                NodeType::IsInf => graph.register(Self::is_inf_conversion(node)),
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -1549,6 +1551,19 @@ impl ParsedOnnxGraph {
         let output = TensorType::from(node.outputs.first().unwrap());
         let (alpha, beta, trans_a, trans_b) = gemm_config(&node);
         GemmNode::new(a, b, c, output, alpha, beta, trans_a, trans_b)
+    }
+
+    fn is_inf_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        let config = is_inf_config(&node);
+        UnaryNode::is_inf(input, output, config)
+    }
+
+    fn is_nan_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        UnaryNode::is_nan(input, output)
     }
 }
 

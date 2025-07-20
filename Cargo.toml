@@ -22,15 +22,14 @@ exclude = [
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.18.0"
+version = "0.19.0"
 
 [workspace.lints.clippy]
 
 [workspace.dependencies]
 atomic_float = "1"
 bytemuck = "1.23.1"
-candle-core = { version = "0.8.4" }
-clap = { version = "4.5.40", features = ["derive"] }
+candle-core = { version = "0.9.1" }
 colored = "3.0.0"
 console_error_panic_hook = "0.1.7"
 csv = "1.3.1"
@@ -42,26 +41,24 @@ dirs = "6.0.0"
 fake = "4.3.0"
 flate2 = "1.1.2"
 float-cmp = "0.10.0"
-gix-tempfile = { version = "17.1.0", features = ["signals"] }
+gix-tempfile = { version = "18.0.0", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.15.4"
 hound = "3.5.1"
 image = "0.25.6"
-indicatif = "0.17.11"
+indicatif = "0.18.0"
 js-sys = "0.3.72"
 libm = "0.2.14"
 log = { default-features = false, version = "0.4.27" }
-md5 = "0.7.0"
 paste = "1"
-percent-encoding = "2.3.1"
-polars = { version = "0.46.0", features = ["lazy"] }
+polars = { version = "0.49.1", features = ["lazy"] }
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.94"
 protobuf = "3.7.2"
 protobuf-codegen = "3.7.1"
 quote = "1.0.39"
 r2d2 = "0.8.10"
-r2d2_sqlite = "0.27.0"
+r2d2_sqlite = "0.31.0"
 rayon = "1.10.0"
 regex = "1.11.1"
 reqwest = { version = "0.12.20", default-features = false, features = [
@@ -69,13 +66,13 @@ reqwest = { version = "0.12.20", default-features = false, features = [
 ] }
 rmp-serde = "1.3.0"
 rstest = "0.25.0"
-rusqlite = "0.34.0"
+rusqlite = "0.37.0"
 rust-format = "0.3.4"
 sanitize-filename = "0.6.0"
 serde_bytes = { version = "0.11.17", default-features = false, features = [
     "alloc",
 ] } # alloc for no_std
-serde_rusqlite = "0.38.0"
+serde_rusqlite = "0.40.0"
 serial_test = "3.2.0"
 spin = { version = "0.10.0", features = [
     "mutex",
@@ -90,7 +87,7 @@ tokio = { version = "1.46.1", features = ["rt", "macros"] }
 tracing-appender = "0.2.3"
 tracing-core = "0.1.34"
 tracing-subscriber = "0.3.19"
-zip = "3.0.0"
+zip = "4.3.0"
 
 # Async handling
 async-channel = "2.5"
@@ -101,13 +98,6 @@ ratatui = "0.29.0"
 
 # WGPU stuff
 text_placeholder = "0.5.1"
-wgpu = "25.0.0"
-
-# Benchmarks and Burnbench
-arboard = "3.5.0"
-chrono = "0.4.39"
-os_info = "3.10.0"
-wsl = "0.1.0"
 
 bincode = { version = "2.0.1", features = [
     "alloc",
@@ -146,8 +136,8 @@ serde_json = { version = "1.0.140", default-features = false }
 uuid = { version = "1.16.0", default-features = false }
 
 libc = "0.2.174"
-nvml-wrapper = "0.10.0"
-sysinfo = "0.33.1"
+nvml-wrapper = "0.11.0"
+sysinfo = "0.36.0"
 systemstat = "0.2.3"
 tch = "0.19.0"
 torch-sys = "0.19.0"    # matches what tch is using, required for lib detection
@@ -157,17 +147,17 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "e5e86e8f5f6424f0d45e04b24ae7307e70f09e1c" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "e5e86e8f5f6424f0d45e04b24ae7307e70f09e1c" }
+# cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "417e0960e86c03af71889a244c22deb17833fffd" }
+# cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "417e0960e86c03af71889a244c22deb17833fffd" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 ### For the release. ###
-# cubecl = { version = "0.5.0", default-features = false }
-# cubecl-common = { version = "0.5.0", default-features = false }
+cubecl = { version = "0.6.0", default-features = false }
+cubecl-common = { version = "0.6.0", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = { version = "2.1.6" }
+tracel-xtask = { version = "2.1.7" }
 
 [profile.dev]
 debug = 0 # Speed up compilation time and not necessary.

@@ -8,7 +8,7 @@ mod tests {
     use burn::tensor::{Shape, Tensor};
     use float_cmp::ApproxEq;
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
 
     #[test]
     fn dropout() {

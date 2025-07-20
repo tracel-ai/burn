@@ -2,6 +2,8 @@
 
 extern crate alloc;
 
+mod backend;
+
 // Import individual node modules
 pub mod add;
 pub mod and;
@@ -43,6 +45,8 @@ pub mod greater_or_equal;
 pub mod group_norm;
 pub mod hard_sigmoid;
 pub mod instance_norm;
+pub mod is_inf;
+pub mod is_nan;
 pub mod layer_norm;
 pub mod leaky_relu;
 pub mod less;

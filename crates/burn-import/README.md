@@ -10,13 +10,13 @@ Burn currently supports three primary model import formats, each serving differe
 
 | Format                                                                              | Description                               | Use Case                                                                                               |
 | ----------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| [**ONNX** (Guide)](https://burn.dev/burn-book/import/onnx-model.html)               | Open Neural Network Exchange format       | Direct import of complete model architectures and weights from any framework that supports ONNX export |
-| [**PyTorch** (Guide)](https://burn.dev/burn-book/import/pytorch-model.html)         | PyTorch weights (.pt, .pth)               | Loading weights from PyTorch models into a matching Burn architecture                                  |
-| [**Safetensors** (Guide)](https://burn.dev/burn-book/import/safetensors-model.html) | Hugging Face's model serialization format | Loading a model's tensor weights into a matching Burn architecture                                     |
+| [**ONNX** (Guide)](https://burn.dev/books/burn/import/onnx-model.html)               | Open Neural Network Exchange format       | Direct import of complete model architectures and weights from any framework that supports ONNX export |
+| [**PyTorch** (Guide)](https://burn.dev/books/burn/import/pytorch-model.html)         | PyTorch weights (.pt, .pth)               | Loading weights from PyTorch models into a matching Burn architecture                                  |
+| [**Safetensors** (Guide)](https://burn.dev/books/burn/import/safetensors-model.html) | Hugging Face's model serialization format | Loading a model's tensor weights into a matching Burn architecture                                     |
 
 ## ONNX Contributor Resources
 
-- [ONNX to Burn conversion guide](https://burn.dev/contributor-book/guides/onnx-to-burn-conversion-tool.html) -
+- [ONNX to Burn conversion guide](https://burn.dev/books/contributor/guides/onnx-to-burn-conversion-tool.html) -
   Instructions for adding support for additional ONNX operators
 - [ONNX tests README](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/README.md) -
   Testing procedures for ONNX operators
