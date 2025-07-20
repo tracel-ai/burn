@@ -23,7 +23,7 @@ pub fn is_inf_config(curr: &Node) -> IsInfConfig {
         match key.as_str() {
             "detect_negative" => detect_negative = value.clone().into_i64() != 0,
             "detect_positive" => detect_positive = value.clone().into_i64() != 0,
-            _ => panic!("Unexpected attribute for IsInf: {key}"),
+            _ => panic!("Unexpected attribute '{}' for IsInf operator", key),
         }
     }
 
