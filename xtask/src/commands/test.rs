@@ -36,20 +36,17 @@ fn handle_wgpu_test(member: &str, args: &TestCmdArgs) -> anyhow::Result<()> {
     #[cfg(not(unix))]
     let filter_err = |e: &&ProcessExitError| matches!(e.signal, Some(ExitSignal { code: 11, .. }));
 
-    let member = WorkspaceMember {
+    let workspace_member = WorkspaceMember {
         name: member.into(),
         path: "".into(), // unused
     };
 
-    if let Err(err) = base_commands::test::run_unit_test(&member, args) {
+    if let Err(err) = base_commands::test::run_unit_test(&workspace_member, args) {
         let should_ignore = err
             .downcast_ref::<ProcessExitError>()
             .filter(filter_err)
-            .map(|e| {
-                e.message.contains("burn-wgpu")
-                    || e.message.contains("burn-router")
-                    || e.message.contains("burn-vision")
-            })
+            // Failed to execute unit test for '{member}'
+            .map(|e| e.message.contains(member))
             .unwrap_or(false);
 
         if should_ignore {
