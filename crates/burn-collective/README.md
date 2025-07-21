@@ -13,11 +13,32 @@ The total number of devices on the node, or nodes in the collective, must be kno
 
 ## Local and Global
 
-There are two levels to the collective operations: local and global. "Local" operations are done 
-within the same process, usually with a thread for each local device. "Global" operations are 
-multi-node operations. Operations are done on the local level, then optionally on the global level.
+There are two levels to the collective operations: local and global. Operations are done on the local level, then optionally on the global level.
+
+| Local                                  	| Global                                        |
+|----------------------------------------	|-----------------------------------------------|
+| Peers are threads (one per device)     	| Peers are processes (one per node)            |
+| Communication depends on backend          | Network peer-to-peer communication            |
+| Local server is launched automatically 	| Global coordinator must be launched manually  |
+| Local server does the aggregation     	| Nodes do the operations themselves            |
+
+For global operations, there must be a global orchestrator available. 
+Start one easily with `burn_collective::start_global_orchestrator()`.
+
+## Components
+
+The following are the important pieces of the collective operations system.
+
+| Term                           | One per...    | Meaning                                                  
+|--------------------------------|---------------|----------------------------------------------------------
+| Local Collective Client        | Device/thread | Requests operations to the Local Collective Server
+| Local Collective Server        | Node/process  | Does local-level ops for threads in this process. In the case of global operations, passes operations on to the Global Collective Client.
+| Global Collective Client       | Node/process  | Does global-level ops for this node. Registers and requests strategies from the Global Collective Orchestrator.
+| Global Collective Orchestrator | Collective    | Responds to the Global Collective Client from each node. Responsible for aggregation strategies.
 
 ## Strategies
+
+Different strategies can be used on the local and global level.
 
 ### Centralized
 

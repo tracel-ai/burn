@@ -3,11 +3,13 @@ use burn_tensor::{Tensor, backend::Backend};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    CollectiveConfig,
     global::{NodeId, shared::GlobalCollectiveError},
     local_server::get_collective_client,
 };
 
-/// Parameters for registering a node on the global level
+/// Parameters passed to the node for registering on the global level
+///
 ///
 /// TODO: More doc on why those things exist
 /// TODO: Explain a bit the p2p archi
@@ -15,13 +17,13 @@ use crate::{
 pub struct GlobalRegisterParams {
     /// The id of this node, should be unique.
     pub node_id: NodeId,
-    /// The address for the connection to this server.
-    pub server_address: Address,
-    /// The address for the connection to this client.
-    pub client_address: Address,
-    /// The port on which to open the tensor data service for other clients. Should match the port
-    /// given in the client url.
-    pub client_data_port: u16,
+    /// The address for the connection to the global orchestrator.
+    pub global_address: Address,
+    /// The address for the connection to this node.
+    pub node_address: Address,
+    /// The port on which to open the tensor data service for other nodes. Should match the port
+    /// given in the node url.
+    pub data_service_port: u16,
 
     /// The number of nodes globally. Should be the same between different nodes
     pub num_nodes: u32,
@@ -79,7 +81,7 @@ pub enum CollectiveError {
     LocalServerMissing,
     /// Another operation was called before Register
     RegisterNotFirstOperation,
-    /// The Global collective server had an error
+    /// The global orchestrator had an error
     Global(GlobalCollectiveError),
 
     #[allow(unused)]
@@ -99,27 +101,22 @@ impl From<u32> for DeviceId {
 /// Registers a device. `num_devices` must be the same for every register,
 /// and `device_id` must be unique.
 ///
-/// With Autdodiff backends, make sure to use the inner backend.
-pub fn register<B: Backend>(
-    device_id: DeviceId,
-    num_devices: u32,
-    global_params: Option<GlobalRegisterParams>,
-) -> Result<(), CollectiveError> {
+/// With auto-diff backends, make sure to use the inner backend.
+pub fn register<B: Backend>(config: &CollectiveConfig) -> Result<(), CollectiveError> {
     let mut client = get_collective_client::<B>();
-    client.register(device_id, num_devices, global_params)
+    client.register(config)
 }
 
 /// Calls for an all-reduce operation with the given parameters, and returns the result.
 /// The `params` must be the same as the parameters passed by the other nodes.
 pub fn all_reduce<B: Backend, const D: usize>(
-    id: DeviceId,
     tensor: Tensor<B, D>,
-    params: &SharedAllReduceParams,
+    config: &CollectiveConfig,
 ) -> Result<Tensor<B, D>, CollectiveError> {
     let client = get_collective_client::<B>();
     let device = tensor.device();
     let tensor = tensor.into_primitive().tensor();
-    let primitive = client.all_reduce(id, tensor, params)?;
+    let primitive = client.all_reduce(tensor, config)?;
     let tensor =
         Tensor::from_primitive(burn_tensor::TensorPrimitive::Float(primitive)).to_device(&device);
 
@@ -128,9 +125,9 @@ pub fn all_reduce<B: Backend, const D: usize>(
 }
 
 /// Closes the collective session, unregistering the device
-pub fn finish_collective<B: Backend>(id: DeviceId) -> Result<(), CollectiveError> {
+pub fn finish_collective<B: Backend>(config: &CollectiveConfig) -> Result<(), CollectiveError> {
     let client = get_collective_client::<B>();
-    client.finish(id)
+    client.finish(config.device_id)
 }
 
 /// Resets the local collective server. All registered callers and ongoing operations are forgotten

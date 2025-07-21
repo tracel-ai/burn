@@ -1,9 +1,4 @@
-use burn_tensor::{
-    ElementConversion,
-    backend::{Backend, DeviceOps},
-};
-
-use crate::ReduceKind;
+use burn_tensor::backend::{Backend, DeviceOps};
 
 fn sum_tree<B: Backend>(tensors: &mut Vec<B::FloatTensorPrimitive>, arity: u32) {
     if tensors.len() <= 1 {
@@ -47,9 +42,8 @@ fn sum_tree<B: Backend>(tensors: &mut Vec<B::FloatTensorPrimitive>, arity: u32) 
     }
 }
 
-pub(crate) fn all_reduce_tree<B: Backend>(
+pub(crate) fn all_reduce_sum_tree<B: Backend>(
     tensors: &mut Vec<B::FloatTensorPrimitive>,
-    kind: &ReduceKind,
     arity: u32,
 ) -> Vec<B::FloatTensorPrimitive> {
     // Sort by device id
@@ -62,18 +56,5 @@ pub(crate) fn all_reduce_tree<B: Backend>(
 
     sum_tree::<B>(tensors, arity);
 
-    let mut result: Vec<B::FloatTensorPrimitive> = std::mem::take(tensors);
-
-    let tensor_count = result.len() as f32;
-    if *kind == ReduceKind::Mean {
-        result = result
-            .into_iter()
-            .map(|tensor| {
-                // Convert to float if necessary
-                B::float_div_scalar(tensor, tensor_count.elem())
-            })
-            .collect();
-    }
-
-    result
+    std::mem::take(tensors)
 }

@@ -16,7 +16,7 @@ use crate::global::shared::{
     RemoteResponse, RequestId, SessionId,
 };
 
-/// Worker that handles communication with the server for global collective operations.
+/// Worker that handles communication with the orchestrator for global collective operations.
 pub(crate) struct GlobalClientWorker<N: ProtocolClient> {
     handle: Option<JoinHandle<Result<(), GlobalCollectiveError>>>,
     cancel_token: CancellationToken,
@@ -54,7 +54,7 @@ impl<C: ProtocolClient> GlobalClientWorker<C> {
     pub(crate) fn new(
         runtime: &Runtime,
         cancel_token: CancellationToken,
-        server_address: &Address,
+        global_address: &Address,
     ) -> Self {
         let (request_sender, request_recv) = tokio::sync::mpsc::channel::<ClientRequest>(10);
 
@@ -63,7 +63,7 @@ impl<C: ProtocolClient> GlobalClientWorker<C> {
         let handle = runtime.spawn(Self::start(
             state,
             cancel_token.clone(),
-            server_address.clone(),
+            global_address.clone(),
             request_recv,
         ));
 
@@ -79,11 +79,11 @@ impl<C: ProtocolClient> GlobalClientWorker<C> {
     async fn start(
         state: Arc<Mutex<GlobalClientWorkerState>>,
         cancel_token: CancellationToken,
-        server_address: Address,
+        global_address: Address,
         request_recv: Receiver<ClientRequest>,
     ) -> Result<(), GlobalCollectiveError> {
         // Init the connection.
-        let (request, response) = Self::init_connection(&server_address).await?;
+        let (request, response) = Self::init_connection(&global_address).await?;
 
         // Websocket async worker loading responses from the server.
         let response_handle = tokio::spawn(Self::response_loader(
@@ -131,10 +131,10 @@ impl<C: ProtocolClient> GlobalClientWorker<C> {
         ));
 
         let Ok(Some(request)) = stream_request.await else {
-            return Err(GlobalCollectiveError::ServerUnreachable);
+            return Err(GlobalCollectiveError::OrchestratorUnreachable);
         };
         let Ok(Some(response)) = stream_response.await else {
-            return Err(GlobalCollectiveError::ServerUnreachable);
+            return Err(GlobalCollectiveError::OrchestratorUnreachable);
         };
 
         Ok((request, response))
@@ -185,7 +185,7 @@ impl<C: ProtocolClient> GlobalClientWorker<C> {
             let resp = self.request(req).await;
             if resp != RemoteResponse::FinishAck {
                 log::error!("Requested to finish, did not get FinishAck; got {resp:?}");
-                return Err(GlobalCollectiveError::WrongServerResponse);
+                return Err(GlobalCollectiveError::WrongOrchestratorResponse);
             }
 
             self.cancel_token.cancel();

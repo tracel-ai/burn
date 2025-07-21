@@ -17,7 +17,7 @@ workspace = true
 [features]
 default = []
 doc = []
-server = ["burn-communication/websocket"]
+orchestrator = ["burn-communication/websocket"]
 
 # Backends for testing
 test-ndarray = ["burn-ndarray"]

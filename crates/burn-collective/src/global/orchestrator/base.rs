@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::global::{
-    server::state::GlobalCollectiveState,
+    orchestrator::state::GlobalCollectiveState,
     shared::{CollectiveMessage, GlobalCollectiveError},
 };
 use burn_communication::{
@@ -12,11 +12,11 @@ use burn_communication::{
 
 /// The global collective state manages collective operations on the global level
 #[derive(Clone)]
-pub(crate) struct GlobalCollectiveServer {
+pub(crate) struct GlobalOrchestrator {
     state: Arc<Mutex<GlobalCollectiveState>>,
 }
 
-impl GlobalCollectiveServer {
+impl GlobalOrchestrator {
     /// Starts the comms server with two routes: "/request" and "/response"
     pub(crate) async fn start<F, S: ProtocolServer + Debug>(
         shutdown_signal: F,
@@ -126,11 +126,11 @@ impl GlobalCollectiveServer {
     }
 }
 
-/// Start a global collective server with WebSocket on the given port
-pub async fn start_ws(port: u16) {
+/// Start a global orchestrator with WebSocket on the given port
+pub async fn start_global_orchestrator(port: u16) {
     let server = WsServer::new(port);
-    let res = GlobalCollectiveServer::start(os_shutdown_signal(), server).await;
+    let res = GlobalOrchestrator::start(os_shutdown_signal(), server).await;
     if let Err(err) = res {
-        eprintln!("Global Collective Server error: {err:?}");
+        eprintln!("global orchestrator error: {err:?}");
     }
 }

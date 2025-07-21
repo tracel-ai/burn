@@ -1,13 +1,12 @@
 use std::ops::Range;
 
-use burn_tensor::{ElementConversion, Shape, TensorMetadata, backend::Backend};
+use burn_tensor::{Shape, TensorMetadata, backend::Backend};
 
-use crate::{ReduceKind, tree::all_reduce_tree};
+use crate::tree::all_reduce_sum_tree;
 
 /// Ring implementation of All-Reduce (Ring-Reduce)
-pub(crate) fn all_reduce_ring<B: Backend>(
+pub(crate) fn all_reduce_sum_ring<B: Backend>(
     tensors: &mut Vec<B::FloatTensorPrimitive>,
-    kind: &ReduceKind,
 ) -> Vec<B::FloatTensorPrimitive> {
     // https://blog.dailydoseofds.com/p/all-reduce-and-ring-reduce-for-model
 
@@ -49,7 +48,7 @@ pub(crate) fn all_reduce_ring<B: Backend>(
     let tensor_count = tensors.len();
     if dim_size < tensor_count {
         // Tensor cannot be split into N slices! Use a fallback algorithm: binary tree
-        return all_reduce_tree::<B>(tensors, kind, 2);
+        return all_reduce_sum_tree::<B>(tensors, 2);
     }
 
     // Split tensors into slices
@@ -62,17 +61,10 @@ pub(crate) fn all_reduce_ring<B: Backend>(
     ring_cycles::<B>(&mut sliced_tensors, false);
 
     // merge slices
-    let mut results = vec![];
-    while let Some(slices) = sliced_tensors.pop() {
-        let mut result = B::float_cat(slices, slice_dim);
-        if *kind == ReduceKind::Mean {
-            result = B::float_div_scalar(result, (tensor_count as f32).elem());
-        }
-
-        results.insert(0, result)
-    }
-
-    results
+    sliced_tensors
+        .into_iter()
+        .map(|slices| B::float_cat(slices, slice_dim))
+        .collect()
 }
 
 /// Get the dimension to slice across: the largest dimension of the shape

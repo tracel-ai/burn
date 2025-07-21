@@ -1,9 +1,12 @@
 use burn_communication::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::{AllReduceStrategy, DeviceId, NodeId, ReduceKind, SharedAllReduceParams};
+use crate::{
+    AllReduceStrategy, DeviceId, GlobalRegisterParams, NodeId, ReduceKind, SharedAllReduceParams,
+};
 
-/// TODO: Docs
+/// Parameter builder struct for setting up and getting parameters for collective operations.
+/// This config is per-device.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectiveConfig {
     pub device_id: DeviceId,
@@ -14,9 +17,9 @@ pub struct CollectiveConfig {
     // Global parameters (all are optional, but if one is defined they should all be)
     pub node_id: Option<NodeId>,
     pub num_nodes: Option<u32>,
-    pub server_address: Option<Address>,
-    pub client_address: Option<Address>,
-    pub client_data_port: Option<u16>,
+    pub global_address: Option<Address>,
+    pub node_address: Option<Address>,
+    pub data_service_port: Option<u16>,
     pub global_strategy: Option<AllReduceStrategy>,
 }
 
@@ -36,11 +39,16 @@ impl CollectiveConfig {
 
             node_id: None,
             num_nodes: None,
-            server_address: None,
-            client_address: None,
-            client_data_port: None,
+            global_address: None,
+            node_address: None,
+            data_service_port: None,
             global_strategy: None,
         }
+    }
+
+    pub fn with_device_id(mut self, id: DeviceId) -> Self {
+        self.device_id = id;
+        self
     }
 
     pub fn with_num_devices(mut self, num: u32) -> Self {
@@ -68,18 +76,18 @@ impl CollectiveConfig {
         self
     }
 
-    pub fn with_server_address(mut self, addr: Address) -> Self {
-        self.server_address = Some(addr);
+    pub fn with_global_address(mut self, addr: Address) -> Self {
+        self.global_address = Some(addr);
         self
     }
 
-    pub fn with_client_address(mut self, addr: Address) -> Self {
-        self.client_address = Some(addr);
+    pub fn with_node_address(mut self, addr: Address) -> Self {
+        self.node_address = Some(addr);
         self
     }
 
-    pub fn with_client_data_port(mut self, port: u16) -> Self {
-        self.client_data_port = Some(port);
+    pub fn with_data_service_port(mut self, port: u16) -> Self {
+        self.data_service_port = Some(port);
         self
     }
 
@@ -94,6 +102,32 @@ impl CollectiveConfig {
             kind: self.all_reduce_kind,
             local_strategy: self.local_strategy,
             global_strategy: self.global_strategy,
+        }
+    }
+
+    pub fn global_register_params(&self) -> Option<GlobalRegisterParams> {
+        match (
+            self.node_id,
+            self.num_nodes,
+            &self.global_address,
+            &self.node_address,
+            self.data_service_port,
+        ) {
+            (None, None, None, None, None) => None, // fully local
+            (
+                Some(node_id),
+                Some(num_nodes),
+                Some(global_addr),
+                Some(node_addr),
+                Some(data_service_port),
+            ) => Some(GlobalRegisterParams {
+                node_id,
+                num_nodes,
+                global_address: global_addr.clone(),
+                node_address: node_addr.clone(),
+                data_service_port,
+            }),
+            _ => None,
         }
     }
 }

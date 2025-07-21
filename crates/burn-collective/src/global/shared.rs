@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::AllReduceStrategy;
 
-/// A unique identifier for each request made to a global collective server
+/// A unique identifier for each request made to a global orchestrator
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub(crate) struct RequestId(u32);
 
@@ -26,7 +26,7 @@ impl Default for RequestId {
     }
 }
 
-/// Unique identifier that can represent a session between a client and a server.
+/// Unique identifier that can represent a session between a node and a orchestrator.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 pub(crate) struct SessionId {
     id: u64,
@@ -150,14 +150,13 @@ pub enum GlobalCollectiveError {
     InvalidMessage,
     /// A peer behaved unexpectedly
     PeerSentIncoherentTensor,
-    /// Error from the server
+    /// Error from the coordinator
     Server(String),
 
-    // Global Client errors
-    /// The global collective client received an invalid response
-    WrongServerResponse,
-    /// Client couldn't connect to server
-    ServerUnreachable,
+    /// The node received an invalid response
+    WrongOrchestratorResponse,
+    /// Node couldn't connect to coordinator
+    OrchestratorUnreachable,
 }
 
 impl<E: CommunicationError> From<E> for GlobalCollectiveError {

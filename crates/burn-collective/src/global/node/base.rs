@@ -9,7 +9,7 @@ use crate::{AllReduceStrategy, GlobalRegisterParams};
 use crate::{
     ReduceKind,
     global::{
-        client::{
+        node::{
             centralized::centralized_all_reduce_sum, ring::ring_all_reduce_sum,
             tree::tree_all_reduce_sum, worker::GlobalClientWorker,
         },
@@ -18,13 +18,14 @@ use crate::{
     local_server::get_server_runtime,
 };
 
+/// The client that talks to the global collective orchestrator
 pub(crate) struct GlobalCollectiveClient<B, N>
 where
     B: Backend,
     N: Protocol,
 {
     data_service: Arc<TensorDataService<B, N>>,
-    data_client_address: Arc<Address>,
+    node_address: Arc<Address>,
     worker: GlobalClientWorker<N::Client>,
     num_global_devices: Option<u32>,
     _n: PhantomData<N>,
@@ -35,11 +36,7 @@ where
     B: Backend,
     N: Protocol,
 {
-    pub fn new(
-        server_address: &Address,
-        client_address: &Address,
-        comms_server: N::Server,
-    ) -> Self {
+    pub fn new(global_address: &Address, node_address: &Address, comms_server: N::Server) -> Self {
         let cancel_token = CancellationToken::new();
 
         let data_service = Arc::new(TensorDataService::new(cancel_token.clone()));
@@ -54,11 +51,11 @@ where
 
         runtime.spawn(server);
 
-        let worker = GlobalClientWorker::new(&runtime, cancel_token.clone(), server_address);
+        let worker = GlobalClientWorker::new(&runtime, cancel_token.clone(), global_address);
 
         Self {
             data_service,
-            data_client_address: Arc::new(client_address.clone()),
+            node_address: Arc::new(node_address.clone()),
             worker,
             num_global_devices: None,
             _n: PhantomData,
@@ -70,7 +67,7 @@ where
         num_devices: u32,
         global_params: GlobalRegisterParams,
     ) -> Result<(), GlobalCollectiveError> {
-        let node_addr = self.data_client_address.as_ref().clone();
+        let node_addr = self.node_address.as_ref().clone();
 
         let req = RemoteRequest::Register {
             node_id: global_params.node_id,
@@ -87,7 +84,7 @@ where
             }
             resp => {
                 log::error!("Response to a register request should be an ack, not {resp:?}");
-                return Err(GlobalCollectiveError::WrongServerResponse);
+                return Err(GlobalCollectiveError::WrongOrchestratorResponse);
             }
         }
 
@@ -105,7 +102,7 @@ where
             .num_global_devices
             .expect("Can't all-reduce before registering (global)");
 
-        // Get strategy from server
+        // Get strategy from orchestrator
         let req = RemoteRequest::AllReduce { strategy };
         let resp = self.worker.request(req).await;
 
@@ -124,7 +121,7 @@ where
             }
             resp => {
                 log::error!("Response to a all-reduce request should be a strategy, not {resp:?}");
-                return Err(GlobalCollectiveError::WrongServerResponse);
+                return Err(GlobalCollectiveError::WrongOrchestratorResponse);
             }
         };
 

@@ -5,18 +5,18 @@ edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "server"
-path = "src/bin/server.rs"
+name = "global"
+path = "src/bin/global.rs"
 
 [[bin]]
-name = "client"
-path = "src/bin/client.rs"
+name = "node"
+path = "src/bin/node.rs"
 
 [dependencies]
 burn = { path = "../../burn", features = ["ndarray"] }
 burn-common = { path = "../../burn-common" }
 burn-communication = { path = "../../burn-communication" }
-burn-collective = { path = "..", features = ["server"]}
+burn-collective = { path = "..", features = ["orchestrator"]}
 tokio = { workspace = true, features = ["rt-multi-thread", "process"] }
 
 serde = { workspace = true, features = ["derive"] }
