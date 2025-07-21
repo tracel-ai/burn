@@ -196,8 +196,8 @@ def main():
         "/tmp/mnist-data", train=True, download=True, transform=transform
     )
     dataset2 = datasets.MNIST("/tmp/mnist-data", train=False, transform=transform)
-    train_loader = torch.utils.data.DataLoader(dataset1, **train_kwargs)
-    test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
+    train_loader = torch.utils.data.DataLoader(dataset1, **train_kwargs, pin_memory=True)
+    test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs, pin_memory=True)
 
     model = Net().to(device)
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
