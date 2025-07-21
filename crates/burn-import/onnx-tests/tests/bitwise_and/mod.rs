@@ -1,6 +1,11 @@
 // Include the models for this node type
 use crate::include_models;
-include_models!(bitwise_and, bitwise_and_scalar, scalar_bitwise_and);
+include_models!(
+    bitwise_and,
+    bitwise_and_scalar,
+    scalar_bitwise_and,
+    scalar_bitwise_and_scalar
+);
 
 #[cfg(test)]
 mod tests {
@@ -44,5 +49,18 @@ mod tests {
         // Bitwise AND is commutative, so result should be same as tensor-scalar
         let expected = TensorData::from([0i64, 2, 2, 0]);
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn scalar_bitwise_and_scalar() {
+        let device = Default::default();
+        let model: scalar_bitwise_and_scalar::Model<Backend> =
+            scalar_bitwise_and_scalar::Model::new(&device);
+        // Run the model
+        let lhs = 7; // 0b111
+        let rhs = 3; // 0b011
+        let output = model.forward(lhs, rhs);
+        // 7 & 3 = 3
+        assert_eq!(output, 3);
     }
 }

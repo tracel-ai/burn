@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, Scope, TensorKind, TensorType, Type};
+use crate::burn::{BurnImports, Scope, TensorKind, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -7,12 +7,12 @@ use quote::quote;
 #[derive(Debug, Clone, new)]
 pub struct BitwiseAndNode {
     pub inputs: Vec<Type>,
-    pub output: TensorType,
+    pub output: Type,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseAndNode {
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+        vec![self.output.clone()]
     }
 
     fn input_types(&self) -> Vec<Type> {
@@ -20,7 +20,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseAndNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name;
+        let output = &self.output.name();
 
         let operation = match (&self.inputs[0], &self.inputs[1]) {
             (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
@@ -39,8 +39,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseAndNode {
                 // Bitwise AND is commutative, so we can swap the order
                 quote! { #rhs.bitwise_and_scalar(#lhs.elem()) }
             }
-            (Type::Scalar(_), Type::Scalar(_)) => {
-                panic!("BitwiseAndNode does not support both inputs as scalars")
+            (Type::Scalar(lhs_scalar), Type::Scalar(rhs_scalar)) => {
+                let lhs = &lhs_scalar.name;
+                let rhs = &rhs_scalar.name;
+                quote! { #lhs & #rhs }
             }
             _ => panic!("BitwiseAndNode only supports tensor and scalar inputs"),
         };
@@ -51,8 +53,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseAndNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        if self.output.kind != TensorKind::Int {
-            panic!("BitwiseAndNode only supports Int TensorType outputs");
+        match &self.output {
+            Type::Tensor(tensor) => {
+                if tensor.kind != TensorKind::Int {
+                    panic!("BitwiseAndNode only supports Int tensor outputs");
+                }
+            }
+            Type::Scalar(scalar) => {
+                if !matches!(
+                    scalar.kind,
+                    crate::burn::ScalarKind::Int32 | crate::burn::ScalarKind::Int64
+                ) {
+                    panic!("BitwiseAndNode only supports Int scalar outputs");
+                }
+            }
+            _ => panic!("BitwiseAndNode only supports tensor and scalar outputs"),
         }
         Node::BitwiseAnd(self)
     }
@@ -88,7 +103,7 @@ mod tests {
                 Type::Tensor(TensorType::new_int("input1", 1)),
                 Type::Tensor(TensorType::new_int("input2", 1)),
             ],
-            output: TensorType::new_int("output", 1),
+            output: Type::Tensor(TensorType::new_int("output", 1)),
         });
         graph.register_input_output(
             vec!["input1".to_string(), "input2".to_string()],

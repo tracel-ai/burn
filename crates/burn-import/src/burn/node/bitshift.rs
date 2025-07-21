@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, Scope, TensorKind, TensorType, Type};
+use crate::burn::{BurnImports, Scope, TensorKind, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -13,13 +13,13 @@ pub enum Direction {
 #[derive(Debug, Clone, new)]
 pub struct BitShiftNode {
     pub inputs: Vec<Type>,
-    pub output: TensorType,
+    pub output: Type,
     pub direction: Direction,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+        vec![self.output.clone()]
     }
 
     fn input_types(&self) -> Vec<Type> {
@@ -27,7 +27,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name;
+        let output = &self.output.name();
 
         let operation = match (&self.inputs[0], &self.inputs[1], self.direction) {
             (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor), Direction::Left) => {
@@ -72,8 +72,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
                     }
                 }
             }
-            (Type::Scalar(_), Type::Scalar(_), _) => {
-                panic!("BitShiftNode does not support both inputs as scalars")
+            (Type::Scalar(lhs_scalar), Type::Scalar(rhs_scalar), Direction::Left) => {
+                let lhs = &lhs_scalar.name;
+                let rhs = &rhs_scalar.name;
+                quote! { #lhs << #rhs }
+            }
+            (Type::Scalar(lhs_scalar), Type::Scalar(rhs_scalar), Direction::Right) => {
+                let lhs = &lhs_scalar.name;
+                let rhs = &rhs_scalar.name;
+                quote! { #lhs >> #rhs }
             }
             _ => panic!("BitShiftNode only supports tensor and scalar inputs"),
         };
@@ -84,8 +91,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        if self.output.kind != TensorKind::Int {
-            panic!("BitShiftNode only supports Int TensorType outputs");
+        match &self.output {
+            Type::Tensor(tensor) => {
+                if tensor.kind != TensorKind::Int {
+                    panic!("BitShiftNode only supports Int tensor outputs");
+                }
+            }
+            Type::Scalar(scalar) => {
+                if !matches!(
+                    scalar.kind,
+                    crate::burn::ScalarKind::Int32 | crate::burn::ScalarKind::Int64
+                ) {
+                    panic!("BitShiftNode only supports Int scalar outputs");
+                }
+            }
+            _ => panic!("BitShiftNode only supports tensor and scalar outputs"),
         }
         Node::BitShift(self)
     }
@@ -121,7 +141,7 @@ mod tests {
                 Type::Tensor(TensorType::new_int("input1", 1)),
                 Type::Tensor(TensorType::new_int("input2", 1)),
             ],
-            TensorType::new_int("output", 1),
+            Type::Tensor(TensorType::new_int("output", 1)),
             Direction::Left,
         ));
 
@@ -171,7 +191,7 @@ mod tests {
                 Type::Tensor(TensorType::new_int("input1", 1)),
                 Type::Tensor(TensorType::new_int("input2", 1)),
             ],
-            TensorType::new_int("output", 1),
+            Type::Tensor(TensorType::new_int("output", 1)),
             Direction::Right,
         ));
 

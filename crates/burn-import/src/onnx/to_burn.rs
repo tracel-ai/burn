@@ -690,7 +690,7 @@ impl ParsedOnnxGraph {
 
     fn bitshift_conversion(node: Node) -> BitShiftNode {
         let inputs = node.inputs.iter().map(Type::from).collect();
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let onnx_direction = bitshift_config(&node);
 
         // Map ONNX direction to burn-import Direction
@@ -704,21 +704,21 @@ impl ParsedOnnxGraph {
 
     fn bitwise_and_conversion(node: Node) -> BitwiseAndNode {
         let inputs = node.inputs.iter().map(Type::from).collect();
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         BitwiseAndNode::new(inputs, output)
     }
 
     fn bitwise_or_conversion(node: Node) -> BitwiseOrNode {
         let inputs = node.inputs.iter().map(Type::from).collect();
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         BitwiseOrNode::new(inputs, output)
     }
 
     fn bitwise_xor_conversion(node: Node) -> BitwiseXorNode {
         let inputs = node.inputs.iter().map(Type::from).collect();
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         BitwiseXorNode::new(inputs, output)
     }

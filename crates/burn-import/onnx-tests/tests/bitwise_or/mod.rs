@@ -1,6 +1,11 @@
 // Include the models for this node type
 use crate::include_models;
-include_models!(bitwise_or, bitwise_or_scalar, scalar_bitwise_or);
+include_models!(
+    bitwise_or,
+    bitwise_or_scalar,
+    scalar_bitwise_or,
+    scalar_bitwise_or_scalar
+);
 
 #[cfg(test)]
 mod tests {
@@ -47,5 +52,18 @@ mod tests {
         // Bitwise OR is commutative, so result should be same as tensor-scalar
         let expected = TensorData::from([[3i64, 2, 3, 6]]);
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn scalar_bitwise_or_scalar() {
+        let device = Default::default();
+        let model: scalar_bitwise_or_scalar::Model<Backend> =
+            scalar_bitwise_or_scalar::Model::new(&device);
+        // Run the model
+        let lhs = 5; // 0b101
+        let rhs = 3; // 0b011
+        let output = model.forward(lhs, rhs);
+        // 5 | 3 = 7 (0b111)
+        assert_eq!(output, 7);
     }
 }

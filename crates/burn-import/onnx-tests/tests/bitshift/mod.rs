@@ -4,9 +4,11 @@ include_models!(
     bitshift_left,
     bitshift_left_scalar,
     scalar_bitshift_left,
+    scalar_bitshift_left_scalar,
     bitshift_right,
     bitshift_right_scalar,
-    scalar_bitshift_right
+    scalar_bitshift_right,
+    scalar_bitshift_right_scalar
 );
 
 #[cfg(test)]
@@ -100,5 +102,31 @@ mod tests {
         let expected = TensorData::from([4i64, 2, 1, 0]);
 
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn scalar_bitshift_left_scalar() {
+        let device = Default::default();
+        let model: scalar_bitshift_left_scalar::Model<Backend> =
+            scalar_bitshift_left_scalar::Model::new(&device);
+        // Run the model
+        let lhs = 4;
+        let rhs = 2;
+        let output = model.forward(lhs, rhs);
+        // 4 << 2 = 16
+        assert_eq!(output, 16);
+    }
+
+    #[test]
+    fn scalar_bitshift_right_scalar() {
+        let device = Default::default();
+        let model: scalar_bitshift_right_scalar::Model<Backend> =
+            scalar_bitshift_right_scalar::Model::new(&device);
+        // Run the model
+        let lhs = 16;
+        let rhs = 2;
+        let output = model.forward(lhs, rhs);
+        // 16 >> 2 = 4
+        assert_eq!(output, 4);
     }
 }

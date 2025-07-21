@@ -1,6 +1,11 @@
 // Include the models for this node type
 use crate::include_models;
-include_models!(bitwise_xor, bitwise_xor_scalar, scalar_bitwise_xor);
+include_models!(
+    bitwise_xor,
+    bitwise_xor_scalar,
+    scalar_bitwise_xor,
+    scalar_bitwise_xor_scalar
+);
 
 #[cfg(test)]
 mod tests {
@@ -44,5 +49,18 @@ mod tests {
         // Bitwise XOR is commutative, so result should be same as tensor-scalar
         let expected = TensorData::from([[3i64, 0, 1, 6]]);
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn scalar_bitwise_xor_scalar() {
+        let device = Default::default();
+        let model: scalar_bitwise_xor_scalar::Model<Backend> =
+            scalar_bitwise_xor_scalar::Model::new(&device);
+        // Run the model
+        let lhs = 5; // 0b101
+        let rhs = 3; // 0b011
+        let output = model.forward(lhs, rhs);
+        // 5 ^ 3 = 6 (0b110)
+        assert_eq!(output, 6);
     }
 }
