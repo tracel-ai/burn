@@ -5,8 +5,8 @@ use crate::{
     global::{
         NodeId,
         shared::{
-            CentralizedAllReduceStrategy, CollectiveMessageResponse, RemoteRequest, RemoteResponse,
-            RequestId, SessionId, GlobalCollectiveError,
+            CentralizedAllReduceStrategy, CollectiveMessageResponse, GlobalCollectiveError,
+            RemoteRequest, RemoteResponse, RequestId, SessionId,
         },
     },
 };

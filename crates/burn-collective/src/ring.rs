@@ -103,7 +103,7 @@ fn get_shape<B: Backend>(tensors: &mut Vec<B::FloatTensorPrimitive>) -> Option<S
 }
 
 /// With a ring of N tensors, send the tensors N-1 times, either for the first of second phase.
-/// During the first phase, the tensor slices are summed. 
+/// During the first phase, the tensor slices are summed.
 /// During the second, the slices are replaced.
 fn ring_cycles<B: Backend>(
     sliced_tensors: &mut [Vec<B::FloatTensorPrimitive>],
@@ -148,7 +148,7 @@ fn ring_cycles<B: Backend>(
     }
 }
 
-/// Slice a list of tensors the same way, evenly across a given dimention. 
+/// Slice a list of tensors the same way, evenly across a given dimention.
 /// The given `shape` should be the same for every tensor.
 fn slice_tensors<B: Backend>(
     tensors: &mut Vec<B::FloatTensorPrimitive>,
@@ -173,9 +173,8 @@ fn slice_tensors<B: Backend>(
     sliced_tensors
 }
 
-
-/// Get the index ranges for the slices to split a tensor evently across a given axis. 
-/// Returns a vector of dimentions for each slice. 
+/// Get the index ranges for the slices to split a tensor evently across a given axis.
+/// Returns a vector of dimentions for each slice.
 pub(crate) fn get_ranges(
     dim_size: usize,
     tensor_count: usize,

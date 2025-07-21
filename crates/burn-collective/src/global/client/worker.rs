@@ -11,11 +11,9 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::global::{
-    shared::{
-        CollectiveMessage, CollectiveMessageResponse, RemoteRequest, RemoteResponse, RequestId,
-        SessionId, GlobalCollectiveError,
-    },
+use crate::global::shared::{
+    CollectiveMessage, CollectiveMessageResponse, GlobalCollectiveError, RemoteRequest,
+    RemoteResponse, RequestId, SessionId,
 };
 
 /// Worker that handles communication with the server for global collective operations.

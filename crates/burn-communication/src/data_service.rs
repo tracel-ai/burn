@@ -15,10 +15,10 @@ use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TensorTransferId(u32);
+pub struct TensorTransferId(u64);
 
-impl From<u32> for TensorTransferId {
-    fn from(value: u32) -> Self {
+impl From<u64> for TensorTransferId {
+    fn from(value: u64) -> Self {
         Self(value)
     }
 }

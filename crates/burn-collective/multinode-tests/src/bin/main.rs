@@ -148,6 +148,7 @@ fn launch_clients(
 
         let client_out = File::create(output_filename).expect("Could't create client output file");
 
+        // Start a process for each node.
         let client: Child = Command::new("cargo")
             .args(["run", "--bin", "client", "--", &input_filename])
             .stdout(client_out.try_clone().unwrap())

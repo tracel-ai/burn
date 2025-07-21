@@ -48,7 +48,7 @@ where
 {
     let mut slices = slice_tensor::<B>(tensor, strategy.slice_dim, strategy.slice_ranges);
     let mut send_slice_idx = strategy.first_slice;
-    let mut transfer_counter: u32 = 0;
+    let mut transfer_counter: u64 = 0;
 
     // Phase 1: add
     do_cycles::<B, N>(
@@ -81,7 +81,7 @@ where
 /// Do N-1 cycles of ring-reduce
 async fn do_cycles<B, N>(
     slices: &mut [B::FloatTensorPrimitive],
-    transfer_counter: &mut u32,
+    transfer_counter: &mut u64,
     send_slice_idx: &mut usize,
     is_phase_one: bool,
     next_node: Address,

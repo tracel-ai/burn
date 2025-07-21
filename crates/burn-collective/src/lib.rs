@@ -12,4 +12,13 @@ pub use config::*;
 mod api;
 pub use api::*;
 
+#[cfg(all(
+    test,
+    any(
+        feature = "test-ndarray",
+        feature = "test-wgpu",
+        feature = "test-cuda",
+        feature = "test-metal"
+    )
+))]
 mod tests;

@@ -1,12 +1,3 @@
-#[cfg(all(
-    test,
-    any(
-        feature = "test-ndarray",
-        feature = "test-wgpu",
-        feature = "test-cuda",
-        feature = "test-metal"
-    )
-))]
 mod tests {
     use std::sync::mpsc::SyncSender;
 

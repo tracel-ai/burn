@@ -7,7 +7,7 @@ use std::{
     },
 };
 
-use burn_communication::websocket::{WsServer, WebSocket};
+use burn_communication::websocket::{WebSocket, WsServer};
 use burn_tensor::backend::Backend;
 use tokio::runtime::{Builder, Runtime};
 
@@ -365,6 +365,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         let global_strategy = &params.global_strategy;
         let tensor_count = self.tensors.len();
 
+        // TODO: Should be an enum.
         let mut outs = match local_strategy {
             AllReduceStrategy::Centralized => {
                 let out = all_reduce_centralized::<B>(&mut self.tensors, kind);
@@ -397,9 +398,8 @@ impl<B: Backend> LocalCollectiveServer<B> {
         }
 
         // Callbacks return results
-        for callback in self.callbacks_all_reduce.drain(..) {
-            let result = Ok(outs.remove(0));
-            callback.send(result).unwrap();
+        for (callback, result) in self.callbacks_all_reduce.drain(..).zip(outs.into_iter()) {
+            callback.send(Ok(result)).unwrap();
         }
     }
 

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{AllReduceStrategy, DeviceId, NodeId, ReduceKind, SharedAllReduceParams};
 
+/// TODO: Docs
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectiveConfig {
     pub device_id: DeviceId,

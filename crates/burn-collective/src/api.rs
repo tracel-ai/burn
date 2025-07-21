@@ -7,12 +7,15 @@ use crate::{
     local_server::get_collective_client,
 };
 
-/// Paramters for registering a node on the global level
+/// Parameters for registering a node on the global level
+///
+/// TODO: More doc on why those things exist
+/// TODO: Explain a bit the p2p archi
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GlobalRegisterParams {
     /// The id of this node, should be unique.
     pub node_id: NodeId,
-    /// The address for the connection to this client.
+    /// The address for the connection to this server.
     pub server_address: Address,
     /// The address for the connection to this client.
     pub client_address: Address,
@@ -94,8 +97,8 @@ impl From<u32> for DeviceId {
 }
 
 /// Registers a device. `num_devices` must be the same for every register,
-/// and `device_id` must be unique. 
-/// 
+/// and `device_id` must be unique.
+///
 /// With Autdodiff backends, make sure to use the inner backend.
 pub fn register<B: Backend>(
     device_id: DeviceId,

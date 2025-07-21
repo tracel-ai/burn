@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::global::{shared::{TreeAllReduceStrategy, GlobalCollectiveError,}};
+use crate::global::shared::{GlobalCollectiveError, TreeAllReduceStrategy};
 use burn_communication::{Protocol, data_service::TensorDataService};
 use burn_tensor::{TensorMetadata, backend::Backend};
 use futures::{StreamExt, stream::FuturesUnordered};
