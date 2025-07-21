@@ -25,6 +25,7 @@ fn main() {
         .input("tests/bitwise_or/bitwise_or_scalar.onnx")
         .input("tests/bitwise_xor/bitwise_xor.onnx")
         .input("tests/bitwise_xor/bitwise_xor_scalar.onnx")
+        .input("tests/bernoulli/bernoulli.onnx")
         .input("tests/cast/cast.onnx")
         .input("tests/ceil/ceil.onnx")
         .input("tests/clip/clip.onnx")

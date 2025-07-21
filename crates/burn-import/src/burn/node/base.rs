@@ -2,10 +2,10 @@ use std::marker::PhantomData;
 
 use super::{
     argmax::ArgMaxNode, argmin::ArgMinNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
-    batch_norm::BatchNormNode, binary::BinaryNode, bitshift::BitShiftNode,
-    bitwiseand::BitwiseAndNode, bitwisenot::BitwiseNotNode, bitwiseor::BitwiseOrNode,
-    bitwisexor::BitwiseXorNode, ceil::CeilNode, clip::ClipNode, concat::ConcatNode,
-    constant::ConstantNode, constant_of_shape::ConstantOfShapeNode,
+    batch_norm::BatchNormNode, bernoulli::BernoulliNode, binary::BinaryNode,
+    bitshift::BitShiftNode, bitwiseand::BitwiseAndNode, bitwisenot::BitwiseNotNode,
+    bitwiseor::BitwiseOrNode, bitwisexor::BitwiseXorNode, ceil::CeilNode, clip::ClipNode,
+    concat::ConcatNode, constant::ConstantNode, constant_of_shape::ConstantOfShapeNode,
     conv_transpose_1d::ConvTranspose1dNode, conv_transpose_2d::ConvTranspose2dNode,
     conv_transpose_3d::ConvTranspose3dNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
     conv3d::Conv3dNode, depth_to_space::DepthToSpaceNode, dropout::DropoutNode, expand::ExpandNode,
@@ -20,7 +20,7 @@ use super::{
     sum::SumNode, tile::TileNode, top_k::TopKNode, trilu::TriluNode, unary::UnaryNode,
     unsqueeze::UnsqueezeNode,
 };
-use crate::burn::{BurnImports, Scope, Type, node::space_to_depth::SpaceToDepthNode};
+use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use serde::Serialize;
@@ -92,6 +92,7 @@ pub enum Node<PS: PrecisionSettings> {
     AvgPool1d(AvgPool1dNode),
     AvgPool2d(AvgPool2dNode),
     BatchNorm(BatchNormNode),
+    Bernoulli(BernoulliNode),
     Binary(BinaryNode),
     BitShift(BitShiftNode),
     BitwiseAnd(BitwiseAndNode),
@@ -161,6 +162,7 @@ macro_rules! match_all {
             Node::AvgPool1d(node) => $func(node),
             Node::AvgPool2d(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
+            Node::Bernoulli(node) => $func(node),
             Node::Binary(node) => $func(node),
             Node::BitShift(node) => $func(node),
             Node::BitwiseAnd(node) => $func(node),
@@ -238,6 +240,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::AvgPool1d(_) => "avg_pool1d",
             Node::AvgPool2d(_) => "avg_pool2d",
             Node::BatchNorm(_) => "batch_norm",
+            Node::Bernoulli(_) => "bernoulli",
             Node::Binary(binary) => binary.binary_type.as_str(),
             Node::BitShift(_) => "bitshift",
             Node::BitwiseAnd(_) => "bitwiseand",

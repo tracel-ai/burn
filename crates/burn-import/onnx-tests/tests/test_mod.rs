@@ -11,6 +11,7 @@ pub mod argmax;
 pub mod argmin;
 pub mod avg_pool;
 pub mod batch_norm;
+pub mod bernoulli;
 pub mod bitshift;
 pub mod bitwise_and;
 pub mod bitwise_not;

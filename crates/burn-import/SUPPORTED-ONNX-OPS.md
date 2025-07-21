@@ -24,7 +24,7 @@ functionality.
 | [AveragePool1d][12]              | ✅             | ✅           |
 | [AveragePool2d][12]              | ✅             | ✅           |
 | [BatchNormalization][14]         | ✅             | ✅           |
-| [Bernoulli][15]                  | ❌             | ✅           |
+| [Bernoulli][15]                  | ✅             | ✅           |
 | [BitShift][16]                   | ✅             | ✅           |
 | [BitwiseAnd][17]                 | ✅             | ✅           |
 | [BitwiseNot][18]                 | ✅             | ✅           |
