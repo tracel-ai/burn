@@ -31,14 +31,14 @@ pub fn reshape_update_outputs(node: &mut Node) {
         })
     };
 
-    let output = match &node.outputs[0].ty {
+    let tensor = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.clone(),
         _ => panic!("Reshape: invalid output types"),
     };
 
     let rank = match &shape {
         Some(s) => s.len(),
-        None => output.rank,
+        None => tensor.rank,
     };
 
     log::debug!("Reshape output rank for node {}: {}", node.name, rank);
@@ -46,7 +46,7 @@ pub fn reshape_update_outputs(node: &mut Node) {
     node.outputs[0].ty = ArgType::Tensor(TensorType {
         rank,
         static_shape: None,
-        ..output
+        elem_type: tensor.elem_type,
     });
 }
 
@@ -84,6 +84,7 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ElementType;
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
@@ -131,5 +132,40 @@ mod tests {
             tensor_data.shape = vec![2, 1];
         }
         let _ = reshape_config(&node);
+    }
+
+    #[test]
+    fn test_reshape_update_outputs_basic() {
+        let mut node = create_test_node(0, vec![2, 3]);
+
+        reshape_update_outputs(&mut node);
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.static_shape, None);
+                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.rank, 2);
+            }
+            _ => panic!("Expected tensor output"),
+        }
+    }
+
+    #[test]
+    fn test_reshape_update_outputs_int() {
+        let mut node = create_test_node(0, vec![2, 3]);
+        node.inputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: ElementType::Int32,
+            rank: 4,
+            static_shape: None,
+        });
+
+        reshape_update_outputs(&mut node);
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.static_shape, None);
+                assert_eq!(tensor.elem_type, ElementType::Int32);
+                assert_eq!(tensor.rank, 2);
+            }
+            _ => panic!("Expected tensor output"),
+        }
     }
 }
