@@ -729,7 +729,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_rusqlite",
- "strum 0.27.1",
+ "strum 0.27.2",
  "tempfile",
  "thiserror 2.0.12",
 ]
@@ -4845,7 +4845,7 @@ dependencies = [
  "regex",
  "rstest",
  "serde",
- "strum 0.27.1",
+ "strum 0.27.2",
 ]
 
 [[package]]
@@ -6696,9 +6696,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.140"
+version = "1.0.141"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+checksum = "30b9eff21ebe718216c6ec64e1d9ac57087aad11efc64e32002bce4a0d4c03d3"
 dependencies = [
  "itoa",
  "memchr",
@@ -7058,9 +7058,9 @@ dependencies = [
 
 [[package]]
 name = "strum"
-version = "0.27.1"
+version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f64def088c51c9510a8579e3c5d67c65349dcf755e5479ad3d010aa6454e2c32"
+checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
 dependencies = [
  "strum_macros 0.27.1",
 ]
@@ -7692,7 +7692,7 @@ dependencies = [
  "rand 0.9.1",
  "regex",
  "serde_json",
- "strum 0.27.1",
+ "strum 0.27.2",
  "tracel-xtask-macros",
  "tracing-subscriber",
 ]
@@ -8896,7 +8896,7 @@ version = "2.2.0"
 dependencies = [
  "log",
  "rstest",
- "strum 0.27.1",
+ "strum 0.27.2",
  "tracel-xtask",
 ]
 
