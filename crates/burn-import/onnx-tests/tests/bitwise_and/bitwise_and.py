@@ -12,7 +12,15 @@ def export_bitwise_and():
                 y = torch.tensor([y], dtype=x.dtype)
             return torch.bitwise_and(x, y)
 
+    class ScalarBitwiseAndModel(torch.nn.Module):
+        def forward(self, x, y):
+            if isinstance(x, int):
+                # If x is a scalar, convert it to a tensor
+                x = torch.tensor([x], dtype=y.dtype)
+            return torch.bitwise_and(x, y)
+
     model = BitwiseAndModel()
+    scalar_model = ScalarBitwiseAndModel()
     x = torch.tensor([1, 2, 3, 4], dtype=torch.int32)
     y = torch.tensor([4, 3, 2, 1], dtype=torch.int32)
     torch.onnx.export(
@@ -24,12 +32,22 @@ def export_bitwise_and():
         output_names=["output"],
     )
 
-    # Scalar version
-    and_scalar = 2  # Scalar shift value
+    # Tensor-Scalar version
+    and_scalar = 2  # Scalar value
     torch.onnx.export(
         model,
         (x, and_scalar),
         f"bitwise_and_scalar.onnx",
+        opset_version=18,
+        input_names=["x", "y"],
+        output_names=["output"],
+    )
+
+    # Scalar-Tensor version
+    torch.onnx.export(
+        scalar_model,
+        (and_scalar, x),
+        f"scalar_bitwise_and.onnx",
         opset_version=18,
         input_names=["x", "y"],
         output_names=["output"],

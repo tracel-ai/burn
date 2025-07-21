@@ -33,10 +33,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseAndNode {
                 let rhs = &rhs_scalar.name;
                 quote! { #lhs.bitwise_and_scalar(#rhs.elem()) }
             }
-            (Type::Scalar(_lhs_scalar), Type::Tensor(_rhs_tensor)) => {
-                panic!(
-                    "BitwiseAndNode does not support scalar as first input and tensor as second input"
-                )
+            (Type::Scalar(lhs_scalar), Type::Tensor(rhs_tensor)) => {
+                let lhs = &lhs_scalar.name;
+                let rhs = scope.tensor_use_owned(rhs_tensor, node_position);
+                // Bitwise AND is commutative, so we can swap the order
+                quote! { #rhs.bitwise_and_scalar(#lhs.elem()) }
             }
             (Type::Scalar(_), Type::Scalar(_)) => {
                 panic!("BitwiseAndNode does not support both inputs as scalars")

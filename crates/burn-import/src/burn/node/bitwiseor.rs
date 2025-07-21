@@ -33,10 +33,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseOrNode {
                 let rhs = &rhs_scalar.name;
                 quote! { #lhs.bitwise_or_scalar(#rhs.elem()) }
             }
-            (Type::Scalar(_lhs_scalar), Type::Tensor(_rhs_tensor)) => {
-                panic!(
-                    "BitwiseOrNode does not support scalar as first input and tensor as second input"
-                )
+            (Type::Scalar(lhs_scalar), Type::Tensor(rhs_tensor)) => {
+                let lhs = &lhs_scalar.name;
+                let rhs = scope.tensor_use_owned(rhs_tensor, node_position);
+                // Bitwise OR is commutative, so we can swap the order
+                quote! { #rhs.bitwise_or_scalar(#lhs.elem()) }
             }
             (Type::Scalar(_), Type::Scalar(_)) => {
                 panic!("BitwiseOrNode does not support both inputs as scalars")

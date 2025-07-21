@@ -3,7 +3,7 @@
 
 import onnx
 
-def build_model(direction: str = "LEFT", scalar_shift: bool = False):
+def build_model(direction: str = "LEFT", scalar_shift: bool = False, scalar_first: bool = False):
     op_type = "BitShift"
     direction_attr = "LEFT" if direction == "LEFT" else "RIGHT"
     
@@ -17,19 +17,25 @@ def build_model(direction: str = "LEFT", scalar_shift: bool = False):
         ),
     ]
     
-    # Both tensor and scalar versions have the same input structure
-    # The scalar version will be handled by the burn runtime with scalar input
+    # Determine input shapes based on scalar position
+    if scalar_first:
+        x_shape = []
+        shift_shape = [4]
+    else:
+        x_shape = [4]
+        shift_shape = [] if scalar_shift else [4]
+    
     inputs = [
         onnx.helper.make_value_info(
             name="x",
             type_proto=onnx.helper.make_tensor_type_proto(
-                elem_type=onnx.TensorProto.INT32, shape=[4]
+                elem_type=onnx.TensorProto.INT32, shape=x_shape
             ),
         ),
         onnx.helper.make_value_info(
             name="shift",
             type_proto=onnx.helper.make_tensor_type_proto(
-                elem_type=onnx.TensorProto.INT32, shape=[] if scalar_shift else [4]
+                elem_type=onnx.TensorProto.INT32, shape=shift_shape
             ),
         ),
     ]
@@ -62,13 +68,21 @@ def export_bitshift(direction: str = "LEFT"):
     onnx.save(onnx_model, file_name)
     print(f"Finished exporting model to {file_name}")
     
-    # Scalar version
+    # Tensor-Scalar version
     onnx_model_scalar = build_model(direction, scalar_shift=True)
     file_name_scalar = f"bitshift_{direction.lower()}_scalar.onnx"
     
     onnx.checker.check_model(onnx_model_scalar)
     onnx.save(onnx_model_scalar, file_name_scalar)
     print(f"Finished exporting model to {file_name_scalar}")
+    
+    # Scalar-Tensor version
+    onnx_model_scalar_first = build_model(direction, scalar_first=True)
+    file_name_scalar_first = f"scalar_bitshift_{direction.lower()}.onnx"
+    
+    onnx.checker.check_model(onnx_model_scalar_first)
+    onnx.save(onnx_model_scalar_first, file_name_scalar_first)
+    print(f"Finished exporting scalar-first model to {file_name_scalar_first}")
 
 if __name__ == "__main__":
     for direction in ["LEFT", "RIGHT"]:

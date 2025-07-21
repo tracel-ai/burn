@@ -33,10 +33,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseXorNode {
                 let rhs = &rhs_scalar.name;
                 quote! { #lhs.bitwise_xor_scalar(#rhs.elem()) }
             }
-            (Type::Scalar(_lhs_scalar), Type::Tensor(_rhs_tensor)) => {
-                panic!(
-                    "BitwiseXorNode does not support scalar as first input and tensor as second input"
-                )
+            (Type::Scalar(lhs_scalar), Type::Tensor(rhs_tensor)) => {
+                let lhs = &lhs_scalar.name;
+                let rhs = scope.tensor_use_owned(rhs_tensor, node_position);
+                // Bitwise XOR is commutative, so we can swap the order
+                quote! { #rhs.bitwise_xor_scalar(#lhs.elem()) }
             }
             (Type::Scalar(_), Type::Scalar(_)) => {
                 panic!("BitwiseXorNode does not support both inputs as scalars")

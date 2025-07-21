@@ -50,10 +50,27 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
                 let rhs = &rhs_scalar.name;
                 quote! { #lhs.bitwise_right_shift_scalar(#rhs.elem()) }
             }
-            (Type::Scalar(_), Type::Tensor(_), _) => {
-                panic!(
-                    "BitShiftNode does not support scalar as first input and tensor as second input"
-                )
+            (Type::Scalar(lhs_scalar), Type::Tensor(rhs_tensor), Direction::Left) => {
+                let lhs = &lhs_scalar.name;
+                let rhs = scope.tensor_use_owned(rhs_tensor, node_position);
+                // For scalar << tensor, we need to broadcast the scalar to a tensor first
+                quote! {
+                    {
+                        let _scalar_tensor = Tensor::full(#rhs.shape(), #lhs, &#rhs.device());
+                        _scalar_tensor.bitwise_left_shift(#rhs)
+                    }
+                }
+            }
+            (Type::Scalar(lhs_scalar), Type::Tensor(rhs_tensor), Direction::Right) => {
+                let lhs = &lhs_scalar.name;
+                let rhs = scope.tensor_use_owned(rhs_tensor, node_position);
+                // For scalar >> tensor, we need to broadcast the scalar to a tensor first
+                quote! {
+                    {
+                        let _scalar_tensor = Tensor::full(#rhs.shape(), #lhs, &#rhs.device());
+                        _scalar_tensor.bitwise_right_shift(#rhs)
+                    }
+                }
             }
             (Type::Scalar(_), Type::Scalar(_), _) => {
                 panic!("BitShiftNode does not support both inputs as scalars")
