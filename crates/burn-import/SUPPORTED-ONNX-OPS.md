@@ -24,7 +24,7 @@ functionality.
 | [AveragePool1d][12]              | ✅             | ✅           |
 | [AveragePool2d][12]              | ✅             | ✅           |
 | [BatchNormalization][14]         | ✅             | ✅           |
-| [Bernoulli][15]                  | ❌             | ✅           |
+| [Bernoulli][15]                  | ✅             | ✅           |
 | [BitShift][16]                   | ❌             | ✅           |
 | [BitwiseAnd][17]                 | ❌             | ✅           |
 | [BitwiseNot][18]                 | ❌             | ✅           |
@@ -92,8 +92,8 @@ functionality.
 | [If][77]                         | ❌             | ✅           |
 | [Im][78]                         | ❌             | ❌           |
 | [InstanceNormalization][79]      | ✅             | ✅           |
-| [IsInf][80]                      | ❌             | ❌           |
-| [IsNaN][81]                      | ❌             | ✅           |
+| [IsInf][80]                      | ✅             | ✅           |
+| [IsNaN][81]                      | ✅             | ✅           |
 | [LayerNormalization][82]         | ✅             | ✅           |
 | [LeakyRelu][83]                  | ✅             | ✅           |
 | [Less][84]                       | ✅             | ✅           |

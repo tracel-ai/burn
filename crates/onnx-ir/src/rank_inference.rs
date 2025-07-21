@@ -1,7 +1,8 @@
 use crate::{
     ir::{Node, NodeType},
     node::{
-        argmax::argmax_update_outputs, argmin::argmin_update_outputs, cast::cast_update_outputs,
+        argmax::argmax_update_outputs, argmin::argmin_update_outputs,
+        bernoulli::bernoulli_update_output, cast::cast_update_outputs,
         comparison::elementwise_comparison_outputs, concat::concat_update_outputs,
         constant::constant_update_outputs, constant_of_shape::constant_of_shape_update_output,
         depth_to_space::depth_to_space_update_outputs, expand::expand_update_outputs,
@@ -31,6 +32,7 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::AveragePool1d => same_as_input(node),
         NodeType::AveragePool2d => same_as_input(node),
         NodeType::BatchNormalization => same_as_input(node),
+        NodeType::Bernoulli => bernoulli_update_output(node),
         NodeType::Cast => cast_update_outputs(node),
         NodeType::Ceil => same_as_input(node),
         NodeType::Clip => same_as_input(node),
@@ -60,6 +62,8 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::ConvTranspose1d => same_as_input(node),
         NodeType::ConvTranspose2d => same_as_input(node),
         NodeType::InstanceNormalization => same_as_input(node),
+        NodeType::IsInf => elementwise_comparison_outputs(node),
+        NodeType::IsNaN => elementwise_comparison_outputs(node),
         NodeType::LayerNormalization => same_as_input(node),
         NodeType::GroupNormalization => same_as_input(node),
         NodeType::DepthToSpace => depth_to_space_update_outputs(node),
