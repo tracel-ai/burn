@@ -27,37 +27,38 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let lhs = match &self.inputs[0] {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = &scalar.name;
-                quote! { #name }
-            }
-            _ => panic!("BitShiftNode only supports tensor and scalar inputs"),
-        };
-
-        let rhs = match &self.inputs[1] {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = &scalar.name;
-                quote! { #name }
-            }
-            _ => panic!("BitShiftNode only supports tensor and scalar inputs"),
-        };
-
         let output = &self.output.name;
 
-        // Choose the correct method based on direction and whether the second input is a scalar
-        let operation = match (self.direction, &self.inputs[1]) {
-            (Direction::Left, Type::Scalar(_)) => {
+        let operation = match (&self.inputs[0], &self.inputs[1], self.direction) {
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor), Direction::Left) => {
+                let lhs = scope.tensor_use_owned(lhs_tensor, node_position);
+                let rhs = scope.tensor_use_owned(rhs_tensor, node_position);
+                quote! { #lhs.bitwise_left_shift(#rhs) }
+            }
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor), Direction::Right) => {
+                let lhs = scope.tensor_use_owned(lhs_tensor, node_position);
+                let rhs = scope.tensor_use_owned(rhs_tensor, node_position);
+                quote! { #lhs.bitwise_right_shift(#rhs) }
+            }
+            (Type::Tensor(lhs_tensor), Type::Scalar(rhs_scalar), Direction::Left) => {
+                let lhs = scope.tensor_use_owned(lhs_tensor, node_position);
+                let rhs = &rhs_scalar.name;
                 quote! { #lhs.bitwise_left_shift_scalar(#rhs.elem()) }
             }
-            (Direction::Left, Type::Tensor(_)) => quote! { #lhs.bitwise_left_shift(#rhs) },
-            (Direction::Right, Type::Scalar(_)) => {
+            (Type::Tensor(lhs_tensor), Type::Scalar(rhs_scalar), Direction::Right) => {
+                let lhs = scope.tensor_use_owned(lhs_tensor, node_position);
+                let rhs = &rhs_scalar.name;
                 quote! { #lhs.bitwise_right_shift_scalar(#rhs.elem()) }
             }
-            (Direction::Right, Type::Tensor(_)) => quote! { #lhs.bitwise_right_shift(#rhs) },
-            _ => panic!("Invalid bit shift input type"),
+            (Type::Scalar(_), Type::Tensor(_), _) => {
+                panic!(
+                    "BitShiftNode does not support scalar as first input and tensor as second input"
+                )
+            }
+            (Type::Scalar(_), Type::Scalar(_), _) => {
+                panic!("BitShiftNode does not support both inputs as scalars")
+            }
+            _ => panic!("BitShiftNode only supports tensor and scalar inputs"),
         };
 
         quote! {

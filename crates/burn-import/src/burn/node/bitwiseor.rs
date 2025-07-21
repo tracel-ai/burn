@@ -20,30 +20,27 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseOrNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let lhs = match &self.inputs[0] {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = &scalar.name;
-                quote! { #name }
-            }
-            _ => panic!("BitwiseOrNode only supports tensor and scalar inputs"),
-        };
-
-        let rhs = match &self.inputs[1] {
-            Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-            Type::Scalar(scalar) => {
-                let name = &scalar.name;
-                quote! { #name }
-            }
-            _ => panic!("BitwiseOrNode only supports tensor and scalar inputs"),
-        };
-
         let output = &self.output.name;
 
-        // Check if the second input is a scalar
-        let operation = match &self.inputs[1] {
-            Type::Scalar(_) => quote! { #lhs.bitwise_or_scalar(#rhs.elem()) },
-            Type::Tensor(_) => quote! { #lhs.bitwise_or(#rhs) },
+        let operation = match (&self.inputs[0], &self.inputs[1]) {
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                let lhs = scope.tensor_use_owned(lhs_tensor, node_position);
+                let rhs = scope.tensor_use_owned(rhs_tensor, node_position);
+                quote! { #lhs.bitwise_or(#rhs) }
+            }
+            (Type::Tensor(lhs_tensor), Type::Scalar(rhs_scalar)) => {
+                let lhs = scope.tensor_use_owned(lhs_tensor, node_position);
+                let rhs = &rhs_scalar.name;
+                quote! { #lhs.bitwise_or_scalar(#rhs.elem()) }
+            }
+            (Type::Scalar(_lhs_scalar), Type::Tensor(_rhs_tensor)) => {
+                panic!(
+                    "BitwiseOrNode does not support scalar as first input and tensor as second input"
+                )
+            }
+            (Type::Scalar(_), Type::Scalar(_)) => {
+                panic!("BitwiseOrNode does not support both inputs as scalars")
+            }
             _ => panic!("BitwiseOrNode only supports tensor and scalar inputs"),
         };
 
