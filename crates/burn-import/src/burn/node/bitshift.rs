@@ -4,11 +4,17 @@ use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    Left,
+    Right,
+}
+
 #[derive(Debug, Clone, new)]
 pub struct BitShiftNode {
     pub inputs: Vec<Type>,
     pub output: TensorType,
-    pub direction: String,
+    pub direction: Direction,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
@@ -40,15 +46,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
         };
 
         let output = &self.output.name;
-        let direction = &self.direction;
 
         // Choose the correct method based on direction and whether the second input is a scalar
-        let operation = match (direction.to_lowercase().as_str(), &self.inputs[1]) {
-            ("left", Type::Scalar(_)) => quote! { #lhs.bitwise_left_shift_scalar(#rhs.elem()) },
-            ("left", Type::Tensor(_)) => quote! { #lhs.bitwise_left_shift(#rhs) },
-            ("right", Type::Scalar(_)) => quote! { #lhs.bitwise_right_shift_scalar(#rhs.elem()) },
-            ("right", Type::Tensor(_)) => quote! { #lhs.bitwise_right_shift(#rhs) },
-            _ => panic!("Invalid bit shift direction or input type"),
+        let operation = match (self.direction, &self.inputs[1]) {
+            (Direction::Left, Type::Scalar(_)) => {
+                quote! { #lhs.bitwise_left_shift_scalar(#rhs.elem()) }
+            }
+            (Direction::Left, Type::Tensor(_)) => quote! { #lhs.bitwise_left_shift(#rhs) },
+            (Direction::Right, Type::Scalar(_)) => {
+                quote! { #lhs.bitwise_right_shift_scalar(#rhs.elem()) }
+            }
+            (Direction::Right, Type::Tensor(_)) => quote! { #lhs.bitwise_right_shift(#rhs) },
+            _ => panic!("Invalid bit shift input type"),
         };
 
         quote! {
@@ -95,7 +104,7 @@ mod tests {
                 Type::Tensor(TensorType::new_int("input2", 1)),
             ],
             TensorType::new_int("output", 1),
-            "left".to_string(),
+            Direction::Left,
         ));
 
         graph.register_input_output(
@@ -145,7 +154,7 @@ mod tests {
                 Type::Tensor(TensorType::new_int("input2", 1)),
             ],
             TensorType::new_int("output", 1),
-            "right".to_string(),
+            Direction::Right,
         ));
 
         graph.register_input_output(

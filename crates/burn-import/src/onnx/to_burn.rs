@@ -23,7 +23,7 @@ use crate::{
             batch_norm::BatchNormNode,
             bernoulli::BernoulliNode,
             binary::BinaryNode,
-            bitshift::BitShiftNode,
+            bitshift::{BitShiftNode, Direction},
             bitwiseand::BitwiseAndNode,
             bitwisenot::BitwiseNotNode,
             bitwiseor::BitwiseOrNode,
@@ -691,7 +691,13 @@ impl ParsedOnnxGraph {
     fn bitshift_conversion(node: Node) -> BitShiftNode {
         let inputs = node.inputs.iter().map(Type::from).collect();
         let output = TensorType::from(node.outputs.first().unwrap());
-        let direction = bitshift_config(&node);
+        let onnx_direction = bitshift_config(&node);
+
+        // Map ONNX direction to burn-import Direction
+        let direction = match onnx_direction {
+            onnx_ir::node::bitshift::Direction::Left => Direction::Left,
+            onnx_ir::node::bitshift::Direction::Right => Direction::Right,
+        };
 
         BitShiftNode::new(inputs, output, direction)
     }

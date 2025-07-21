@@ -1,11 +1,34 @@
 use crate::ir::Node;
 
+pub use self::Direction as BitShiftDirection;
+
+/// Direction for BitShift operation
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    Left,
+    Right,
+}
+
+impl Direction {
+    fn from_str(s: &str) -> Result<Self, String> {
+        match s.to_lowercase().as_str() {
+            "left" => Ok(Direction::Left),
+            "right" => Ok(Direction::Right),
+            _ => Err(format!("Invalid bit shift direction: {s}")),
+        }
+    }
+}
+
 /// Configuration for BitShift operation
-pub fn bitshift_config(node: &Node) -> String {
-    node.attrs
+pub fn bitshift_config(node: &Node) -> Direction {
+    let direction_str = node
+        .attrs
         .get("direction")
         .map(|val| val.clone().into_string())
-        .unwrap_or("left".to_string())
+        .unwrap_or_else(|| "left".to_string());
+
+    Direction::from_str(&direction_str)
+        .unwrap_or_else(|e| panic!("Failed to parse bitshift direction: {e}"))
 }
 
 #[cfg(test)]
@@ -24,7 +47,7 @@ mod tests {
             .build();
 
         let config = bitshift_config(&node);
-        assert_eq!(config, "left");
+        assert_eq!(config, Direction::Left);
     }
 
     #[test]
@@ -37,7 +60,7 @@ mod tests {
             .build();
 
         let config = bitshift_config(&node);
-        assert_eq!(config, "right");
+        assert_eq!(config, Direction::Right);
     }
 
     #[test]
@@ -49,6 +72,6 @@ mod tests {
             .build();
 
         let config = bitshift_config(&node);
-        assert_eq!(config, "left");
+        assert_eq!(config, Direction::Left);
     }
 }
