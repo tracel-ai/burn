@@ -101,8 +101,8 @@ impl WsDevice {
     pub fn new(url: &str) -> Self {
         let mut address = String::new();
 
-        if !url.starts_with("ws://") {
-            address += "ws://";
+        if !url.starts_with("wss://") {
+            address += "wss://";
             address += url;
         } else {
             address += url;
@@ -123,7 +123,7 @@ impl Default for WsDevice {
     fn default() -> Self {
         let address = match std::env::var("BURN_REMOTE_ADDRESS") {
             Ok(address) => address,
-            Err(_) => String::from("ws://127.0.0.1:3000"),
+            Err(_) => String::from("wss://127.0.0.1:3000"),
         };
 
         Self::new(&address)
