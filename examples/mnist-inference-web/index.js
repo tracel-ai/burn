@@ -111,7 +111,7 @@ export function cropImageFromCanvas(ctx) {
  * src: https://stackoverflow.com/a/11818658
  */
 export function toFixed(num, fixed) {
-    const re = new RegExp('^-?\\d+(?:\.\\d{0,' + (fixed || -1) + '})?');
+    const re = /'^-?\\d+(?:\.\\d{0,' + (fixed || -1/g + '})?');
     return num.toString().match(re)[0];
 }
 
