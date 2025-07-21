@@ -24,7 +24,7 @@ function $(id) {
  * src: https://stackoverflow.com/a/11818658
  */
 function toFixed(num, fixed) {
-    const re = new RegExp('^-?\\d+(?:\.\\d{0,' + (fixed || -1) + '})?');
+    const re = new /'^-?\\d+(?:\.\\d{0,' + (fixed || -1/g + '})?');
     return num.toString().match(re)[0];
 }
 
