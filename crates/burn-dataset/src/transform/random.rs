@@ -75,6 +75,7 @@ mod tests {
     use super::*;
     use crate::FakeDataset;
     use crate::transform::selection::shuffled_indices;
+    use rand::SeedableRng;
 
     #[test]
     fn test_shuffled_dataset() {
