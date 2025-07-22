@@ -1,6 +1,6 @@
 use crate::Dataset;
 use crate::transform::SelectionDataset;
-use rand::{SeedableRng, rngs::StdRng};
+use rand::rngs::StdRng;
 
 /// A Shuffled a dataset.
 ///
