@@ -34,11 +34,11 @@ mod tests {
         let input1 = Tensor::<Backend, 3>::ones([2, 3, 4], &device);
         let input2 = Tensor::<Backend, 3>::ones([1, 2, 3], &device);
         let (shape_times_scalar, shape_times_shape) = model.forward(input1, input2);
-        
+
         // Expected outputs
-        let expected_scalar = [4, 6, 8];    // shape1 [2, 3, 4] * 2
-        let expected_shape = [2, 6, 12];    // shape1 [2, 3, 4] * shape2 [1, 2, 3]
-        
+        let expected_scalar = [4, 6, 8]; // shape1 [2, 3, 4] * 2
+        let expected_shape = [2, 6, 12]; // shape1 [2, 3, 4] * shape2 [1, 2, 3]
+
         assert_eq!(shape_times_scalar, expected_scalar);
         assert_eq!(shape_times_shape, expected_shape);
     }

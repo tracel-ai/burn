@@ -474,7 +474,19 @@ impl ParsedOnnxGraph {
 
         let attr = convert_constant_value(&node);
 
-        let const_value = match attr.ty {
+        let const_value = match &output.ty {
+            // Check the output type first - if it's been converted to Shape, handle it as Shape
+            ArgType::Shape(rank) => {
+                let shape_data = attr.value.expect("Shape constant should have value");
+                let shape_values: Vec<usize> = shape_data
+                    .data
+                    .into_i64s()
+                    .into_iter()
+                    .map(|v| v as usize)
+                    .collect();
+                assert_eq!(shape_values.len(), *rank, "Shape constant rank mismatch");
+                ConstantValue::Shape(shape_values)
+            }
             ArgType::Tensor(tensor) => {
                 // Treat tensor with rank 0 as scalar
                 if tensor.rank == 0 {
@@ -507,7 +519,6 @@ impl ParsedOnnxGraph {
                 ElementType::Bool => ConstantValue::Bool(attr.value.unwrap().data.into_bool()),
                 _ => panic!("Unsupported constant tensor type: {elem_type:?} "),
             },
-            ArgType::Shape(_) => panic!("Shape is not supported as constant value."),
         };
 
         ConstantNode::new(node.name.clone(), const_value, Type::from(output))

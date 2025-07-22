@@ -98,7 +98,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
                             let output = &self.output.name();
                             quote! {
                                 let input_shape = &#input_shape_name;
-                                let #output = input_shape[#idx] as i64;
+                                let #output = input_shape[#idx];
                             }
                         }
                         _ => panic!(

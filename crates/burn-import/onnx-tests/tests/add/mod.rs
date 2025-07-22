@@ -49,11 +49,11 @@ mod tests {
         let input1 = Tensor::<Backend, 3>::ones([2, 3, 4], &device);
         let input2 = Tensor::<Backend, 3>::ones([5, 6, 7], &device);
         let (shape_plus_scalar, shape_plus_shape) = model.forward(input1, input2);
-        
+
         // Expected outputs
         let expected_scalar = [12, 13, 14]; // shape1 [2, 3, 4] + 10
-        let expected_shape = [7, 9, 11];    // shape1 [2, 3, 4] + shape2 [5, 6, 7]
-        
+        let expected_shape = [7, 9, 11]; // shape1 [2, 3, 4] + shape2 [5, 6, 7]
+
         assert_eq!(shape_plus_scalar, expected_scalar);
         assert_eq!(shape_plus_shape, expected_shape);
     }

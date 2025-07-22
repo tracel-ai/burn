@@ -236,6 +236,10 @@ impl OnnxGraphBuilder {
         }
 
         let (mut processed_nodes, inputs, outputs) = graph_data.consume();
+
+        // Convert Constant nodes to Shape type when used with Shape in binary operations
+        self.convert_shape_constants(&mut processed_nodes);
+
         // Remove the graph inputs/output that are not used by any node
         let mut i = 0;
         processed_nodes.retain(|_| {
@@ -266,6 +270,106 @@ impl OnnxGraphBuilder {
         )
         .to_lowercase();
         node.name.clone_from(&new_name);
+    }
+
+    /// Convert Constant nodes to Shape type when used with Shape in binary operations
+    fn convert_shape_constants(&self, nodes: &mut [Node]) {
+        use crate::ir::AttributeValue;
+        use std::collections::HashMap;
+
+        // First pass: identify binary operations with Shape inputs and constant outputs to convert
+        let mut constants_to_convert: HashMap<String, usize> = HashMap::new();
+
+        for node in nodes.iter() {
+            match node.node_type {
+                NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div => {
+                    if node.inputs.len() == 2 {
+                        // Check if one input is Shape type
+                        let has_shape = node
+                            .inputs
+                            .iter()
+                            .any(|input| matches!(input.ty, ArgType::Shape(_)));
+
+                        if has_shape {
+                            // Find which input is a constant that needs conversion
+                            for input in &node.inputs {
+                                if !matches!(input.ty, ArgType::Shape(_)) {
+                                    // This input needs to come from a Constant node
+                                    // Store the output name that needs to be converted
+                                    if let ArgType::Tensor(tensor) = &input.ty {
+                                        if tensor.rank == 1 {
+                                            // Get the shape rank from the other input
+                                            if let Some(shape_rank) =
+                                                node.inputs.iter().find_map(|inp| match inp.ty {
+                                                    ArgType::Shape(rank) => Some(rank),
+                                                    _ => None,
+                                                })
+                                            {
+                                                constants_to_convert
+                                                    .insert(input.name.clone(), shape_rank);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Second pass: convert the identified Constant nodes and update all references
+        for node in nodes.iter_mut() {
+            match node.node_type {
+                NodeType::Constant => {
+                    if let Some(output) = node.outputs.first_mut() {
+                        if let Some(&shape_rank) = constants_to_convert.get(&output.name) {
+                            // Check if this constant can be converted to Shape
+                            if let ArgType::Tensor(tensor) = &output.ty {
+                                if tensor.rank == 1 && node.attrs.contains_key("value") {
+                                    // Get the tensor data to verify it has the right size
+                                    if let Some(AttributeValue::Tensor(tensor_data)) =
+                                        node.attrs.get("value")
+                                    {
+                                        if tensor_data.shape.len() == 1
+                                            && tensor_data.shape[0] == shape_rank
+                                        {
+                                            // Convert to Shape type
+                                            output.ty = ArgType::Shape(shape_rank);
+                                            log::debug!(
+                                                "Converted constant {} from Tensor to Shape({})",
+                                                output.name,
+                                                shape_rank
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div => {
+                    // Update input types to match converted constants
+                    for input in &mut node.inputs {
+                        if let Some(&shape_rank) = constants_to_convert.get(&input.name) {
+                            if let ArgType::Tensor(tensor) = &input.ty {
+                                if tensor.rank == 1 {
+                                    input.ty = ArgType::Shape(shape_rank);
+                                    log::debug!(
+                                        "Updated input {} in {} to Shape({})",
+                                        input.name,
+                                        node.name,
+                                        shape_rank
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 
     fn check_constants(&mut self, node: &mut Node, graph_data: &GraphData) {

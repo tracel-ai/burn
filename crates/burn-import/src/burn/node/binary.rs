@@ -169,7 +169,7 @@ impl BinaryNode {
                 }
             },
             (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
-                panic!("Subtraction is not supported between shape and tensor types")
+                panic!("Binary operation is not supported between shape and tensor types")
             }
             _ => panic!("Addition is supported for tensor, scalar, and shape types only"),
         };
@@ -217,7 +217,7 @@ impl BinaryNode {
                 }
             },
             (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
-                panic!("Subtraction is not supported between shape and tensor types")
+                panic!("Binary operation is not supported between shape and tensor types")
             }
             _ => panic!("Subtraction is supported for tensor, scalar, and shape types only"),
         };
