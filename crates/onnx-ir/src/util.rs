@@ -53,15 +53,21 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
 ///
 /// # Panics
 ///
-/// * If the domain is not the empty ONNX domain
+/// * If the domain is not supported
 pub fn check_opset_version(opset: &OperatorSetIdProto, min_version: i64) -> bool {
-    // For now, only empty domain (standard ONNX operators) is supported
-    if !opset.domain.is_empty() {
-        panic!("Only the standard ONNX domain is supported");
+    match opset.domain.as_str() {
+        // Standard ONNX operators
+        "" => opset.version >= min_version,
+        // ONNX ML operators - commonly used for traditional ML operators
+        "ai.onnx.ml" => opset.version >= 1, // ML operators are generally stable from version 1
+        // Add support for other domains as needed
+        _ => {
+            panic!(
+                "Unsupported ONNX domain: '{}'. Only standard ONNX ('') and ML ('ai.onnx.ml') domains are supported",
+                opset.domain
+            );
+        }
     }
-
-    // Return true if the opset version is greater than or equal to min_version
-    opset.version >= min_version
 }
 
 /// Verify that all operator sets in a model are supported.
@@ -174,7 +180,7 @@ mod tests {
 
         for (i, rank) in input_ranks.iter().enumerate() {
             inputs.push(Argument {
-                name: format!("input_{}", i),
+                name: format!("input_{i}"),
                 ty: ArgType::Tensor(TensorType {
                     elem_type: ElementType::Float32,
                     rank: *rank,
@@ -198,7 +204,7 @@ mod tests {
 
         Node {
             node_type: op_type.clone(),
-            name: format!("test_{:?}", op_type).to_lowercase(),
+            name: format!("test_{op_type:?}").to_lowercase(),
             inputs,
             outputs,
             attrs: HashMap::new(),

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
 use burn_tensor::DType;
@@ -18,7 +20,6 @@ use serde::{Deserialize, Serialize};
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::reduce::args::FusedReduceArgs;
 use crate::shared::ir::{FusePrecision, RefLayout};
-use crate::shared::trace::executor::ScalarIds;
 use crate::shared::trace::{TraceError, TraceRunner};
 use crate::shared::trace::{TuneOutput, Vectorization};
 use crate::shared::{
@@ -33,6 +34,10 @@ use super::args::{
 use super::tune::fused_reduce_autotune;
 
 pub struct ReduceOptimization<R: Runtime> {
+    info: Arc<ReduceOptimizationInfo<R>>,
+}
+
+pub(crate) struct ReduceOptimizationInfo<R: Runtime> {
     pub(crate) trace: FuseTrace,
     trace_read_fallback: FuseTrace,
     trace_write_fallback: FuseTrace,
@@ -43,7 +48,11 @@ pub struct ReduceOptimization<R: Runtime> {
     pub(crate) reduce: FusedReduce,
     pub(crate) reduce_plane: FusedReduce,
     pub(crate) reduce_shared_plane: FusedReduce,
-    fallback: Option<Box<dyn FallbackOperation<R>>>,
+}
+
+pub(crate) struct ReduceOptimizationTuneArg<R: Runtime> {
+    pub(crate) info: Arc<ReduceOptimizationInfo<R>>,
+    pub(crate) fallback: Box<dyn FallbackOperation<R>>,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
@@ -62,7 +71,7 @@ pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
     fn run(&self, context: &mut Context<'_, CubeFusionHandle<R>>);
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct ReduceOptimizationState {
     trace: FuseTrace,
     trace_read_fallback: FuseTrace,
@@ -72,6 +81,15 @@ pub struct ReduceOptimizationState {
     pub(crate) reduce_shared_plane: FusedReduce,
     len: usize,
     len_read: usize,
+}
+
+impl core::fmt::Debug for ReduceOptimizationState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "{{ len_read: {}, len_total: {} }}",
+            self.len_read, self.len
+        ))
+    }
 }
 
 #[derive(new, Clone, Serialize, Deserialize, Debug)]
@@ -106,6 +124,92 @@ pub enum FusedReduceError {
     InvalidInput,
 }
 
+impl<R: Runtime> ReduceOptimizationTuneArg<R> {
+    pub fn execute_fused_reduce<BT: CubeElement>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
+        FuseTrace::run::<R, BT, FusedReduce>(
+            &self.info.trace,
+            &self.info.client,
+            &self.info.device,
+            context,
+            &self.info.reduce,
+        )
+    }
+
+    pub fn execute_fused_reduce_plane<BT: CubeElement>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
+        FuseTrace::run::<R, BT, FusedReduce>(
+            &self.info.trace,
+            &self.info.client,
+            &self.info.device,
+            context,
+            &self.info.reduce_plane,
+        )
+    }
+
+    pub fn execute_fused_reduce_shared_plane<BT: CubeElement>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
+        FuseTrace::run::<R, BT, FusedReduce>(
+            &self.info.trace,
+            &self.info.client,
+            &self.info.device,
+            context,
+            &self.info.reduce_shared_plane,
+        )
+    }
+
+    pub fn execute_fallback<BT: CubeElement>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+    ) -> TuneOutput<R> {
+        #[allow(unused_mut)] // It is used when `autotune-checks` is activated.
+        let mut output_read = self
+            .info
+            .trace_read_fallback
+            .run::<R, BT, ElemwiseRunner>(
+                &self.info.client,
+                &self.info.device,
+                context,
+                &ElemwiseRunner,
+            )
+            .unwrap();
+
+        self.fallback.run(context);
+
+        #[cfg(feature = "autotune-checks")]
+        if let TuneOutput::Checked { handles } = &mut output_read {
+            let out_desc = context.tensors.get(&self.info.reduce.op.out.id).unwrap();
+            let handle_out = context
+                .handles
+                .get_handle(&out_desc.id, &burn_ir::TensorStatus::ReadOnly);
+
+            handles.insert(
+                self.info.reduce.op.out.id,
+                (out_desc.shape.clone(), handle_out.clone()),
+            );
+        }
+
+        let output_write = self
+            .info
+            .trace_write_fallback
+            .run::<R, BT, ElemwiseRunner>(
+                &self.info.client,
+                &self.info.device,
+                context,
+                &ElemwiseRunner,
+            )
+            .unwrap();
+
+        output_read.merge(output_write)
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 impl<R: Runtime> ReduceOptimization<R> {
     pub fn new(
@@ -127,7 +231,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             shared: true,
         });
 
-        Self {
+        let info = ReduceOptimizationInfo {
             trace,
             trace_read_fallback,
             trace_write_fallback,
@@ -138,7 +242,10 @@ impl<R: Runtime> ReduceOptimization<R> {
             reduce,
             reduce_plane,
             reduce_shared_plane,
-            fallback: None,
+        };
+
+        Self {
+            info: Arc::new(info),
         }
     }
     /// Execute the optimization.
@@ -148,38 +255,42 @@ impl<R: Runtime> ReduceOptimization<R> {
         fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
         // The index of the fallback reduce is the number of ops fused as read.
-        self.fallback = Some(fallback(self.len_read));
+        let fallback = fallback(self.info.len_read);
+        let arg = ReduceOptimizationTuneArg {
+            info: self.info.clone(),
+            fallback,
+        };
 
         #[cfg(feature = "autotune")]
-        fused_reduce_autotune::<R, BT>(self, context);
+        fused_reduce_autotune::<R, BT>(arg, context);
 
         #[cfg(not(feature = "autotune"))]
-        if self.execute_fused_reduce::<BT>(context).is_err() {
-            self.execute_fallback::<BT>(context);
+        if arg.execute_fused_reduce::<BT>(context).is_err() {
+            arg.execute_fallback::<BT>(context);
         }
     }
 
     pub fn num_output_buffers(&self) -> usize {
-        self.trace_read_fallback.resources.outputs.len()
+        self.info.trace_read_fallback.resources.outputs.len()
     }
 
     pub fn to_state(&self) -> ReduceOptimizationState {
         ReduceOptimizationState {
-            trace: self.trace.clone(),
-            trace_read_fallback: self.trace_read_fallback.clone(),
-            trace_write_fallback: self.trace_write_fallback.clone(),
-            reduce: self.reduce.clone(),
-            reduce_plane: self.reduce_plane.clone(),
-            reduce_shared_plane: self.reduce_shared_plane.clone(),
-            len: self.len,
-            len_read: self.len_read,
+            trace: self.info.trace.clone(),
+            trace_read_fallback: self.info.trace_read_fallback.clone(),
+            trace_write_fallback: self.info.trace_write_fallback.clone(),
+            reduce: self.info.reduce.clone(),
+            reduce_plane: self.info.reduce_plane.clone(),
+            reduce_shared_plane: self.info.reduce_shared_plane.clone(),
+            len: self.info.len,
+            len_read: self.info.len_read,
         }
     }
 
     pub fn from_state(device: &R::Device, state: ReduceOptimizationState) -> Self {
         let client = R::client(device);
 
-        Self {
+        let info = ReduceOptimizationInfo {
             trace: state.trace,
             trace_read_fallback: state.trace_read_fallback,
             trace_write_fallback: state.trace_write_fallback,
@@ -190,105 +301,16 @@ impl<R: Runtime> ReduceOptimization<R> {
             len_read: state.len_read,
             client,
             device: device.clone(),
-            fallback: None,
+        };
+
+        Self {
+            info: Arc::new(info),
         }
     }
 
-    pub fn execute_fused_reduce<BT: CubeElement>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
-        FuseTrace::run::<R, BT, FusedReduce>(
-            &self.trace,
-            &self.client,
-            &self.device,
-            context,
-            &self.reduce,
-            &mut Default::default(),
-        )
-    }
-
-    pub fn execute_fused_reduce_plane<BT: CubeElement>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
-        FuseTrace::run::<R, BT, FusedReduce>(
-            &self.trace,
-            &self.client,
-            &self.device,
-            context,
-            &self.reduce_plane,
-            &mut Default::default(),
-        )
-    }
-
-    pub fn execute_fused_reduce_shared_plane<BT: CubeElement>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
-        FuseTrace::run::<R, BT, FusedReduce>(
-            &self.trace,
-            &self.client,
-            &self.device,
-            context,
-            &self.reduce_shared_plane,
-            &mut Default::default(),
-        )
-    }
-
-    pub fn execute_fallback<BT: CubeElement>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> TuneOutput<R> {
-        // We have to share the same scalar ids between the two traces (read & write).
-        let mut scalars = ScalarIds::default();
-
-        #[allow(unused_mut)] // It is used when #[cfg(test)] is true.
-        let mut output_read = self
-            .trace_read_fallback
-            .run::<R, BT, ElemwiseRunner>(
-                &self.client,
-                &self.device,
-                context,
-                &ElemwiseRunner,
-                &mut scalars,
-            )
-            .unwrap();
-
-        self.fallback
-            .as_ref()
-            .expect("A fallback operation should be available")
-            .run(context);
-
-        #[cfg(feature = "autotune-checks")]
-        if let TuneOutput::Checked { handles } = &mut output_read {
-            let out_desc = context.tensors.get(&self.reduce.op.out.id).unwrap();
-            let handle_out = context
-                .handles
-                .get_handle(&out_desc.id, &burn_ir::TensorStatus::ReadOnly);
-
-            handles.insert(
-                self.reduce.op.out.id,
-                (out_desc.shape.clone(), handle_out.clone()),
-            );
-        }
-
-        let output_write = self
-            .trace_write_fallback
-            .run::<R, BT, ElemwiseRunner>(
-                &self.client,
-                &self.device,
-                context,
-                &ElemwiseRunner,
-                &mut scalars,
-            )
-            .unwrap();
-
-        output_read.merge(output_write)
-    }
     /// Returns the number of output buffers added by fusion.
     pub fn num_ops_fused(&self) -> usize {
-        self.len
+        self.info.len
     }
 }
 
@@ -316,7 +338,6 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
             }
             _ => inputs.shape_ref(&config_read.ref_layout, config_read.rank as usize),
         };
-
         let reduce_count: u32 = shape
             .iter()
             .enumerate()

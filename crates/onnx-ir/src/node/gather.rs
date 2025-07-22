@@ -69,7 +69,7 @@ pub fn gather_update_outputs(node: &mut Node) {
                 );
             }
         }
-        ty => panic!("Only tensor/shape input is valid but received: {:?}", ty),
+        ty => panic!("Only tensor/shape input is valid, got {ty:?}"),
     }
 }
 
@@ -87,7 +87,7 @@ pub fn gather_config(curr: &Node) -> usize {
     let input_dim = match curr.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor.rank as i64,
         ArgType::Shape(_shape) => 1, // Shape is always 1-D
-        other => panic!("Only tensor or shape input is valid, got {:?}", other),
+        other => panic!("Only tensor or shape input is valid, got {other:?}"),
     };
 
     // extract the attributes

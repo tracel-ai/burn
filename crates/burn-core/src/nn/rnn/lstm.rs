@@ -357,7 +357,7 @@ mod tests {
     use super::*;
     use crate::tensor::{Device, Distribution, TensorData};
     use crate::{TestBackend, module::Param, nn::LinearRecord};
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn_tensor::{ElementConversion, Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[cfg(feature = "std")]
@@ -374,10 +374,10 @@ mod tests {
         let gate_to_data =
             |gate: GateController<TestBackend>| gate.input_transform.weight.val().to_data();
 
-        gate_to_data(lstm.input_gate).assert_within_range(0..1);
-        gate_to_data(lstm.forget_gate).assert_within_range(0..1);
-        gate_to_data(lstm.output_gate).assert_within_range(0..1);
-        gate_to_data(lstm.cell_gate).assert_within_range(0..1);
+        gate_to_data(lstm.input_gate).assert_within_range::<FT>(0.elem()..1.elem());
+        gate_to_data(lstm.forget_gate).assert_within_range::<FT>(0.elem()..1.elem());
+        gate_to_data(lstm.output_gate).assert_within_range::<FT>(0.elem()..1.elem());
+        gate_to_data(lstm.cell_gate).assert_within_range::<FT>(0.elem()..1.elem());
     }
 
     /// Test forward pass with simple input vector.
@@ -465,7 +465,7 @@ mod tests {
         let (output, state) = lstm.forward(input, None);
 
         let expected = TensorData::from([[0.046]]);
-        let tolerance = Tolerance::rel_abs(1e-5, 1e-4);
+        let tolerance = Tolerance::default();
         state
             .cell
             .to_data()
@@ -727,7 +727,7 @@ mod tests {
             lstm.forward(input.clone(), Some(LstmState::new(c0, h0)));
         let (output_without_init_state, state_without_init_state) = lstm.forward(input, None);
 
-        let tolerance = Tolerance::rel_abs(1e-4, 1e-4);
+        let tolerance = Tolerance::permissive();
         output_with_init_state
             .to_data()
             .assert_approx_eq::<FT>(&expected_output_with_init_state, tolerance);
@@ -759,7 +759,7 @@ mod tests {
         let layer = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", layer),
+            alloc::format!("{layer}"),
             "Lstm {d_input: 2, d_hidden: 3, bias: true, params: 84}"
         );
     }
@@ -771,7 +771,7 @@ mod tests {
         let layer = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", layer),
+            alloc::format!("{layer}"),
             "BiLstm {d_input: 2, d_hidden: 3, bias: true, params: 168}"
         );
     }

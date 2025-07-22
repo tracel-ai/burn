@@ -1,6 +1,7 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{BurnImports, Scope, TensorKind, ToTokens, Type};
 use burn::record::PrecisionSettings;
+use onnx_ir::node::is_inf::IsInfConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::rc::Rc;
@@ -30,6 +31,8 @@ pub enum UnaryNodeKind {
     Gelu,
     LeakyRelu,
     HardSigmoid,
+    IsInf,
+    IsNaN,
     Log,
     LogSoftmax,
     Neg,
@@ -51,6 +54,7 @@ pub enum UnaryNodeKind {
     Tanh,
     Transpose,
     Sign,
+    Size,
 }
 
 impl UnaryNodeKind {
@@ -65,6 +69,8 @@ impl UnaryNodeKind {
             Self::Gelu => "gelu",
             Self::LeakyRelu => "leaky_relu",
             Self::HardSigmoid => "hard_sigmoid",
+            Self::IsInf => "is_inf",
+            Self::IsNaN => "is_nan",
             Self::Log => "log",
             Self::LogSoftmax => "log_softmax",
             Self::Neg => "neg",
@@ -86,6 +92,7 @@ impl UnaryNodeKind {
             Self::Tanh => "tanh",
             Self::Transpose => "transpose",
             Self::Sign => "sign",
+            Self::Size => "size",
         }
     }
 }
@@ -161,6 +168,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
                 }
                 if input_kind == TensorKind::Int || output_kind == TensorKind::Int {
                     imports.register("burn::tensor::Int");
+                }
+            }
+            UnaryNodeKind::IsNaN | UnaryNodeKind::IsInf => {
+                if matches!(self.output, Type::Tensor(_)) {
+                    imports.register("burn::tensor::Bool");
                 }
             }
             _ => {}
@@ -512,6 +524,43 @@ impl UnaryNode {
     pub(crate) fn sign(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.sign()};
         Self::new(input, output, UnaryNodeKind::Sign, Rc::new(function))
+    }
+
+    pub(crate) fn size(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.shape.num_elements()};
+        Self::new(input, output, UnaryNodeKind::Size, Rc::new(function))
+    }
+
+    pub(crate) fn is_inf(input: Type, output: Type, config: IsInfConfig) -> Self {
+        let function = match &output {
+            Type::Scalar(_) => match (config.detect_negative, config.detect_positive) {
+                (true, true) => move |input| quote! { #input.is_infinite() },
+                (false, true) => {
+                    move |input| quote! { #input.is_infinite() && #input.is_sign_positive() }
+                }
+                (true, false) => {
+                    move |input| quote! { #input.is_infinite() && #input.is_sign_negative() }
+                }
+                (false, false) => move |_| quote! { false },
+            },
+            Type::Tensor(_) => match (config.detect_negative, config.detect_positive) {
+                (true, true) => move |input| quote! { #input.is_inf() },
+                (false, true) => {
+                    move |input| quote! { #input.clone().is_inf().bool_and(#input.greater_elem(0.0)) }
+                }
+                (true, false) => {
+                    move |input| quote! { #input.clone().is_inf().bool_and(#input.lower_elem(0.0)) }
+                }
+                (false, false) => move |input| quote! { #input.zeros_like().bool() },
+            },
+            v => panic!("IsInf only supports scalar or tensor outputs, but got: {v:?}"),
+        };
+        Self::new(input, output, UnaryNodeKind::IsInf, Rc::new(function))
+    }
+
+    pub(crate) fn is_nan(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.is_nan() };
+        Self::new(input, output, UnaryNodeKind::IsNaN, Rc::new(function))
     }
 }
 
@@ -1212,6 +1261,189 @@ mod tests {
             },
             vec!["tensor1".to_string()],
             vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_size() {
+        one_node_graph(
+            UnaryNode::size(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Int64)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> i64 {
+                    let scalar1 = tensor1.shape.num_elements();
+
+                    scalar1
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["scalar1".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_is_inf() {
+        one_node_graph(
+            UnaryNode::is_inf(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_bool("tensor2", 4)),
+                IsInfConfig::new(true, true),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
+                    let tensor2 = tensor1.is_inf();
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+
+        one_node_graph(
+            UnaryNode::is_inf(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_bool("tensor2", 4)),
+                IsInfConfig::new(false, true),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
+                    let tensor2 = tensor1.clone().is_inf().bool_and(tensor1.greater_elem(0.0));
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+
+        one_node_graph(
+            UnaryNode::is_inf(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_bool("tensor2", 4)),
+                IsInfConfig::new(true, false),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
+                    let tensor2 = tensor1.clone().is_inf().bool_and(tensor1.lower_elem(0.0));
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+
+        one_node_graph(
+            UnaryNode::is_inf(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_bool("tensor2", 4)),
+                IsInfConfig::new(false, false),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
+                    let tensor2 = tensor1.zeros_like().bool();
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+
+        one_node_graph(
+            UnaryNode::is_inf(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float32)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
+                IsInfConfig::new(true, true),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: f32) -> bool {
+                    let scalar2 = scalar1.is_infinite();
+                    scalar2
+                }
+            },
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
+        );
+
+        one_node_graph(
+            UnaryNode::is_inf(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float32)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
+                IsInfConfig::new(false, true),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: f32) -> bool {
+                    let scalar2 = scalar1.is_infinite() && scalar1.is_sign_positive();
+                    scalar2
+                }
+            },
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
+        );
+
+        one_node_graph(
+            UnaryNode::is_inf(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float32)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
+                IsInfConfig::new(true, false),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: f32) -> bool {
+                    let scalar2 = scalar1.is_infinite() && scalar1.is_sign_negative();
+                    scalar2
+                }
+            },
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
+        );
+
+        one_node_graph(
+            UnaryNode::is_inf(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float32)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
+                IsInfConfig::new(false, false),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: f32) -> bool {
+                    let scalar2 = false;
+                    scalar2
+                }
+            },
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_is_nan() {
+        one_node_graph(
+            UnaryNode::is_nan(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_bool("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
+                    let tensor2 = tensor1.is_nan();
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+
+        one_node_graph(
+            UnaryNode::is_nan(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float32)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: f32) -> bool {
+                    let scalar2 = scalar1.is_nan();
+                    scalar2
+                }
+            },
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
         );
     }
 }

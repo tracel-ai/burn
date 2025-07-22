@@ -130,8 +130,7 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
                 } else {
                     // Error handling: Dimension mismatch for broadcasting
                     panic!(
-                        "Dimension mismatch: cannot broadcast dimension {} of tensor to target shape",
-                        tensor_dim
+                        "Dimension mismatch: cannot broadcast dimension {tensor_dim} of tensor to target shape"
                     );
                 }
             } else {
@@ -186,4 +185,20 @@ pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {
         &tensor.strides,
         tensor.shape.num_dims() - 1,
     )
+}
+
+pub(crate) fn max_line_size_many<R: CubeRuntime>(tensors: &[&CubeTensor<R>], dim: usize) -> u8 {
+    let vec = tensors
+        .iter()
+        .map(|tensor| {
+            tensor_vectorization_factor(
+                R::supported_line_sizes(),
+                &tensor.shape.dims,
+                &tensor.strides,
+                dim,
+            )
+        })
+        .min();
+
+    vec.unwrap_or(0)
 }

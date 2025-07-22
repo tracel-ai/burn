@@ -6,6 +6,8 @@
 //! To test these components effectively, we create mock types for the stream, optimization,
 //! optimization builder, and stream segment. These mock types aid in comprehensively
 //! understanding the process of optimizing streams.
+use std::sync::Arc;
+
 use burn_ir::{
     BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr, TensorId, TensorIr,
     TensorStatus, UnaryOpIr,
@@ -13,7 +15,8 @@ use burn_ir::{
 use burn_tensor::DType;
 
 use crate::{
-    OptimizationBuilder, OptimizationProperties, OptimizationStatus,
+    NumOperations, OptimizationBuilder, OptimizationProperties, OptimizationStatus,
+    search::BlockOptimization,
     stream::store::{
         ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
     },
@@ -22,7 +25,7 @@ use crate::{
 use super::*;
 
 /// A fake stream of operations for testing purpose.
-struct TestStream {
+pub struct TestStream {
     processor: Processor<TestOptimization>,
     store: ExecutionPlanStore<TestOptimization>,
     executed: Vec<ExecutionPlanId>,
@@ -33,7 +36,8 @@ struct TestStream {
 ///
 /// The optimizer tries to fuse only the `expected_operations` if they appear
 /// in the operations queue
-struct TestOptimizationBuilder {
+#[derive(Clone)]
+pub struct TestOptimizationBuilder {
     builder_id: usize,
     expected_operations: Vec<OperationIr>,
     actual: Vec<OperationIr>,
@@ -41,16 +45,39 @@ struct TestOptimizationBuilder {
 
 /// A fake optimization for testing purpose.
 #[derive(new, Debug, PartialEq)]
-struct TestOptimization {
+pub struct TestOptimization {
     builder_id: usize,
     size: usize,
 }
 
+impl NumOperations for TestOptimization {
+    fn len(&self) -> usize {
+        self.size
+    }
+}
+
 /// A fake [stream segment](StreamSegment) for testing purpose.
 #[derive(new)]
-struct TestSegment<'i> {
+pub struct TestSegment<'i> {
     operations: &'i mut Vec<OperationIr>,
     executed: &'i mut Vec<ExecutionPlanId>,
+}
+
+impl<O> ExecutionStrategy<O> {
+    /// Create an ordered execution strategy with the given size.
+    pub fn operations(size: usize) -> Self {
+        Self::Operations {
+            ordering: Arc::new((0..size).collect()),
+        }
+    }
+}
+
+impl ExecutionStrategy<TestOptimization> {
+    /// Only use it for testing, to easily create ordered strategies.
+    pub fn optimization(opt: TestOptimization) -> Self {
+        let ordering = Arc::new((0..opt.size).collect());
+        Self::Optimization { opt, ordering }
+    }
 }
 
 /// This is a substantial test case that examines a lengthy scenario with a diverse set of conditions.
@@ -88,7 +115,7 @@ fn should_support_complex_stream() {
         ExecutionPlan {
             operations: vec![operation_1(), operation_1()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Operations,
+            optimization: BlockOptimization::new(ExecutionStrategy::operations(2), Vec::new()),
         },
     );
 
@@ -107,7 +134,10 @@ fn should_support_complex_stream() {
         ExecutionPlan {
             operations: vec![operation_1(), operation_2()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+            optimization: BlockOptimization::new(
+                ExecutionStrategy::optimization(TestOptimization::new(builder_id_1, 2)),
+                vec![0, 1],
+            ),
         },
     );
 
@@ -126,7 +156,10 @@ fn should_support_complex_stream() {
         ExecutionPlan {
             operations: vec![operation_2(), operation_2()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_2, 2)),
+            optimization: BlockOptimization {
+                strategy: ExecutionStrategy::optimization(TestOptimization::new(builder_id_2, 2)),
+                ordering: vec![0, 1],
+            },
         },
     );
 
@@ -145,7 +178,10 @@ fn should_support_complex_stream() {
         ExecutionPlan {
             operations: vec![operation_1(), operation_2()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+            optimization: BlockOptimization {
+                strategy: ExecutionStrategy::optimization(TestOptimization::new(builder_id_1, 2)),
+                ordering: vec![0, 1],
+            },
         },
     );
 
@@ -179,7 +215,10 @@ fn should_reuse_basic_operations() {
         ExecutionPlan {
             operations: vec![operation_3()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Operations,
+            optimization: BlockOptimization {
+                strategy: ExecutionStrategy::operations(1),
+                ordering: vec![0],
+            },
         },
     );
 
@@ -191,7 +230,10 @@ fn should_reuse_basic_operations() {
         ExecutionPlan {
             operations: vec![operation_3()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Operations,
+            optimization: BlockOptimization {
+                strategy: ExecutionStrategy::operations(1),
+                ordering: vec![0],
+            },
         },
     );
 
@@ -206,7 +248,10 @@ fn should_reuse_basic_operations() {
         ExecutionPlan {
             operations: vec![operation_1(), operation_3()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Operations,
+            optimization: BlockOptimization {
+                strategy: ExecutionStrategy::operations(2),
+                ordering: vec![0],
+            },
         },
     );
     stream.assert_number_of_operations(0);
@@ -261,7 +306,10 @@ fn should_support_overlapping_optimizations() {
                 operation_1(),
                 operation_2(),
             ])],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+            optimization: BlockOptimization {
+                strategy: ExecutionStrategy::optimization(TestOptimization::new(builder_id_1, 2)),
+                ordering: vec![0, 1],
+            },
         },
     );
 
@@ -276,7 +324,10 @@ fn should_support_overlapping_optimizations() {
                 ExecutionTrigger::OnOperations(vec![operation_1(), operation_2()]),
                 ExecutionTrigger::OnOperations(vec![operation_2()]),
             ],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+            optimization: BlockOptimization {
+                strategy: ExecutionStrategy::optimization(TestOptimization::new(builder_id_1, 2)),
+                ordering: vec![0, 1],
+            },
         },
     );
     stream.assert_plan(
@@ -284,7 +335,10 @@ fn should_support_overlapping_optimizations() {
         ExecutionPlan {
             operations: vec![operation_2()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Operations,
+            optimization: BlockOptimization {
+                strategy: ExecutionStrategy::operations(1),
+                ordering: vec![0],
+            },
         },
     );
 
@@ -309,7 +363,10 @@ fn should_support_overlapping_optimizations() {
         ExecutionPlan {
             operations: vec![operation_1(), operation_2(), operation_1(), operation_1()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 4)),
+            optimization: BlockOptimization {
+                strategy: ExecutionStrategy::optimization(TestOptimization::new(builder_id_1, 4)),
+                ordering: vec![0],
+            },
         },
     );
 
@@ -337,7 +394,10 @@ fn should_support_overlapping_optimizations() {
                 ExecutionTrigger::OnOperations(vec![operation_2()]),
                 ExecutionTrigger::OnSync,
             ],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+            optimization: BlockOptimization {
+                strategy: ExecutionStrategy::optimization(TestOptimization::new(builder_id_1, 2)),
+                ordering: vec![0, 1],
+            },
         },
     );
     stream.assert_plan(
@@ -345,7 +405,10 @@ fn should_support_overlapping_optimizations() {
         ExecutionPlan {
             operations: vec![operation_1()],
             triggers: vec![ExecutionTrigger::OnSync],
-            strategy: ExecutionStrategy::Operations,
+            optimization: BlockOptimization {
+                strategy: ExecutionStrategy::operations(1),
+                ordering: vec![0],
+            },
         },
     );
 
@@ -356,7 +419,10 @@ fn should_support_overlapping_optimizations() {
         ExecutionPlan {
             operations: vec![operation_3()],
             triggers: vec![ExecutionTrigger::Always],
-            strategy: ExecutionStrategy::Operations,
+            optimization: BlockOptimization {
+                strategy: ExecutionStrategy::operations(1),
+                ordering: vec![0],
+            },
         },
     );
 
@@ -422,7 +488,7 @@ impl TestStream {
 
 impl TestOptimizationBuilder {
     /// Create a new optimization builder that follows a pattern with a trigger.
-    fn new(builder_id: usize, operations: Vec<OperationIr>) -> Self {
+    pub fn new(builder_id: usize, operations: Vec<OperationIr>) -> Self {
         Self {
             builder_id,
             expected_operations: operations,
@@ -495,6 +561,9 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
     fn len(&self) -> usize {
         self.expected_operations.len()
     }
+    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<TestOptimization>> {
+        Box::new(self.clone())
+    }
 }
 
 impl StreamSegment<TestOptimization> for TestSegment<'_> {
@@ -507,19 +576,32 @@ impl StreamSegment<TestOptimization> for TestSegment<'_> {
     fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<TestOptimization>) {
         let execution_plan = store.get_unchecked(id);
 
-        match &execution_plan.strategy {
-            ExecutionStrategy::Optimization(optimization) => {
-                self.operations.drain(0..optimization.size);
-            }
-            ExecutionStrategy::Operations => self.operations.clear(),
-        };
+        self.execute_strategy(&execution_plan.optimization.strategy);
 
         self.executed.push(id);
     }
 }
 
+impl TestSegment<'_> {
+    fn execute_strategy(&mut self, strategy: &ExecutionStrategy<TestOptimization>) {
+        match strategy {
+            ExecutionStrategy::Optimization { opt, .. } => {
+                self.operations.drain(0..opt.size);
+            }
+            ExecutionStrategy::Operations { ordering } => {
+                self.operations.drain(0..ordering.len());
+            }
+            ExecutionStrategy::Composed(strategies) => {
+                for strategy in strategies {
+                    self.execute_strategy(strategy);
+                }
+            }
+        }
+    }
+}
+
 /// Just a simple operation.
-fn operation_1() -> OperationIr {
+pub fn operation_1() -> OperationIr {
     OperationIr::NumericFloat(
         DType::F32,
         NumericOperationIr::Add(BinaryOpIr {
@@ -546,7 +628,7 @@ fn operation_1() -> OperationIr {
 }
 
 /// Just a simple operation.
-fn operation_2() -> OperationIr {
+pub fn operation_2() -> OperationIr {
     OperationIr::NumericFloat(
         DType::F32,
         NumericOperationIr::AddScalar(ScalarOpIr {
@@ -568,7 +650,7 @@ fn operation_2() -> OperationIr {
 }
 
 /// Just a simple operation.
-fn operation_3() -> OperationIr {
+pub fn operation_3() -> OperationIr {
     OperationIr::Float(
         DType::F32,
         FloatOperationIr::Log(UnaryOpIr {

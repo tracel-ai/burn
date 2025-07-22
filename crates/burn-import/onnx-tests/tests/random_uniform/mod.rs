@@ -6,7 +6,7 @@ mod tests {
     use super::*;
     use burn::tensor::Shape;
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
 
     #[test]
     fn random_uniform() {

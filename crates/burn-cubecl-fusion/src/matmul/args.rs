@@ -1,5 +1,5 @@
 use cubecl::{
-    linalg::matmul::components::{
+    matmul::components::{
         MatmulPrecision,
         global::{Quantization, args::MatmulArgs},
     },

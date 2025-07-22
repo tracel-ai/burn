@@ -13,10 +13,8 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
     }
 
     execute_with_dtype!(tensor.dtype, E, {
-        let output = cubecl::linalg::tensor::into_contiguous::<R, E>(
-            &tensor.client,
-            &tensor.as_handle_ref(),
-        );
+        let output =
+            cubecl::std::tensor::into_contiguous::<R, E>(&tensor.client, &tensor.as_handle_ref());
 
         CubeTensor::new(
             tensor.client,
@@ -41,7 +39,7 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
     }
 
     execute_with_dtype!(tensor.dtype, E, {
-        let output = cubecl::linalg::tensor::into_contiguous_pitched::<R, E>(
+        let output = cubecl::std::tensor::into_contiguous_pitched::<R, E>(
             &tensor.client,
             &tensor.as_handle_ref(),
         );

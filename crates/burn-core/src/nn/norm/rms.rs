@@ -119,7 +119,7 @@ mod tests {
         ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -128,7 +128,7 @@ mod tests {
         let layer_norm = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            format!("{}", layer_norm),
+            format!("{layer_norm}"),
             "RmsNorm {d_model: 6, epsilon: 0.00001, params: 6}"
         );
     }

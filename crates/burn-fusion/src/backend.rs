@@ -1,7 +1,7 @@
 use crate::{
     FusionClientLocator, FusionTensor,
     client::FusionClient,
-    stream::{Context, Operation},
+    stream::{Context, OrderedExecution},
 };
 use burn_ir::{BackendIr, OperationIr, TensorHandle};
 use burn_tensor::{
@@ -109,22 +109,29 @@ pub trait OptimizationBuilder<O>: Send {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    /// Clone the optimization builder.
+    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<O>>;
 }
 
-/// The operation created from the [builder](OptimizationBuilder).
-pub trait Optimization<R: FusionRuntime>: Send {
-    /// Execute the operation.
-    fn execute(
-        &mut self,
-        context: &mut Context<'_, R::FusionHandle>,
-        operations: &[Box<dyn Operation<R>>],
-    );
-    /// The number of registered operations in this optimization.
+/// The number of operations contained in the data strusture.
+pub trait NumOperations: core::fmt::Debug {
+    /// The number of registered operations.
     fn len(&self) -> usize;
     /// If the current optimization is empty.
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
+}
+
+/// The operation created from the [builder](OptimizationBuilder).
+pub trait Optimization<R: FusionRuntime>: Send + NumOperations {
+    /// Execute the operation.
+    fn execute(
+        &mut self,
+        context: &mut Context<'_, R::FusionHandle>,
+        execution: &OrderedExecution<R>,
+    );
+
     /// Returns the state that can be serialized.
     fn to_state(&self) -> R::OptimizationState;
     /// Create the optimization from the state.

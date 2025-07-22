@@ -7,11 +7,11 @@ use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
     reduce::tune_key::ReduceAutotuneKey,
-    tune::{LocalTuner, TunableSet, local_tuner},
+    tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use serde::{Deserialize, Serialize};
 
-use super::optimization::ReduceOptimization;
+use super::optimization::ReduceOptimizationTuneArg;
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
 pub struct FusedReduceAutotuneKey {
@@ -26,27 +26,29 @@ pub struct FusedReduceAutotuneKey {
 
 /// Executes autotune on reduce operations
 pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
-    optimization: &ReduceOptimization<R>,
+    arg: ReduceOptimizationTuneArg<R>,
     context: &mut Context<CubeFusionHandle<R>>,
 ) {
     static TUNER: LocalTuner<FusedReduceAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
-        .with_tunable(tune_fallback::<R, BT>) // First one should always work.
-        .with_tunable(tune_reduce::<R, BT>)
-        .with_tunable(tune_reduce_plane::<R, BT>)
-        .with_tunable(tune_reduce_shared_plane::<R, BT>);
+    let tunables = TUNER.init(|| {
+        TunableSet::new(create_key::<R>, input_gen::<R>)
+            .with(Tunable::new(tune_fallback::<R, BT>)) // First one should always work.
+            .with(Tunable::new(tune_reduce::<R, BT>))
+            .with(Tunable::new(tune_reduce_plane::<R, BT>))
+            .with(Tunable::new(tune_reduce_shared_plane::<R, BT>))
+    });
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&optimization.client, &optimization.device),
-        &optimization.client,
-        &tunables,
-        TuneInput::new(context, optimization),
+        &CubeTuneId::new::<R>(&arg.info.client, &arg.info.device),
+        &arg.info.client.clone(),
+        tunables,
+        TuneInput::new(context, arg),
     );
 }
 
 pub(crate) fn create_key<R: Runtime>(
-    input: &TuneInput<R, ReduceOptimization<R>>,
+    input: &TuneInput<R, ReduceOptimizationTuneArg<R>>,
 ) -> FusedReduceAutotuneKey {
     let opt = input.optimization();
     let context = match input.context() {
@@ -54,19 +56,19 @@ pub(crate) fn create_key<R: Runtime>(
         TuneContext::Fork(_) => panic!("Not supported when generating key"),
     };
 
-    let input = context.tensors.get(&opt.reduce.op.input.id).unwrap();
-    let out = context.tensors.get(&opt.reduce.op.out.id).unwrap();
-    let acc = opt.reduce.acc.into_elem();
+    let input = context.tensors.get(&opt.info.reduce.op.input.id).unwrap();
+    let out = context.tensors.get(&opt.info.reduce.op.out.id).unwrap();
+    let acc = opt.info.reduce.acc.into_elem();
     let key = ReduceAutotuneKey::generate(
         input.dtype.into(),
         out.dtype.into(),
         acc,
         &input.shape,
-        opt.reduce.axis == input.shape.len() - 1,
-        opt.reduce.axis,
+        opt.info.reduce.axis == input.shape.len() - 1,
+        opt.info.reduce.axis,
     );
-    let read = &opt.trace.blocks[0];
-    let write = &opt.trace.blocks[1];
+    let read = &opt.info.trace.blocks[0];
+    let write = &opt.info.trace.blocks[1];
 
     FusedReduceAutotuneKey::new(
         key,
@@ -78,13 +80,13 @@ pub(crate) fn create_key<R: Runtime>(
 
 fn input_gen<R: Runtime>(
     _key: &FusedReduceAutotuneKey,
-    input: &TuneInput<R, ReduceOptimization<R>>,
-) -> TuneInput<R, ReduceOptimization<R>> {
+    input: &TuneInput<R, ReduceOptimizationTuneArg<R>>,
+) -> TuneInput<R, ReduceOptimizationTuneArg<R>> {
     input.clone()
 }
 
 fn tune_reduce<R: Runtime, BT: CubeElement>(
-    input: TuneInput<R, ReduceOptimization<R>>,
+    input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
@@ -99,7 +101,7 @@ fn tune_reduce<R: Runtime, BT: CubeElement>(
 }
 
 fn tune_reduce_plane<R: Runtime, BT: CubeElement>(
-    input: TuneInput<R, ReduceOptimization<R>>,
+    input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
@@ -114,7 +116,7 @@ fn tune_reduce_plane<R: Runtime, BT: CubeElement>(
 }
 
 fn tune_reduce_shared_plane<R: Runtime, BT: CubeElement>(
-    input: TuneInput<R, ReduceOptimization<R>>,
+    input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
@@ -131,7 +133,7 @@ fn tune_reduce_shared_plane<R: Runtime, BT: CubeElement>(
 }
 
 fn tune_fallback<R: Runtime, BT: CubeElement>(
-    input: TuneInput<R, ReduceOptimization<R>>,
+    input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();

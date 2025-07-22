@@ -1,12 +1,5 @@
-use alloc::vec::Vec;
 use burn_tensor::Shape;
 use hashbrown::HashMap;
-
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
-
-#[cfg(not(target_has_atomic = "ptr"))]
-use portable_atomic_util::Arc;
 
 use crate::{BackendIr, TensorHandle, TensorId, TensorIr, TensorStatus};
 
@@ -16,8 +9,6 @@ use crate::{BackendIr, TensorHandle, TensorId, TensorIr, TensorStatus};
 pub struct HandleContainer<H> {
     handles: HashMap<TensorId, Handle<H>>,
     counter: u64,
-    /// Handle candidates to be freed.
-    pub handles_orphan: Vec<TensorId>,
 }
 
 impl<H: Clone> HandleContainer<H> {
@@ -32,7 +23,6 @@ impl<H: Clone> HandleContainer<H> {
         Self {
             handles,
             counter: self.counter,
-            handles_orphan: self.handles_orphan.clone(),
         }
     }
 }
@@ -42,7 +32,6 @@ impl<H> core::fmt::Debug for HandleContainer<H> {
         f.debug_struct("HandleContainer")
             .field("handles", &self.handles.keys()) // only care about the IDs when debugging
             .field("counter", &self.counter)
-            .field("handles_orphan", &self.handles_orphan)
             .finish()
     }
 }
@@ -61,7 +50,6 @@ impl<H: Clone> HandleContainer<H> {
     pub fn new() -> Self {
         Self {
             handles: HashMap::new(),
-            handles_orphan: Vec::new(),
             counter: 0,
         }
     }
@@ -87,7 +75,7 @@ impl<H: Clone> HandleContainer<H> {
         let (id, handle) = self
             .handles
             .remove_entry(id)
-            .unwrap_or_else(|| panic!("Should have handle for tensor {:?}", id));
+            .unwrap_or_else(|| panic!("Should have handle for tensor {id:?}"));
 
         match handle {
             Handle::Existing(handle) => match status {
@@ -97,11 +85,10 @@ impl<H: Clone> HandleContainer<H> {
                 }
                 TensorStatus::ReadWrite => handle,
                 TensorStatus::NotInit => panic!(
-                    "Cannot get uninitialized tensor {:?}. Tensor exist but with wrong status",
-                    id
+                    "Cannot get uninitialized tensor {id:?}. Tensor exist but with wrong status"
                 ),
             },
-            Handle::NotInit => panic!("Cannot get uninitialized handle {:?}.", id),
+            Handle::NotInit => panic!("Cannot get uninitialized handle {id:?}."),
         }
     }
 
@@ -189,12 +176,16 @@ impl<H: Clone> HandleContainer<H> {
     }
 
     /// Lazily create a new empty tensor and return its corresponding [tensor id](TensorId).
-    pub fn create_tensor_uninit(&mut self) -> Arc<TensorId> {
+    pub fn create_tensor_uninit(&mut self) -> TensorId {
         let id = TensorId::new(self.counter);
         self.counter += 1;
         self.handles.insert(id, Handle::NotInit);
+        id
+    }
 
-        Arc::new(id)
+    /// Remove tensor handle from container.
+    pub fn remove_handle(&mut self, id: TensorId) -> Option<Handle<H>> {
+        self.handles.remove(&id)
     }
 
     /// Remove tensor handle from container if writable
@@ -205,22 +196,11 @@ impl<H: Clone> HandleContainer<H> {
             TensorStatus::ReadWrite => {
                 self.handles.remove(&tensor.id);
             }
-        }
+        };
     }
 
-    /// Remove tensor handle from container if not in use
-    pub fn free_orphans(&mut self, remaining: &[&TensorId]) {
-        let mut handles_orphan = Vec::new();
-
-        // TODO: Optimization => Change the for loop order depending of the length of each.
-        for id in self.handles_orphan.drain(..) {
-            if remaining.contains(&&id) {
-                handles_orphan.push(id);
-            } else {
-                self.handles.remove(&id);
-            }
-        }
-
-        self.handles_orphan = handles_orphan;
+    /// Returns the number of handles.
+    pub fn num_handles(&self) -> usize {
+        self.handles.len()
     }
 }

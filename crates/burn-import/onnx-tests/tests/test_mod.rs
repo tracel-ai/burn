@@ -2,13 +2,18 @@
 
 extern crate alloc;
 
+mod backend;
+
 // Import individual node modules
 pub mod add;
 pub mod and;
 pub mod argmax;
+pub mod argmin;
 pub mod avg_pool;
 pub mod batch_norm;
+pub mod bernoulli;
 pub mod cast;
+pub mod ceil;
 pub mod clip;
 pub mod concat;
 pub mod constant;
@@ -17,6 +22,7 @@ pub mod conv;
 pub mod conv_transpose;
 pub mod cos;
 pub mod cosh;
+pub mod depth_to_space;
 pub mod div;
 pub mod dropout;
 pub mod equal;
@@ -32,8 +38,11 @@ pub mod global_avr_pool;
 pub mod graph_multiple_output_tracking;
 pub mod greater;
 pub mod greater_or_equal;
+pub mod group_norm;
 pub mod hard_sigmoid;
 pub mod instance_norm;
+pub mod is_inf;
+pub mod is_nan;
 pub mod layer_norm;
 pub mod leaky_relu;
 pub mod less;
@@ -69,6 +78,7 @@ pub mod reduce_sum;
 pub mod relu;
 pub mod reshape;
 pub mod resize;
+pub mod round;
 pub mod shape;
 pub mod sigmoid;
 pub mod sign;
@@ -76,6 +86,7 @@ pub mod sin;
 pub mod sinh;
 pub mod slice;
 pub mod softmax;
+pub mod space_to_depth;
 pub mod split;
 pub mod sqrt;
 pub mod squeeze;

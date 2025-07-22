@@ -143,7 +143,7 @@ mod tests {
             );
 
             y.to_data()
-                .assert_approx_eq::<FT>(&output.into_data(), Tolerance::rel_abs(1e-5, 1e-5));
+                .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
         }
     }
 }

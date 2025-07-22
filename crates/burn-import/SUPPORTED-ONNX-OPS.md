@@ -15,7 +15,7 @@ functionality.
 | [Add][4]                         | ✅             | ✅           |
 | [And][5]                         | ✅             | ✅           |
 | [ArgMax][6]                      | ✅             | ✅           |
-| [ArgMin][7]                      | ❌             | ✅           |
+| [ArgMin][7]                      | ✅             | ✅           |
 | [Asin][8]                        | ❌             | ❌           |
 | [Asinh][9]                       | ❌             | ❌           |
 | [Atan][10]                       | ❌             | ❌           |
@@ -24,7 +24,7 @@ functionality.
 | [AveragePool1d][12]              | ✅             | ✅           |
 | [AveragePool2d][12]              | ✅             | ✅           |
 | [BatchNormalization][14]         | ✅             | ✅           |
-| [Bernoulli][15]                  | ❌             | ✅           |
+| [Bernoulli][15]                  | ✅             | ✅           |
 | [BitShift][16]                   | ❌             | ✅           |
 | [BitwiseAnd][17]                 | ❌             | ✅           |
 | [BitwiseNot][18]                 | ❌             | ✅           |
@@ -33,7 +33,7 @@ functionality.
 | [BlackmanWindow][21]             | ❌             | ❌           |
 | [Cast][22]                       | ✅             | ✅           |
 | [CastLike][23]                   | ❌             | ❌           |
-| [Ceil][24]                       | ❌             | ✅           |
+| [Ceil][24]                       | ✅             | ✅           |
 | [Celu][25]                       | ❌             | ❌           |
 | [CenterCropPad][26]              | ❌             | ❌           |
 | [Clip][27]                       | ✅             | ✅           |
@@ -54,7 +54,7 @@ functionality.
 | [Cosh][40]                       | ✅             | ✅           |
 | [CumSum][41]                     | ❌             | ❌           |
 | [DeformConv][196]                | ❌             | ❌           |
-| [DepthToSpace][42]               | ❌             | ❌           |
+| [DepthToSpace][42]               | ✅             | ✅           |
 | [DequantizeLinear][43]           | ❌             | ❌           |
 | [Det][44]                        | ❌             | ❌           |
 | [DFT][45]                        | ❌             | ❌           |
@@ -81,7 +81,7 @@ functionality.
 | [Greater][66]                    | ✅             | ✅           |
 | [GreaterOrEqual][67]             | ✅             | ✅           |
 | [GridSample][68]                 | ❌             | ❌           |
-| [GroupNormalization][69]         | ❌             | ✅           |
+| [GroupNormalization][69]         | ✅             | ✅           |
 | [GRU][70]                        | ❌             | ✅           |
 | [HammingWindow][71]              | ❌             | ❌           |
 | [HannWindow][72]                 | ❌             | ❌           |
@@ -92,8 +92,8 @@ functionality.
 | [If][77]                         | ❌             | ✅           |
 | [Im][78]                         | ❌             | ❌           |
 | [InstanceNormalization][79]      | ✅             | ✅           |
-| [IsInf][80]                      | ❌             | ❌           |
-| [IsNaN][81]                      | ❌             | ✅           |
+| [IsInf][80]                      | ✅             | ✅           |
+| [IsNaN][81]                      | ✅             | ✅           |
 | [LayerNormalization][82]         | ✅             | ✅           |
 | [LeakyRelu][83]                  | ✅             | ✅           |
 | [Less][84]                       | ✅             | ✅           |
@@ -158,7 +158,7 @@ functionality.
 | [ReverseSequence][144]           | ❌             | ❌           |
 | [RNN][145]                       | ❌             | ✅           |
 | [RoiAlign][146]                  | ❌             | ❌           |
-| [Round][147]                     | ❌             | ✅           |
+| [Round][147]                     | ✅             | ✅           |
 | [Scan][148]                      | ❌             | ❌           |
 | [Scatter][149]                   | ❌             | ✅           |
 | [ScatterElements][150]           | ❌             | ❌           |
@@ -177,13 +177,13 @@ functionality.
 | [Sign][163]                      | ✅             | ✅           |
 | [Sin][164]                       | ✅             | ✅           |
 | [Sinh][165]                      | ✅             | ✅           |
-| [Size][166]                      | ❌             | ✅           |
+| [Size][166]                      | ✅             | ✅           |
 | [Slice][167]                     | ✅             | ✅           |
 | [Softmax][168]                   | ✅             | ✅           |
 | [SoftmaxCrossEntropyLoss][169]   | ❌             | ❌           |
 | [Softplus][170]                  | ❌             | ❌           |
 | [Softsign][171]                  | ❌             | ❌           |
-| [SpaceToDepth][172]              | ❌             | ❌           |
+| [SpaceToDepth][172]              | ✅             | ✅           |
 | [Split][173]                     | ✅             | ✅           |
 | [SplitToSequence][174]           | ❌             | ❌           |
 | [Sqrt][175]                      | ✅             | ✅           |

@@ -6,20 +6,29 @@ name = "mnist"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
-default = ["burn/dataset", "burn/vision"]
+default = ["burn/tui"]
 ndarray = ["burn/ndarray"]
 ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
 ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
 ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
-wgpu = ["burn/wgpu"]
-metal = ["burn/metal"]
+wgpu = ["burn/wgpu", "burn/fusion"]
+metal = ["burn/metal", "burn/fusion"]
 remote = ["burn/remote"]
 
 [dependencies]
-burn = { path = "../../crates/burn", features = ["train"] }
+# Disable autotune default for now (convolutions not optimized)
+burn = { path = "../../crates/burn", features = [
+    "train",
+    "vision",
+    "metrics",
+    "std"
+], default-features = false }
 
 # Serialization
 log = { workspace = true }

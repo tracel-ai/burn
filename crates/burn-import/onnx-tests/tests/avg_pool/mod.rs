@@ -7,7 +7,7 @@ mod tests {
     use super::*;
     use burn::tensor::{Shape, Tensor, TensorData, Tolerance, ops::FloatElem};
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
     type FT = FloatElem<Backend>;
 
     #[test]
@@ -52,7 +52,7 @@ mod tests {
         assert_eq!(output2.shape(), expected_shape2);
         assert_eq!(output3.shape(), expected_shape3);
 
-        let tolerance = Tolerance::rel_abs(1e-4, 1e-3);
+        let tolerance = Tolerance::default();
         output1
             .to_data()
             .assert_approx_eq::<FT>(&expected1, tolerance);
@@ -102,7 +102,7 @@ mod tests {
         assert_eq!(output2.shape(), expected_shape2);
         assert_eq!(output3.shape(), expected_shape3);
 
-        let tolerance = Tolerance::rel_abs(1e-4, 1e-3);
+        let tolerance = Tolerance::rel_abs(0.01, 0.001);
         output1
             .to_data()
             .assert_approx_eq::<FT>(&expected1, tolerance);

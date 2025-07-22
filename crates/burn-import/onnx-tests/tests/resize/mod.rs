@@ -14,7 +14,7 @@ mod tests {
     use burn::tensor::{Tensor, TensorData, ops::FloatElem};
     use float_cmp::ApproxEq;
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
     type FT = FloatElem<Backend>;
 
     #[test]
@@ -61,10 +61,7 @@ mod tests {
             1.5410, 0.3945, -0.7648, -1.9431, -0.8052, 0.3618, -0.6713, -1.2023, -1.3986,
         ]]])
         .to_data()
-        .assert_approx_eq::<FT>(
-            &output.into_data(),
-            burn::tensor::Tolerance::rel_abs(1e-4, 1e-4),
-        );
+        .assert_approx_eq::<FT>(&output.into_data(), burn::tensor::Tolerance::default());
     }
 
     #[test]

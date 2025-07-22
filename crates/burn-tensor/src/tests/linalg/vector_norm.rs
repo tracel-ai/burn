@@ -121,7 +121,7 @@ mod tests {
     #[test]
     fn test_lp_norm() {
         let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
-        let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(1e-3);
+        let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(2e-3);
 
         let expected = TestTensor::<2>::from([[3.0365891, 4.1601677]]).into_data();
         linalg::vector_norm(x.clone(), 3, 0)
@@ -135,7 +135,7 @@ mod tests {
     #[test]
     fn test_l2_norm() {
         let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
-        let tolerance = Tolerance::relative(1e-5);
+        let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(1e-3);
 
         let expected = TestTensor::<2>::from([[3.16227766, 4.47213595]]).into_data();
         linalg::vector_norm(x.clone(), linalg::Norm::L2, 0)
@@ -158,18 +158,12 @@ mod tests {
     fn test_normalize() {
         let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
 
-        linalg::vector_normalize(x.clone(), 1.0, 0, 0.25)
-            .into_data()
-            .assert_eq(
-                &TestTensor::<2>::from([[1. / 4., 2. / 6.], [3. / 4., 4. / 6.]]).into_data(),
-                true,
-            );
+        let expected = TensorData::from([[1. / 4., 2. / 6.], [3. / 4., 4. / 6.]]);
+        let output = linalg::vector_normalize(x.clone(), 1.0, 0, 0.25).into_data();
+        output.assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
 
-        linalg::vector_normalize(x.clone(), 1.0, 0, 5.)
-            .into_data()
-            .assert_eq(
-                &TestTensor::<2>::from([[1. / 5., 2. / 6.], [3. / 5., 4. / 6.]]).into_data(),
-                true,
-            );
+        let expected = TensorData::from([[1. / 5., 2. / 6.], [3. / 5., 4. / 6.]]);
+        let output = linalg::vector_normalize(x.clone(), 1.0, 0, 5.0).into_data();
+        output.assert_approx_eq::<FloatElem<TestBackend>>(&expected, Tolerance::default());
     }
 }

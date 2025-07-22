@@ -34,6 +34,6 @@ mod tests {
     fn display() {
         let layer = Gelu::new();
 
-        assert_eq!(alloc::format!("{}", layer), "Gelu");
+        assert_eq!(alloc::format!("{layer}"), "Gelu");
     }
 }

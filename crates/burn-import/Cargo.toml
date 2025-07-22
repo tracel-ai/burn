@@ -14,6 +14,9 @@ version.workspace = true
 
 default-run = "onnx2burn"
 
+[lints]
+workspace = true
+
 [features]
 default = ["onnx", "pytorch", "safetensors"]
 onnx = ["burn-ndarray"]
@@ -26,11 +29,11 @@ safetensors = [
 ]
 
 [dependencies]
-burn = { path = "../burn", version = "0.18.0", default-features = false, features = [
+burn = { path = "../burn", version = "0.19.0", default-features = false, features = [
     "std",
 ] }
-burn-ndarray = { path = "../burn-ndarray", version = "0.18.0", default-features = false, optional = true }
-onnx-ir = { path = "../onnx-ir", version = "0.18.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.19.0", default-features = false, optional = true }
+onnx-ir = { path = "../onnx-ir", version = "0.19.0" }
 candle-core = { workspace = true, optional = true }
 derive-new = { workspace = true }
 half = { workspace = true }

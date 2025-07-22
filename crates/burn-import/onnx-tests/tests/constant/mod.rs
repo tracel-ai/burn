@@ -7,7 +7,7 @@ mod tests {
     use super::*;
     use burn::tensor::{Int, Shape, Tensor};
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
 
     #[test]
     fn add_constant_f32() {

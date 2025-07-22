@@ -18,7 +18,7 @@ use cubecl::ir::Elem;
 ///
 /// Since this builder supports fusing multiple blocks, you can fuse any compute-bound operations
 /// with the combination of fuse-on-read and fuse-on-write strategy.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct FuseOptimizationBuilder {
     builder: TryFuseBuilder,
     pub(crate) settings: FuseSettings,
@@ -36,6 +36,14 @@ impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
         }
 
         match op {
+            OperationIr::Drop(tensor) => {
+                if self.num_ops == 0 {
+                    self.status = OptimizationStatus::Closed;
+                    return;
+                }
+
+                self.builder.builder.register_dropped(tensor.id);
+            }
             OperationIr::BaseFloat(ops) => {
                 if !self.register_base(ops) {
                     self.status = OptimizationStatus::Closed;
@@ -112,6 +120,10 @@ impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
             ready,
             score: self.num_ops as u64,
         }
+    }
+
+    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<FuseTrace>> {
+        Box::new(self.clone())
     }
 }
 
@@ -464,7 +476,7 @@ impl FuseOptimizationBuilder {
 
                 self.builder.register(|build| {
                     let input = build.input_indexed(&desc.tensor)?;
-                    let indices = build.input(&desc.indices)?;
+                    let indices = build.input_indexed(&desc.indices)?;
                     let output = build.output(&desc.out)?;
 
                     build.register_operation(FuseOp::Gather {
@@ -622,13 +634,14 @@ impl FuseOptimizationBuilder {
         if updated != out.shape {
             return false;
         }
+
         self.current_output_shape.clone_from_slice(&out.shape);
 
         true
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// Builder wrapper to limit the number of bindings in generated kernels.
 struct TryFuseBuilder {
     builder: FuseTraceBuilder,

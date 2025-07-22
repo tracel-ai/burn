@@ -430,7 +430,7 @@ pub fn ref_buffer_len(
             Arg::Output(index, _, _) => global_buffer_len(outputs, index),
             _ => panic!("Invalid concrete ref layout."),
         },
-        RefLayout::Virtual(VirtualLayout::Reshaped(..)) => num_elements(locals, config),
+        RefLayout::Virtual(VirtualLayout::Reshaped { .. }) => num_elements(locals, config),
         RefLayout::Virtual(VirtualLayout::Shape(..)) => num_elements(locals, config),
     }
 }

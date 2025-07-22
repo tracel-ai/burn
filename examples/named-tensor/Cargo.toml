@@ -6,6 +6,9 @@ name = "named-tensor"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 burn = {path = "../../crates/burn", features = ["experimental-named-tensor", "ndarray"]}
 

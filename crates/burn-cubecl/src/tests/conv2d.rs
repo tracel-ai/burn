@@ -52,7 +52,7 @@ mod tests {
         let output = module::conv2d(input, weight, Some(bias), options.clone());
         let output_ref = module::conv2d(input_ref, weight_ref, Some(bias_ref), options);
 
-        let tolerance = Tolerance::rel_abs(1.5e-4, 1e-5);
+        let tolerance = Tolerance::default();
         output
             .into_data()
             .assert_approx_eq::<FT>(&output_ref.into_data(), tolerance);
@@ -80,7 +80,7 @@ mod tests {
         let output_ref =
             module::conv2d(input_ref, weight_ref, Some(bias_ref), options).permute([0, 2, 3, 1]);
 
-        let tolerance = Tolerance::rel_abs(1e-3, 1e-5);
+        let tolerance = Tolerance::default();
         output
             .into_data()
             .assert_approx_eq::<FT>(&output_ref.into_data(), tolerance);

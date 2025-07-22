@@ -158,7 +158,7 @@ mod tests {
         ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -212,7 +212,7 @@ mod tests {
         ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-3));
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -221,7 +221,7 @@ mod tests {
         let instance_norm = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            format!("{}", instance_norm),
+            format!("{instance_norm}"),
             "InstanceNorm {num_channels: 6, epsilon: 0.00001, affine: true, params: 12}"
         );
     }

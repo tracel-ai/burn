@@ -1,9 +1,9 @@
 use super::FusionClient;
 use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
-    stream::{StreamId, execution::Operation},
+    stream::{OperationStreams, StreamId, execution::Operation},
 };
-use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_ir::{OperationIr, TensorIr};
 use burn_tensor::{DType, TensorData};
 use spin::Mutex;
 use std::sync::Arc;
@@ -37,13 +37,13 @@ where
         }
     }
 
-    fn register<O>(&self, streams: Vec<StreamId>, repr: OperationIr, operation: O)
+    fn register<O>(&self, streams: OperationStreams, repr: OperationIr, operation: O)
     where
         O: Operation<R> + 'static,
     {
         self.server
             .lock()
-            .register(streams, repr, Box::new(operation))
+            .register(streams, repr, Arc::new(operation))
     }
 
     fn drain(&self) {
@@ -70,7 +70,7 @@ where
     ) -> FusionTensor<R> {
         let mut server = self.server.lock();
         let id = server.create_empty_handle();
-        server.handles.register_handle(*id.as_ref(), handle);
+        server.handles.register_handle(id, handle);
         core::mem::drop(server);
 
         FusionTensor::new(id, shape, dtype, self.clone(), stream)
@@ -204,10 +204,6 @@ where
         core::mem::drop(server_current);
 
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
-    }
-
-    fn register_orphan(&self, id: &TensorId) {
-        self.server.lock().drop_tensor_handle(*id);
     }
 
     fn resolve_tensor_float<B>(&self, tensor: FusionTensor<R>) -> B::FloatTensorPrimitive

@@ -11,8 +11,12 @@ readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-wgpu"
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 autotune = ["burn-cubecl/autotune"]
+autotune-checks = ["burn-cubecl/autotune-checks"]
 default = ["std", "autotune", "fusion", "burn-cubecl/default", "cubecl/default"]
 doc = ["burn-cubecl/doc"]
 exclusive-memory-only = ["cubecl/exclusive-memory-only"]
@@ -33,15 +37,15 @@ cubecl-wgsl = []
 [dependencies]
 cubecl = { workspace = true, features = ["wgpu"] }
 
-burn-cubecl = { path = "../burn-cubecl", version = "0.18.0", default-features = false }
-burn-fusion = { path = "../burn-fusion", version = "0.18.0", optional = true }
-burn-tensor = { path = "../burn-tensor", version = "0.18.0", default-features = false, features = [
+burn-cubecl = { path = "../burn-cubecl", version = "0.19.0", default-features = false }
+burn-fusion = { path = "../burn-fusion", version = "0.19.0", optional = true }
+burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false, features = [
     "cubecl-wgpu",
 ] }
 
 
 [dev-dependencies]
-burn-cubecl = { path = "../burn-cubecl", version = "0.18.0", default-features = false, features = [
+burn-cubecl = { path = "../burn-cubecl", version = "0.19.0", default-features = false, features = [
     "export_tests",
 ] }
 half = { workspace = true }

@@ -7,7 +7,7 @@ use crate::{
 use burn_ir::{TensorId, TensorIr};
 use cubecl::Runtime;
 
-use super::block::FuseBlock;
+use super::{block::FuseBlock, vectorization::Vect};
 
 /// The plan is responsible to keep runtime information related to the launch of a fused kernel
 /// at one place.
@@ -20,6 +20,7 @@ pub(crate) struct LaunchPlan<'a, R: Runtime> {
     pub rank: usize,
     pub blocks: Vec<BlockPlan<'a>>,
     pub vectorizations: BTreeMap<TensorId, Vect>,
+    pub cleared: Vec<TensorId>,
 }
 
 #[derive(Debug)]
@@ -83,32 +84,6 @@ impl ReferenceSelection {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum Vect {
-    Broadcasted,
-    Aligned(u8),
-}
-
-impl Vect {
-    pub fn line_size(&self) -> u8 {
-        match self {
-            Vect::Broadcasted => 1,
-            Vect::Aligned(val) => *val,
-        }
-    }
-
-    pub fn is_broadcast(&self) -> bool {
-        matches!(self, Vect::Broadcasted)
-    }
-
-    pub fn limit_to_one(&self) -> Self {
-        match self {
-            Vect::Broadcasted => Vect::Broadcasted,
-            Vect::Aligned(_) => Vect::Aligned(1),
-        }
-    }
-}
-
 impl<R: Runtime> LaunchPlan<'_, R> {
     pub fn new(fuse_blocks: &[FuseBlock]) -> Self {
         let mut rank = 0;
@@ -135,6 +110,7 @@ impl<R: Runtime> LaunchPlan<'_, R> {
             rank,
             blocks,
             vectorizations: Default::default(),
+            cleared: Default::default(),
         }
     }
 }
@@ -174,6 +150,36 @@ pub struct HandleInput<R: Runtime> {
     pub global_shape: Vec<usize>,
     pub vectorization: u8,
     pub broadcated: bool,
+    // Strides can be modified during plan execution, but need to be restored on rollback
+    pub orig_strides: Vec<usize>,
+}
+
+impl<R: Runtime> HandleInput<R> {
+    pub fn new(
+        tensor_global: &TensorIr,
+        tensor_relative: &TensorIr,
+        precision: FusePrecision,
+        mut handle: CubeFusionHandle<R>,
+        mut strides: Vec<usize>,
+    ) -> Self {
+        // For rollback
+        core::mem::swap(&mut handle.strides, &mut strides);
+        Self {
+            precision,
+            handle,
+            relative_id: tensor_relative.id,
+            global_id: tensor_global.id,
+            global_shape: tensor_global.shape.clone(),
+            vectorization: 1,
+            broadcated: false,
+            orig_strides: strides,
+        }
+    }
+
+    pub fn handle_rollback(mut self) -> CubeFusionHandle<R> {
+        core::mem::swap(&mut self.handle.strides, &mut self.orig_strides);
+        self.handle
+    }
 }
 
 #[derive(Debug)]

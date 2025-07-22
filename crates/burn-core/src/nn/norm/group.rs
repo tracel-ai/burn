@@ -249,7 +249,7 @@ mod tests {
         ]);
         output
             .to_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -259,7 +259,7 @@ mod tests {
             .with_affine(true)
             .init::<TestBackend>(&device);
 
-        let tolerance = Tolerance::rel_abs(1e-4, 3e-4);
+        let tolerance = Tolerance::permissive();
         module
             .gamma
             .as_ref()
@@ -329,7 +329,7 @@ mod tests {
         let group_norm = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            format!("{}", group_norm),
+            format!("{group_norm}"),
             "GroupNorm {num_groups: 3, num_channels: 6, epsilon: 0.00001, affine: true, params: 12}"
         );
     }

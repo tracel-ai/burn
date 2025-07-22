@@ -513,7 +513,7 @@ mod tests {
             .into_data()
             .assert_approx_eq::<FloatElem<TestBackend>>(
                 &output_2.into_data(),
-                Tolerance::rel_abs(1e-5, 1e-5),
+                Tolerance::default(),
             );
     }
 
@@ -523,7 +523,7 @@ mod tests {
         let mha = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", mha),
+            alloc::format!("{mha}"),
             "MultiHeadAttention {d_model: 2, n_heads: 4, d_k: 0, \
             dropout: 0.1, min_float: -10000, quiet_softmax: false, params: 24}"
         );

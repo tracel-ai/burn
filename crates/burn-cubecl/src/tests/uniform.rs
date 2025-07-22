@@ -4,6 +4,8 @@ mod tests {
     use core::f32;
 
     use burn_tensor::{Distribution, Int, Shape, Tensor, backend::Backend, ops::IntTensorOps};
+    use burn_tensor::{ElementConversion, Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     use serial_test::serial;
 
@@ -17,7 +19,9 @@ mod tests {
         let device = Default::default();
 
         let tensor = Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device);
-        tensor.to_data().assert_within_range(0..1);
+        tensor
+            .to_data()
+            .assert_within_range::<FT>(0.elem()..1.elem());
     }
 
     #[test]
@@ -29,7 +33,9 @@ mod tests {
 
         let tensor =
             Tensor::<TestBackend, 2>::random(shape, Distribution::Uniform(5., 17.), &device);
-        tensor.to_data().assert_within_range(5..17);
+        tensor
+            .to_data()
+            .assert_within_range::<FT>(5.elem()..17.elem());
     }
 
     #[test]
@@ -42,9 +48,7 @@ mod tests {
         let tensor =
             Tensor::<TestBackend, 2>::random(shape, Distribution::Uniform(-5., 10.), &device)
                 .into_data();
-        let numbers = tensor
-            .as_slice::<<TestBackend as Backend>::FloatElem>()
-            .unwrap();
+        let numbers = tensor.as_slice::<FT>().unwrap();
 
         assert_at_least_one_value_per_bin(numbers, 3, -5., 10.);
     }
@@ -58,9 +62,7 @@ mod tests {
         let tensor =
             Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device).into_data();
 
-        let numbers = tensor
-            .as_slice::<<TestBackend as Backend>::FloatElem>()
-            .unwrap();
+        let numbers = tensor.as_slice::<FT>().unwrap();
 
         assert_wald_wolfowitz_runs_test(numbers, 0., 1.);
     }
@@ -91,9 +93,7 @@ mod tests {
 
         let data_float = tensor.float().into_data();
 
-        let numbers = data_float
-            .as_slice::<<TestBackend as Backend>::FloatElem>()
-            .unwrap();
+        let numbers = data_float.as_slice::<FT>().unwrap();
 
         assert_at_least_one_value_per_bin(numbers, 10, -10., 10.);
     }

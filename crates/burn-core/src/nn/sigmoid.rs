@@ -33,6 +33,6 @@ mod tests {
     fn display() {
         let layer = Sigmoid::new();
 
-        assert_eq!(alloc::format!("{}", layer), "Sigmoid");
+        assert_eq!(alloc::format!("{layer}"), "Sigmoid");
     }
 }

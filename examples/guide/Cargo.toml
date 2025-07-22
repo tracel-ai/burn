@@ -6,12 +6,20 @@ name = "guide"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
-default = ["burn/default"]
+default = ["burn/std", "burn/tui", "burn/fusion"]
 
 [dependencies]
-burn = {path = "../../crates/burn", features = ["webgpu", "train", "vision"]}
+# Disable autotune default for convolutions
+burn = { path = "../../crates/burn", features = [
+    "webgpu",
+    "train",
+    "vision",
+], default-features = false }
 
 # Serialization
-log = {workspace = true}
-serde = {workspace = true, features = ["std", "derive"]}
+log = { workspace = true }
+serde = { workspace = true, features = ["std", "derive"] }

@@ -11,6 +11,9 @@ readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor"
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 cubecl = ["dep:cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
@@ -23,8 +26,8 @@ export_tests = ["burn-tensor-testgen", "cubecl"]
 std = ["rand/std", "half/std", "num-traits/std", "burn-common/std", "colored"]
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.18.0", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.18.0", optional = true }
+burn-common = { path = "../burn-common", version = "0.19.0", default-features = false }
+burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.19.0", optional = true }
 cubecl = { workspace = true, optional = true, default-features = false }
 
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
@@ -48,4 +51,4 @@ rand = { workspace = true, features = ["thread_rng"] } # Default enables std
 
 [package.metadata.docs.rs]
 features = ["doc"]
-rustdoc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "docs/katex-header.html"]

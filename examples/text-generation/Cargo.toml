@@ -6,6 +6,9 @@ name = "text-generation"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 default = ["burn/dataset", "burn/sqlite-bundled"]
 f16 = []
@@ -15,7 +18,7 @@ f16 = []
 burn = {path = "../../crates/burn", features=["train", "tch"]}
 
 # Tokenizer
-tokenizers = {version = "0.21.1", default-features = false, features = [
+tokenizers = {version = "0.21.2", default-features = false, features = [
   "onig",
   "http",
 ]}

@@ -6,6 +6,9 @@ name = "custom-wgpu-kernel"
 publish = false
 version.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 burn = { path = "../../crates/burn", default-features = false, features = [
     "autodiff",

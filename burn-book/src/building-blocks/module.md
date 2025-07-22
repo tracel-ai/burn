@@ -289,9 +289,11 @@ Burn comes with built-in modules that you can use to build your own modules.
 
 ### Loss
 
-| Burn API           | PyTorch Equivalent    |
-| ------------------ | --------------------- |
-| `CrossEntropyLoss` | `nn.CrossEntropyLoss` |
-| `MseLoss`          | `nn.MSELoss`          |
-| `HuberLoss`        | `nn.HuberLoss`        |
-| `PoissonNllLoss`   | `nn.PoissonNLLLoss`   |
+| Burn API                 | PyTorch Equivalent       |
+| ------------------------ | ------------------------ |
+| `BinaryCrossEntropyLoss` | `nn.BCELoss`             |
+| `CosineEmbeddingLoss`    | `nn.CosineEmbeddingLoss` |
+| `CrossEntropyLoss`       | `nn.CrossEntropyLoss`    |
+| `HuberLoss`              | `nn.HuberLoss`           |
+| `MseLoss`                | `nn.MSELoss`             |
+| `PoissonNllLoss`         | `nn.PoissonNLLLoss`      |
