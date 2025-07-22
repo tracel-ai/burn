@@ -1,0 +1,50 @@
+[package]
+authors = ["marcantoinem <marc-antoine.m@outlook.com>"]
+categories = ["science"]
+description = "MLIR based CPU backend for the Burn framework"
+documentation = "https://docs.rs/burn-cpu"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "cpu"]
+license.workspace = true
+name = "burn-cpu"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-cpu"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+autotune = ["burn-cubecl/autotune"]
+autotune-checks = ["burn-cubecl/autotune-checks"]
+default = ["std", "fusion", "autotune", "burn-cubecl/default", "cubecl/default"]
+doc = ["burn-cubecl/doc"]
+fusion = ["burn-fusion", "burn-cubecl/fusion"]
+std = ["burn-cubecl/std", "cubecl/std"]
+compilation-cache = ["cubecl/compilation-cache"]
+
+[dependencies]
+burn-fusion = { path = "../burn-fusion", version = "0.19.0", optional = true }
+burn-cubecl = { path = "../burn-cubecl", version = "0.19.0", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.19.0", features = [
+    "cubecl-cpu",
+] }
+cubecl = { workspace = true, features = ["cpu"] }
+
+bytemuck = { workspace = true }
+half = { workspace = true }
+
+derive-new = { workspace = true }
+log = { workspace = true }
+
+
+[dev-dependencies]
+burn-cubecl = { path = "../burn-cubecl", version = "0.19.0", default-features = false, features = [
+    "export_tests",
+] }
+paste = { workspace = true }
+
+
+[package.metadata.docs.rs]
+features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]
