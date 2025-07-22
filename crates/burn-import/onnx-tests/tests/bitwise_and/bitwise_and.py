@@ -1,57 +1,78 @@
 #!/usr/bin/env python3
-# used to generate model: onnx-tests/tests/bitwise_and/bitwise_and.onnx
+# used to generate all bitwise_and ONNX models
 
-import torch
 import onnx
 
-def export_bitwise_and():
-    class BitwiseAndModel(torch.nn.Module):
-        def forward(self, x, y):
-            if isinstance(y, int):
-                # If y is a scalar, convert it to a tensor
-                y = torch.tensor([y], dtype=x.dtype)
-            return torch.bitwise_and(x, y)
-
-    class ScalarBitwiseAndModel(torch.nn.Module):
-        def forward(self, x, y):
-            if isinstance(x, int):
-                # If x is a scalar, convert it to a tensor
-                x = torch.tensor([x], dtype=y.dtype)
-            return torch.bitwise_and(x, y)
-
-    model = BitwiseAndModel()
-    scalar_model = ScalarBitwiseAndModel()
-    x = torch.tensor([1, 2, 3, 4], dtype=torch.int32)
-    y = torch.tensor([4, 3, 2, 1], dtype=torch.int32)
-    torch.onnx.export(
-        model,
-        (x, y),
-        "bitwise_and.onnx",
-        opset_version=18,
-        input_names=["x", "y"],
-        output_names=["output"],
+def build_model(name, input1_shape, input2_shape, output_shape):
+    """
+    Build a BitwiseAnd ONNX model with specified input/output shapes.
+    
+    Args:
+        name: Name of the model (used for file naming)
+        input1_shape: Shape of first input ([] for scalar)
+        input2_shape: Shape of second input ([] for scalar)
+        output_shape: Shape of output ([] for scalar)
+    """
+    op_type = "BitwiseAnd"
+    
+    nodes = [
+        onnx.helper.make_node(
+            op_type,
+            inputs=["input1", "input2"],
+            outputs=["output"],
+            name=f"/{op_type}"
+        ),
+    ]
+    
+    inputs = [
+        onnx.helper.make_value_info(
+            name="input1",
+            type_proto=onnx.helper.make_tensor_type_proto(
+                elem_type=onnx.TensorProto.INT32, shape=input1_shape
+            ),
+        ),
+        onnx.helper.make_value_info(
+            name="input2",
+            type_proto=onnx.helper.make_tensor_type_proto(
+                elem_type=onnx.TensorProto.INT32, shape=input2_shape
+            ),
+        ),
+    ]
+    
+    outputs = [
+        onnx.helper.make_value_info(
+            name="output",
+            type_proto=onnx.helper.make_tensor_type_proto(
+                elem_type=onnx.TensorProto.INT32, shape=output_shape
+            ),
+        )
+    ]
+    
+    model = onnx.helper.make_model(
+        ir_version=8,
+        opset_imports=[onnx.helper.make_operatorsetid("", 18)],
+        graph=onnx.helper.make_graph(
+            name="main_graph",
+            nodes=nodes,
+            inputs=inputs,
+            outputs=outputs,
+            initializer=[]
+        ),
     )
-
-    # Tensor-Scalar version
-    and_scalar = 2  # Scalar value
-    torch.onnx.export(
-        model,
-        (x, and_scalar),
-        f"bitwise_and_scalar.onnx",
-        opset_version=18,
-        input_names=["x", "y"],
-        output_names=["output"],
-    )
-
-    # Scalar-Tensor version
-    torch.onnx.export(
-        scalar_model,
-        (and_scalar, x),
-        f"scalar_bitwise_and.onnx",
-        opset_version=18,
-        input_names=["x", "y"],
-        output_names=["output"],
-    )
+    
+    onnx.checker.check_model(model)
+    onnx.save(model, f"{name}.onnx")
+    print(f"Finished exporting model to {name}.onnx")
 
 if __name__ == "__main__":
-    export_bitwise_and()
+    # Define all model configurations
+    configs = [
+        # (name, input1_shape, input2_shape, output_shape)
+        ("bitwise_and", [4], [4], [4]),
+        ("bitwise_and_scalar", [4], [], [4]),
+        ("scalar_bitwise_and", [], [4], [4]),
+        ("scalar_bitwise_and_scalar", [], [], []),
+    ]
+    
+    for config in configs:
+        build_model(*config)
