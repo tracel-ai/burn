@@ -4,6 +4,20 @@ use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use std::marker::PhantomData;
 
+/// Generates a vector of indices from 0 to size - 1.
+///
+/// # Arguments
+///
+/// * `size` - The size of the dataset.
+///
+/// # Returns
+///
+/// A vector containing indices from 0 to size - 1.
+#[inline(always)]
+pub fn iota(size: usize) -> Vec<usize> {
+    (0..size).collect()
+}
+
 /// Generates a shuffled vector of indices up to a size.
 ///
 /// # Arguments
@@ -15,7 +29,7 @@ use std::marker::PhantomData;
 /// A vector of shuffled indices.
 #[inline(always)]
 pub fn shuffled_indices(size: usize, rng: &mut StdRng) -> Vec<usize> {
-    let mut indices = (0..size).collect::<Vec<_>>();
+    let mut indices = iota(size);
     indices.shuffle(rng);
     indices
 }
@@ -58,6 +72,20 @@ where
         }
     }
 
+    /// Creates a new selection dataset that selects all indices from the dataset.
+    ///
+    /// # Arguments
+    ///
+    /// * `dataset` - The original dataset to select from.
+    ///
+    /// # Returns
+    ///
+    /// A new `SelectionDataset` that selects all indices from the dataset.
+    pub fn new_select_all(dataset: D) -> Self {
+        let size = dataset.len();
+        Self::new(dataset, iota(size))
+    }
+
     /// Creates a new selection dataset with shuffled indices.
     ///
     /// Selects every index of the dataset and shuffles them
@@ -71,14 +99,10 @@ where
     /// # Returns
     ///
     /// A new `SelectionDataset` with shuffled indices.
-    pub fn shuffled(dataset: D, rng: &mut StdRng) -> Self {
-        let indices = shuffled_indices(dataset.len(), rng);
-
-        Self {
-            dataset,
-            indices,
-            input: PhantomData,
-        }
+    pub fn new_shuffled(dataset: D, rng: &mut StdRng) -> Self {
+        let mut this = Self::new_select_all(dataset);
+        this.shuffle(rng);
+        this
     }
 
     /// Creates a new selection dataset with shuffled indices using a fixed seed.
@@ -94,9 +118,32 @@ where
     /// # Returns
     ///
     /// A new `SelectionDataset` with shuffled indices.
-    pub fn shuffled_with_seed(dataset: D, seed: u64) -> Self {
+    pub fn new_shuffled_with_seed(dataset: D, seed: u64) -> Self {
         let mut rng = StdRng::seed_from_u64(seed);
-        Self::shuffled(dataset, &mut rng)
+        Self::new_shuffled(dataset, &mut rng)
+    }
+
+    /// Shuffles the indices of the dataset using a mutable random number generator.
+    ///
+    /// This method modifies the dataset in place, shuffling the indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `rng` - A mutable reference to a random number generator.
+    pub fn shuffle(&mut self, rng: &mut StdRng) {
+        self.indices.shuffle(rng)
+    }
+
+    /// Shuffles the indices of the dataset using a fixed seed.
+    ///
+    /// This method modifies the dataset in place, shuffling the indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `seed` - A fixed seed for the random number generator.
+    pub fn shuffle_with_seed(&mut self, seed: u64) {
+        let mut rng = StdRng::seed_from_u64(seed);
+        self.shuffle(&mut rng);
     }
 }
 
@@ -119,6 +166,29 @@ where
 mod tests {
     use super::*;
     use crate::FakeDataset;
+
+    #[test]
+    fn test_iota() {
+        let size = 10;
+        let indices = iota(size);
+        assert_eq!(indices.len(), size);
+        assert_eq!(indices, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    }
+
+    #[test]
+    fn test_shuffled_indices() {
+        let size = 10;
+
+        let mut rng1 = StdRng::seed_from_u64(10);
+        let mut rng2 = rng1.clone();
+
+        let mut expected = iota(size);
+        expected.shuffle(&mut rng1);
+
+        let indices = shuffled_indices(size, &mut rng2);
+
+        assert_eq!(indices, expected);
+    }
 
     #[test]
     fn test_selection_dataset() {
@@ -146,7 +216,7 @@ mod tests {
 
         let seed = 42;
 
-        let shuffled = SelectionDataset::shuffled_with_seed(dataset, seed);
+        let shuffled = SelectionDataset::new_shuffled_with_seed(dataset, seed);
 
         let mut rng = StdRng::seed_from_u64(seed);
         let indices = shuffled_indices(source_items.len(), &mut rng);

@@ -32,7 +32,7 @@ where
     /// A new `SelectionDataset` with shuffled indices.
     pub fn new(dataset: D, rng: &mut StdRng) -> Self {
         Self {
-            wrapped: SelectionDataset::shuffled(dataset, rng),
+            wrapped: SelectionDataset::new_shuffled(dataset, rng),
         }
     }
 
@@ -51,7 +51,7 @@ where
     /// A new `SelectionDataset` with shuffled indices.
     pub fn with_seed(dataset: D, seed: u64) -> Self {
         Self {
-            wrapped: SelectionDataset::shuffled_with_seed(dataset, seed),
+            wrapped: SelectionDataset::new_shuffled_with_seed(dataset, seed),
         }
     }
 }
