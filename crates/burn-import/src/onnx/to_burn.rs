@@ -23,6 +23,11 @@ use crate::{
             batch_norm::BatchNormNode,
             bernoulli::BernoulliNode,
             binary::BinaryNode,
+            bitshift::{BitShiftNode, Direction},
+            bitwiseand::BitwiseAndNode,
+            bitwisenot::BitwiseNotNode,
+            bitwiseor::BitwiseOrNode,
+            bitwisexor::BitwiseXorNode,
             ceil::CeilNode,
             clip::ClipNode,
             concat::ConcatNode,
@@ -136,6 +141,8 @@ use onnx_ir::{
     parse_onnx,
     util::shape_config,
 };
+
+use onnx_ir::node::bitshift::bitshift_config;
 
 pub use crate::burn::graph::RecordType;
 use crate::burn::node::mean::MeanNode;
@@ -323,6 +330,11 @@ impl ParsedOnnxGraph {
             match node.node_type {
                 NodeType::Add => graph.register(Self::add_conversion(node)),
                 NodeType::ArgMax => graph.register(Self::argmax_conversion(node)),
+                NodeType::BitShift => graph.register(Self::bitshift_conversion(node)),
+                NodeType::BitwiseAnd => graph.register(Self::bitwise_and_conversion(node)),
+                NodeType::BitwiseOr => graph.register(Self::bitwise_or_conversion(node)),
+                NodeType::BitwiseXor => graph.register(Self::bitwise_xor_conversion(node)),
+                NodeType::BitwiseNot => graph.register(Self::bitwise_not_conversion(node)),
                 NodeType::ArgMin => graph.register(Self::argmin_conversion(node)),
                 NodeType::Bernoulli => graph.register(Self::bernoulli_conversion(node)),
                 NodeType::Sub => graph.register(Self::sub_conversion(node)),
@@ -716,6 +728,48 @@ impl ParsedOnnxGraph {
         let output = Type::from(node.outputs.first().unwrap());
 
         BinaryNode::equal(lhs, rhs, output)
+    }
+
+    fn bitshift_conversion(node: Node) -> BitShiftNode {
+        let inputs = node.inputs.iter().map(Type::from).collect();
+        let output = Type::from(node.outputs.first().unwrap());
+        let onnx_direction = bitshift_config(&node);
+
+        // Map ONNX direction to burn-import Direction
+        let direction = match onnx_direction {
+            onnx_ir::node::bitshift::Direction::Left => Direction::Left,
+            onnx_ir::node::bitshift::Direction::Right => Direction::Right,
+        };
+
+        BitShiftNode::new(inputs, output, direction)
+    }
+
+    fn bitwise_and_conversion(node: Node) -> BitwiseAndNode {
+        let inputs = node.inputs.iter().map(Type::from).collect();
+        let output = Type::from(node.outputs.first().unwrap());
+
+        BitwiseAndNode::new(inputs, output)
+    }
+
+    fn bitwise_or_conversion(node: Node) -> BitwiseOrNode {
+        let inputs = node.inputs.iter().map(Type::from).collect();
+        let output = Type::from(node.outputs.first().unwrap());
+
+        BitwiseOrNode::new(inputs, output)
+    }
+
+    fn bitwise_xor_conversion(node: Node) -> BitwiseXorNode {
+        let inputs = node.inputs.iter().map(Type::from).collect();
+        let output = Type::from(node.outputs.first().unwrap());
+
+        BitwiseXorNode::new(inputs, output)
+    }
+
+    fn bitwise_not_conversion(node: Node) -> BitwiseNotNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        BitwiseNotNode::new(input, output)
     }
 
     fn max_conversion(node: Node) -> BinaryNode {

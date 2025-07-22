@@ -15,5 +15,4 @@ out
 
 # Virtual Environment of Python
 .venv
-
 uv.lock
