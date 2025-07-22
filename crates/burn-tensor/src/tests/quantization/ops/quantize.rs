@@ -11,7 +11,7 @@ mod tests {
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
-    fn get_q_params(data: TensorData) -> QParams<Vec<f32>, Vec<i8>> {
+    fn get_q_params(data: TensorData) -> QParams<Vec<f32>> {
         let num_elements = data.num_elements();
         let scheme = if let DType::QFloat(scheme) = data.dtype {
             scheme
@@ -32,8 +32,7 @@ mod tests {
         let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
         let scheme = QuantScheme::default();
         let qparams = QuantizationParameters {
-            scale: Tensor::from_floats([0.014_173_228], &device),
-            offset: None,
+            scales: Tensor::from_floats([0.014_173_228], &device),
         };
 
         let x_q = tensor.clone().quantize(&scheme, qparams);
@@ -53,10 +52,8 @@ mod tests {
         // Quantization parameters check
         let qparams = get_q_params(x_q_data);
         let expected = get_q_params(expected);
-        assert_eq!(qparams.scale.len(), 1);
-        assert_eq!(qparams.scale, expected.scale);
-        assert_eq!(qparams.offset, None);
-        assert_eq!(qparams.offset, expected.offset);
+        assert_eq!(qparams.scales.len(), 1);
+        assert_eq!(qparams.scales, expected.scales);
 
         // Dequantize
         let x = x_q.dequantize();

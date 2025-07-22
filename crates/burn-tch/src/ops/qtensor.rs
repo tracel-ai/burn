@@ -13,10 +13,10 @@ use crate::{LibTorch, LibTorchDevice, QuantElement, TchElement, TchQTensor, TchS
 
 use super::TchOps;
 
-fn quantize<E: TchElement, Q: QuantElement>(
+fn quantize<E: TchElement>(
     tensor: tch::Tensor,
     scheme: &QuantScheme,
-    qparams: &QParams<E, Q>,
+    qparams: &QParams<E>,
 ) -> tch::Tensor {
     let mut tensor = tensor;
     // Quantize only works on Float Tensor
@@ -30,7 +30,7 @@ fn quantize<E: TchElement, Q: QuantElement>(
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
             ..
-        } => tensor.quantize_per_tensor(qparams.scale.elem(), 0, tch::Kind::QInt8),
+        } => tensor.quantize_per_tensor(qparams.scales.elem(), 0, tch::Kind::QInt8),
     }
 }
 
@@ -55,8 +55,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
 
                     let (values, qparams) = q_bytes.dequantize();
                     let qparams = QParams {
-                        scale: qparams.scale[0],
-                        offset: qparams.offset.map(|x| x[0]),
+                        scales: qparams.scales[0],
                     };
                     let tensor = tch::Tensor::from_slice(&values).to(device);
                     let tensor = quantize(tensor.reshape(shape_tch.dims), &scheme, &qparams);
@@ -92,8 +91,8 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                 q_type: QuantInputType::QInt8,
                 ..
             } => tensor.tensor.quantize_per_tensor_tensor_qparams(
-                &qparams.scale.tensor,
-                &tch::Tensor::zeros_like(&qparams.scale.tensor),
+                &qparams.scales.tensor,
+                &tch::Tensor::zeros_like(&qparams.scales.tensor),
                 tch::Kind::QInt8,
             ),
         };
