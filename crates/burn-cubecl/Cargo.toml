@@ -27,7 +27,8 @@ default = [
     "std",
     "fusion",
     "cubecl/default",
-    "burn-cubecl-fusion/default",
+    "burn-fusion?/default",
+    "burn-cubecl-fusion?/default",
 ]
 doc = ["default"]
 export_tests = [
@@ -44,7 +45,7 @@ export_tests = [
 ]
 fusion = ["burn-fusion", "burn-cubecl-fusion"]
 fusion-experimental = ["fusion"]
-std = ["cubecl/std", "burn-tensor/std"]
+std = ["cubecl/std", "burn-tensor/std", "burn-fusion?/std", "burn-cubecl-fusion?/std"]
 
 template = []
 
