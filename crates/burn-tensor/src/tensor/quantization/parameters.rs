@@ -1,4 +1,5 @@
 use crate::{DType, Shape, Tensor, backend::Backend};
+use alloc::vec::Vec;
 
 /// The tensor quantization parameters.
 pub type QuantizationParameters<B> = QParams<Tensor<B, 1>>;
