@@ -5,7 +5,7 @@ include_models!(bernoulli);
 mod tests {
     use super::*;
     use burn::tensor::Shape;
-    use burn::tensor::{Tensor, TensorData, Tolerance, ops::FloatElem};
+    use burn::tensor::Tensor;
 
     type Backend = burn_ndarray::NdArray<f32>;
 

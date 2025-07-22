@@ -25,11 +25,11 @@ functionality.
 | [AveragePool2d][12]              | ✅             | ✅           |
 | [BatchNormalization][14]         | ✅             | ✅           |
 | [Bernoulli][15]                  | ✅             | ✅           |
-| [BitShift][16]                   | ❌             | ✅           |
-| [BitwiseAnd][17]                 | ❌             | ✅           |
-| [BitwiseNot][18]                 | ❌             | ✅           |
-| [BitwiseOr][19]                  | ❌             | ✅           |
-| [BitwiseXor][20]                 | ❌             | ✅           |
+| [BitShift][16]                   | ✅             | ✅           |
+| [BitwiseAnd][17]                 | ✅             | ✅           |
+| [BitwiseNot][18]                 | ✅             | ✅           |
+| [BitwiseOr][19]                  | ✅             | ✅           |
+| [BitwiseXor][20]                 | ✅             | ✅           |
 | [BlackmanWindow][21]             | ❌             | ❌           |
 | [Cast][22]                       | ✅             | ✅           |
 | [CastLike][23]                   | ❌             | ❌           |
