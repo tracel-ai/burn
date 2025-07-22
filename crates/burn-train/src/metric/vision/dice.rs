@@ -4,25 +4,72 @@ use super::super::{
 };
 use burn_core::{
     prelude::{Backend, Tensor},
-    tensor::{ElementConversion, Float, TensorKind},
+    tensor::{ElementConversion, Int, s},
 };
 use core::marker::PhantomData;
 
 /// Input type for the [DiceMetric].
 ///
-/// # Parameters
+/// # Type Parameters
 /// - `B`: Backend type.
-/// - `D`: Number of dimensions (default 2).
-/// - `K`: Tensor element type (default `Float`).
-#[derive(new)]
-pub struct DiceInput<B: Backend, const D: usize = 2, K = Float>
-where
-    K: TensorKind<B>,
-{
+/// - `D`: Number of dimensions. Should be more than, or equal to 3 (default 4).
+pub struct DiceInput<B: Backend, const D: usize = 4> {
     /// Model outputs (predictions), as a tensor.
-    outputs: Tensor<B, D, K>,
+    outputs: Tensor<B, D, Int>,
     /// Ground truth targets, as a tensor.
-    targets: Tensor<B, D, K>,
+    targets: Tensor<B, D, Int>,
+}
+
+impl<B: Backend, const D: usize> DiceInput<B, D> {
+    /// Creates a new DiceInput with the given outputs and targets.
+    ///
+    /// Inputs are expected to have the dimensions `[B, C, ...]`
+    /// where `B` is the batch size, `C` is the number of classes,
+    /// and `...` represents additional dimensions (e.g., height, width for images).
+    ///
+    /// If `C` is more than 1, the first class (index 0) is considered the background.
+    /// Additionally, one-hot encoding is the responsibility of the caller.
+    ///
+    /// # Arguments
+    /// - `outputs`: The model outputs as a tensor.
+    /// - `targets`: The ground truth targets as a tensor.
+    ///
+    /// # Returns
+    /// A new instance of `DiceInput`.
+    ///
+    ///  # Panics
+    /// - If `D` is less than 3.
+    /// - If `outputs` and `targets` do not have the same dimensions.
+    /// - If `outputs` or `targets` do not have exactly `D` dimensions.
+    /// - If `outputs` and `targets` do not have the same shape.
+    pub fn new(outputs: Tensor<B, D, Int>, targets: Tensor<B, D, Int>) -> Self {
+        assert!(D >= 3, "DiceInput requires at least 3 dimensions.");
+        assert!(
+            outputs.dims() == targets.dims(),
+            "Outputs and targets must have the same dimensions. Got {:?} and {:?}",
+            outputs.dims(),
+            targets.dims()
+        );
+        assert!(
+            outputs.dims().len() == D,
+            "Outputs must have exactly {} dimensions. Got {:?}",
+            D,
+            outputs.dims()
+        );
+        assert!(
+            targets.dims().len() == D,
+            "Targets must have exactly {} dimensions. Got {:?}",
+            D,
+            targets.dims()
+        );
+        assert!(
+            outputs.shape() == targets.shape(),
+            "Outputs and targets must have the same shape. Got {:?} and {:?}",
+            outputs.shape(),
+            targets.shape()
+        );
+        Self { outputs, targets }
+    }
 }
 
 /// Configuration for the [DiceMetric].
@@ -45,13 +92,16 @@ impl Default for DiceMetricConfig {
     }
 }
 
-/// The Dice metric for evaluating overlap between two binary masks.
+/// The Dice-Sorenson coefficient (DSC) for evaluating overlap between two binary masks.
+/// The DSC is defined as:
+/// `DSC = 2 * (|X ∩ Y|) / (|X| + |Y|)`
+/// where `X` is the model output and `Y` is the ground truth target.
 ///
-/// # Parameters
+///  # Type Parameters
 /// - `B`: Backend type.
-/// - `D`: Number of dimensions (default 2).
+/// - `D`: Number of dimensions. Should be more than, or equal to 3 (default 4).
 #[derive(Default)]
-pub struct DiceMetric<B: Backend, const D: usize = 2> {
+pub struct DiceMetric<B: Backend, const D: usize = 4> {
     /// Internal state for numeric metric aggregation.
     state: NumericMetricState,
     /// Marker for backend type.
@@ -63,11 +113,12 @@ pub struct DiceMetric<B: Backend, const D: usize = 2> {
 impl<B: Backend, const D: usize> DiceMetric<B, D> {
     /// Creates a new Dice metric instance with default config.
     pub fn new() -> Self {
-        Self::default()
+        Self::with_config(DiceMetricConfig::default())
     }
 
     /// Creates a new Dice metric with a custom config.
     pub fn with_config(config: DiceMetricConfig) -> Self {
+        assert!(D >= 3, "DiceMetric requires at least 3 dimensions.");
         Self {
             config,
             ..Default::default()
@@ -84,21 +135,27 @@ impl<B: Backend, const D: usize> Metric for DiceMetric<B, D> {
 
     fn update(&mut self, item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
         // Dice coefficient: 2 * (|X ∩ Y|) / (|X| + |Y|)
-        let outputs = item.outputs.clone();
-        let targets = item.targets.clone();
-
-        if outputs.dims() != targets.dims() {
+        if item.outputs.dims() != item.targets.dims() {
             panic!(
                 "Outputs and targets must have the same dimensions. Got {:?} and {:?}",
-                outputs.dims(),
-                targets.dims()
+                item.outputs.dims(),
+                item.targets.dims()
             );
         }
 
-        let dims = outputs.dims();
+        let dims = item.outputs.dims();
         let batch_size = dims[0];
         let n_classes = dims[1];
-        if self.config.include_background && n_classes < 2 {
+
+        let mut outputs = item.outputs.clone();
+        let mut targets = item.targets.clone();
+
+        if !self.config.include_background && n_classes > 1 {
+            // If not including background, we can ignore the first class
+            outputs = outputs.slice(s![.., 1..]);
+            targets = targets.slice(s![.., 1..]);
+        } else if self.config.include_background && n_classes < 2 {
+            // If including background, we need at least 2 classes
             panic!("Dice metric requires at least 2 classes when including background.");
         }
 
@@ -145,10 +202,10 @@ mod tests {
     #[test]
     fn test_dice_perfect_overlap() {
         let device = Default::default();
-        let mut metric = DiceMetric::<TestBackend>::new();
+        let mut metric = DiceMetric::<TestBackend, 4>::new();
         let input = DiceInput::new(
-            Tensor::from_data([[1.0, 0.0, 1.0, 0.0]], &device),
-            Tensor::from_data([[1.0, 0.0, 1.0, 0.0]], &device),
+            Tensor::from_data([[[[1, 0], [1, 0]]]], &device),
+            Tensor::from_data([[[[1, 0], [1, 0]]]], &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
         assert!((metric.value() - 1.0).abs() < 1e-6);
@@ -157,10 +214,10 @@ mod tests {
     #[test]
     fn test_dice_no_overlap() {
         let device = Default::default();
-        let mut metric = DiceMetric::<TestBackend>::new();
+        let mut metric = DiceMetric::<TestBackend, 4>::new();
         let input = DiceInput::new(
-            Tensor::from_data([[1.0, 0.0, 1.0, 0.0]], &device),
-            Tensor::from_data([[0.0, 1.0, 0.0, 1.0]], &device),
+            Tensor::from_data([[[[1, 0], [1, 0]]]], &device),
+            Tensor::from_data([[[[0, 1], [0, 1]]]], &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
         assert!(metric.value() < 1e-6);
@@ -169,10 +226,10 @@ mod tests {
     #[test]
     fn test_dice_partial_overlap() {
         let device = Default::default();
-        let mut metric = DiceMetric::<TestBackend>::new();
+        let mut metric = DiceMetric::<TestBackend, 4>::new();
         let input = DiceInput::new(
-            Tensor::from_data([[1.0, 1.0, 0.0, 0.0]], &device),
-            Tensor::from_data([[1.0, 0.0, 1.0, 0.0]], &device),
+            Tensor::from_data([[[[1, 1], [0, 0]]]], &device),
+            Tensor::from_data([[[[1, 0], [1, 0]]]], &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
         // intersection = 1, sum = 2+2=4, dice = 2*1/4 = 0.5
@@ -182,12 +239,65 @@ mod tests {
     #[test]
     fn test_dice_empty_masks() {
         let device = Default::default();
-        let mut metric = DiceMetric::<TestBackend>::new();
+        let mut metric = DiceMetric::<TestBackend, 4>::new();
         let input = DiceInput::new(
-            Tensor::from_data([[0.0, 0.0, 0.0, 0.0]], &device),
-            Tensor::from_data([[0.0, 0.0, 0.0, 0.0]], &device),
+            Tensor::from_data([[[[0, 0], [0, 0]]]], &device),
+            Tensor::from_data([[[[0, 0], [0, 0]]]], &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
         assert!((metric.value() - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    #[should_panic(expected = "DiceInput requires at least 3 dimensions.")]
+    fn test_invalid_input_dimensions() {
+        let device = Default::default();
+        // D = 2, should panic
+        let _ = DiceInput::<TestBackend, 2>::new(
+            Tensor::from_data([[0.0, 0.0]], &device),
+            Tensor::from_data([[0.0, 0.0]], &device),
+        );
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Outputs and targets must have the same dimensions. Got [1, 1, 2, 2] and [1, 1, 2, 3]"
+    )]
+    fn test_mismatched_shape() {
+        let device = Default::default();
+        // shapes differ
+        let _ = DiceInput::<TestBackend, 4>::new(
+            Tensor::from_data([[[[0.0; 2]; 2]; 1]; 1], &device),
+            Tensor::from_data([[[[0.0; 3]; 2]; 1]; 1], &device),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Dice metric requires at least 2 classes when including background.")]
+    fn test_include_background_panic() {
+        let device = Default::default();
+        let config = DiceMetricConfig {
+            epsilon: 1e-7,
+            include_background: true,
+        };
+        let mut metric = DiceMetric::<TestBackend, 4>::with_config(config);
+        let input = DiceInput::new(
+            Tensor::from_data([[[[1.0; 2]; 1]; 1]; 1], &device),
+            Tensor::from_data([[[[1.0; 2]; 1]; 1]; 1], &device),
+        );
+        // n_classes = 2, should not panic
+        let _entry = metric.update(&input, &MetricMetadata::fake());
+
+        let config = DiceMetricConfig {
+            epsilon: 1e-7,
+            include_background: true,
+        };
+        let mut metric = DiceMetric::<TestBackend, 4>::with_config(config);
+        let input = DiceInput::new(
+            Tensor::from_data([[[[1.0; 1]; 1]; 1]; 1], &device),
+            Tensor::from_data([[[[1.0; 1]; 1]; 1]; 1], &device),
+        );
+        // n_classes = 1, should panic
+        let _entry = metric.update(&input, &MetricMetadata::fake());
     }
 }
