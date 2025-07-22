@@ -2,8 +2,9 @@ use crate::{CubeRuntime, FloatElement, kernel::utils::strided_layout, ops::max_l
 use crate::{ops::numeric::empty_device_strided, tensor::CubeTensor};
 use burn_tensor::DType;
 use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
-use cubecl::{calculate_cube_count_elemwise, linalg::tensor::StridedLayout};
-use cubecl::{linalg::tensor::index_offset_contiguous, prelude::*};
+use cubecl::calculate_cube_count_elemwise;
+use cubecl::prelude::*;
+use cubecl::std::tensor::{StridedLayout, index_offset_contiguous};
 
 use super::{QParams, QTensor};
 

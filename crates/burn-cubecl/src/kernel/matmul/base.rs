@@ -4,10 +4,7 @@ use burn_tensor::{
     DType,
     quantization::{QTensorPrimitive, QuantAccPrecision},
 };
-use cubecl::{
-    matmul::components::{MatmulSetupError, Quantized},
-    prelude::TensorHandleRef,
-};
+use cubecl::matmul::components::{MatmulSetupError, Quantized};
 
 #[cfg(feature = "autotune")]
 use super::matmul_autotune;

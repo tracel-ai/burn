@@ -59,14 +59,14 @@ fn into_contiguous_quantized<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTenso
     execute_with_dtype!(tensor.dtype, E, {
         let output = empty_qtensor(tensor.shape.clone(), *tensor.scheme(), &tensor.device);
 
-        cubecl::linalg::tensor::into_contiguous_ref::<R, E>(
+        cubecl::std::tensor::into_contiguous_ref::<R, E>(
             &tensor.client,
             &tensor.as_handle_ref(),
             &output.as_handle_ref(),
         );
         let scales = tensor.scales().unwrap();
         let out_scales = output.scales().unwrap();
-        cubecl::linalg::tensor::into_contiguous_ref::<R, E>(
+        cubecl::std::tensor::into_contiguous_ref::<R, E>(
             &scales.client,
             &scales.as_handle_ref(),
             &out_scales.as_handle_ref(),

@@ -5,9 +5,9 @@ use crate::{
 };
 use crate::{kernel::utils::strided_layout, tensor::CubeTensor};
 use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
-use cubecl::linalg::tensor::index_offset_contiguous;
+use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
-use cubecl::{calculate_cube_count_elemwise, linalg::tensor::StridedLayout};
+use cubecl::std::tensor::{StridedLayout, index_offset_contiguous};
 
 #[cube]
 fn pack_i8s_to_u32s(value: Line<u32>) -> u32 {
