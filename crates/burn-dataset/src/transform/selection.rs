@@ -57,7 +57,12 @@ where
     /// A new `SelectionDataset` with shuffled indices.
     pub fn shuffled(dataset: D, rng: &mut StdRng) -> Self {
         let indices = shuffled_indices(dataset.len(), rng);
-        Self::new(dataset, indices)
+
+        Self {
+            dataset,
+            indices,
+            input: PhantomData,
+        }
     }
 
     /// Creates a new selection dataset with shuffled indices using a fixed seed.
