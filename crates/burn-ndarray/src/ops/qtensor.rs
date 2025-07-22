@@ -58,12 +58,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                         let data = TensorData::new(values, shape);
 
                         let qparams = qparams
-                            .scale
+                            .scales
                             .into_iter()
-                            .map(|scale| QParams {
-                                scale,
-                                offset: None,
-                            })
+                            .map(|scales| QParams { scales })
                             .collect();
 
                         NdArrayQTensor {
@@ -94,15 +91,12 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                 q_type: QuantInputType::QInt8,
                 ..
             } => {
-                let scale = into_data_f(qparams.scale).iter().next().unwrap();
+                let scales = into_data_f(qparams.scales).iter().next().unwrap();
                 (
                     QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                        scale,
+                        scales,
                     )),
-                    vec![QParams {
-                        scale,
-                        offset: None,
-                    }],
+                    vec![QParams { scales }],
                 )
             }
         };

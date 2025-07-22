@@ -27,7 +27,8 @@ default = [
     "std",
     "fusion",
     "cubecl/default",
-    "burn-cubecl-fusion/default",
+    "burn-fusion?/default",
+    "burn-cubecl-fusion?/default",
 ]
 doc = ["default"]
 export_tests = [
@@ -44,14 +45,14 @@ export_tests = [
 ]
 fusion = ["burn-fusion", "burn-cubecl-fusion"]
 fusion-experimental = ["fusion"]
-std = ["cubecl/std", "burn-tensor/std"]
+std = ["cubecl/std", "burn-tensor/std", "burn-fusion?/std", "burn-cubecl-fusion?/std"]
 
 template = []
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.19.0" }
-burn-fusion = { path = "../burn-fusion", version = "0.19.0", optional = true }
-burn-cubecl-fusion = { path = "../burn-cubecl-fusion", version = "0.19.0", optional = true }
+burn-fusion = { path = "../burn-fusion", version = "0.19.0", default-features = false, optional = true }
+burn-cubecl-fusion = { path = "../burn-cubecl-fusion", version = "0.19.0", default-features = false, optional = true }
 burn-ir = { path = "../burn-ir", version = "0.19.0", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false, features = [
     "cubecl",
