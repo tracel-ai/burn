@@ -13,10 +13,10 @@ use crate::{LibTorch, LibTorchDevice, QuantElement, TchElement, TchQTensor, TchS
 
 use super::TchOps;
 
-fn quantize<E: TchElement, Q: QuantElement>(
+fn quantize<E: TchElement>(
     tensor: tch::Tensor,
     scheme: &QuantScheme,
-    qparams: &QParams<E, Q>,
+    qparams: &QParams<E>,
 ) -> tch::Tensor {
     let mut tensor = tensor;
     // Quantize only works on Float Tensor
@@ -30,7 +30,7 @@ fn quantize<E: TchElement, Q: QuantElement>(
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
             ..
-        } => tensor.quantize_per_tensor(qparams.scale.elem(), 0, tch::Kind::QInt8),
+        } => tensor.quantize_per_tensor(qparams.scales.elem(), 0, tch::Kind::QInt8),
     }
 }
 
