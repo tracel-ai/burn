@@ -23,10 +23,9 @@ mod tests {
         let qparams = scheme.compute_q_params(range);
 
         qparams
-            .scale
+            .scales
             .into_data()
             .assert_approx_eq::<FT>(&TensorData::from([0.014_173_228]), Tolerance::default());
-        assert!(qparams.offset.is_none());
     }
 
     #[test]

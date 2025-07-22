@@ -265,8 +265,8 @@ impl<R: Runtime> ReduceOptimization<R> {
         fused_reduce_autotune::<R, BT>(arg, context);
 
         #[cfg(not(feature = "autotune"))]
-        if self.execute_fused_reduce::<BT>(context).is_err() {
-            self.execute_fallback::<BT>(context);
+        if arg.execute_fused_reduce::<BT>(context).is_err() {
+            arg.execute_fallback::<BT>(context);
         }
     }
 

@@ -323,7 +323,7 @@ pub struct NdArrayQTensor<Q: QuantElement> {
     /// The quantization scheme.
     pub scheme: QuantScheme,
     /// The quantization parameters.
-    pub qparams: Vec<QParams<f32, Q>>,
+    pub qparams: Vec<QParams<f32>>,
 }
 
 impl<Q: QuantElement> NdArrayQTensor<Q> {
@@ -336,7 +336,7 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
                 q_type: QuantInputType::QInt8,
                 ..
             } => QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                self.qparams[0].scale,
+                self.qparams[0].scales,
             )),
         }
     }
@@ -435,8 +435,7 @@ mod tests {
         let tensor = B::float_from_data(TensorData::from([-1.8f32, -1.0, 0.0, 0.5]), &device);
         let scheme = QuantScheme::default();
         let qparams = QuantizationParametersPrimitive {
-            scale: B::float_from_data(TensorData::from([scale]), &device),
-            offset: None,
+            scales: B::float_from_data(TensorData::from([scale]), &device),
         };
         let qtensor: NdArrayQTensor<i8> = B::quantize(tensor, &scheme, qparams);
 
