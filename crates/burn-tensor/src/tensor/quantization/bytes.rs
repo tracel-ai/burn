@@ -55,7 +55,7 @@ impl QuantizedBytes {
     }
 
     /// Returns the int8 quantized values with the quantization parameters.
-    pub fn into_vec_i8(self) -> (Vec<i8>, QParams<Vec<f32>, Vec<i8>>) {
+    pub fn into_vec_i8(self) -> (Vec<i8>, QParams<Vec<f32>>) {
         let (values, (qparams, num_params)) = self.split_values_off();
 
         // Quantization parameters are added at the end of the tensor data.
@@ -70,10 +70,9 @@ impl QuantizedBytes {
 
         let scales_size = scale_size * num_params;
 
-        let scale = bytemuck::cast_slice(&qparams_bytes[total_bytes - scales_size..]).to_vec();
-        let offset = None;
+        let scales = bytemuck::cast_slice(&qparams_bytes[total_bytes - scales_size..]).to_vec();
 
-        (values, QParams { scale, offset })
+        (values, QParams { scales })
     }
 
     /// Splits the quantized values of the tensor from the quantization parameters.
@@ -116,7 +115,7 @@ impl QuantizedBytes {
     }
 
     /// Dequantizes the data according to its quantization scheme.
-    pub fn dequantize(self) -> (Vec<f32>, QParams<Vec<f32>, Vec<i8>>) {
+    pub fn dequantize(self) -> (Vec<f32>, QParams<Vec<f32>>) {
         match self.scheme {
             QuantScheme {
                 level: QuantLevel::Tensor,
@@ -126,7 +125,7 @@ impl QuantizedBytes {
             } => {
                 let (values, qparams) = self.into_vec_i8();
                 let strategy = QuantizationStrategy::PerTensorSymmetricInt8(
-                    SymmetricQuantization::init(qparams.scale[0]),
+                    SymmetricQuantization::init(qparams.scales[0]),
                 );
                 (strategy.dequantize(&values), qparams)
             }
@@ -183,8 +182,7 @@ mod tests {
 
         let (q_values, qparams) = q_bytes.into_vec_i8();
 
-        assert_eq!(qparams.scale, vec![scale]);
-        assert_eq!(qparams.offset, None);
+        assert_eq!(qparams.scales, vec![scale]);
 
         assert_eq!(q_values, values);
     }

@@ -55,15 +55,9 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for QuantizeOp<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
-                let scale = handles.get_float_tensor::<B>(&self.desc.qparams.scale);
-                let offset = self
-                    .desc
-                    .qparams
-                    .offset
-                    .as_ref()
-                    .map(|x| handles.get_int_tensor::<B>(x));
+                let scales = handles.get_float_tensor::<B>(&self.desc.qparams.scales);
 
-                let qparams = QuantizationParametersPrimitive { scale, offset };
+                let qparams = QuantizationParametersPrimitive { scales };
                 let output = B::quantize(tensor, &self.desc.scheme, qparams);
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
             }
@@ -77,17 +71,12 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
-        streams.tensor(&qparams.scale);
-
-        if let Some(offset) = &qparams.offset {
-            streams.tensor(offset);
-        };
+        streams.tensor(&qparams.scales);
 
         let desc = QuantizeOpIr {
             tensor: tensor.into_ir(),
             qparams: QuantizationParametersIr {
-                scale: qparams.scale.clone().into_ir(),
-                offset: qparams.offset.clone().map(|x| x.into_ir()),
+                scales: qparams.scales.clone().into_ir(),
             },
             scheme: *scheme,
             out: out.to_ir_out(),

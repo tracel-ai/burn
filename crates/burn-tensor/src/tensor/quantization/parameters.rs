@@ -1,15 +1,13 @@
-use crate::{Int, Tensor, backend::Backend};
+use crate::{DType, Shape, Tensor, backend::Backend};
 
 /// The tensor quantization parameters.
-pub type QuantizationParameters<B> = QParams<Tensor<B, 1>, Tensor<B, 1, Int>>;
+pub type QuantizationParameters<B> = QParams<Tensor<B, 1>>;
 
 /// The quantization tensor data parameters.
 #[derive(Clone, Debug)]
-pub struct QParams<S, O> {
+pub struct QParams<S> {
     /// The scaling factor.
-    pub scale: S,
-    /// The zero-point offset.
-    pub offset: Option<O>,
+    pub scales: S,
 }
 
 /// The quantization parameters primitive.
@@ -23,16 +21,28 @@ pub struct QParams<S, O> {
 /// Users should prefer the [QuantizationParameters] struct, which is designed for public use.
 pub struct QuantizationParametersPrimitive<B: Backend> {
     /// The scaling factor.
-    pub scale: B::FloatTensorPrimitive,
-    /// The zero-point offset.
-    pub offset: Option<B::IntTensorPrimitive>,
+    pub scales: B::FloatTensorPrimitive,
 }
 
 impl<B: Backend> From<QuantizationParameters<B>> for QuantizationParametersPrimitive<B> {
     fn from(value: QuantizationParameters<B>) -> Self {
         QuantizationParametersPrimitive {
-            scale: value.scale.primitive.tensor(),
-            offset: value.offset.map(|x| x.primitive),
+            scales: value.scales.primitive.tensor(),
         }
     }
+}
+
+/// A quantization parameter tensor descriptor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QParamTensor {
+    /// Start of the tensor in the buffer
+    pub offset_start: usize,
+    /// Offset of tensor end from the end of the buffer
+    pub offset_end: usize,
+    /// Shape of the tensor
+    pub shape: Shape,
+    /// Strides of the tensor
+    pub strides: Vec<usize>,
+    /// Data type of the tensor
+    pub dtype: DType,
 }

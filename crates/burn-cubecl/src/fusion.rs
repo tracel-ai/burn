@@ -1,4 +1,4 @@
-use crate::{BoolElement, tensor::QParams};
+use crate::BoolElement;
 use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, kernel, tensor::CubeTensor};
 
 use burn_cubecl_fusion::elemwise::optimization::ElemwiseOptimization;
@@ -187,13 +187,7 @@ fn into_tensor<R: CubeRuntime>(handle: CubeFusionHandle<R>, shape: Shape) -> Cub
         shape,
         strides: handle.strides,
         dtype: handle.dtype,
-        qparams: handle.qparams.map(|qparams| QParams {
-            scales_offset_start: qparams.scales_offset_start,
-            scales_offset_end: qparams.scales_offset_end,
-            scales_shape: qparams.scales_shape,
-            scales_strides: qparams.scales_strides,
-            scales_dtype: qparams.scales_dtype,
-        }),
+        qparams: handle.qparams,
     }
 }
 
@@ -205,13 +199,7 @@ impl<R: CubeRuntime> From<CubeTensor<R>> for CubeFusionHandle<R> {
             device: value.device,
             strides: value.strides,
             dtype: value.dtype,
-            qparams: value.qparams.map(|qparams| burn_cubecl_fusion::QParams {
-                scales_offset_start: qparams.scales_offset_start,
-                scales_offset_end: qparams.scales_offset_end,
-                scales_shape: qparams.scales_shape,
-                scales_strides: qparams.scales_strides,
-                scales_dtype: qparams.scales_dtype,
-            }),
+            qparams: value.qparams,
         }
     }
 }

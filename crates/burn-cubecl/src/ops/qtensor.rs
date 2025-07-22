@@ -4,8 +4,8 @@ use burn_tensor::{
     DType, Device, Shape, TensorData, TensorPrimitive,
     ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QTensorPrimitive, QuantInputType, QuantLevel, QuantMode, QuantPropagation, QuantScheme,
-        QuantizationParametersPrimitive,
+        QParamTensor, QTensorPrimitive, QuantInputType, QuantLevel, QuantMode, QuantPropagation,
+        QuantScheme, QuantizationParametersPrimitive,
     },
 };
 use cubecl::{
@@ -56,13 +56,14 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
     let (scales_handle, scales_strides) = tensors.remove(1);
     let (handle, strides) = tensors.remove(0);
 
-    let qparams = QParams {
-        scales_offset_start: scales_handle.offset_start.unwrap_or(0) as usize,
-        scales_offset_end: scales_handle.offset_end.unwrap_or(0) as usize,
-        scales_shape,
-        scales_strides,
-        scales_dtype,
+    let scales = QParamTensor {
+        offset_start: scales_handle.offset_start.unwrap_or(0) as usize,
+        offset_end: scales_handle.offset_end.unwrap_or(0) as usize,
+        shape: scales_shape,
+        strides: scales_strides,
+        dtype: scales_dtype,
     };
+    let qparams = QParams { scales };
 
     CubeTensor::new_quantized(
         client,
@@ -105,13 +106,14 @@ pub fn empty_qtensor<R: CubeRuntime>(
     let (scales_handle, scales_strides) = tensors.remove(1);
     let (handle, strides) = tensors.remove(0);
 
-    let qparams = QParams {
-        scales_offset_start: scales_handle.offset_start.unwrap_or(0) as usize,
-        scales_offset_end: scales_handle.offset_end.unwrap_or(0) as usize,
-        scales_shape,
-        scales_strides,
-        scales_dtype,
+    let scales = QParamTensor {
+        offset_start: scales_handle.offset_start.unwrap_or(0) as usize,
+        offset_end: scales_handle.offset_end.unwrap_or(0) as usize,
+        shape: scales_shape,
+        strides: scales_strides,
+        dtype: scales_dtype,
     };
+    let qparams = QParams { scales };
 
     CubeTensor::new_quantized(
         client,
@@ -159,7 +161,7 @@ where
         scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        kernel::quantization::quantize::<R, F>(tensor, scheme, qparams.scale)
+        kernel::quantization::quantize::<R, F>(tensor, scheme, qparams.scales)
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {

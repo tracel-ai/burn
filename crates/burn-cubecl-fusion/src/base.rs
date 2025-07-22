@@ -5,7 +5,8 @@ use super::elemwise::optimization::{ElemwiseOptimization, ElemwiseOptimizationSt
 use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
 
 use burn_fusion::stream::Context;
-use burn_tensor::{DType, Shape};
+use burn_tensor::DType;
+use burn_tensor::quantization::QParamTensor;
 use cubecl::client::ComputeClient;
 use cubecl::ir::Elem;
 use cubecl::prelude::{TensorArg, TensorHandleRef};
@@ -107,18 +108,7 @@ pub(crate) fn elem_dtype<E: CubeElement>() -> DType {
 
 /// Runtime parameters for quantization. Can be used to construct a scales handle from the base
 /// tensor handle.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct QParams {
-    /// Start of the scales tensor in the buffer
-    pub scales_offset_start: usize,
-    /// Offset of the scales end in the buffer
-    pub scales_offset_end: usize,
-    /// Shape of the scales tensor
-    pub scales_shape: Shape,
-    /// Strides of the scales tensor
-    pub scales_strides: Vec<usize>,
-    pub scales_dtype: DType,
-}
+pub type QParams = burn_tensor::quantization::QParams<QParamTensor>;
 
 /// Handle to be used when fusing operations.
 pub struct CubeFusionHandle<R: Runtime> {

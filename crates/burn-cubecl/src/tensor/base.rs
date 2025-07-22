@@ -303,27 +303,6 @@ where
         }
     }
 
-    /// Create a new quantized tensor
-    pub fn new_quantized(
-        client: ComputeClient<R::Server, R::Channel>,
-        handle: Handle,
-        shape: Shape,
-        device: R::Device,
-        strides: Vec<usize>,
-        dtype: DType,
-        qparams: QParams,
-    ) -> Self {
-        CubeTensor {
-            client,
-            handle,
-            shape,
-            device,
-            strides,
-            dtype,
-            qparams: Some(qparams),
-        }
-    }
-
     /// Create a new tensor with a contiguous memory layout.
     pub fn new_contiguous(
         client: ComputeClient<R::Server, R::Channel>,
