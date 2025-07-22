@@ -435,11 +435,10 @@ mod tests {
             TchTensor::from_data::<f32>(TensorData::from([-1.8, -1.0, 0.0, 0.5]), tch::Device::Cpu);
         let scheme = QuantScheme::default();
         let qparams = QuantizationParametersPrimitive::<LibTorch<f32, i8>> {
-            scale: TchTensor::from_data::<f32>(TensorData::from([0.009_019_608]), tch::Device::Cpu),
-            offset: Some(TchTensor::from_data::<i8>(
-                TensorData::from([72]),
+            scales: TchTensor::from_data::<f32>(
+                TensorData::from([0.009_019_608]),
                 tch::Device::Cpu,
-            )),
+            ),
         };
         let qtensor: TchQTensor = LibTorch::quantize(tensor, &scheme, qparams);
 

@@ -187,6 +187,7 @@ fn into_tensor<R: CubeRuntime>(handle: CubeFusionHandle<R>, shape: Shape) -> Cub
         shape,
         strides: handle.strides,
         dtype: handle.dtype,
+        qparams: handle.qparams,
     }
 }
 
@@ -198,6 +199,7 @@ impl<R: CubeRuntime> From<CubeTensor<R>> for CubeFusionHandle<R> {
             device: value.device,
             strides: value.strides,
             dtype: value.dtype,
+            qparams: value.qparams,
         }
     }
 }

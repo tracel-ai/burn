@@ -516,12 +516,7 @@ impl RelativeOpsScalar<f32> for FloatOperationIr {
             FloatOperationIr::Quantize(desc) => FloatOperationIr::Quantize(QuantizeOpIr {
                 tensor: desc.tensor.to_relative(converter),
                 qparams: QuantizationParametersIr {
-                    scale: desc.qparams.scale.to_relative(converter),
-                    offset: desc
-                        .qparams
-                        .offset
-                        .as_ref()
-                        .map(|x| x.to_relative(converter)),
+                    scales: desc.qparams.scales.to_relative(converter),
                 },
                 scheme: desc.scheme,
                 out: desc.out.to_relative(converter),

@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 
 use super::{
     QParams, QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantizationStrategy,
-    SymmetricQuantization, pack_i8s_to_u32s, unpack_u32s_to_i8s,
+    SymmetricQuantization,
 };
 
 /// Quantized data bytes representation.
@@ -37,8 +37,8 @@ impl QuantizedBytes {
             QuantizationStrategy::PerTensorSymmetricInt8(quant) => {
                 if TypeId::of::<E>() == TypeId::of::<i8>() {
                     // Re-interpret `Vec<E>` as `Vec<i8>` with `Vec::from_raw_parts`
-                    let u32s = pack_i8s_to_u32s(bytemuck::allocation::cast_vec(value));
-                    bytes = Bytes::from_elems(u32s);
+                    let i8s: Vec<i8> = bytemuck::allocation::cast_vec(value);
+                    bytes = Bytes::from_elems(i8s);
                 } else {
                     panic!("Invalid quantized type");
                 }
@@ -55,11 +55,8 @@ impl QuantizedBytes {
     }
 
     /// Returns the int8 quantized values with the quantization parameters.
-    pub fn into_vec_i8(self) -> (Vec<i8>, QParams<Vec<f32>, Vec<i8>>) {
-        let numel = self.num_elements;
+    pub fn into_vec_i8(self) -> (Vec<i8>, QParams<Vec<f32>>) {
         let (values, (qparams, num_params)) = self.split_values_off();
-
-        let values = unpack_u32s_to_i8s(values, numel);
 
         // Quantization parameters are added at the end of the tensor data.
         // As such, the last bytes always correspond to the scale parameter(s).
@@ -73,48 +70,52 @@ impl QuantizedBytes {
 
         let scales_size = scale_size * num_params;
 
-        let scale = bytemuck::cast_slice(&qparams_bytes[total_bytes - scales_size..]).to_vec();
-        let offset = None;
+        let scales = bytemuck::cast_slice(&qparams_bytes[total_bytes - scales_size..]).to_vec();
 
-        (values, QParams { scale, offset })
+        (values, QParams { scales })
     }
 
     /// Splits the quantized values of the tensor from the quantization parameters.
     ///
     /// Returns the packed values and a newly allocated vector containing the quantization parameters.
-    fn split_values_off(self) -> (Vec<u32>, (Vec<u32>, usize)) {
-        // The bytes can be created either from packed u32 or existing bytes with the same representation.
-        let mut values = match self.bytes.align() {
-            1 => {
-                let bytes = self.bytes.try_into_vec::<u8>().unwrap();
-                #[cfg(target_endian = "little")]
-                {
-                    // SAFETY: quantized bytes representation is created from packed u32 values in little endian
-                    unsafe { reinterpret_vec(bytes) }
-                }
-                #[cfg(target_endian = "big")]
-                {
-                    pack_i8s_to_u32s(bytemuck::allocation::cast_vec(bytes))
-                }
-            }
-            4 => self.bytes.try_into_vec::<u32>().unwrap(),
-            _ => unreachable!(),
-        };
+    fn split_values_off(self) -> (Vec<i8>, (Vec<u32>, usize)) {
+        let mut values = self.bytes.try_into_vec::<i8>().unwrap();
 
         let num_params = match self.scheme.level {
             QuantLevel::Tensor => 1,
         };
 
-        let scale_size = num_params; // f32 scale is the same number of bytes as u32
+        let scale_size = num_params * size_of::<f32>(); // f32 scale is the same number of bytes as u32
         let values_end = values.len() - scale_size;
 
         let qparams = values.split_off(values_end);
+
+        let qparams = if qparams.as_ptr() as usize % 4 == 0 {
+            let mut qparams = core::mem::ManuallyDrop::new(qparams);
+            unsafe {
+                Vec::<u32>::from_raw_parts(
+                    qparams.as_mut_ptr() as _,
+                    qparams.len() / 4,
+                    qparams.capacity() / 4,
+                )
+            }
+        } else {
+            #[cfg(target_endian = "little")]
+            {
+                // SAFETY: quantized bytes representation is created from packed u32 values in little endian
+                unsafe { reinterpret_vec(qparams) }
+            }
+            #[cfg(target_endian = "big")]
+            {
+                pack_i8s_to_u32s(bytemuck::allocation::cast_vec(qparams))
+            }
+        };
 
         (values, (qparams, num_params))
     }
 
     /// Dequantizes the data according to its quantization scheme.
-    pub fn dequantize(self) -> (Vec<f32>, QParams<Vec<f32>, Vec<i8>>) {
+    pub fn dequantize(self) -> (Vec<f32>, QParams<Vec<f32>>) {
         match self.scheme {
             QuantScheme {
                 level: QuantLevel::Tensor,
@@ -124,7 +125,7 @@ impl QuantizedBytes {
             } => {
                 let (values, qparams) = self.into_vec_i8();
                 let strategy = QuantizationStrategy::PerTensorSymmetricInt8(
-                    SymmetricQuantization::init(qparams.scale[0]),
+                    SymmetricQuantization::init(qparams.scales[0]),
                 );
                 (strategy.dequantize(&values), qparams)
             }
@@ -181,8 +182,7 @@ mod tests {
 
         let (q_values, qparams) = q_bytes.into_vec_i8();
 
-        assert_eq!(qparams.scale, vec![scale]);
-        assert_eq!(qparams.offset, None);
+        assert_eq!(qparams.scales, vec![scale]);
 
         assert_eq!(q_values, values);
     }

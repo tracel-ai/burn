@@ -162,7 +162,7 @@ impl Allocation {
         if capacity * size_of::<E>() != byte_capacity {
             return Err(self);
         };
-        if self.layout.align() != align_of::<E>() {
+        if self.layout.align() < align_of::<E>() {
             return Err(self);
         }
         // Okay, let's commit
