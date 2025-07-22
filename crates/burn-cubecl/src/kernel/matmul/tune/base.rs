@@ -1,9 +1,9 @@
 use burn_tensor::{DType, Element};
 use cubecl::{
     matmul::{
-        Strategy, SyncBufferLoadingStrategy, SyncLoadingStrategy,
+        Strategy, SyncLoadingStrategy, SyncPartialLoadingStrategy,
         components::MatmulKind,
-        kernels::matmul::{
+        kernels::layered::{
             Selection, TileSizeSelection, double_buffering::DoubleBufferingArgs,
             ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
             simple_unit::SimpleUnitSelectionArgs,
@@ -81,7 +81,9 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
 
         TunableSet::new(create_key::<R>, matmul_input_gen::<R>)
             .with(Tunable::new(naive::<R, E>).group(&unit, |key| {
-                if matches!(key.analysis.kind, MatmulKind::InnerProduct) {
+                if matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
+                    || matches!(key.analysis.kind, MatmulKind::InnerProduct)
+                {
                     PRIORITY_MAX
                 } else {
                     PRIORITY_MIN
@@ -103,9 +105,9 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
             .with(Tunable::new(matmul_simple::<R, E>).group(&cmma, |_| PRIORITY_MAX))
             .with(Tunable::new(matmul_simple_multi_rows::<R, E>).group(&cmma, |_| PRIORITY_MAX))
             .with(
-                Tunable::new(matmul_ordered_double_buffering::<R, E>).group(&cmma, |key| {
-                    double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
-                }),
+                // Ordered should be tried most of the time.
+                Tunable::new(matmul_ordered_double_buffering::<R, E>)
+                    .group(&cmma, |_| PRIORITY_MAX),
             )
             .with(
                 Tunable::new(matmul_double_buffering_specialized::<R, E>)
@@ -197,7 +199,7 @@ fn matmul_double_buffering<R: CubeRuntime, E: FloatElement>(
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
         &Strategy::DoubleBuffering(
-            SyncBufferLoadingStrategy::Tilewise,
+            SyncPartialLoadingStrategy::Tilewise,
             Selection::Inferred(DoubleBufferingArgs { specialized: false }),
         ),
         &lhs.client,
@@ -217,7 +219,7 @@ fn matmul_double_buffering_specialized<R: CubeRuntime, E: FloatElement>(
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
         &Strategy::DoubleBuffering(
-            SyncBufferLoadingStrategy::Tilewise,
+            SyncPartialLoadingStrategy::Tilewise,
             Selection::Inferred(DoubleBufferingArgs { specialized: true }),
         ),
         &lhs.client,
@@ -235,14 +237,14 @@ fn matmul_ordered_double_buffering<R: CubeRuntime, E: FloatElement>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
-    let partition_k = match lhs.dtype {
+    let row_count = match lhs.dtype {
         DType::F16 | DType::BF16 => 8,
         _ => 4,
     };
     cubecl::matmul::launch_ref::<R, E>(
         &Strategy::OrderedDoubleBuffering(Selection::Inferred(OrderedSelectionArgs {
-            partition_k: Some(partition_k),
-            row_count: Some(2),
+            partition_k: Some(2),
+            row_count: Some(row_count),
             rows_per_plane: Some(2),
         })),
         &lhs.client,

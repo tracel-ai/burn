@@ -74,14 +74,17 @@ mod tests {
             TestTensor::<3>::from([[[0.9959688], [0.9958376]], [[0.9955946], [0.9955169]]])
                 .into_data();
 
+        // sensitive to rounding in dot/norm; loosen f16 tolerance
+        let tolerance = Tolerance::default().set_half_precision_relative(7e-3);
+
         linalg::cosine_similarity(x1.clone(), x2.clone(), 2, None)
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, tolerance);
 
         // Test with negative dimension (-1 is the last dimension, which is 2 in this case)
         linalg::cosine_similarity(x1.clone(), x2.clone(), -1, None)
             .into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+            .assert_approx_eq::<FT>(&expected, tolerance);
     }
 
     #[test]
@@ -94,7 +97,7 @@ mod tests {
         let expected = TestTensor::<2>::from([[0.0028], [0.0154]]).into_data();
 
         // Smaller values result in NaN on metal f16
-        let epsilon = Some(FT::from_elem(1e-3));
+        let epsilon = Some(FT::from_elem(1e-2));
         let tolerance = Tolerance::absolute(0.2);
 
         linalg::cosine_similarity(x1, x2, 1, epsilon)

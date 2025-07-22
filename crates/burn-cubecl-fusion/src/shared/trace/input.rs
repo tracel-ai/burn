@@ -27,7 +27,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
     pub fn run(self, context: &mut Context<'_, CubeFusionHandle<R>>, plan: &mut LaunchPlan<'a, R>) {
         for (pos, (tensor_relative, precision)) in self.resources.inputs.iter().enumerate() {
             let mut tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
-            let mut handle = context
+            let handle = context
                 .handles
                 .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
 
@@ -37,23 +37,23 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
 
             self.analyze(plan, pos, tensor_relative, &handle);
 
+            let mut new_strides = handle.strides.clone();
+
             if tensor_global.shape.len() < plan.rank {
                 let num_elem: usize = tensor_global.shape.iter().product();
                 for _ in 0..(plan.rank - tensor_global.shape.len()) {
                     tensor_global.shape.insert(0, 1);
-                    handle.strides.insert(0, num_elem);
+                    new_strides.insert(0, num_elem);
                 }
             }
 
-            plan.handle_inputs.push(HandleInput {
-                precision: *precision,
+            plan.handle_inputs.push(HandleInput::new(
+                &tensor_global,
+                tensor_relative,
+                *precision,
                 handle,
-                relative_id: tensor_relative.id,
-                global_id: tensor_global.id,
-                global_shape: tensor_global.shape.clone(),
-                vectorization: 1,
-                broadcated: false,
-            });
+                new_strides,
+            ));
             plan.global_inputs.push(tensor_global);
         }
     }

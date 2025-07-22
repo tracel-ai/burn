@@ -21,6 +21,7 @@ use crate::{
             avg_pool1d::AvgPool1dNode,
             avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
+            bernoulli::BernoulliNode,
             binary::BinaryNode,
             ceil::CeilNode,
             clip::ClipNode,
@@ -105,6 +106,7 @@ use onnx_ir::{
         group_norm::group_norm_config,
         hard_sigmoid::hard_sigmoid_config,
         instance_norm::instance_norm_config,
+        is_inf::is_inf_config,
         layer_norm::layer_norm_config,
         leaky_relu::leaky_relu_config,
         linear::linear_config,
@@ -322,6 +324,7 @@ impl ParsedOnnxGraph {
                 NodeType::Add => graph.register(Self::add_conversion(node)),
                 NodeType::ArgMax => graph.register(Self::argmax_conversion(node)),
                 NodeType::ArgMin => graph.register(Self::argmin_conversion(node)),
+                NodeType::Bernoulli => graph.register(Self::bernoulli_conversion(node)),
                 NodeType::Sub => graph.register(Self::sub_conversion(node)),
                 NodeType::Mul => graph.register(Self::mul_conversion(node)),
                 NodeType::Div => graph.register(Self::div_conversion(node)),
@@ -440,6 +443,8 @@ impl ParsedOnnxGraph {
                 }
                 NodeType::Split => graph.register(Self::split_conversion(node)),
                 NodeType::Gemm => graph.register(Self::gemm_conversion(node)),
+                NodeType::IsNaN => graph.register(Self::is_nan_conversion(node)),
+                NodeType::IsInf => graph.register(Self::is_inf_conversion(node)),
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -1070,6 +1075,13 @@ impl ParsedOnnxGraph {
         ArgMinNode::new(input, output, axis)
     }
 
+    fn bernoulli_conversion(node: Node) -> BernoulliNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        BernoulliNode::new(input, output)
+    }
+
     fn concat_conversion(node: Node) -> ConcatNode {
         let inputs = node.inputs.iter().map(TensorType::from).collect();
 
@@ -1572,6 +1584,19 @@ impl ParsedOnnxGraph {
         let output = TensorType::from(node.outputs.first().unwrap());
         let (alpha, beta, trans_a, trans_b) = gemm_config(&node);
         GemmNode::new(a, b, c, output, alpha, beta, trans_a, trans_b)
+    }
+
+    fn is_inf_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        let config = is_inf_config(&node);
+        UnaryNode::is_inf(input, output, config)
+    }
+
+    fn is_nan_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        UnaryNode::is_nan(input, output)
     }
 }
 
