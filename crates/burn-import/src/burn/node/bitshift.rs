@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, Scope, TensorKind, Type};
+use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -78,22 +78,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        match &self.output {
-            Type::Tensor(tensor) => {
-                if tensor.kind != TensorKind::Int {
-                    panic!("BitShiftNode only supports Int tensor outputs");
-                }
-            }
-            Type::Scalar(scalar) => {
-                if !matches!(
-                    scalar.kind,
-                    crate::burn::ScalarKind::Int32 | crate::burn::ScalarKind::Int64
-                ) {
-                    panic!("BitShiftNode only supports Int scalar outputs");
-                }
-            }
-            _ => panic!("BitShiftNode only supports tensor and scalar outputs"),
-        }
         Node::BitShift(self)
     }
 
