@@ -5,7 +5,9 @@ include_models!(
     slice_shape,
     slice_scalar,
     slice_mixed,
-    slice_shape_gather
+    slice_shape_gather,
+    slice_shape_runtime,
+    slice_shape_multi
 );
 
 #[cfg(test)]
@@ -118,5 +120,49 @@ mod tests {
         let input_data = input.to_data();
         let output_data = output.to_data();
         input_data.assert_eq(&output_data, true);
+    }
+
+    #[test]
+    fn slice_shape_runtime() {
+        let model: slice_shape_runtime::Model<Backend> = slice_shape_runtime::Model::default();
+        let device = Default::default();
+
+        // Create test input tensor [10, 8, 6]
+        let input = Tensor::<Backend, 3>::ones([10, 8, 6], &device);
+
+        // Create shape input tensor [3, 4] - its shape will be used as slice ends
+        let shape_input = Tensor::<Backend, 2>::ones([3, 4], &device);
+
+        let output = model.forward(input, shape_input);
+
+        // The graph extracts shape [3, 4] and uses it as ends for slicing
+        // Slice uses starts=[0, 0], ends=[3, 4], axes=[0, 1]
+        // So it slices first two dimensions: [0:3, 0:4, :]
+        // Result shape should be [3, 4, 6]
+        assert_eq!(output.shape().dims, [3, 4, 6]);
+    }
+
+    #[test]
+    fn slice_shape_multi() {
+        let model: slice_shape_multi::Model<Backend> = slice_shape_multi::Model::default();
+        let device = Default::default();
+
+        // Create test input tensor [8, 6, 10, 12]
+        let input = Tensor::<Backend, 4>::ones([8, 6, 10, 12], &device);
+
+        // Create shape tensors whose shapes will be used as slice parameters
+        // start_shape_input has shape [1, 2, 3] -> used as start indices
+        let start_shape_input = Tensor::<Backend, 3>::zeros([1, 2, 3], &device);
+
+        // end_shape_input has shape [5, 4, 7] -> used as end indices
+        let end_shape_input = Tensor::<Backend, 3>::zeros([5, 4, 7], &device);
+
+        let output = model.forward(input, start_shape_input, end_shape_input);
+
+        // The graph extracts shapes and uses them for slicing
+        // Slice uses starts=[1, 2, 3], ends=[5, 4, 7], axes=[0, 1, 2]
+        // So it slices: [1:5, 2:4, 3:7, :]
+        // Result shape should be [4, 2, 4, 12]
+        assert_eq!(output.shape().dims, [4, 2, 4, 12]);
     }
 }

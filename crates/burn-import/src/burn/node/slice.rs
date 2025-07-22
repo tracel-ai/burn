@@ -63,10 +63,71 @@ impl SliceNode {
                     ranges[i] = quote! { #start..#end };
                 }
             }
-            _ => {
-                // Runtime cases (currently single dimension only)
-                let (start_expr, end_expr) = self.get_slice_range_expressions();
-                ranges[0] = quote! { #start_expr..#end_expr };
+            (SliceParam::Runtime(start_type), SliceParam::Runtime(end_type)) => {
+                // Handle runtime cases - both scalar and shape types
+                match (start_type, end_type) {
+                    (Type::Shape(start_shape), Type::Shape(end_shape)) => {
+                        // Multi-dimensional slicing with shape inputs
+                        let start_name = &start_shape.name;
+                        let end_name = &end_shape.name;
+                        let num_dims = start_shape.rank.min(end_shape.rank).min(rank);
+
+                        #[allow(clippy::needless_range_loop)]
+                        for i in 0..num_dims {
+                            let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                            ranges[i] = quote! { #start_name[#idx]..#end_name[#idx] };
+                        }
+                    }
+                    _ => {
+                        // Single dimension runtime slicing (scalar or mixed types)
+                        let (start_expr, end_expr) = self.get_slice_range_expressions();
+                        ranges[0] = quote! { #start_expr..#end_expr };
+                    }
+                }
+            }
+            (SliceParam::Static(starts), SliceParam::Runtime(end_type)) => {
+                // Static starts, runtime ends
+                match end_type {
+                    Type::Shape(end_shape) => {
+                        // Multi-dimensional slicing with shape as ends
+                        let end_name = &end_shape.name;
+                        let num_dims = starts.len().min(end_shape.rank).min(rank);
+
+                        #[allow(clippy::needless_range_loop)]
+                        for i in 0..num_dims {
+                            let start = starts[i].to_tokens();
+                            let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                            ranges[i] = quote! { #start..#end_name[#idx] };
+                        }
+                    }
+                    _ => {
+                        // Single dimension runtime slicing
+                        let (start_expr, end_expr) = self.get_slice_range_expressions();
+                        ranges[0] = quote! { #start_expr..#end_expr };
+                    }
+                }
+            }
+            (SliceParam::Runtime(start_type), SliceParam::Static(ends)) => {
+                // Runtime starts, static ends
+                match start_type {
+                    Type::Shape(start_shape) => {
+                        // Multi-dimensional slicing with shape as starts
+                        let start_name = &start_shape.name;
+                        let num_dims = start_shape.rank.min(ends.len()).min(rank);
+
+                        #[allow(clippy::needless_range_loop)]
+                        for i in 0..num_dims {
+                            let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                            let end = ends[i].to_tokens();
+                            ranges[i] = quote! { #start_name[#idx]..#end };
+                        }
+                    }
+                    _ => {
+                        // Single dimension runtime slicing
+                        let (start_expr, end_expr) = self.get_slice_range_expressions();
+                        ranges[0] = quote! { #start_expr..#end_expr };
+                    }
+                }
             }
         }
 
@@ -96,17 +157,13 @@ impl SliceNode {
         _node_position: usize,
         output: &proc_macro2::Ident,
     ) -> TokenStream {
-        // TODO: Shape slicing has the following limitations:
-        // 1. Does not support Shape type inputs for 'starts' and 'ends' parameters
-        // 2. Only accepts static (compile-time) scalar values
-        // 3. Runtime scalar inputs are not supported (will panic)
-        // 4. Only supports single-dimensional slicing (multi-dimensional slicing not implemented)
+        let shape_name = &shape.name;
+        let shape_len = Literal::usize_unsuffixed(shape.rank);
+
         match (&self.starts, &self.ends) {
             (SliceParam::Static(starts), SliceParam::Static(ends)) if starts.len() == 1 => {
                 let start = starts[0].to_tokens();
                 let end = ends[0].to_tokens();
-                let shape_name = &shape.name;
-                let shape_len = Literal::usize_unsuffixed(shape.rank);
                 let output_len = (ends[0] - starts[0]) as usize;
                 let output_rank = Literal::usize_unsuffixed(output_len);
 
@@ -114,7 +171,19 @@ impl SliceNode {
                     let #output: [usize; #output_rank] = #shape_name[s![#start..#end].into_ranges([#shape_len].into())[0].clone()].try_into().unwrap();
                 }
             }
-            _ => panic!("Shape slicing only supports static slicing"),
+            _ => {
+                // Runtime slicing - we need to generate code that determines the output size at runtime
+                let (start_expr, end_expr) = self.get_slice_range_expressions();
+
+                // For runtime slicing, we need to use a Vec since we don't know the size at compile time
+                // The output type should still be Shape, but we'll need to handle it differently
+                quote! {
+                    let _start = #start_expr;
+                    let _end = #end_expr;
+                    let _slice = &#shape_name[_start.._end];
+                    let #output = _slice.to_vec();
+                }
+            }
         }
     }
 
@@ -124,7 +193,14 @@ impl SliceNode {
                 let name = &scalar.name;
                 quote! { #name as usize }
             }
-            _ => panic!("Expected scalar type for runtime slice parameter, got {scalar_type:?}"),
+            Type::Shape(shape) => {
+                let name = &shape.name;
+                // For single-dimension slicing, use the first element of the shape
+                quote! { #name[0] }
+            }
+            _ => panic!(
+                "Expected scalar or shape type for runtime slice parameter, got {scalar_type:?}"
+            ),
         }
     }
 }
@@ -406,6 +482,106 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 2>, end: i64) -> Tensor<B, 2> {
                     let tensor2 = tensor1.slice(s![1..end as usize, ..]);
+                    tensor2
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_slice_shape_params() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+        graph.register(SliceNode::new(
+            Type::Tensor(TensorType::new_float("tensor1", 3)),
+            Type::Tensor(TensorType::new_float("tensor2", 3)),
+            SliceParam::Runtime(Type::Shape(ShapeType::new("start_shape", 1))),
+            SliceParam::Runtime(Type::Shape(ShapeType::new("end_shape", 1))),
+        ));
+        graph.register_input_output(
+            vec![
+                "tensor1".to_string(),
+                "start_shape".to_string(),
+                "end_shape".to_string(),
+            ],
+            vec!["tensor2".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::tensor::s;
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, tensor1: Tensor<B, 3>, start_shape: [usize; 1], end_shape: [usize; 1]) -> Tensor<B, 3> {
+                    let tensor2 = tensor1.slice(s![start_shape[0]..end_shape[0], .., ..]);
+                    tensor2
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_slice_multi_dim_shape_params() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+        graph.register(SliceNode::new(
+            Type::Tensor(TensorType::new_float("tensor1", 4)),
+            Type::Tensor(TensorType::new_float("tensor2", 4)),
+            SliceParam::Runtime(Type::Shape(ShapeType::new("start_shape", 3))),
+            SliceParam::Runtime(Type::Shape(ShapeType::new("end_shape", 3))),
+        ));
+        graph.register_input_output(
+            vec![
+                "tensor1".to_string(),
+                "start_shape".to_string(),
+                "end_shape".to_string(),
+            ],
+            vec!["tensor2".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::tensor::s;
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, tensor1: Tensor<B, 4>, start_shape: [usize; 3], end_shape: [usize; 3]) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.slice(s![start_shape[0]..end_shape[0], start_shape[1]..end_shape[1], start_shape[2]..end_shape[2], ..]);
                     tensor2
                 }
             }
