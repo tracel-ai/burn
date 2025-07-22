@@ -4,6 +4,22 @@ use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use std::marker::PhantomData;
 
+/// Generates a shuffled vector of indices up to a size.
+///
+/// # Arguments
+///
+/// * `size` - The size of the dataset to shuffle.
+///
+/// # Returns
+///
+/// A vector of shuffled indices.
+#[inline(always)]
+pub fn shuffled_indices(size: usize, rng: &mut StdRng) -> Vec<usize> {
+    let mut indices = (0..size).collect::<Vec<_>>();
+    indices.shuffle(rng);
+    indices
+}
+
 /// A dataset that selects a subset of indices from an existing dataset.
 ///
 /// Indices may appear multiple times, but they must be within the bounds of the original dataset.
@@ -144,20 +160,4 @@ mod tests {
             .collect();
         assert_eq!(&shuffled.iter().collect::<Vec<_>>(), &expected_items);
     }
-}
-
-/// Generates a shuffled vector of indices up to a size.
-///
-/// # Arguments
-///
-/// * `size` - The size of the dataset to shuffle.
-///
-/// # Returns
-///
-/// A vector of shuffled indices.
-#[inline(always)]
-pub fn shuffled_indices(size: usize, rng: &mut StdRng) -> Vec<usize> {
-    let mut indices = (0..size).collect::<Vec<_>>();
-    indices.shuffle(rng);
-    indices
 }
