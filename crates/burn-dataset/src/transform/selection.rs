@@ -1,6 +1,6 @@
 use crate::Dataset;
-use crate::transform::shuffled_indices;
 use rand::SeedableRng;
+use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use std::marker::PhantomData;
 
@@ -43,12 +43,36 @@ where
     }
 
     /// Creates a new selection dataset with shuffled indices.
+    ///
+    /// Selects every index of the dataset and shuffles them
+    /// using `shuffled_indices`.
+    ///
+    /// # Arguments
+    ///
+    /// * `dataset` - The original dataset to select from.
+    /// * `rng` - A mutable reference to a random number generator.
+    ///
+    /// # Returns
+    ///
+    /// A new `SelectionDataset` with shuffled indices.
     pub fn shuffled(dataset: D, rng: &mut StdRng) -> Self {
         let indices = shuffled_indices(dataset.len(), rng);
         Self::new(dataset, indices)
     }
 
     /// Creates a new selection dataset with shuffled indices using a fixed seed.
+    ///
+    /// Selects every index of the dataset and shuffles them
+    /// using `shuffled_indices`; seeds the random number generator with the provided seed.
+    ///
+    /// # Arguments
+    ///
+    /// * `dataset` - The original dataset to select from.
+    /// * `seed` - A fixed seed for the random number generator.
+    ///
+    /// # Returns
+    ///
+    /// A new `SelectionDataset` with shuffled indices.
     pub fn shuffled_with_seed(dataset: D, seed: u64) -> Self {
         let mut rng = StdRng::seed_from_u64(seed);
         Self::shuffled(dataset, &mut rng)
@@ -109,11 +133,26 @@ mod tests {
         assert_eq!(&shuffled.indices, &indices);
         assert_eq!(shuffled.len(), source_items.len());
 
-        let expected_items: Vec<_> = shuffled
-            .indices
+        let expected_items: Vec<_> = indices
             .iter()
             .map(|&i| source_items[i].to_string())
             .collect();
         assert_eq!(&shuffled.iter().collect::<Vec<_>>(), &expected_items);
     }
+}
+
+/// Generates a shuffled vector of indices up to a size.
+///
+/// # Arguments
+///
+/// * `size` - The size of the dataset to shuffle.
+///
+/// # Returns
+///
+/// A vector of shuffled indices.
+#[inline(always)]
+pub fn shuffled_indices(size: usize, rng: &mut StdRng) -> Vec<usize> {
+    let mut indices = (0..size).collect::<Vec<_>>();
+    indices.shuffle(rng);
+    indices
 }
