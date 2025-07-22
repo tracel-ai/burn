@@ -124,9 +124,7 @@ impl SliceNode {
                 let name = &scalar.name;
                 quote! { #name as usize }
             }
-            _ => panic!(
-                "Expected scalar type for runtime slice parameter, got {scalar_type:?}"
-            ),
+            _ => panic!("Expected scalar type for runtime slice parameter, got {scalar_type:?}"),
         }
     }
 }

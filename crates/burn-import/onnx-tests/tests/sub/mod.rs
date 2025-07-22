@@ -1,6 +1,6 @@
 // Include the models for this node type
 use crate::include_models;
-include_models!(sub, sub_int);
+include_models!(sub, sub_int, sub_shape);
 
 #[cfg(test)]
 mod tests {
@@ -37,5 +37,24 @@ mod tests {
         let expected = TensorData::from([[[[-12i64, -12, -12, -12]]]]);
 
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn sub_shape_with_scalar_and_shape() {
+        // Initialize the model
+        let model: sub_shape::Model<Backend> = sub_shape::Model::default();
+
+        let device = Default::default();
+        // Create input tensors
+        let input1 = Tensor::<Backend, 3>::ones([10, 8, 6], &device);
+        let input2 = Tensor::<Backend, 3>::ones([2, 3, 4], &device);
+        let (shape_minus_scalar, shape_minus_shape) = model.forward(input1, input2);
+        
+        // Expected outputs
+        let expected_scalar = [9, 7, 5]; // shape1 [10, 8, 6] - 1
+        let expected_shape = [8, 5, 2];  // shape1 [10, 8, 6] - shape2 [2, 3, 4]
+        
+        assert_eq!(shape_minus_scalar, expected_scalar);
+        assert_eq!(shape_minus_shape, expected_shape);
     }
 }
