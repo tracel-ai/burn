@@ -48,87 +48,77 @@ impl SliceNode {
         output: &proc_macro2::Ident,
     ) -> TokenStream {
         let input = scope.tensor_use_owned(tensor, node_position);
-
-        // Create slice ranges for all dimensions
         let rank = tensor.rank;
         let mut ranges = vec![quote! { .. }; rank];
 
-        // Handle different slice configurations
+        // Build slice ranges based on parameter types
         match (&self.starts, &self.ends) {
+            // Both static: simple case
             (SliceParam::Static(starts), SliceParam::Static(ends)) => {
-                // Handle all static cases (single or multi-dimensional)
-                for i in 0..starts.len().min(ends.len()).min(rank) {
+                let limit = starts.len().min(ends.len()).min(rank);
+                for (i, range) in ranges.iter_mut().enumerate().take(limit) {
                     let start = starts[i].to_tokens();
                     let end = ends[i].to_tokens();
-                    ranges[i] = quote! { #start..#end };
+                    *range = quote! { #start..#end };
                 }
             }
+
+            // Both runtime: check if they're shapes for multi-dimensional slicing
             (SliceParam::Runtime(start_type), SliceParam::Runtime(end_type)) => {
-                // Handle runtime cases - both scalar and shape types
                 match (start_type, end_type) {
                     (Type::Shape(start_shape), Type::Shape(end_shape)) => {
-                        // Multi-dimensional slicing with shape inputs
                         let start_name = &start_shape.name;
                         let end_name = &end_shape.name;
                         let num_dims = start_shape.rank.min(end_shape.rank).min(rank);
 
-                        #[allow(clippy::needless_range_loop)]
-                        for i in 0..num_dims {
+                        for (i, range) in ranges.iter_mut().enumerate().take(num_dims) {
                             let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                            ranges[i] = quote! { #start_name[#idx]..#end_name[#idx] };
+                            *range = quote! { #start_name[#idx]..#end_name[#idx] };
                         }
                     }
                     _ => {
-                        // Single dimension runtime slicing (scalar or mixed types)
+                        // Single dimension slicing for scalars
                         let (start_expr, end_expr) = self.get_slice_range_expressions();
                         ranges[0] = quote! { #start_expr..#end_expr };
                     }
                 }
             }
-            (SliceParam::Static(starts), SliceParam::Runtime(end_type)) => {
-                // Static starts, runtime ends
-                match end_type {
-                    Type::Shape(end_shape) => {
-                        // Multi-dimensional slicing with shape as ends
-                        let end_name = &end_shape.name;
-                        let num_dims = starts.len().min(end_shape.rank).min(rank);
 
-                        #[allow(clippy::needless_range_loop)]
-                        for i in 0..num_dims {
-                            let start = starts[i].to_tokens();
-                            let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                            ranges[i] = quote! { #start..#end_name[#idx] };
-                        }
-                    }
-                    _ => {
-                        // Single dimension runtime slicing
-                        let (start_expr, end_expr) = self.get_slice_range_expressions();
-                        ranges[0] = quote! { #start_expr..#end_expr };
-                    }
-                }
-            }
-            (SliceParam::Runtime(start_type), SliceParam::Static(ends)) => {
-                // Runtime starts, static ends
-                match start_type {
-                    Type::Shape(start_shape) => {
-                        // Multi-dimensional slicing with shape as starts
-                        let start_name = &start_shape.name;
-                        let num_dims = start_shape.rank.min(ends.len()).min(rank);
+            // Static start, runtime end
+            (SliceParam::Static(starts), SliceParam::Runtime(end_type)) => match end_type {
+                Type::Shape(end_shape) => {
+                    let end_name = &end_shape.name;
+                    let num_dims = starts.len().min(end_shape.rank).min(rank);
 
-                        #[allow(clippy::needless_range_loop)]
-                        for i in 0..num_dims {
-                            let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                            let end = ends[i].to_tokens();
-                            ranges[i] = quote! { #start_name[#idx]..#end };
-                        }
-                    }
-                    _ => {
-                        // Single dimension runtime slicing
-                        let (start_expr, end_expr) = self.get_slice_range_expressions();
-                        ranges[0] = quote! { #start_expr..#end_expr };
+                    for (i, range) in ranges.iter_mut().enumerate().take(num_dims) {
+                        let start = starts[i].to_tokens();
+                        let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                        *range = quote! { #start..#end_name[#idx] };
                     }
                 }
-            }
+                _ => {
+                    let (start_expr, end_expr) = self.get_slice_range_expressions();
+                    ranges[0] = quote! { #start_expr..#end_expr };
+                }
+            },
+
+            // Runtime start, static end
+            (SliceParam::Runtime(start_type), SliceParam::Static(ends)) => match start_type {
+                Type::Shape(start_shape) => {
+                    let start_name = &start_shape.name;
+                    let num_dims = start_shape.rank.min(ends.len()).min(rank);
+
+                    for (i, range) in ranges.iter_mut().enumerate().take(num_dims) {
+                        let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                        let end = ends[i].to_tokens();
+                        *range = quote! { #start_name[#idx]..#end };
+                    }
+                }
+                _ => {
+                    let (start_expr, end_expr) = self.get_slice_range_expressions();
+                    ranges[0] = quote! { #start_expr..#end_expr };
+                }
+            },
         }
 
         quote! {
@@ -212,13 +202,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
     fn input_types(&self) -> Vec<Type> {
         let mut inputs = vec![self.input.clone()];
 
-        match &self.starts {
-            SliceParam::Runtime(start_type) => inputs.push(start_type.clone()),
-            _ => {}
+        if let SliceParam::Runtime(start_type) = &self.starts {
+            inputs.push(start_type.clone());
         }
-        match &self.ends {
-            SliceParam::Runtime(end_type) => inputs.push(end_type.clone()),
-            _ => {}
+        if let SliceParam::Runtime(end_type) = &self.ends {
+            inputs.push(end_type.clone());
         }
 
         inputs
@@ -233,11 +221,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
 
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::tensor::s");
-        match &self.input {
-            Type::Shape(_) => {
-                imports.register("burn::tensor::RangesArg");
-            }
-            _ => {}
+        if matches!(&self.input, Type::Shape(_)) {
+            imports.register("burn::tensor::RangesArg");
         }
     }
 }
