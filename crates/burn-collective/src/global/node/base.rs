@@ -7,7 +7,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{AllReduceStrategy, GlobalRegisterParams};
 use crate::{
-    ReduceKind,
+    ReduceOperation,
     global::{
         node::{
             centralized::centralized_all_reduce_sum, ring::ring_all_reduce_sum,
@@ -96,7 +96,7 @@ where
         tensor: B::FloatTensorPrimitive,
         strategy: AllReduceStrategy,
         device: &B::Device,
-        kind: ReduceKind,
+        op: ReduceOperation,
     ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError> {
         let num_global_devices = self
             .num_global_devices
@@ -125,7 +125,7 @@ where
             }
         };
 
-        if kind == ReduceKind::Mean {
+        if op == ReduceOperation::Mean {
             result = B::float_div_scalar(result, (num_global_devices).elem());
         }
 

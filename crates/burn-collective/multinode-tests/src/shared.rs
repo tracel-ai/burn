@@ -1,5 +1,5 @@
 use burn::tensor::TensorData;
-use burn_collective::{AllReduceStrategy, NodeId, ReduceKind};
+use burn_collective::{AllReduceStrategy, NodeId, ReduceOperation};
 use burn_communication::Address;
 use serde::{Deserialize, Serialize};
 
@@ -17,8 +17,8 @@ pub struct NodeTestData {
     pub node_address: Address,
     /// Node's data service port, for initializing the p2p tensor data service
     pub data_service_port: u16,
-    /// What kind of aggregation
-    pub all_reduce_kind: ReduceKind,
+    /// What kind of all-reduce
+    pub all_reduce_op: ReduceOperation,
     /// Node's data service port, for initializing the p2p tensor data service
     pub global_strategy: AllReduceStrategy,
     /// What kind of aggregation

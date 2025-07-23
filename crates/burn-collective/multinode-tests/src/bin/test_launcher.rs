@@ -13,7 +13,7 @@ use burn::{
     prelude::Backend,
     tensor::{Shape, Tensor, TensorData},
 };
-use burn_collective::{AllReduceStrategy, ReduceKind};
+use burn_collective::{AllReduceStrategy, ReduceOperation};
 use burn_collective_multinode_tests::shared::NodeTestData;
 use burn_common::rand::{SeedableRng, StdRng};
 
@@ -39,7 +39,7 @@ async fn main() {
     let nodes = launch_nodes(
         topology,
         tensor_shape,
-        ReduceKind::Mean,
+        ReduceOperation::Mean,
         AllReduceStrategy::Ring,
         AllReduceStrategy::Tree(2),
     );
@@ -131,13 +131,13 @@ fn launch_orchestrator(test_files_dir: &str) -> Child {
 fn launch_nodes(
     topology: Vec<u32>,
     tensor_shape: Shape,
-    reduce_kind: ReduceKind,
+    reduce_op: ReduceOperation,
     global_strategy: AllReduceStrategy,
     local_strategy: AllReduceStrategy,
 ) -> Vec<(String, Child)> {
     let total_device_count = topology.iter().sum();
     let (inputs, expected) =
-        generate_random_input(tensor_shape, reduce_kind, total_device_count, 42);
+        generate_random_input(tensor_shape, reduce_op, total_device_count, 42);
 
     // URL for the global orchestrator on port 3000
     let global_url = "ws://localhost:3000";
@@ -156,7 +156,7 @@ fn launch_nodes(
             expected.clone(),
             node_count,
             global_address.clone(),
-            reduce_kind,
+            reduce_op,
             global_strategy,
             local_strategy,
         );
@@ -190,7 +190,7 @@ fn write_node_input(
     expected: TensorData,
     node_count: u32,
     global_address: Address,
-    reduce_kind: ReduceKind,
+    reduce_op: ReduceOperation,
     global_strategy: AllReduceStrategy,
     local_strategy: AllReduceStrategy,
 ) -> String {
@@ -213,7 +213,7 @@ fn write_node_input(
         global_address,
         node_address,
         data_service_port,
-        all_reduce_kind: reduce_kind,
+        all_reduce_op: reduce_op,
         global_strategy,
         local_strategy,
         inputs,
@@ -231,7 +231,7 @@ fn write_node_input(
 /// Generates random input tensors and expected output based on the provided shape and reduce kind.
 fn generate_random_input(
     shape: Shape,
-    reduce_kind: ReduceKind,
+    reduce_kind: ReduceOperation,
     input_count: u32,
     seed: u64,
 ) -> (Vec<TensorData>, TensorData) {
@@ -256,7 +256,7 @@ fn generate_random_input(
         expected_tensor = expected_tensor.add(input_tensor);
     }
 
-    if reduce_kind == ReduceKind::Mean {
+    if reduce_kind == ReduceOperation::Mean {
         expected_tensor = expected_tensor.div_scalar(input_count);
     }
 

@@ -12,9 +12,9 @@ use burn_tensor::{ElementConversion, backend::Backend};
 use tokio::runtime::{Builder, Runtime};
 
 use crate::{
-    AllReduceStrategy, CollectiveConfig, CollectiveError, DeviceId, GlobalRegisterParams,
-    ReduceKind, SharedAllReduceParams,
+    AllReduceStrategy, CollectiveConfig, CollectiveError, DeviceId, ReduceOperation,
     centralized::{all_reduce_sum_centralized, broadcast_centralized, reduce_sum_centralized},
+    client::LocalCollectiveClient,
     global::node::base::GlobalCollectiveClient,
     ring::all_reduce_sum_ring,
     tree::{all_reduce_sum_tree, broadcast_tree, reduce_sum_tree},
@@ -23,11 +23,15 @@ use crate::{
 /// Define the client/server communication on the network
 type Network = WebSocket;
 /// Type sent to the collective client upon completion of a register request
-type RegisterResult = Result<(), CollectiveError>;
+pub(crate) type RegisterResult = Result<(), CollectiveError>;
 /// Type sent to the collective client upon completion of a all-reduce aggregation
-type AllReduceResult<T> = Result<T, CollectiveError>;
+pub(crate) type AllReduceResult<T> = Result<T, CollectiveError>;
+/// Type sent to the collective client upon completion of a reduce aggregation
+pub(crate) type ReduceResult<T> = Result<Option<T>, CollectiveError>;
+/// Type sent to the collective client upon completion of a broadcast op
+pub(crate) type BroadcastResult<T> = Result<T, CollectiveError>;
 /// Type sent to the collective client upon completion of a finish request
-type FinishResult = Result<(), CollectiveError>;
+pub(crate) type FinishResult = Result<(), CollectiveError>;
 
 /// The local collective server that manages all the collective aggregation operations
 /// (like all-reduce) between local threads.
@@ -38,17 +42,21 @@ pub(crate) struct LocalCollectiveServer<B: Backend> {
     /// Channel receiver for messages from clients
     message_rec: Receiver<Message<B>>,
 
+    /// The collective configuration, must be the same by every peer when calling register
+    config: Option<CollectiveConfig>,
     /// The ids passed to each register so far
     registered_ids: Vec<DeviceId>,
-    /// The params of the current operation, as defined by the first caller
-    cur_num_devices: Option<u32>,
     /// Callbacks for when all registers are done
     callbacks_register: Vec<SyncSender<RegisterResult>>,
 
     /// The params of the current operation, as defined by the first caller
-    cur_all_reduce_params: Option<SharedAllReduceParams>,
+    cur_all_reduce_op: Option<ReduceOperation>,
     /// Uncompleted all-reduce calls, one for each calling device
     all_reduce_ops: HashMap<DeviceId, AllReduceOp<B>>,
+    /// Uncompleted reduce calls, one for each calling device
+    reduce_ops: HashMap<DeviceId, ReduceOp<B>>,
+    /// Uncompleted broadcast calls, one for each calling device
+    broadcast_ops: HashMap<DeviceId, BroadcastOp<B>>,
 
     /// Client for global collective operations
     global_client: Option<GlobalCollectiveClient<B, Network>>,
@@ -62,19 +70,47 @@ struct AllReduceOp<B: Backend> {
     result_sender: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
 }
 
+/// Struct for each device that calls an reduce operation
+struct ReduceOp<B: Backend> {
+    /// The tensor primitive passed as input
+    input: B::FloatTensorPrimitive,
+    /// Callback for the result of the reduce
+    result_sender: SyncSender<ReduceResult<B::FloatTensorPrimitive>>,
+}
+
+/// Struct for each device that calls an broadcast operation
+struct BroadcastOp<B: Backend> {
+    /// The tensor primitive passed as input, if none, this operation is receiving.
+    input: Option<B::FloatTensorPrimitive>,
+    /// Callback for the broadcast result
+    result_sender: SyncSender<BroadcastResult<B::FloatTensorPrimitive>>,
+}
+
 #[derive(Debug)]
 pub(crate) enum Message<B: Backend> {
+    Register {
+        device_id: DeviceId,
+        config: CollectiveConfig,
+        callback: SyncSender<RegisterResult>,
+    },
     AllReduce {
         device_id: DeviceId,
         tensor: B::FloatTensorPrimitive,
-        params: SharedAllReduceParams,
+        op: ReduceOperation,
         callback: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
     },
-    Register {
+    Reduce {
         device_id: DeviceId,
-        num_devices: u32,
-        global_params: Option<GlobalRegisterParams>,
-        callback: SyncSender<RegisterResult>,
+        tensor: B::FloatTensorPrimitive,
+        op: ReduceOperation,
+        root: DeviceId,
+        callback: SyncSender<ReduceResult<B::FloatTensorPrimitive>>,
+    },
+    Broadcast {
+        device_id: DeviceId,
+        tensor: Option<B::FloatTensorPrimitive>,
+        root: DeviceId,
+        callback: SyncSender<BroadcastResult<B::FloatTensorPrimitive>>,
     },
     Reset,
     Finish {
@@ -83,27 +119,8 @@ pub(crate) enum Message<B: Backend> {
     },
 }
 
-#[derive(Clone)]
-pub(crate) struct LocalCollectiveClient<B: Backend> {
-    channel: SyncSender<Message<B>>,
-}
-
 // HashMap for each server by Backend type
 static STATE: Mutex<Option<HashMap<TypeId, Box<dyn Any + Send + Sync>>>> = Mutex::new(None);
-
-// Runtime for servers
-static SERVER_RUNTIME: Mutex<Option<Arc<Runtime>>> = Mutex::new(None);
-
-pub(crate) fn get_server_runtime() -> Arc<Runtime> {
-    let mut server = SERVER_RUNTIME.lock().unwrap();
-    if server.is_none() {
-        // Initialize runtime
-        let _runtime = Arc::new(Builder::new_multi_thread().enable_all().build().unwrap());
-        *server = Some(_runtime);
-    }
-
-    server.as_ref().unwrap().clone()
-}
 
 pub(crate) fn get_collective_client<B: Backend>() -> LocalCollectiveClient<B> {
     let mut state = STATE.lock().unwrap();
@@ -127,79 +144,30 @@ pub(crate) fn get_collective_client<B: Backend>() -> LocalCollectiveClient<B> {
     val.downcast_ref().cloned().unwrap()
 }
 
-impl<B: Backend> LocalCollectiveClient<B> {
-    pub(crate) fn reset(&self) {
-        self.channel.send(Message::Reset).unwrap();
+// Runtime for servers
+static SERVER_RUNTIME: Mutex<Option<Arc<Runtime>>> = Mutex::new(None);
+
+pub(crate) fn get_server_runtime() -> Arc<Runtime> {
+    let mut server = SERVER_RUNTIME.lock().unwrap();
+    if server.is_none() {
+        // Initialize runtime
+        let _runtime = Arc::new(Builder::new_multi_thread().enable_all().build().unwrap());
+        *server = Some(_runtime);
     }
 
-    pub(crate) fn register(&mut self, config: &CollectiveConfig) -> RegisterResult {
-        if config.is_valid() {
-            return Err(CollectiveError::InvalidConfig);
-        }
-
-        let device_id = config.device_id;
-        let num_devices = config.num_devices;
-        let global_params = config.global_register_params();
-        let (callback, rec) = std::sync::mpsc::sync_channel::<RegisterResult>(1);
-
-        self.channel
-            .send(Message::Register {
-                device_id,
-                num_devices,
-                global_params,
-                callback,
-            })
-            .unwrap();
-
-        rec.recv()
-            .unwrap_or(Err(CollectiveError::LocalServerMissing))
-    }
-
-    pub(crate) fn all_reduce(
-        &self,
-        tensor: B::FloatTensorPrimitive,
-        config: &CollectiveConfig,
-    ) -> AllReduceResult<B::FloatTensorPrimitive> {
-        if config.is_valid() {
-            return Err(CollectiveError::InvalidConfig);
-        }
-
-        let device_id = config.device_id;
-        let all_reduce_params = config.all_reduce_params();
-        let (callback, rec) =
-            std::sync::mpsc::sync_channel::<AllReduceResult<B::FloatTensorPrimitive>>(1);
-        let msg = Message::AllReduce {
-            device_id,
-            tensor,
-            params: all_reduce_params,
-            callback,
-        };
-
-        self.channel.send(msg).unwrap();
-
-        // returns a tensor primitive that may or may not be on the correct device,
-        // depending on the strategy used.
-        rec.recv()
-            .unwrap_or(Err(CollectiveError::LocalServerMissing))
-    }
-
-    pub(crate) fn finish(&self, id: DeviceId) -> FinishResult {
-        let (callback, rec) = std::sync::mpsc::sync_channel::<FinishResult>(1);
-        self.channel.send(Message::Finish { id, callback }).unwrap();
-
-        rec.recv()
-            .unwrap_or(Err(CollectiveError::LocalServerMissing))
-    }
+    server.as_ref().unwrap().clone()
 }
 
 impl<B: Backend> LocalCollectiveServer<B> {
     fn new(rec: Receiver<Message<B>>) -> Self {
         Self {
             message_rec: rec,
+            config: None,
             registered_ids: vec![],
-            cur_num_devices: None,
-            cur_all_reduce_params: None,
+            cur_all_reduce_op: None,
             all_reduce_ops: HashMap::new(),
+            reduce_ops: HashMap::new(),
+            broadcast_ops: HashMap::new(),
             callbacks_register: vec![],
             global_client: None,
         }
@@ -234,22 +202,44 @@ impl<B: Backend> LocalCollectiveServer<B> {
 
     async fn process_message(&mut self, message: Message<B>) {
         match message {
+            Message::Register {
+                device_id,
+                config,
+                callback,
+            } => {
+                if let Err(err) = self
+                    .process_register_message(device_id, config, &callback)
+                    .await
+                {
+                    callback.send(Err(err)).unwrap()
+                }
+            }
             Message::AllReduce {
                 device_id,
                 tensor,
-                params,
+                op,
                 callback,
             } => {
-                self.process_all_reduce_message(device_id, tensor, params, callback)
+                self.process_all_reduce_message(device_id, tensor, op, callback)
                     .await
             }
-            Message::Register {
+            Message::Reduce {
                 device_id,
-                num_devices,
-                global_params: global,
+                tensor,
+                op,
+                root,
                 callback,
             } => {
-                self.process_register_message(device_id, num_devices, global, callback)
+                self.process_reduce_message(device_id, tensor, op, root, callback)
+                    .await
+            }
+            Message::Broadcast {
+                device_id,
+                tensor,
+                root,
+                callback,
+            } => {
+                self.process_broadcast_message(device_id, tensor, root, callback)
                     .await
             }
             Message::Reset => self.reset(),
@@ -260,7 +250,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
     fn reset(&mut self) {
         self.registered_ids.clear();
         self.all_reduce_ops.clear();
-        self.cur_all_reduce_params = None;
+        self.cur_all_reduce_op = None;
     }
 
     async fn process_finish_message(&mut self, id: DeviceId, callback: SyncSender<RegisterResult>) {
@@ -283,13 +273,73 @@ impl<B: Backend> LocalCollectiveServer<B> {
         callback.send(Ok(())).unwrap();
     }
 
+    async fn process_register_message(
+        &mut self,
+        device_id: DeviceId,
+        config: CollectiveConfig,
+        callback: &SyncSender<RegisterResult>,
+    ) -> Result<(), CollectiveError> {
+        if !config.is_valid() {
+            return Err(CollectiveError::InvalidConfig);
+        }
+        if self.registered_ids.contains(&device_id) {
+            return Err(CollectiveError::MultipleRegister);
+        }
+        if self.registered_ids.is_empty() || self.config.is_none() {
+            self.config = Some(config);
+        } else if *self.config.as_ref().unwrap() != config {
+            return Err(CollectiveError::RegisterParamsMismatch);
+        }
+
+        self.registered_ids.push(device_id);
+        self.callbacks_register.push(callback.clone());
+
+        let config = self.config.as_ref().unwrap();
+        let global_params = config.global_register_params();
+        if let Some(global_params) = &global_params {
+            if self.global_client.is_none() {
+                let server = WsServer::new(global_params.data_service_port);
+                let client = GlobalCollectiveClient::new(
+                    &global_params.global_address,
+                    &global_params.node_address,
+                    server,
+                );
+                self.global_client = Some(client)
+            }
+        }
+
+        // All have registered, callback
+        if self.registered_ids.len() == config.num_devices as usize {
+            let mut register_result = Ok(());
+
+            // if an error occurs on the global register, it must be passed back to every local peer
+            if let Some(global_params) = global_params {
+                let client = self
+                    .global_client
+                    .as_mut()
+                    .expect("Global client should be initialized");
+
+                register_result = client
+                    .register(config.num_devices, global_params)
+                    .await
+                    .map_err(CollectiveError::Global);
+            };
+
+            for callback in self.callbacks_register.drain(..) {
+                callback.send(register_result.clone()).unwrap();
+            }
+        }
+
+        Ok(())
+    }
+
     /// Processes an all-reduce request from a client, registers the input tensor and output
     /// callback
     async fn process_all_reduce_message(
         &mut self,
         device_id: DeviceId,
         tensor: <B as Backend>::FloatTensorPrimitive,
-        params: SharedAllReduceParams,
+        op: ReduceOperation,
         callback: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
     ) {
         if !self.registered_ids.contains(&device_id) {
@@ -299,9 +349,9 @@ impl<B: Backend> LocalCollectiveServer<B> {
             return;
         }
 
-        if self.all_reduce_ops.is_empty() || self.cur_all_reduce_params.is_none() {
-            self.cur_all_reduce_params = Some(params);
-        } else if self.cur_all_reduce_params.clone().unwrap() != params {
+        if self.all_reduce_ops.is_empty() || self.cur_all_reduce_op.is_none() {
+            self.cur_all_reduce_op = Some(op);
+        } else if self.cur_all_reduce_op.clone().unwrap() != op {
             callback
                 .send(Err(CollectiveError::AllReduceParamsMismatch))
                 .unwrap();
@@ -323,61 +373,27 @@ impl<B: Backend> LocalCollectiveServer<B> {
         }
     }
 
-    async fn process_register_message(
+    /// Processes a reduce request from a client
+    async fn process_reduce_message(
         &mut self,
-        device_id: DeviceId,
-        num_devices: u32,
-        global_params: Option<GlobalRegisterParams>,
-        callback: SyncSender<RegisterResult>,
+        _device_id: DeviceId,
+        _tensor: <B as Backend>::FloatTensorPrimitive,
+        _op: ReduceOperation,
+        _root: DeviceId,
+        _callback: SyncSender<ReduceResult<B::FloatTensorPrimitive>>,
     ) {
-        if self.registered_ids.contains(&device_id) {
-            let result = Err(CollectiveError::MultipleRegister);
-            callback.send(result).unwrap();
-            return;
-        }
-        if self.registered_ids.is_empty() || self.cur_num_devices.is_none() {
-            self.cur_num_devices = Some(num_devices);
-        } else if self.cur_num_devices.unwrap() != num_devices {
-            let result = Err(CollectiveError::RegisterParamsMismatch);
-            callback.send(result).unwrap();
-            return;
-        }
+        todo!("See All-Reduce")
+    }
 
-        self.registered_ids.push(device_id);
-        self.callbacks_register.push(callback.clone());
-
-        if let Some(global_params) = &global_params {
-            if self.global_client.is_none() {
-                let server = WsServer::new(global_params.data_service_port);
-                let client = GlobalCollectiveClient::new(
-                    &global_params.global_address,
-                    &global_params.node_address,
-                    server,
-                );
-                self.global_client = Some(client)
-            }
-        }
-
-        // All have registered, callback
-        if self.registered_ids.len() == num_devices as usize {
-            if let Some(global_params) = global_params {
-                let client = self
-                    .global_client
-                    .as_mut()
-                    .expect("Global client should be initialized");
-
-                let res = client.register(num_devices, global_params).await;
-
-                if let Err(err) = res {
-                    callback.send(Err(CollectiveError::Global(err))).unwrap();
-                    return;
-                }
-            }
-
-            for callback in self.callbacks_register.drain(..) {
-                callback.send(Ok(())).unwrap();
-            }
-        }
+    /// Processes a broadcast request from a client
+    async fn process_broadcast_message(
+        &mut self,
+        _device_id: DeviceId,
+        _tensor: Option<<B as Backend>::FloatTensorPrimitive>,
+        _root: DeviceId,
+        _callback: SyncSender<BroadcastResult<B::FloatTensorPrimitive>>,
+    ) {
+        todo!("See All-Reduce")
     }
 
     /// Perform an all-reduce operation. Empties the all_reduces_ops map.
@@ -389,12 +405,12 @@ impl<B: Backend> LocalCollectiveServer<B> {
             results.insert(dev, op.result_sender);
         }
 
-        let params = self.cur_all_reduce_params.as_ref().unwrap();
-
+        let op = self.cur_all_reduce_op.unwrap();
+        let config = self.config.as_ref().unwrap();
         let res = if let Some(global_client) = &mut self.global_client {
-            Self::all_reduce_with_global(&mut tensors, params, global_client).await
+            Self::all_reduce_with_global(&mut tensors, op, config, global_client).await
         } else {
-            Self::all_reduce_local_only(&mut tensors, params).await
+            Self::all_reduce_local_only(&mut tensors, op, config).await
         };
 
         match res {
@@ -417,17 +433,17 @@ impl<B: Backend> LocalCollectiveServer<B> {
     /// Perform an all-reduce with no multi-node operations (global ops)
     async fn all_reduce_local_only(
         tensors: &mut HashMap<DeviceId, B::FloatTensorPrimitive>,
-        params: &SharedAllReduceParams,
+        op: ReduceOperation,
+        config: &CollectiveConfig,
     ) -> Result<(), CollectiveError> {
-        let kind = &params.kind;
-        let local_strategy = &params.local_strategy;
+        let local_strategy = &config.local_all_reduce_strategy;
         match local_strategy {
             AllReduceStrategy::Centralized => all_reduce_sum_centralized::<B>(tensors),
             AllReduceStrategy::Tree(arity) => all_reduce_sum_tree::<B>(tensors, *arity),
             AllReduceStrategy::Ring => all_reduce_sum_ring::<B>(tensors),
         };
 
-        if *kind == ReduceKind::Mean {
+        if op == ReduceOperation::Mean {
             // Apply mean division
             let tensor_count = tensors.len() as f32;
             tensors.iter_mut().for_each(|(_, tensor)| {
@@ -449,11 +465,12 @@ impl<B: Backend> LocalCollectiveServer<B> {
     // setup may be unadvantageous.
     async fn all_reduce_with_global(
         tensors: &mut HashMap<DeviceId, B::FloatTensorPrimitive>,
-        params: &SharedAllReduceParams,
+        op: ReduceOperation,
+        config: &CollectiveConfig,
         global_client: &mut GlobalCollectiveClient<B, WebSocket>,
     ) -> Result<(), CollectiveError> {
-        let kind = &params.kind;
-        let local_strategy = &params.local_strategy;
+        let local_strategy = config.local_all_reduce_strategy;
+        let global_strategy = config.global_all_reduce_strategy;
 
         // Get corresponding devices for each peer
         let devices = tensors
@@ -469,7 +486,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
                 reduce_sum_centralized::<B>(tensors_to_reduce, &main_device)
             }
             AllReduceStrategy::Tree(arity) => {
-                reduce_sum_tree::<B>(tensors_to_reduce, &main_device, *arity)
+                reduce_sum_tree::<B>(tensors_to_reduce, &main_device, arity)
             }
             AllReduceStrategy::Ring => {
                 all_reduce_sum_ring::<B>(&mut tensors_to_reduce);
@@ -480,14 +497,14 @@ impl<B: Backend> LocalCollectiveServer<B> {
         // Do aggregation on global level with the main tensor
         let device = B::float_device(&main_tensor);
         main_tensor = global_client
-            .all_reduce(main_tensor, params.global_strategy.unwrap(), &device, *kind)
+            .all_reduce(main_tensor, global_strategy.unwrap(), &device, op)
             .await
             .map_err(CollectiveError::Global)?;
 
         // Broadcast result to all devices
         *tensors = match local_strategy {
             AllReduceStrategy::Tree(arity) => {
-                broadcast_tree::<B>(devices, main_device, main_tensor, *arity)
+                broadcast_tree::<B>(devices, main_device, main_tensor, arity)
             }
             // If we chose the ring strategy and we must still broadcast the global result,
             // we use the centralized strategy for broadcasting, but the tree may be better

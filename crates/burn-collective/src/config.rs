@@ -5,13 +5,13 @@ use crate::NodeId;
 
 /// Parameter struct for setting up and getting parameters for collective operations.
 /// Used in most collective api calls.
-/// This config is per-device.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// This config is per-node. It is passed to [reduce](crate::register).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CollectiveConfig {
-    pub device_id: DeviceId,
     pub num_devices: u32,
-    pub all_reduce_kind: ReduceKind,
-    pub local_strategy: AllReduceStrategy,
+    pub local_all_reduce_strategy: AllReduceStrategy,
+    pub local_reduce_strategy: ReduceStrategy,
+    pub local_broadcast_strategy: BroadcastStrategy,
 
     // Global parameters (all are optional, but if one is defined they should all be)
     pub node_id: Option<NodeId>,
@@ -19,7 +19,11 @@ pub struct CollectiveConfig {
     pub global_address: Option<Address>,
     pub node_address: Option<Address>,
     pub data_service_port: Option<u16>,
-    pub global_strategy: Option<AllReduceStrategy>,
+
+    // These strategies may be defined when no other global params are defined
+    pub global_all_reduce_strategy: Option<AllReduceStrategy>,
+    pub global_reduce_strategy: Option<ReduceStrategy>,
+    pub global_broadcast_strategy: Option<BroadcastStrategy>,
 }
 
 impl Default for CollectiveConfig {
@@ -31,36 +35,25 @@ impl Default for CollectiveConfig {
 impl CollectiveConfig {
     fn new() -> Self {
         Self {
-            device_id: 0.into(),
             num_devices: 1,
-            all_reduce_kind: ReduceKind::Mean,
-            local_strategy: AllReduceStrategy::Tree(2),
+            local_all_reduce_strategy: AllReduceStrategy::Tree(2),
+            local_reduce_strategy: ReduceStrategy::Tree(2),
+            local_broadcast_strategy: BroadcastStrategy::Tree(2),
 
             node_id: None,
             num_nodes: None,
             global_address: None,
             node_address: None,
             data_service_port: None,
-            global_strategy: Some(AllReduceStrategy::Ring),
+            global_all_reduce_strategy: Some(AllReduceStrategy::Ring),
+            global_reduce_strategy: Some(ReduceStrategy::Tree(2)),
+            global_broadcast_strategy: Some(BroadcastStrategy::Tree(2)),
         }
-    }
-
-    /// Selects the device id for this config. The device id does not necessarily need to match a
-    /// compute device, and can be any arbitrary unique id.
-    pub fn with_device_id(mut self, id: DeviceId) -> Self {
-        self.device_id = id;
-        self
     }
 
     /// Selects the number of devices (local peers) on the current node
     pub fn with_num_devices(mut self, num: u32) -> Self {
         self.num_devices = num;
-        self
-    }
-
-    /// Selects the king of reduction used in all-reduce
-    pub fn with_all_reduce_kind(mut self, kind: ReduceKind) -> Self {
-        self.all_reduce_kind = kind;
         self
     }
 
@@ -74,7 +67,7 @@ impl CollectiveConfig {
     ///
     /// It is recommended to use a tree strategy locally, and a ring strategy globally.
     pub fn with_local_strategy(mut self, strategy: AllReduceStrategy) -> Self {
-        self.local_strategy = strategy;
+        self.local_all_reduce_strategy = strategy;
         self
     }
 
@@ -124,17 +117,8 @@ impl CollectiveConfig {
     /// This parameter is a global parameter and should only be set in multi-node contexts.
     /// See [with_local_strategy](Self::with_local_strategy)
     pub fn with_global_strategy(mut self, strategy: AllReduceStrategy) -> Self {
-        self.global_strategy = Some(strategy);
+        self.global_all_reduce_strategy = Some(strategy);
         self
-    }
-
-    /// Converts the config into `AllReduceParams`, using optional global strategy.
-    pub fn all_reduce_params(&self) -> SharedAllReduceParams {
-        SharedAllReduceParams {
-            kind: self.all_reduce_kind,
-            local_strategy: self.local_strategy,
-            global_strategy: self.global_strategy,
-        }
     }
 
     /// Returns whether the config is valid. If only some required global-level parameters are
@@ -210,20 +194,33 @@ pub struct GlobalRegisterParams {
 /// Parameters for an all-reduce that should be the same between all devices
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct SharedAllReduceParams {
-    pub kind: ReduceKind,
+    pub op: ReduceOperation,
     pub local_strategy: AllReduceStrategy,
     pub global_strategy: Option<AllReduceStrategy>,
 }
 
+/// Parameters for a reduce that should be the same between all devices
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct SharedReduceParams {
+}
+
+/// Parameters for a broadcast that should be the same between all devices
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct SharedBroadcastParams {
+    pub op: ReduceOperation,
+    pub local_strategy: BroadcastStrategy,
+    pub global_strategy: Option<BroadcastStrategy>,
+}
+
 /// Reduce can be done different ways
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
-pub enum ReduceKind {
+pub enum ReduceOperation {
     Sum,
     Mean,
 }
 
 /// All reduce can be implemented with different algorithms, which all have the same result.
-#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum AllReduceStrategy {
     /// One device is the "central". The other devices, "peripherals", send their tensors to the
     /// central. The central does the reduction, and sends the result back to each peripheral.  
@@ -241,6 +238,26 @@ pub enum AllReduceStrategy {
     /// around until every device has the full result.
     /// See `ring.rs` for details.
     Ring,
+}
+
+/// Reduce can be implemented with different algorithms, which all have the same result.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+pub enum ReduceStrategy {
+    /// See [all-reduce](AllReduceStrategy::Centralized)
+    Centralized,
+
+    /// See [all-reduce](AllReduceStrategy::Tree)
+    Tree(u32),
+}
+
+/// Broadcast can be implemented with different algorithms, which all have the same result.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+pub enum BroadcastStrategy {
+    /// See [all-reduce](AllReduceStrategy::Centralized)
+    Centralized,
+
+    /// See [all-reduce](AllReduceStrategy::Tree)
+    Tree(u32),
 }
 
 /// A unique identifier for a peer in the context of local collective operations.

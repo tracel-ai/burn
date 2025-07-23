@@ -74,7 +74,7 @@ fn launch_threads<B: Backend, const D: usize>(
 
         // Put all the parameters in the config
         let config = CollectiveConfig::default()
-            .with_all_reduce_kind(test_input.all_reduce_kind)
+            .with_all_reduce_kind(test_input.all_reduce_op)
             .with_num_devices(test_input.device_count)
             .with_device_id(id.into())
             .with_node_id(test_input.node_id)
