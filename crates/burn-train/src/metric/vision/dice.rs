@@ -197,7 +197,7 @@ impl<B: Backend, const D: usize> Numeric for DiceMetric<B, D> {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_core::tensor::Tensor;
+    use burn_core::tensor::{Shape, Tensor};
 
     #[test]
     fn test_dice_perfect_overlap() {
@@ -243,6 +243,50 @@ mod tests {
         let input = DiceInput::new(
             Tensor::from_data([[[[0, 0], [0, 0]]]], &device),
             Tensor::from_data([[[[0, 0], [0, 0]]]], &device),
+        );
+        let _entry = metric.update(&input, &MetricMetadata::fake());
+        assert!((metric.value() - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_dice_no_background() {
+        let device = Default::default();
+        let mut metric = DiceMetric::<TestBackend, 4>::new();
+        let input = DiceInput::new(
+            Tensor::ones(Shape::new([1, 1, 2, 2]), &device),
+            Tensor::ones(Shape::new([1, 1, 2, 2]), &device),
+        );
+        let _entry = metric.update(&input, &MetricMetadata::fake());
+        assert!((metric.value() - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_dice_with_background() {
+        let device = Default::default();
+        let config = DiceMetricConfig {
+            epsilon: 1e-7,
+            include_background: true,
+        };
+        let mut metric = DiceMetric::<TestBackend, 4>::with_config(config);
+        let input = DiceInput::new(
+            Tensor::ones(Shape::new([1, 2, 2, 2]), &device),
+            Tensor::ones(Shape::new([1, 2, 2, 2]), &device),
+        );
+        let _entry = metric.update(&input, &MetricMetadata::fake());
+        assert!((metric.value() - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_dice_ignored_background() {
+        let device = Default::default();
+        let config = DiceMetricConfig {
+            epsilon: 1e-7,
+            include_background: false,
+        };
+        let mut metric = DiceMetric::<TestBackend, 4>::with_config(config);
+        let input = DiceInput::new(
+            Tensor::ones(Shape::new([1, 2, 2, 2]), &device),
+            Tensor::ones(Shape::new([1, 2, 2, 2]), &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
         assert!((metric.value() - 1.0).abs() < 1e-6);
