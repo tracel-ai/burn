@@ -40,8 +40,12 @@ pub fn shuffled_indices(size: usize, rng: &mut StdRng) -> Vec<usize> {
 /// Indices may appear multiple times, but they must be within the bounds of the original dataset.
 #[derive(Clone)]
 pub struct SelectionDataset<D, I> {
-    dataset: Arc<D>,
-    indices: Vec<usize>,
+    /// The wrapped dataset from which to select indices.
+    pub dataset: Arc<D>,
+
+    /// The indices to select from the wrapped dataset.
+    pub indices: Vec<usize>,
+
     input: PhantomData<I>,
 }
 
@@ -95,11 +99,6 @@ where
             indices,
             input: PhantomData,
         }
-    }
-
-    /// Returns a reference to indices.
-    pub fn indices(&self) -> &Vec<usize> {
-        &self.indices
     }
 
     /// Creates a new selection dataset that selects all indices from the dataset.
@@ -308,7 +307,7 @@ mod tests {
 
         let selection = SelectionDataset::from_indices_checked(source_dataset, indices.clone());
 
-        assert_eq!(selection.indices(), &indices);
+        assert_eq!(&selection.indices, &indices);
 
         let items = selection.iter().collect::<Vec<_>>();
 
