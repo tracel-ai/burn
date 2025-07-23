@@ -39,7 +39,11 @@ pub fn shuffled_indices(size: usize, rng: &mut StdRng) -> Vec<usize> {
 ///
 /// Indices may appear multiple times, but they must be within the bounds of the original dataset.
 #[derive(Clone)]
-pub struct SelectionDataset<D, I> {
+pub struct SelectionDataset<D, I>
+where
+    D: Dataset<I>,
+    I: Clone + Send + Sync,
+{
     /// The wrapped dataset from which to select indices.
     pub dataset: Arc<D>,
 
@@ -52,6 +56,7 @@ pub struct SelectionDataset<D, I> {
 impl<D, I> SelectionDataset<D, I>
 where
     D: Dataset<I>,
+    I: Clone + Send + Sync,
 {
     /// Creates a new selection dataset with the given dataset and indices.
     ///
