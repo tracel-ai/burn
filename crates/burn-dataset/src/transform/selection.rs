@@ -3,6 +3,7 @@ use rand::SeedableRng;
 use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 /// Generates a vector of indices from 0 to size - 1.
 ///
@@ -37,8 +38,9 @@ pub fn shuffled_indices(size: usize, rng: &mut StdRng) -> Vec<usize> {
 /// A dataset that selects a subset of indices from an existing dataset.
 ///
 /// Indices may appear multiple times, but they must be within the bounds of the original dataset.
+#[derive(Clone)]
 pub struct SelectionDataset<D, I> {
-    dataset: D,
+    dataset: Arc<D>,
     indices: Vec<usize>,
     input: PhantomData<I>,
 }
@@ -49,6 +51,8 @@ where
 {
     /// Creates a new selection dataset with the given dataset and indices.
     ///
+    /// Checks that all indices are within the bounds of the dataset.
+    ///
     /// # Arguments
     ///
     /// * `dataset` - The original dataset to select from.
@@ -58,21 +62,43 @@ where
     /// # Panics
     ///
     /// Panics if any index is out of bounds for the dataset.
-    pub fn new(dataset: D, indices: Vec<usize>) -> Self {
+    pub fn from_indices_checked(dataset: D, indices: Vec<usize>) -> Self {
         let size = dataset.len();
-
         if let Some(idx) = indices.iter().find(|&i| *i >= size) {
             panic!("Index out of bounds for wrapped dataset size: {idx} >= {size}");
         }
 
+        Self::from_indices_unchecked(dataset, indices)
+    }
+
+    /// Creates a new selection dataset with the given dataset and indices without checking bounds.
+    ///
+    /// # Arguments
+    ///
+    /// * `dataset` - The original dataset to select from.
+    /// * `indices` - A vector of indices to select from the dataset.
+    ///
+    /// # Safety
+    ///
+    /// This function does not check if the indices are within the bounds of the dataset.
+    pub fn from_indices_unchecked(dataset: D, indices: Vec<usize>) -> Self {
         Self {
-            dataset,
+            dataset: Arc::new(dataset),
             indices,
             input: PhantomData,
         }
     }
 
+    /// Returns a reference to indices.
+    pub fn indices(&self) -> &Vec<usize> {
+        &self.indices
+    }
+
     /// Creates a new selection dataset that selects all indices from the dataset.
+    ///
+    /// This allocates a 1-to-1 mapping of indices to the dataset size,
+    /// essentially functioning as a no-op selection. This is only useful
+    /// when the dataset will later be shuffled or transformed in place.
     ///
     /// # Arguments
     ///
@@ -83,7 +109,7 @@ where
     /// A new `SelectionDataset` that selects all indices from the dataset.
     pub fn new_select_all(dataset: D) -> Self {
         let size = dataset.len();
-        Self::new(dataset, iota(size))
+        Self::from_indices_unchecked(dataset, iota(size))
     }
 
     /// Creates a new selection dataset with shuffled indices.
@@ -119,8 +145,9 @@ where
     ///
     /// A new `SelectionDataset` with shuffled indices.
     pub fn new_shuffled_with_seed(dataset: D, seed: u64) -> Self {
-        let mut rng = StdRng::seed_from_u64(seed);
-        Self::new_shuffled(dataset, &mut rng)
+        let mut this = Self::new_select_all(dataset);
+        this.shuffle_with_seed(seed);
+        this
     }
 
     /// Shuffles the indices of the dataset using a mutable random number generator.
@@ -144,6 +171,64 @@ where
     pub fn shuffle_with_seed(&mut self, seed: u64) {
         let mut rng = StdRng::seed_from_u64(seed);
         self.shuffle(&mut rng);
+    }
+
+    /// Creates a new dataset that is a slice of the current selection dataset.
+    ///
+    /// Slices the *selection indices* from `[start..end]`.
+    ///
+    /// Independent of future shuffles on the parent, but shares the same wrapped dataset.
+    ///
+    /// TODO: RangeArg in burn-tensor should be lifted to burn-common.
+    ///
+    /// # Arguments
+    ///
+    /// * `start` - The start of the range.
+    /// * `end` - The end of the range (exclusive).
+    pub fn slice(&self, start: usize, end: usize) -> Self {
+        let indices = self.indices[start..end].to_vec();
+        Self {
+            dataset: self.dataset.clone(),
+            indices,
+            input: PhantomData,
+        }
+    }
+
+    /// Split into `num` datasets by slicing the selection indices evenly.
+    ///
+    /// Split is done via `slice`, so the datasets share the same wrapped dataset.
+    ///
+    /// Independent of future shuffles on the parent, but shares the same wrapped dataset.
+    ///
+    /// # Arguments
+    ///
+    /// * `num` - The number of datasets to split into.
+    ///
+    /// # Returns
+    ///
+    /// A vector of `SelectionDataset` instances, each containing a subset of the indices.
+    pub fn split(&self, num: usize) -> Vec<Self> {
+        let n = self.indices.len();
+
+        let mut current = 0;
+        let mut datasets = Vec::with_capacity(num);
+
+        let batch_size = n / num;
+        for i in 0..num {
+            let start = current;
+            let mut end = current + batch_size;
+
+            if i == (num - 1) {
+                end = n;
+            }
+
+            let dataset = self.slice(start, end);
+
+            current += batch_size;
+            datasets.push(dataset);
+        }
+
+        datasets
     }
 }
 
@@ -200,9 +285,9 @@ mod tests {
             .map(|i| source_dataset.get(*i).unwrap())
             .collect();
 
-        let selection = SelectionDataset::new(source_dataset, indices.clone());
+        let selection = SelectionDataset::from_indices_checked(source_dataset, indices.clone());
 
-        assert_eq!(selection.len(), indices.len());
+        assert_eq!(selection.indices(), &indices);
 
         let items = selection.iter().collect::<Vec<_>>();
 
@@ -215,19 +300,83 @@ mod tests {
         let source_items = dataset.iter().collect::<Vec<_>>();
 
         let seed = 42;
-
-        let shuffled = SelectionDataset::new_shuffled_with_seed(dataset, seed);
-
         let mut rng = StdRng::seed_from_u64(seed);
+
+        let selection = SelectionDataset::new_shuffled(dataset, &mut rng.clone());
+
         let indices = shuffled_indices(source_items.len(), &mut rng);
 
-        assert_eq!(&shuffled.indices, &indices);
-        assert_eq!(shuffled.len(), source_items.len());
+        assert_eq!(&selection.indices, &indices);
+        assert_eq!(selection.len(), source_items.len());
 
         let expected_items: Vec<_> = indices
             .iter()
             .map(|&i| source_items[i].to_string())
             .collect();
-        assert_eq!(&shuffled.iter().collect::<Vec<_>>(), &expected_items);
+        assert_eq!(&selection.iter().collect::<Vec<_>>(), &expected_items);
+    }
+
+    #[test]
+    fn test_shuffled_with_seed_dataset() {
+        let dataset = FakeDataset::<String>::new(27);
+        let source_items = dataset.iter().collect::<Vec<_>>();
+
+        let seed = 42;
+
+        let selection = SelectionDataset::new_shuffled_with_seed(dataset, seed);
+
+        let mut rng = StdRng::seed_from_u64(seed);
+        let indices = shuffled_indices(source_items.len(), &mut rng);
+
+        assert_eq!(&selection.indices, &indices);
+        assert_eq!(selection.len(), source_items.len());
+
+        let expected_items: Vec<_> = indices
+            .iter()
+            .map(|&i| source_items[i].to_string())
+            .collect();
+        assert_eq!(&selection.iter().collect::<Vec<_>>(), &expected_items);
+    }
+
+    #[test]
+    fn test_slice() {
+        let dataset = FakeDataset::<String>::new(27);
+        let source_items = dataset.iter().collect::<Vec<_>>();
+
+        let selection = SelectionDataset::new_select_all(dataset);
+
+        let start = 5;
+        let end = 15;
+        let sliced_selection = selection.slice(start, end);
+
+        assert_eq!(sliced_selection.len(), end - start);
+        for i in start..end {
+            assert_eq!(
+                sliced_selection.get(i - start),
+                Some(source_items[i].to_string())
+            );
+        }
+    }
+
+    #[test]
+    fn test_split() {
+        let dataset = FakeDataset::<String>::new(28);
+        let source_items = dataset.iter().collect::<Vec<_>>();
+
+        let selection = SelectionDataset::new_select_all(dataset);
+
+        let split_contents: Vec<Vec<_>> = selection
+            .split(3)
+            .iter()
+            .map(|d| d.iter().collect::<Vec<_>>())
+            .collect();
+        assert_eq!(
+            split_contents,
+            vec![
+                source_items[0..9].to_vec(),
+                source_items[9..18].to_vec(),
+                source_items[18..28].to_vec(),
+            ]
+        );
     }
 }
