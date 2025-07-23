@@ -21,7 +21,7 @@ impl QParams {
     }
 
     /// Get the quantization parameters values.
-    pub fn values(&self, scale_tensor: &Tensor<f32>) -> (f32, i32) {
+    pub fn scale(&self, scale_tensor: &Tensor<f32>, in_pos: u32) -> f32 {
         match comptime!(self.scheme) {
             // Symmetric quantization only contains the scaling factor as the last element
             QuantScheme {
@@ -29,7 +29,13 @@ impl QParams {
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
                 ..
-            } => (scale_tensor[0], 0),
+            } => scale_tensor[0],
+            QuantScheme {
+                level: QuantLevel::Block(block_size),
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
+                ..
+            } => scale_tensor[in_pos / comptime! {block_size as u32}],
         }
     }
 }

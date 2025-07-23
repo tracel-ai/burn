@@ -48,7 +48,37 @@ fn dequantize_per_tensor_symmetric_int8_packed_kernel<F: Float>(
     }
 
     let qparams = QParams::new(scheme);
-    let (scale, _) = qparams.values(scale);
+    let scale = qparams.scale(scale, 0);
+
+    let value = input[ABSOLUTE_POS];
+
+    // Input line size is fixed to 1
+    if comptime!(output.line_size() == 4) {
+        output[ABSOLUTE_POS] = dequantize_symmetric_int8(unpack_i8s(value[0]), scale);
+    } else {
+        // For very small inputs where number of elements < 4, the output line size is 1
+        let out = dequantize_symmetric_int8::<i32, F>(unpack_i8s(value[0]), scale);
+
+        #[unroll]
+        for j in 0..out.size() {
+            output[ABSOLUTE_POS * out.size() + j] = Line::cast_from(out[j]);
+        }
+    }
+}
+
+#[cube(launch_unchecked)]
+fn dequantize_per_block_symmetric_int8_packed_kernel<F: Float>(
+    input: &QTensor,
+    scale: &Tensor<f32>,
+    output: &mut Tensor<Line<F>>,
+    #[comptime] scheme: QuantScheme,
+) {
+    if ABSOLUTE_POS >= input.len() {
+        terminate!();
+    }
+
+    let qparams = QParams::new(scheme);
+    let scale = qparams.scale(scale, ABSOLUTE_POS);
 
     let value = input[ABSOLUTE_POS];
 
@@ -79,11 +109,33 @@ fn dequantize_per_tensor_symmetric_int8_unpacked_kernel<F: Float>(
         terminate!();
     }
 
+    let in_pos = index_offset_contiguous(input, ABSOLUTE_POS, rank);
+    let out_pos = out_layout.index(output, ABSOLUTE_POS);
+
     let qparams = QParams::new(scheme);
-    let (scale, _) = qparams.values(scale);
+    let scale = qparams.scale(scale, 0);
+
+    output[out_pos] = dequantize_symmetric_int8(input[in_pos], scale);
+}
+
+#[cube(launch_unchecked)]
+fn dequantize_per_block_symmetric_int8_unpacked_kernel<F: Float>(
+    input: &Tensor<Line<i8>>,
+    scale: &Tensor<f32>,
+    output: &mut Tensor<Line<F>>,
+    out_layout: StridedLayout,
+    #[comptime] scheme: QuantScheme,
+    #[comptime] rank: Option<u32>,
+) {
+    if ABSOLUTE_POS >= input.len() {
+        terminate!();
+    }
 
     let in_pos = index_offset_contiguous(input, ABSOLUTE_POS, rank);
     let out_pos = out_layout.index(output, ABSOLUTE_POS);
+
+    let qparams = QParams::new(scheme);
+    let scale = qparams.scale(scale, in_pos * input.line_size());
 
     output[out_pos] = dequantize_symmetric_int8(input[in_pos], scale);
 }
@@ -140,6 +192,26 @@ where
                     )
                 };
             }
+            QuantScheme {
+                level: QuantLevel::Block(_),
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
+                ..
+            } => {
+                let scales = tensor.scales().unwrap();
+
+                unsafe {
+                    dequantize_per_block_symmetric_int8_packed_kernel::launch_unchecked::<F, R>(
+                        &tensor.client,
+                        cube_count,
+                        cube_dim,
+                        tensor.as_array_arg::<u32>(line_size_in),
+                        scales.as_tensor_arg::<f32>(1),
+                        output.as_tensor_arg::<F>(line_size_out),
+                        scheme,
+                    )
+                };
+            }
         }
     }
 
@@ -151,12 +223,9 @@ where
     R: CubeRuntime,
     F: FloatElement,
 {
-    // The actual number of elements is 1/4 (four int8 values packed in a single u32)
-    // so we choose a line size to match a valid input binding size.
     let num_elems = tensor.shape.num_elements();
     let line_size = max_line_size(&tensor);
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
     let out_layout = strided_layout(&output);
 
@@ -168,10 +237,46 @@ where
                 q_type: QuantInputType::QInt8,
                 ..
             } => {
+                let cube_count =
+                    calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
                 let scales = tensor.scales().unwrap();
 
                 unsafe {
                     dequantize_per_tensor_symmetric_int8_unpacked_kernel::launch_unchecked::<F, R>(
+                        &tensor.client,
+                        cube_count,
+                        cube_dim,
+                        tensor.as_tensor_arg::<i8>(line_size),
+                        scales.as_tensor_arg::<f32>(1),
+                        output.as_tensor_arg::<F>(line_size),
+                        out_layout,
+                        scheme,
+                        Some(tensor.shape.num_dims() as u32),
+                    )
+                };
+            }
+            QuantScheme {
+                level: QuantLevel::Block(block_size),
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
+                ..
+            } => {
+                let scales = tensor.scales().unwrap();
+
+                let scales_data = crate::ops::into_data_sync::<R, f32>(scales.clone());
+                // TODO: restrict block_size to be a factor of line_size
+                // assert!(
+                //     *block_size as u8 % line_size == 0,
+                //     "block size must evenly divide line size, got {block_size} / {line_size}"
+                // );
+                let line_size = Ord::min(line_size, block_size as u8);
+                let cube_count =
+                    calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+                println!(
+                    "dequantize per block unpacked {num_elems} elements w/ scales: {scales_data} and line size {line_size} ({cube_count:?})"
+                );
+                unsafe {
+                    dequantize_per_block_symmetric_int8_unpacked_kernel::launch_unchecked::<F, R>(
                         &tensor.client,
                         cube_count,
                         cube_dim,

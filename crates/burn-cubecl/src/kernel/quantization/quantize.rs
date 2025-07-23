@@ -59,6 +59,36 @@ fn quantize_symmetric_int8_packed<F: Float>(
     pack_i8s_to_u32s(value)
 }
 
+#[cube]
+fn write_scale_per_tensor(in_pos: u32, scale: &Array<f32>, out_scale: &mut Array<f32>) -> f32 {
+    let scale = scale[0];
+
+    // Write the scale into the output buffer
+    if in_pos == 0 {
+        out_scale[in_pos] = scale;
+    }
+
+    scale
+}
+
+#[cube]
+fn write_scale_per_block(
+    in_pos: u32,
+    scale: &Array<f32>,
+    out_scale: &mut Array<f32>,
+    #[comptime] block_size: u32,
+) -> f32 {
+    let scale_pos = in_pos / block_size;
+    let scale = scale[scale_pos];
+
+    // Write the scale into the output buffer
+    if in_pos % block_size == 0 {
+        out_scale[scale_pos] = scale;
+    }
+
+    scale
+}
+
 #[cube(launch_unchecked)]
 fn quantize_per_tensor_symmetric_int8_kernel<F: Float>(
     input: &Tensor<Line<F>>,
@@ -74,16 +104,35 @@ fn quantize_per_tensor_symmetric_int8_kernel<F: Float>(
         terminate!();
     }
 
-    let scale = scale[0];
-
-    // Write the scale into the output buffer
-    if ABSOLUTE_POS == 0 {
-        out_scale[ABSOLUTE_POS] = scale;
-    }
+    let scale = write_scale_per_tensor(ABSOLUTE_POS, scale, out_scale);
 
     let in_pos = index_offset_contiguous(input, ABSOLUTE_POS, rank);
     let out_pos = out_layout.index(output, ABSOLUTE_POS);
 
+    output[out_pos] = quantize_symmetric_int8(input[in_pos], scale, range_min, range_max);
+}
+
+#[cube(launch_unchecked)]
+fn quantize_per_block_symmetric_int8_kernel<F: Float>(
+    input: &Tensor<Line<F>>,
+    scale: &Array<f32>,
+    range_min: F,
+    range_max: F,
+    output: &mut Tensor<Line<i8>>,
+    out_scale: &mut Array<f32>,
+    out_layout: StridedLayout,
+    #[comptime] rank: Option<u32>,
+    #[comptime] block_size: u32,
+) {
+    if ABSOLUTE_POS >= output.len() {
+        terminate!();
+    }
+
+    let in_pos = index_offset_contiguous(input, ABSOLUTE_POS, rank);
+
+    let scale = write_scale_per_block(in_pos * input.line_size(), scale, out_scale, block_size);
+
+    let out_pos = out_layout.index(output, ABSOLUTE_POS);
     output[out_pos] = quantize_symmetric_int8(input[in_pos], scale, range_min, range_max);
 }
 
@@ -100,11 +149,44 @@ fn quantize_per_tensor_symmetric_int8_packed_kernel<F: Float>(
         terminate!();
     }
 
-    let scale = scale[0];
+    let scale = write_scale_per_tensor(ABSOLUTE_POS, scale, out_scale);
 
-    if ABSOLUTE_POS == 0 {
-        out_scale[0] = scale;
+    if comptime!(input.line_size() == 4) {
+        output[ABSOLUTE_POS] =
+            quantize_symmetric_int8_packed::<F>(input[ABSOLUTE_POS], scale, range_min, range_max);
+    } else {
+        // line size 1
+        let num_packed = comptime!(4);
+        let mut values = Line::<F>::empty(num_packed);
+        #[unroll]
+        for i in 0..num_packed {
+            values[i] = input[ABSOLUTE_POS * num_packed + i][0];
+        }
+        output[ABSOLUTE_POS] =
+            quantize_symmetric_int8_packed::<F>(values, scale, range_min, range_max);
     }
+}
+
+#[cube(launch_unchecked)]
+fn quantize_per_block_symmetric_int8_packed_kernel<F: Float>(
+    input: &Tensor<Line<F>>,
+    scale: &Array<f32>,
+    range_min: F,
+    range_max: F,
+    output: &mut Array<u32>,
+    out_scale: &mut Array<f32>,
+    #[comptime] block_size: u32,
+) {
+    if ABSOLUTE_POS >= output.len() {
+        terminate!();
+    }
+
+    let scale = write_scale_per_block(
+        ABSOLUTE_POS * input.line_size(),
+        scale,
+        out_scale,
+        block_size,
+    );
 
     if comptime!(input.line_size() == 4) {
         output[ABSOLUTE_POS] =
@@ -148,16 +230,13 @@ fn quantize_unpacked<R: CubeRuntime, F: FloatElement>(
     output: CubeTensor<R>,
 ) -> CubeTensor<R> {
     let client = tensor.client.clone();
-    // Output tensor contains 4x less elements (four int8 values packed in a single u32)
     let num_elems = tensor.shape.num_elements();
 
     let out_layout = strided_layout(&output);
     let out_scale = output.scales().unwrap();
 
-    // Force vectorization to process 4 quantized values packed for 1 output value
     let line_size = max_line_size(&tensor);
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
     match scheme {
         QuantScheme {
@@ -166,6 +245,8 @@ fn quantize_unpacked<R: CubeRuntime, F: FloatElement>(
             q_type: QuantInputType::QInt8,
             ..
         } => {
+            let cube_count =
+                calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
             unsafe {
                 quantize_per_tensor_symmetric_int8_kernel::launch_unchecked::<F, R>(
                     &client,
@@ -179,6 +260,40 @@ fn quantize_unpacked<R: CubeRuntime, F: FloatElement>(
                     out_scale.as_array_arg::<f32>(1),
                     out_layout,
                     Some(tensor.shape.num_dims() as u32),
+                )
+            };
+        }
+        QuantScheme {
+            level: QuantLevel::Block(block_size),
+            mode: QuantMode::Symmetric,
+            q_type: QuantInputType::QInt8,
+            ..
+        } => {
+            // TODO: restrict block_size to be a factor of line_size
+            // assert!(
+            //     *block_size as u8 % line_size == 0,
+            //     "block size must evenly divide line size, got {block_size} / {line_size}"
+            // );
+            let line_size = Ord::min(line_size, *block_size as u8);
+            let cube_count =
+                calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+            println!(
+                "quantize per block unpacked w/ block size {block_size} and line size {line_size} ({cube_count:?})"
+            );
+            unsafe {
+                quantize_per_block_symmetric_int8_kernel::launch_unchecked::<F, R>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    tensor.as_tensor_arg::<F>(line_size),
+                    scale.as_array_arg::<f32>(1),
+                    ScalarArg::new(F::from_int(-i8::MAX as i64)),
+                    ScalarArg::new(F::from_int(i8::MAX as i64)),
+                    output.as_tensor_arg::<i8>(line_size),
+                    out_scale.as_array_arg::<f32>(1),
+                    out_layout,
+                    Some(tensor.shape.num_dims() as u32),
+                    *block_size as u32,
                 )
             };
         }
@@ -224,6 +339,27 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement>(
                     ScalarArg::new(F::from_int(i8::MAX as i64)),
                     output.as_array_arg::<u32>(1),
                     out_scale.as_array_arg::<f32>(1),
+                )
+            };
+        }
+        QuantScheme {
+            level: QuantLevel::Block(block_size),
+            mode: QuantMode::Symmetric,
+            q_type: QuantInputType::QInt8,
+            ..
+        } => {
+            unsafe {
+                quantize_per_block_symmetric_int8_packed_kernel::launch_unchecked::<F, R>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    tensor.as_tensor_arg::<F>(line_size),
+                    scale.as_array_arg::<f32>(1),
+                    ScalarArg::new(F::from_int(-i8::MAX as i64)),
+                    ScalarArg::new(F::from_int(i8::MAX as i64)),
+                    output.as_array_arg::<u32>(1),
+                    out_scale.as_array_arg::<f32>(1),
+                    *block_size as u32,
                 )
             };
         }

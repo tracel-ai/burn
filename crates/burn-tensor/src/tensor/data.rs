@@ -252,7 +252,7 @@ impl TensorData {
                 DType::Bool => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
                 DType::QFloat(scheme) => match scheme {
                     QuantScheme {
-                        level: QuantLevel::Tensor,
+                        level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         q_type: QuantInputType::QInt8,
                         ..
@@ -811,7 +811,7 @@ impl core::fmt::Display for TensorData {
             DType::Bool => format!("{:?}", self.as_slice::<bool>().unwrap()),
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
-                    level: QuantLevel::Tensor,
+                    level: QuantLevel::Tensor | QuantLevel::Block(_),
                     mode: QuantMode::Symmetric,
                     q_type: QuantInputType::QInt8,
                     ..

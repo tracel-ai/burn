@@ -50,6 +50,18 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
             scales_shape = Shape::new([1]);
             (data, shapes, elem_sizes)
         }
+        QuantScheme {
+            level: QuantLevel::Block(num_blocks),
+            mode: QuantMode::Symmetric,
+            q_type: QuantInputType::QInt8,
+            ..
+        } => {
+            scales_shape = Shape::new([num_blocks]);
+            let data = vec![&data[..shape.num_elements()], &data[shape.num_elements()..]];
+            let shapes = vec![shape.dims.as_slice(), scales_shape.dims.as_slice()];
+            let elem_sizes = vec![size_of::<i8>(), size_of::<f32>()];
+            (data, shapes, elem_sizes)
+        }
     };
 
     let mut tensors = client.create_tensors(data, shapes, elem_sizes);
@@ -100,6 +112,18 @@ pub fn empty_qtensor<R: CubeRuntime>(
             scales_dtype = DType::F32;
             (shapes, elem_sizes)
         }
+        QuantScheme {
+            level: QuantLevel::Block(num_blocks),
+            mode: QuantMode::Symmetric,
+            q_type: QuantInputType::QInt8,
+            ..
+        } => {
+            scales_shape = Shape::new([num_blocks]);
+            scales_dtype = DType::F32;
+            let shapes = vec![shape.dims.as_slice(), scales_shape.dims.as_slice()];
+            let elem_sizes = vec![size_of::<i8>(), size_of::<f32>()];
+            (shapes, elem_sizes)
+        }
     };
 
     let mut tensors = client.empty_tensors(shapes, elem_sizes);
@@ -146,6 +170,12 @@ where
                     // packed into u32 and quantization parameters appended to the bytes
                     new_qtensor(data.as_bytes(), data.shape.clone(), scheme, device)
                 }
+                QuantScheme {
+                    level: QuantLevel::Block(_),
+                    mode: QuantMode::Symmetric,
+                    q_type: QuantInputType::QInt8,
+                    ..
+                } => todo!(),
             },
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
