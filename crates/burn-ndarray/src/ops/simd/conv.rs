@@ -216,39 +216,13 @@ unsafe fn conv2d_launch<
                 #[allow(clippy::if_same_then_else)]
                 if STRIDE {
                     conv2d_inner_nopad(
-                        &x,
-                        &weights,
-                        &mut out,
-                        bias,
-                        oh,
-                        ow,
-                        oc,
-                        ic_off,
-                        stride_h,
-                        stride_w,
-                        dilate_h,
-                        dilate_w,
-                        k_height,
-                        k_width,
-                        pad_h,
-                        pad_w,
-                        in_channels,
+                        &x, &weights, &mut out, bias, oh, ow, oc, ic_off, stride_h, stride_w,
+                        dilate_h, dilate_w, k_height, k_width, pad_h, pad_w,
                     );
                 } else {
                     conv2d_inner_nopad_nostride(
-                        &x,
-                        &weights,
-                        &mut out,
-                        bias,
-                        oh,
-                        ow,
-                        oc,
-                        ic_off,
-                        k_height,
-                        k_width,
-                        pad_h,
+                        &x, &weights, &mut out, bias, oh, ow, oc, ic_off, k_height, k_width, pad_h,
                         pad_w,
-                        in_channels,
                     );
                 }
             }
@@ -269,7 +243,6 @@ unsafe fn conv2d_launch<
             pad_w,
             k_height,
             k_width,
-            in_channels,
         );
     }
 }
@@ -297,8 +270,8 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
     pad_w: usize,
     k_height: usize,
     k_width: usize,
-    in_channels: usize,
 ) {
+    let in_channels = weights.shape()[0];
     let (_, in_height, in_width) = x.dim();
     let (out_height, out_width, _) = out.dim();
     let oh_start = pad_h;
@@ -417,8 +390,9 @@ macro_rules! inner_with_register_blocking_size {
             k_width: usize,
             pad_h: usize,
             pad_w: usize,
-            in_channels: usize,
         ) {
+            let in_channels = weights.shape()[0];
+
             seq!(N in 0..$rb {
                 let mut acc~N = bias;
             });
@@ -477,8 +451,9 @@ macro_rules! inner_with_register_blocking_size {
             k_width: usize,
             pad_h: usize,
             pad_w: usize,
-            in_channels: usize,
         ) {
+            let in_channels = weights.shape()[0];
+
             seq!(N in 0..$rb {
                 let mut acc~N = bias;
             });
