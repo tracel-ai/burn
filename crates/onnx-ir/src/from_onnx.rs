@@ -277,73 +277,69 @@ impl OnnxGraphBuilder {
         use crate::ir::AttributeValue;
         use std::collections::HashMap;
 
-        // First pass: identify binary operations with Shape inputs and constant outputs to convert
+        // First pass: find constants that should be converted to Shape type
         let mut constants_to_convert: HashMap<String, usize> = HashMap::new();
 
         for node in nodes.iter() {
-            match node.node_type {
-                NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div => {
-                    if node.inputs.len() == 2 {
-                        // Check if one input is Shape type
-                        let has_shape = node
-                            .inputs
-                            .iter()
-                            .any(|input| matches!(input.ty, ArgType::Shape(_)));
+            // Only process binary operations
+            if !matches!(
+                node.node_type,
+                NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div
+            ) {
+                continue;
+            }
 
-                        if has_shape {
-                            // Find which input is a constant that needs conversion
-                            for input in &node.inputs {
-                                if !matches!(input.ty, ArgType::Shape(_)) {
-                                    // This input needs to come from a Constant node
-                                    // Store the output name that needs to be converted
-                                    if let ArgType::Tensor(tensor) = &input.ty {
-                                        if tensor.rank == 1 {
-                                            // Get the shape rank from the other input
-                                            if let Some(shape_rank) =
-                                                node.inputs.iter().find_map(|inp| match inp.ty {
-                                                    ArgType::Shape(rank) => Some(rank),
-                                                    _ => None,
-                                                })
-                                            {
-                                                constants_to_convert
-                                                    .insert(input.name.clone(), shape_rank);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+            if node.inputs.len() != 2 {
+                continue;
+            }
+
+            // Find shape input and its rank
+            let shape_rank = node.inputs.iter().find_map(|input| match input.ty {
+                ArgType::Shape(rank) => Some(rank),
+                _ => None,
+            });
+
+            let Some(shape_rank) = shape_rank else {
+                continue;
+            };
+
+            // Mark rank-1 tensor inputs for conversion
+            for input in &node.inputs {
+                if let ArgType::Tensor(tensor) = &input.ty {
+                    if tensor.rank == 1 {
+                        constants_to_convert.insert(input.name.clone(), shape_rank);
                     }
                 }
-                _ => {}
             }
         }
 
-        // Second pass: convert the identified Constant nodes and update all references
+        // Second pass: convert constants and update references
         for node in nodes.iter_mut() {
             match node.node_type {
                 NodeType::Constant => {
-                    if let Some(output) = node.outputs.first_mut() {
-                        if let Some(&shape_rank) = constants_to_convert.get(&output.name) {
-                            // Check if this constant can be converted to Shape
-                            if let ArgType::Tensor(tensor) = &output.ty {
-                                if tensor.rank == 1 && node.attrs.contains_key("value") {
-                                    // Get the tensor data to verify it has the right size
-                                    if let Some(AttributeValue::Tensor(tensor_data)) =
-                                        node.attrs.get("value")
-                                    {
-                                        if tensor_data.shape.len() == 1
-                                            && tensor_data.shape[0] == shape_rank
-                                        {
-                                            // Convert to Shape type
-                                            output.ty = ArgType::Shape(shape_rank);
-                                            log::debug!(
-                                                "Converted constant {} from Tensor to Shape({})",
-                                                output.name,
-                                                shape_rank
-                                            );
-                                        }
-                                    }
+                    let Some(output) = node.outputs.first_mut() else {
+                        continue;
+                    };
+                    let Some(&shape_rank) = constants_to_convert.get(&output.name) else {
+                        continue;
+                    };
+
+                    // Verify this is a rank-1 tensor with correct size
+                    if let ArgType::Tensor(tensor) = &output.ty {
+                        if tensor.rank == 1 {
+                            // Check the tensor data has the right size
+                            if let Some(AttributeValue::Tensor(tensor_data)) =
+                                node.attrs.get("value")
+                            {
+                                if tensor_data.shape.len() == 1
+                                    && tensor_data.shape[0] == shape_rank
+                                {
+                                    output.ty = ArgType::Shape(shape_rank);
+                                    log::debug!(
+                                        "Converted constant {} to Shape({})",
+                                        output.name,
+                                        shape_rank
+                                    );
                                 }
                             }
                         }
@@ -353,16 +349,13 @@ impl OnnxGraphBuilder {
                     // Update input types to match converted constants
                     for input in &mut node.inputs {
                         if let Some(&shape_rank) = constants_to_convert.get(&input.name) {
-                            if let ArgType::Tensor(tensor) = &input.ty {
-                                if tensor.rank == 1 {
-                                    input.ty = ArgType::Shape(shape_rank);
-                                    log::debug!(
-                                        "Updated input {} in {} to Shape({})",
-                                        input.name,
-                                        node.name,
-                                        shape_rank
-                                    );
-                                }
+                            if matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1) {
+                                input.ty = ArgType::Shape(shape_rank);
+                                log::debug!(
+                                    "Updated input {} to Shape({})",
+                                    input.name,
+                                    shape_rank
+                                );
                             }
                         }
                     }
