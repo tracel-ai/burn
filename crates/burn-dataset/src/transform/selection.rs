@@ -62,7 +62,12 @@ where
     /// # Panics
     ///
     /// Panics if any index is out of bounds for the dataset.
-    pub fn from_indices_checked(dataset: D, indices: Vec<usize>) -> Self {
+    pub fn from_indices_checked<S>(dataset: S, indices: Vec<usize>) -> Self
+    where
+        S: Into<Arc<D>>,
+    {
+        let dataset = dataset.into();
+
         let size = dataset.len();
         if let Some(idx) = indices.iter().find(|&i| *i >= size) {
             panic!("Index out of bounds for wrapped dataset size: {idx} >= {size}");
@@ -81,9 +86,12 @@ where
     /// # Safety
     ///
     /// This function does not check if the indices are within the bounds of the dataset.
-    pub fn from_indices_unchecked(dataset: D, indices: Vec<usize>) -> Self {
+    pub fn from_indices_unchecked<S>(dataset: S, indices: Vec<usize>) -> Self
+    where
+        S: Into<Arc<D>>,
+    {
         Self {
-            dataset: Arc::new(dataset),
+            dataset: dataset.into(),
             indices,
             input: PhantomData,
         }
@@ -107,7 +115,11 @@ where
     /// # Returns
     ///
     /// A new `SelectionDataset` that selects all indices from the dataset.
-    pub fn new_select_all(dataset: D) -> Self {
+    pub fn new_select_all<S>(dataset: S) -> Self
+    where
+        S: Into<Arc<D>>,
+    {
+        let dataset = dataset.into();
         let size = dataset.len();
         Self::from_indices_unchecked(dataset, iota(size))
     }
@@ -125,7 +137,10 @@ where
     /// # Returns
     ///
     /// A new `SelectionDataset` with shuffled indices.
-    pub fn new_shuffled(dataset: D, rng: &mut StdRng) -> Self {
+    pub fn new_shuffled<S>(dataset: S, rng: &mut StdRng) -> Self
+    where
+        S: Into<Arc<D>>,
+    {
         let mut this = Self::new_select_all(dataset);
         this.shuffle(rng);
         this
@@ -144,7 +159,10 @@ where
     /// # Returns
     ///
     /// A new `SelectionDataset` with shuffled indices.
-    pub fn new_shuffled_with_seed(dataset: D, seed: u64) -> Self {
+    pub fn new_shuffled_with_seed<S>(dataset: S, seed: u64) -> Self
+    where
+        S: Into<Arc<D>>,
+    {
         let mut this = Self::new_select_all(dataset);
         this.shuffle_with_seed(seed);
         this
@@ -186,12 +204,7 @@ where
     /// * `start` - The start of the range.
     /// * `end` - The end of the range (exclusive).
     pub fn slice(&self, start: usize, end: usize) -> Self {
-        let indices = self.indices[start..end].to_vec();
-        Self {
-            dataset: self.dataset.clone(),
-            indices,
-            input: PhantomData,
-        }
+        Self::from_indices_unchecked(self.dataset.clone(), self.indices[start..end].to_vec())
     }
 
     /// Split into `num` datasets by slicing the selection indices evenly.
@@ -275,8 +288,16 @@ mod tests {
         assert_eq!(indices, expected);
     }
 
+    #[should_panic(expected = "Index out of bounds for wrapped dataset size: 300 >= 27")]
     #[test]
-    fn test_selection_dataset() {
+    fn test_from_indices_checked_panics() {
+        let source_dataset = FakeDataset::<String>::new(27);
+        let indices: Vec<usize> = vec![15, 1, 12, 300];
+        SelectionDataset::from_indices_checked(source_dataset, indices);
+    }
+
+    #[test]
+    fn test_checked_selection_dataset() {
         let source_dataset = FakeDataset::<String>::new(27);
 
         let indices: Vec<usize> = vec![15, 1, 12, 12];
