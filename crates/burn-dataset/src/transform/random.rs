@@ -9,13 +9,18 @@ use rand::rngs::StdRng;
 ///
 /// Consider using [sampler dataset](crate::transform::SamplerDataset) if you
 /// want a probability distribution which is computed lazily.
-pub struct ShuffledDataset<D, I> {
+pub struct ShuffledDataset<D, I>
+where
+    D: Dataset<I>,
+    I: Clone + Send + Sync,
+{
     wrapped: SelectionDataset<D, I>,
 }
 
 impl<D, I> ShuffledDataset<D, I>
 where
     D: Dataset<I>,
+    I: Clone + Send + Sync,
 {
     /// Creates a new selection dataset with shuffled indices.
     ///
