@@ -342,6 +342,10 @@ impl TchQTensor {
                     scale as f32,
                 ))
             }
+            QuantScheme {
+                level: QuantLevel::Block(_),
+                ..
+            } => unimplemented!("LibTorch backend does not support per-block quantization"),
         }
     }
 }

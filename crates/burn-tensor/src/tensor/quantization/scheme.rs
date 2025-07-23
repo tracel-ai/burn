@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Tensor, TensorPrimitive, backend::Backend};
+use crate::{Shape, Tensor, TensorMetadata, TensorPrimitive, backend::Backend};
 
 use super::{
     Calibration, CalibrationRange, QuantizationParameters, QuantizationParametersPrimitive,
@@ -69,6 +69,8 @@ impl QuantScheme {
 pub enum QuantLevel {
     /// Quantize the whole tensor using a single tensor.
     Tensor,
+    /// Quantize a tensor using multiple 1D linear blocks.
+    Block(usize),
 }
 
 /// Data type used to represent quantized values.
@@ -133,6 +135,27 @@ impl QuantScheme {
         match calibration {
             Calibration::MinMax => match self.level {
                 QuantLevel::Tensor => (B::float_min(tensor.clone()), B::float_max(tensor)),
+                QuantLevel::Block(block_size) => {
+                    let shape = tensor.shape();
+                    let numel = shape.num_elements();
+
+                    assert_eq!(
+                        numel % block_size,
+                        0,
+                        "Tensor {shape:?} must be evenly divisible by block size {block_size}"
+                    );
+
+                    let num_blocks = numel / block_size;
+
+                    let blocks = B::float_reshape(tensor, Shape::new([num_blocks, block_size]));
+                    let blocks_min = B::float_reshape(
+                        B::float_min_dim(blocks.clone(), 1),
+                        Shape::new([num_blocks]),
+                    );
+                    let blocks_max =
+                        B::float_reshape(B::float_max_dim(blocks, 1), Shape::new([num_blocks]));
+                    (blocks_min, blocks_max)
+                }
             },
         }
     }
@@ -144,7 +167,7 @@ impl QuantScheme {
     ) -> QuantizationParameters<B> {
         match self {
             QuantScheme {
-                level: QuantLevel::Tensor,
+                level: QuantLevel::Tensor | QuantLevel::Block(_),
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
                 ..
