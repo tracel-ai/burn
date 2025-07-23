@@ -25,6 +25,9 @@ There are two levels to the collective operations: local and global. Operations 
 For global operations, there must be a global orchestrator available. 
 Start one easily with `burn_collective::start_global_orchestrator()`.
 
+On the global level, nodes use the `burn_communication::data_service::TensorDataService` to 
+expose and download tensors in a peer-to-peer manner, in order to be independent.
+
 ## Components
 
 The following are the important pieces of the collective operations system.

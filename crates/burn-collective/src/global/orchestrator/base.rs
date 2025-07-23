@@ -131,6 +131,6 @@ pub async fn start_global_orchestrator(port: u16) {
     let server = WsServer::new(port);
     let res = GlobalOrchestrator::start(os_shutdown_signal(), server).await;
     if let Err(err) = res {
-        eprintln!("global orchestrator error: {err:?}");
+        log::error!("Global Collective Orchestrator error: {err:?}");
     }
 }

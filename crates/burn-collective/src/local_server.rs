@@ -13,9 +13,11 @@ use tokio::runtime::{Builder, Runtime};
 
 use crate::{
     AllReduceStrategy, CollectiveConfig, CollectiveError, DeviceId, GlobalRegisterParams,
-    ReduceKind, SharedAllReduceParams, centralized::all_reduce_sum_centralized,
-    global::node::base::GlobalCollectiveClient, ring::all_reduce_sum_ring,
-    tree::all_reduce_sum_tree,
+    ReduceKind, SharedAllReduceParams,
+    centralized::{all_reduce_sum_centralized, broadcast_centralized, reduce_sum_centralized},
+    global::node::base::GlobalCollectiveClient,
+    ring::all_reduce_sum_ring,
+    tree::{all_reduce_sum_tree, broadcast_tree, reduce_sum_tree},
 };
 
 /// Define the client/server communication on the network
@@ -40,17 +42,24 @@ pub(crate) struct LocalCollectiveServer<B: Backend> {
     registered_ids: Vec<DeviceId>,
     /// The params of the current operation, as defined by the first caller
     cur_num_devices: Option<u32>,
-    /// The params of the current operation, as defined by the first caller
-    cur_all_reduce_params: Option<SharedAllReduceParams>,
-    /// The tensor primitives passed by each operation call
-    tensors: Vec<B::FloatTensorPrimitive>,
     /// Callbacks for when all registers are done
     callbacks_register: Vec<SyncSender<RegisterResult>>,
-    /// Callbacks for when aggregate is done
-    callbacks_all_reduce: Vec<SyncSender<AllReduceResult<B::FloatTensorPrimitive>>>,
+
+    /// The params of the current operation, as defined by the first caller
+    cur_all_reduce_params: Option<SharedAllReduceParams>,
+    /// Uncompleted all-reduce calls, one for each calling device
+    all_reduce_ops: HashMap<DeviceId, AllReduceOp<B>>,
 
     /// Client for global collective operations
     global_client: Option<GlobalCollectiveClient<B, Network>>,
+}
+
+/// Struct for each device that calls an all-reduce operation
+struct AllReduceOp<B: Backend> {
+    /// The tensor primitive passed as input
+    input: B::FloatTensorPrimitive,
+    /// Callback for the result of the all-reduce
+    result_sender: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
 }
 
 #[derive(Debug)]
@@ -124,6 +133,10 @@ impl<B: Backend> LocalCollectiveClient<B> {
     }
 
     pub(crate) fn register(&mut self, config: &CollectiveConfig) -> RegisterResult {
+        if config.is_valid() {
+            return Err(CollectiveError::InvalidConfig);
+        }
+
         let device_id = config.device_id;
         let num_devices = config.num_devices;
         let global_params = config.global_register_params();
@@ -147,6 +160,10 @@ impl<B: Backend> LocalCollectiveClient<B> {
         tensor: B::FloatTensorPrimitive,
         config: &CollectiveConfig,
     ) -> AllReduceResult<B::FloatTensorPrimitive> {
+        if config.is_valid() {
+            return Err(CollectiveError::InvalidConfig);
+        }
+
         let device_id = config.device_id;
         let all_reduce_params = config.all_reduce_params();
         let (callback, rec) =
@@ -182,9 +199,8 @@ impl<B: Backend> LocalCollectiveServer<B> {
             registered_ids: vec![],
             cur_num_devices: None,
             cur_all_reduce_params: None,
-            tensors: vec![],
+            all_reduce_ops: HashMap::new(),
             callbacks_register: vec![],
-            callbacks_all_reduce: vec![],
             global_client: None,
         }
     }
@@ -197,7 +213,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
 
         runtime.spawn(async {
             let typeid = core::any::TypeId::of::<B>();
-            eprintln!("Starting server for backend: {typeid:?}");
+            log::info!("Starting server for backend: {typeid:?}");
             let mut aggregator = LocalCollectiveServer::new(rec);
 
             loop {
@@ -243,7 +259,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
 
     fn reset(&mut self) {
         self.registered_ids.clear();
-        self.tensors.clear();
+        self.all_reduce_ops.clear();
         self.cur_all_reduce_params = None;
     }
 
@@ -267,6 +283,8 @@ impl<B: Backend> LocalCollectiveServer<B> {
         callback.send(Ok(())).unwrap();
     }
 
+    /// Processes an all-reduce request from a client, registers the input tensor and output
+    /// callback
     async fn process_all_reduce_message(
         &mut self,
         device_id: DeviceId,
@@ -281,7 +299,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
             return;
         }
 
-        if self.tensors.is_empty() || self.cur_all_reduce_params.is_none() {
+        if self.all_reduce_ops.is_empty() || self.cur_all_reduce_params.is_none() {
             self.cur_all_reduce_params = Some(params);
         } else if self.cur_all_reduce_params.clone().unwrap() != params {
             callback
@@ -290,10 +308,15 @@ impl<B: Backend> LocalCollectiveServer<B> {
             return;
         }
 
-        self.tensors.push(tensor);
-        self.callbacks_all_reduce.push(callback);
+        self.all_reduce_ops.insert(
+            device_id,
+            AllReduceOp {
+                input: tensor,
+                result_sender: callback,
+            },
+        );
 
-        let tensor_count = self.tensors.len();
+        let tensor_count = self.all_reduce_ops.len();
         if tensor_count > 0 && tensor_count == self.registered_ids.len() {
             // all registered callers have sent a tensor to aggregate
             self.all_reduce().await;
@@ -357,68 +380,123 @@ impl<B: Backend> LocalCollectiveServer<B> {
         }
     }
 
+    /// Perform an all-reduce operation. Empties the all_reduces_ops map.
     async fn all_reduce(&mut self) {
-        let params = self.cur_all_reduce_params.as_ref().unwrap();
-        let kind = &params.kind;
-        let local_strategy = &params.local_strategy;
-        let global_strategy = &params.global_strategy;
-        let tensor_count = self.tensors.len();
+        let mut tensors = HashMap::new();
+        let mut results = HashMap::new();
+        for (dev, op) in self.all_reduce_ops.drain() {
+            tensors.insert(dev, op.input);
+            results.insert(dev, op.result_sender);
+        }
 
-        // TODO: Should be an enum.
-        let mut outs = match local_strategy {
-            AllReduceStrategy::Centralized => {
-                let out = all_reduce_sum_centralized::<B>(&mut self.tensors);
-                vec![out; tensor_count]
-            }
-            AllReduceStrategy::Tree(arity) => all_reduce_sum_tree::<B>(&mut self.tensors, *arity),
-            AllReduceStrategy::Ring => all_reduce_sum_ring::<B>(&mut self.tensors),
+        let params = self.cur_all_reduce_params.as_ref().unwrap();
+
+        let res = if let Some(global_client) = &mut self.global_client {
+            Self::all_reduce_with_global(&mut tensors, params, global_client).await
+        } else {
+            Self::all_reduce_local_only(&mut tensors, params).await
         };
 
-        if let Some(global_client) = &mut self.global_client {
-            // Do aggregation on global level
-            let tensor = outs.remove(0);
-            let params = global_strategy.as_ref().unwrap();
-
-            let device = B::float_device(&tensor);
-            let tensor = global_client
-                .all_reduce(tensor, *params, &device, *kind)
-                .await;
-
-            match tensor {
-                Err(err) => {
-                    self.send_err_all_reduce_callbacks(CollectiveError::Global(err));
-                    return;
-                }
-                Ok(tensor) => {
-                    // replace all results with global aggregation result
-                    let len = outs.len() + 1;
-                    outs = vec![tensor; len];
-                }
+        match res {
+            Err(err) => {
+                // Send error to all subscribers
+                results.iter_mut().for_each(|(_, callback)| {
+                    callback.send(Err(err.clone())).unwrap();
+                });
             }
-        } else if *kind == ReduceKind::Mean {
-            // In a global reduce, the global client does the mean division. In this case we need
-            // to do it here
-            let tensor_count = outs.len() as f32;
-            outs = outs
-                .into_iter()
-                .map(|tensor| {
-                    // Convert to float if necessary
-                    B::float_div_scalar(tensor, tensor_count.elem())
-                })
-                .collect();
-        }
-
-        // Callbacks return results
-        for (callback, result) in self.callbacks_all_reduce.drain(..).zip(outs.into_iter()) {
-            callback.send(Ok(result)).unwrap();
-        }
+            Ok(_) => {
+                // Return resulting tensors
+                results.iter_mut().for_each(|(id, callback)| {
+                    let result = tensors.remove(id).unwrap();
+                    callback.send(Ok(result)).unwrap();
+                });
+            }
+        };
     }
 
-    /// Send an error to all the subscrived all-reduce callbacks, and drain the list
-    fn send_err_all_reduce_callbacks(&mut self, err: CollectiveError) {
-        for callback in self.callbacks_all_reduce.drain(..) {
-            let result = Err(err.clone());
-            callback.send(result).unwrap();
+    /// Perform an all-reduce with no multi-node operations (global ops)
+    async fn all_reduce_local_only(
+        tensors: &mut HashMap<DeviceId, B::FloatTensorPrimitive>,
+        params: &SharedAllReduceParams,
+    ) -> Result<(), CollectiveError> {
+        let kind = &params.kind;
+        let local_strategy = &params.local_strategy;
+        match local_strategy {
+            AllReduceStrategy::Centralized => all_reduce_sum_centralized::<B>(tensors),
+            AllReduceStrategy::Tree(arity) => all_reduce_sum_tree::<B>(tensors, *arity),
+            AllReduceStrategy::Ring => all_reduce_sum_ring::<B>(tensors),
+        };
+
+        if *kind == ReduceKind::Mean {
+            // Apply mean division
+            let tensor_count = tensors.len() as f32;
+            tensors.iter_mut().for_each(|(_, tensor)| {
+                *tensor = B::float_div_scalar(tensor.clone(), tensor_count.elem())
+            });
         }
+
+        Ok(())
+    }
+
+    /// Do an all-reduce in a multi-node context
+    ///
+    /// With Tree and Centralized strategies, the all-reduce is split between a
+    /// reduce (all tensors are reduced to one device), and a broadcast (the result is sent to all
+    /// other devices). The all-reduce on the global level is done between both steps.
+    /// Due to the nature of the Ring strategy, this separation can't be done.
+    // For the Ring strategy, this isn't possible, because it is more like a
+    // reduce-scatter plus an all-gather, so using a Ring strategy locally in a multi-node
+    // setup may be unadvantageous.
+    async fn all_reduce_with_global(
+        tensors: &mut HashMap<DeviceId, B::FloatTensorPrimitive>,
+        params: &SharedAllReduceParams,
+        global_client: &mut GlobalCollectiveClient<B, WebSocket>,
+    ) -> Result<(), CollectiveError> {
+        let kind = &params.kind;
+        let local_strategy = &params.local_strategy;
+
+        // Get corresponding devices for each peer
+        let devices = tensors
+            .iter()
+            .map(|(id, tensor)| (*id, B::float_device(tensor)))
+            .collect::<HashMap<DeviceId, B::Device>>();
+
+        // For Centralized and Tree, we only need to do a reduce here, we'll do a broadcast later
+        let main_device = *tensors.keys().next().unwrap();
+        let mut tensors_to_reduce = core::mem::take(tensors);
+        let mut main_tensor = match local_strategy {
+            AllReduceStrategy::Centralized => {
+                reduce_sum_centralized::<B>(tensors_to_reduce, &main_device)
+            }
+            AllReduceStrategy::Tree(arity) => {
+                reduce_sum_tree::<B>(tensors_to_reduce, &main_device, *arity)
+            }
+            AllReduceStrategy::Ring => {
+                all_reduce_sum_ring::<B>(&mut tensors_to_reduce);
+                tensors_to_reduce.remove(&main_device).unwrap()
+            }
+        };
+
+        // Do aggregation on global level with the main tensor
+        let device = B::float_device(&main_tensor);
+        main_tensor = global_client
+            .all_reduce(main_tensor, params.global_strategy.unwrap(), &device, *kind)
+            .await
+            .map_err(CollectiveError::Global)?;
+
+        // Broadcast result to all devices
+        *tensors = match local_strategy {
+            AllReduceStrategy::Tree(arity) => {
+                broadcast_tree::<B>(devices, main_device, main_tensor, *arity)
+            }
+            // If we chose the ring strategy and we must still broadcast the global result,
+            // we use the centralized strategy for broadcasting, but the tree may be better
+            // TODO use the optimal broadcast in case of ring strategy
+            AllReduceStrategy::Centralized | AllReduceStrategy::Ring => {
+                broadcast_centralized::<B>(devices, main_device, main_tensor)
+            }
+        };
+
+        Ok(())
     }
 }

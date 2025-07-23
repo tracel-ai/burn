@@ -6,7 +6,7 @@ use burn::{
     tensor::{Tensor, Tolerance},
 };
 use burn_collective::{
-    AllReduceStrategy, CollectiveConfig, all_reduce, finish_collective, register, reset_collective,
+    CollectiveConfig, all_reduce, finish_collective, register, reset_collective,
 };
 use burn_collective_multinode_tests::shared::NodeTestData;
 

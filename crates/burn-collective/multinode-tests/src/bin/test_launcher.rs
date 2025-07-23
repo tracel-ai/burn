@@ -181,6 +181,7 @@ fn launch_nodes(
 }
 
 /// Write test inputs for a node to a file, return the filename
+#[allow(clippy::too_many_arguments)]
 fn write_node_input(
     node_idx: u32,
     device_count: u32,
@@ -208,7 +209,7 @@ fn write_node_input(
     let data = NodeTestData {
         device_count,
         node_id: node_idx.into(),
-        node_count: node_count as u32,
+        node_count,
         global_address,
         node_address,
         data_service_port,

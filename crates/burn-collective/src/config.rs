@@ -1,11 +1,10 @@
 use burn_communication::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    AllReduceStrategy, DeviceId, GlobalRegisterParams, NodeId, ReduceKind, SharedAllReduceParams,
-};
+use crate::NodeId;
 
-/// Parameter builder struct for setting up and getting parameters for collective operations.
+/// Parameter struct for setting up and getting parameters for collective operations.
+/// Used in most collective api calls.
 /// This config is per-device.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectiveConfig {
@@ -42,55 +41,88 @@ impl CollectiveConfig {
             global_address: None,
             node_address: None,
             data_service_port: None,
-            global_strategy: None,
+            global_strategy: Some(AllReduceStrategy::Ring),
         }
     }
 
+    /// Selects the device id for this config. The device id does not necessarily need to match a
+    /// compute device, and can be any arbitrary unique id.
     pub fn with_device_id(mut self, id: DeviceId) -> Self {
         self.device_id = id;
         self
     }
 
+    /// Selects the number of devices (local peers) on the current node
     pub fn with_num_devices(mut self, num: u32) -> Self {
         self.num_devices = num;
         self
     }
 
+    /// Selects the king of reduction used in all-reduce
     pub fn with_all_reduce_kind(mut self, kind: ReduceKind) -> Self {
         self.all_reduce_kind = kind;
         self
     }
 
+    /// Selects an all-reduce strategy to use on the local level.
+    ///
+    /// In multi-node contexts, use of the Ring strategy in the local level may be less
+    /// advantageous. With multiple nodes, the global all-reduce step is enabled, and its result
+    /// is redistributed to all devices.
+    /// The Ring strategy inherently distributes the result, which in this context would not be
+    /// necessary.
+    ///
+    /// It is recommended to use a tree strategy locally, and a ring strategy globally.
     pub fn with_local_strategy(mut self, strategy: AllReduceStrategy) -> Self {
         self.local_strategy = strategy;
         self
     }
 
+    /// Set the node id
+    ///
+    /// This parameter is a global parameter and should only be set in multi-node contexts
     pub fn with_node_id(mut self, id: NodeId) -> Self {
         self.node_id = Some(id);
         self
     }
 
+    /// Set the number of nodes in the collective
+    ///
+    /// This parameter is a global parameter and should only be set in multi-node contexts
     pub fn with_num_nodes(mut self, n: u32) -> Self {
         self.num_nodes = Some(n);
         self
     }
 
+    /// Set the network address of the Global Collective Orchestrator
+    ///  
+    /// This parameter is a global parameter and should only be set in multi-node contexts
     pub fn with_global_address(mut self, addr: Address) -> Self {
         self.global_address = Some(addr);
         self
     }
 
+    /// Define the address for this node
+    ///
+    /// This parameter is a global parameter and should only be set in multi-node contexts
     pub fn with_node_address(mut self, addr: Address) -> Self {
         self.node_address = Some(addr);
         self
     }
 
+    /// Selects the network port on which to expose the tensor data service
+    /// used for peer-to-peer tensor downloading.
+    ///
+    /// This parameter is a global parameter and should only be set in multi-node contexts
     pub fn with_data_service_port(mut self, port: u16) -> Self {
         self.data_service_port = Some(port);
         self
     }
 
+    /// Selects an all-reduce strategy to use on the global level.
+    ///
+    /// This parameter is a global parameter and should only be set in multi-node contexts.
+    /// See [with_local_strategy](Self::with_local_strategy)
     pub fn with_global_strategy(mut self, strategy: AllReduceStrategy) -> Self {
         self.global_strategy = Some(strategy);
         self
@@ -105,7 +137,9 @@ impl CollectiveConfig {
         }
     }
 
-    pub fn global_register_params(&self) -> Option<GlobalRegisterParams> {
+    /// Returns whether the config is valid. If only some required global-level parameters are
+    /// defined and others are not, the config is invalid.  
+    pub fn is_valid(&self) -> bool {
         match (
             self.node_id,
             self.num_nodes,
@@ -113,7 +147,28 @@ impl CollectiveConfig {
             &self.node_address,
             self.data_service_port,
         ) {
-            (None, None, None, None, None) => None, // fully local
+            (None, None, None, None, None) => true,
+            (Some(_), Some(_), Some(_), Some(_), Some(_)) => true,
+            // Global parameters have only been partially defined!
+            _ => false,
+        }
+    }
+
+    /// Return the global parameters for registering in a multi-node context.
+    ///
+    /// If only some global parameters are defined, returns None. Use [is_valid](Self::is_valid) to check for
+    /// validity in this case.
+    pub(crate) fn global_register_params(&self) -> Option<GlobalRegisterParams> {
+        match (
+            self.node_id,
+            self.num_nodes,
+            &self.global_address,
+            &self.node_address,
+            self.data_service_port,
+        ) {
+            // Only local collective
+            (None, None, None, None, None) => None,
+            // Local + global collective
             (
                 Some(node_id),
                 Some(num_nodes),
@@ -127,7 +182,76 @@ impl CollectiveConfig {
                 node_address: node_addr.clone(),
                 data_service_port,
             }),
+            // Config is invalid!
             _ => None,
         }
+    }
+}
+
+/// Helper struct for parameters in a multi-node register operation. Either they are all defined,
+/// or all not defined. Passed to the global client for registering on the global level and
+/// opening the p2p tensor service.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlobalRegisterParams {
+    /// The id of this node, should be unique.
+    pub node_id: NodeId,
+    /// The address for the connection to the global orchestrator.
+    pub global_address: Address,
+    /// The address for the connection to this node.
+    pub node_address: Address,
+    /// The port on which to open the tensor data service for peer-to-peer tensor transfers with
+    /// other nodes. Should match the port given in the node url.
+    pub data_service_port: u16,
+
+    /// The number of nodes globally. Should be the same between different nodes
+    pub num_nodes: u32,
+}
+
+/// Parameters for an all-reduce that should be the same between all devices
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct SharedAllReduceParams {
+    pub kind: ReduceKind,
+    pub local_strategy: AllReduceStrategy,
+    pub global_strategy: Option<AllReduceStrategy>,
+}
+
+/// Reduce can be done different ways
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
+pub enum ReduceKind {
+    Sum,
+    Mean,
+}
+
+/// All reduce can be implemented with different algorithms, which all have the same result.
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
+pub enum AllReduceStrategy {
+    /// One device is the "central". The other devices, "peripherals", send their tensors to the
+    /// central. The central does the reduction, and sends the result back to each peripheral.  
+    Centralized,
+
+    /// Devices are organized in a tree structure (with a given arity). Each node reduces its
+    /// children's tensors with its own, and sends the result to its parent. Leaf nodes will
+    /// simply send their tensors to their parents.
+    /// When the root node calculates the result, it is propagated down the tree.
+    Tree(u32),
+
+    /// Devices are organized in a ring. The tensors are split into N slices, where N is the
+    /// number of devices participating. The slices are progressively sent around the ring until
+    /// every device has one fully reduced slice of the tensor. Then, the resulting slices are sent
+    /// around until every device has the full result.
+    /// See `ring.rs` for details.
+    Ring,
+}
+
+/// A unique identifier for a peer in the context of local collective operations.
+///
+/// Not to be confused with [burn_tensor's device id](burn_tensor::backend::DeviceId).
+/// This name is fitting because local peers/threads will usually correspond to unique devices
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DeviceId(u32);
+
+impl From<u32> for DeviceId {
+    fn from(value: u32) -> Self {
+        Self(value)
     }
 }

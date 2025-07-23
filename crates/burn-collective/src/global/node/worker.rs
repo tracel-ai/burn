@@ -189,7 +189,6 @@ impl<C: ProtocolClient> GlobalClientWorker<C> {
             }
 
             self.cancel_token.cancel();
-            eprintln!("Cancelling worker tasks...");
 
             if let Err(e) = handle.await.unwrap() {
                 log::error!("Connection error {e:?}");
@@ -214,12 +213,12 @@ impl<C: ProtocolClient> GlobalClientWorker<C> {
                 response = stream_response.recv() => {
                     match response {
                         Err(err) => {
-                            eprintln!("Error receiving message from websocket: {err:?}");
+                            log::error!("Error receiving message from websocket: {err:?}");
                             break;
                         }
                         Ok(response) => {
                             let Some(response) = response else {
-                                eprintln!("Closed connection");
+                                log::warn!("Closed connection");
                                 break;
                             };
 
@@ -237,7 +236,7 @@ impl<C: ProtocolClient> GlobalClientWorker<C> {
             }
         }
 
-        eprintln!("Worker closing connection");
+        log::info!("Worker closing connection");
         stream_response
             .close()
             .await
@@ -281,7 +280,7 @@ impl<C: ProtocolClient> GlobalClientWorker<C> {
             }
         }
 
-        eprintln!("Worker closing connection");
+        log::info!("Worker closing connection");
         stream_request
             .close()
             .await
