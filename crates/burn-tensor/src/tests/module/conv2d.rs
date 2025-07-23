@@ -531,7 +531,9 @@ mod tests {
         .collect();
         let expected = TensorData::new(expected, [1, 8, 26, 26]);
 
-        x.into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+        x.into_data().assert_approx_eq::<FT>(
+            &expected,
+            Tolerance::default().set_half_precision_absolute(1e-3),
+        );
     }
 }

@@ -17,7 +17,7 @@ use cubecl::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::optimization::{MatmulOptimization, MatmulVariantSelection};
+use super::optimization::{MatmulOptimizationTuneArg, MatmulVariantSelection};
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
 pub struct FusedMatmulAutotuneKey {
@@ -30,7 +30,7 @@ pub struct FusedMatmulAutotuneKey {
 
 /// Executes autotune on matmul operations
 pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
-    optimization: &MatmulOptimization<R>,
+    optimization: MatmulOptimizationTuneArg<R>,
     context: &mut Context<CubeFusionHandle<R>>,
 ) {
     static TUNER: LocalTuner<FusedMatmulAutotuneKey, CubeTuneId> = local_tuner!();
@@ -109,15 +109,15 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
     });
 
     TUNER.execute(
-        &CubeTuneId::new::<R>(&optimization.client, &optimization.device),
-        &optimization.client,
+        &CubeTuneId::new::<R>(&optimization.info.client, &optimization.info.device),
+        &optimization.info.client.clone(),
         tunables,
         TuneInput::new(context, optimization),
     );
 }
 
 pub(crate) fn create_key<R: Runtime>(
-    input: &TuneInput<R, MatmulOptimization<R>>,
+    input: &TuneInput<R, MatmulOptimizationTuneArg<R>>,
 ) -> FusedMatmulAutotuneKey {
     let opt = input.optimization();
     let context = match input.context() {
@@ -125,9 +125,18 @@ pub(crate) fn create_key<R: Runtime>(
         TuneContext::Fork(_) => panic!("Not supported when generating key"),
     };
 
-    let lhs = context.tensors.get(&opt.variants.simple.op.lhs.id).unwrap();
-    let rhs = context.tensors.get(&opt.variants.simple.op.rhs.id).unwrap();
-    let out = context.tensors.get(&opt.variants.simple.op.out.id).unwrap();
+    let lhs = context
+        .tensors
+        .get(&opt.info.variants.simple.op.lhs.id)
+        .unwrap();
+    let rhs = context
+        .tensors
+        .get(&opt.info.variants.simple.op.rhs.id)
+        .unwrap();
+    let out = context
+        .tensors
+        .get(&opt.info.variants.simple.op.out.id)
+        .unwrap();
 
     let lhs_strides = context
         .handles
@@ -139,7 +148,7 @@ pub(crate) fn create_key<R: Runtime>(
         .strides;
 
     let key = MatmulAutotuneKey::generate::<R>(
-        &opt.client,
+        &opt.info.client,
         &lhs.shape,
         &rhs.shape,
         &lhs_strides,
@@ -148,18 +157,18 @@ pub(crate) fn create_key<R: Runtime>(
         rhs.dtype.into(),
         out.dtype.into(),
     );
-    FusedMatmulAutotuneKey::new(key, opt.num_output_buffers(), opt.num_ops_fused())
+    FusedMatmulAutotuneKey::new(key, opt.info.num_output_buffers(), opt.info.num_ops_fused())
 }
 
 fn input_gen<R: Runtime>(
     _key: &FusedMatmulAutotuneKey,
-    input: &TuneInput<R, MatmulOptimization<R>>,
-) -> TuneInput<R, MatmulOptimization<R>> {
+    input: &TuneInput<R, MatmulOptimizationTuneArg<R>>,
+) -> TuneInput<R, MatmulOptimizationTuneArg<R>> {
     input.clone()
 }
 
 fn tune_fused<R: Runtime, BT: CubeElement, S: MatmulVariantSelection>(
-    input: TuneInput<R, MatmulOptimization<R>>,
+    input: TuneInput<R, MatmulOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
@@ -174,7 +183,7 @@ fn tune_fused<R: Runtime, BT: CubeElement, S: MatmulVariantSelection>(
 }
 
 fn tune_fallback<R: Runtime, BT: CubeElement>(
-    input: TuneInput<R, MatmulOptimization<R>>,
+    input: TuneInput<R, MatmulOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();

@@ -1,5 +1,6 @@
 use std::any::TypeId;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use crate::CubeFusionHandle;
 use crate::FallbackOperation;
@@ -53,13 +54,21 @@ use super::tune::fused_matmul_autotune;
 
 /// Fuse matmul operation followed by elemwise operations into a single kernel.
 pub struct MatmulOptimization<R: Runtime> {
+    pub(crate) info: Arc<MatmulOptimizationInfo<R>>,
+}
+
+pub struct MatmulOptimizationTuneArg<R: Runtime> {
+    pub(crate) info: Arc<MatmulOptimizationInfo<R>>,
+    pub(crate) fallback: Box<dyn FallbackOperation<R>>,
+}
+
+pub(crate) struct MatmulOptimizationInfo<R: Runtime> {
     trace: FuseTrace,
     trace_fallback: FuseTrace,
     pub(crate) client: ComputeClient<R::Server, R::Channel>,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
     pub(crate) variants: MatmulVariants,
-    fallback: Option<Box<dyn FallbackOperation<R>>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -103,87 +112,28 @@ impl MatmulVariants {
     }
 }
 
-impl<R: Runtime> MatmulOptimization<R> {
-    pub fn new(
-        trace: FuseTrace,
-        trace_fallback: FuseTrace,
-        client: ComputeClient<R::Server, R::Channel>,
-        device: R::Device,
-        len: usize,
-        matmul: FusedMatmul,
-    ) -> Self {
-        let variants = MatmulVariants::from_default::<R>(&matmul, &trace);
-
-        Self {
-            trace,
-            trace_fallback,
-            client,
-            device,
-            len,
-            variants,
-            fallback: None,
-        }
-    }
-    /// Execute the optimization.
-    pub fn execute<BT: CubeElement>(
-        &mut self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-        fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
-    ) {
-        // The index of the fallback matmul is always 0.
-        self.fallback = Some(fallback(0));
-
-        #[cfg(feature = "autotune")]
-        fused_matmul_autotune::<R, BT>(self, context);
-
-        #[cfg(not(feature = "autotune"))]
-        if self.execute_standard_fused::<BT>(context).is_err() {
-            self.execute_fallback::<BT>(context);
-        }
+impl<R: Runtime> MatmulOptimizationInfo<R> {
+    /// Returns the number of output buffers added by fusion.
+    pub fn num_output_buffers(&self) -> usize {
+        self.trace_fallback.resources.outputs.len()
     }
 
     /// Number of operations fused.
     pub fn num_ops_fused(&self) -> usize {
         self.len
     }
+}
 
-    /// Create an optimization from its [state](MatmulOptimizationState).
-    pub fn from_state(device: &R::Device, state: MatmulOptimizationState) -> Self {
-        Self {
-            trace: state.trace,
-            trace_fallback: state.trace_fallback,
-            len: state.len,
-            client: R::client(device),
-            device: device.clone(),
-            variants: state.variants.clone(),
-            fallback: None,
-        }
-    }
-
-    /// Convert the optimization to its [state](MatmulOptimizationState).
-    pub fn to_state(&self) -> MatmulOptimizationState {
-        MatmulOptimizationState {
-            trace: self.trace.clone(),
-            trace_fallback: self.trace_fallback.clone(),
-            variants: self.variants.clone(),
-            len: self.len,
-        }
-    }
-
-    /// Returns the number of output buffers added by fusion.
-    pub fn num_output_buffers(&self) -> usize {
-        self.trace_fallback.resources.outputs.len()
-    }
-
+impl<R: Runtime> MatmulOptimizationTuneArg<R> {
     pub(crate) fn execute_fused<BT: CubeElement, S: MatmulVariantSelection>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
-        self.trace.run::<R, BT, FusedMatmul>(
-            &self.client,
-            &self.device,
+        self.info.trace.run::<R, BT, FusedMatmul>(
+            &self.info.client,
+            &self.info.device,
             context,
-            S::select(&self.variants),
+            S::select(&self.info.variants),
         )
     }
 
@@ -191,10 +141,7 @@ impl<R: Runtime> MatmulOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> TuneOutput<R> {
-        self.fallback
-            .as_ref()
-            .expect("A fallback operation should be available")
-            .run(context);
+        self.fallback.run(context);
 
         #[cfg(feature = "autotune-checks")]
         let mut output = TuneOutput::Checked {
@@ -220,11 +167,95 @@ impl<R: Runtime> MatmulOptimization<R> {
         }
 
         let output_write = self
+            .info
             .trace_fallback
-            .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
+            .run::<R, BT, ElemwiseRunner>(
+                &self.info.client,
+                &self.info.device,
+                context,
+                &ElemwiseRunner,
+            )
             .unwrap();
 
         output.merge(output_write)
+    }
+}
+
+impl<R: Runtime> MatmulOptimization<R> {
+    pub fn new(
+        trace: FuseTrace,
+        trace_fallback: FuseTrace,
+        client: ComputeClient<R::Server, R::Channel>,
+        device: R::Device,
+        len: usize,
+        matmul: FusedMatmul,
+    ) -> Self {
+        let variants = MatmulVariants::from_default::<R>(&matmul, &trace);
+
+        let info = MatmulOptimizationInfo {
+            trace,
+            trace_fallback,
+            client,
+            device,
+            len,
+            variants,
+        };
+
+        Self {
+            info: Arc::new(info),
+        }
+    }
+    /// Execute the optimization.
+    pub fn execute<BT: CubeElement>(
+        &mut self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+        fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
+    ) {
+        // The index of the fallback matmul is always 0.
+        let fallback = fallback(0);
+        let arg = MatmulOptimizationTuneArg {
+            info: self.info.clone(),
+            fallback,
+        };
+
+        #[cfg(feature = "autotune")]
+        fused_matmul_autotune::<R, BT>(arg, context);
+
+        #[cfg(not(feature = "autotune"))]
+        if arg.execute_fused::<BT, Simple>(context).is_err() {
+            arg.execute_fallback::<BT>(context);
+        }
+    }
+
+    /// Number of operations fused.
+    pub fn num_ops_fused(&self) -> usize {
+        self.info.num_ops_fused()
+    }
+
+    /// Create an optimization from its [state](MatmulOptimizationState).
+    pub fn from_state(device: &R::Device, state: MatmulOptimizationState) -> Self {
+        let info = MatmulOptimizationInfo {
+            trace: state.trace,
+            trace_fallback: state.trace_fallback,
+            len: state.len,
+            client: R::client(device),
+            device: device.clone(),
+            variants: state.variants.clone(),
+        };
+
+        Self {
+            info: Arc::new(info),
+        }
+    }
+
+    /// Convert the optimization to its [state](MatmulOptimizationState).
+    pub fn to_state(&self) -> MatmulOptimizationState {
+        MatmulOptimizationState {
+            trace: self.info.trace.clone(),
+            trace_fallback: self.info.trace_fallback.clone(),
+            variants: self.info.variants.clone(),
+            len: self.info.len,
+        }
     }
 }
 
