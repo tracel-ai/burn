@@ -14,7 +14,7 @@ const SUPPORTED_FILES: [&str; 4] = ["bmp", "jpg", "jpeg", "png"];
 const BBOX_MIN_NUM_VALUES: usize = 4;
 
 /// Image data type.
-#[derive(Debug, Copy, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum PixelDepth {
     /// 8-bit unsigned.
     U8(u8),
