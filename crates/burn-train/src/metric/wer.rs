@@ -132,7 +132,6 @@ impl<B: Backend> Metric for WerMetric<B> {
     }
 }
 
-
 /// The [word error rate metric](WerMetric) implementation.
 impl<B: Backend> Numeric for WerMetric<B> {
     fn value(&self) -> f64 {
