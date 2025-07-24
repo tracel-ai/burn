@@ -1,5 +1,11 @@
 use crate::include_models;
-include_models!(squeeze, squeeze_multiple, squeeze_shape, squeeze_shape_noop);
+include_models!(
+    squeeze,
+    squeeze_multiple,
+    squeeze_shape,
+    squeeze_shape_noop,
+    squeeze_scalar
+);
 
 #[cfg(test)]
 mod tests {
@@ -52,5 +58,15 @@ mod tests {
         // Expected: [6, 7, 8, 9] -> [6, 7] -> [6, 7] (no-op)
         let output = model.forward(input);
         assert_eq!(output, [6, 7]);
+    }
+
+    #[test]
+    fn squeeze_scalar() {
+        let device = Default::default();
+        let model = squeeze_scalar::Model::<Backend>::new(&device);
+        // The model has a constant scalar 1.5 that gets squeezed
+        // Expected: 1.5 -> 1.5 (no-op)
+        let output = model.forward();
+        assert_eq!(output, 1.5f32);
     }
 }

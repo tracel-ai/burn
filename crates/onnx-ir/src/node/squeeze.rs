@@ -14,10 +14,9 @@ pub fn squeeze_config(curr: &Node) -> Vec<i64> {
         .next()
         .unwrap_or_else(Vec::new);
 
-    // Validate input type (both Tensor and Shape are valid)
+    // Validate input type (Tensor, Shape, and Scalar are valid)
     match &curr.inputs.first().unwrap().ty {
-        ArgType::Tensor(_) | ArgType::Shape(_) => {}
-        ty => panic!("Squeeze: invalid input type: {ty:?}"),
+        ArgType::Tensor(_) | ArgType::Shape(_) | ArgType::Scalar(_) => {}
     };
 
     axes
@@ -39,13 +38,30 @@ pub fn squeeze_update_output(node: &mut Node) {
         node.attrs.get("axes").cloned().map(|v| v.into_i64s())
     };
 
-    let axes = axes.unwrap_or_else(|| panic!("Squeeze must specify an axis"));
+    // If axes is None, PyTorch squeezes all dimensions of size 1
+    // For scalar inputs or Shape inputs, this is handled differently
+    let axes = axes.unwrap_or_else(Vec::new);
     log::debug!("Squeeze axes for {}: {:?}", node.name, axes);
 
     match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => {
             log::debug!("Squeeze input rank for {}: {}", node.name, tensor.rank);
-            let output_rank = tensor.rank - axes.len();
+            let output_rank = if axes.is_empty() {
+                // When axes is empty, PyTorch squeezes all dimensions of size 1
+                // Use the output tensor's rank from ONNX if available
+                match &node.outputs[0].ty {
+                    ArgType::Tensor(output_tensor) => output_tensor.rank,
+                    _ => {
+                        // Fallback: conservative estimate - actual rank may be less
+                        log::warn!(
+                            "Squeeze with empty axes: using input rank as conservative estimate"
+                        );
+                        tensor.rank
+                    }
+                }
+            } else {
+                tensor.rank - axes.len()
+            };
             log::debug!("Squeeze output rank for {}: {}", node.name, output_rank);
 
             node.outputs[0].ty = ArgType::Tensor(TensorType {
@@ -62,7 +78,7 @@ pub fn squeeze_update_output(node: &mut Node) {
             // - If Shape has >1 elements (Shape(n) where n>1), squeezing axis 0 is a no-op
             //   because the dimension has size > 1
 
-            if axes.len() != 1 || axes[0] != 0 {
+            if !axes.is_empty() && (axes.len() != 1 || axes[0] != 0) {
                 panic!("Squeeze on Shape input only supports squeezing axis 0, got axes: {axes:?}");
             }
 
@@ -76,7 +92,11 @@ pub fn squeeze_update_output(node: &mut Node) {
                 log::debug!("Squeeze Shape({}) unchanged for {}", shape_rank, node.name);
             }
         }
-        ty => panic!("Squeeze: invalid input type: {ty:?}"),
+        ArgType::Scalar(scalar_type) => {
+            // Scalar squeeze is a no-op
+            node.outputs[0].ty = ArgType::Scalar(scalar_type.clone());
+            log::debug!("Squeeze Scalar unchanged for {}", node.name);
+        }
     }
 }
 

@@ -58,6 +58,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
                     let #output_name = #input_name;
                 }
             }
+            (Type::Scalar(input), Type::Scalar(output)) => {
+                // Scalar squeeze is a no-op
+                let input_name = &input.name;
+                let output_name = &output.name;
+
+                quote! {
+                    let #output_name = #input_name;
+                }
+            }
             _ => panic!(
                 "Squeeze: unsupported input/output combination: {:?} -> {:?}",
                 self.input, self.output
@@ -76,7 +85,7 @@ mod tests {
 
     use super::*;
     use crate::burn::{
-        ScalarType, ShapeType, TensorType, Type,
+        ScalarKind, ScalarType, ShapeType, TensorType, Type,
         graph::BurnGraph,
         node::{squeeze::SqueezeNode, test::assert_tokens},
     };
@@ -206,6 +215,49 @@ mod tests {
                 pub fn forward(&self, shape1: [usize; 2]) -> [usize; 2] {
                     let shape2 = shape1;
                     shape2
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_squeeze_scalar_no_op() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(SqueezeNode::new(
+            Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float32)),
+            Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float32)),
+            [].into(),
+        ));
+
+        graph.register_input_output(vec!["scalar1".to_string()], vec!["scalar2".to_string()]);
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, scalar1: f32) -> f32 {
+                    let scalar2 = scalar1;
+                    scalar2
                 }
             }
         };
