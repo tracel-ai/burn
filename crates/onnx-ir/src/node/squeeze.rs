@@ -48,17 +48,10 @@ pub fn squeeze_update_output(node: &mut Node) {
             log::debug!("Squeeze input rank for {}: {}", node.name, tensor.rank);
             let output_rank = if axes.is_empty() {
                 // When axes is empty, PyTorch squeezes all dimensions of size 1
-                // Use the output tensor's rank from ONNX if available
-                match &node.outputs[0].ty {
-                    ArgType::Tensor(output_tensor) => output_tensor.rank,
-                    _ => {
-                        // Fallback: conservative estimate - actual rank may be less
-                        log::warn!(
-                            "Squeeze with empty axes: using input rank as conservative estimate"
-                        );
-                        tensor.rank
-                    }
-                }
+                // Without static shape info, we can't know which dims are size 1
+                // The output type will be corrected later if ONNX provides it
+                // TODO: Infer rank from output tensor shape based on static shape inference
+                todo!("Output tensor rank must be inferred from static shape inference");
             } else {
                 tensor.rank - axes.len()
             };
