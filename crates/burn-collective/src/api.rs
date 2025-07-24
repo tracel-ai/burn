@@ -20,7 +20,7 @@ pub enum CollectiveError {
     RegisterParamsMismatch,
     /// Trying to all-reduce a different way than is currently being done: op must match
     AllReduceParamsMismatch,
-    /// Trying to reduce a different way than is currently being done: 
+    /// Trying to reduce a different way than is currently being done:
     /// root peer and reduce operation must match
     ReduceParamsMismatch,
     /// Trying to broadcast but multiple peers sent tensors: only one may be the root

@@ -39,13 +39,13 @@ use burn_tensor::{TensorMetadata, backend::Backend};
 pub(crate) async fn ring_all_reduce_sum<B, N>(
     data_service: Arc<TensorDataService<B, N>>,
     tensor: B::FloatTensorPrimitive,
-    device: &B::Device,
     strategy: RingAllReduceStrategy,
 ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError>
 where
     B: Backend,
     N: Protocol,
 {
+    let device = &B::float_device(&tensor);
     let mut slices = slice_tensor::<B>(tensor, strategy.slice_dim, strategy.slice_ranges);
     let mut send_slice_idx = strategy.first_slice;
     let mut transfer_counter: u64 = 0;

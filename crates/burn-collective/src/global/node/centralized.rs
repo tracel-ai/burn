@@ -11,10 +11,12 @@ use burn_tensor::backend::Backend;
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
 
+/// Global all-reduce, using a centralized strategy.
+///
+/// Returns the resulting tensor on the same device as the input tensor
 pub(crate) async fn centralized_all_reduce_sum<B, N>(
     data_service: &Arc<TensorDataService<B, N>>,
     tensor: B::FloatTensorPrimitive,
-    device: &B::Device,
     strategy: CentralizedAllReduceStrategy,
 ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError>
 where
@@ -22,6 +24,7 @@ where
     N: Protocol,
 {
     let shape = tensor.shape();
+    let device = &B::float_device(&tensor);
 
     match strategy {
         Central { other_nodes } => {
@@ -29,7 +32,7 @@ where
             let mut futures = other_nodes
                 .iter()
                 .map(|address| {
-                    let device = device.clone(); // if device is Clone, otherwise ref
+                    let device = device.clone();
                     let data_service = data_service.clone();
                     async move {
                         let data = data_service

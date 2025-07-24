@@ -5,10 +5,12 @@ use burn_communication::{Protocol, data_service::TensorDataService};
 use burn_tensor::{TensorMetadata, backend::Backend};
 use futures::{StreamExt, stream::FuturesUnordered};
 
+/// Global all-reduce, using a b-tree strategy.
+///
+/// Returns the resulting tensor on the same device as the input tensor
 pub(crate) async fn tree_all_reduce_sum<B, N>(
     data_service: Arc<TensorDataService<B, N>>,
     tensor: B::FloatTensorPrimitive,
-    device: &B::Device,
     strategy: TreeAllReduceStrategy,
 ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError>
 where
@@ -16,6 +18,7 @@ where
     N: Protocol,
 {
     let shape = tensor.shape();
+    let device = &B::float_device(&tensor);
 
     // Transfer #1: Download tensors from children async
     let mut downloads = strategy

@@ -416,9 +416,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         if self.reduce_ops.is_empty() {
             self.cur_reduce_op = Some(op);
             self.cur_reduce_root = Some(root);
-        } else if self.cur_reduce_op.unwrap() != op
-            || self.cur_reduce_root.unwrap() != root
-        {
+        } else if self.cur_reduce_op.unwrap() != op || self.cur_reduce_root.unwrap() != root {
             callback
                 .send(Err(CollectiveError::ReduceParamsMismatch))
                 .unwrap();
@@ -577,9 +575,8 @@ impl<B: Backend> LocalCollectiveServer<B> {
         };
 
         // Do aggregation on global level with the main tensor
-        let device = B::float_device(&main_tensor);
         main_tensor = global_client
-            .all_reduce(main_tensor, global_strategy.unwrap(), &device, op)
+            .all_reduce(main_tensor, global_strategy.unwrap(), op)
             .await
             .map_err(CollectiveError::Global)?;
 
@@ -589,8 +586,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
                 broadcast_tree::<B>(devices, main_device, main_tensor, arity)
             }
             // If we chose the ring strategy and we must still broadcast the global result,
-            // we use the centralized strategy for broadcasting, but the tree may be better
-            // TODO use the optimal broadcast in case of ring strategy
+            // we use the centralized strategy for broadcasting, but the tree may be better.
             AllReduceStrategy::Centralized | AllReduceStrategy::Ring => {
                 broadcast_centralized::<B>(devices, main_device, main_tensor)
             }

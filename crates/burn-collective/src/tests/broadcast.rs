@@ -69,12 +69,8 @@ mod tests {
             .with_local_broadcast_strategy(strategy);
 
         for id in 0..device_count {
-            // The peer #0 is the root: it sends the tensor 
-            let input = if id == 0 {
-                Some(input.clone())
-            } else {
-                None
-            };
+            // The peer #0 is the root: it sends the tensor
+            let input = if id == 0 { Some(input.clone()) } else { None };
 
             std::thread::spawn({
                 let config = config.clone();

@@ -59,8 +59,6 @@ impl<B: Backend> LocalCollectiveClient<B> {
         let (callback, rec) =
             std::sync::mpsc::sync_channel::<AllReduceResult<B::FloatTensorPrimitive>>(1);
 
-        let device = tensor.device();
-
         let msg = Message::AllReduce {
             device_id: id,
             tensor: tensor.into_primitive().tensor(),
@@ -74,10 +72,8 @@ impl<B: Backend> LocalCollectiveClient<B> {
             .recv()
             .unwrap_or(Err(CollectiveError::LocalServerMissing))?;
 
-        // returns a tensor primitive that may or may not be on the correct device,
-        // depending on the strategy used. TODO see if this is still true and if we need to do to_device still
-        let tensor = Tensor::from_primitive(burn_tensor::TensorPrimitive::Float(primitive))
-            .to_device(&device);
+        // The resulting tensor should be on the correct device
+        let tensor = Tensor::from_primitive(burn_tensor::TensorPrimitive::Float(primitive));
 
         Ok(tensor)
     }

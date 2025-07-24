@@ -95,7 +95,6 @@ where
         &self,
         tensor: B::FloatTensorPrimitive,
         strategy: AllReduceStrategy,
-        device: &B::Device, //TODO remove this!
         op: ReduceOperation,
     ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError> {
         let num_global_devices = self
@@ -108,13 +107,13 @@ where
 
         let mut result = match resp {
             RemoteResponse::CentralizedAllReduceStrategy(strategy) => {
-                centralized_all_reduce_sum(&self.data_service, tensor, device, strategy).await?
+                centralized_all_reduce_sum(&self.data_service, tensor, strategy).await?
             }
             RemoteResponse::TreeAllReduceStrategy(strategy) => {
-                tree_all_reduce_sum(self.data_service.clone(), tensor, device, strategy).await?
+                tree_all_reduce_sum(self.data_service.clone(), tensor, strategy).await?
             }
             RemoteResponse::RingAllReduceStrategy(strategy) => {
-                ring_all_reduce_sum(self.data_service.clone(), tensor, device, strategy).await?
+                ring_all_reduce_sum(self.data_service.clone(), tensor, strategy).await?
             }
             RemoteResponse::Error(err) => {
                 return Err(err);
@@ -139,7 +138,7 @@ where
         _root: PeerId,
         _op: ReduceOperation,
     ) -> Result<Option<B::FloatTensorPrimitive>, GlobalCollectiveError> {
-        unimplemented!("TODO");
+        unimplemented!("Global reduce unimplemented");
     }
 
     pub async fn broadcast(
@@ -148,7 +147,7 @@ where
         _strategy: BroadcastStrategy,
         _root: PeerId,
     ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError> {
-        unimplemented!("TODO");
+        unimplemented!("Global broadcast unimplemented");
     }
 
     pub async fn finish(&mut self) {
