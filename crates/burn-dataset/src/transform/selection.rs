@@ -45,7 +45,7 @@ where
     I: Clone + Send + Sync,
 {
     /// The wrapped dataset from which to select indices.
-    pub dataset: Arc<D>,
+    pub wrapped: Arc<D>,
 
     /// The indices to select from the wrapped dataset.
     pub indices: Vec<usize>,
@@ -100,7 +100,7 @@ where
         S: Into<Arc<D>>,
     {
         Self {
-            dataset: dataset.into(),
+            wrapped: dataset.into(),
             indices,
             input: PhantomData,
         }
@@ -208,7 +208,7 @@ where
     /// * `start` - The start of the range.
     /// * `end` - The end of the range (exclusive).
     pub fn slice(&self, start: usize, end: usize) -> Self {
-        Self::from_indices_unchecked(self.dataset.clone(), self.indices[start..end].to_vec())
+        Self::from_indices_unchecked(self.wrapped.clone(), self.indices[start..end].to_vec())
     }
 
     /// Split into `num` datasets by slicing the selection indices evenly.
@@ -256,7 +256,7 @@ where
 {
     fn get(&self, index: usize) -> Option<I> {
         let index = self.indices.get(index)?;
-        self.dataset.get(*index)
+        self.wrapped.get(*index)
     }
 
     fn len(&self) -> usize {
