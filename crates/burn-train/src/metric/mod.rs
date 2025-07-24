@@ -35,6 +35,7 @@ mod loss;
 mod precision;
 mod recall;
 mod top_k_acc;
+mod wer;
 
 pub use acc::*;
 pub use auroc::*;
@@ -49,6 +50,7 @@ pub use loss::*;
 pub use precision::*;
 pub use recall::*;
 pub use top_k_acc::*;
+pub use wer::*;
 
 pub(crate) mod classification;
 pub(crate) mod processor;
