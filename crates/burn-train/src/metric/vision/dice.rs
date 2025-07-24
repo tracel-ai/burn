@@ -50,24 +50,6 @@ impl<B: Backend, const D: usize> DiceInput<B, D> {
             outputs.dims(),
             targets.dims()
         );
-        assert!(
-            outputs.dims().len() == D,
-            "Outputs must have exactly {} dimensions. Got {:?}",
-            D,
-            outputs.dims()
-        );
-        assert!(
-            targets.dims().len() == D,
-            "Targets must have exactly {} dimensions. Got {:?}",
-            D,
-            targets.dims()
-        );
-        assert!(
-            outputs.shape() == targets.shape(),
-            "Outputs and targets must have the same shape. Got {:?} and {:?}",
-            outputs.shape(),
-            targets.shape()
-        );
         Self { outputs, targets }
     }
 }
