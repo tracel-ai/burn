@@ -126,15 +126,12 @@ impl<B: Backend> LocalCollectiveClient<B> {
     /// * `id` - The peer id of the caller
     /// * `tensor` - If defined, this tensor will be broadcasted. Otherwise, this call will receive
     ///   the broadcasted tensor.
-    /// * `root` - The peer that will broadcast the tensor.
-    /// * `config` - Config of the collective operation, must be coherent with the other calls
     ///
     /// Returns the broadcasted tensor.
     pub fn broadcast<const D: usize>(
         &self,
         id: PeerId,
         tensor: Option<Tensor<B, D>>,
-        root: PeerId,
     ) -> BroadcastResult<Tensor<B, D>> {
         let tensor = tensor.map(|tensor| tensor.into_primitive().tensor());
 
@@ -143,7 +140,6 @@ impl<B: Backend> LocalCollectiveClient<B> {
         let msg = Message::Broadcast {
             device_id: id,
             tensor,
-            root,
             callback,
         };
 

@@ -20,13 +20,12 @@ pub enum CollectiveError {
     RegisterParamsMismatch,
     /// Trying to all-reduce a different way than is currently being done: op must match
     AllReduceParamsMismatch,
-    /// Trying to reduce a different way than is currently being done: root and op must match
+    /// Trying to reduce a different way than is currently being done: 
+    /// root peer and reduce operation must match
     ReduceParamsMismatch,
-    /// Trying to broadcast a different way than is currently being done:
-    /// root must match and only one tensor
-    BroadcastParamsMismatch,
+    /// Trying to broadcast but multiple peers sent tensors: only one may be the root
+    BroadcastMultipleTensors,
     /// Trying to broadcast but no peer sent a tensor
-    /// TODO see if broadcast needs root as an argument or not
     BroadcastNoTensor,
     /// Local collective server couldn't respond
     LocalServerMissing,
@@ -74,17 +73,14 @@ pub fn all_reduce<B: Backend, const D: usize>(
 /// * `id` - The peer id of the caller
 /// * `tensor` - If defined, this tensor will be broadcasted. Otherwise, this call will receive
 ///   the broadcasted tensor.
-/// * `root` - The peer that will broadcast the tensor.
-/// * `config` - Config of the collective operation, must be coherent with the other calls
 ///
 /// Returns the broadcasted tensor.
 pub fn broadcast<B: Backend, const D: usize>(
     id: PeerId,
     tensor: Option<Tensor<B, D>>,
-    root: PeerId,
 ) -> Result<Tensor<B, D>, CollectiveError> {
     let client = get_collective_client::<B>();
-    client.broadcast(id, tensor, root)
+    client.broadcast(id, tensor)
 }
 
 /// Reduces a tensor onto one device.
@@ -92,7 +88,6 @@ pub fn broadcast<B: Backend, const D: usize>(
 /// * `id` - The peer id of the caller
 /// * `tensor` - The tensor to send as input
 /// * `root` - The ID of the peer that will receive the result.
-/// * `config` - Config of the collective operation, must be coherent with the other calls
 ///
 /// Returns Ok(None) if the root tensor is not the caller. Otherwise, returns the reduced tensor.
 pub fn reduce<B: Backend, const D: usize>(

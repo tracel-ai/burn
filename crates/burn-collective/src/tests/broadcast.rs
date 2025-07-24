@@ -29,7 +29,6 @@ mod tests {
         id: PeerId,
         config: CollectiveConfig,
         input: Option<TensorData>,
-        root: PeerId,
         output: SyncSender<Tensor<B, 1>>,
     ) {
         let device = B::Device::default();
@@ -37,7 +36,7 @@ mod tests {
         register::<B>(id, device.clone(), config).unwrap();
 
         let tensor = input.map(|data| Tensor::<B, 1>::from_data(data, &device));
-        let tensor = broadcast(id, tensor, root).unwrap();
+        let tensor = broadcast(id, tensor).unwrap();
 
         output.send(tensor).unwrap();
     }
@@ -69,10 +68,9 @@ mod tests {
             .with_num_devices(device_count)
             .with_local_broadcast_strategy(strategy);
 
-        let root: PeerId = 0.into();
         for id in 0..device_count {
-            let id: PeerId = id.into();
-            let input = if id == root {
+            // The peer #0 is the root: it sends the tensor 
+            let input = if id == 0 {
                 Some(input.clone())
             } else {
                 None
@@ -81,7 +79,7 @@ mod tests {
             std::thread::spawn({
                 let config = config.clone();
                 let send = send.clone();
-                move || run_peer::<B>(id, config, input, root, send)
+                move || run_peer::<B>(id.into(), config, input, send)
             });
         }
 

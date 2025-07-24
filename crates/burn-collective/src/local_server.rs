@@ -127,7 +127,6 @@ pub(crate) enum Message<B: Backend> {
     Broadcast {
         device_id: PeerId,
         tensor: Option<B::FloatTensorPrimitive>,
-        root: PeerId,
         callback: SyncSender<BroadcastResult<B::FloatTensorPrimitive>>,
     },
     Reset,
@@ -261,10 +260,9 @@ impl<B: Backend> LocalCollectiveServer<B> {
             Message::Broadcast {
                 device_id,
                 tensor,
-                root,
                 callback,
             } => {
-                self.process_broadcast_message(device_id, tensor, root, callback)
+                self.process_broadcast_message(device_id, tensor, callback)
                     .await
             }
             Message::Reset => self.reset(),
@@ -451,7 +449,6 @@ impl<B: Backend> LocalCollectiveServer<B> {
         &mut self,
         caller: PeerId,
         tensor: Option<<B as Backend>::FloatTensorPrimitive>,
-        root: PeerId,
         callback: SyncSender<BroadcastResult<B::FloatTensorPrimitive>>,
     ) {
         if !self.peers.contains(&caller) {
@@ -461,23 +458,15 @@ impl<B: Backend> LocalCollectiveServer<B> {
             return;
         }
 
-        // Assign the root, or send error if it doesn't match the previous
-        if self.broadcast_ops.is_empty() {
-            self.cur_broadcast_root = Some(root);
-        } else if self.cur_broadcast_root.unwrap() != root {
-            callback
-                .send(Err(CollectiveError::BroadcastParamsMismatch))
-                .unwrap();
-            return;
-        }
-
         if tensor.is_some() {
-            if self.cur_broadcast_input.is_some() {
+            // Assign the root, or send error if we already had a root
+            if self.cur_broadcast_root.is_some() {
                 callback
-                    .send(Err(CollectiveError::BroadcastParamsMismatch))
+                    .send(Err(CollectiveError::BroadcastMultipleTensors))
                     .unwrap();
                 return;
             }
+            self.cur_broadcast_root = Some(caller);
             self.cur_broadcast_input = tensor;
         }
 
