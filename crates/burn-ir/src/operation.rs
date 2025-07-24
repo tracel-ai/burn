@@ -972,9 +972,7 @@ pub struct ConvTranspose3dOptionsIr {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QuantizationParametersIr {
     /// The scaling factor.
-    pub scale: TensorIr,
-    /// The zero-point offset.
-    pub offset: Option<TensorIr>,
+    pub scales: TensorIr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -1852,13 +1850,7 @@ impl FloatOperationIr {
             FloatOperationIr::Floor(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::Ceil(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::IntoInt(repr) => vec![&repr.input, &repr.out],
-            FloatOperationIr::Quantize(repr) => {
-                if let Some(offset) = &repr.qparams.offset {
-                    vec![&repr.tensor, &repr.qparams.scale, &offset, &repr.out]
-                } else {
-                    vec![&repr.tensor, &repr.qparams.scale, &repr.out]
-                }
-            }
+            FloatOperationIr::Quantize(repr) => vec![&repr.tensor, &repr.qparams.scales, &repr.out],
             FloatOperationIr::Dequantize(repr) => vec![&repr.input, &repr.out],
         }
     }
@@ -1913,7 +1905,7 @@ impl FloatOperationIr {
             }
             FloatOperationIr::Quantize(repr) => {
                 repr.tensor.mark_read_only(nodes, &mut output);
-                repr.qparams.scale.mark_read_only(nodes, &mut output);
+                repr.qparams.scales.mark_read_only(nodes, &mut output);
             }
             FloatOperationIr::Dequantize(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
