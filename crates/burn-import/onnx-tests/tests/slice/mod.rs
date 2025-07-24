@@ -7,7 +7,9 @@ include_models!(
     slice_mixed,
     slice_shape_gather,
     slice_shape_runtime,
-    slice_shape_multi
+    slice_shape_multi,
+    slice_shape_negative,
+    slice_shape_negative_range
 );
 
 #[cfg(test)]
@@ -164,5 +166,38 @@ mod tests {
         // So it slices: [1:5, 2:4, 3:7, :]
         // Result shape should be [4, 2, 4, 12]
         assert_eq!(output.shape().dims, [4, 2, 4, 12]);
+    }
+
+    #[test]
+    fn slice_shape_negative() {
+        let model: slice_shape_negative::Model<Backend> = slice_shape_negative::Model::default();
+        let device = Default::default();
+
+        // Create test input tensor [2, 3, 4, 5]
+        let input = Tensor::<Backend, 4>::ones([2, 3, 4, 5], &device);
+
+        let output = model.forward(input);
+
+        // The graph does: Shape -> Slice(starts=[-1], ends=[INT64_MAX])
+        // Shape produces [2, 3, 4, 5]
+        // Slice with [-1:] should get the last element: 5
+        assert_eq!(output, [5]);
+    }
+
+    #[test]
+    fn slice_shape_negative_range() {
+        let model: slice_shape_negative_range::Model<Backend> =
+            slice_shape_negative_range::Model::default();
+        let device = Default::default();
+
+        // Create test input tensor [2, 3, 4, 5]
+        let input = Tensor::<Backend, 4>::ones([2, 3, 4, 5], &device);
+
+        let output: [usize; 2] = model.forward(input);
+
+        // The graph does: Shape -> Slice(starts=[-3], ends=[-1])
+        // Shape produces [2, 3, 4, 5]
+        // Slice with [-3:-1] should get elements from 3rd last to 2nd last: [3, 4]
+        assert_eq!(output, [3, 4]);
     }
 }

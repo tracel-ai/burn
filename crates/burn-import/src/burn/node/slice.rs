@@ -150,28 +150,76 @@ impl SliceNode {
         let shape_name = &shape.name;
         let shape_len = Literal::usize_unsuffixed(shape.rank);
 
+        // Get the output rank from the output type
+        let output_rank = match &self.output {
+            Type::Shape(output_shape) => output_shape.rank,
+            _ => panic!("Expected Shape output type for shape slice operation"),
+        };
+        let output_rank_lit = Literal::usize_unsuffixed(output_rank);
+
         match (&self.starts, &self.ends) {
             (SliceParam::Static(starts), SliceParam::Static(ends)) if starts.len() == 1 => {
-                let start = starts[0].to_tokens();
-                let end = ends[0].to_tokens();
-                let output_len = (ends[0] - starts[0]) as usize;
-                let output_rank = Literal::usize_unsuffixed(output_len);
+                let start_val = starts[0];
+                let end_val = ends[0];
 
-                quote! {
-                    let #output: [usize; #output_rank] = #shape_name[s![#start..#end].into_ranges([#shape_len].into())[0].clone()].try_into().unwrap();
+                // Handle special case: slice[-1:] pattern
+                if start_val == -1 && (end_val == i64::MAX || end_val >= shape.rank as i64) {
+                    // This gets the last element
+                    quote! {
+                        let #output: [usize; 1] = [#shape_name[#shape_name.len() - 1]];
+                    }
+                } else if start_val < 0 || end_val < 0 {
+                    // Handle negative indices - convert at compile time since we know the shape length
+                    let shape_len = shape.rank as i64;
+                    let actual_start = if start_val < 0 {
+                        (shape_len + start_val).max(0) as usize
+                    } else {
+                        start_val as usize
+                    };
+                    let actual_end = if end_val < 0 {
+                        (shape_len + end_val).max(0) as usize
+                    } else {
+                        end_val as usize
+                    };
+
+                    let start_lit = Literal::usize_unsuffixed(actual_start);
+                    let end_lit = Literal::usize_unsuffixed(actual_end);
+
+                    quote! {
+                        let #output: [usize; #output_rank_lit] = #shape_name[#start_lit..#end_lit].try_into().unwrap();
+                    }
+                } else {
+                    // Positive indices
+                    let start = start_val.to_tokens();
+                    let end = if end_val == i64::MAX {
+                        quote! { #shape_len }
+                    } else {
+                        end_val.to_tokens()
+                    };
+                    let output_len = if end_val == i64::MAX {
+                        shape.rank.saturating_sub(start_val as usize)
+                    } else {
+                        (end_val as usize).saturating_sub(start_val as usize)
+                    };
+                    let output_rank = Literal::usize_unsuffixed(output_len);
+
+                    quote! {
+                        let #output: [usize; #output_rank] = #shape_name[s![#start..#end].into_ranges([#shape_len].into())[0].clone()].try_into().unwrap();
+                    }
                 }
             }
             _ => {
-                // Runtime slicing - we need to generate code that determines the output size at runtime
+                // Runtime slicing - we still know the output size from type inference
+                // and we know the shape length at compile time
                 let (start_expr, end_expr) = self.get_slice_range_expressions();
+                let shape_len_lit = Literal::i64_unsuffixed(shape.rank as i64);
 
-                // For runtime slicing, we need to use a Vec since we don't know the size at compile time
-                // The output type should still be Shape, but we'll need to handle it differently
                 quote! {
-                    let _start = #start_expr;
-                    let _end = #end_expr;
-                    let _slice = &#shape_name[_start.._end];
-                    let #output = _slice.to_vec();
+                    let _start_val = #start_expr as i64;
+                    let _end_val = #end_expr as i64;
+                    let _start = if _start_val < 0 { (#shape_len_lit + _start_val) as usize } else { _start_val as usize };
+                    let _end = if _end_val < 0 { (#shape_len_lit + _end_val) as usize } else { _end_val as usize };
+                    let #output: [usize; #output_rank_lit] = #shape_name[_start.._end].try_into().unwrap();
                 }
             }
         }

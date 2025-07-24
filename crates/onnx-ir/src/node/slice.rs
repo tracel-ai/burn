@@ -104,7 +104,7 @@ pub fn slice_update_output_rank(node: &mut Node) {
             log::debug!("Slice input for {} is Tensor, preserving type", node.name);
             node.outputs[0].ty = node.inputs[0].ty.clone();
         }
-        ArgType::Shape(_) => {
+        ArgType::Shape(shape_rank) => {
             // Slicing a Shape extracts a sub-part, resulting in a rank-1 Tensor.
             log::debug!("Slice input for {} is Shape", node.name);
             let config = slice_config(node);
@@ -121,8 +121,53 @@ pub fn slice_update_output_rank(node: &mut Node) {
 
                     let start = starts[0];
                     let end = ends[0];
-                    let output_len = end as usize - start as usize;
-                    node.outputs[0].ty = ArgType::Shape(output_len);
+
+                    // Special case: slice[-1:] is common for getting the last dimension
+                    if start == -1 && (end == i64::MAX || end >= *shape_rank as i64) {
+                        // This gets the last element, output is Shape(1)
+                        node.outputs[0].ty = ArgType::Shape(1);
+                        log::debug!(
+                            "Slice on Shape with [-1:] pattern for node {}, output: Shape(1)",
+                            node.name
+                        );
+                    } else if start < 0 || end < 0 {
+                        // Handle negative indices - convert to positive for size calculation
+                        // For shapes, we know the rank at compile time
+                        let shape_len = *shape_rank as i64;
+                        let pos_start = if start < 0 { shape_len + start } else { start };
+                        let pos_end = if end < 0 { shape_len + end } else { end };
+
+                        if pos_start >= 0 && pos_end >= 0 && pos_end > pos_start {
+                            let output_len = (pos_end - pos_start) as usize;
+                            node.outputs[0].ty = ArgType::Shape(output_len);
+                            log::debug!(
+                                "Slice on Shape with negative indices (start={}, end={}) for node {}, output: Shape({})",
+                                start,
+                                end,
+                                node.name,
+                                output_len
+                            );
+                        } else {
+                            // Invalid slice bounds, keep original shape rank as fallback
+                            log::warn!(
+                                "Slice on Shape with negative indices (start={}, end={}) has invalid bounds for node {}. Keeping original rank.",
+                                start,
+                                end,
+                                node.name
+                            );
+                            node.outputs[0].ty = ArgType::Shape(*shape_rank);
+                        }
+                    } else {
+                        // Positive indices
+                        let normalized_end = if end == i64::MAX || end >= *shape_rank as i64 {
+                            *shape_rank
+                        } else {
+                            end as usize
+                        };
+
+                        let output_len = normalized_end.saturating_sub(start as usize);
+                        node.outputs[0].ty = ArgType::Shape(output_len);
+                    }
                 }
                 _ => {
                     // For runtime slice on Shape, we can't determine the output size at compile time
