@@ -136,8 +136,7 @@ fn launch_nodes(
     local_strategy: AllReduceStrategy,
 ) -> Vec<(String, Child)> {
     let total_device_count = topology.iter().sum();
-    let (inputs, expected) =
-        generate_random_input(tensor_shape, reduce_op, total_device_count, 42);
+    let (inputs, expected) = generate_random_input(tensor_shape, reduce_op, total_device_count, 42);
 
     // URL for the global orchestrator on port 3000
     let global_url = "ws://localhost:3000";

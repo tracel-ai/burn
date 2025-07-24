@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use burn_tensor::backend::{Backend, DeviceOps};
 
-use crate::DeviceId;
+use crate::PeerId;
 
 /// Performs a all-reduce on the provided tensors in a b-tree structure with `arity`.
 /// Similar to [reduce_sum_tree](reduce_sum_tree), but this function broadcasts the result with
 /// the same tree algorithm.
 /// The returned tensors are on the same devices as the corresponding inputs
 pub(crate) fn all_reduce_sum_tree<B: Backend>(
-    tensors: &mut HashMap<DeviceId, B::FloatTensorPrimitive>,
+    tensors: &mut HashMap<PeerId, B::FloatTensorPrimitive>,
     arity: u32,
 ) {
     let mut input = vec![];
@@ -33,8 +33,8 @@ pub(crate) fn all_reduce_sum_tree<B: Backend>(
 
 /// Performs a reduce on the provided tensors in a b-tree structure with `arity`.
 pub(crate) fn reduce_sum_tree<B: Backend>(
-    mut tensors: HashMap<DeviceId, B::FloatTensorPrimitive>,
-    root: &DeviceId,
+    mut tensors: HashMap<PeerId, B::FloatTensorPrimitive>,
+    root: &PeerId,
     arity: u32,
 ) -> B::FloatTensorPrimitive {
     // Convert hash map to vector of key-value pairs because order matters
@@ -61,11 +61,11 @@ pub(crate) fn reduce_sum_tree<B: Backend>(
 ///
 /// Tensor must be on the device in the `devices` map corresponding to the `root` key.
 pub(crate) fn broadcast_tree<B: Backend>(
-    mut devices: HashMap<DeviceId, B::Device>,
-    root: DeviceId,
+    mut devices: HashMap<PeerId, B::Device>,
+    root: PeerId,
     tensor: B::FloatTensorPrimitive,
     arity: u32,
-) -> HashMap<DeviceId, B::FloatTensorPrimitive> {
+) -> HashMap<PeerId, B::FloatTensorPrimitive> {
     // Convert hash map to vector of key-value pairs because order matters
     let mut devices_vec = vec![];
     let root_device = devices.remove(&root).unwrap();
@@ -97,9 +97,9 @@ pub(crate) fn broadcast_tree<B: Backend>(
 
 /// Recursive function that sums `tensors` and redistributes the result to the host devices
 fn all_reduce_sum_tree_inner<B: Backend>(
-    mut tensors: Vec<(DeviceId, B::FloatTensorPrimitive)>,
+    mut tensors: Vec<(PeerId, B::FloatTensorPrimitive)>,
     arity: u32,
-) -> Vec<(DeviceId, B::FloatTensorPrimitive)> {
+) -> Vec<(PeerId, B::FloatTensorPrimitive)> {
     let mut parent_tensors = vec![];
     let mut children_groups = vec![];
 
@@ -192,9 +192,9 @@ fn reduce_sum_tree_inner<B: Backend>(
 /// Broadcasts the tensor across the devices in the tree in a pre-order traversal.
 fn broadcast_tree_inner<B: Backend>(
     tensor: B::FloatTensorPrimitive,
-    mut all_devices: Vec<(DeviceId, B::Device)>,
+    mut all_devices: Vec<(PeerId, B::Device)>,
     arity: u32,
-) -> Vec<(DeviceId, B::FloatTensorPrimitive)> {
+) -> Vec<(PeerId, B::FloatTensorPrimitive)> {
     let mut parents = vec![];
     let mut children_groups = vec![];
 

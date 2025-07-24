@@ -1,7 +1,7 @@
 use core::ops::Range;
 use std::sync::atomic::AtomicU32;
 
-use crate::NodeId;
+use crate::{NodeId, PeerId};
 use burn_common::id::IdGenerator;
 use burn_communication::{Address, CommunicationError};
 use serde::{Deserialize, Serialize};
@@ -61,11 +61,12 @@ pub(crate) enum RemoteRequest {
     // Register a node
     Register {
         node_id: NodeId,
+        /// Endpoint for this node
         node_addr: Address,
         /// Number of total nodes
         num_nodes: u32,
-        /// Number of local devices on the requesting node
-        num_devices: u32,
+        /// List of peers on this node
+        peers: Vec<PeerId>,
     },
 
     // Aggregate

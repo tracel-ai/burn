@@ -2,11 +2,11 @@ use std::{collections::HashMap, ops::Range};
 
 use burn_tensor::{Shape, TensorMetadata, backend::Backend};
 
-use crate::{DeviceId, tree::all_reduce_sum_tree};
+use crate::{PeerId, tree::all_reduce_sum_tree};
 
 /// Ring implementation of All-Reduce (Ring-Reduce)
 pub(crate) fn all_reduce_sum_ring<B: Backend>(
-    tensors: &mut HashMap<DeviceId, B::FloatTensorPrimitive>,
+    tensors: &mut HashMap<PeerId, B::FloatTensorPrimitive>,
 ) {
     // https://blog.dailydoseofds.com/p/all-reduce-and-ring-reduce-for-model
 
@@ -81,7 +81,7 @@ pub(crate) fn get_slice_dim(shape: &Shape) -> usize {
 }
 
 /// Get the shape of the tensors. They should have all the same shape, otherwise None is returned.
-fn get_shape<B: Backend>(tensors: &HashMap<DeviceId, B::FloatTensorPrimitive>) -> Option<Shape> {
+fn get_shape<B: Backend>(tensors: &HashMap<PeerId, B::FloatTensorPrimitive>) -> Option<Shape> {
     let mut shape = None;
 
     for tensor in tensors.values() {
@@ -99,7 +99,7 @@ fn get_shape<B: Backend>(tensors: &HashMap<DeviceId, B::FloatTensorPrimitive>) -
 /// During the first phase, the tensor slices are summed.
 /// During the second, the slices are replaced.
 fn ring_cycles<B: Backend>(
-    sliced_tensors: &mut [(DeviceId, Vec<B::FloatTensorPrimitive>)],
+    sliced_tensors: &mut [(PeerId, Vec<B::FloatTensorPrimitive>)],
     is_phase_one: bool,
 ) {
     let tensor_count = sliced_tensors.len();
@@ -148,11 +148,11 @@ fn ring_cycles<B: Backend>(
 /// Slice a list of tensors the same way, evenly across a given dimention.
 /// The given `shape` should be the same for every tensor.
 fn slice_tensors<B: Backend>(
-    mut tensors: HashMap<DeviceId, B::FloatTensorPrimitive>,
+    mut tensors: HashMap<PeerId, B::FloatTensorPrimitive>,
     dim_size: usize,
     shape: Shape,
     slice_dim: usize,
-) -> Vec<(DeviceId, Vec<<B as Backend>::FloatTensorPrimitive>)> {
+) -> Vec<(PeerId, Vec<<B as Backend>::FloatTensorPrimitive>)> {
     // Get slice index ranges
     let ranges = get_ranges(dim_size, tensors.len(), shape, slice_dim);
 

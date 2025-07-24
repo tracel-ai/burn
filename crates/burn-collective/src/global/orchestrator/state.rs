@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    AllReduceStrategy,
+    AllReduceStrategy, PeerId,
     global::{
         NodeId,
         shared::{
@@ -35,13 +35,17 @@ impl Session {
 pub(crate) struct GlobalCollectiveState {
     /// The ids passed to each register so far, and their addresses
     registered_nodes: HashMap<SessionId, NodeId>,
+    /// Address for each node
     node_addresses: HashMap<NodeId, Address>,
+    /// Peer on each node
+    node_peers: HashMap<NodeId, Vec<PeerId>>,
     /// The params of the current all-reduce operation, as defined by the first caller
     cur_all_reduce_strategy: Option<AllReduceStrategy>,
 
     /// How many total nodes for the currrent register operation, as defined by the first caller
     cur_num_nodes: Option<u32>,
-    num_global_devices: u32,
+    /// How many peers have registered total
+    num_global_peers: u32,
 
     all_reduce_requests: Vec<(SessionId, RequestId, Address)>,
     register_requests: Vec<(SessionId, RequestId)>,
@@ -54,9 +58,10 @@ impl GlobalCollectiveState {
         Self {
             registered_nodes: HashMap::new(),
             node_addresses: HashMap::new(),
+            node_peers: HashMap::new(),
             cur_all_reduce_strategy: None,
             cur_num_nodes: None,
-            num_global_devices: 0,
+            num_global_peers: 0,
             all_reduce_requests: Vec::new(),
             register_requests: Vec::new(),
             sessions: HashMap::new(),
@@ -105,17 +110,10 @@ impl GlobalCollectiveState {
                 node_id,
                 node_addr,
                 num_nodes,
-                num_devices,
+                peers,
             } => {
-                self.register(
-                    session_id,
-                    request_id,
-                    node_id,
-                    node_addr,
-                    num_nodes,
-                    num_devices,
-                )
-                .await
+                self.register(session_id, request_id, node_id, node_addr, num_nodes, peers)
+                    .await
             }
             RemoteRequest::Finish => self.finish(session_id, request_id).await,
         } {
@@ -143,6 +141,7 @@ impl GlobalCollectiveState {
             .remove(&session_id)
             .ok_or(GlobalCollectiveError::NotRegisteredOnFinish)?;
         self.node_addresses.remove(&node_id);
+        self.node_peers.remove(&node_id);
 
         let mut register_requests = vec![];
         core::mem::swap(&mut register_requests, &mut self.register_requests);
@@ -197,19 +196,15 @@ impl GlobalCollectiveState {
         node_id: NodeId,
         node_addr: Address,
         num_nodes: u32,
-        num_devices: u32,
+        peers: Vec<PeerId>,
     ) -> Result<(), GlobalCollectiveError> {
         if self.node_addresses.contains_key(&node_id)
             || self.registered_nodes.contains_key(&session_id)
+            || self.node_peers.contains_key(&node_id)
         {
             return Err(GlobalCollectiveError::MultipleRegister(node_id));
         }
-        self.registered_nodes.insert(session_id, node_id);
-        self.node_addresses.insert(node_id, node_addr);
 
-        self.register_requests.push((session_id, request_id));
-
-        self.num_global_devices += num_devices;
         match &self.cur_num_nodes {
             Some(cur_num_nodes) => {
                 if *cur_num_nodes != num_nodes {
@@ -221,13 +216,21 @@ impl GlobalCollectiveState {
             }
         }
 
+        self.num_global_peers += peers.len() as u32;
+
+        self.registered_nodes.insert(session_id, node_id);
+        self.node_addresses.insert(node_id, node_addr);
+        self.node_peers.insert(node_id, peers);
+
+        self.register_requests.push((session_id, request_id));
+
         if self.registered_nodes.len() == num_nodes as usize {
             let mut callbacks = vec![];
             core::mem::swap(&mut callbacks, &mut self.register_requests);
 
             for (session, request) in callbacks {
                 let content = RemoteResponse::RegisterAck {
-                    num_global_devices: self.num_global_devices,
+                    num_global_devices: self.num_global_peers,
                 };
                 let resp = CollectiveMessageResponse {
                     request_id: request,

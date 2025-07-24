@@ -5,7 +5,7 @@ use burn_tensor::{ElementConversion, backend::Backend};
 use std::{marker::PhantomData, sync::Arc};
 use tokio_util::sync::CancellationToken;
 
-use crate::{AllReduceStrategy, GlobalRegisterParams};
+use crate::{AllReduceStrategy, BroadcastStrategy, GlobalRegisterParams, PeerId, ReduceStrategy};
 use crate::{
     ReduceOperation,
     global::{
@@ -64,7 +64,7 @@ where
 
     pub async fn register(
         &mut self,
-        num_devices: u32,
+        peers: Vec<PeerId>,
         global_params: GlobalRegisterParams,
     ) -> Result<(), GlobalCollectiveError> {
         let node_addr = self.node_address.as_ref().clone();
@@ -73,7 +73,7 @@ where
             node_id: global_params.node_id,
             node_addr,
             num_nodes: global_params.num_nodes,
-            num_devices,
+            peers,
         };
         match self.worker.request(req).await {
             RemoteResponse::RegisterAck { num_global_devices } => {
@@ -95,7 +95,7 @@ where
         &self,
         tensor: B::FloatTensorPrimitive,
         strategy: AllReduceStrategy,
-        device: &B::Device,
+        device: &B::Device, //TODO remove this!
         op: ReduceOperation,
     ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError> {
         let num_global_devices = self
@@ -130,6 +130,25 @@ where
         }
 
         Ok(result)
+    }
+
+    pub async fn reduce(
+        &self,
+        _tensor: B::FloatTensorPrimitive,
+        _strategy: ReduceStrategy,
+        _root: PeerId,
+        _op: ReduceOperation,
+    ) -> Result<Option<B::FloatTensorPrimitive>, GlobalCollectiveError> {
+        unimplemented!("TODO");
+    }
+
+    pub async fn broadcast(
+        &self,
+        _tensor: Option<B::FloatTensorPrimitive>,
+        _strategy: BroadcastStrategy,
+        _root: PeerId,
+    ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError> {
+        unimplemented!("TODO");
     }
 
     pub async fn finish(&mut self) {

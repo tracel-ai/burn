@@ -66,14 +66,28 @@ impl CollectiveConfig {
     /// necessary.
     ///
     /// It is recommended to use a tree strategy locally, and a ring strategy globally.
-    pub fn with_local_strategy(mut self, strategy: AllReduceStrategy) -> Self {
+    pub fn with_local_all_reduce_strategy(mut self, strategy: AllReduceStrategy) -> Self {
         self.local_all_reduce_strategy = strategy;
+        self
+    }
+
+    /// Selects a reduce strategy to use on the local level.
+    pub fn with_local_reduce_strategy(mut self, strategy: ReduceStrategy) -> Self {
+        self.local_reduce_strategy = strategy;
+        self
+    }
+
+    /// Selects a broadcast strategy to use on the local level.
+    pub fn with_local_broadcast_strategy(mut self, strategy: BroadcastStrategy) -> Self {
+        self.local_broadcast_strategy = strategy;
         self
     }
 
     /// Set the node id
     ///
     /// This parameter is a global parameter and should only be set in multi-node contexts
+    /// TODO since PeerIds are unique globally, node id's should be managed internally
+    /// (by the orchestrator for example)
     pub fn with_node_id(mut self, id: NodeId) -> Self {
         self.node_id = Some(id);
         self
@@ -115,9 +129,27 @@ impl CollectiveConfig {
     /// Selects an all-reduce strategy to use on the global level.
     ///
     /// This parameter is a global parameter and should only be set in multi-node contexts.
-    /// See [with_local_strategy](Self::with_local_strategy)
-    pub fn with_global_strategy(mut self, strategy: AllReduceStrategy) -> Self {
+    /// See [the local strategy](Self::with_local_all_reduce_strategy)
+    pub fn with_global_all_reduce_strategy(mut self, strategy: AllReduceStrategy) -> Self {
         self.global_all_reduce_strategy = Some(strategy);
+        self
+    }
+
+    /// Selects an reduce strategy to use on the global level.
+    ///
+    /// This parameter is a global parameter and should only be set in multi-node contexts.
+    /// See [the local strategy](Self::with_local_reduce_strategy)
+    pub fn with_global_reduce_strategy(mut self, strategy: ReduceStrategy) -> Self {
+        self.global_reduce_strategy = Some(strategy);
+        self
+    }
+
+    /// Selects an broadcst strategy to use on the global level.
+    ///
+    /// This parameter is a global parameter and should only be set in multi-node contexts.
+    /// See [the local strategy](Self::with_local_broadcast_strategy)
+    pub fn with_global_broadcast_strategy(mut self, strategy: BroadcastStrategy) -> Self {
+        self.global_broadcast_strategy = Some(strategy);
         self
     }
 
@@ -201,8 +233,7 @@ pub struct SharedAllReduceParams {
 
 /// Parameters for a reduce that should be the same between all devices
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct SharedReduceParams {
-}
+pub struct SharedReduceParams {}
 
 /// Parameters for a broadcast that should be the same between all devices
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -260,14 +291,14 @@ pub enum BroadcastStrategy {
     Tree(u32),
 }
 
-/// A unique identifier for a peer in the context of local collective operations.
+/// A unique identifier for a peer in the context of collective operations.
+/// They must be unique, even in multi-node contexts.
 ///
-/// Not to be confused with [burn_tensor's device id](burn_tensor::backend::DeviceId).
-/// This name is fitting because local peers/threads will usually correspond to unique devices
+/// This is like the rank id in NCCL
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct DeviceId(u32);
+pub struct PeerId(u32);
 
-impl From<u32> for DeviceId {
+impl From<u32> for PeerId {
     fn from(value: u32) -> Self {
         Self(value)
     }

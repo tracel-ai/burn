@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use burn_tensor::backend::Backend;
 
-use crate::DeviceId;
+use crate::PeerId;
 
 /// Sums the tensors on one device and returns the result
 pub(crate) fn reduce_sum_centralized<B: Backend>(
-    mut tensors: HashMap<DeviceId, B::FloatTensorPrimitive>,
-    central: &DeviceId,
+    mut tensors: HashMap<PeerId, B::FloatTensorPrimitive>,
+    central: &PeerId,
 ) -> B::FloatTensorPrimitive {
     let mut central_tensor = tensors
         .remove(central)
@@ -24,10 +24,10 @@ pub(crate) fn reduce_sum_centralized<B: Backend>(
 
 /// Broadcasts the tensor from one device in a map to all the others
 pub(crate) fn broadcast_centralized<B: Backend>(
-    mut devices: HashMap<DeviceId, B::Device>,
-    central: DeviceId,
+    mut devices: HashMap<PeerId, B::Device>,
+    central: PeerId,
     tensor: B::FloatTensorPrimitive,
-) -> HashMap<DeviceId, B::FloatTensorPrimitive> {
+) -> HashMap<PeerId, B::FloatTensorPrimitive> {
     let mut output = HashMap::new();
 
     devices
@@ -47,13 +47,13 @@ pub(crate) fn broadcast_centralized<B: Backend>(
 ///
 /// Internally, this is just a call to `reduce` followed by a `broadcast`
 pub(crate) fn all_reduce_sum_centralized<B: Backend>(
-    tensors: &mut HashMap<DeviceId, B::FloatTensorPrimitive>,
+    tensors: &mut HashMap<PeerId, B::FloatTensorPrimitive>,
 ) {
     // Get corresponding devices for each peer
     let devices = tensors
         .iter()
         .map(|(id, tensor)| (*id, B::float_device(tensor)))
-        .collect::<HashMap<DeviceId, B::Device>>();
+        .collect::<HashMap<PeerId, B::Device>>();
     let central_device = *tensors.keys().next().unwrap();
 
     // Reduce to central device

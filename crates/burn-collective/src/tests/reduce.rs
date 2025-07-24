@@ -22,7 +22,7 @@ mod tests {
     pub type TestBackend = burn_wgpu::Wgpu<f32>;
 
     use crate::{
-        AllReduceStrategy, CollectiveConfig, PeerId, ReduceOperation, all_reduce, register,
+        CollectiveConfig, PeerId, ReduceOperation, ReduceStrategy, reduce, register,
         reset_collective,
     };
 
@@ -31,7 +31,8 @@ mod tests {
         config: CollectiveConfig,
         input: TensorData,
         op: ReduceOperation,
-        output: SyncSender<Tensor<B, 1>>,
+        root: PeerId,
+        output: SyncSender<Option<Tensor<B, 1>>>,
     ) {
         let device = B::Device::default();
 
@@ -39,7 +40,7 @@ mod tests {
 
         let tensor = Tensor::<B, 1>::from_data(input, &device);
 
-        let tensor = all_reduce(id, tensor, op).unwrap();
+        let tensor = reduce(id, tensor, op, root).unwrap();
 
         output.send(tensor).unwrap();
     }
@@ -75,10 +76,10 @@ mod tests {
         (input, expected)
     }
 
-    fn test_all_reduce<B: Backend>(
+    fn test_reduce<B: Backend>(
         device_count: u32,
         op: ReduceOperation,
-        strategy: AllReduceStrategy,
+        strategy: ReduceStrategy,
         tensor_size: usize,
     ) {
         reset_collective::<TestBackend>();
@@ -93,80 +94,67 @@ mod tests {
 
         let config = CollectiveConfig::default()
             .with_num_devices(device_count)
-            .with_local_all_reduce_strategy(strategy);
+            .with_local_reduce_strategy(strategy);
 
+        let root: PeerId = 0.into();
         for id in 0..device_count {
             let send = send.clone();
             let input = input[id as usize].clone();
 
             std::thread::spawn({
                 let config = config.clone();
-                move || run_peer::<B>(id.into(), config, input, op, send)
+                move || run_peer::<B>(id.into(), config, input, op, root, send)
             });
         }
 
-        let first = recv.recv().unwrap().to_data();
-        for _ in 1..device_count {
+        let mut result = None;
+        for _ in 0..device_count {
             let tensor = recv.recv().unwrap();
-            tensor.to_data().assert_eq(&first, true);
+            if tensor.is_some() {
+                if result.is_some() {
+                    panic!("Two peers received the result of an reduce!");
+                }
+                result = tensor.map(|t| t.to_data());
+            }
         }
 
         let tol: Tolerance<f32> = Tolerance::balanced();
-        expected.assert_approx_eq(&first, tol);
+        expected.assert_approx_eq(&result.expect("One peer has received the result"), tol);
     }
 
     #[test]
     #[serial]
-    pub fn test_all_reduce_centralized_sum() {
-        test_all_reduce::<TestBackend>(4, ReduceOperation::Sum, AllReduceStrategy::Centralized, 4);
+    pub fn test_reduce_centralized_sum() {
+        test_reduce::<TestBackend>(4, ReduceOperation::Sum, ReduceStrategy::Centralized, 4);
     }
 
     #[test]
     #[serial]
-    pub fn test_all_reduce_centralized_mean() {
-        test_all_reduce::<TestBackend>(4, ReduceOperation::Mean, AllReduceStrategy::Centralized, 4);
+    pub fn test_reduce_centralized_mean() {
+        test_reduce::<TestBackend>(4, ReduceOperation::Mean, ReduceStrategy::Centralized, 4);
     }
 
     #[test]
     #[serial]
-    pub fn test_all_reduce_binary_tree_sum() {
-        test_all_reduce::<TestBackend>(4, ReduceOperation::Sum, AllReduceStrategy::Tree(2), 4);
+    pub fn test_reduce_binary_tree_sum() {
+        test_reduce::<TestBackend>(4, ReduceOperation::Sum, ReduceStrategy::Tree(2), 4);
     }
 
     #[test]
     #[serial]
-    pub fn test_all_reduce_binary_tree_mean() {
-        test_all_reduce::<TestBackend>(4, ReduceOperation::Mean, AllReduceStrategy::Tree(2), 4);
+    pub fn test_reduce_binary_tree_mean() {
+        test_reduce::<TestBackend>(4, ReduceOperation::Mean, ReduceStrategy::Tree(2), 4);
     }
 
     #[test]
     #[serial]
-    pub fn test_all_reduce_5_tree_sum() {
-        test_all_reduce::<TestBackend>(4, ReduceOperation::Sum, AllReduceStrategy::Tree(5), 4);
+    pub fn test_reduce_5_tree_sum() {
+        test_reduce::<TestBackend>(4, ReduceOperation::Sum, ReduceStrategy::Tree(5), 4);
     }
 
     #[test]
     #[serial]
-    pub fn test_all_reduce_5_tree_mean() {
-        test_all_reduce::<TestBackend>(4, ReduceOperation::Mean, AllReduceStrategy::Tree(5), 4);
-    }
-
-    #[test]
-    #[serial]
-    pub fn test_all_reduce_ring_sum() {
-        test_all_reduce::<TestBackend>(3, ReduceOperation::Sum, AllReduceStrategy::Ring, 3);
-    }
-
-    #[test]
-    #[serial]
-    pub fn test_all_reduce_ring_mean() {
-        test_all_reduce::<TestBackend>(3, ReduceOperation::Mean, AllReduceStrategy::Ring, 3);
-    }
-
-    #[test]
-    #[serial]
-    pub fn test_all_reduce_ring_irregular_sum() {
-        // this should trigger the fallback algorithm when the tensor is too small.
-        test_all_reduce::<TestBackend>(4, ReduceOperation::Sum, AllReduceStrategy::Ring, 3);
+    pub fn test_reduce_5_tree_mean() {
+        test_reduce::<TestBackend>(4, ReduceOperation::Mean, ReduceStrategy::Tree(5), 4);
     }
 }

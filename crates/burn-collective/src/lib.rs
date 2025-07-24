@@ -1,6 +1,6 @@
 pub(crate) mod centralized;
-pub(crate) mod local_server;
 pub(crate) mod client;
+pub(crate) mod local_server;
 pub(crate) mod ring;
 pub(crate) mod tree;
 

@@ -6,7 +6,8 @@ use burn::{
     tensor::{Tensor, Tolerance},
 };
 use burn_collective::{
-    CollectiveConfig, all_reduce, finish_collective, register, reset_collective,
+    CollectiveConfig, PeerId, ReduceOperation, all_reduce, finish_collective, register,
+    reset_collective,
 };
 use burn_collective_multinode_tests::shared::NodeTestData;
 
@@ -74,23 +75,29 @@ fn launch_threads<B: Backend, const D: usize>(
 
         // Put all the parameters in the config
         let config = CollectiveConfig::default()
-            .with_all_reduce_kind(test_input.all_reduce_op)
             .with_num_devices(test_input.device_count)
-            .with_device_id(id.into())
             .with_node_id(test_input.node_id)
             .with_global_address(test_input.global_address.clone())
             .with_node_address(test_input.node_address.clone())
             .with_data_service_port(test_input.data_service_port)
             .with_num_nodes(test_input.node_count)
-            .with_global_strategy(test_input.global_strategy)
-            .with_local_strategy(test_input.local_strategy);
+            .with_global_all_reduce_strategy(test_input.global_strategy)
+            .with_local_all_reduce_strategy(test_input.local_strategy);
 
         // Inputs and outputs for the test
         let tensor_data = test_input.inputs[id as usize].clone();
         let tensor = Tensor::<B, D>::from_data(tensor_data, &B::Device::default());
         let result_send = result_send.clone();
 
-        let handle = std::thread::spawn(move || run_peer::<B, D>(config, tensor, result_send));
+        let handle = std::thread::spawn(move || {
+            run_peer::<B, D>(
+                id.into(),
+                config,
+                tensor,
+                result_send,
+                test_input.all_reduce_op,
+            )
+        });
         handles.push(handle);
     }
 
@@ -99,18 +106,20 @@ fn launch_threads<B: Backend, const D: usize>(
 
 /// Runs a thread in the all-reduce test.
 pub fn run_peer<B: Backend, const D: usize>(
+    id: PeerId,
     config: CollectiveConfig,
     input: Tensor<B, D>,
     output: SyncSender<Tensor<B, D>>,
+    all_reduce_op: ReduceOperation,
 ) {
     // Register the device
-    register::<B>(&config).unwrap();
+    register::<B>(id, input.device(), config).unwrap();
 
     // All-reduce
-    let tensor = all_reduce(input, &config).unwrap();
+    let tensor = all_reduce(id, input, all_reduce_op).unwrap();
 
     // Send result
     output.send(tensor).unwrap();
 
-    finish_collective::<B>(&config).unwrap();
+    finish_collective::<B>(id).unwrap();
 }
