@@ -14,9 +14,10 @@ pub fn squeeze_config(curr: &Node) -> Vec<i64> {
         .next()
         .unwrap_or_else(Vec::new);
 
-    match curr.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
+    // Validate input type (both Tensor and Shape are valid)
+    match &curr.inputs.first().unwrap().ty {
+        ArgType::Tensor(_) | ArgType::Shape(_) => {}
+        ty => panic!("Squeeze: invalid input type: {ty:?}"),
     };
 
     axes
@@ -41,21 +42,42 @@ pub fn squeeze_update_output(node: &mut Node) {
     let axes = axes.unwrap_or_else(|| panic!("Squeeze must specify an axis"));
     log::debug!("Squeeze axes for {}: {:?}", node.name, axes);
 
-    let input_rank = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.rank,
+    match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => {
+            log::debug!("Squeeze input rank for {}: {}", node.name, tensor.rank);
+            let output_rank = tensor.rank - axes.len();
+            log::debug!("Squeeze output rank for {}: {}", node.name, output_rank);
+
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: tensor.elem_type.clone(),
+                rank: output_rank,
+                static_shape: None,
+            });
+        }
+        ArgType::Shape(shape_rank) => {
+            log::debug!("Squeeze input is Shape({}) for {}", shape_rank, node.name);
+
+            // Shape is always a 1D array. We can only squeeze axis 0.
+            // - If Shape has 1 element (Shape(1)), squeezing axis 0 produces a scalar
+            // - If Shape has >1 elements (Shape(n) where n>1), squeezing axis 0 is a no-op
+            //   because the dimension has size > 1
+
+            if axes.len() != 1 || axes[0] != 0 {
+                panic!("Squeeze on Shape input only supports squeezing axis 0, got axes: {axes:?}");
+            }
+
+            if *shape_rank == 1 {
+                // Shape(1) squeezed on axis 0 produces a scalar
+                node.outputs[0].ty = ArgType::Scalar(crate::ir::ElementType::Int64);
+                log::debug!("Squeeze Shape(1) to Scalar for {}", node.name);
+            } else {
+                // Shape(n) where n > 1 remains unchanged
+                node.outputs[0].ty = ArgType::Shape(*shape_rank);
+                log::debug!("Squeeze Shape({}) unchanged for {}", shape_rank, node.name);
+            }
+        }
         ty => panic!("Squeeze: invalid input type: {ty:?}"),
-    };
-
-    log::debug!("Squeeze input rank for {}: {}", node.name, input_rank);
-
-    let output_rank = input_rank - axes.len();
-    log::debug!("Squeeze output rank for {}: {}", node.name, output_rank);
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: node.inputs[0].ty.elem_type().clone(),
-        rank: output_rank,
-        static_shape: None,
-    });
+    }
 }
 
 #[cfg(test)]

@@ -1560,8 +1560,8 @@ impl ParsedOnnxGraph {
     }
 
     fn squeeze_conversion(node: Node) -> SqueezeNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let axes = squeeze_config(&node);
 
         SqueezeNode::new(input, output, axes)

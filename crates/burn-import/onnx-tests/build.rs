@@ -166,6 +166,8 @@ fn main() {
         .input("tests/sqrt/sqrt.onnx")
         .input("tests/squeeze/squeeze_multiple.onnx")
         .input("tests/squeeze/squeeze.onnx")
+        .input("tests/squeeze/squeeze_shape.onnx")
+        .input("tests/squeeze/squeeze_shape_noop.onnx")
         .input("tests/sub/sub.onnx")
         .input("tests/sub/sub_shape.onnx")
         .input("tests/sub/sub_int.onnx")
