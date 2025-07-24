@@ -11,8 +11,9 @@ use cubecl::server::Handle;
 use cubecl::std::tensor::TensorHandle;
 use std::marker::PhantomData;
 
+use super::QParams;
+
 /// The basic tensor primitive struct.
-#[derive(new)]
 pub struct CubeTensor<R: CubeRuntime> {
     /// Compute client for the [runtime](CubeRuntime).
     pub client: ComputeClient<R::Server, R::Channel>,
@@ -26,6 +27,8 @@ pub struct CubeTensor<R: CubeRuntime> {
     pub strides: Vec<usize>,
     /// The datatype of the tensor.
     pub dtype: DType,
+    /// Runtime quantization parameters, if applicable
+    pub qparams: Option<QParams>,
 }
 
 impl<R: CubeRuntime, E: CubeElement> From<CubeTensor<R>> for TensorHandle<R, E> {
@@ -136,6 +139,7 @@ where
             device: self.device.clone(),
             strides: self.strides.clone(),
             dtype: self.dtype,
+            qparams: self.qparams.clone(),
         }
     }
 }
@@ -279,6 +283,26 @@ impl<R> CubeTensor<R>
 where
     R: CubeRuntime,
 {
+    /// Create a new standard tensor
+    pub fn new(
+        client: ComputeClient<R::Server, R::Channel>,
+        handle: Handle,
+        shape: Shape,
+        device: R::Device,
+        strides: Vec<usize>,
+        dtype: DType,
+    ) -> Self {
+        CubeTensor {
+            client,
+            handle,
+            shape,
+            device,
+            strides,
+            dtype,
+            qparams: None,
+        }
+    }
+
     /// Create a new tensor with a contiguous memory layout.
     pub fn new_contiguous(
         client: ComputeClient<R::Server, R::Channel>,
@@ -308,6 +332,7 @@ where
             strides,
             device,
             dtype,
+            qparams: None,
         }
     }
 
@@ -320,6 +345,10 @@ where
         let bytes = self.client.read_one(self.handle.clone().binding());
         let handle = client.create(&bytes);
 
+        if self.qparams.is_some() {
+            unimplemented!("Needs more work to correctly transfer, waiting for QXxN packed types");
+        }
+
         Self {
             client,
             handle,
@@ -327,6 +356,7 @@ where
             strides: self.strides.clone(),
             device,
             dtype: self.dtype,
+            qparams: None,
         }
     }
 

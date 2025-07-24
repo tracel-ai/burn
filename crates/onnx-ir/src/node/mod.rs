@@ -16,6 +16,7 @@ pub mod avg_pool1d;
 pub mod avg_pool2d;
 pub mod batch_norm;
 pub mod bernoulli;
+pub mod bitshift;
 pub mod cast;
 pub mod clip;
 pub mod comparison;

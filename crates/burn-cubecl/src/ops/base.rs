@@ -1,6 +1,9 @@
 use crate::{CubeRuntime, element::CubeElement, kernel, tensor::CubeTensor};
-use burn_tensor::{Shape, TensorData};
-use cubecl::tensor_vectorization_factor;
+use burn_tensor::{
+    Shape, TensorData,
+    quantization::{QTensorPrimitive, QuantLevel},
+};
+use cubecl::{server::BindingWithMeta, tensor_vectorization_factor};
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let shape: Shape = (&data.shape).into();
@@ -11,23 +14,26 @@ pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) ->
 }
 
 pub(crate) async fn into_data<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
-    let tensor = kernel::into_contiguous(tensor);
-    let bytes = tensor
-        .client
-        .read_async(vec![tensor.handle.binding()])
-        .await;
-    let bytes = &bytes[0];
-    let actual_len = tensor.shape.num_elements() * size_of::<E>();
+    let tensor = kernel::into_contiguous_aligned(tensor);
+
+    let elem_size = size_of::<E>();
+    let shape = tensor.shape.dims.clone();
+    let actual_len = tensor.shape.num_elements() * elem_size;
+    let binding = BindingWithMeta::new(tensor.handle.binding(), shape, tensor.strides, elem_size);
+    let bytes = tensor.client.read_one_tensor_async(binding).await;
     TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
 }
 
 /// Read data from a `CubeTensor` synchronously
 #[allow(unused, reason = "useful for debugging kernels")]
 pub fn into_data_sync<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
-    let tensor = kernel::into_contiguous(tensor);
+    let tensor = kernel::into_contiguous_aligned(tensor);
 
-    let bytes = tensor.client.read_one(tensor.handle.binding());
-    let actual_len = tensor.shape.num_elements() * size_of::<E>();
+    let elem_size = size_of::<E>();
+    let shape = tensor.shape.dims.clone();
+    let actual_len = tensor.shape.num_elements() * elem_size;
+    let binding = BindingWithMeta::new(tensor.handle.binding(), shape, tensor.strides, elem_size);
+    let bytes = tensor.client.read_one_tensor(binding);
     TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
 }
 
@@ -138,6 +144,13 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
         }
     }
 
+    // Extra check to ensure block scales must be properly handled once they're added
+    if tensor.qparams.is_some() {
+        match tensor.scheme().level {
+            QuantLevel::Tensor => {}
+        }
+    }
+
     CubeTensor {
         client: tensor.client,
         device: tensor.device,
@@ -145,6 +158,7 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
         strides: new_strides,
         handle: tensor.handle,
         dtype: tensor.dtype,
+        qparams: tensor.qparams,
     }
 }
 
@@ -153,13 +167,15 @@ pub fn reshape<R: CubeRuntime>(tensor: CubeTensor<R>, shape: Shape) -> CubeTenso
     // TODO: Not force standard layout all the time (improve performance).
     let tensor = kernel::into_contiguous(tensor);
 
-    CubeTensor::new_contiguous(
+    let mut out = CubeTensor::new_contiguous(
         tensor.client,
         tensor.device,
         shape,
         tensor.handle,
         tensor.dtype,
-    )
+    );
+    out.qparams = tensor.qparams;
+    out
 }
 
 pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {

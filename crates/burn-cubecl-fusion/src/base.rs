@@ -6,6 +6,7 @@ use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
 
 use burn_fusion::stream::Context;
 use burn_tensor::DType;
+use burn_tensor::quantization::QParamTensor;
 use cubecl::client::ComputeClient;
 use cubecl::ir::Elem;
 use cubecl::prelude::{TensorArg, TensorHandleRef};
@@ -105,6 +106,10 @@ pub(crate) fn elem_dtype<E: CubeElement>() -> DType {
     }
 }
 
+/// Runtime parameters for quantization. Can be used to construct a scales handle from the base
+/// tensor handle.
+pub type QParams = burn_tensor::quantization::QParams<QParamTensor>;
+
 /// Handle to be used when fusing operations.
 pub struct CubeFusionHandle<R: Runtime> {
     /// Compute client for jit.
@@ -117,6 +122,8 @@ pub struct CubeFusionHandle<R: Runtime> {
     pub dtype: DType,
     /// The strides of the tensor.
     pub strides: Vec<usize>,
+    /// Quantization runtime parameters, if applicable
+    pub qparams: Option<QParams>,
 }
 
 impl<R: Runtime> core::fmt::Debug for CubeFusionHandle<R> {
@@ -137,6 +144,7 @@ impl<R: Runtime> Clone for CubeFusionHandle<R> {
             device: self.device.clone(),
             strides: self.strides.clone(),
             dtype: self.dtype,
+            qparams: self.qparams.clone(),
         }
     }
 }
