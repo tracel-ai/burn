@@ -25,6 +25,7 @@ pub use memory_use::*;
 mod acc;
 mod auroc;
 mod base;
+mod cer;
 mod confusion_stats;
 mod fbetascore;
 mod hamming;
@@ -34,10 +35,12 @@ mod loss;
 mod precision;
 mod recall;
 mod top_k_acc;
+mod wer;
 
 pub use acc::*;
 pub use auroc::*;
 pub use base::*;
+pub use cer::*;
 pub use confusion_stats::ConfusionStatsInput;
 pub use fbetascore::*;
 pub use hamming::*;
@@ -47,6 +50,7 @@ pub use loss::*;
 pub use precision::*;
 pub use recall::*;
 pub use top_k_acc::*;
+pub use wer::*;
 
 pub(crate) mod classification;
 pub(crate) mod processor;
