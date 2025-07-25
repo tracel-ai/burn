@@ -2,28 +2,29 @@ use super::worker::{ClientRequest, ClientWorker};
 use crate::shared::{ComputeTask, ConnectionId, SessionId, Task, TaskResponseContent};
 use async_channel::Sender;
 use burn_common::id::StreamId;
+use burn_communication::ProtocolClient;
 use burn_ir::TensorId;
 use std::{
     future::Future,
     sync::{Arc, atomic::AtomicU64},
 };
 
-pub use super::WsDevice;
+pub use super::RemoteDevice;
 
 #[derive(Clone)]
-pub struct WsClient {
-    pub(crate) device: WsDevice,
-    pub(crate) sender: Arc<WsSender>,
+pub struct RemoteClient {
+    pub(crate) device: RemoteDevice,
+    pub(crate) sender: Arc<RemoteSender>,
     pub(crate) runtime: Arc<tokio::runtime::Runtime>,
 }
 
-impl WsClient {
-    pub fn init(device: WsDevice) -> Self {
-        ClientWorker::start(device)
+impl RemoteClient {
+    pub fn init<C: ProtocolClient>(device: RemoteDevice) -> Self {
+        ClientWorker::<C>::start(device)
     }
 
     pub(crate) fn new(
-        device: WsDevice,
+        device: RemoteDevice,
         sender: Sender<ClientRequest>,
         runtime: Arc<tokio::runtime::Runtime>,
         session_id: SessionId,
@@ -31,7 +32,7 @@ impl WsClient {
         Self {
             device,
             runtime,
-            sender: Arc::new(WsSender {
+            sender: Arc::new(RemoteSender {
                 sender,
                 position_counter: AtomicU64::new(0),
                 tensor_id_counter: AtomicU64::new(0),
@@ -41,14 +42,14 @@ impl WsClient {
     }
 }
 
-pub(crate) struct WsSender {
+pub(crate) struct RemoteSender {
     sender: Sender<ClientRequest>,
     position_counter: AtomicU64,
     tensor_id_counter: AtomicU64,
     session_id: SessionId,
 }
 
-impl WsSender {
+impl RemoteSender {
     pub(crate) fn send(&self, task: ComputeTask) {
         let position = self
             .position_counter
@@ -104,7 +105,7 @@ impl WsSender {
     }
 }
 
-impl Drop for WsSender {
+impl Drop for RemoteSender {
     fn drop(&mut self) {
         self.close();
     }

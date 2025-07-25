@@ -1,0 +1,39 @@
+[package]
+authors = ["Guilhem Ané (@Cielbird)", "Nathaniel Simard (@nathanielsimard)"]
+description = "Abstractions for network communication for Burn"
+edition.workspace = true
+license.workspace = true
+name = "burn-communication"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-communication"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+data-service = ["burn-tensor"]
+websocket = ["axum", "tokio-tungstenite", "futures"]
+
+[dependencies]
+burn-common = { path = "../burn-common", version = "0.19.0", default-features = true }
+bytes = { workspace = true }
+derive-new = { workspace = true }
+futures-util = { workspace = true }
+log = { workspace = true }
+rmp-serde = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_bytes = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "sync", "signal"] }
+tokio-util = { workspace = true }
+tracing-core = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Tensor Data Service
+burn-tensor = { path = "../burn-tensor", version = "0.19.0", optional = true }
+
+# Websocket
+axum = { workspace = true, features = ["ws"], optional = true }
+tokio-tungstenite = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+
