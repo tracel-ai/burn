@@ -1,5 +1,5 @@
 use super::{expand, numeric, permute};
-use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
+use crate::kernel::prng::{random_bernoulli, random_multinomial, random_normal, random_uniform};
 use crate::kernel::unary_basic::BasicFloatUnaryKind;
 use crate::kernel::{
     self, FloatUnaryOp, FloatUnaryOpFamily, launch_unary_float, reduce, unary_basic,
@@ -48,6 +48,9 @@ where
             Distribution::Bernoulli(prob) => random_bernoulli::<R, F>(shape, device, prob as f32),
             Distribution::Normal(mean, std) => {
                 random_normal(shape, device, mean.elem::<F>(), std.elem())
+            }
+            Distribution::Multinomial(probs) => {
+                random_multinomial(shape, device, probs)
             }
         }
     }
