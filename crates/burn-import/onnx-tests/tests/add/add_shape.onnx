@@ -1,0 +1,33 @@
+
+onnx-tests:Ç
+
+input1shape1"Shape
+
+input2shape2"Shape
+3scalar"Constant*
+value*:
+Bconst_tensor 
+(
+shape1
+scalarshape_plus_scalar"Add
+'
+shape1
+shape2shape_plus_shape"Addshape_add_testZ
+input1
+
+
+
+Z
+input2
+
+
+
+b
+shape_plus_scalar
+
+
+b
+shape_plus_shape
+
+
+B

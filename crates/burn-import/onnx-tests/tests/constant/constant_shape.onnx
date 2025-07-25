@@ -1,0 +1,41 @@
+
+onnx-tests:Š
+
+inputinput_shape"Shape
+4scalar"Constant* 
+value*:Bscalar_tensor 
+?shape_constant"Constant*#
+value*:Bshape_tensor 
+,
+input_shape
+scalarshape_add_scalar"Add
+,
+input_shape
+scalarshape_mul_scalar"Mul
+3
+input_shape
+shape_constantshape_add_shape"Add
+3
+input_shape
+shape_constantshape_mul_shape"Mulconstant_shape_testZ
+input
+
+
+
+b
+shape_add_scalar
+
+
+b
+shape_mul_scalar
+
+
+b
+shape_add_shape
+
+
+b
+shape_mul_shape
+
+
+B

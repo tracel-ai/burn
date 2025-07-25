@@ -1,6 +1,6 @@
 // Include the models for this node type
 use crate::include_models;
-include_models!(add, add_int);
+include_models!(add, add_int, add_shape);
 
 #[cfg(test)]
 mod tests {
@@ -37,5 +37,24 @@ mod tests {
         let expected = TensorData::from([[[[9i64, 11, 13, 15]]]]);
 
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn add_shape_with_scalar_and_shape() {
+        // Initialize the model
+        let model: add_shape::Model<Backend> = add_shape::Model::default();
+
+        let device = Default::default();
+        // Create input tensors
+        let input1 = Tensor::<Backend, 3>::ones([2, 3, 4], &device);
+        let input2 = Tensor::<Backend, 3>::ones([5, 6, 7], &device);
+        let (shape_plus_scalar, shape_plus_shape) = model.forward(input1, input2);
+
+        // Expected outputs
+        let expected_scalar = [12, 13, 14]; // shape1 [2, 3, 4] + 10
+        let expected_shape = [7, 9, 11]; // shape1 [2, 3, 4] + shape2 [5, 6, 7]
+
+        assert_eq!(shape_plus_scalar, expected_scalar);
+        assert_eq!(shape_plus_shape, expected_shape);
     }
 }
