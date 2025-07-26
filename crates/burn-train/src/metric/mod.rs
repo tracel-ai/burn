@@ -2,6 +2,8 @@
 pub mod state;
 /// Module responsible to save and exposes data collected during training.
 pub mod store;
+/// Metrics module for vision tasks.
+pub mod vision;
 
 // System metrics
 #[cfg(feature = "sys-metrics")]
