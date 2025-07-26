@@ -18,6 +18,7 @@ use crate::{
         node::{
             argmax::ArgMaxNode,
             argmin::ArgMinNode,
+            attention::{AttentionNode, AttentionNodeInputs, AttentionNodeOutputs},
             avg_pool1d::AvgPool1dNode,
             avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
@@ -89,13 +90,13 @@ use onnx_ir::{
         TensorType as OnnxTensorType,
     },
     node::{
-        argmax::argmax_config, argmin::argmin_config, avg_pool1d::avg_pool1d_config,
-        avg_pool2d::avg_pool2d_config, batch_norm::batch_norm_config, clip::clip_config,
-        concat::concat_config, conv_transpose1d::conv_transpose1d_config,
-        conv_transpose2d::conv_transpose2d_config, conv_transpose3d::conv_transpose3d_config,
-        conv1d::conv1d_config, conv2d::conv2d_config, conv3d::conv3d_config,
-        depth_to_space::depth_to_space_config, dropout::dropout_config, expand::expand_config,
-        flatten::flatten_config, gather::gather_config, gemm::gemm_config,
+        argmax::argmax_config, argmin::argmin_config, attention::attention_config,
+        avg_pool1d::avg_pool1d_config, avg_pool2d::avg_pool2d_config,
+        batch_norm::batch_norm_config, clip::clip_config, concat::concat_config,
+        conv_transpose1d::conv_transpose1d_config, conv_transpose2d::conv_transpose2d_config,
+        conv_transpose3d::conv_transpose3d_config, conv1d::conv1d_config, conv2d::conv2d_config,
+        conv3d::conv3d_config, depth_to_space::depth_to_space_config, dropout::dropout_config,
+        expand::expand_config, flatten::flatten_config, gather::gather_config, gemm::gemm_config,
         group_norm::group_norm_config, hard_sigmoid::hard_sigmoid_config,
         instance_norm::instance_norm_config, is_inf::is_inf_config, layer_norm::layer_norm_config,
         leaky_relu::leaky_relu_config, linear::linear_config, log_softmax::log_softmax_config,
@@ -299,6 +300,7 @@ impl ParsedOnnxGraph {
             match node.node_type {
                 NodeType::Add => graph.register(Self::add_conversion(node)),
                 NodeType::ArgMax => graph.register(Self::argmax_conversion(node)),
+                NodeType::Attention => graph.register(Self::attention_conversion(node)),
                 NodeType::BitShift => graph.register(Self::bitshift_conversion(node)),
                 NodeType::BitwiseAnd => graph.register(Self::bitwise_and_conversion(node)),
                 NodeType::BitwiseOr => graph.register(Self::bitwise_or_conversion(node)),
@@ -1579,6 +1581,26 @@ impl ParsedOnnxGraph {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
         UnaryNode::is_nan(input, output)
+    }
+
+    fn attention_conversion(node: Node) -> AttentionNode {
+        let q = TensorType::from(node.inputs.first().unwrap());
+        let k = TensorType::from(node.inputs.get(1).unwrap());
+        let v = TensorType::from(node.inputs.get(2).unwrap());
+        let attn_mask = node.inputs.get(3).map(TensorType::from);
+        let past_key = node.inputs.get(4).map(TensorType::from);
+        let past_value = node.inputs.get(5).map(TensorType::from);
+        let y = TensorType::from(node.outputs.first().unwrap());
+        let present_key = node.outputs.get(1).map(TensorType::from);
+        let present_value = node.outputs.get(2).map(TensorType::from);
+        let qk_matmul_output = node.outputs.get(3).map(TensorType::from);
+        let config = attention_config(&node);
+
+        AttentionNode::new(
+            AttentionNodeInputs::new(q, k, v, attn_mask, past_key, past_value),
+            AttentionNodeOutputs::new(y, present_key, present_value, qk_matmul_output),
+            config,
+        )
     }
 }
 

@@ -1,0 +1,834 @@
+use super::Node;
+use crate::burn::{BurnImports, Scope, TensorKind, TensorType, Type, node::NodeCodegen};
+use burn::record::PrecisionSettings;
+use onnx_ir::node::attention::{AttentionConfig, AttentionQkMatmulOutputMode};
+use quote::quote;
+
+#[derive(Debug, Clone)]
+pub struct AttentionNode {
+    pub inputs: AttentionNodeInputs,
+    pub outputs: AttentionNodeOutputs,
+    pub config: AttentionConfig,
+}
+
+impl AttentionNode {
+    pub fn new(
+        inputs: AttentionNodeInputs,
+        outputs: AttentionNodeOutputs,
+        config: AttentionConfig,
+    ) -> Self {
+        Self {
+            inputs,
+            outputs,
+            config,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AttentionNodeInputs {
+    pub q: TensorType,
+    pub k: TensorType,
+    pub v: TensorType,
+    pub attn_mask: Option<TensorType>,
+    pub past_key: Option<TensorType>,
+    pub past_value: Option<TensorType>,
+}
+
+impl AttentionNodeInputs {
+    pub fn new(
+        q: TensorType,
+        k: TensorType,
+        v: TensorType,
+        attn_mask: Option<TensorType>,
+        past_key: Option<TensorType>,
+        past_value: Option<TensorType>,
+    ) -> Self {
+        Self {
+            q,
+            k,
+            v,
+            attn_mask,
+            past_key,
+            past_value,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AttentionNodeOutputs {
+    pub y: TensorType,
+    pub present_key: Option<TensorType>,
+    pub present_value: Option<TensorType>,
+    pub qk_matmul_output: Option<TensorType>,
+}
+
+impl AttentionNodeOutputs {
+    pub fn new(
+        y: TensorType,
+        present_key: Option<TensorType>,
+        present_value: Option<TensorType>,
+        qk_matmul_output: Option<TensorType>,
+    ) -> Self {
+        Self {
+            y,
+            present_key,
+            present_value,
+            qk_matmul_output,
+        }
+    }
+}
+
+impl<PS: PrecisionSettings> NodeCodegen<PS> for AttentionNode {
+    fn input_types(&self) -> Vec<Type> {
+        let mut v = vec![
+            Type::Tensor(self.inputs.q.clone()),
+            Type::Tensor(self.inputs.k.clone()),
+            Type::Tensor(self.inputs.v.clone()),
+        ];
+        if let Some(input_attn_mask) = self.inputs.attn_mask.clone() {
+            v.push(Type::Tensor(input_attn_mask));
+        }
+        if let Some(input_past_key) = self.inputs.past_key.clone() {
+            v.push(Type::Tensor(input_past_key));
+        }
+        if let Some(input_past_value) = self.inputs.past_value.clone() {
+            v.push(Type::Tensor(input_past_value));
+        }
+        v
+    }
+
+    fn output_types(&self) -> Vec<Type> {
+        let mut v = vec![Type::Tensor(self.outputs.y.clone())];
+        if let Some(output_present_key) = self.outputs.present_key.clone() {
+            v.push(Type::Tensor(output_present_key));
+        }
+        if let Some(output_present_value) = self.outputs.present_value.clone() {
+            v.push(Type::Tensor(output_present_value));
+        }
+        if let Some(output_qk_matmul_output) = self.outputs.qk_matmul_output.clone() {
+            v.push(Type::Tensor(output_qk_matmul_output));
+        }
+        v
+    }
+
+    fn forward(&self, scope: &mut Scope, node_position: usize) -> proc_macro2::TokenStream {
+        // For the description of the algorithm, see ONNX docs (https://onnx.ai/onnx/operators/onnx__Attention.html)
+        // or the reference implementation in onnx/reference/ops/op_attention.py
+
+        let past_kv = match (
+            self.inputs.past_key.as_ref(),
+            self.inputs.past_value.as_ref(),
+        ) {
+            (Some(a), Some(b)) => Some((a, b)),
+            (None, None) => None,
+            _ => panic!("Attention: past_key and past_value must be used together."),
+        };
+        let present_kv = match (
+            self.outputs.present_key.as_ref(),
+            self.outputs.present_value.as_ref(),
+        ) {
+            (Some(a), Some(b)) => Some((a, b)),
+            (None, None) => None,
+            _ => panic!("Attention: present_key and present_value must be used together."),
+        };
+
+        let mut q = scope.tensor_use_owned(&self.inputs.q, node_position);
+        let mut k = scope.tensor_use_owned(&self.inputs.k, node_position);
+        let mut v = scope.tensor_use_owned(&self.inputs.v, node_position);
+        let output_y = &self.outputs.y.name;
+        let sqrt_scale = self.config.scale.sqrt();
+
+        // Reshape the qk input if they are only 3D tensors
+        let mut reshape_output = quote! {};
+        let dims = &self.config.computed_dims;
+        if dims.rank == 3 {
+            let a = dims.batch_size;
+            let b = dims.q_sequence_length;
+            let c = dims.q_num_heads;
+            let d = dims.head_size;
+            q = quote! {
+                #q.reshape([#a, #b, #c, #d]).permute([0, 2, 1, 3])
+            };
+
+            {
+                let a: i32 = a
+                    .try_into()
+                    .expect("Attention: batch_size should fit into i32");
+                let b: i32 = b
+                    .try_into()
+                    .expect("Attention: q_sequence_length should fit into i32");
+                reshape_output = quote! {
+                    let #output_y = #output_y.permute([0, 2, 1, 3]).reshape([#a, #b, -1]);
+                };
+            }
+
+            let b = dims.kv_sequence_length;
+            let c = dims.kv_num_heads;
+            k = quote! {
+                #k.reshape([#a, #b, #c, #d]).permute([0, 2, 1, 3])
+            };
+            v = quote! {
+                #v.reshape([#a, #b, #c, #d]).permute([0, 2, 1, 3])
+            };
+        }
+
+        let apply_cache = match (past_kv, present_kv) {
+            (Some((past_k, past_v)), Some((present_k, present_v))) => {
+                let past_k = scope.tensor_use_owned(past_k, node_position);
+                let past_v = scope.tensor_use_owned(past_v, node_position);
+                let present_k = &present_k.name;
+                let present_v = &present_v.name;
+                let res = quote! {
+                    let #present_k = Tensor::cat([#past_k, #k].to_vec(), 2);
+                    let k = #present_k.clone();
+                    let #present_v = Tensor::cat([#past_v, #v].to_vec(), 2);
+                    let v = #present_v.clone();
+                };
+                k = quote! { k };
+                v = quote! { v };
+                res
+            }
+            (None, None) => quote! {},
+            _ => {
+                panic!("Attention: past_[key,value] and present_[key,value] must be used together.")
+            }
+        };
+
+        let qk = quote! { qk };
+
+        let mut attn_mask = match self.inputs.attn_mask.as_ref() {
+            Some(mask) => {
+                let mask_input = scope.tensor_use_owned(mask, node_position);
+                let [a, b, c, d] = dims.attn_mask_shape();
+                let mask = match mask.kind {
+                    TensorKind::Int => {
+                        quote! {{
+                            #mask_input.float()
+                        }}
+                    }
+                    TensorKind::Float => mask_input,
+                    TensorKind::Bool => {
+                        quote! {{
+                            let float_mask = Tensor::<B, 2>::zeros([#c, #d], &#mask_input.device());
+                            float_mask.mask_fill(#mask_input.bool_not(), f32::NEG_INFINITY)
+                        }}
+                    }
+                };
+
+                quote! {
+                    let #qk = #qk + #mask.expand::<4, _>([#a, #b, #c, #d]);
+                }
+            }
+            None => {
+                quote! {}
+            }
+        };
+        if self.config.is_causal {
+            let [a, b, c, d] = dims.attn_mask_shape();
+            attn_mask = quote! {
+                let #qk = {
+                    let mask = Tensor::<B, 2>::ones([#c, #d], &#qk.device());
+                    let mask = mask.tril(0).bool().bool_not();
+                    let float_mask = Tensor::<B, 2>::zeros([#c, #d], &mask.device()).mask_fill(mask, f32::NEG_INFINITY);
+                    #qk + float_mask.expand::<4, _>([#a, #b, #c, #d])
+                };
+            };
+        }
+
+        let capped = quote! { capped };
+        let (mut qk_matmul_a, mut qk_matmul_b, mut qk_matmul_c, mut qk_matmul_d) =
+            (quote! {}, quote! {}, quote! {}, quote! {});
+        if let Some(out) = self.outputs.qk_matmul_output.as_ref().map(|v| &v.name) {
+            match self.config.qk_matmul_output_mode {
+                AttentionQkMatmulOutputMode::Matmul => {
+                    qk_matmul_a = quote! {
+                        let #out = #qk.clone();
+                    };
+                }
+                AttentionQkMatmulOutputMode::MatmulPlusAttentionMask => {
+                    qk_matmul_b = quote! {
+                        let #out = #qk.clone();
+                    };
+                }
+                AttentionQkMatmulOutputMode::MatmulAfterSoftcap => {
+                    qk_matmul_c = quote! {
+                        let #out = #capped.clone();
+                    };
+                }
+                AttentionQkMatmulOutputMode::MatmulAfterSoftmax => {
+                    qk_matmul_d = quote! {
+                        let #out = scores.clone();
+                    };
+                }
+            }
+        }
+
+        let softcap = match self.config.softcap {
+            softcap if softcap != 0.0 => {
+                let inv_softcap = 1.0 / softcap;
+                // Implemented according to https://huggingface.co/blog/gemma2#soft-capping-and-attention-implementations
+                quote! {
+                    let #capped = {
+                        let score = #qk * #inv_softcap;
+                        let score = score.tanh();
+                        score * #softcap
+                    };
+                    #qk_matmul_c
+                }
+            }
+            _ => quote! {
+                let #capped = #qk;
+            },
+        };
+
+        if self.config.softmax_precision.is_some() {
+            panic!("Attention: non-default softmax precision is not yet supported")
+        }
+
+        let mut output = vec![output_y];
+        match present_kv {
+            Some((a, b)) => output.extend_from_slice(&[&a.name, &b.name]),
+            None => (),
+        }
+        if let Some(t) = self.outputs.qk_matmul_output.as_ref() {
+            output.push(&t.name);
+        }
+        let output = quote! { (#(#output,)*) };
+
+        quote! {
+            let #output = {
+                #apply_cache
+                let q_scaled = #q * #sqrt_scale;
+                let k_scaled = #k * #sqrt_scale;
+                let k_transpose = k_scaled.transpose();
+                let #qk = q_scaled.matmul(k_transpose);
+                #qk_matmul_a
+                #attn_mask
+                #qk_matmul_b
+                #softcap
+                let scores = softmax(#capped, 3);
+                #qk_matmul_d
+                let #output_y = scores.matmul(#v);
+                #reshape_output
+                #output
+            };
+        }
+    }
+
+    fn register_imports(&self, imports: &mut BurnImports) {
+        imports.register("burn::tensor::activation::softmax");
+
+        if let Some(mask) = self.inputs.attn_mask.as_ref() {
+            match mask.kind {
+                TensorKind::Bool => imports.register("burn::tensor::Bool"),
+                TensorKind::Int => imports.register("burn::tensor::Int"),
+                _ => (),
+            }
+        }
+    }
+
+    fn into_node(self) -> Node<PS> {
+        Node::Attention(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::burn::node::tests::one_node_graph;
+    use onnx_ir::node::attention::AttentionDims;
+
+    #[test]
+    fn test_attention_codegen_simple_4d() {
+        one_node_graph(
+            AttentionNode::new(
+                AttentionNodeInputs::new(
+                    TensorType::new_float("q", 4),
+                    TensorType::new_float("k", 4),
+                    TensorType::new_float("v", 4),
+                    None,
+                    None,
+                    None,
+                ),
+                AttentionNodeOutputs::new(TensorType::new_float("y", 4), None, None, None),
+                AttentionConfig::new(
+                    false,
+                    AttentionQkMatmulOutputMode::Matmul,
+                    0.7071067811865475,
+                    0.0,
+                    None,
+                    AttentionDims {
+                        rank: 4,
+                        batch_size: 1,
+                        head_size: 2,
+                        q_num_heads: 1,
+                        kv_num_heads: 1,
+                        q_sequence_length: 2,
+                        kv_sequence_length: 2,
+                        q_hidden_size: 2,
+                        k_hidden_size: 2,
+                        v_hidden_size: 2,
+                        v_head_size: 2,
+                        total_sequence_length: 2,
+                    },
+                ),
+            ),
+            quote! {
+                pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let (y,) = {
+                        let q_scaled = q * 0.8408964152537145f64;
+                        let k_scaled = k * 0.8408964152537145f64;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let capped = qk;
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(v);
+                        (y,)
+                    };
+                    y
+                }
+            },
+            vec!["q".into(), "k".into(), "v".into()],
+            vec!["y".into()],
+        );
+    }
+
+    #[test]
+    fn test_attention_codegen_simple_3d() {
+        one_node_graph(
+            AttentionNode::new(
+                AttentionNodeInputs::new(
+                    TensorType::new_float("q", 3),
+                    TensorType::new_float("k", 3),
+                    TensorType::new_float("v", 3),
+                    None,
+                    None,
+                    None,
+                ),
+                AttentionNodeOutputs::new(TensorType::new_float("y", 3), None, None, None),
+                AttentionConfig::new(
+                    false,
+                    AttentionQkMatmulOutputMode::Matmul,
+                    0.7071067811865475,
+                    0.0,
+                    None,
+                    AttentionDims {
+                        rank: 3,
+                        batch_size: 1,
+                        head_size: 2,
+                        q_num_heads: 1,
+                        kv_num_heads: 1,
+                        q_sequence_length: 2,
+                        kv_sequence_length: 2,
+                        q_hidden_size: 2,
+                        k_hidden_size: 2,
+                        v_hidden_size: 2,
+                        v_head_size: 2,
+                        total_sequence_length: 2,
+                    },
+                ),
+            ),
+            quote! {
+                pub fn forward(&self, q: Tensor<B, 3>, k: Tensor<B, 3>, v: Tensor<B, 3>) -> Tensor<B, 3> {
+                    let (y,) = {
+                        let q_scaled = q
+                            .reshape([1usize, 2usize, 1usize, 2usize])
+                            .permute([0, 2, 1, 3])
+                            * 0.8408964152537145f64;
+                        let k_scaled = k
+                            .reshape([1usize, 2usize, 1usize, 2usize])
+                            .permute([0, 2, 1, 3])
+                            * 0.8408964152537145f64;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let capped = qk;
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(
+                            v
+                                .reshape([1usize, 2usize, 1usize, 2usize])
+                                .permute([0, 2, 1, 3]),
+                        );
+                        let y = y
+                            .permute([0, 2, 1, 3])
+                            .reshape([1i32, 2i32, -1]);
+                        (y,)
+                    };
+                    y
+                }
+            },
+            vec!["q".into(), "k".into(), "v".into()],
+            vec!["y".into()],
+        );
+    }
+
+    #[test]
+    fn test_attention_codegen_attn_mask_bool() {
+        one_node_graph(
+            AttentionNode::new(
+                AttentionNodeInputs::new(
+                    TensorType::new_float("q", 4),
+                    TensorType::new_float("k", 4),
+                    TensorType::new_float("v", 4),
+                    Some(TensorType::new_bool("attn_mask", 2)),
+                    None,
+                    None,
+                ),
+                AttentionNodeOutputs::new(TensorType::new_float("y", 4), None, None, None),
+                AttentionConfig::new(
+                    false,
+                    AttentionQkMatmulOutputMode::Matmul,
+                    0.7071067811865475,
+                    0.0,
+                    None,
+                    AttentionDims {
+                        rank: 4,
+                        batch_size: 1,
+                        head_size: 2,
+                        q_num_heads: 1,
+                        kv_num_heads: 1,
+                        q_sequence_length: 2,
+                        kv_sequence_length: 2,
+                        q_hidden_size: 2,
+                        k_hidden_size: 2,
+                        v_hidden_size: 2,
+                        v_head_size: 2,
+                        total_sequence_length: 2,
+                    },
+                ),
+            ),
+            quote! {
+                pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>, attn_mask: Tensor<B, 2, Bool>) -> Tensor<B, 4> {
+                    let (y,) = {
+                        let q_scaled = q * 0.8408964152537145f64;
+                        let k_scaled = k * 0.8408964152537145f64;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let qk = qk + {
+                            let float_mask = Tensor::<B, 2>::zeros([2usize, 2usize], &attn_mask.device());
+                            float_mask.mask_fill(attn_mask.bool_not(), f32::NEG_INFINITY)
+                        }
+                        .expand::<4, _>([1usize, 1usize, 2usize, 2usize]);
+                        let capped = qk;
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(v);
+                        (y,)
+                    };
+                    y
+                }
+            },
+            vec!["q".into(), "k".into(), "v".into(), "attn_mask".into()],
+            vec!["y".into()],
+        );
+    }
+
+    #[test]
+    fn test_attention_codegen_attn_mask_int() {
+        one_node_graph(
+            AttentionNode::new(
+                AttentionNodeInputs::new(
+                    TensorType::new_float("q", 4),
+                    TensorType::new_float("k", 4),
+                    TensorType::new_float("v", 4),
+                    Some(TensorType::new_int("attn_mask", 2)),
+                    None,
+                    None,
+                ),
+                AttentionNodeOutputs::new(TensorType::new_float("y", 4), None, None, None),
+                AttentionConfig::new(
+                    false,
+                    AttentionQkMatmulOutputMode::Matmul,
+                    0.7071067811865475,
+                    0.0,
+                    None,
+                    AttentionDims {
+                        rank: 4,
+                        batch_size: 1,
+                        head_size: 2,
+                        q_num_heads: 1,
+                        kv_num_heads: 1,
+                        q_sequence_length: 2,
+                        kv_sequence_length: 2,
+                        q_hidden_size: 2,
+                        k_hidden_size: 2,
+                        v_hidden_size: 2,
+                        v_head_size: 2,
+                        total_sequence_length: 2,
+                    },
+                ),
+            ),
+            quote! {
+                pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>, attn_mask: Tensor<B, 2, Int>) -> Tensor<B, 4> {
+                    let (y,) = {
+                        let q_scaled = q * 0.8408964152537145f64;
+                        let k_scaled = k * 0.8408964152537145f64;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let qk = qk + { attn_mask.float() }.expand::<4, _>([1usize, 1usize, 2usize, 2usize]);
+                        let capped = qk;
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(v);
+                        (y,)
+                    };
+                    y
+                }
+            },
+            vec!["q".into(), "k".into(), "v".into(), "attn_mask".into()],
+            vec!["y".into()],
+        );
+    }
+
+    #[test]
+    fn test_attention_codegen_attn_mask_float() {
+        one_node_graph(
+            AttentionNode::new(
+                AttentionNodeInputs::new(
+                    TensorType::new_float("q", 4),
+                    TensorType::new_float("k", 4),
+                    TensorType::new_float("v", 4),
+                    Some(TensorType::new_float("attn_mask", 2)),
+                    None,
+                    None,
+                ),
+                AttentionNodeOutputs::new(TensorType::new_float("y", 4), None, None, None),
+                AttentionConfig::new(
+                    false,
+                    AttentionQkMatmulOutputMode::Matmul,
+                    0.7071067811865475,
+                    0.0,
+                    None,
+                    AttentionDims {
+                        rank: 4,
+                        batch_size: 1,
+                        head_size: 2,
+                        q_num_heads: 1,
+                        kv_num_heads: 1,
+                        q_sequence_length: 2,
+                        kv_sequence_length: 2,
+                        q_hidden_size: 2,
+                        k_hidden_size: 2,
+                        v_hidden_size: 2,
+                        v_head_size: 2,
+                        total_sequence_length: 2,
+                    },
+                ),
+            ),
+            quote! {
+                pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>, attn_mask: Tensor<B, 2>) -> Tensor<B, 4> {
+                    let (y,) = {
+                        let q_scaled = q * 0.8408964152537145f64;
+                        let k_scaled = k * 0.8408964152537145f64;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let qk = qk + attn_mask.expand::<4, _>([1usize, 1usize, 2usize, 2usize]);
+                        let capped = qk;
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(v);
+                        (y,)
+                    };
+                    y
+                }
+            },
+            vec!["q".into(), "k".into(), "v".into(), "attn_mask".into()],
+            vec!["y".into()],
+        );
+    }
+
+    #[test]
+    fn test_attention_codegen_softcap() {
+        one_node_graph(
+            AttentionNode::new(
+                AttentionNodeInputs::new(
+                    TensorType::new_float("q", 4),
+                    TensorType::new_float("k", 4),
+                    TensorType::new_float("v", 4),
+                    None,
+                    None,
+                    None,
+                ),
+                AttentionNodeOutputs::new(TensorType::new_float("y", 4), None, None, None),
+                AttentionConfig::new(
+                    false,
+                    AttentionQkMatmulOutputMode::Matmul,
+                    0.7071067811865475,
+                    2.0,
+                    None,
+                    AttentionDims {
+                        rank: 4,
+                        batch_size: 1,
+                        head_size: 2,
+                        q_num_heads: 1,
+                        kv_num_heads: 1,
+                        q_sequence_length: 2,
+                        kv_sequence_length: 2,
+                        q_hidden_size: 2,
+                        k_hidden_size: 2,
+                        v_hidden_size: 2,
+                        v_head_size: 2,
+                        total_sequence_length: 2,
+                    },
+                ),
+            ),
+            quote! {
+                pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let (y,) = {
+                        let q_scaled = q * 0.8408964152537145f64;
+                        let k_scaled = k * 0.8408964152537145f64;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let capped = {
+                            let score = qk * 0.5f64;
+                            let score = score.tanh();
+                            score * 2f64
+                        };
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(v);
+                        (y,)
+                    };
+                    y
+                }
+            },
+            vec!["q".into(), "k".into(), "v".into()],
+            vec!["y".into()],
+        );
+    }
+
+    #[test]
+    fn test_attention_codegen_cache() {
+        one_node_graph(
+            AttentionNode::new(
+                AttentionNodeInputs::new(
+                    TensorType::new_float("q", 4),
+                    TensorType::new_float("k", 4),
+                    TensorType::new_float("v", 4),
+                    Some(TensorType::new_bool("attn_mask", 2)),
+                    Some(TensorType::new_float("past_key", 4)),
+                    Some(TensorType::new_float("past_value", 4)),
+                ),
+                AttentionNodeOutputs::new(
+                    TensorType::new_float("y", 4),
+                    Some(TensorType::new_float("present_key", 4)),
+                    Some(TensorType::new_float("present_value", 4)),
+                    None,
+                ),
+                AttentionConfig::new(
+                    false,
+                    AttentionQkMatmulOutputMode::Matmul,
+                    0.7071067811865475,
+                    0.0,
+                    None,
+                    AttentionDims {
+                        rank: 4,
+                        batch_size: 1,
+                        head_size: 2,
+                        q_num_heads: 1,
+                        kv_num_heads: 1,
+                        q_sequence_length: 2,
+                        kv_sequence_length: 1,
+                        q_hidden_size: 2,
+                        k_hidden_size: 2,
+                        v_hidden_size: 2,
+                        v_head_size: 2,
+                        total_sequence_length: 2,
+                    },
+                ),
+            ),
+            quote! {
+                pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>, attn_mask: Tensor<B, 2, Bool>,
+                    past_key: Tensor<B, 4>, past_value: Tensor<B, 4>) -> (Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>) {
+                    let (y, present_key, present_value) = {
+                        let present_key = Tensor::cat([past_key, k].to_vec(), 2);
+                        let k = present_key.clone();
+                        let present_value = Tensor::cat([past_value, v].to_vec(), 2);
+                        let v = present_value.clone();
+                        let q_scaled = q * 0.8408964152537145f64;
+                        let k_scaled = k * 0.8408964152537145f64;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let qk = qk + {
+                            let float_mask = Tensor::<B, 2>::zeros([2usize, 2usize], &attn_mask.device());
+                            float_mask.mask_fill(attn_mask.bool_not(), f32::NEG_INFINITY)
+                        }
+                        .expand::<4, _>([1usize, 1usize, 2usize, 2usize]);
+                        let capped = qk;
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(v);
+                        (y, present_key, present_value)
+                    };
+                    (y, present_key, present_value)
+                }
+            },
+            vec![
+                "q".into(),
+                "k".into(),
+                "v".into(),
+                "attn_mask".into(),
+                "past_key".into(),
+                "past_value".into(),
+            ],
+            vec!["y".into(), "present_key".into(), "present_value".into()],
+        );
+    }
+
+    #[test]
+    fn test_attention_codegen_is_causal() {
+        one_node_graph(
+            AttentionNode::new(
+                AttentionNodeInputs::new(
+                    TensorType::new_float("q", 4),
+                    TensorType::new_float("k", 4),
+                    TensorType::new_float("v", 4),
+                    None,
+                    None,
+                    None,
+                ),
+                AttentionNodeOutputs::new(TensorType::new_float("y", 4), None, None, None),
+                AttentionConfig::new(
+                    true,
+                    AttentionQkMatmulOutputMode::Matmul,
+                    0.7071067811865475,
+                    0.0,
+                    None,
+                    AttentionDims {
+                        rank: 4,
+                        batch_size: 1,
+                        head_size: 2,
+                        q_num_heads: 1,
+                        kv_num_heads: 1,
+                        q_sequence_length: 2,
+                        kv_sequence_length: 2,
+                        q_hidden_size: 2,
+                        k_hidden_size: 2,
+                        v_hidden_size: 2,
+                        v_head_size: 2,
+                        total_sequence_length: 2,
+                    },
+                ),
+            ),
+            quote! {
+                pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let (y,) = {
+                        let q_scaled = q * 0.8408964152537145f64;
+                        let k_scaled = k * 0.8408964152537145f64;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let qk = {
+                            let mask = Tensor::<B, 2>::ones([2usize, 2usize], &qk.device());
+                            let mask = mask.tril(0).bool().bool_not();
+                            let float_mask = Tensor::<B, 2>::zeros([2usize, 2usize], &mask.device())
+                                .mask_fill(mask, f32::NEG_INFINITY);
+                            qk + float_mask.expand::<4, _>([1usize, 1usize, 2usize, 2usize])
+                        };
+                        let capped = qk;
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(v);
+                        (y,)
+                    };
+                    y
+                }
+            },
+            vec!["q".into(), "k".into(), "v".into()],
+            vec!["y".into()],
+        );
+    }
+}

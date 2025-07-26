@@ -9,6 +9,7 @@ pub mod add;
 pub mod and;
 pub mod argmax;
 pub mod argmin;
+pub mod attention;
 pub mod avg_pool;
 pub mod batch_norm;
 pub mod bernoulli;

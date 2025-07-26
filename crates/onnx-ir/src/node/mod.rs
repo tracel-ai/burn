@@ -12,6 +12,7 @@ pub mod test_utils;
 
 pub mod argmax;
 pub mod argmin;
+pub mod attention;
 pub mod avg_pool1d;
 pub mod avg_pool2d;
 pub mod batch_norm;
