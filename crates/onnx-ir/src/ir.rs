@@ -290,6 +290,7 @@ pub enum NodeType {
     Asinh,
     Atan,
     Atanh,
+    Attention,
     AveragePool,
     AveragePool1d,
     AveragePool2d,
