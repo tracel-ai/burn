@@ -208,12 +208,12 @@ fn compute_dims(node: &Node) -> AttentionDims {
             "Attention: Q, K parameters must agree on head_size. Got {q_head}, {k_head} respectively."
         )
     }
-    if let Some((k_heads, v_heads)) = k_heads.zip(v_heads)
-        && k_heads != v_heads
-    {
-        panic!(
-            "Attention: K, V parameters must agree on kv_num_heads. Got {k_heads}, {v_heads} respectively."
-        )
+    if let Some((k_heads, v_heads)) = k_heads.zip(v_heads) {
+        if k_heads != v_heads {
+            panic!(
+                "Attention: K, V parameters must agree on kv_num_heads. Got {k_heads}, {v_heads} respectively."
+            )
+        }
     }
     if k_seq != v_seq {
         panic!(
