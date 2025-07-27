@@ -171,3 +171,13 @@ mod tests {
         let expected_shape = Shape::new([256, 1]);
         assert_eq!(unsqueezed_tensor.shape(), expected_shape);
     }
+
+    /// Test if the function can successfully unsqueeze multiple dimensions at boundary positions.
+    #[test]
+    fn should_unsqueeze_dims_at_boundaries() {
+        let input_tensor = TestTensor::<1>::ones(Shape::new([256]), &Default::default());
+        let output_tensor = input_tensor.unsqueeze_dims::<3>(&[0, 1]);
+        let expected_shape = Shape::new([1, 1, 256]);
+        assert_eq!(output_tensor.shape(), expected_shape);
+    }
+}
