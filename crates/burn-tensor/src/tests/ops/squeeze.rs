@@ -162,4 +162,12 @@ mod tests {
         let input_tensor = TestTensor::<3>::ones(Shape::new([3, 4, 5]), &Default::default());
         let output_tensor: Tensor<TestBackend, 5> = input_tensor.unsqueeze_dims(&[0, -6]);
     }
-}
+
+    /// Test if the function can successfully unsqueeze dimension at the boundary when dim equals tensor rank.
+    #[test]
+    fn should_unsqueeze_dim_at_boundary() {
+        let tensor = TestTensor::<1>::ones(Shape::new([256]), &Default::default());
+        let unsqueezed_tensor: Tensor<TestBackend, 2> = tensor.unsqueeze_dim(1);
+        let expected_shape = Shape::new([256, 1]);
+        assert_eq!(unsqueezed_tensor.shape(), expected_shape);
+    }
