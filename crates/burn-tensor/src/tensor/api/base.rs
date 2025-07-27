@@ -751,11 +751,9 @@ where
 
         dims[0..dim].copy_from_slice(&shape.dims[0..dim]);
 
+        dims[dim] = 1;
         if dim < D {
-            dims[dim] = 1;
             dims[(dim + 1)..].copy_from_slice(&shape.dims[dim..]);
-        } else {
-            dims[dim] = 1;
         }
 
         let shape = Shape::new(dims);
