@@ -816,7 +816,7 @@ where
             if prev_idx < *d {
                 current_right_b = *d - offset;
                 //copy the chunks of the dims
-                if current_right_b < D {
+                if current_right_b <= D {
                     new_dims[prev_idx..*d]
                         .copy_from_slice(&old_dims[current_left_b..current_right_b]);
                 } else {
