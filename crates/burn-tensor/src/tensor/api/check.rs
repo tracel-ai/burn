@@ -401,7 +401,7 @@ impl TensorCheck {
             check = check.register(
                 "Unsqueeze",
                 TensorError::new(format!(
-                    "Can't unsqueeze smaller tensor, got dim {D2}, expected > {D1}"
+                    "Can't unsqueeze smaller tensor, got dim {D2}, expected > {D1}",
                 )),
             );
         }
@@ -415,7 +415,7 @@ impl TensorCheck {
             check = check.register(
                 "Unsqueeze",
                 TensorError::new(format!(
-                    "The output rank must be greater than the input rank (D={D1}; D2={D2})",
+                    "The unsqueezed rank must be greater than the input rank (D={D1}; D2={D2})",
                 )),
             );
         }
