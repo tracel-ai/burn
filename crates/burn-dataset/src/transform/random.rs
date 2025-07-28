@@ -7,6 +7,9 @@ use rand::rngs::StdRng;
 /// This is a thin wrapper around a [SelectionDataset] which selects and shuffles
 /// the full indices of the original dataset.
 ///
+/// Consider using [SelectionDataset] if you are only interested in
+/// shuffling mechanisms.
+///
 /// Consider using [sampler dataset](crate::transform::SamplerDataset) if you
 /// want a probability distribution which is computed lazily.
 pub struct ShuffledDataset<D, I>
@@ -24,8 +27,7 @@ where
 {
     /// Creates a new selection dataset with shuffled indices.
     ///
-    /// Selects every index of the dataset and shuffles them
-    /// using `shuffled_indices`.
+    /// This is a thin wrapper around `SelectionDataset::new_shuffled`.
     ///
     /// # Arguments
     ///
@@ -34,7 +36,7 @@ where
     ///
     /// # Returns
     ///
-    /// A new `SelectionDataset` with shuffled indices.
+    /// A new `ShuffledDataset`.
     pub fn new(dataset: D, rng: &mut StdRng) -> Self {
         Self {
             wrapped: SelectionDataset::new_shuffled(dataset, rng),
@@ -43,8 +45,7 @@ where
 
     /// Creates a new selection dataset with shuffled indices using a fixed seed.
     ///
-    /// Selects every index of the dataset and shuffles them
-    /// using `shuffled_indices`; seeds the random number generator with the provided seed.
+    /// This is a thin wrapper around `SelectionDataset::new_shuffled_with_seed`.
     ///
     /// # Arguments
     ///
@@ -53,7 +54,7 @@ where
     ///
     /// # Returns
     ///
-    /// A new `SelectionDataset` with shuffled indices.
+    /// A new `ShuffledDataset`.
     pub fn with_seed(dataset: D, seed: u64) -> Self {
         Self {
             wrapped: SelectionDataset::new_shuffled_with_seed(dataset, seed),

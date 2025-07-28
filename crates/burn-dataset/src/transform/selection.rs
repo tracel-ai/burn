@@ -14,6 +14,7 @@ use std::sync::Arc;
 /// # Returns
 ///
 /// A vector containing indices from 0 to size - 1.
+// TODO: lift/unify `burn::tensor::indexing` to `burn::core:indexing`; move this there.
 #[inline(always)]
 pub fn iota(size: usize) -> Vec<usize> {
     (0..size).collect()
@@ -28,6 +29,7 @@ pub fn iota(size: usize) -> Vec<usize> {
 /// # Returns
 ///
 /// A vector of shuffled indices.
+// TODO: lift/unify `burn::tensor::indexing` to `burn::core:indexing`; move this there.
 #[inline(always)]
 pub fn shuffled_indices(size: usize, rng: &mut StdRng) -> Vec<usize> {
     let mut indices = iota(size);
@@ -131,7 +133,7 @@ where
     /// Creates a new selection dataset with shuffled indices.
     ///
     /// Selects every index of the dataset and shuffles them
-    /// using `shuffled_indices`.
+    /// with randomness from the provided random number generator.
     ///
     /// # Arguments
     ///
@@ -153,7 +155,7 @@ where
     /// Creates a new selection dataset with shuffled indices using a fixed seed.
     ///
     /// Selects every index of the dataset and shuffles them
-    /// using `shuffled_indices`; seeds the random number generator with the provided seed.
+    /// with randomness seeded from the provided seed.
     ///
     /// # Arguments
     ///
@@ -201,12 +203,12 @@ where
     ///
     /// Independent of future shuffles on the parent, but shares the same wrapped dataset.
     ///
-    /// TODO: RangeArg in burn-tensor should be lifted to burn-common.
     ///
     /// # Arguments
     ///
     /// * `start` - The start of the range.
     /// * `end` - The end of the range (exclusive).
+    // TODO: RangeArg in burn-tensor should be lifted to burn-common; this should use RangeArg.
     pub fn slice(&self, start: usize, end: usize) -> Self {
         Self::from_indices_unchecked(self.wrapped.clone(), self.indices[start..end].to_vec())
     }
