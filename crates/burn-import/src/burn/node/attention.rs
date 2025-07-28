@@ -133,91 +133,111 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AttentionNode {
             _ => panic!("Attention: present_key and present_value must be used together."),
         };
 
-        let mut q = scope.tensor_use_owned(&self.inputs.q, node_position);
-        let mut k = scope.tensor_use_owned(&self.inputs.k, node_position);
-        let mut v = scope.tensor_use_owned(&self.inputs.v, node_position);
+        let rank = self.inputs.q.rank;
+
+        let q = scope.tensor_use_owned(&self.inputs.q, node_position);
+        let k = scope.tensor_use_owned(&self.inputs.k, node_position);
+        let v = scope.tensor_use_owned(&self.inputs.v, node_position);
         let output_y = &self.outputs.y.name;
-        let sqrt_scale = self.config.scale.sqrt();
+
+        let mut body = proc_macro2::TokenStream::new();
+        body.extend(quote! {
+            let q = #q;
+            let k = #k;
+            let v = #v;
+        });
+
+        let scale = self.config.scale.map(|scale| {
+            let scale = scale.sqrt();
+            quote! {
+                let scale = #scale;
+            }
+        });
 
         // Reshape the qk input if they are only 3D tensors
         let mut reshape_output = quote! {};
-        let dims = &self.config.computed_dims;
-        if dims.rank == 3 {
-            let a = dims.batch_size;
-            let b = dims.q_sequence_length;
-            let c = dims.q_num_heads;
-            let d = dims.head_size;
-            q = quote! {
-                #q.reshape([#a, #b, #c, #d]).permute([0, 2, 1, 3])
-            };
+        if rank == 3 {
+            let kv_num_heads = self.config.kv_num_heads;
+            let q_num_heads = self.config.q_num_heads;
 
-            {
-                let a: i32 = a
-                    .try_into()
-                    .expect("Attention: batch_size should fit into i32");
-                let b: i32 = b
-                    .try_into()
-                    .expect("Attention: q_sequence_length should fit into i32");
-                reshape_output = quote! {
-                    let #output_y = #output_y.permute([0, 2, 1, 3]).reshape([#a, #b, -1]);
-                };
-            }
+            body.extend(quote! {
+                let [batch_size, q_sequence_length, q_hidden_size] = q.dims();
+                let head_size = q_hidden_size / #q_num_heads;
+                let kv_sequence_length = k.dims()[1];
+                let v_head_size = v.dims()[2] / #kv_num_heads;
+                let q = q.reshape([batch_size, q_sequence_length, #q_num_heads, head_size])
+                        .permute([0, 2, 1, 3]);
+                let k = k.reshape([batch_size, kv_sequence_length, #kv_num_heads, head_size])
+                        .permute([0, 2, 1, 3]);
+                let v = v.reshape([batch_size, kv_sequence_length, #kv_num_heads, v_head_size])
+                        .permute([0, 2, 1, 3]);
+            });
+            body.extend(scale.unwrap_or_else(|| {
+                quote! {
+                    let scale = (1.0 / (head_size as f64).sqrt()).sqrt();
+                }
+            }));
 
-            let b = dims.kv_sequence_length;
-            let c = dims.kv_num_heads;
-            k = quote! {
-                #k.reshape([#a, #b, #c, #d]).permute([0, 2, 1, 3])
+            reshape_output = quote! {
+                let #output_y = #output_y.permute([0, 2, 1, 3]).reshape([batch_size as i32, q_sequence_length as i32, -1]);
             };
-            v = quote! {
-                #v.reshape([#a, #b, #c, #d]).permute([0, 2, 1, 3])
-            };
+        } else {
+            body.extend(scale.unwrap_or_else(|| {
+                quote! {
+                    let scale = (1.0 / (q.dims()[3] as f64).sqrt()).sqrt();
+                }
+            }));
         }
 
-        let apply_cache = match (past_kv, present_kv) {
+        match (past_kv, present_kv) {
             (Some((past_k, past_v)), Some((present_k, present_v))) => {
                 let past_k = scope.tensor_use_owned(past_k, node_position);
                 let past_v = scope.tensor_use_owned(past_v, node_position);
                 let present_k = &present_k.name;
                 let present_v = &present_v.name;
-                let res = quote! {
-                    let #present_k = Tensor::cat([#past_k, #k].to_vec(), 2);
+
+                body.extend(quote! {
+                    let #present_k = Tensor::cat([#past_k, k].to_vec(), 2);
                     let k = #present_k.clone();
-                    let #present_v = Tensor::cat([#past_v, #v].to_vec(), 2);
+                    let #present_v = Tensor::cat([#past_v, v].to_vec(), 2);
                     let v = #present_v.clone();
-                };
-                k = quote! { k };
-                v = quote! { v };
-                res
+                });
             }
-            (None, None) => quote! {},
+            (None, None) => (),
             _ => {
                 panic!("Attention: past_[key,value] and present_[key,value] must be used together.")
             }
-        };
+        }
+
+        if self.inputs.attn_mask.is_some() || self.config.is_causal {
+            body.extend(quote! {
+                let q_dims = q.dims();
+                let k_dims = k.dims();
+            });
+        }
 
         let qk = quote! { qk };
-
+        let attn_mask_shape = quote! {{
+            let [batch_size, q_num_heads, q_sequence_length, _] = q_dims;
+            [batch_size, q_num_heads, q_sequence_length, k_dims[2]]
+        }};
         let mut attn_mask = match self.inputs.attn_mask.as_ref() {
             Some(mask) => {
                 let mask_input = scope.tensor_use_owned(mask, node_position);
-                let [a, b, c, d] = dims.attn_mask_shape();
                 let mask = match mask.kind {
-                    TensorKind::Int => {
-                        quote! {{
-                            #mask_input.float()
-                        }}
-                    }
+                    TensorKind::Int => quote! { #mask_input.float() },
                     TensorKind::Float => mask_input,
                     TensorKind::Bool => {
                         quote! {{
-                            let float_mask = Tensor::<B, 2>::zeros([#c, #d], &#mask_input.device());
+                            let float_mask = Tensor::<B, 2>::zeros([shape[2], shape[3]], &#mask_input.device());
                             float_mask.mask_fill(#mask_input.bool_not(), f32::NEG_INFINITY)
                         }}
                     }
                 };
 
                 quote! {
-                    let #qk = #qk + #mask.expand::<4, _>([#a, #b, #c, #d]);
+                    let shape = #attn_mask_shape;
+                    let #qk = #qk + #mask.expand::<4, _>(shape);
                 }
             }
             None => {
@@ -225,13 +245,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AttentionNode {
             }
         };
         if self.config.is_causal {
-            let [a, b, c, d] = dims.attn_mask_shape();
             attn_mask = quote! {
                 let #qk = {
-                    let mask = Tensor::<B, 2>::ones([#c, #d], &#qk.device());
+                    let shape = #attn_mask_shape;
+                    let mask = Tensor::<B, 2>::ones([shape[2], shape[3]], &#qk.device());
                     let mask = mask.tril(0).bool().bool_not();
-                    let float_mask = Tensor::<B, 2>::zeros([#c, #d], &mask.device()).mask_fill(mask, f32::NEG_INFINITY);
-                    #qk + float_mask.expand::<4, _>([#a, #b, #c, #d])
+                    let float_mask = Tensor::<B, 2>::zeros([shape[2], shape[3]], &mask.device()).mask_fill(mask, f32::NEG_INFINITY);
+                    #qk + float_mask.expand::<4, _>(shape)
                 };
             };
         }
@@ -298,9 +318,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AttentionNode {
 
         quote! {
             let #output = {
-                #apply_cache
-                let q_scaled = #q * #sqrt_scale;
-                let k_scaled = #k * #sqrt_scale;
+                #body
+
+                let q_scaled = q * scale;
+                let k_scaled = k * scale;
                 let k_transpose = k_scaled.transpose();
                 let #qk = q_scaled.matmul(k_transpose);
                 #qk_matmul_a
@@ -309,7 +330,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AttentionNode {
                 #softcap
                 let scores = softmax(#capped, 3);
                 #qk_matmul_d
-                let #output_y = scores.matmul(#v);
+                let #output_y = scores.matmul(v);
                 #reshape_output
                 #output
             };
@@ -337,7 +358,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AttentionNode {
 mod tests {
     use super::*;
     use crate::burn::node::tests::one_node_graph;
-    use onnx_ir::node::attention::AttentionDims;
 
     #[test]
     fn test_attention_codegen_simple_4d() {
@@ -354,31 +374,23 @@ mod tests {
                 AttentionNodeOutputs::new(TensorType::new_float("y", 4), None, None, None),
                 AttentionConfig::new(
                     false,
+                    None,
+                    None,
                     AttentionQkMatmulOutputMode::Matmul,
-                    0.7071067811865475,
+                    None,
                     0.0,
                     None,
-                    AttentionDims {
-                        rank: 4,
-                        batch_size: 1,
-                        head_size: 2,
-                        q_num_heads: 1,
-                        kv_num_heads: 1,
-                        q_sequence_length: 2,
-                        kv_sequence_length: 2,
-                        q_hidden_size: 2,
-                        k_hidden_size: 2,
-                        v_hidden_size: 2,
-                        v_head_size: 2,
-                        total_sequence_length: 2,
-                    },
                 ),
             ),
             quote! {
                 pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>) -> Tensor<B, 4> {
                     let (y,) = {
-                        let q_scaled = q * 0.8408964152537145f64;
-                        let k_scaled = k * 0.8408964152537145f64;
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let scale = (1.0 / (q.dims()[3] as f64).sqrt()).sqrt();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
                         let k_transpose = k_scaled.transpose();
                         let qk = q_scaled.matmul(k_transpose);
                         let capped = qk;
@@ -409,49 +421,42 @@ mod tests {
                 AttentionNodeOutputs::new(TensorType::new_float("y", 3), None, None, None),
                 AttentionConfig::new(
                     false,
+                    Some(1),
+                    Some(1),
                     AttentionQkMatmulOutputMode::Matmul,
-                    0.7071067811865475,
+                    None,
                     0.0,
                     None,
-                    AttentionDims {
-                        rank: 3,
-                        batch_size: 1,
-                        head_size: 2,
-                        q_num_heads: 1,
-                        kv_num_heads: 1,
-                        q_sequence_length: 2,
-                        kv_sequence_length: 2,
-                        q_hidden_size: 2,
-                        k_hidden_size: 2,
-                        v_hidden_size: 2,
-                        v_head_size: 2,
-                        total_sequence_length: 2,
-                    },
                 ),
             ),
             quote! {
                 pub fn forward(&self, q: Tensor<B, 3>, k: Tensor<B, 3>, v: Tensor<B, 3>) -> Tensor<B, 3> {
                     let (y,) = {
-                        let q_scaled = q
-                            .reshape([1usize, 2usize, 1usize, 2usize])
-                            .permute([0, 2, 1, 3])
-                            * 0.8408964152537145f64;
-                        let k_scaled = k
-                            .reshape([1usize, 2usize, 1usize, 2usize])
-                            .permute([0, 2, 1, 3])
-                            * 0.8408964152537145f64;
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let [batch_size, q_sequence_length, q_hidden_size] = q.dims();
+                        let head_size = q_hidden_size / 1usize;
+                        let kv_sequence_length = k.dims()[1];
+                        let v_head_size = v.dims()[2] / 1usize;
+                        let q = q
+                            .reshape([batch_size, q_sequence_length, 1usize, head_size])
+                            .permute([0, 2, 1, 3]);
+                        let k = k
+                            .reshape([batch_size, kv_sequence_length, 1usize, head_size])
+                            .permute([0, 2, 1, 3]);
+                        let v = v
+                            .reshape([batch_size, kv_sequence_length, 1usize, v_head_size])
+                            .permute([0, 2, 1, 3]);
+                        let scale = (1.0 / (head_size as f64).sqrt()).sqrt();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
                         let k_transpose = k_scaled.transpose();
                         let qk = q_scaled.matmul(k_transpose);
                         let capped = qk;
                         let scores = softmax(capped, 3);
-                        let y = scores.matmul(
-                            v
-                                .reshape([1usize, 2usize, 1usize, 2usize])
-                                .permute([0, 2, 1, 3]),
-                        );
-                        let y = y
-                            .permute([0, 2, 1, 3])
-                            .reshape([1i32, 2i32, -1]);
+                        let y = scores.matmul(v);
+                        let y = y.permute([0, 2, 1, 3]).reshape([batch_size as i32, q_sequence_length as i32, -1]);
                         (y,)
                     };
                     y
@@ -477,38 +482,36 @@ mod tests {
                 AttentionNodeOutputs::new(TensorType::new_float("y", 4), None, None, None),
                 AttentionConfig::new(
                     false,
+                    None,
+                    None,
                     AttentionQkMatmulOutputMode::Matmul,
-                    0.7071067811865475,
+                    None,
                     0.0,
                     None,
-                    AttentionDims {
-                        rank: 4,
-                        batch_size: 1,
-                        head_size: 2,
-                        q_num_heads: 1,
-                        kv_num_heads: 1,
-                        q_sequence_length: 2,
-                        kv_sequence_length: 2,
-                        q_hidden_size: 2,
-                        k_hidden_size: 2,
-                        v_hidden_size: 2,
-                        v_head_size: 2,
-                        total_sequence_length: 2,
-                    },
                 ),
             ),
             quote! {
                 pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>, attn_mask: Tensor<B, 2, Bool>) -> Tensor<B, 4> {
                     let (y,) = {
-                        let q_scaled = q * 0.8408964152537145f64;
-                        let k_scaled = k * 0.8408964152537145f64;
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let scale = (1.0 / (q.dims()[3] as f64).sqrt()).sqrt();
+                        let q_dims = q.dims();
+                        let k_dims = k.dims();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
                         let k_transpose = k_scaled.transpose();
                         let qk = q_scaled.matmul(k_transpose);
+                        let shape = {
+                            let [batch_size, q_num_heads, q_sequence_length, _] = q_dims;
+                            [batch_size, q_num_heads, q_sequence_length, k_dims[2]]
+                        };
                         let qk = qk + {
-                            let float_mask = Tensor::<B, 2>::zeros([2usize, 2usize], &attn_mask.device());
+                            let float_mask = Tensor::<B, 2>::zeros([shape[2], shape[3]], &attn_mask.device());
                             float_mask.mask_fill(attn_mask.bool_not(), f32::NEG_INFINITY)
                         }
-                        .expand::<4, _>([1usize, 1usize, 2usize, 2usize]);
+                        .expand::<4, _>(shape);
                         let capped = qk;
                         let scores = softmax(capped, 3);
                         let y = scores.matmul(v);
@@ -537,34 +540,32 @@ mod tests {
                 AttentionNodeOutputs::new(TensorType::new_float("y", 4), None, None, None),
                 AttentionConfig::new(
                     false,
+                    None,
+                    None,
                     AttentionQkMatmulOutputMode::Matmul,
-                    0.7071067811865475,
+                    None,
                     0.0,
                     None,
-                    AttentionDims {
-                        rank: 4,
-                        batch_size: 1,
-                        head_size: 2,
-                        q_num_heads: 1,
-                        kv_num_heads: 1,
-                        q_sequence_length: 2,
-                        kv_sequence_length: 2,
-                        q_hidden_size: 2,
-                        k_hidden_size: 2,
-                        v_hidden_size: 2,
-                        v_head_size: 2,
-                        total_sequence_length: 2,
-                    },
                 ),
             ),
             quote! {
                 pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>, attn_mask: Tensor<B, 2, Int>) -> Tensor<B, 4> {
                     let (y,) = {
-                        let q_scaled = q * 0.8408964152537145f64;
-                        let k_scaled = k * 0.8408964152537145f64;
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let scale = (1.0 / (q.dims()[3] as f64).sqrt()).sqrt();
+                        let q_dims = q.dims();
+                        let k_dims = k.dims();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
                         let k_transpose = k_scaled.transpose();
                         let qk = q_scaled.matmul(k_transpose);
-                        let qk = qk + { attn_mask.float() }.expand::<4, _>([1usize, 1usize, 2usize, 2usize]);
+                        let shape = {
+                            let [batch_size, q_num_heads, q_sequence_length, _] = q_dims;
+                            [batch_size, q_num_heads, q_sequence_length, k_dims[2]]
+                        };
+                        let qk = qk + attn_mask.float().expand::<4, _>(shape);
                         let capped = qk;
                         let scores = softmax(capped, 3);
                         let y = scores.matmul(v);
@@ -593,34 +594,32 @@ mod tests {
                 AttentionNodeOutputs::new(TensorType::new_float("y", 4), None, None, None),
                 AttentionConfig::new(
                     false,
+                    None,
+                    None,
                     AttentionQkMatmulOutputMode::Matmul,
-                    0.7071067811865475,
+                    None,
                     0.0,
                     None,
-                    AttentionDims {
-                        rank: 4,
-                        batch_size: 1,
-                        head_size: 2,
-                        q_num_heads: 1,
-                        kv_num_heads: 1,
-                        q_sequence_length: 2,
-                        kv_sequence_length: 2,
-                        q_hidden_size: 2,
-                        k_hidden_size: 2,
-                        v_hidden_size: 2,
-                        v_head_size: 2,
-                        total_sequence_length: 2,
-                    },
                 ),
             ),
             quote! {
                 pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>, attn_mask: Tensor<B, 2>) -> Tensor<B, 4> {
                     let (y,) = {
-                        let q_scaled = q * 0.8408964152537145f64;
-                        let k_scaled = k * 0.8408964152537145f64;
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let scale = (1.0 / (q.dims()[3] as f64).sqrt()).sqrt();
+                        let q_dims = q.dims();
+                        let k_dims = k.dims();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
                         let k_transpose = k_scaled.transpose();
                         let qk = q_scaled.matmul(k_transpose);
-                        let qk = qk + attn_mask.expand::<4, _>([1usize, 1usize, 2usize, 2usize]);
+                        let shape = {
+                            let [batch_size, q_num_heads, q_sequence_length, _] = q_dims;
+                            [batch_size, q_num_heads, q_sequence_length, k_dims[2]]
+                        };
+                        let qk = qk + attn_mask.expand::<4, _>(shape);
                         let capped = qk;
                         let scores = softmax(capped, 3);
                         let y = scores.matmul(v);
@@ -649,31 +648,23 @@ mod tests {
                 AttentionNodeOutputs::new(TensorType::new_float("y", 4), None, None, None),
                 AttentionConfig::new(
                     false,
+                    None,
+                    None,
                     AttentionQkMatmulOutputMode::Matmul,
-                    0.7071067811865475,
+                    None,
                     2.0,
                     None,
-                    AttentionDims {
-                        rank: 4,
-                        batch_size: 1,
-                        head_size: 2,
-                        q_num_heads: 1,
-                        kv_num_heads: 1,
-                        q_sequence_length: 2,
-                        kv_sequence_length: 2,
-                        q_hidden_size: 2,
-                        k_hidden_size: 2,
-                        v_hidden_size: 2,
-                        v_head_size: 2,
-                        total_sequence_length: 2,
-                    },
                 ),
             ),
             quote! {
                 pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>) -> Tensor<B, 4> {
                     let (y,) = {
-                        let q_scaled = q * 0.8408964152537145f64;
-                        let k_scaled = k * 0.8408964152537145f64;
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let scale = (1.0 / (q.dims()[3] as f64).sqrt()).sqrt();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
                         let k_transpose = k_scaled.transpose();
                         let qk = q_scaled.matmul(k_transpose);
                         let capped = {
@@ -713,43 +704,41 @@ mod tests {
                 ),
                 AttentionConfig::new(
                     false,
+                    None,
+                    None,
                     AttentionQkMatmulOutputMode::Matmul,
-                    0.7071067811865475,
+                    None,
                     0.0,
                     None,
-                    AttentionDims {
-                        rank: 4,
-                        batch_size: 1,
-                        head_size: 2,
-                        q_num_heads: 1,
-                        kv_num_heads: 1,
-                        q_sequence_length: 2,
-                        kv_sequence_length: 1,
-                        q_hidden_size: 2,
-                        k_hidden_size: 2,
-                        v_hidden_size: 2,
-                        v_head_size: 2,
-                        total_sequence_length: 2,
-                    },
                 ),
             ),
             quote! {
                 pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>, attn_mask: Tensor<B, 2, Bool>,
                     past_key: Tensor<B, 4>, past_value: Tensor<B, 4>) -> (Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>) {
                     let (y, present_key, present_value) = {
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let scale = (1.0 / (q.dims()[3] as f64).sqrt()).sqrt();
                         let present_key = Tensor::cat([past_key, k].to_vec(), 2);
                         let k = present_key.clone();
                         let present_value = Tensor::cat([past_value, v].to_vec(), 2);
                         let v = present_value.clone();
-                        let q_scaled = q * 0.8408964152537145f64;
-                        let k_scaled = k * 0.8408964152537145f64;
+                        let q_dims = q.dims();
+                        let k_dims = k.dims();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
                         let k_transpose = k_scaled.transpose();
                         let qk = q_scaled.matmul(k_transpose);
+                        let shape = {
+                            let [batch_size, q_num_heads, q_sequence_length, _] = q_dims;
+                            [batch_size, q_num_heads, q_sequence_length, k_dims[2]]
+                        };
                         let qk = qk + {
-                            let float_mask = Tensor::<B, 2>::zeros([2usize, 2usize], &attn_mask.device());
+                            let float_mask = Tensor::<B, 2>::zeros([shape[2], shape[3]], &attn_mask.device());
                             float_mask.mask_fill(attn_mask.bool_not(), f32::NEG_INFINITY)
                         }
-                        .expand::<4, _>([1usize, 1usize, 2usize, 2usize]);
+                        .expand::<4, _>(shape);
                         let capped = qk;
                         let scores = softmax(capped, 3);
                         let y = scores.matmul(v);
@@ -785,39 +774,37 @@ mod tests {
                 AttentionNodeOutputs::new(TensorType::new_float("y", 4), None, None, None),
                 AttentionConfig::new(
                     true,
+                    None,
+                    None,
                     AttentionQkMatmulOutputMode::Matmul,
-                    0.7071067811865475,
+                    None,
                     0.0,
                     None,
-                    AttentionDims {
-                        rank: 4,
-                        batch_size: 1,
-                        head_size: 2,
-                        q_num_heads: 1,
-                        kv_num_heads: 1,
-                        q_sequence_length: 2,
-                        kv_sequence_length: 2,
-                        q_hidden_size: 2,
-                        k_hidden_size: 2,
-                        v_hidden_size: 2,
-                        v_head_size: 2,
-                        total_sequence_length: 2,
-                    },
                 ),
             ),
             quote! {
                 pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>) -> Tensor<B, 4> {
                     let (y,) = {
-                        let q_scaled = q * 0.8408964152537145f64;
-                        let k_scaled = k * 0.8408964152537145f64;
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let scale = (1.0 / (q.dims()[3] as f64).sqrt()).sqrt();
+                        let q_dims = q.dims();
+                        let k_dims = k.dims();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
                         let k_transpose = k_scaled.transpose();
                         let qk = q_scaled.matmul(k_transpose);
                         let qk = {
-                            let mask = Tensor::<B, 2>::ones([2usize, 2usize], &qk.device());
+                            let shape = {
+                                let [batch_size, q_num_heads, q_sequence_length, _] = q_dims;
+                                [batch_size, q_num_heads, q_sequence_length, k_dims[2]]
+                            };
+                            let mask = Tensor::<B, 2>::ones([shape[2], shape[3]], &qk.device());
                             let mask = mask.tril(0).bool().bool_not();
-                            let float_mask = Tensor::<B, 2>::zeros([2usize, 2usize], &mask.device())
+                            let float_mask = Tensor::<B, 2>::zeros([shape[2], shape[3]], &mask.device())
                                 .mask_fill(mask, f32::NEG_INFINITY);
-                            qk + float_mask.expand::<4, _>([1usize, 1usize, 2usize, 2usize])
+                            qk + float_mask.expand::<4, _>(shape)
                         };
                         let capped = qk;
                         let scores = softmax(capped, 3);
