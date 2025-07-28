@@ -58,17 +58,17 @@ impl RunnerClient for WsClient {
     fn register_float_tensor(
         &self,
         shape: Vec<usize>,
-        _dtype: burn_tensor::FloatDType,
+        dtype: burn_tensor::FloatDType,
     ) -> RouterTensor<Self> {
-        self.register_empty_tensor(shape, DType::F32)
+        self.register_empty_tensor(shape, dtype)
     }
 
     fn register_int_tensor(
         &self,
         shape: Vec<usize>,
-        _dtype: burn_tensor::IntDType,
+        dtype: burn_tensor::IntDType,
     ) -> RouterTensor<Self> {
-        self.register_empty_tensor(shape, DType::I32)
+        self.register_empty_tensor(shape, dtype)
     }
 
     fn device(&self) -> Self::Device {
