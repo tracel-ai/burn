@@ -411,6 +411,15 @@ impl TensorCheck {
 
     pub(crate) fn unsqueeze_dim<const D1: usize, const D2: usize>(dim: usize) -> Self {
         let mut check = Self::Ok;
+        if D2 <= D1 {
+            check = check.register(
+                "Unsqueeze",
+                TensorError::new(format!(
+                    "The output rank must be greater than the input rank (D={D1}; D2={D2})",
+                )),
+            );
+        }
+
         if dim > D1 {
             check = check.register(
                 "Unsqueeze",
@@ -1412,5 +1421,11 @@ mod tests {
             &vec![0, 1],
             &vec![0, 1, 2]
         ));
+    }
+
+    #[test]
+    #[should_panic]
+    fn unsqueeze_dim_same_rank() {
+        check!(TensorCheck::unsqueeze_dim::<3, 3>(2));
     }
 }
