@@ -1,8 +1,6 @@
 use burn_communication::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::NodeId;
-
 /// Parameter struct for setting up and getting parameters for collective operations.
 /// Used in most collective api calls.
 /// This config is per-node. It is passed to [reduce](crate::register).
@@ -14,7 +12,6 @@ pub struct CollectiveConfig {
     pub local_broadcast_strategy: BroadcastStrategy,
 
     // Global parameters (all are optional, but if one is defined they should all be)
-    pub node_id: Option<NodeId>,
     pub num_nodes: Option<u32>,
     pub global_address: Option<Address>,
     pub node_address: Option<Address>,
@@ -40,7 +37,6 @@ impl CollectiveConfig {
             local_reduce_strategy: ReduceStrategy::Tree(2),
             local_broadcast_strategy: BroadcastStrategy::Tree(2),
 
-            node_id: None,
             num_nodes: None,
             global_address: None,
             node_address: None,
@@ -80,16 +76,6 @@ impl CollectiveConfig {
     /// Selects a broadcast strategy to use on the local level.
     pub fn with_local_broadcast_strategy(mut self, strategy: BroadcastStrategy) -> Self {
         self.local_broadcast_strategy = strategy;
-        self
-    }
-
-    /// Set the node id
-    ///
-    /// This parameter is a global parameter and should only be set in multi-node contexts
-    /// TODO since PeerIds are unique globally, node id's should be managed internally
-    /// (by the orchestrator for example)
-    pub fn with_node_id(mut self, id: NodeId) -> Self {
-        self.node_id = Some(id);
         self
     }
 
@@ -157,14 +143,13 @@ impl CollectiveConfig {
     /// defined and others are not, the config is invalid.  
     pub fn is_valid(&self) -> bool {
         match (
-            self.node_id,
             self.num_nodes,
             &self.global_address,
             &self.node_address,
             self.data_service_port,
         ) {
-            (None, None, None, None, None) => true,
-            (Some(_), Some(_), Some(_), Some(_), Some(_)) => true,
+            (None, None, None, None) => true,
+            (Some(_), Some(_), Some(_), Some(_)) => true,
             // Global parameters have only been partially defined!
             _ => false,
         }
@@ -176,28 +161,22 @@ impl CollectiveConfig {
     /// validity in this case.
     pub(crate) fn global_register_params(&self) -> Option<GlobalRegisterParams> {
         match (
-            self.node_id,
             self.num_nodes,
             &self.global_address,
             &self.node_address,
             self.data_service_port,
         ) {
             // Only local collective
-            (None, None, None, None, None) => None,
+            (None, None, None, None) => None,
             // Local + global collective
-            (
-                Some(node_id),
-                Some(num_nodes),
-                Some(global_addr),
-                Some(node_addr),
-                Some(data_service_port),
-            ) => Some(GlobalRegisterParams {
-                node_id,
-                num_nodes,
-                global_address: global_addr.clone(),
-                node_address: node_addr.clone(),
-                data_service_port,
-            }),
+            (Some(num_nodes), Some(global_addr), Some(node_addr), Some(data_service_port)) => {
+                Some(GlobalRegisterParams {
+                    num_nodes,
+                    global_address: global_addr.clone(),
+                    node_address: node_addr.clone(),
+                    data_service_port,
+                })
+            }
             // Config is invalid!
             _ => None,
         }
@@ -209,8 +188,6 @@ impl CollectiveConfig {
 /// opening the p2p tensor service.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GlobalRegisterParams {
-    /// The id of this node, should be unique.
-    pub node_id: NodeId,
     /// The address for the connection to the global orchestrator.
     pub global_address: Address,
     /// The address for the connection to this node.

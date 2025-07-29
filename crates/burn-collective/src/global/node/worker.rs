@@ -17,11 +17,11 @@ use crate::global::shared::{
 };
 
 /// Worker that handles communication with the orchestrator for global collective operations.
-pub(crate) struct GlobalClientWorker<N: ProtocolClient> {
+pub(crate) struct GlobalClientWorker<P: ProtocolClient> {
     handle: Option<JoinHandle<Result<(), GlobalCollectiveError>>>,
     cancel_token: CancellationToken,
     request_sender: Sender<ClientRequest>,
-    _phantom_data: PhantomData<N>,
+    _phantom_data: PhantomData<P>,
 }
 
 // Rename

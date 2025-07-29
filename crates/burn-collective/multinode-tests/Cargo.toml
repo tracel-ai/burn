@@ -4,6 +4,29 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = ["ndarray"]
+ndarray = ["burn/ndarray"]
+ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
+ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
+ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
+
+[dependencies]
+burn = { path = "../../burn" }
+burn-common = { path = "../../burn-common" }
+burn-communication = { path = "../../burn-communication" }
+burn-collective = { path = "..", features = ["orchestrator"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "process"] }
+
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+interprocess = "2.2.3"
+rmp-serde = { workspace = true }
+tokio-util = { workspace = true, features = ["codec"] }
+tokio-serde = { version = "0.9.0", features = ["messagepack"] }
+futures = { workspace = true }
+
+
 [[bin]]
 name = "global"
 path = "src/bin/global.rs"
@@ -11,13 +34,3 @@ path = "src/bin/global.rs"
 [[bin]]
 name = "node"
 path = "src/bin/node.rs"
-
-[dependencies]
-burn = { path = "../../burn", features = ["ndarray"] }
-burn-common = { path = "../../burn-common" }
-burn-communication = { path = "../../burn-communication" }
-burn-collective = { path = "..", features = ["orchestrator"]}
-tokio = { workspace = true, features = ["rt-multi-thread", "process"] }
-
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }

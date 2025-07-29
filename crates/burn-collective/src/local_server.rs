@@ -16,7 +16,7 @@ use crate::{
     ReduceOperation, ReduceStrategy,
     centralized::{all_reduce_sum_centralized, broadcast_centralized, reduce_sum_centralized},
     client::LocalCollectiveClient,
-    global::node::base::GlobalCollectiveClient,
+    global::node::base::Node,
     ring::all_reduce_sum_ring,
     tree::{all_reduce_sum_tree, broadcast_tree, reduce_sum_tree},
 };
@@ -72,7 +72,7 @@ pub(crate) struct LocalCollectiveServer<B: Backend> {
     cur_broadcast_root: Option<PeerId>,
 
     /// Client for global collective operations
-    global_client: Option<GlobalCollectiveClient<B, Network>>,
+    global_client: Option<Node<B, Network>>,
 }
 
 /// Struct for each device that calls an all-reduce operation
@@ -282,7 +282,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         self.peers.retain(|x| *x != id);
 
         if self.peers.is_empty() {
-            if let Some(global_client) = self.global_client.as_mut() {
+            if let Some(mut global_client) = self.global_client.take() {
                 global_client.finish().await;
             }
         }
@@ -318,11 +318,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         if let Some(global_params) = &global_params {
             if self.global_client.is_none() {
                 let server = WsServer::new(global_params.data_service_port);
-                let client = GlobalCollectiveClient::new(
-                    &global_params.global_address,
-                    &global_params.node_address,
-                    server,
-                );
+                let client = Node::new(&global_params.global_address, server);
                 self.global_client = Some(client)
             }
         }
@@ -547,7 +543,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         tensors: &mut HashMap<PeerId, B::FloatTensorPrimitive>,
         op: ReduceOperation,
         config: &CollectiveConfig,
-        global_client: &mut GlobalCollectiveClient<B, WebSocket>,
+        global_client: &mut Node<B, WebSocket>,
     ) -> Result<(), CollectiveError> {
         let local_strategy = config.local_all_reduce_strategy;
         let global_strategy = config.global_all_reduce_strategy;

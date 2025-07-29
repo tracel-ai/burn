@@ -27,6 +27,7 @@ Internally, there are two levels to the collective operations: local and global.
 
 | Local                                     	| Global                                        |
 |-----------------------------------------------|-----------------------------------------------|
+| Intra-node (typically within one machine)     | Inter-node (typically across machies)         |
 | Participants are threads (one per peer/GPU)	| Participants are processes (one per node)     |
 | Communication depends on backend              | Network peer-to-peer communication            |
 | Local server is launched automatically 	    | Global coordinator must be launched manually  |

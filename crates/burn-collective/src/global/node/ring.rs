@@ -1,7 +1,14 @@
-use core::ops::Range;
-use std::sync::Arc;
+//! Implements the collective ring all-reduce algorithm on the global level
 
-use crate::global::shared::{GlobalCollectiveError, RingAllReduceStrategy};
+use core::ops::Range;
+use std::{collections::HashMap, sync::Arc};
+
+use crate::{
+    NodeId,
+    global::shared::GlobalCollectiveError,
+    node::sync::SyncService,
+    ring::{get_ring_reduce_slice_ranges, get_slice_dim},
+};
 use burn_communication::{Address, Protocol, data_service::TensorDataService};
 use burn_tensor::{TensorMetadata, backend::Backend};
 
@@ -36,66 +43,102 @@ use burn_tensor::{TensorMetadata, backend::Backend};
 // 2  2  2
 
 /// Ring all-reduce algorithm with summation
-pub(crate) async fn ring_all_reduce_sum<B, N>(
-    data_service: Arc<TensorDataService<B, N>>,
+///
+/// * `node` - The id of the current node
+/// * `nodes` - Map of all nodes in the operation
+/// * `data_service` - The data service handles peer-to-peer tensor transfers
+/// * `sync_service` - The sync service handles syncing with peers
+/// * `tensor` - The tensor to reduce. At least one dimention size must be greater than the number
+///   of nodes
+pub(crate) async fn ring_all_reduce_sum<B, P>(
+    node: NodeId,
+    nodes: &HashMap<NodeId, Address>,
+    data_service: Arc<TensorDataService<B, P>>,
+    sync_service: Arc<SyncService<P>>,
     tensor: B::FloatTensorPrimitive,
-    strategy: RingAllReduceStrategy,
 ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError>
 where
     B: Backend,
-    N: Protocol,
+    P: Protocol,
 {
+    let shape = tensor.shape();
+
     let device = &B::float_device(&tensor);
-    let mut slices = slice_tensor::<B>(tensor, strategy.slice_dim, strategy.slice_ranges);
-    let mut send_slice_idx = strategy.first_slice;
+    // Slice tensors in N parts, N is node count
+    let slice_dim = get_slice_dim(&shape);
+    if shape.dims[slice_dim] < nodes.len() {
+        return Err(GlobalCollectiveError::RingReduceImpossible);
+    }
+
+    let ring = get_ring_topology(nodes.keys().cloned().collect::<Vec<_>>());
+    let slice_ranges = get_ring_reduce_slice_ranges(shape.dims[slice_dim], ring.len());
+    let mut slices = slice_tensor::<B>(tensor, slice_dim, slice_ranges);
+
+    let mut send_slice_idx = ring
+        .iter()
+        .position(|id| *id == node)
+        .expect("Node is in ring");
+    let prev_node_idx = (send_slice_idx + ring.len() - 1) % ring.len(); // +ring.len for overflow
+    let prev_node = nodes.get(&ring[prev_node_idx]).unwrap();
     let mut transfer_counter: u64 = 0;
 
     // Phase 1: add
-    do_cycles::<B, N>(
+    do_cycles::<B, P>(
         &mut slices,
         &mut transfer_counter,
         &mut send_slice_idx,
         true,
-        strategy.next_node.clone(),
+        prev_node.clone(),
         &data_service,
         device,
     )
     .await?;
 
     // Phase 2: replace
-    do_cycles::<B, N>(
+    do_cycles::<B, P>(
         &mut slices,
         &mut transfer_counter,
         &mut send_slice_idx,
         false,
-        strategy.next_node,
+        prev_node.clone(),
         &data_service,
         device,
     )
     .await?;
 
+    // Wait for all nodes to finish
+    sync_service.sync().await;
+
     // merge slices
-    Ok(B::float_cat(slices, strategy.slice_dim))
+    Ok(B::float_cat(slices, slice_dim))
 }
 
 /// Do N-1 cycles of ring-reduce
-async fn do_cycles<B, N>(
+///
+/// * `slices` - Slices of the original tensor, len equal to node count
+/// * `transfer_counter` - counter for each step (one send one receive)
+/// * `send_slice_idx` - counter for the index of each slice to send
+/// * `is_phase_one` - In phase 1, the tensors are aggregated. Otherwise, they are overriden
+/// * `data_service` - TensorDataService for peer-to-peer tensor transfers
+/// * `device` - The device on which all local tensors are stored. Should match `slices`
+async fn do_cycles<B, P>(
     slices: &mut [B::FloatTensorPrimitive],
     transfer_counter: &mut u64,
     send_slice_idx: &mut usize,
     is_phase_one: bool,
-    next_node: Address,
-    data_service: &Arc<TensorDataService<B, N>>,
+    prev_node: Address,
+    data_service: &Arc<TensorDataService<B, P>>,
     device: &B::Device,
 ) -> Result<(), GlobalCollectiveError>
 where
     B: Backend,
-    N: Protocol,
+    P: Protocol,
 {
     let slice_count = slices.len();
     for _ in 0..(slice_count - 1) {
         let transfer_id = (*transfer_counter).into();
-        let recv_slice_idx = (*send_slice_idx - 1) % slice_count;
+        // +slice_count to avoid overflow
+        let recv_slice_idx = (*send_slice_idx + slice_count - 1) % slice_count;
         let slice_send = slices[*send_slice_idx].clone();
 
         let upload = {
@@ -108,14 +151,15 @@ where
         };
         let download = {
             let data_client = data_service.clone();
-            let next_node = next_node.clone();
+            let next_node = prev_node.clone();
             tokio::spawn(async move { data_client.download_tensor(next_node, transfer_id).await })
         };
 
         upload.await.unwrap();
         let download = download.await.unwrap();
         if is_phase_one {
-            let tensor = B::float_from_data(download.unwrap(), device);
+            let download = download.expect("Peer closed download connection");
+            let tensor = B::float_from_data(download, device);
             slices[recv_slice_idx] = B::float_add(slices[recv_slice_idx].clone(), tensor);
         } else {
             let tensor = B::float_from_data(download.unwrap(), device);
@@ -127,13 +171,18 @@ where
         }
 
         // Move slice index
-        *send_slice_idx = (*send_slice_idx - 1) % slice_count;
+        *send_slice_idx = recv_slice_idx;
         *transfer_counter += 1;
     }
 
     Ok(())
 }
 
+/// But a tensor into even slices across a dimension
+///
+/// * `tensor` - the tensor to slice
+/// * `slice_dim` - the dimension to slice across
+/// * `slice_ranges` - The ranges of indices on `slice_dim` to use when slicing the tensor
 fn slice_tensor<B: Backend>(
     tensor: B::FloatTensorPrimitive,
     slice_dim: usize,
@@ -150,22 +199,22 @@ fn slice_tensor<B: Backend>(
         })
         .collect::<Vec<Range<usize>>>();
 
-    // Get ranges for each slice across each dim (unsliced dims have full range)
-    let ranges = slice_ranges
-        .iter()
-        .map(|r| {
-            let mut range = full_range.clone();
-            range[slice_dim] = r.clone();
-            range
-        })
-        .collect::<Vec<Vec<Range<usize>>>>();
-
     // Slice tensors
     let mut slices = vec![];
-    for range in &ranges {
-        let slice = B::float_slice(tensor.clone(), range);
+    for range in &slice_ranges {
+        let mut all_ranges = full_range.clone();
+        all_ranges[slice_dim] = range.clone();
+        let slice = B::float_slice(tensor.clone(), &all_ranges);
         slices.push(slice);
     }
 
     slices
+}
+
+/// Get the ring topology
+fn get_ring_topology(mut nodes: Vec<NodeId>) -> Vec<NodeId> {
+    // This ordering could be more sophisticated, using node proximities etc
+    nodes.sort();
+
+    nodes
 }

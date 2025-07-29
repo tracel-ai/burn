@@ -44,17 +44,16 @@ pub(crate) fn all_reduce_sum_ring<B: Backend>(
     // Chose an axis
     let slice_dim = get_slice_dim(&shape);
 
-    let dim_size = shape.dims[slice_dim];
+    let slice_dim_size = shape.dims[slice_dim];
     let tensor_count = tensors.len();
-    if dim_size < tensor_count {
+    if slice_dim_size < tensor_count {
         // Tensor cannot be split into N slices! Use a fallback algorithm: binary tree
         all_reduce_sum_tree::<B>(tensors, 2);
         return;
     }
 
     // Split tensors into slices
-    let mut sliced_tensors =
-        slice_tensors::<B>(core::mem::take(tensors), dim_size, shape, slice_dim);
+    let mut sliced_tensors = slice_tensors::<B>(core::mem::take(tensors), shape, slice_dim);
 
     // phase 1: aggregate in ring N-1 times (Reduce-Scatter)
     ring_cycles::<B>(&mut sliced_tensors, true);
@@ -149,19 +148,33 @@ fn ring_cycles<B: Backend>(
 /// The given `shape` should be the same for every tensor.
 fn slice_tensors<B: Backend>(
     mut tensors: HashMap<PeerId, B::FloatTensorPrimitive>,
-    dim_size: usize,
     shape: Shape,
     slice_dim: usize,
 ) -> Vec<(PeerId, Vec<<B as Backend>::FloatTensorPrimitive>)> {
     // Get slice index ranges
-    let ranges = get_ranges(dim_size, tensors.len(), shape, slice_dim);
+    let ranges = get_ring_reduce_slice_ranges(shape.dims[slice_dim], tensors.len());
 
     // Slice tensors
     let mut sliced_tensors = vec![];
     for (id, tensor) in tensors.drain() {
         let mut slices = vec![];
         for range in &ranges {
-            let slice = B::float_slice(tensor.clone(), range);
+            let full_range = shape
+                .dims
+                .iter()
+                .enumerate()
+                .map(|(dim_idx, dim)| {
+                    if dim_idx == slice_dim {
+                        range.clone()
+                    } else {
+                        Range {
+                            start: 0,
+                            end: *dim,
+                        }
+                    }
+                })
+                .collect::<Vec<_>>();
+            let slice = B::float_slice(tensor.clone(), &full_range);
             slices.push(slice);
         }
         sliced_tensors.push((id, slices));
@@ -171,36 +184,26 @@ fn slice_tensors<B: Backend>(
 }
 
 /// Get the index ranges for the slices to split a tensor evently across a given axis.
-/// Returns a vector of dimentions for each slice.
-pub(crate) fn get_ranges(
-    dim_size: usize,
-    tensor_count: usize,
-    shape: Shape,
-    slice_dim: usize,
-) -> Vec<Vec<Range<usize>>> {
-    let mut ranges: Vec<Vec<Range<usize>>> = vec![];
+///
+/// * `slice_dim_size` - The size of the dim to slice on
+/// * `slice_count` - The number of slices
+///
+/// Returns a vector of index ranges for each slice.
+pub(crate) fn get_ring_reduce_slice_ranges(
+    slice_dim_size: usize,
+    slice_count: usize,
+) -> Vec<Range<usize>> {
+    let mut ranges: Vec<Range<usize>> = vec![];
 
-    let slice_size = dim_size / tensor_count;
-    for i in 0..tensor_count {
+    let slice_size = slice_dim_size.div_ceil(slice_count);
+
+    for i in 0..slice_count {
         let start = i * slice_size;
         let end = start + slice_size;
 
-        let mut range_vec = vec![];
-        for (dim, size) in shape.dims.iter().enumerate() {
-            let range = if dim == slice_dim {
-                Range { start, end }
-            } else {
-                Range {
-                    start: 0,
-                    end: *size,
-                }
-            };
-            range_vec.push(range);
-        }
-
-        ranges.push(range_vec);
+        ranges.push(Range { start, end });
     }
-    ranges.last_mut().unwrap()[slice_dim].end = dim_size;
+    ranges.last_mut().unwrap().end = slice_dim_size;
 
     ranges
 }

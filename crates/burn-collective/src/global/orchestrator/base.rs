@@ -117,7 +117,9 @@ impl GlobalOrchestrator {
                 }
                 CollectiveMessage::Request(request_id, remote_request) => {
                     let session_id = session_id.ok_or(GlobalCollectiveError::FirstMsgNotInit)?;
-                    state.process(session_id, request_id, remote_request).await;
+                    state
+                        .process_request(session_id, request_id, remote_request)
+                        .await;
                 }
             }
         }

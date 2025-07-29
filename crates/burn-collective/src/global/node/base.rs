@@ -2,10 +2,15 @@ use burn_communication::Protocol;
 use burn_communication::data_service::TensorDataServer;
 use burn_communication::{Address, ProtocolServer, data_service::TensorDataService};
 use burn_tensor::{ElementConversion, backend::Backend};
+use std::collections::HashMap;
 use std::{marker::PhantomData, sync::Arc};
+use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
-use crate::{AllReduceStrategy, BroadcastStrategy, GlobalRegisterParams, PeerId, ReduceStrategy};
+use crate::node::sync::SyncService;
+use crate::{
+    AllReduceStrategy, BroadcastStrategy, GlobalRegisterParams, NodeId, PeerId, ReduceStrategy,
+};
 use crate::{
     ReduceOperation,
     global::{
@@ -18,32 +23,48 @@ use crate::{
     local_server::get_server_runtime,
 };
 
-/// The client that talks to the global collective orchestrator
-pub(crate) struct GlobalCollectiveClient<B, N>
-where
-    B: Backend,
-    N: Protocol,
-{
-    data_service: Arc<TensorDataService<B, N>>,
-    node_address: Arc<Address>,
-    worker: GlobalClientWorker<N::Client>,
-    num_global_devices: Option<u32>,
-    _n: PhantomData<N>,
+// Must be synchonized between all nodes for collective operations to work
+pub(crate) struct NodeState {
+    pub node_id: NodeId,
+    pub nodes: HashMap<NodeId, Address>,
+    pub num_global_devices: u32,
 }
 
-impl<B, N> GlobalCollectiveClient<B, N>
+/// A node talks to the global orchestrator as well as other nodes with a peer-to-peer service
+pub(crate) struct Node<B, P>
 where
     B: Backend,
-    N: Protocol,
+    P: Protocol,
 {
-    pub fn new(global_address: &Address, node_address: &Address, comms_server: N::Server) -> Self {
-        let cancel_token = CancellationToken::new();
+    // State is written during `register` and read during other operations,
+    // sometimes by multiple threads (ex. syncing during an all-reduce)
+    state: Arc<RwLock<Option<NodeState>>>,
+    data_service: Arc<TensorDataService<B, P>>,
+    sync_service: Arc<SyncService<P>>,
+    worker: GlobalClientWorker<P::Client>,
+    _n: PhantomData<P>,
+}
 
+impl<B, P> Node<B, P>
+where
+    B: Backend,
+    P: Protocol,
+{
+    pub fn new(global_address: &Address, comms_server: P::Server) -> Self {
+        let state = Arc::new(tokio::sync::RwLock::new(None));
+        let cancel_token = CancellationToken::new();
         let data_service = Arc::new(TensorDataService::new(cancel_token.clone()));
+        let sync_service = Arc::new(SyncService::new(state.clone()));
 
         let runtime = get_server_runtime();
         let server = comms_server
             .route_tensor_data_service(data_service.clone())
+            .route("/sync", {
+                let sync_service = sync_service.clone();
+                async move |channel: <P::Server as ProtocolServer>::Channel| {
+                    sync_service.handle_sync_connection(channel).await;
+                }
+            })
             .serve({
                 let cancel_token = cancel_token.clone();
                 async move { cancel_token.cancelled().await }
@@ -54,10 +75,10 @@ where
         let worker = GlobalClientWorker::new(&runtime, cancel_token.clone(), global_address);
 
         Self {
+            state,
             data_service,
-            node_address: Arc::new(node_address.clone()),
+            sync_service,
             worker,
-            num_global_devices: None,
             _n: PhantomData,
         }
     }
@@ -67,17 +88,23 @@ where
         peers: Vec<PeerId>,
         global_params: GlobalRegisterParams,
     ) -> Result<(), GlobalCollectiveError> {
-        let node_addr = self.node_address.as_ref().clone();
-
         let req = RemoteRequest::Register {
-            node_id: global_params.node_id,
-            node_addr,
+            node_addr: global_params.node_address,
             num_nodes: global_params.num_nodes,
             peers,
         };
         match self.worker.request(req).await {
-            RemoteResponse::RegisterAck { num_global_devices } => {
-                self.num_global_devices = Some(num_global_devices);
+            RemoteResponse::Register {
+                node_id,
+                nodes,
+                num_global_devices,
+            } => {
+                let mut state = self.state.write().await;
+                *state = Some(NodeState {
+                    node_id,
+                    nodes,
+                    num_global_devices,
+                });
             }
             RemoteResponse::Error(err) => {
                 return Err(err);
@@ -91,41 +118,59 @@ where
         Ok(())
     }
 
+    /// Performs an all-reduce
+    ///
+    /// Reads the NodeState
     pub async fn all_reduce(
         &self,
         tensor: B::FloatTensorPrimitive,
         strategy: AllReduceStrategy,
         op: ReduceOperation,
     ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError> {
-        let num_global_devices = self
-            .num_global_devices
-            .expect("Can't all-reduce before registering (global)");
+        let state = self.state.read().await;
+        let Some(ref state) = *state else {
+            return Err(GlobalCollectiveError::AllReduceBeforeRegister);
+        };
+        let node = state.node_id;
+        let nodes = &state.nodes;
 
-        // Get strategy from orchestrator
-        let req = RemoteRequest::AllReduce { strategy };
-        let resp = self.worker.request(req).await;
-
-        let mut result = match resp {
-            RemoteResponse::CentralizedAllReduceStrategy(strategy) => {
-                centralized_all_reduce_sum(&self.data_service, tensor, strategy).await?
+        let mut result = match strategy {
+            AllReduceStrategy::Centralized => {
+                centralized_all_reduce_sum(
+                    node,
+                    nodes,
+                    &self.data_service,
+                    self.sync_service.clone(),
+                    tensor,
+                )
+                .await?
             }
-            RemoteResponse::TreeAllReduceStrategy(strategy) => {
-                tree_all_reduce_sum(self.data_service.clone(), tensor, strategy).await?
+            AllReduceStrategy::Tree(arity) => {
+                tree_all_reduce_sum(
+                    node,
+                    nodes,
+                    self.data_service.clone(),
+                    self.sync_service.clone(),
+                    tensor,
+                    arity,
+                )
+                .await?
             }
-            RemoteResponse::RingAllReduceStrategy(strategy) => {
-                ring_all_reduce_sum(self.data_service.clone(), tensor, strategy).await?
-            }
-            RemoteResponse::Error(err) => {
-                return Err(err);
-            }
-            resp => {
-                log::error!("Response to a all-reduce request should be a strategy, not {resp:?}");
-                return Err(GlobalCollectiveError::WrongOrchestratorResponse);
+            AllReduceStrategy::Ring => {
+                ring_all_reduce_sum(
+                    node,
+                    nodes,
+                    self.data_service.clone(),
+                    self.sync_service.clone(),
+                    tensor,
+                )
+                .await?
             }
         };
 
         if op == ReduceOperation::Mean {
-            result = B::float_div_scalar(result, (num_global_devices).elem());
+            eprintln!("Inputs: {}", state.num_global_devices);
+            result = B::float_div_scalar(result, (state.num_global_devices).elem());
         }
 
         Ok(result)

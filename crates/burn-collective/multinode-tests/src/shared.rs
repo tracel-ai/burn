@@ -1,10 +1,15 @@
+use std::time::Duration;
+
 use burn::tensor::TensorData;
 use burn_collective::{AllReduceStrategy, NodeId, ReduceOperation};
 use burn_communication::Address;
 use serde::{Deserialize, Serialize};
 
+/// Ranks of inputs and outputs for all testing
+pub const TENSOR_RANK: usize = 3;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NodeTestData {
+pub struct NodeTest {
     /// How many threads to start on this node
     pub device_count: u32,
     /// ID for this node
@@ -24,8 +29,15 @@ pub struct NodeTestData {
     /// What kind of aggregation
     pub local_strategy: AllReduceStrategy,
 
-    /// Input data for test
+    /// Input data for test: all tensors are D=3
     pub inputs: Vec<TensorData>,
     /// Expected output for test
     pub expected: TensorData,
+}
+
+/// Result sent back from each node for each test
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeTestResult {
+    pub success: bool,
+    pub durations: Vec<Duration>,
 }

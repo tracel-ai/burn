@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use crate::{
-    AllReduceStrategy, PeerId,
+    PeerId,
     global::{
         NodeId,
         shared::{
-            CentralizedAllReduceStrategy, CollectiveMessageResponse, GlobalCollectiveError,
-            RemoteRequest, RemoteResponse, RequestId, SessionId,
+            CollectiveMessageResponse, GlobalCollectiveError, RemoteRequest, RemoteResponse,
+            RequestId, SessionId,
         },
     },
 };
@@ -39,8 +39,6 @@ pub(crate) struct GlobalCollectiveState {
     node_addresses: HashMap<NodeId, Address>,
     /// Peer on each node
     node_peers: HashMap<NodeId, Vec<PeerId>>,
-    /// The params of the current all-reduce operation, as defined by the first caller
-    cur_all_reduce_strategy: Option<AllReduceStrategy>,
 
     /// How many total nodes for the currrent register operation, as defined by the first caller
     cur_num_nodes: Option<u32>,
@@ -48,7 +46,7 @@ pub(crate) struct GlobalCollectiveState {
     num_global_peers: u32,
 
     all_reduce_requests: Vec<(SessionId, RequestId, Address)>,
-    register_requests: Vec<(SessionId, RequestId)>,
+    register_requests: Vec<(SessionId, RequestId, NodeId)>,
 
     sessions: HashMap<SessionId, Session>,
 }
@@ -59,7 +57,6 @@ impl GlobalCollectiveState {
             registered_nodes: HashMap::new(),
             node_addresses: HashMap::new(),
             node_peers: HashMap::new(),
-            cur_all_reduce_strategy: None,
             cur_num_nodes: None,
             num_global_peers: 0,
             all_reduce_requests: Vec::new(),
@@ -96,23 +93,20 @@ impl GlobalCollectiveState {
         session.respond(response).await;
     }
 
-    pub(crate) async fn process(
+    /// Process an incoming node's request
+    pub(crate) async fn process_request(
         &mut self,
         session_id: SessionId,
         request_id: RequestId,
         request: RemoteRequest,
     ) {
         if let Err(err) = match request {
-            RemoteRequest::AllReduce { strategy } => {
-                self.all_reduce(session_id, request_id, strategy).await
-            }
             RemoteRequest::Register {
-                node_id,
                 node_addr,
                 num_nodes,
                 peers,
             } => {
-                self.register(session_id, request_id, node_id, node_addr, num_nodes, peers)
+                self.register(session_id, request_id, node_addr, num_nodes, peers)
                     .await
             }
             RemoteRequest::Finish => self.finish(session_id, request_id).await,
@@ -142,10 +136,11 @@ impl GlobalCollectiveState {
             .ok_or(GlobalCollectiveError::NotRegisteredOnFinish)?;
         self.node_addresses.remove(&node_id);
         self.node_peers.remove(&node_id);
+        self.num_global_peers = 0;
 
         let mut register_requests = vec![];
         core::mem::swap(&mut register_requests, &mut self.register_requests);
-        for (session, req) in register_requests {
+        for (session, req, node_id) in register_requests {
             if session == session_id {
                 // Send a response if we are finishing a session with a pending register request
                 let content = RemoteResponse::Error(GlobalCollectiveError::PendingRegisterOnFinish);
@@ -156,7 +151,7 @@ impl GlobalCollectiveState {
                 self.respond(session_id, response).await;
             } else {
                 // keep the register request
-                self.register_requests.push((session, req));
+                self.register_requests.push((session, req, node_id));
             }
         }
 
@@ -193,18 +188,10 @@ impl GlobalCollectiveState {
         &mut self,
         session_id: SessionId,
         request_id: RequestId,
-        node_id: NodeId,
         node_addr: Address,
         num_nodes: u32,
         peers: Vec<PeerId>,
     ) -> Result<(), GlobalCollectiveError> {
-        if self.node_addresses.contains_key(&node_id)
-            || self.registered_nodes.contains_key(&session_id)
-            || self.node_peers.contains_key(&node_id)
-        {
-            return Err(GlobalCollectiveError::MultipleRegister(node_id));
-        }
-
         match &self.cur_num_nodes {
             Some(cur_num_nodes) => {
                 if *cur_num_nodes != num_nodes {
@@ -218,18 +205,25 @@ impl GlobalCollectiveState {
 
         self.num_global_peers += peers.len() as u32;
 
+        let node_id: NodeId = self.registered_nodes.len().into();
         self.registered_nodes.insert(session_id, node_id);
+        if self.node_addresses.values().any(|addr| node_addr == *addr) {
+            return Err(GlobalCollectiveError::DoubleRegister);
+        }
         self.node_addresses.insert(node_id, node_addr);
         self.node_peers.insert(node_id, peers);
 
-        self.register_requests.push((session_id, request_id));
+        self.register_requests
+            .push((session_id, request_id, node_id));
 
         if self.registered_nodes.len() == num_nodes as usize {
             let mut callbacks = vec![];
             core::mem::swap(&mut callbacks, &mut self.register_requests);
 
-            for (session, request) in callbacks {
-                let content = RemoteResponse::RegisterAck {
+            for (session, request, node_id) in callbacks {
+                let content = RemoteResponse::Register {
+                    node_id,
+                    nodes: self.node_addresses.clone(),
                     num_global_devices: self.num_global_peers,
                 };
                 let resp = CollectiveMessageResponse {
@@ -237,72 +231,6 @@ impl GlobalCollectiveState {
                     content,
                 };
                 self.respond(session, resp).await;
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn all_reduce(
-        &mut self,
-        session_id: SessionId,
-        request_id: RequestId,
-        strategy: AllReduceStrategy,
-    ) -> Result<(), GlobalCollectiveError> {
-        let node_id = *self
-            .registered_nodes
-            .get(&session_id)
-            .ok_or(GlobalCollectiveError::AllReduceBeforeRegister)?;
-
-        if self.all_reduce_requests.is_empty() || self.cur_all_reduce_strategy.is_none() {
-            self.cur_all_reduce_strategy = Some(strategy);
-        } else if *self.cur_all_reduce_strategy.as_ref().unwrap() != strategy {
-            log::error!(
-                "Trying to all_reduce a different way ({:?}) than is currently
-                    being done ({:?})",
-                strategy,
-                self.cur_all_reduce_strategy,
-            );
-            return Err(GlobalCollectiveError::AllReduceParamsMismatch);
-        }
-
-        let node_address = self.node_addresses.get(&node_id).unwrap().clone();
-        self.all_reduce_requests
-            .push((session_id, request_id, node_address));
-
-        let tensor_count = self.all_reduce_requests.len();
-        if tensor_count > 0 && tensor_count == self.registered_nodes.len() {
-            if tensor_count == 1 {
-                log::warn!(
-                    "all-reduce should never be called with only one tensor, this is a no-op"
-                );
-            }
-
-            // all registered callers have sent a tensor to all_reduce
-            let mut requests = vec![];
-            core::mem::swap(&mut requests, &mut self.all_reduce_requests);
-
-            let mut requests_iter = requests.iter();
-            let central_node = requests_iter.next().unwrap().2.clone();
-            let other_nodes: Vec<Address> =
-                requests_iter.map(|(_, _, addr)| addr.clone()).collect();
-
-            for (i, (session, request, _)) in requests.iter().enumerate() {
-                let is_first = i == 0;
-                let strategy = if is_first {
-                    CentralizedAllReduceStrategy::Central {
-                        other_nodes: other_nodes.clone(),
-                    }
-                } else {
-                    CentralizedAllReduceStrategy::Peripheral {
-                        central_node: central_node.clone(),
-                    }
-                };
-                let resp = CollectiveMessageResponse {
-                    request_id: *request,
-                    content: RemoteResponse::CentralizedAllReduceStrategy(strategy),
-                };
-                self.respond(*session, resp).await;
             }
         }
 

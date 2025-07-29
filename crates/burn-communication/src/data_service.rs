@@ -37,11 +37,11 @@ enum DataServiceMessage {
 
 type ClientChannelRef<C> = Arc<Mutex<<C as ProtocolClient>::Channel>>;
 
-pub struct TensorDataService<B: Backend, N: Protocol<Client: ProtocolClient>> {
+pub struct TensorDataService<B: Backend, P: Protocol<Client: ProtocolClient>> {
     /// Maps tensor transfer IDs to their exposed state.
     pub exposed_tensors: Mutex<HashMap<TensorTransferId, TensorExposeState>>,
     /// Maps node addresses to their channels.
-    pub channels: Mutex<HashMap<Address, ClientChannelRef<N::Client>>>,
+    pub channels: Mutex<HashMap<Address, ClientChannelRef<P::Client>>>,
     /// Notify when a new tensor is exposed.
     pub new_tensor_notify: Arc<Notify>,
 
@@ -60,22 +60,22 @@ pub struct TensorExposeState {
 }
 
 /// Provides a routing function for a tensor data service for a communications server
-pub trait TensorDataServer<B: Backend, N: Protocol> {
+pub trait TensorDataServer<B: Backend, P: Protocol> {
     /// Routes the tensor data service to the "/data" route
-    fn route_tensor_data_service(self, state: Arc<TensorDataService<B, N>>) -> Self;
+    fn route_tensor_data_service(self, state: Arc<TensorDataService<B, P>>) -> Self;
 }
 
-impl<B: Backend, S: ProtocolServer + Sized, N: Protocol<Server = S> + 'static>
-    TensorDataServer<B, N> for S
+impl<B: Backend, S: ProtocolServer + Sized, P: Protocol<Server = S> + 'static>
+    TensorDataServer<B, P> for S
 {
-    fn route_tensor_data_service(self, state: Arc<TensorDataService<B, N>>) -> Self {
+    fn route_tensor_data_service(self, state: Arc<TensorDataService<B, P>>) -> Self {
         self.route("/data", async move |stream: S::Channel| {
             state.handle_data_channel(stream).await;
         })
     }
 }
 
-impl<B: Backend, N: Protocol> TensorDataService<B, N> {
+impl<B: Backend, P: Protocol> TensorDataService<B, P> {
     pub fn new(cancel_token: CancellationToken) -> Self {
         Self {
             exposed_tensors: Mutex::new(HashMap::new()),
@@ -135,6 +135,8 @@ impl<B: Backend, N: Protocol> TensorDataService<B, N> {
     }
 
     /// Downloads a tensor that is exposed on another server. Requires a Tokio 1.x runtime
+    ///
+    /// Returns None if the peer closes the connection
     pub async fn download_tensor(
         &self,
         remote: Address,
@@ -176,13 +178,13 @@ impl<B: Backend, N: Protocol> TensorDataService<B, N> {
     async fn get_data_stream(
         &self,
         address: Address,
-    ) -> Arc<Mutex<<N::Client as ProtocolClient>::Channel>> {
+    ) -> Arc<Mutex<<P::Client as ProtocolClient>::Channel>> {
         let mut streams = self.channels.lock().await;
         match streams.get(&address) {
             Some(stream) => stream.clone(),
             None => {
                 // Open a new WebSocket connection to the address
-                let stream = N::Client::connect(address.clone(), "data").await;
+                let stream = P::Client::connect(address.clone(), "data").await;
 
                 let Some(stream) = stream else {
                     panic!("Failed to connect to data server at {address:?}");
@@ -225,7 +227,7 @@ impl<B: Backend, N: Protocol> TensorDataService<B, N> {
     /// Handle incoming connections for downloading tensors.
     pub(crate) async fn handle_data_channel(
         &self,
-        mut channel: <N::Server as ProtocolServer>::Channel,
+        mut channel: <P::Server as ProtocolServer>::Channel,
     ) {
         log::info!("[Data Handler] New connection for download.");
 
@@ -244,13 +246,13 @@ impl<B: Backend, N: Protocol> TensorDataService<B, N> {
 
                         channel.send(Message::new(bytes)).await.unwrap();
                     } else {
-                        eprintln!("Closed connection");
+                        log::info!("Closed connection");
                         return;
                     }
                 }
                 Err(err) => panic!("Failed to receive message from websocket: {err:?}"),
             };
         }
-        eprintln!("[Data Service] Closing connection for download.");
+        log::info!("[Data Service] Closing connection for download.");
     }
 }
