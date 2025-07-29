@@ -324,7 +324,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         }
 
         // All have registered, callback
-        if self.peers.len() == config.num_devices as usize {
+        if self.peers.len() == config.num_devices {
             let mut register_result = Ok(());
 
             // if an error occurs on the global register, it must be passed back to every local peer

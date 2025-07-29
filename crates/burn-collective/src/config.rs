@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 /// This config is per-node. It is passed to [reduce](crate::register).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CollectiveConfig {
-    pub num_devices: u32,
+    pub num_devices: usize,
     pub local_all_reduce_strategy: AllReduceStrategy,
     pub local_reduce_strategy: ReduceStrategy,
     pub local_broadcast_strategy: BroadcastStrategy,
@@ -48,7 +48,7 @@ impl CollectiveConfig {
     }
 
     /// Selects the number of devices (local peers) on the current node
-    pub fn with_num_devices(mut self, num: u32) -> Self {
+    pub fn with_num_devices(mut self, num: usize) -> Self {
         self.num_devices = num;
         self
     }
@@ -271,12 +271,24 @@ pub enum BroadcastStrategy {
 /// A unique identifier for a peer in the context of collective operations.
 /// They must be unique, even in multi-node contexts.
 ///
-/// This is like the rank id in NCCL
+/// This is like the rank in NCCL
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PeerId(u32);
 
 impl From<u32> for PeerId {
     fn from(value: u32) -> Self {
         Self(value)
+    }
+}
+
+impl From<i32> for PeerId {
+    fn from(value: i32) -> Self {
+        Self(value as u32)
+    }
+}
+
+impl From<usize> for PeerId {
+    fn from(value: usize) -> Self {
+        Self(value as u32)
     }
 }

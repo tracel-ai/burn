@@ -11,7 +11,7 @@ pub const TENSOR_RANK: usize = 3;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeTest {
     /// How many threads to start on this node
-    pub device_count: u32,
+    pub device_count: usize,
     /// ID for this node
     pub node_id: NodeId,
     /// How many nodes in the cluster
