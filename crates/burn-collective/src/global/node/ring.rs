@@ -48,7 +48,7 @@ use burn_tensor::{TensorMetadata, backend::Backend};
 /// * `nodes` - Map of all nodes in the operation
 /// * `data_service` - The data service handles peer-to-peer tensor transfers
 /// * `sync_service` - The sync service handles syncing with peers
-/// * `tensor` - The tensor to reduce. At least one dimention size must be greater than the number
+/// * `tensor` - The tensor to reduce. At least one dimension size must be greater than the number
 ///   of nodes
 pub(crate) async fn ring_all_reduce_sum<B, P>(
     node: NodeId,
@@ -118,7 +118,7 @@ where
 /// * `slices` - Slices of the original tensor, len equal to node count
 /// * `transfer_counter` - counter for each step (one send one receive)
 /// * `send_slice_idx` - counter for the index of each slice to send
-/// * `is_phase_one` - In phase 1, the tensors are aggregated. Otherwise, they are overriden
+/// * `is_phase_one` - In phase 1, the tensors are aggregated. Otherwise, they are overridden
 /// * `data_service` - TensorDataService for peer-to-peer tensor transfers
 /// * `device` - The device on which all local tensors are stored. Should match `slices`
 async fn do_cycles<B, P>(

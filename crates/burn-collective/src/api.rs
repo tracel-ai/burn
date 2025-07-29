@@ -68,7 +68,7 @@ pub fn all_reduce<B: Backend, const D: usize>(
     client.all_reduce(id, tensor, op)
 }
 
-/// Broadcasts, or recives a broadcasted tensor.
+/// Broadcasts, or receives a broadcasted tensor.
 ///
 /// * `id` - The peer id of the caller
 /// * `tensor` - If defined, this tensor will be broadcasted. Otherwise, this call will receive

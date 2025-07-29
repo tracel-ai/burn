@@ -40,7 +40,7 @@ pub(crate) struct GlobalCollectiveState {
     /// Peer on each node
     node_peers: HashMap<NodeId, Vec<PeerId>>,
 
-    /// How many total nodes for the currrent register operation, as defined by the first caller
+    /// How many total nodes for the current register operation, as defined by the first caller
     cur_num_nodes: Option<u32>,
     /// How many peers have registered total
     num_global_peers: u32,
@@ -111,7 +111,7 @@ impl GlobalCollectiveState {
             }
             RemoteRequest::Finish => self.finish(session_id, request_id).await,
         } {
-            // Error occured, send it as response
+            // Error occurred, send it as response
             let content = RemoteResponse::Error(err);
             self.respond(
                 session_id,

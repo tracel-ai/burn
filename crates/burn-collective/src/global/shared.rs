@@ -89,7 +89,7 @@ pub(crate) enum RemoteResponse {
     Error(GlobalCollectiveError),
 }
 
-/// Errors that occur during collective opertaions on the global level
+/// Errors that occur during collective operations on the global level
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GlobalCollectiveError {
     /// Operations that can't be done before registering
@@ -97,7 +97,7 @@ pub enum GlobalCollectiveError {
     /// Ring all-reduce can't be done if all tensor dimensions are smaller than the number of nodes.
     RingReduceImpossible,
 
-    /// Either a node has unregisterd twice, or a Finish has been called before a Register
+    /// Either a node has unregistered twice, or a Finish has been called before a Register
     NotRegisteredOnFinish,
     /// Finish has been called before a Register operation was finished
     PendingRegisterOnFinish,

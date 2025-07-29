@@ -9,6 +9,7 @@ use crate::{
     },
 };
 
+/// Local client that talks to the Node. Each thread has a client.
 #[derive(Clone)]
 pub(crate) struct LocalCollectiveClient<B: Backend> {
     pub channel: SyncSender<Message<B>>,
@@ -117,7 +118,7 @@ impl<B: Backend> LocalCollectiveClient<B> {
         Ok(tensor)
     }
 
-    /// Broadcasts, or recives a broadcasted tensor.
+    /// Broadcasts, or receives a broadcasted tensor.
     ///
     /// * `id` - The peer id of the caller
     /// * `tensor` - If defined, this tensor will be broadcasted. Otherwise, this call will receive

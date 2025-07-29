@@ -22,8 +22,8 @@ use tokio::process::{Child, Command};
 struct AllReduceTest {
     shape: [usize; TENSOR_RANK],
     op: ReduceOperation,
-    local_strat: AllReduceStrategy,
-    global_strat: AllReduceStrategy,
+    local_strategy: AllReduceStrategy,
+    global_strategy: AllReduceStrategy,
 }
 
 impl Display for AllReduceTest {
@@ -32,18 +32,18 @@ impl Display for AllReduceTest {
             ReduceOperation::Sum => "sum",
             ReduceOperation::Mean => "mean",
         };
-        let local_strat_str = match self.local_strat {
+        let local_strategy_str = match self.local_strategy {
             AllReduceStrategy::Centralized => "local_centralized",
             AllReduceStrategy::Tree(n) => &format!("local_tree_{n}"),
             AllReduceStrategy::Ring => "local_ring",
         };
-        let global_strat_str = match self.global_strat {
+        let global_strategy_str = match self.global_strategy {
             AllReduceStrategy::Centralized => "global_centralized",
             AllReduceStrategy::Tree(n) => &format!("global_tree_{n}"),
             AllReduceStrategy::Ring => "global_ring",
         };
 
-        write!(f, "{op_str}_{local_strat_str}_{global_strat_str}")
+        write!(f, "{op_str}_{local_strategy_str}_{global_strategy_str}")
     }
 }
 
@@ -69,20 +69,20 @@ async fn main() {
         AllReduceTest {
             shape: [4, 64, 512],
             op: ReduceOperation::Mean,
-            local_strat: AllReduceStrategy::Tree(2),
-            global_strat: AllReduceStrategy::Tree(2),
+            local_strategy: AllReduceStrategy::Tree(2),
+            global_strategy: AllReduceStrategy::Tree(2),
         },
         AllReduceTest {
             shape: [4, 64, 512],
             op: ReduceOperation::Mean,
-            local_strat: AllReduceStrategy::Tree(2),
-            global_strat: AllReduceStrategy::Ring,
+            local_strategy: AllReduceStrategy::Tree(2),
+            global_strategy: AllReduceStrategy::Ring,
         },
         AllReduceTest {
             shape: [4, 64, 512],
             op: ReduceOperation::Mean,
-            local_strat: AllReduceStrategy::Centralized,
-            global_strat: AllReduceStrategy::Centralized,
+            local_strategy: AllReduceStrategy::Centralized,
+            global_strategy: AllReduceStrategy::Centralized,
         },
     ];
 
@@ -282,8 +282,8 @@ async fn dispatch_all_reduce_test(
             node_address,
             data_service_port,
             all_reduce_op: test.op,
-            global_strategy: test.global_strat,
-            local_strategy: test.local_strat,
+            global_strategy: test.global_strategy,
+            local_strategy: test.local_strategy,
             inputs,
             expected: expected.clone(),
         };
@@ -298,7 +298,7 @@ async fn dispatch_all_reduce_test(
     );
 }
 
-/// Run the test sequencially with no collective operations to get the optimal single-threaded speed
+/// Run the test sequentially with no collective operations to get the optimal single-threaded speed
 fn test_all_reduce_centralized_no_collective<B: Backend>(
     topology: &[usize],
     test: AllReduceTest,
@@ -313,7 +313,7 @@ fn test_all_reduce_centralized_no_collective<B: Backend>(
 
     let start = Instant::now();
 
-    // Sequencial test
+    // Sequential test
     let mut result = all_inputs.next().unwrap();
     for other in all_inputs {
         result = result.add(other);

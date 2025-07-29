@@ -144,7 +144,7 @@ fn ring_cycles<B: Backend>(
     }
 }
 
-/// Slice a list of tensors the same way, evenly across a given dimention.
+/// Slice a list of tensors the same way, evenly across a given dimension.
 /// The given `shape` should be the same for every tensor.
 fn slice_tensors<B: Backend>(
     mut tensors: HashMap<PeerId, B::FloatTensorPrimitive>,

@@ -698,20 +698,20 @@ impl<B: Backend> LocalCollectiveServer<B> {
         self.reset_broadcast_op();
     }
 
-    /// Resets the temprorary states of any ongoing all-reduce operation
+    /// Resets the temporary states of any ongoing all-reduce operation
     fn reset_all_reduce_op(&mut self) {
         self.all_reduce_ops.clear();
         self.cur_all_reduce_op = None;
     }
 
-    /// Resets the temprorary states of any ongoing reduce operation
+    /// Resets the temporary states of any ongoing reduce operation
     fn reset_reduce_op(&mut self) {
         self.reduce_ops.clear();
         self.cur_reduce_op = None;
         self.cur_reduce_root = None;
     }
 
-    /// Resets the temprorary states of any ongoing broadcast operation
+    /// Resets the temporary states of any ongoing broadcast operation
     fn reset_broadcast_op(&mut self) {
         self.broadcast_ops.clear();
         self.cur_broadcast_root = None;
