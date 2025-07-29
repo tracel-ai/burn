@@ -26,7 +26,7 @@ mod tests {
 
     #[test]
     fn min_max_calibration_range_per_block() {
-        let tensor = TestTensor::<1>::from_floats(
+        let tensor = TestTensor::<2>::from_floats(
             [
                 [-1.8, -1.0, 0.0, 0.5],
                 [1.8, 1.0, 0.0, -0.5],
