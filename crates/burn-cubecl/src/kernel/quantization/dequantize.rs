@@ -78,7 +78,7 @@ fn dequantize_per_block_symmetric_int8_packed_kernel<F: Float>(
     }
 
     let qparams = QParams::new(scheme);
-    let scale = qparams.scale(scale, ABSOLUTE_POS);
+    let scale = qparams.scale(scale, ABSOLUTE_POS * 4);
 
     let value = input[ABSOLUTE_POS];
 
@@ -194,11 +194,15 @@ where
                 };
             }
             QuantScheme {
-                level: QuantLevel::Block(_),
+                level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
                 ..
             } => {
+                assert!(
+                    block_size % 4 == 0,
+                    "block size must be divisible by 4, got block_size={block_size}"
+                );
                 let scales = tensor.scales().unwrap();
 
                 unsafe {

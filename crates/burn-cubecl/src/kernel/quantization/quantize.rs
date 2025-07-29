@@ -181,27 +181,17 @@ fn quantize_per_block_symmetric_int8_packed_kernel<F: Float>(
         terminate!();
     }
 
-    let scale = write_scale_per_block(
-        ABSOLUTE_POS * input.line_size(),
-        scale,
-        out_scale,
-        block_size,
-    );
+    // line size 1
+    let num_packed = comptime!(4);
+    let packed_pos = ABSOLUTE_POS * num_packed;
+    let scale = write_scale_per_block(packed_pos, scale, out_scale, block_size);
 
-    if comptime!(input.line_size() == 4) {
-        output[ABSOLUTE_POS] =
-            quantize_symmetric_int8_packed::<F>(input[ABSOLUTE_POS], scale, range_min, range_max);
-    } else {
-        // line size 1
-        let num_packed = comptime!(4);
-        let mut values = Line::<F>::empty(num_packed);
-        #[unroll]
-        for i in 0..num_packed {
-            values[i] = input[ABSOLUTE_POS * num_packed + i][0];
-        }
-        output[ABSOLUTE_POS] =
-            quantize_symmetric_int8_packed::<F>(values, scale, range_min, range_max);
+    let mut values = Line::<F>::empty(num_packed);
+    #[unroll]
+    for i in 0..num_packed {
+        values[i] = input[packed_pos + i][0];
     }
+    output[ABSOLUTE_POS] = quantize_symmetric_int8_packed::<F>(values, scale, range_min, range_max);
 }
 
 /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
@@ -341,6 +331,10 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement>(
             q_type: QuantInputType::QInt8,
             ..
         } => {
+            assert!(
+                *block_size % 4 == 0,
+                "block size must be divisible by 4, got block_size={block_size}"
+            );
             unsafe {
                 quantize_per_block_symmetric_int8_packed_kernel::launch_unchecked::<F, R>(
                     &client,
