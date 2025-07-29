@@ -1,6 +1,7 @@
 use crate::{data::MnistBatcher, model::Model};
 
 use burn::{
+    collective::{AllReduceStrategy, CollectiveConfig},
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     optim::{AdamConfig, decay::WeightDecayConfig},
     prelude::*,
@@ -8,6 +9,7 @@ use burn::{
     tensor::backend::AutodiffBackend,
     train::{
         LearnerBuilder, MetricEarlyStoppingStrategy, StoppingCondition,
+        ddp::DdpLearner,
         metric::{
             AccuracyMetric, CpuMemory, CpuTemperature, CpuUse, LossMetric,
             store::{Aggregate, Direction, Split},
@@ -44,6 +46,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     create_artifact_dir(ARTIFACT_DIR);
     // Config
     let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
+
     let config = MnistTrainingConfig::new(config_optimizer);
     B::seed(config.seed);
 
@@ -89,6 +92,12 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .num_epochs(config.num_epochs)
         .summary()
         .build(model, config.optimizer.init(), 1e-4);
+
+    let collective = CollectiveConfig::default()
+        .with_num_devices(devices.len())
+        .with_local_all_reduce_strategy(AllReduceStrategy::Tree(3));
+
+    let learner = DdpLearner::new(learner, collective);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 

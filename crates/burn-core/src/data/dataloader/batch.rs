@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 /// A data loader that can be used to iterate over a dataset in batches.
 pub struct BatchDataLoader<B: Backend, I, O> {
-    strategy: Box<dyn BatchStrategy<I>>,
+    strategy: Box<dyn BatchStrategy<I> + Sync>,
     dataset: Arc<dyn Dataset<I>>,
     batcher: Arc<dyn Batcher<B, I, O>>,
     device: B::Device,
@@ -44,7 +44,7 @@ impl<B: Backend, I, O> BatchDataLoader<B, I, O> {
     ///
     /// The batch data loader.
     pub fn new(
-        strategy: Box<dyn BatchStrategy<I>>,
+        strategy: Box<dyn BatchStrategy<I> + Sync>,
         dataset: Arc<dyn Dataset<I>>,
         batcher: Arc<dyn Batcher<B, I, O>>,
         device: B::Device,
@@ -102,7 +102,7 @@ where
         self.dataset.len()
     }
 
-    fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O>> {
+    fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O> + Sync> {
         let rng = self.rng.as_ref().map(|rng| {
             let rng = rng.lock();
             rng.clone()
@@ -116,7 +116,7 @@ where
         ))
     }
 
-    fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O>> {
+    fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O> + Sync> {
         let rng = self.rng.as_ref().map(|rng| {
             let rng = rng.lock();
             rng.clone()
