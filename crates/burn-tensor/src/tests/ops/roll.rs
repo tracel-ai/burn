@@ -1,7 +1,9 @@
 #[burn_tensor_testgen::testgen(roll)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, Slice, Tensor, TensorData, as_type, might_panic, s};
+    use burn_common::baselib::indexing::Slice;
+    use burn_common::s;
+    use burn_tensor::{Int, Tensor, TensorData, as_type, might_panic};
 
     #[ignore = "0 size resources are not yet supported"]
     #[cfg(feature = "std")]

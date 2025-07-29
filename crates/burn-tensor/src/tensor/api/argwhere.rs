@@ -1,5 +1,6 @@
-use crate::{Device, ElementConversion, Shape, TensorData, backend::Backend, ops::IntTensor};
+use crate::{Device, ElementConversion, TensorData, backend::Backend, ops::IntTensor};
 use alloc::vec::Vec;
+use burn_common::baselib::indexing::Shape;
 
 /// Compute the indices of the elements that are non-zero, grouped by element.
 ///

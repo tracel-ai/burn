@@ -11,6 +11,9 @@ extern crate derive_new;
 
 extern crate alloc;
 
+pub use burn_common::baselib::indexing::Shape;
+pub use burn_common::s;
+
 mod tensor;
 
 #[cfg(feature = "export_tests")]

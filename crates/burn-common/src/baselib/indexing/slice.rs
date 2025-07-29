@@ -1,5 +1,6 @@
-use crate::indexing::AsIndex;
+use crate::baselib::indexing::AsIndex;
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
+use derive_new::new;
 
 /// Creates a slice specification for tensor indexing operations.
 ///
@@ -25,7 +26,7 @@ macro_rules! s {
         {
             #[allow(clippy::reversed_empty_ranges)]
             {
-                $crate::Slice::from($range)
+                $crate::baselib::indexing::Slice::from($range)
             }
         }
     };
@@ -34,7 +35,7 @@ macro_rules! s {
         {
             #[allow(clippy::reversed_empty_ranges)]
             {
-                [$($crate::Slice::from($range)),+]
+                [$($crate::baselib::indexing::Slice::from($range)),+]
             }
         }
     };
@@ -64,7 +65,8 @@ impl Slice {
         }
     }
 
-    pub(crate) fn into_range(self, size: usize) -> Range<usize> {
+    /// Converts the slice into a `Range<usize>`.
+    pub fn into_range(self, size: usize) -> Range<usize> {
         let start = convert_signed_index(self.start, size);
 
         let end = match self.end {

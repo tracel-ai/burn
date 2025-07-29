@@ -5,14 +5,14 @@ mod bytes;
 mod data;
 mod distribution;
 mod element;
-mod shape;
 
 pub use api::*;
 pub use bytes::*;
 pub use data::*;
 pub use distribution::*;
 pub use element::*;
-pub use shape::*;
+
+pub use burn_common::baselib::indexing::{AsIndex, Shape};
 
 /// The activation module.
 pub mod activation;
@@ -25,11 +25,6 @@ pub mod container;
 
 /// The grid module.
 pub mod grid;
-
-/// The indexing module.
-pub mod indexing;
-
-pub use indexing::AsIndex;
 
 /// The linalg module.
 pub mod linalg;

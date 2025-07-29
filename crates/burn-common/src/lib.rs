@@ -20,6 +20,8 @@ extern crate alloc;
 #[cfg(feature = "network")]
 pub mod network;
 
+/// Common utilities available to all Burn crates and third-party libraries.
+pub mod baselib;
 /// Parallel utilities.
 pub mod parallel;
 
