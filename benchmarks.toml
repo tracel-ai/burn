@@ -1,0 +1,13 @@
+[environment]
+gcp_gpu_attached = true
+gcp_image_family = "tracel-ci-ubuntu-2404-amd64-nvidia"
+gcp_machine_type = "g2-standard-4"
+gcp_zone = "us-east1-c"
+repo_full = "tracel-ai/burn"
+rust_toolchain = "stable"
+rust_version = "stable"
+
+[burn-bench]
+backends = ["wgpu"]
+benches = ["matmul"]
+dtypes = ["f32"]
