@@ -60,6 +60,18 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn ad_enabled() -> bool {
         false
     }
+
+    fn memory_static_allocations<Output, Input, Func: Fn(Input) -> Output>(
+        device: &Self::Device,
+        input: Input,
+        func: Func,
+    ) -> Output {
+        B::memory_static_allocations(device, input, func)
+    }
+
+    fn memory_cleanup(device: &Self::Device) {
+        B::memory_cleanup(device)
+    }
 }
 
 /// The status of a [builder](OptimizationBuilder).

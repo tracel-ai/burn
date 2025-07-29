@@ -18,10 +18,17 @@ use crate::{
         node::{
             argmax::ArgMaxNode,
             argmin::ArgMinNode,
+            attention::{AttentionNode, AttentionNodeInputs, AttentionNodeOutputs},
             avg_pool1d::AvgPool1dNode,
             avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
+            bernoulli::BernoulliNode,
             binary::BinaryNode,
+            bitshift::{BitShiftNode, Direction},
+            bitwiseand::BitwiseAndNode,
+            bitwisenot::BitwiseNotNode,
+            bitwiseor::BitwiseOrNode,
+            bitwisexor::BitwiseXorNode,
             ceil::CeilNode,
             clip::ClipNode,
             concat::ConcatNode,
@@ -83,15 +90,15 @@ use onnx_ir::{
         TensorType as OnnxTensorType,
     },
     node::{
-        argmax::argmax_config, argmin::argmin_config, avg_pool1d::avg_pool1d_config,
-        avg_pool2d::avg_pool2d_config, batch_norm::batch_norm_config, clip::clip_config,
-        concat::concat_config, conv_transpose1d::conv_transpose1d_config,
-        conv_transpose2d::conv_transpose2d_config, conv_transpose3d::conv_transpose3d_config,
-        conv1d::conv1d_config, conv2d::conv2d_config, conv3d::conv3d_config,
-        depth_to_space::depth_to_space_config, dropout::dropout_config, expand::expand_config,
-        flatten::flatten_config, gather::gather_config, gemm::gemm_config,
+        argmax::argmax_config, argmin::argmin_config, attention::attention_config,
+        avg_pool1d::avg_pool1d_config, avg_pool2d::avg_pool2d_config,
+        batch_norm::batch_norm_config, clip::clip_config, concat::concat_config,
+        conv_transpose1d::conv_transpose1d_config, conv_transpose2d::conv_transpose2d_config,
+        conv_transpose3d::conv_transpose3d_config, conv1d::conv1d_config, conv2d::conv2d_config,
+        conv3d::conv3d_config, depth_to_space::depth_to_space_config, dropout::dropout_config,
+        expand::expand_config, flatten::flatten_config, gather::gather_config, gemm::gemm_config,
         group_norm::group_norm_config, hard_sigmoid::hard_sigmoid_config,
-        instance_norm::instance_norm_config, layer_norm::layer_norm_config,
+        instance_norm::instance_norm_config, is_inf::is_inf_config, layer_norm::layer_norm_config,
         leaky_relu::leaky_relu_config, linear::linear_config, log_softmax::log_softmax_config,
         max_pool1d::max_pool1d_config, max_pool2d::max_pool2d_config, one_hot::one_hot_config,
         pad::pad_config, reduce_max::reduce_max_config, reduce_mean::reduce_mean_config,
@@ -104,6 +111,8 @@ use onnx_ir::{
     parse_onnx,
     util::shape_config,
 };
+
+use onnx_ir::node::bitshift::bitshift_config;
 
 pub use crate::burn::graph::RecordType;
 use crate::burn::node::mean::MeanNode;
@@ -291,7 +300,14 @@ impl ParsedOnnxGraph {
             match node.node_type {
                 NodeType::Add => graph.register(Self::add_conversion(node)),
                 NodeType::ArgMax => graph.register(Self::argmax_conversion(node)),
+                NodeType::Attention => graph.register(Self::attention_conversion(node)),
+                NodeType::BitShift => graph.register(Self::bitshift_conversion(node)),
+                NodeType::BitwiseAnd => graph.register(Self::bitwise_and_conversion(node)),
+                NodeType::BitwiseOr => graph.register(Self::bitwise_or_conversion(node)),
+                NodeType::BitwiseXor => graph.register(Self::bitwise_xor_conversion(node)),
+                NodeType::BitwiseNot => graph.register(Self::bitwise_not_conversion(node)),
                 NodeType::ArgMin => graph.register(Self::argmin_conversion(node)),
+                NodeType::Bernoulli => graph.register(Self::bernoulli_conversion(node)),
                 NodeType::Sub => graph.register(Self::sub_conversion(node)),
                 NodeType::Mul => graph.register(Self::mul_conversion(node)),
                 NodeType::Div => graph.register(Self::div_conversion(node)),
@@ -410,6 +426,8 @@ impl ParsedOnnxGraph {
                 }
                 NodeType::Split => graph.register(Self::split_conversion(node)),
                 NodeType::Gemm => graph.register(Self::gemm_conversion(node)),
+                NodeType::IsNaN => graph.register(Self::is_nan_conversion(node)),
+                NodeType::IsInf => graph.register(Self::is_inf_conversion(node)),
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -670,6 +688,48 @@ impl ParsedOnnxGraph {
         let output = Type::from(node.outputs.first().unwrap());
 
         BinaryNode::equal(lhs, rhs, output)
+    }
+
+    fn bitshift_conversion(node: Node) -> BitShiftNode {
+        let inputs = node.inputs.iter().map(Type::from).collect();
+        let output = Type::from(node.outputs.first().unwrap());
+        let onnx_direction = bitshift_config(&node);
+
+        // Map ONNX direction to burn-import Direction
+        let direction = match onnx_direction {
+            onnx_ir::node::bitshift::Direction::Left => Direction::Left,
+            onnx_ir::node::bitshift::Direction::Right => Direction::Right,
+        };
+
+        BitShiftNode::new(inputs, output, direction)
+    }
+
+    fn bitwise_and_conversion(node: Node) -> BitwiseAndNode {
+        let inputs = node.inputs.iter().map(Type::from).collect();
+        let output = Type::from(node.outputs.first().unwrap());
+
+        BitwiseAndNode::new(inputs, output)
+    }
+
+    fn bitwise_or_conversion(node: Node) -> BitwiseOrNode {
+        let inputs = node.inputs.iter().map(Type::from).collect();
+        let output = Type::from(node.outputs.first().unwrap());
+
+        BitwiseOrNode::new(inputs, output)
+    }
+
+    fn bitwise_xor_conversion(node: Node) -> BitwiseXorNode {
+        let inputs = node.inputs.iter().map(Type::from).collect();
+        let output = Type::from(node.outputs.first().unwrap());
+
+        BitwiseXorNode::new(inputs, output)
+    }
+
+    fn bitwise_not_conversion(node: Node) -> BitwiseNotNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        BitwiseNotNode::new(input, output)
     }
 
     fn max_conversion(node: Node) -> BinaryNode {
@@ -997,6 +1057,13 @@ impl ParsedOnnxGraph {
         let axis = argmin_config(&node);
 
         ArgMinNode::new(input, output, axis)
+    }
+
+    fn bernoulli_conversion(node: Node) -> BernoulliNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        BernoulliNode::new(input, output)
     }
 
     fn concat_conversion(node: Node) -> ConcatNode {
@@ -1501,6 +1568,39 @@ impl ParsedOnnxGraph {
         let output = TensorType::from(node.outputs.first().unwrap());
         let (alpha, beta, trans_a, trans_b) = gemm_config(&node);
         GemmNode::new(a, b, c, output, alpha, beta, trans_a, trans_b)
+    }
+
+    fn is_inf_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        let config = is_inf_config(&node);
+        UnaryNode::is_inf(input, output, config)
+    }
+
+    fn is_nan_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        UnaryNode::is_nan(input, output)
+    }
+
+    fn attention_conversion(node: Node) -> AttentionNode {
+        let q = TensorType::from(node.inputs.first().unwrap());
+        let k = TensorType::from(node.inputs.get(1).unwrap());
+        let v = TensorType::from(node.inputs.get(2).unwrap());
+        let attn_mask = node.inputs.get(3).map(TensorType::from);
+        let past_key = node.inputs.get(4).map(TensorType::from);
+        let past_value = node.inputs.get(5).map(TensorType::from);
+        let y = TensorType::from(node.outputs.first().unwrap());
+        let present_key = node.outputs.get(1).map(TensorType::from);
+        let present_value = node.outputs.get(2).map(TensorType::from);
+        let qk_matmul_output = node.outputs.get(3).map(TensorType::from);
+        let config = attention_config(&node);
+
+        AttentionNode::new(
+            AttentionNodeInputs::new(q, k, v, attn_mask, past_key, past_value),
+            AttentionNodeOutputs::new(y, present_key, present_value, qk_matmul_output),
+            config,
+        )
     }
 }
 

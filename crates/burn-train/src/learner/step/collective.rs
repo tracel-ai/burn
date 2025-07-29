@@ -1,5 +1,5 @@
 use crate::{TrainOutput, TrainStep};
-use burn_collective::{self, CollectiveConfig, DeviceId, SharedAllReduceParams, all_reduce};
+use burn_collective::{self, all_reduce, CollectiveConfig, PeerId, ReduceOperation};
 use burn_core::data::dataloader::Progress;
 use burn_core::module::{ModuleVisitor, ParamId};
 use burn_core::optim::GradientsParams;
@@ -48,27 +48,24 @@ where
         &self,
         sender_output: Sender<TrainOutput<TO>>,
         receiver_input: Receiver<Message<M, TI>>,
-        device_id: DeviceId,
-        num_devices: u32,
+        peer_id: PeerId,
     ) where
         TI: Send + 'static,
         TO: Send + 'static,
         M: TrainStep<TI, TO> + Send + 'static,
     {
-        let global_params = self.collective_config.register_global_params();
         let device = self.device.clone();
-        let all_reduce_params = self.collective_config.all_reduce_params();
+        let collective_config = self.collective_config.clone();
 
         spawn(move || {
-            burn_collective::register::<B::InnerBackend>(device_id, num_devices, global_params)
+            burn_collective::register::<B::InnerBackend>(peer_id, device.clone(), collective_config)
                 .expect("Couldn't register for collective operations!");
 
             Self::handle_input(
                 sender_output,
                 receiver_input,
                 device,
-                device_id,
-                all_reduce_params,
+                peer_id,
             )
         });
     }
@@ -77,8 +74,7 @@ where
         sender_output: Sender<TrainOutput<TO>>,
         receiver_input: Receiver<Message<M, TI>>,
         device: B::Device,
-        device_id: DeviceId,
-        all_reduce_params: SharedAllReduceParams,
+        peer_id: PeerId,
     ) where
         TI: Send + 'static,
         TO: Send + 'static,
@@ -90,11 +86,11 @@ where
                     let model = item.model.fork(&device);
                     let mut output = model.step(item.item);
 
-                    // Sync with collective
+                    // Average grads with collective
                     output.grads =
                         output
                             .grads
-                            .all_reduce(device_id, all_reduce_params.clone(), &model);
+                            .all_reduce(peer_id, ReduceOperation::Mean, &model);
 
                     sender_output.send(output).unwrap();
                 }
@@ -144,7 +140,7 @@ where
                     collective_config,
                 };
 
-                let device_id = (idx as u32).into();
+                let peer_id = (idx as u32).into();
                 let sender_output = if idx == 0 {
                     main_sender_output.clone()
                 } else {
@@ -153,8 +149,7 @@ where
                 worker.start(
                     sender_output,
                     receiver_input,
-                    device_id,
-                    devices.len() as u32,
+                    peer_id,
                 );
                 worker
             })
@@ -211,8 +206,8 @@ where
 
 #[derive(new)]
 struct GradientsParamsAllReduce<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
-    device_id: DeviceId,
-    params: SharedAllReduceParams,
+    device_id: PeerId,
+    op: ReduceOperation,
     grads: &'a mut GradientsParams,
     m: PhantomData<M>,
     b: PhantomData<B>,
@@ -228,7 +223,7 @@ where
             return;
         };
 
-        grad = all_reduce::<B::InnerBackend, D>(self.device_id, grad, &self.params).unwrap();
+        grad = all_reduce::<B::InnerBackend, D>(self.device_id, grad, self.op).unwrap();
 
         self.grads.register::<B::InnerBackend, D>(id, grad);
     }
@@ -237,8 +232,8 @@ where
 trait GradientsParamsCollectiveExt {
     fn all_reduce<B: AutodiffBackend, M: AutodiffModule<B>>(
         self,
-        device_id: burn_collective::DeviceId,
-        params: burn_collective::SharedAllReduceParams,
+        device_id: PeerId,
+        op: burn_collective::ReduceOperation,
         module: &M,
     ) -> Self;
 }
@@ -247,11 +242,11 @@ impl GradientsParamsCollectiveExt for GradientsParams {
     /// All-Reduce the gradients for the given [module](AutodiffModule).
     fn all_reduce<B: AutodiffBackend, M: AutodiffModule<B>>(
         mut self,
-        device_id: burn_collective::DeviceId,
-        params: burn_collective::SharedAllReduceParams,
+        device_id: PeerId,
+        op: burn_collective::ReduceOperation,
         module: &M,
     ) -> Self {
-        let mut visitor = GradientsParamsAllReduce::<M, B>::new(device_id, params, &mut self);
+        let mut visitor = GradientsParamsAllReduce::<M, B>::new(device_id, op, &mut self);
         module.visit(&mut visitor);
         self
     }

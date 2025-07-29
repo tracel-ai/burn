@@ -1,38 +1,64 @@
 use crate::Dataset;
-use rand::{SeedableRng, prelude::SliceRandom, rngs::StdRng};
-use std::marker::PhantomData;
+use crate::transform::SelectionDataset;
+use rand::rngs::StdRng;
 
-/// Shuffled a dataset, consider using [sampler dataset](crate::transform::SamplerDataset) is you
-/// want a probability distribution that is computed lazily.
-pub struct ShuffledDataset<D, I> {
-    dataset: D,
-    indices: Vec<usize>,
-    input: PhantomData<I>,
+/// A Shuffled a dataset.
+///
+/// This is a thin wrapper around a [SelectionDataset] which selects and shuffles
+/// the full indices of the original dataset.
+///
+/// Consider using [SelectionDataset] if you are only interested in
+/// shuffling mechanisms.
+///
+/// Consider using [sampler dataset](crate::transform::SamplerDataset) if you
+/// want a probability distribution which is computed lazily.
+pub struct ShuffledDataset<D, I>
+where
+    D: Dataset<I>,
+    I: Clone + Send + Sync,
+{
+    wrapped: SelectionDataset<D, I>,
 }
 
 impl<D, I> ShuffledDataset<D, I>
 where
     D: Dataset<I>,
+    I: Clone + Send + Sync,
 {
-    /// Creates a new shuffled dataset.
+    /// Creates a new selection dataset with shuffled indices.
+    ///
+    /// This is a thin wrapper around `SelectionDataset::new_shuffled`.
+    ///
+    /// # Arguments
+    ///
+    /// * `dataset` - The original dataset to select from.
+    /// * `rng` - A mutable reference to a random number generator.
+    ///
+    /// # Returns
+    ///
+    /// A new `ShuffledDataset`.
     pub fn new(dataset: D, rng: &mut StdRng) -> Self {
-        let mut indices = Vec::with_capacity(dataset.len());
-        for i in 0..dataset.len() {
-            indices.push(i);
-        }
-        indices.shuffle(rng);
-
         Self {
-            dataset,
-            indices,
-            input: PhantomData,
+            wrapped: SelectionDataset::new_shuffled(dataset, rng),
         }
     }
 
-    /// Creates a new shuffled dataset with a fixed seed.
+    /// Creates a new selection dataset with shuffled indices using a fixed seed.
+    ///
+    /// This is a thin wrapper around `SelectionDataset::new_shuffled_with_seed`.
+    ///
+    /// # Arguments
+    ///
+    /// * `dataset` - The original dataset to select from.
+    /// * `seed` - A fixed seed for the random number generator.
+    ///
+    /// # Returns
+    ///
+    /// A new `ShuffledDataset`.
     pub fn with_seed(dataset: D, seed: u64) -> Self {
-        let mut rng = StdRng::seed_from_u64(seed);
-        Self::new(dataset, &mut rng)
+        Self {
+            wrapped: SelectionDataset::new_shuffled_with_seed(dataset, seed),
+        }
     }
 }
 
@@ -42,11 +68,39 @@ where
     I: Clone + Send + Sync,
 {
     fn get(&self, index: usize) -> Option<I> {
-        let index = self.indices.get(index)?;
-        self.dataset.get(*index)
+        self.wrapped.get(index)
     }
 
     fn len(&self) -> usize {
-        self.dataset.len()
+        self.wrapped.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::FakeDataset;
+    use crate::transform::selection::shuffled_indices;
+    use rand::SeedableRng;
+
+    #[test]
+    fn test_shuffled_dataset() {
+        let dataset = FakeDataset::<String>::new(27);
+        let source_items = dataset.iter().collect::<Vec<_>>();
+
+        let seed = 42;
+
+        let shuffled = ShuffledDataset::with_seed(dataset, seed);
+
+        let mut rng = StdRng::seed_from_u64(seed);
+        let indices = shuffled_indices(source_items.len(), &mut rng);
+
+        assert_eq!(shuffled.len(), source_items.len());
+
+        let expected_items: Vec<_> = indices
+            .iter()
+            .map(|&i| source_items[i].to_string())
+            .collect();
+        assert_eq!(&shuffled.iter().collect::<Vec<_>>(), &expected_items);
     }
 }

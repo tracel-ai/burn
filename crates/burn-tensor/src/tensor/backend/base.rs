@@ -96,6 +96,20 @@ pub trait Backend:
         false
     }
 
+    /// Sets the current allocation mode to static. Useful to load model weights.
+    #[allow(unused_variables)]
+    fn memory_static_allocations<Output, Input, Func: Fn(Input) -> Output>(
+        device: &Self::Device,
+        input: Input,
+        func: Func,
+    ) -> Output {
+        func(input)
+    }
+
+    /// Manually triggers a memory cleanup on the given device.
+    #[allow(unused_variables)]
+    fn memory_cleanup(device: &Self::Device) {}
+
     /// Name of the backend.
     fn name(device: &Self::Device) -> String;
 

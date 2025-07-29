@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::CubeFusionHandle;
 use burn_fusion::stream::{Context, ContextOwned};
 use cubecl::Runtime;
@@ -20,7 +22,7 @@ pub enum TuneContext<'a, R: Runtime> {
 /// are made based on its behavior.
 pub struct TuneInput<R: Runtime, O> {
     context: UnsafeTuneContext<R>,
-    optimization: *const O,
+    optimization: Arc<O>,
 }
 
 /// Unsafe wrapper around the context.
@@ -43,14 +45,12 @@ unsafe impl<R: Runtime, O> Send for TuneInput<R, O> {}
 
 impl<R: Runtime, O> TuneInput<R, O> {
     /// Create a new autotune input from the [context](Context) and an optimization.
-    pub fn new(context: &mut Context<CubeFusionHandle<R>>, optimization: &O) -> Self {
+    pub fn new(context: &mut Context<CubeFusionHandle<R>>, optimization: O) -> Self {
         let context = UnsafeTuneContext::new(context);
-        // We can erase the lifetime for the same reason we do with the context.
-        let optimization = core::ptr::from_ref(optimization);
 
         Self {
             context,
-            optimization,
+            optimization: Arc::new(optimization),
         }
     }
 
@@ -61,7 +61,7 @@ impl<R: Runtime, O> TuneInput<R, O> {
 
     /// Retrieve the optimization for the current input.
     pub fn optimization(&self) -> &O {
-        unsafe { self.optimization.as_ref().unwrap() }
+        &self.optimization
     }
 }
 
@@ -88,7 +88,7 @@ impl<R: Runtime, O> Clone for TuneInput<R, O> {
     fn clone(&self) -> Self {
         Self {
             context: self.context.clone(),
-            optimization: self.optimization,
+            optimization: self.optimization.clone(),
         }
     }
 }

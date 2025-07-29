@@ -157,8 +157,7 @@ impl QuantScheme {
                 let values_range = range.min.abs().max_pair(range.max.abs()).mul_scalar(2);
 
                 QuantizationParameters {
-                    scale: values_range.div_scalar(b - a),
-                    offset: None,
+                    scales: values_range.div_scalar(b - a),
                 }
             }
         }

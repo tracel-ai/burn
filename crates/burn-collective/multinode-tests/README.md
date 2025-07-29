@@ -1,26 +1,28 @@
 # Integration test for burn collective operations with multiple nodes and devices.
 
-Run `cargo run --bin main`
+Run `cargo run --bin test_launcher`
 
 There are 3 binaries:
 
-## client.rs
+## node.rs
 Launches `n` threads each simulating a different device. Currently the backend is NdArray, 
 so everything is CPU. The program takes a file with configurations and input data.
 
-## server.rs
-Runs the global collective server
+## global.rs
+Runs the global orchestrator, who is responsible for responding to global collective operation 
+requests. In the case of an all-reduce, the orchestrator responds with a strategy for reducing, 
+and the node can do the reduction independently.
 
-## main.rs
-Generates input data, calculates the expected results, and launches the clients each with their 
-own inputs in a seperate file.
+## test_launcher.rs
+Generates input data, calculates the expected results, and launches the nodes each with their 
+own inputs in a separate file.
 
-The tolopogy is [5, 5, 5, 5, 5]. This means 5 clients (nodes) are launched, 
-each with 5 threads (devices).
+The topology is [5, 5, 5, 5, 5]. This means 5 nodes are launched, 
+each with 5 threads (for each device).
 
-The global collective server (`server.rs`) is also launched.
+The global orchestrator (`global.rs`) is also launched.
 
 ## Output
-The outputs and inputs for each client and server are written to the `target/test_files` folder
+The outputs and inputs for each node and the orchestrator are written to the `target/test_files` folder
 
-If the clients or server stall, there is a timeout.
+If the nodes or orchestrator stall, there is a timeout.

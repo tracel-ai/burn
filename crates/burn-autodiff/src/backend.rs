@@ -51,6 +51,18 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     fn sync(device: &B::Device) {
         B::sync(device)
     }
+
+    fn memory_static_allocations<Output, Input, Func: Fn(Input) -> Output>(
+        device: &Self::Device,
+        input: Input,
+        func: Func,
+    ) -> Output {
+        B::memory_static_allocations(device, input, func)
+    }
+
+    fn memory_cleanup(device: &Self::Device) {
+        B::memory_cleanup(device)
+    }
 }
 
 impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {

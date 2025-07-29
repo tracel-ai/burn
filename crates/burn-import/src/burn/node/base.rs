@@ -2,7 +2,9 @@ use std::marker::PhantomData;
 
 use super::{
     argmax::ArgMaxNode, argmin::ArgMinNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
-    batch_norm::BatchNormNode, binary::BinaryNode, ceil::CeilNode, clip::ClipNode,
+    batch_norm::BatchNormNode, bernoulli::BernoulliNode, binary::BinaryNode,
+    bitshift::BitShiftNode, bitwiseand::BitwiseAndNode, bitwisenot::BitwiseNotNode,
+    bitwiseor::BitwiseOrNode, bitwisexor::BitwiseXorNode, ceil::CeilNode, clip::ClipNode,
     concat::ConcatNode, constant::ConstantNode, constant_of_shape::ConstantOfShapeNode,
     conv_transpose_1d::ConvTranspose1dNode, conv_transpose_2d::ConvTranspose2dNode,
     conv_transpose_3d::ConvTranspose3dNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
@@ -18,7 +20,10 @@ use super::{
     sum::SumNode, tile::TileNode, top_k::TopKNode, trilu::TriluNode, unary::UnaryNode,
     unsqueeze::UnsqueezeNode,
 };
-use crate::burn::{BurnImports, Scope, Type, node::space_to_depth::SpaceToDepthNode};
+use crate::burn::{
+    BurnImports, Scope, Type,
+    node::{attention::AttentionNode, space_to_depth::SpaceToDepthNode},
+};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use serde::Serialize;
@@ -87,10 +92,17 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 pub enum Node<PS: PrecisionSettings> {
     ArgMax(ArgMaxNode),
     ArgMin(ArgMinNode),
+    Attention(AttentionNode),
     AvgPool1d(AvgPool1dNode),
     AvgPool2d(AvgPool2dNode),
     BatchNorm(BatchNormNode),
+    Bernoulli(BernoulliNode),
     Binary(BinaryNode),
+    BitShift(BitShiftNode),
+    BitwiseAnd(BitwiseAndNode),
+    BitwiseOr(BitwiseOrNode),
+    BitwiseNot(BitwiseNotNode),
+    BitwiseXor(BitwiseXorNode),
     Clip(ClipNode),
     Concat(ConcatNode),
     Constant(ConstantNode),
@@ -151,10 +163,17 @@ macro_rules! match_all {
         match $self {
             Node::ArgMax(node) => $func(node),
             Node::ArgMin(node) => $func(node),
+            Node::Attention(node) => $func(node),
             Node::AvgPool1d(node) => $func(node),
             Node::AvgPool2d(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
+            Node::Bernoulli(node) => $func(node),
             Node::Binary(node) => $func(node),
+            Node::BitShift(node) => $func(node),
+            Node::BitwiseAnd(node) => $func(node),
+            Node::BitwiseOr(node) => $func(node),
+            Node::BitwiseNot(node) => $func(node),
+            Node::BitwiseXor(node) => $func(node),
             Node::Clip(node) => $func(node),
             Node::Concat(node) => $func(node),
             Node::Constant(node) => $func(node),
@@ -223,10 +242,17 @@ impl<PS: PrecisionSettings> Node<PS> {
         match self {
             Node::ArgMax(_) => "argmax",
             Node::ArgMin(_) => "argmin",
+            Node::Attention(_) => "attention",
             Node::AvgPool1d(_) => "avg_pool1d",
             Node::AvgPool2d(_) => "avg_pool2d",
             Node::BatchNorm(_) => "batch_norm",
+            Node::Bernoulli(_) => "bernoulli",
             Node::Binary(binary) => binary.binary_type.as_str(),
+            Node::BitShift(_) => "bitshift",
+            Node::BitwiseAnd(_) => "bitwiseand",
+            Node::BitwiseOr(_) => "bitwiseor",
+            Node::BitwiseNot(_) => "bitwisenot",
+            Node::BitwiseXor(_) => "bitwisexor",
             Node::Concat(_) => "concat",
             Node::Clip(_) => "clip",
             Node::Constant(_) => "constant",

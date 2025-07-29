@@ -19,12 +19,14 @@ use crate::{
     ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerCheckpointer,
     LearnerSummaryConfig,
 };
-use burn_collective::CollectiveConfig;
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
 use burn_core::optim::Optimizer;
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
+
+#[cfg(feature = "collective")]
+use burn_collective::CollectiveConfig;
 
 /// Struct to configure and create a [learner](Learner).
 pub struct LearnerBuilder<B, T, V, M, O, S>
@@ -50,6 +52,7 @@ where
     directory: PathBuf,
     grad_accumulation: Option<usize>,
     devices: Vec<B::Device>,
+    #[cfg(feature = "collective")]
     collective_config: Option<CollectiveConfig>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     metrics: Metrics<T, V>,
@@ -88,6 +91,7 @@ where
             directory,
             grad_accumulation: None,
             devices: vec![B::Device::default()],
+            #[cfg(feature = "collective")]
             collective_config: None,
             metrics: Metrics::default(),
             event_store: LogEventStore::default(),
@@ -223,6 +227,7 @@ where
     }
 
     /// Set the configuration for collective operations
+    #[cfg(feature = "collective")]
     pub fn with_collective_config(mut self, config: CollectiveConfig) -> Self {
         self.collective_config = Some(config);
         self
@@ -369,6 +374,7 @@ where
             checkpoint: self.checkpoint,
             grad_accumulation: self.grad_accumulation,
             devices: self.devices,
+            #[cfg(feature = "collective")]
             collective_config: self.collective_config,
             interrupter: self.interrupter,
             early_stopping: self.early_stopping,

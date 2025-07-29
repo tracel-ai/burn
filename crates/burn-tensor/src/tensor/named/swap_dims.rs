@@ -19,7 +19,7 @@ where
     }
 }
 
-macro_rules! generate_permut {
+macro_rules! generate_permute {
     (2 => $output:ty, ($dim1:expr, $dim2:expr)) => {
         impl<B: Backend, D1: Dim, D2: Dim> SwapDims<NamedTensor<B, $output>, $dim1, $dim2>
             for NamedTensor<B, (D1, D2)>
@@ -51,12 +51,12 @@ macro_rules! generate_permut {
     };
 }
 
-generate_permut!(2 => (D2, D1), (0, 1));
-generate_permut!(3 => (D2, D1, D3), (0, 1));
-generate_permut!(3 => (D3, D2, D1), (0, 2));
-generate_permut!(3 => (D1, D3, D2), (1, 2));
-generate_permut!(4 => (D2, D1, D3, D4), (0, 1));
-generate_permut!(4 => (D3, D2, D1, D4), (0, 2));
-generate_permut!(4 => (D4, D2, D3, D1), (0, 3));
-generate_permut!(4 => (D1, D3, D2, D4), (1, 2));
-generate_permut!(4 => (D1, D4, D3, D2), (1, 3));
+generate_permute!(2 => (D2, D1), (0, 1));
+generate_permute!(3 => (D2, D1, D3), (0, 1));
+generate_permute!(3 => (D3, D2, D1), (0, 2));
+generate_permute!(3 => (D1, D3, D2), (1, 2));
+generate_permute!(4 => (D2, D1, D3, D4), (0, 1));
+generate_permute!(4 => (D3, D2, D1, D4), (0, 2));
+generate_permute!(4 => (D4, D2, D3, D1), (0, 3));
+generate_permute!(4 => (D1, D3, D2, D4), (1, 2));
+generate_permute!(4 => (D1, D4, D3, D2), (1, 3));

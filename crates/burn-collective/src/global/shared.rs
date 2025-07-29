@@ -1,14 +1,11 @@
-use core::ops::Range;
-use std::sync::atomic::AtomicU32;
+use std::{collections::HashMap, sync::atomic::AtomicU32};
 
-use crate::NodeId;
+use crate::{NodeId, PeerId};
 use burn_common::id::IdGenerator;
 use burn_communication::{Address, CommunicationError};
 use serde::{Deserialize, Serialize};
 
-use crate::AllReduceStrategy;
-
-/// A unique identifier for each request made to a global collective server
+/// A unique identifier for each request made to a global orchestrator
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub(crate) struct RequestId(u32);
 
@@ -26,7 +23,7 @@ impl Default for RequestId {
     }
 }
 
-/// Unique identifier that can represent a session between a client and a server.
+/// Unique identifier that can represent a session between a node and the orchestrator.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 pub(crate) struct SessionId {
     id: u64,
@@ -60,17 +57,12 @@ pub(crate) struct CollectiveMessageResponse {
 pub(crate) enum RemoteRequest {
     // Register a node
     Register {
-        node_id: NodeId,
+        /// Endpoint for this node
         node_addr: Address,
         /// Number of total nodes
         num_nodes: u32,
-        /// Number of local devices on the requesting node
-        num_devices: u32,
-    },
-
-    // Aggregate
-    AllReduce {
-        strategy: AllReduceStrategy,
+        /// List of peers on this node
+        peers: Vec<PeerId>,
     },
 
     /// Unregister node
@@ -80,14 +72,15 @@ pub(crate) enum RemoteRequest {
 /// Responses for each server request
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum RemoteResponse {
-    // Register
-    RegisterAck { num_global_devices: u32 },
-
-    // The server gives the client a strategy for all-reducing, and the client aggregates
-    // independently, using the TensorDataService
-    CentralizedAllReduceStrategy(CentralizedAllReduceStrategy),
-    TreeAllReduceStrategy(TreeAllReduceStrategy),
-    RingAllReduceStrategy(RingAllReduceStrategy),
+    /// Response to a register request
+    Register {
+        /// The orchestrator gives the node its id
+        node_id: NodeId,
+        /// All the nodes in the collective: including self
+        nodes: HashMap<NodeId, Address>,
+        /// How many devices exist globally? For averaging values
+        num_global_devices: u32,
+    },
 
     // Finish
     FinishAck,
@@ -96,51 +89,22 @@ pub(crate) enum RemoteResponse {
     Error(GlobalCollectiveError),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) enum CentralizedAllReduceStrategy {
-    /// The central node is the one that will perform the all-reduce operation
-    Central { other_nodes: Vec<Address> },
-    /// The peripheral nodes are the ones that will send their tensors to the central node
-    Peripheral { central_node: Address },
-}
-
-/// Each node is assigned a position in a tree.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct TreeAllReduceStrategy {
-    pub children: Vec<Address>,
-    pub parent: Option<Address>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct RingAllReduceStrategy {
-    // Position in ring
-    pub next_node: Address,
-
-    // Which dim to slice on
-    pub slice_dim: usize,
-    // What index ranges should correspond to each slice
-    pub slice_ranges: Vec<Range<usize>>,
-
-    // How many slices
-    pub slice_count: usize,
-    // What slice index should be the first to be sent
-    pub first_slice: usize,
-}
-
 /// Errors that occur during collective opertaions on the global level
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GlobalCollectiveError {
     /// Operations that can't be done before registering
     AllReduceBeforeRegister,
+    /// Ring all-reduce can't be done if all tensor dimensions are smaller than the number of nodes.
+    RingReduceImpossible,
 
-    /// Can't register a node twice
-    MultipleRegister(NodeId),
     /// Either a node has unregisterd twice, or a Finish has been called before a Register
     NotRegisteredOnFinish,
     /// Finish has been called before a Register operation was finished
     PendingRegisterOnFinish,
     /// Trying to register a different way than is currently being done
     RegisterParamsMismatch,
+    /// Trying to register while already registered
+    DoubleRegister,
     /// Trying to aggregate a different way than is currently being done
     AllReduceParamsMismatch,
 
@@ -150,14 +114,15 @@ pub enum GlobalCollectiveError {
     InvalidMessage,
     /// A peer behaved unexpectedly
     PeerSentIncoherentTensor,
-    /// Error from the server
+    /// Tried to download from a peer, but the peer closed or lost the connection
+    PeerLost(NodeId),
+    /// Error from the coordinator
     Server(String),
 
-    // Global Client errors
-    /// The global collective client received an invalid response
-    WrongServerResponse,
-    /// Client couldn't connect to server
-    ServerUnreachable,
+    /// The node received an invalid response
+    WrongOrchestratorResponse,
+    /// Node couldn't connect to coordinator
+    OrchestratorUnreachable,
 }
 
 impl<E: CommunicationError> From<E> for GlobalCollectiveError {

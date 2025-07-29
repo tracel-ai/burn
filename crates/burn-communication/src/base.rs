@@ -47,6 +47,11 @@ pub trait ProtocolClient: Send + Sync + 'static {
 
     /// Opens a new [channel](CommunicationChannel) with the current protocol at the given
     /// [address](Address) and route.
+    ///
+    /// * `address` - Address to connect to
+    /// * `route` - The name of the route (no slashes)
+    ///
+    /// Returns None if the connection can't be done.
     fn connect(address: Address, route: &str) -> DynFut<Option<Self::Channel>>;
 }
 
@@ -65,6 +70,7 @@ pub trait ProtocolServer: Sized + Send + Sync + 'static {
     type Error: CommunicationError;
 
     /// Defines an endpoint with the function that responds.
+    /// TODO Docs: does it need a slash?
     fn route<C, Fut>(self, path: &str, callback: C) -> Self
     where
         C: FnOnce(Self::Channel) -> Fut + Clone + Send + Sync + 'static,

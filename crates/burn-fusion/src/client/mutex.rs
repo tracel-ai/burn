@@ -43,7 +43,7 @@ where
     {
         self.server
             .lock()
-            .register(streams, repr, Box::new(operation))
+            .register(streams, repr, Arc::new(operation))
     }
 
     fn drain(&self) {
