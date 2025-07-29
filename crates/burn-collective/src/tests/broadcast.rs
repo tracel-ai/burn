@@ -50,7 +50,7 @@ mod tests {
     }
 
     fn test_broadcast<B: Backend>(
-        device_count: u32,
+        device_count: usize,
         strategy: BroadcastStrategy,
         tensor_size: usize,
     ) {

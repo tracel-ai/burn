@@ -2,6 +2,7 @@ use burn::tensor::TensorData;
 use burn_communication::Address;
 use futures::{SinkExt, StreamExt};
 use std::{
+    fmt::Display,
     fs::{self, File},
     str::FromStr,
     time::{Duration, Instant},
@@ -25,24 +26,24 @@ struct AllReduceTest {
     global_strat: AllReduceStrategy,
 }
 
-impl ToString for AllReduceTest {
-    fn to_string(&self) -> String {
+impl Display for AllReduceTest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let op_str = match self.op {
             ReduceOperation::Sum => "sum",
             ReduceOperation::Mean => "mean",
         };
         let local_strat_str = match self.local_strat {
             AllReduceStrategy::Centralized => "local_centralized",
-            AllReduceStrategy::Tree(n) => &format!("local_tree_{}", n),
+            AllReduceStrategy::Tree(n) => &format!("local_tree_{n}"),
             AllReduceStrategy::Ring => "local_ring",
         };
         let global_strat_str = match self.global_strat {
             AllReduceStrategy::Centralized => "global_centralized",
-            AllReduceStrategy::Tree(n) => &format!("global_tree_{}", n),
+            AllReduceStrategy::Tree(n) => &format!("global_tree_{n}"),
             AllReduceStrategy::Ring => "global_ring",
         };
 
-        format!("{}_{}_{}", op_str, local_strat_str, global_strat_str)
+        write!(f, "{op_str}_{local_strat_str}_{global_strat_str}")
     }
 }
 
@@ -97,38 +98,34 @@ async fn main() {
     // Build and run node processes
     let mut all_tests_durations = vec![];
     if let Ok(mut nodes) = launch_nodes(&topology, launcher_endpoint).await {
-        loop {
-            // Run one test
-            for test in all_reduce_tests.clone() {
-                let test_name = test.to_string();
+        // Run one test
+        for test in all_reduce_tests.clone() {
+            let test_name = test.to_string();
 
-                let time =
-                    test_all_reduce_centralized_no_collective::<NdArray>(&topology, test.clone());
-                println!(
-                    "{test_name}: Benchmark (no collective, centralized, single-threaded): {} secs",
-                    time.as_secs_f32()
-                );
+            let time =
+                test_all_reduce_centralized_no_collective::<NdArray>(&topology, test.clone());
+            println!(
+                "{test_name}: Benchmark (no collective, centralized, single-threaded): {} secs",
+                time.as_secs_f32()
+            );
 
-                match test_all_reduce(&topology, test, &mut nodes).await {
-                    Err(node_idx) => {
-                        println!("{test_name}: Node with index {node_idx} failed!");
-                        // Kill other node processes
-                        for mut node in nodes.drain(..) {
-                            node.process.kill().await.unwrap();
-                            node.process.wait().await.unwrap();
-                        }
-                        break;
+            match test_all_reduce(&topology, test, &mut nodes).await {
+                Err(node_idx) => {
+                    println!("{test_name}: Node with index {node_idx} failed!");
+                    // Kill other node processes
+                    for mut node in nodes.drain(..) {
+                        node.process.kill().await.unwrap();
+                        node.process.wait().await.unwrap();
                     }
-                    Ok(durations) => {
-                        all_tests_durations.append(&mut durations.clone());
-                        let avg = durations.iter().map(|dur| dur.as_secs_f32()).sum::<f32>()
-                            / durations.len() as f32;
-                        println!("{test_name}: Success in {avg} secs");
-                    }
+                    break;
+                }
+                Ok(durations) => {
+                    all_tests_durations.append(&mut durations.clone());
+                    let avg = durations.iter().map(|dur| dur.as_secs_f32()).sum::<f32>()
+                        / durations.len() as f32;
+                    println!("{test_name}: Success in {avg} secs");
                 }
             }
-
-            break;
         }
     }
 
@@ -177,7 +174,7 @@ async fn launch_nodes(
 
     // Listen for node connections
     let listener = TcpListener::bind(launcher_endpoint).await.unwrap();
-    println!("Server listening on {}", launcher_endpoint);
+    println!("Server listening on {launcher_endpoint}");
 
     let mut nodes = vec![];
 
@@ -231,12 +228,12 @@ async fn launch_nodes(
 async fn test_all_reduce(
     topology: &[usize],
     test: AllReduceTest,
-    nodes: &mut Vec<NodeProcessHandle>,
+    nodes: &mut [NodeProcessHandle],
 ) -> Result<Vec<Duration>, usize> {
     dispatch_all_reduce_test(topology, test, nodes).await;
 
     let mut all_durations = vec![];
-    for (idx, handle) in nodes.into_iter().enumerate() {
+    for (idx, handle) in nodes.iter_mut().enumerate() {
         match handle.channel.next().await {
             Some(Ok(mut result)) => {
                 if !result.success {
@@ -256,7 +253,7 @@ async fn test_all_reduce(
 async fn dispatch_all_reduce_test(
     topology: &[usize],
     test: AllReduceTest,
-    nodes: &mut Vec<NodeProcessHandle>,
+    nodes: &mut [NodeProcessHandle],
 ) {
     let total_device_count: usize = topology.iter().sum();
     let (mut all_inputs, expected) =
@@ -278,7 +275,7 @@ async fn dispatch_all_reduce_test(
         all_inputs = all_inputs[device_count..].to_vec();
 
         let test = NodeTest {
-            device_count: device_count as u32,
+            device_count,
             node_id: node_idx.into(),
             node_count: topology.len() as u32,
             global_address: global_address.clone(),
@@ -340,18 +337,14 @@ fn generate_random_input(
     // A random tensor for each device
     let input: Vec<TensorData> = (0..input_count)
         .map(|_| {
-            TensorData::random::<f32, _, _>(
-                shape.clone(),
-                burn::tensor::Distribution::Default,
-                &mut rng,
-            )
+            TensorData::random::<f32, _, _>(shape, burn::tensor::Distribution::Default, &mut rng)
         })
         .collect();
 
     // Sum up the inputs
     let device = <NdArray as Backend>::Device::default();
     let mut expected_tensor = Tensor::<NdArray, TENSOR_RANK>::zeros(shape, &device);
-    for item in input.iter().take(input_count as usize) {
+    for item in input.iter().take(input_count) {
         let input_tensor = Tensor::<NdArray, TENSOR_RANK>::from_data(item.clone(), &device);
         expected_tensor = expected_tensor.add(input_tensor);
     }

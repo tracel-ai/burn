@@ -169,7 +169,6 @@ where
         };
 
         if op == ReduceOperation::Mean {
-            eprintln!("Inputs: {}", state.num_global_devices);
             result = B::float_div_scalar(result, (state.num_global_devices).elem());
         }
 

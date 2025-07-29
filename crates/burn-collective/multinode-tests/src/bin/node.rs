@@ -48,7 +48,7 @@ pub async fn main() {
 
     // Loop: receive, do test, send result
     while let Some(Ok(test)) = socket.next().await {
-        println!("Received test: {:?}", test);
+        println!("Received test: {test:?}");
 
         let result = run_test::<NdArray>(&test);
 
@@ -111,7 +111,7 @@ fn launch_threads<B: Backend>(
             .with_local_all_reduce_strategy(test_input.local_strategy);
 
         // Inputs and outputs for the test
-        let tensor_data = test_input.inputs[id as usize].clone();
+        let tensor_data = test_input.inputs[id].clone();
         let tensor = Tensor::<B, TENSOR_RANK>::from_data(tensor_data, &B::Device::default());
         let result_send = result_send.clone();
 

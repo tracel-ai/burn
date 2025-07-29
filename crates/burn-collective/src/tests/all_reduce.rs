@@ -47,7 +47,7 @@ mod tests {
     fn generate_random_input(
         shape: Shape,
         op: ReduceOperation,
-        thread_count: u32,
+        thread_count: usize,
     ) -> (Vec<TensorData>, TensorData) {
         let input: Vec<TensorData> = (0..thread_count)
             .map(|_| {
@@ -67,7 +67,7 @@ mod tests {
             expected_tensor = expected_tensor.add(input_tensor);
         }
         if op == ReduceOperation::Mean {
-            expected_tensor = expected_tensor.div_scalar(thread_count);
+            expected_tensor = expected_tensor.div_scalar(thread_count as u32);
         }
 
         let expected = expected_tensor.to_data();
@@ -76,7 +76,7 @@ mod tests {
     }
 
     fn test_all_reduce<B: Backend>(
-        device_count: u32,
+        device_count: usize,
         op: ReduceOperation,
         strategy: AllReduceStrategy,
         tensor_size: usize,
