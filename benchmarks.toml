@@ -11,6 +11,6 @@ rust_toolchain = "stable"
 rust_version = "stable"
 
 [burn-bench]
-backends = ["wgpu"]
+backends = ["wgpu", "wgpu-fusion", "cuda", "cuda-fusion"]
 benches = ["matmul"]
-dtypes = ["f32"]
+dtypes = ["f32", "f16", "bf16"]
