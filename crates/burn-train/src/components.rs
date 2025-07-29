@@ -26,7 +26,7 @@ pub trait LearnerComponents {
     type CheckpointerOptimizer: Checkpointer<
             <Self::Optimizer as Optimizer<Self::Model, Self::Backend>>::Record,
             Self::Backend,
-        >;
+        > + Send;
     /// The checkpointer used for the scheduler.
     type CheckpointerLrScheduler: Checkpointer<<Self::LrScheduler as LrScheduler>::Record<Self::Backend>, Self::Backend>;
     type EventProcessor: EventProcessor + 'static;

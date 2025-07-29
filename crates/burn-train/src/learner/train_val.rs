@@ -162,30 +162,14 @@ impl<LC: LearnerComponents> Learner<LC> {
 
         for epoch in starting_epoch..self.num_epochs + 1 {
             if self.devices.len() > 1 {
-                #[cfg(not(feature = "collective"))]
-                {
-                    (self.model, self.optim) = epoch_train.run_multi_device::<LC, OutputTrain>(
-                        self.model,
-                        self.optim,
-                        &mut self.lr_scheduler,
-                        &mut self.event_processor,
-                        self.devices.clone(),
-                        &self.interrupter,
-                    )
-                }
-                #[cfg(feature = "collective")]
-                {
-                    (self.model, self.optim) = epoch_train
-                        .run_multi_device_collective::<LC, OutputTrain>(
-                            self.model,
-                            self.optim,
-                            &mut self.lr_scheduler,
-                            &mut self.event_processor,
-                            self.devices.clone(),
-                            &self.interrupter,
-                            self.collective_config.as_ref().unwrap(),
-                        )
-                }
+                (self.model, self.optim) = epoch_train.run_multi_device::<LC, OutputTrain>(
+                    self.model,
+                    self.optim,
+                    &mut self.lr_scheduler,
+                    &mut self.event_processor,
+                    self.devices.clone(),
+                    &self.interrupter,
+                )
             } else {
                 (self.model, self.optim) = epoch_train.run::<LC, OutputTrain>(
                     self.model,

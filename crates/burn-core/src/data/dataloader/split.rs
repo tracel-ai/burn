@@ -8,7 +8,7 @@ use super::DataLoader;
 pub fn split_dataloader<B: Backend, O>(
     dataloader: Arc<dyn DataLoader<B, O>>,
     devices: &[B::Device],
-) -> Vec<Arc<dyn DataLoader<B, O>>> {
+) -> Vec<Arc<dyn DataLoader<B, O> + Sync>> {
     let num_splits = devices.len();
     if num_splits > 1 {
         let num_items = dataloader.num_items();

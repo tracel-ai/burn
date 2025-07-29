@@ -28,7 +28,8 @@ burn = { path = "../../crates/burn", features = [
     "train",
     "vision",
     "metrics",
-    "std"
+    "std",
+    "collective",
 ], default-features = false }
 burn-router = { path = "../../crates/burn-router", default-features = true, optional = true}
 

@@ -1,13 +1,19 @@
+use burn_collective::all_reduce;
+use burn_collective::{PeerId, ReduceOperation};
 use burn_core::data::dataloader::DataLoader;
+use burn_core::module::{ModuleVisitor, ParamId};
+use burn_core::optim::GradientsParams;
+use burn_core::tensor::Tensor;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_core::{
     lr_scheduler::LrScheduler, module::AutodiffModule, optim::GradientsAccumulator,
     tensor::backend::Backend,
 };
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use crate::metric::processor::{Event, EventProcessor, LearnerItem};
-use crate::{MultiDevicesTrainStep, TrainStep, ValidStep};
+use crate::{TrainStep, ValidStep};
 use crate::{components::LearnerComponents, learner::base::TrainingInterrupter};
 
 /// A validation epoch.
@@ -21,7 +27,7 @@ pub struct ValidEpoch<B: Backend, VI> {
 /// A training epoch.
 #[derive(new)]
 pub struct TrainEpoch<B: AutodiffBackend, TI> {
-    dataloader: Vec<Arc<dyn DataLoader<B, TI> + Sync>>,
+    dataloader: Arc<dyn DataLoader<B, TI>>,
     epoch: usize,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
@@ -37,7 +43,7 @@ impl<B: Backend, VI> ValidEpoch<B, VI> {
     pub fn run<LC: LearnerComponents, VO>(
         &self,
         model: &LC::Model,
-        processor: &mut LC::EventProcessor,
+        processor: &mut Option<LC::EventProcessor>,
         interrupter: &TrainingInterrupter,
     ) where
         LC::EventProcessor: EventProcessor<ItemValid = VO>,
@@ -64,14 +70,18 @@ impl<B: Backend, VI> ValidEpoch<B, VI> {
                 None,
             );
 
-            processor.process_valid(Event::ProcessedItem(item));
+            if let Some(processor) = processor {
+                processor.process_valid(Event::ProcessedItem(item));
+            }
 
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
                 break;
             }
         }
-        processor.process_valid(Event::EndEpoch(self.epoch));
+        if let Some(processor) = processor {
+            processor.process_valid(Event::EndEpoch(self.epoch));
+        }
     }
 }
 
@@ -93,8 +103,9 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
         mut model: LC::Model,
         mut optim: LC::Optimizer,
         scheduler: &mut LC::LrScheduler,
-        processor: &mut LC::EventProcessor,
+        processor: &mut Option<LC::EventProcessor>,
         interrupter: &TrainingInterrupter,
+        peer_id: PeerId,
     ) -> (LC::Model, LC::Optimizer)
     where
         LC::EventProcessor: EventProcessor<ItemTrain = TO>,
@@ -102,8 +113,7 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     {
         log::info!("Executing training step for epoch {}", self.epoch,);
 
-        // Single device / dataloader
-        let mut iterator = self.dataloader[0].iter();
+        let mut iterator = self.dataloader.iter();
         let mut iteration = 0;
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
@@ -122,7 +132,11 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
                     accumulation_current += 1;
 
                     if accumulation <= accumulation_current {
-                        let grads = accumulator.grads();
+                        let mut grads = accumulator.grads();
+
+                        // Sync grads with collective
+                        grads = grads.all_reduce(peer_id, ReduceOperation::Mean, &model);
+
                         model = model.optimize(&mut optim, lr, grads);
                         accumulation_current = 0;
                     }
@@ -139,14 +153,19 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
                 Some(lr),
             );
 
-            processor.process_train(Event::ProcessedItem(item));
+            if let Some(processor) = processor {
+                processor.process_train(Event::ProcessedItem(item));
+            }
 
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
                 break;
             }
         }
-        processor.process_train(Event::EndEpoch(self.epoch));
+
+        if let Some(processor) = processor {
+            processor.process_train(Event::EndEpoch(self.epoch));
+        }
 
         self.epoch += 1;
 
@@ -154,102 +173,49 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     }
 }
 
-/// The non-collective implementation of run_multi_device
-impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
-    /// Runs the training epoch on multiple devices.
-    ///
-    /// # Arguments
-    ///
-    /// * `model` - The model to train.
-    /// * `optim` - The optimizer to use.
-    /// * `lr_scheduler` - The learning rate scheduler to use.
-    /// * `processor` - The event processor to use.
-    /// * `devices` - The devices to use.
-    ///
-    /// # Returns
-    ///
-    /// The trained model and the optimizer.
-    pub fn run_multi_device<LC: LearnerComponents<Backend = B>, TO>(
-        &mut self,
-        mut model: LC::Model,
-        mut optim: LC::Optimizer,
-        lr_scheduler: &mut LC::LrScheduler,
-        processor: &mut LC::EventProcessor,
-        devices: Vec<<LC::Backend as Backend>::Device>,
-        interrupter: &TrainingInterrupter,
-    ) -> (LC::Model, LC::Optimizer)
-    where
-        LC::EventProcessor: EventProcessor<ItemTrain = TO>,
-        LC::Model: TrainStep<TI, TO>,
-        TO: Send + 'static,
-        TI: Send + 'static,
-    {
-        log::info!(
-            "Executing training step for epoch {} on devices {:?}",
-            self.epoch,
-            devices
-        );
+#[derive(new)]
+struct GradientsParamsSync<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
+    peer_id: PeerId,
+    op: burn_collective::ReduceOperation,
+    grads: &'a mut GradientsParams,
+    m: PhantomData<(M, B)>,
+}
 
-        let mut iterators = self.dataloader.iter().map(|d| d.iter()).collect::<Vec<_>>();
-        let mut iteration = 0;
-        let mut accumulator = GradientsAccumulator::new();
-        let mut accumulation_current = 0;
+impl<B, M> ModuleVisitor<B> for GradientsParamsSync<'_, M, B>
+where
+    B: AutodiffBackend,
+    M: AutodiffModule<B>,
+{
+    fn visit_float<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D>) {
+        let Some(mut grad) = self.grads.remove::<B::InnerBackend, D>(id) else {
+            return;
+        };
 
-        let accumulation = self.grad_accumulation.unwrap_or(1) * devices.len();
-        let step = MultiDevicesTrainStep::new(&devices);
+        grad = all_reduce::<B::InnerBackend, D>(self.peer_id, grad, self.op).unwrap();
 
-        // The main device is always the first in the list.
-        let device_main = devices.first().expect("A minimum of one device.").clone();
-        let mut interrupted = false;
+        self.grads.register::<B::InnerBackend, D>(id, grad);
+    }
+}
 
-        loop {
-            let (items, progress) = step.step(iterators.as_mut_slice(), &model);
-            if items.is_empty() {
-                break;
-            }
+trait GradientsParamsCollectiveExt {
+    fn all_reduce<B: AutodiffBackend, M: AutodiffModule<B>>(
+        self,
+        device_id: burn_collective::PeerId,
+        op: burn_collective::ReduceOperation,
+        module: &M,
+    ) -> Self;
+}
 
-            for item in items {
-                iteration += 1;
-                let lr = lr_scheduler.step();
-
-                let grads = item.grads.to_device(&device_main, &model);
-
-                accumulator.accumulate(&model, grads);
-                accumulation_current += 1;
-
-                if accumulation <= accumulation_current {
-                    let grads = accumulator.grads();
-                    model = model.optimize(&mut optim, lr, grads);
-                    accumulation_current = 0;
-                }
-
-                let item = LearnerItem::new(
-                    item.item,
-                    progress.clone(),
-                    self.epoch,
-                    self.epoch_total,
-                    iteration,
-                    Some(lr),
-                );
-
-                processor.process_train(Event::ProcessedItem(item));
-
-                if interrupter.should_stop() {
-                    log::info!("Training interrupted.");
-                    interrupted = true;
-                    break;
-                }
-            }
-
-            if interrupted {
-                break;
-            }
-        }
-
-        processor.process_train(Event::EndEpoch(self.epoch));
-
-        self.epoch += 1;
-
-        (model, optim)
+impl GradientsParamsCollectiveExt for GradientsParams {
+    /// All-Reduce the gradients for the given [module](AutodiffModule).
+    fn all_reduce<B: AutodiffBackend, M: AutodiffModule<B>>(
+        mut self,
+        device_id: burn_collective::PeerId,
+        op: burn_collective::ReduceOperation,
+        module: &M,
+    ) -> Self {
+        let mut visitor = GradientsParamsSync::<M, B>::new(device_id, op, &mut self);
+        module.visit(&mut visitor);
+        self
     }
 }

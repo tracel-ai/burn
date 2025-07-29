@@ -11,9 +11,6 @@ use burn_core::tensor::backend::Backend;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-#[cfg(feature = "collective")]
-use burn_collective::CollectiveConfig;
-
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 ///
 /// To create a learner, use the [builder](crate::learner::LearnerBuilder) struct.
@@ -31,9 +28,6 @@ pub struct Learner<LC: LearnerComponents> {
     pub(crate) event_processor: LC::EventProcessor,
     pub(crate) event_store: Arc<EventStoreClient>,
     pub(crate) summary: Option<LearnerSummaryConfig>,
-
-    #[cfg(feature = "collective")]
-    pub(crate) collective_config: Option<CollectiveConfig>,
 }
 
 #[derive(new)]

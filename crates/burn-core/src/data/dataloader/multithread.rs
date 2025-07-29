@@ -7,8 +7,7 @@ use rand::rngs::StdRng;
 
 use super::batcher::Batcher;
 use super::{BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, Progress};
-use core::cell::OnceCell;
-use std::sync::{Arc, mpsc};
+use std::sync::{Arc, OnceLock, mpsc};
 use std::thread;
 
 const MAX_QUEUED_ITEMS: usize = 100;
@@ -16,7 +15,7 @@ const MAX_QUEUED_ITEMS: usize = 100;
 /// A multi-threaded data loader that can be used to iterate over a dataset.
 pub struct MultiThreadDataLoader<B: Backend, I, O> {
     // Configuration parameters needed for initialization
-    strategy: Box<dyn BatchStrategy<I>>,
+    strategy: Box<dyn BatchStrategy<I> + Sync>,
     dataset: Arc<dyn Dataset<I>>,
     batcher: Arc<dyn Batcher<B, I, O>>,
     device: B::Device,
@@ -24,7 +23,7 @@ pub struct MultiThreadDataLoader<B: Backend, I, O> {
     num_threads: usize,
 
     // The lazily initialized data loaders
-    dataloaders: OnceCell<Vec<BatchDataLoader<B, I, O>>>,
+    dataloaders: OnceLock<Vec<BatchDataLoader<B, I, O>>>,
 }
 
 /// A message that can be sent between threads.
@@ -65,7 +64,7 @@ where
     ///
     /// The multi-threaded batch data loader.
     pub fn new(
-        strategy: Box<dyn BatchStrategy<I>>,
+        strategy: Box<dyn BatchStrategy<I> + Sync>,
         dataset: Arc<dyn Dataset<I>>,
         batcher: Arc<dyn Batcher<B, I, O>>,
         num_threads: usize,
@@ -79,7 +78,7 @@ where
             num_threads,
             device,
             rng,
-            dataloaders: OnceCell::new(),
+            dataloaders: OnceLock::new(),
         }
     }
 
@@ -176,7 +175,7 @@ where
         self.dataset.len()
     }
 
-    fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O>> {
+    fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O> + Sync> {
         Arc::new(Self::new(
             self.strategy.clone_dyn(),
             self.dataset.clone(),
@@ -187,7 +186,7 @@ where
         ))
     }
 
-    fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O>> {
+    fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O> + Sync> {
         let dataloader = Self::new(
             self.strategy.clone_dyn(),
             Arc::new(PartialDataset::new(self.dataset.clone(), start, end)),

@@ -9,6 +9,10 @@ mod step;
 mod summary;
 mod train_val;
 
+/// Module for a trainer that uses collective operations
+#[cfg(feature = "ddp")]
+pub mod ddp;
+
 pub use application_logger::*;
 pub use base::*;
 pub use builder::*;

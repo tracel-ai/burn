@@ -108,7 +108,7 @@ router = ["burn-router", "ir"]
 server = ["burn-remote/server"]
 simd = ["burn-ndarray?/simd"]
 template = ["burn-wgpu?/template"]
-collective = ["burn-collective", "burn-train?/collective"]
+collective = ["burn-collective", "burn-train?/ddp"]
 
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]

@@ -19,7 +19,8 @@ default = ["sys-metrics", "tui"]
 doc = ["default"]
 sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui"]
-collective = ["burn-collective"]
+# Distributed Data Parallel
+ddp = ["burn-collective"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "0.19.0", features = [

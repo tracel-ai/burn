@@ -224,7 +224,6 @@ impl<B: Backend> LocalCollectiveServer<B> {
     }
 
     async fn process_message(&mut self, message: Message<B>) {
-        eprintln!("Message: {:?}", message);
         match message {
             Message::Register {
                 device_id,

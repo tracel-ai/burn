@@ -54,11 +54,11 @@ mod wgpu {
 mod wgpu_ndarray {
     use burn::backend::{
         Autodiff,
-        wgpu::{Wgpu, WgpuDevice},
         ndarray::{NdArray, NdArrayDevice},
+        wgpu::{Wgpu, WgpuDevice},
     };
+    use burn_router::{Router, duo};
     use mnist::training;
-    use burn_router::{duo, Router};
 
     pub fn run() {
         type DualBackend = Router<(Wgpu, NdArray)>;
