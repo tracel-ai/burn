@@ -20,7 +20,7 @@ functionality.
 | [Asinh][9]                       | ❌             | ❌           |
 | [Atan][10]                       | ❌             | ❌           |
 | [Atanh][11]                      | ❌             | ❌           |
-| [Attention][194]                 | ❌             | ✅           |
+| [Attention][194]                 | ✅             | ✅           |
 | [AveragePool1d][12]              | ✅             | ✅           |
 | [AveragePool2d][12]              | ✅             | ✅           |
 | [BatchNormalization][14]         | ✅             | ✅           |

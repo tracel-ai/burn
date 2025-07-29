@@ -20,7 +20,10 @@ use super::{
     sum::SumNode, tile::TileNode, top_k::TopKNode, trilu::TriluNode, unary::UnaryNode,
     unsqueeze::UnsqueezeNode,
 };
-use crate::burn::{BurnImports, Scope, Type, node::space_to_depth::SpaceToDepthNode};
+use crate::burn::{
+    BurnImports, Scope, Type,
+    node::{attention::AttentionNode, space_to_depth::SpaceToDepthNode},
+};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use serde::Serialize;
@@ -89,6 +92,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 pub enum Node<PS: PrecisionSettings> {
     ArgMax(ArgMaxNode),
     ArgMin(ArgMinNode),
+    Attention(AttentionNode),
     AvgPool1d(AvgPool1dNode),
     AvgPool2d(AvgPool2dNode),
     BatchNorm(BatchNormNode),
@@ -159,6 +163,7 @@ macro_rules! match_all {
         match $self {
             Node::ArgMax(node) => $func(node),
             Node::ArgMin(node) => $func(node),
+            Node::Attention(node) => $func(node),
             Node::AvgPool1d(node) => $func(node),
             Node::AvgPool2d(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
@@ -237,6 +242,7 @@ impl<PS: PrecisionSettings> Node<PS> {
         match self {
             Node::ArgMax(_) => "argmax",
             Node::ArgMin(_) => "argmin",
+            Node::Attention(_) => "attention",
             Node::AvgPool1d(_) => "avg_pool1d",
             Node::AvgPool2d(_) => "avg_pool2d",
             Node::BatchNorm(_) => "batch_norm",
