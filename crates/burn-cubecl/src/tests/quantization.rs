@@ -51,11 +51,17 @@ mod tests {
 
     #[test]
     fn should_quantize_dequantize_symmetric_per_block() {
-        let scheme = QuantScheme::default().set_level(QuantLevel::Block(4));
+        let scheme = QuantScheme::default().set_level(QuantLevel::Block(8));
         let input = Tensor::<TestBackend, 2>::from_floats(
             [
-                [-1.8, -1.0, 0.0, 0.5, 0.01, 0.02, 0.03, 0.04],
-                [1.8, 1.0, 0.0, -0.5, -0.01, -0.02, -0.03, -0.04],
+                [
+                    -1.8, -1.0, 0.0, 0.5, -1.8, -1.0, 0.0, 0.5, 0.01, 0.02, 0.03, 0.04, 0.01, 0.02,
+                    0.03, 0.04,
+                ],
+                [
+                    1.8, 1.0, 0.0, -0.5, 1.8, 1.0, 0.0, -0.5, -0.01, -0.02, -0.03, -0.04, -0.01,
+                    -0.02, -0.03, -0.04,
+                ],
             ],
             &Default::default(),
         );
@@ -65,14 +71,11 @@ mod tests {
         let output = input.quantize_dynamic(&scheme);
         let output_ref = input_ref.quantize_dynamic(&scheme);
 
-        println!("checking quantize ref");
         output.to_data().assert_eq(&output_ref.to_data(), false);
 
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        println!("checking dequantize ref");
-        println!("{output}");
         output
             .to_data()
             .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());

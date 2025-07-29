@@ -339,7 +339,7 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
                 self.qparams[0].scales,
             )),
             QuantScheme {
-                level: QuantLevel::Block(_),
+                level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
                 ..
@@ -348,6 +348,7 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
                     .iter()
                     .map(|q| SymmetricQuantization::init(q.scales))
                     .collect(),
+                block_size,
             ),
         }
     }

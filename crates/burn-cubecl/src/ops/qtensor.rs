@@ -51,13 +51,15 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
             (data, shapes, elem_sizes)
         }
         QuantScheme {
-            level: QuantLevel::Block(num_blocks),
+            level: QuantLevel::Block(block_size),
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
             ..
         } => {
+            let numel = shape.num_elements();
+            let num_blocks = numel / block_size;
             scales_shape = Shape::new([num_blocks]);
-            let data = vec![&data[..shape.num_elements()], &data[shape.num_elements()..]];
+            let data = vec![&data[..numel], &data[numel..]];
             let shapes = vec![shape.dims.as_slice(), scales_shape.dims.as_slice()];
             let elem_sizes = vec![size_of::<i8>(), size_of::<f32>()];
             (data, shapes, elem_sizes)
@@ -113,11 +115,12 @@ pub fn empty_qtensor<R: CubeRuntime>(
             (shapes, elem_sizes)
         }
         QuantScheme {
-            level: QuantLevel::Block(num_blocks),
+            level: QuantLevel::Block(block_size),
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
             ..
         } => {
+            let num_blocks = shape.num_elements() / block_size;
             scales_shape = Shape::new([num_blocks]);
             scales_dtype = DType::F32;
             let shapes = vec![shape.dims.as_slice(), scales_shape.dims.as_slice()];

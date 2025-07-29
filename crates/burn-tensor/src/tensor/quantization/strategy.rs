@@ -13,7 +13,7 @@ pub enum QuantizationStrategy {
     /// Per-tensor `int8` symmetric quantization.
     PerTensorSymmetricInt8(SymmetricQuantization<f32, i8>),
     /// Per-block `int8` symmetric quantization.
-    PerBlockSymmetricInt8(Vec<SymmetricQuantization<f32, i8>>),
+    PerBlockSymmetricInt8(Vec<SymmetricQuantization<f32, i8>>, usize),
 }
 
 impl QuantizationStrategy {
@@ -21,16 +21,16 @@ impl QuantizationStrategy {
     pub fn quantize(&self, values: &[f32]) -> Vec<i8> {
         match self {
             QuantizationStrategy::PerTensorSymmetricInt8(strategy) => strategy.quantize(values),
-            QuantizationStrategy::PerBlockSymmetricInt8(strategy) => {
+            QuantizationStrategy::PerBlockSymmetricInt8(strategy, block_size) => {
                 let num_blocks = strategy.len();
                 let numel = values.len();
                 assert_eq!(
-                    numel % num_blocks,
-                    0,
+                    numel / block_size,
+                    num_blocks,
                     "Invalid per-block quantization with num blocks {num_blocks} and {numel} values"
                 );
                 values
-                    .chunks(numel / num_blocks)
+                    .chunks(*block_size)
                     .enumerate()
                     .flat_map(|(block_id, block)| strategy[block_id].quantize(block))
                     .collect()
@@ -42,16 +42,16 @@ impl QuantizationStrategy {
     pub fn dequantize(&self, values: &[i8]) -> Vec<f32> {
         match self {
             QuantizationStrategy::PerTensorSymmetricInt8(strategy) => strategy.dequantize(values),
-            QuantizationStrategy::PerBlockSymmetricInt8(strategy) => {
+            QuantizationStrategy::PerBlockSymmetricInt8(strategy, block_size) => {
                 let num_blocks = strategy.len();
                 let numel = values.len();
                 assert_eq!(
-                    numel % num_blocks,
-                    0,
-                    "Invalid per-block quantization with num blocks {num_blocks} and {numel} values"
+                    numel / block_size,
+                    num_blocks,
+                    "Invalid per-block quantization with block size {block_size}, num blocks {num_blocks} and {numel} values"
                 );
                 values
-                    .chunks(numel / num_blocks)
+                    .chunks(*block_size)
                     .enumerate()
                     .flat_map(|(block_id, block)| strategy[block_id].dequantize(block))
                     .collect()
@@ -71,8 +71,8 @@ impl QuantizationStrategy {
                 acc_precision: QuantAccPrecision::Full,
                 propagation: QuantPropagation::Inhibit,
             },
-            QuantizationStrategy::PerBlockSymmetricInt8(blocks) => QuantScheme {
-                level: QuantLevel::Block(blocks.len()),
+            QuantizationStrategy::PerBlockSymmetricInt8(_blocks, block_size) => QuantScheme {
+                level: QuantLevel::Block(*block_size),
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
                 acc_precision: QuantAccPrecision::Full,
@@ -214,7 +214,7 @@ mod tests {
 
         let symmetric = SymmetricQuantization::<f32, i8>::new(-1.8, 0.5);
         let strategy =
-            QuantizationStrategy::PerBlockSymmetricInt8(vec![symmetric.clone(), symmetric]);
+            QuantizationStrategy::PerBlockSymmetricInt8(vec![symmetric.clone(), symmetric], 4);
 
         let q: Vec<i8> = strategy.quantize(&x);
         assert_eq!(q, expected_q);

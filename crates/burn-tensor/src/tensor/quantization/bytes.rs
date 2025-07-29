@@ -45,7 +45,7 @@ impl QuantizedBytes {
                 let scale_bytes = bytemuck::bytes_of(&quant.scale);
                 bytes.extend_from_byte_slice_aligned(scale_bytes, align_of::<f32>());
             }
-            QuantizationStrategy::PerBlockSymmetricInt8(quant) => {
+            QuantizationStrategy::PerBlockSymmetricInt8(quant, _block_size) => {
                 if TypeId::of::<E>() == TypeId::of::<i8>() {
                     // Re-interpret `Vec<E>` as `Vec<i8>` with `Vec::from_raw_parts`
                     let i8s: Vec<i8> = bytemuck::allocation::cast_vec(value);
@@ -96,7 +96,7 @@ impl QuantizedBytes {
 
         let num_params = match self.scheme.level {
             QuantLevel::Tensor => 1,
-            QuantLevel::Block(num_blocks) => num_blocks,
+            QuantLevel::Block(block_size) => self.num_elements / block_size,
         };
 
         let scale_size = num_params * size_of::<f32>();
@@ -157,6 +157,7 @@ impl QuantizedBytes {
                         .iter()
                         .map(|&s| SymmetricQuantization::init(s))
                         .collect(),
+                    block_size,
                 );
                 (strategy.dequantize(&values), qparams)
             }

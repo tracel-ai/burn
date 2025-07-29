@@ -237,6 +237,7 @@ fn quantize_unpacked<R: CubeRuntime, F: FloatElement>(
 
     let line_size = max_line_size(&tensor);
     let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
     match scheme {
         QuantScheme {
@@ -245,8 +246,6 @@ fn quantize_unpacked<R: CubeRuntime, F: FloatElement>(
             q_type: QuantInputType::QInt8,
             ..
         } => {
-            let cube_count =
-                calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
             unsafe {
                 quantize_per_tensor_symmetric_int8_kernel::launch_unchecked::<F, R>(
                     &client,
@@ -269,16 +268,10 @@ fn quantize_unpacked<R: CubeRuntime, F: FloatElement>(
             q_type: QuantInputType::QInt8,
             ..
         } => {
-            // TODO: restrict block_size to be a factor of line_size
-            // assert!(
-            //     *block_size as u8 % line_size == 0,
-            //     "block size must evenly divide line size, got {block_size} / {line_size}"
-            // );
-            let line_size = Ord::min(line_size, *block_size as u8);
-            let cube_count =
-                calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
-            println!(
-                "quantize per block unpacked w/ block size {block_size} and line size {line_size} ({cube_count:?})"
+            // We could use line_size = block_size if it's in the supported line sizes.. but let's keep it simple
+            assert!(
+                *block_size as u8 % line_size == 0,
+                "block size must be divisible by line size, got block_size={block_size}, line_size={line_size}"
             );
             unsafe {
                 quantize_per_block_symmetric_int8_kernel::launch_unchecked::<F, R>(

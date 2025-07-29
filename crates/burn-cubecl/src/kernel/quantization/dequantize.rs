@@ -135,7 +135,8 @@ fn dequantize_per_block_symmetric_int8_unpacked_kernel<F: Float>(
     let out_pos = out_layout.index(output, ABSOLUTE_POS);
 
     let qparams = QParams::new(scheme);
-    let scale = qparams.scale(scale, in_pos * input.line_size());
+    // Absolute pos represents the logical block (scale) used to dequantize, not layout
+    let scale = qparams.scale(scale, ABSOLUTE_POS * input.line_size());
 
     output[out_pos] = dequantize_symmetric_int8(input[in_pos], scale);
 }
@@ -226,6 +227,7 @@ where
     let num_elems = tensor.shape.num_elements();
     let line_size = max_line_size(&tensor);
     let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
     let out_layout = strided_layout(&output);
 
@@ -237,8 +239,6 @@ where
                 q_type: QuantInputType::QInt8,
                 ..
             } => {
-                let cube_count =
-                    calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
                 let scales = tensor.scales().unwrap();
 
                 unsafe {
@@ -261,20 +261,14 @@ where
                 q_type: QuantInputType::QInt8,
                 ..
             } => {
+                // We could use line_size = block_size if it's in the supported line sizes.. but let's keep it simple
+                assert!(
+                    block_size as u8 % line_size == 0,
+                    "block size must evenly divide line size, got {block_size} / {line_size}"
+                );
+
                 let scales = tensor.scales().unwrap();
 
-                let scales_data = crate::ops::into_data_sync::<R, f32>(scales.clone());
-                // TODO: restrict block_size to be a factor of line_size
-                // assert!(
-                //     *block_size as u8 % line_size == 0,
-                //     "block size must evenly divide line size, got {block_size} / {line_size}"
-                // );
-                let line_size = Ord::min(line_size, block_size as u8);
-                let cube_count =
-                    calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
-                println!(
-                    "dequantize per block unpacked {num_elems} elements w/ scales: {scales_data} and line size {line_size} ({cube_count:?})"
-                );
                 unsafe {
                     dequantize_per_block_symmetric_int8_unpacked_kernel::launch_unchecked::<F, R>(
                         &tensor.client,

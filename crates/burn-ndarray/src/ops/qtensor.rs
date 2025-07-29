@@ -100,7 +100,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                 )
             }
             QuantScheme {
-                level: QuantLevel::Block(_),
+                level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
                 ..
@@ -110,7 +110,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                     .map(|s| (SymmetricQuantization::init(s), QParams { scales: s }))
                     .unzip();
                 (
-                    QuantizationStrategy::PerBlockSymmetricInt8(strategy),
+                    QuantizationStrategy::PerBlockSymmetricInt8(strategy, *block_size),
                     qparams,
                 )
             }
