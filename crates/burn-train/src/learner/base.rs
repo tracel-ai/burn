@@ -8,7 +8,9 @@ use burn_core::module::Module;
 use burn_core::optim::Optimizer;
 use burn_core::tensor::Device;
 use std::sync::Arc;
+use burn_core::tensor::backend::Backend;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 ///
@@ -23,7 +25,7 @@ pub struct Learner<LC: LearnerComponentTypes> {
     pub(crate) checkpointer: Option<LearnerCheckpointer<LC>>,
     pub(crate) learning_strategy: LearningStrategy<LC::Backend>,
     pub(crate) interrupter: TrainingInterrupter,
-    pub(crate) early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
+    pub(crate) early_stopping: Option<Arc<Mutex<dyn EarlyStoppingStrategy + Send>>>, // TODO maybe rwlock
     pub(crate) event_processor: LC::EventProcessor,
     pub(crate) event_store: Arc<EventStoreClient>,
     pub(crate) summary: Option<LearnerSummaryConfig>,

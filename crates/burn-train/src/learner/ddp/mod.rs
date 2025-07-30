@@ -1,10 +1,7 @@
 mod base;
 mod epoch;
-mod helper;
-mod learner;
-mod main_worker;
+mod worker;
 
-pub(crate) use helper::*;
-pub(crate) use main_worker::*;
+pub(crate) use worker::*;
 
 pub use base::*;
