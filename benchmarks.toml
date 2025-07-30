@@ -2,7 +2,8 @@
 gcp_gpu_attached = true
 gcp_image_family = "tracel-ci-ubuntu-2404-amd64-nvidia"
 # https://cloud.google.com/compute/docs/accelerator-optimized-machines
-gcp_machine_type = "a2-highgpu-1g" # 1 A100 40GB
+# gcp_machine_type = "a2-highgpu-1g" # 1 A100 40GB
+gcp_machine_type = "g2-standard-4"
 # be sure to check what machine types are available in each region
 # https://cloud.google.com/compute/docs/gpus/gpu-regions-zones#view-using-table
 gcp_zone = "us-central1-c"
