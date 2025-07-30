@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     QuantAccPrecision, QuantInputType, QuantLevel, QuantMode, QuantPropagation, QuantScheme,
+    QuantStoreType,
 };
 
 /// Quantization strategy.
@@ -70,6 +71,7 @@ impl QuantizationStrategy {
                 q_type: QuantInputType::QInt8,
                 acc_precision: QuantAccPrecision::Full,
                 propagation: QuantPropagation::Inhibit,
+                q_store_type: QuantStoreType::I32,
             },
             QuantizationStrategy::PerBlockSymmetricInt8(_blocks, block_size) => QuantScheme {
                 level: QuantLevel::Block(*block_size),
@@ -77,6 +79,7 @@ impl QuantizationStrategy {
                 q_type: QuantInputType::QInt8,
                 acc_precision: QuantAccPrecision::Full,
                 propagation: QuantPropagation::Inhibit,
+                q_store_type: QuantStoreType::I32,
             },
         }
     }

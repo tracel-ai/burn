@@ -15,6 +15,8 @@ pub struct QuantScheme {
     pub mode: QuantMode,
     /// Data type used for storing quantized values (e.g., QInt8).
     pub q_type: QuantInputType,
+    /// The data type used
+    pub q_store_type: QuantStoreType,
     /// Precision used for accumulating intermediate values (e.g., during matmul).
     pub acc_precision: QuantAccPrecision,
     /// Whether to propagate quantization to outputs or return unquantized results.
@@ -29,6 +31,7 @@ impl Default for QuantScheme {
             q_type: QuantInputType::QInt8,
             acc_precision: QuantAccPrecision::Full,
             propagation: QuantPropagation::Inhibit,
+            q_store_type: QuantStoreType::I32,
         }
     }
 }
@@ -78,6 +81,16 @@ pub enum QuantLevel {
 pub enum QuantInputType {
     /// 8-bit signed integer.
     QInt8,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum QuantStoreType {
+    /// Native quantization doesn't require packing and unpacking.
+    Native,
+    /// Store data in a byte.
+    I8,
+    /// Store data in a 4 bytes.
+    I32,
 }
 
 /// Strategy used to quantize values.

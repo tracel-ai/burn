@@ -1,3 +1,4 @@
+use super::QParams;
 use crate::{CubeRuntime, FloatElement, kernel::utils::strided_layout, ops::max_line_size};
 use crate::{ops::numeric::empty_device_strided, tensor::CubeTensor};
 use burn_tensor::DType;
@@ -6,12 +7,61 @@ use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 use cubecl::std::tensor::{StridedLayout, index_offset_contiguous};
 
-use super::{QParams, QTensor};
-
 #[cube]
-fn dequantize_symmetric_int8<I: Int, F: Float>(value: Line<I>, scale: f32) -> Line<F> {
+pub fn dequantize_symmetric_int8<I: Int, F: Float>(value: Line<I>, scale: f32) -> Line<F> {
     // x = scale * x_q
     Line::cast_from(scale) * Line::cast_from(value)
+}
+
+#[cube]
+pub fn dequantize_values<F: Float, QI: Int>(
+    position: u32,
+    values: &Tensor<QI>,
+    scales: &Tensor<f32>,
+    #[comptime] scheme: QuantScheme,
+) -> Line<F> {
+    let value = values[position];
+    dequantize_value::<F, QI>(position, value, scales, scheme)
+}
+
+#[cube]
+pub fn dequantize_value<F: Float, QI: Int>(
+    position: u32,
+    value: QI,
+    scales: &Tensor<f32>,
+    #[comptime] scheme: QuantScheme,
+) -> Line<F> {
+    let qparams = QParams::new(scheme);
+    let scale = qparams.scale(scales, position);
+    let floats = unpack_q::<F, QI>(value, scheme.q_type);
+
+    floats * Line::cast_from(scale)
+}
+
+/// Quantize tensor Q4
+/// Store deux valeur dans un U32,
+/// On dequantize en bf16
+#[cube]
+fn unpack_q<F: Float, QI: Int>(value: QI, #[comptime] quant: QuantInputType) -> Line<F> {
+    let size_quant = comptime!(match quant {
+        QuantInputType::QInt8 => 8,
+    });
+    let size_store = comptime!(QI::size_bits().unwrap() as u32);
+    let num_quant = comptime!(size_store / size_quant);
+
+    let mut empty = Line::empty(num_quant);
+    let mut position = comptime!(0);
+    let mask = QI::cast_from(comptime!((1 << size_quant) - 1));
+
+    #[unroll]
+    for _ in 0..num_quant {
+        let offset = QI::cast_from(comptime!(position * size_store));
+        let value = (value >> offset) & mask;
+        empty[position] = F::cast_from(value);
+        comptime!(position += 1);
+    }
+
+    empty
 }
 
 #[cube]
@@ -38,7 +88,7 @@ fn unpack_i8s(value: u32) -> Line<i32> {
 
 #[cube(launch_unchecked)]
 fn dequantize_per_tensor_symmetric_int8_packed_kernel<F: Float>(
-    input: &QTensor,
+    input: &Tensor<Line<u32>>,
     scale: &Tensor<f32>,
     output: &mut Tensor<Line<F>>,
     #[comptime] scheme: QuantScheme,
@@ -68,7 +118,7 @@ fn dequantize_per_tensor_symmetric_int8_packed_kernel<F: Float>(
 
 #[cube(launch_unchecked)]
 fn dequantize_per_block_symmetric_int8_packed_kernel<F: Float>(
-    input: &QTensor,
+    input: &Tensor<Line<u32>>,
     scale: &Tensor<f32>,
     output: &mut Tensor<Line<F>>,
     #[comptime] scheme: QuantScheme,
@@ -151,7 +201,7 @@ where
     let output = empty_device_strided::<R, F>(tensor.client.clone(), tensor.device.clone(), shape);
 
     if i8::is_supported(&tensor.client) {
-        dequantize_unpacked::<R, F>(tensor, output)
+        dequantize_native::<R, F>(tensor, output)
     } else {
         dequantize_packed::<R, F>(tensor, output)
     }
@@ -186,7 +236,7 @@ where
                         &tensor.client,
                         cube_count,
                         cube_dim,
-                        tensor.as_array_arg::<u32>(line_size_in),
+                        tensor.as_tensor_arg::<u32>(line_size_in),
                         scales.as_tensor_arg::<f32>(1),
                         output.as_tensor_arg::<F>(line_size_out),
                         scheme,
@@ -210,7 +260,7 @@ where
                         &tensor.client,
                         cube_count,
                         cube_dim,
-                        tensor.as_array_arg::<u32>(line_size_in),
+                        tensor.as_tensor_arg::<u32>(line_size_in),
                         scales.as_tensor_arg::<f32>(1),
                         output.as_tensor_arg::<F>(line_size_out),
                         scheme,
@@ -223,7 +273,7 @@ where
     output
 }
 
-fn dequantize_unpacked<R, F>(tensor: CubeTensor<R>, output: CubeTensor<R>) -> CubeTensor<R>
+fn dequantize_native<R, F>(tensor: CubeTensor<R>, output: CubeTensor<R>) -> CubeTensor<R>
 where
     R: CubeRuntime,
     F: FloatElement,

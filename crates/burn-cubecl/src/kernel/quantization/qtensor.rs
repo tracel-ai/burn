@@ -8,16 +8,27 @@ use cubecl::prelude::*;
 pub struct QParams {
     #[cube(comptime)]
     scheme: QuantScheme,
+    #[cube(comptime)]
+    pub num_quants: u32,
 }
-
-/// Quantized tensor representation.
-pub type QTensor = Array<Line<u32>>;
 
 #[cube]
 impl QParams {
     /// Create a new quantization parameters instance.
     pub fn new(#[comptime] scheme: QuantScheme) -> Self {
-        QParams { scheme }
+        let num_quants = comptime!(
+            let size_quant = match scheme.q_type {
+                QuantInputType::QInt8 => 8u32,
+            };
+            let size_store = match scheme.q_store_type {
+                burn_tensor::quantization::QuantStoreType::Native => size_quant,
+                burn_tensor::quantization::QuantStoreType::I8 => 8u32,
+                burn_tensor::quantization::QuantStoreType::I32 => 32u32,
+            };
+
+            size_store / size_quant
+        );
+        QParams { scheme, num_quants }
     }
 
     /// Get the quantization parameters values.
@@ -35,7 +46,12 @@ impl QParams {
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
                 ..
-            } => scale_tensor[in_pos / comptime! {block_size as u32}],
+            } => {
+                // Since the input position is num quants smaller because it acks as vectorize with a line
+                // size, but the scales don't have any line size.
+                let position = in_pos * self.num_quants;
+                scale_tensor[position / comptime! {block_size as u32}]
+            }
         }
     }
 }
