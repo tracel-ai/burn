@@ -140,7 +140,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
 
                 // Shape operations now return i64 directly from the shape function
                 quote! {
-                    let #output: [i64;#dim] = #function.try_into().unwrap();
+                    let #output: [i64;#dim] = #function;
                 }
             }
             _ => {
@@ -176,6 +176,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
                 if matches!(self.output, Type::Tensor(_)) {
                     imports.register("burn::tensor::Bool");
                 }
+            }
+            UnaryNodeKind::Shape => {
+                imports.register("alloc::vec::Vec");
             }
             _ => {}
         }
@@ -1256,8 +1259,6 @@ mod tests {
                         .iter()
                         .map(|&x| x as i64)
                         .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap()
                         .try_into()
                         .unwrap();
 
