@@ -4,6 +4,7 @@ use crate::metric::{
 };
 
 /// The condition that [early stopping strategies](EarlyStoppingStrategy) should follow.
+#[derive(Clone)]
 pub enum StoppingCondition {
     /// When no improvement has happened since the given number of epochs.
     NoImprovementSince {
