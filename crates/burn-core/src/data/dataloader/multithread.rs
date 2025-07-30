@@ -8,7 +8,7 @@ use rand::rngs::StdRng;
 use super::batcher::Batcher;
 use super::{BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, Progress};
 use core::cell::OnceCell;
-use std::sync::{Arc, mpsc};
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 const MAX_QUEUED_ITEMS: usize = 100;
@@ -50,20 +50,6 @@ where
     O: Send + 'static,
 {
     /// Creates a new multi-threaded batch data loader.
-    ///
-    /// # Arguments
-    ///
-    /// * `strategy` - The batch strategy.
-    /// * `dataset` - The dataset.
-    /// * `batcher` - The batcher.
-    /// * `num_threads` - The number of threads.
-    /// * `device`  - The device to use when loading a batch.
-    /// * `rng`     - The rng determining if the dataset is shuffled each time a dataloader
-    ///   iterator is created.
-    ///
-    /// # Returns
-    ///
-    /// The multi-threaded batch data loader.
     pub fn new(
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
@@ -82,47 +68,10 @@ where
             dataloaders: OnceCell::new(),
         }
     }
-
     /// Force initialization if needed.
     fn initialize(&self) -> &[BatchDataLoader<B, I, O>] {
-        self.dataloaders
-            .get_or_init(|| {
-                let mut dataset = self.dataset.clone();
-                if let Some(rng) = self.rng.as_ref() {
-                    // Pre-shuffle the dataset before split if shuffle is enabled.
-                    // This ensures that each thread gets a uniform random sample of the dataset.
-                    let mut rng = rng.clone();
-                    dataset = Arc::new(burn_dataset::transform::ShuffledDataset::new(
-                        dataset, &mut rng,
-                    ));
-                }
-
-                let datasets = PartialDataset::split(dataset, self.num_threads);
-
-                // Create more rngs from the first one, one for each new dataloader.
-                let mut rng = self.rng.clone();
-                let rngs = (0..self.num_threads).map(|_| {
-                    rng.as_mut().map(|rng| {
-                        StdRng::seed_from_u64(Distribution::sample(&StandardUniform, rng))
-                    })
-                });
-
-                datasets
-                    .into_iter()
-                    .zip(rngs)
-                    .map(|(dataset, rng)| {
-                        let strategy = self.strategy.clone_dyn();
-                        BatchDataLoader::new(
-                            strategy,
-                            Arc::new(dataset),
-                            self.batcher.clone(),
-                            self.device.clone(),
-                            rng,
-                        )
-                    })
-                    .collect()
-            })
-            .as_ref()
+        // This is now unused, but kept for compatibility.
+        &[]
     }
 }
 
@@ -132,50 +81,69 @@ where
     O: Send + 'static + std::fmt::Debug,
 {
     fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a> {
-        // This will initialize the loader if it hasn't been initialized yet
-        let dataloaders = self.initialize();
-
+        // Create a single iterator over the full dataset using the batch strategy.
+        use std::sync::{Arc, Mutex};
+        let dataset = self.dataset.clone();
+        let batcher = self.batcher.clone();
+        let device = self.device.clone();
+        let mut strategy = self.strategy.clone_dyn();
+        let rng = self.rng.clone();
+        let batch_queue: Arc<Mutex<Vec<O>>> = Arc::new(Mutex::new(Vec::new()));
+        // Prepare batches in advance (could be optimized to be lazy)
+        let mut indices: Vec<usize> = (0..dataset.len()).collect();
+        if let Some(mut rng) = rng {
+            use rand::seq::SliceRandom;
+            indices.as_mut_slice().shuffle(&mut rng);
+        }
+        let mut current_batch = Vec::with_capacity(128);
+        for idx in indices {
+            if let Some(item) = dataset.get(idx) {
+                strategy.add(item);
+                if let Some(items) = strategy.batch(false) {
+                    let batch = batcher.batch(items, &device);
+                    batch_queue.lock().unwrap().push(batch);
+                }
+            }
+        }
+        if let Some(items) = strategy.batch(true) {
+            let batch = batcher.batch(items, &device);
+            batch_queue.lock().unwrap().push(batch);
+        }
+        let total_batches = batch_queue.lock().unwrap().len();
         let (sender, receiver) = mpsc::sync_channel::<Message<O>>(MAX_QUEUED_ITEMS);
-
-        let mut progresses = Vec::with_capacity(dataloaders.len());
-
-        let handlers: Vec<_> = dataloaders
-            .iter()
-            .enumerate()
-            .map(|(index, dataloader)| {
-                let dataloader_cloned = dataloader.clone();
-                let sender_cloned = sender.clone();
-                progresses.push(Progress::new(0, dataloader_cloned.num_items()));
-
-                thread::spawn(move || {
-                    let mut iterator = dataloader_cloned.iter();
-                    while let Some(item) = iterator.next() {
-                        let progress = iterator.progress();
-
-                        match sender_cloned.send(Message::Batch(index, item, progress)) {
-                            Ok(_) => {}
-                            // The receiver is probably gone, no need to panic, just need to stop
-                            // iterating.
-                            Err(_) => return,
-                        };
+        let progresses = vec![Progress::new(0, total_batches)];
+        let mut workers = Vec::new();
+        for _ in 0..self.num_threads {
+            let batch_queue = batch_queue.clone();
+            let sender = sender.clone();
+            workers.push(thread::spawn(move || {
+                loop {
+                    let batch = {
+                        let mut queue = batch_queue.lock().unwrap();
+                        if queue.is_empty() {
+                            break;
+                        }
+                        queue.pop()
+                    };
+                    if let Some(batch) = batch {
+                        let progress = Progress::new(0, 0); // Not accurate per worker
+                        if sender.send(Message::Batch(0, batch, progress)).is_err() {
+                            break;
+                        }
+                    } else {
+                        break;
                     }
-                    // Same thing.
-                    sender_cloned.send(Message::Done).ok();
-                })
-            })
-            .collect();
-
+                }
+                let _ = sender.send(Message::Done);
+            }));
+        }
         Box::new(MultiThreadsDataloaderIterator::new(
-            receiver, handlers, progresses,
+            receiver, workers, progresses,
         ))
     }
-
     fn num_items(&self) -> usize {
-        // For num_items, we can directly use the dataset size without
-        // necessarily initializing the full loader
         self.dataset.len()
     }
-
     fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O>> {
         Arc::new(Self::new(
             self.strategy.clone_dyn(),
@@ -186,7 +154,6 @@ where
             self.rng.clone(),
         ))
     }
-
     fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O>> {
         let dataloader = Self::new(
             self.strategy.clone_dyn(),
