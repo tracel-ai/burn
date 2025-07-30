@@ -3,9 +3,11 @@
 # Used to generate model: squeeze_shape_noop.onnx
 # Tests Shape(2) -> Shape(2) no-op case by bypassing ONNX validation
 
+import numpy as np
 import onnx
 from onnx import helper, TensorProto
 import onnx.shape_inference
+from onnx.reference import ReferenceEvaluator
 
 def main():
     # Test Shape(2) -> Shape(2) (no-op)
@@ -46,11 +48,27 @@ def main():
     # onnx.checker.check_model(model, full_check=True)
     
     # Save without validation
-    onnx.save(model, "squeeze_shape_noop.onnx")
+    onnx_name = "squeeze_shape_noop.onnx"
+    onnx.save(model, onnx_name)
     
-    print("Created squeeze_shape_noop.onnx")
+    print(f"Created {onnx_name}")
     print("Graph: input tensor -> Shape -> Slice -> Squeeze -> shape output")
-    print("Expected: Shape [6,7,8,9] -> [6,7,8,9] -> [6,7] -> [6,7] (no-op)")
+    
+    # Test the model with sample data
+    test_input = np.random.randn(6, 7, 8, 9).astype(np.float32)
+    
+    print(f"\nTest input shape: {test_input.shape}")
+    
+    # Run the model using ReferenceEvaluator
+    try:
+        session = ReferenceEvaluator(onnx_name, verbose=0)
+        output = session.run(None, {"input": test_input})
+        print(f"\nTest output: {repr(output[0])}")
+    except ValueError as e:
+        print(f"\nExpected error from ReferenceEvaluator: {e}")
+        print("This is expected because we're trying to squeeze an axis that doesn't have size 1.")
+        print("The Burn runtime handles this as a no-op, returning [6, 7] unchanged.")
+    
     print()
     print("Note: Saved without ONNX validation to test runtime behavior.")
 

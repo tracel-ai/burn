@@ -5,6 +5,7 @@
 import numpy as np
 import onnx
 from onnx import helper, TensorProto
+from onnx.reference import ReferenceEvaluator
 
 def main():
     # Create a graph that tests both Shape/Scalar and Shape/Shape operations
@@ -73,11 +74,21 @@ def main():
     onnx.save(model_def, onnx_name)
     print("Finished exporting model to {}".format(onnx_name))
     
-    # Print test expectations
-    print("Test input1 shape: [8, 12, 16]")
-    print("Test input2 shape: [2, 3, 4]")
-    print("Expected shape_div_scalar: [4, 6, 8] (shape1 / 2)")
-    print("Expected shape_div_shape: [4, 4, 4] (shape1 / shape2)")
+    # Test the model with sample data
+    test_input1 = np.random.randn(8, 12, 16).astype(np.float32)
+    test_input2 = np.random.randn(2, 3, 4).astype(np.float32)
+    
+    print(f"\nTest input1 shape: {test_input1.shape}")
+    print(f"Test input2 shape: {test_input2.shape}")
+    
+    # Run the model using ReferenceEvaluator
+    session = ReferenceEvaluator(onnx_name, verbose=0)
+    outputs = session.run(None, {"input1": test_input1, "input2": test_input2})
+    
+    shape_div_scalar, shape_div_shape = outputs
+    
+    print(f"\nTest output shape_div_scalar: {repr(shape_div_scalar)}")
+    print(f"Test output shape_div_shape: {repr(shape_div_shape)}")
 
 if __name__ == '__main__':
     main()

@@ -5,6 +5,7 @@
 import numpy as np
 import onnx
 from onnx import helper, TensorProto
+from onnx.reference import ReferenceEvaluator
 
 def main():
     # Create a graph that tests both Shape-Scalar and Shape-Shape operations
@@ -73,11 +74,21 @@ def main():
     onnx.save(model_def, onnx_name)
     print("Finished exporting model to {}".format(onnx_name))
     
-    # Print test expectations
-    print("Test input1 shape: [10, 8, 6]")
-    print("Test input2 shape: [2, 3, 4]")
-    print("Expected shape_minus_scalar: [9, 7, 5] (shape1 - 1)")
-    print("Expected shape_minus_shape: [8, 5, 2] (shape1 - shape2)")
+    # Test the model with sample data
+    test_input1 = np.random.randn(10, 8, 6).astype(np.float32)
+    test_input2 = np.random.randn(2, 3, 4).astype(np.float32)
+    
+    print(f"\nTest input1 shape: {test_input1.shape}")
+    print(f"Test input2 shape: {test_input2.shape}")
+    
+    # Run the model using ReferenceEvaluator
+    session = ReferenceEvaluator(onnx_name, verbose=0)
+    outputs = session.run(None, {"input1": test_input1, "input2": test_input2})
+    
+    shape_minus_scalar, shape_minus_shape = outputs
+    
+    print(f"\nTest output shape_minus_scalar: {repr(shape_minus_scalar)}")
+    print(f"Test output shape_minus_shape: {repr(shape_minus_shape)}")
 
 if __name__ == '__main__':
     main()

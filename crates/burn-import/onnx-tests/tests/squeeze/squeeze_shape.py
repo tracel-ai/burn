@@ -5,6 +5,7 @@
 import numpy as np
 import onnx
 from onnx import helper, TensorProto
+from onnx.reference import ReferenceEvaluator
 
 def main():
     # Test Shape(1) -> Scalar
@@ -41,11 +42,22 @@ def main():
     
     # Check and save
     onnx.checker.check_model(model, full_check=True)
-    onnx.save(model, "squeeze_shape.onnx")
+    onnx_name = "squeeze_shape.onnx"
+    onnx.save(model, onnx_name)
     
-    print("Created squeeze_shape.onnx")
+    print(f"Created {onnx_name}")
     print("Graph: input tensor -> Shape -> Slice -> Squeeze -> scalar output")
-    print("Expected: Shape [3,4,5] -> [3,4,5] -> [3] -> 3")
+    
+    # Test the model with sample data
+    test_input = np.random.randn(3, 4, 5).astype(np.float32)
+    
+    print(f"\nTest input shape: {test_input.shape}")
+    
+    # Run the model using ReferenceEvaluator
+    session = ReferenceEvaluator(onnx_name, verbose=0)
+    output = session.run(None, {"input": test_input})
+    
+    print(f"\nTest output: {repr(output[0])}")
     print()
     print("Note: The Shape(>1) squeeze no-op case is tested in unit tests since")
     print("ONNX's static shape inference is too restrictive for runtime behavior.")
