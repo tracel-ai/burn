@@ -164,7 +164,7 @@ where
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
-                    level: QuantLevel::Tensor,
+                    level: QuantLevel::Tensor | QuantLevel::Block(_),
                     mode: QuantMode::Symmetric,
                     q_type: QuantInputType::QInt8,
                     ..
@@ -173,12 +173,6 @@ where
                     // packed into u32 and quantization parameters appended to the bytes
                     new_qtensor(data.as_bytes(), data.shape.clone(), scheme, device)
                 }
-                QuantScheme {
-                    level: QuantLevel::Block(_),
-                    mode: QuantMode::Symmetric,
-                    q_type: QuantInputType::QInt8,
-                    ..
-                } => todo!(),
             },
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
