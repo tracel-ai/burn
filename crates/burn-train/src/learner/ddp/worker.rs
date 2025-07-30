@@ -13,7 +13,8 @@ use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
-/// A Helper runs the model, but doesn't do a validation step, and doesn't process events.
+/// A worker runs the model, syncing gradients using collective operations.
+/// Event processing and validation is optional too. 
 pub(crate) struct DdpWorker<LC, InputTrain, OutputTrain, InputValid, OutputValid>
 where
     LC: LearnerComponents,
@@ -52,9 +53,9 @@ where
     <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
     LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain, ItemValid = OutputValid>,
 {
-    /// Starts a worker that doesn't have an event processor and that doesn't do the validation step
+    /// Starts a worker that runs the model in a data distributed parallel
     #[allow(clippy::too_many_arguments)]
-    pub fn start_helper(
+    pub fn start(
         peer_id: PeerId,
         device: <TrainBackend<LC> as Backend>::Device,
         model: LC::Model,

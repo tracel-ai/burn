@@ -173,6 +173,7 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     }
 }
 
+/// Params visitor for syncing gradients in a model, using [collective operations](burn_collective)
 #[derive(new)]
 struct GradientsParamsSync<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
     peer_id: PeerId,
@@ -207,7 +208,8 @@ trait GradientsParamsCollectiveExt {
 }
 
 impl GradientsParamsCollectiveExt for GradientsParams {
-    /// All-Reduce the gradients for the given [module](AutodiffModule).
+    /// All-Reduce the gradients for the given [module](AutodiffModule)
+    /// using [collective operations](burn_collective)
     fn all_reduce<B: AutodiffBackend, M: AutodiffModule<B>>(
         mut self,
         device_id: burn_collective::PeerId,

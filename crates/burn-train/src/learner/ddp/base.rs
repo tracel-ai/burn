@@ -21,7 +21,10 @@ pub struct DdpLearner<LC: LearnerComponents> {
 }
 
 impl<LC: LearnerComponents + 'static> DdpLearner<LC> {
-    /// Constructs a new learner that uses DDP
+    /// Constructs a new learner that uses DDP.
+    /// 
+    /// * `inner` - The learner to run on in a collective
+    /// * `config` - Configurations for the collective operations
     pub fn new(inner: Learner<LC>, config: CollectiveConfig) -> Self {
         Self {
             inner,
@@ -88,10 +91,11 @@ impl<LC: LearnerComponents + 'static> DdpLearner<LC> {
 
         // Spawn other workers for the other devices, starting with peer id 1
         let mut peer_id = 1;
+        let mut secondary_workers = vec![];
         for device in self.inner.devices.drain(1..) {
             peer_id += 1;
 
-            DdpWorker::<LC, InputTrain, OutputTrain, InputValid, OutputValid>::start_helper(
+            let handle = DdpWorker::<LC, InputTrain, OutputTrain, InputValid, OutputValid>::start(
                 peer_id.into(),
                 device.clone(),
                 self.inner.model.clone().fork(&device),
@@ -109,12 +113,14 @@ impl<LC: LearnerComponents + 'static> DdpLearner<LC> {
                 self.inner.num_epochs,
                 self.inner.grad_accumulation,
             );
+
+            secondary_workers.push(handle);
         }
 
         // Start worker for main device
         // With validation data and event processor
         let main_handle =
-            DdpWorker::<LC, InputTrain, OutputTrain, InputValid, OutputValid>::start_helper(
+            DdpWorker::<LC, InputTrain, OutputTrain, InputValid, OutputValid>::start(
                 0.into(),
                 main_device,
                 self.inner.model,
@@ -133,8 +139,12 @@ impl<LC: LearnerComponents + 'static> DdpLearner<LC> {
                 self.inner.grad_accumulation,
             );
 
-        // Wait for main device to finish
-        let main_worker = main_handle.join().expect("Main device thread failed");
+        // Wait for all devices to finish
+        for worker in secondary_workers {
+            worker.join().expect("Distributed data parallel worker failed");
+        }
+        // Main worker had the event processor
+        let main_worker = main_handle.join().expect("Distributed data parallel main worker failed");
 
         let mut event_processor = main_worker.event_processor.unwrap();
         let model = main_worker.model;
