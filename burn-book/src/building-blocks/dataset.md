@@ -30,14 +30,15 @@ Transformations in Burn are all lazy and modify one or multiple input datasets. 
 transformations is to provide you with the necessary tools so that you can model complex data
 distributions.
 
-| Transformation    | Description                                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `SamplerDataset`  | Samples items from a dataset. This is a convenient way to model a dataset as a probability distribution of a fixed size. |
-| `ShuffledDataset` | Maps each input index to a random index, similar to a dataset sampled without replacement.                               |
-| `PartialDataset`  | Returns a view of the input dataset with a specified range.                                                              |
-| `MapperDataset`   | Computes a transformation lazily on the input dataset.                                                                   |
-| `ComposedDataset` | Composes multiple datasets together to create a larger one without copying any data.                                     |
-| `WindowsDataset`  | Dataset designed to work with overlapping windows of data extracted from an input dataset.                               |
+| Transformation     | Description                                                                                                              |
+|--------------------|--------------------------------------------------------------------------------------------------------------------------|
+| `SamplerDataset`   | Samples items from a dataset. This is a convenient way to model a dataset as a probability distribution of a fixed size. |
+| `SelectionDataset` | Selects a subset of items by index from a dataset. Can be randomly shuffled; can be re-shuffled.                         |
+| `ShuffledDataset`  | Shuffles a wrapped dataset; This is a thin wrapper around `SelectionDataset`.                                            |
+| `PartialDataset`   | Returns a view of the input dataset with a specified range.                                                              |
+| `MapperDataset`    | Computes a transformation lazily on the input dataset.                                                                   |
+| `ComposedDataset`  | Composes multiple datasets together to create a larger one without copying any data.                                     |
+| `WindowsDataset`   | Dataset designed to work with overlapping windows of data extracted from an input dataset.                               |
 
 Let us look at the basic usages of each dataset transform and how they can be composed together.
 These transforms are lazy by default except when specified, reducing the need for unnecessary
@@ -59,9 +60,33 @@ let dataset: DbPedia = HuggingfaceDatasetLoader::new("dbpedia_14")
 let dataset = SamplerDataset<DbPedia, DbPediaItem>::new(dataset, 10000);
 ```
 
+- **SelectionDataset**: This transform can be used to select a subset of items from a dataset by
+  index. It can be initialized with a list of indices to select from the input dataset. This is
+  particularly useful when you want to create a smaller dataset from a larger one, for example, to
+  create a validation set from a training set.
+
+  The `SelectionDataset` can also be initialized with a random seed to shuffle the indices before
+  selection. This is useful when you want to randomly select a subset of items from the dataset.
+ 
+  Base dataset items may be included more than once in the selection.
+
+```rust, ignore
+let explicit = SelectionDataset::from_indicies_checked(dataset.clone(), vec![0, 1, 2, 0]);
+
+let shuffled = SelectionDataset::new_shuffled(dataset.clone(), &mut rng);
+let shuffled = SelectionDataset::new_shuffled_with_seed(dataset.clone(), 42);
+
+let mut mutable = SelectionDataset::new_select_all(dataset.clone(), vec![0, 1, 2, 0]);
+mutable.shuffle_with_seed(42);
+mutable.shuffle(&mut rng);
+```
+
+
 - **ShuffledDataset**: This transform can be used to shuffle the items of a dataset. Particularly
   useful before splitting the raw dataset into train/test splits. Can be initialized with a seed to
   ensure reproducibility.
+
+  The `ShuffledDataset` is a thin wrapper around the `SelectionDataset`.
 
 ```rust, ignore
 let dataset = ShuffledDataset<DbPedia, DbPediaItem>::with_seed(dataset, 42);
