@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::{
         Tensor,
-        quantization::{QuantLevel, QuantScheme},
+        quantization::{QuantLevel, QuantScheme, QuantStoreType},
     };
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
@@ -51,7 +51,15 @@ mod tests {
 
     #[test]
     fn should_quantize_dequantize_symmetric_per_block() {
-        let scheme = QuantScheme::default().set_level(QuantLevel::Block(8));
+        let mut scheme = QuantScheme::default().set_level(QuantLevel::Block(8));
+
+        // TODO: check that the dtype is supported instead
+        if <TestBackend as burn_tensor::backend::Backend>::name(&Default::default())
+            .contains("cuda")
+        {
+            scheme = scheme.set_q_store_type(QuantStoreType::Native)
+        }
+
         let input = Tensor::<TestBackend, 2>::from_floats(
             [
                 [

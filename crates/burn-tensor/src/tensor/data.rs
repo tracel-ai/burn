@@ -541,7 +541,9 @@ impl TensorData {
                 } else {
                     panic!("Quantized data differs from other not quantized data")
                 };
-                if q == q_other {
+
+                // Data equality mostly depends on input quantization type, but we also check level
+                if q.q_type == q_other.q_type && q.level == q_other.level {
                     self.assert_eq_elem::<i8>(other)
                 } else {
                     panic!("Quantization schemes differ ({q:?} != {q_other:?})")

@@ -1,6 +1,8 @@
 #![allow(missing_docs)] // cube derive macros
 
-use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
+use burn_tensor::quantization::{
+    QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantStoreType,
+};
 use cubecl::prelude::*;
 
 /// Quantization parameters.
@@ -21,9 +23,9 @@ impl QParams {
                 QuantInputType::QInt8 => 8u32,
             };
             let size_store = match scheme.q_store_type {
-                burn_tensor::quantization::QuantStoreType::Native => size_quant,
-                burn_tensor::quantization::QuantStoreType::I8 => 8u32,
-                burn_tensor::quantization::QuantStoreType::I32 => 32u32,
+                QuantStoreType::Native => size_quant,
+                QuantStoreType::I8 => 8u32,
+                QuantStoreType::I32 => 32u32,
             };
 
             size_store / size_quant
@@ -47,7 +49,7 @@ impl QParams {
                 q_type: QuantInputType::QInt8,
                 ..
             } => {
-                // Since the input position is num quants smaller because it acks as vectorize with a line
+                // The input position is `num_quants` smaller because it acts as vectorize with a line
                 // size, but the scales don't have any line size.
                 let position = in_pos * self.num_quants;
                 scale_tensor[position / comptime! {block_size as u32}]

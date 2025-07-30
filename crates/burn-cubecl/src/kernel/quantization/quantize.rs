@@ -207,13 +207,13 @@ where
     let output = empty_qtensor(tensor.shape.clone(), *scheme, &tensor.device);
 
     if i8::is_supported(&tensor.client) {
-        quantize_unpacked::<R, F>(tensor, scheme, scale, output)
+        quantize_native::<R, F>(tensor, scheme, scale, output)
     } else {
         quantize_packed::<R, F>(tensor, scheme, scale, output)
     }
 }
 
-fn quantize_unpacked<R: CubeRuntime, F: FloatElement>(
+fn quantize_native<R: CubeRuntime, F: FloatElement>(
     tensor: CubeTensor<R>,
     scheme: &QuantScheme,
     scale: CubeTensor<R>,

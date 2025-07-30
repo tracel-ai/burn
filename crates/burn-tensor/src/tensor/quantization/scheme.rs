@@ -29,9 +29,9 @@ impl Default for QuantScheme {
             level: QuantLevel::Tensor,
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
+            q_store_type: QuantStoreType::I32,
             acc_precision: QuantAccPrecision::Full,
             propagation: QuantPropagation::Inhibit,
-            q_store_type: QuantStoreType::I32,
         }
     }
 }
@@ -52,6 +52,12 @@ impl QuantScheme {
     /// Set the data type used for quantized values.
     pub fn set_q_type(mut self, q_type: QuantInputType) -> Self {
         self.q_type = q_type;
+        self
+    }
+
+    /// Set the data type used to stored quantized values.
+    pub fn set_q_store_type(mut self, q_store_type: QuantStoreType) -> Self {
+        self.q_store_type = q_store_type;
         self
     }
 

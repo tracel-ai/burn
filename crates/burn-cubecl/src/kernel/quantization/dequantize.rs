@@ -1,3 +1,5 @@
+#![allow(missing_docs)] // pub cube modules
+
 use super::QParams;
 use crate::{CubeRuntime, FloatElement, kernel::utils::strided_layout, ops::max_line_size};
 use crate::{ops::numeric::empty_device_strided, tensor::CubeTensor};
@@ -7,12 +9,17 @@ use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 use cubecl::std::tensor::{StridedLayout, index_offset_contiguous};
 
+/// Dequantize a line of values into floating-point values using the provided scale.
 #[cube]
-pub fn dequantize_symmetric_int8<I: Int, F: Float>(value: Line<I>, scale: f32) -> Line<F> {
+pub fn dequantize_symmetric<I: Int, F: Float>(value: Line<I>, scale: f32) -> Line<F> {
     // x = scale * x_q
     Line::cast_from(scale) * Line::cast_from(value)
 }
 
+/// Dequantize the value at a specified position using the provided quantization scheme.
+///
+/// Returns a line of floating-point values. The number of values in the line depends on the number of packed
+/// values in the stored quantization type.
 #[cube]
 pub fn dequantize_values<F: Float, QI: Int>(
     position: u32,
@@ -24,6 +31,10 @@ pub fn dequantize_values<F: Float, QI: Int>(
     dequantize_value::<F, QI>(position, value, scales, scheme)
 }
 
+/// Dequantize a single value using the scale at the specified position.
+///
+/// Returns a line of floating-point values. The number of values in the line depends on the number of packed
+/// values in the stored quantization type.
 #[cube]
 pub fn dequantize_value<F: Float, QI: Int>(
     position: u32,
@@ -33,14 +44,16 @@ pub fn dequantize_value<F: Float, QI: Int>(
 ) -> Line<F> {
     let qparams = QParams::new(scheme);
     let scale = qparams.scale(scales, position);
+    // TODO: q_store_type: QuantStoreType::Native
     let floats = unpack_q::<F, QI>(value, scheme.q_type);
 
     floats * Line::cast_from(scale)
 }
 
-/// Quantize tensor Q4
-/// Store deux valeur dans un U32,
-/// On dequantize en bf16
+/// Unpack a quantized integer into a line of floating-point values, according to the specified quantization input type.
+///
+/// This handles types where multiple quantized values are packed into a single integer (the stored quantization type).
+#[allow(clippy::explicit_counter_loop)]
 #[cube]
 fn unpack_q<F: Float, QI: Int>(value: QI, #[comptime] quant: QuantInputType) -> Line<F> {
     let size_quant = comptime!(match quant {
@@ -104,10 +117,10 @@ fn dequantize_per_tensor_symmetric_int8_packed_kernel<F: Float>(
 
     // Input line size is fixed to 1
     if comptime!(output.line_size() == 4) {
-        output[ABSOLUTE_POS] = dequantize_symmetric_int8(unpack_i8s(value[0]), scale);
+        output[ABSOLUTE_POS] = dequantize_symmetric(unpack_i8s(value[0]), scale);
     } else {
         // For very small inputs where number of elements < 4, the output line size is 1
-        let out = dequantize_symmetric_int8::<i32, F>(unpack_i8s(value[0]), scale);
+        let out = dequantize_symmetric::<i32, F>(unpack_i8s(value[0]), scale);
 
         #[unroll]
         for j in 0..out.size() {
@@ -128,16 +141,16 @@ fn dequantize_per_block_symmetric_int8_packed_kernel<F: Float>(
     }
 
     let qparams = QParams::new(scheme);
-    let scale = qparams.scale(scale, ABSOLUTE_POS * 4);
+    let scale = qparams.scale(scale, ABSOLUTE_POS);
 
     let value = input[ABSOLUTE_POS];
 
     // Input line size is fixed to 1
     if comptime!(output.line_size() == 4) {
-        output[ABSOLUTE_POS] = dequantize_symmetric_int8(unpack_i8s(value[0]), scale);
+        output[ABSOLUTE_POS] = dequantize_symmetric(unpack_i8s(value[0]), scale);
     } else {
         // For very small inputs where number of elements < 4, the output line size is 1
-        let out = dequantize_symmetric_int8::<i32, F>(unpack_i8s(value[0]), scale);
+        let out = dequantize_symmetric::<i32, F>(unpack_i8s(value[0]), scale);
 
         #[unroll]
         for j in 0..out.size() {
@@ -147,7 +160,7 @@ fn dequantize_per_block_symmetric_int8_packed_kernel<F: Float>(
 }
 
 #[cube(launch_unchecked)]
-fn dequantize_per_tensor_symmetric_int8_unpacked_kernel<F: Float>(
+fn dequantize_per_tensor_symmetric_int8_native_kernel<F: Float>(
     input: &Tensor<Line<i8>>,
     scale: &Tensor<f32>,
     output: &mut Tensor<Line<F>>,
@@ -165,11 +178,11 @@ fn dequantize_per_tensor_symmetric_int8_unpacked_kernel<F: Float>(
     let qparams = QParams::new(scheme);
     let scale = qparams.scale(scale, 0);
 
-    output[out_pos] = dequantize_symmetric_int8(input[in_pos], scale);
+    output[out_pos] = dequantize_symmetric(input[in_pos], scale);
 }
 
 #[cube(launch_unchecked)]
-fn dequantize_per_block_symmetric_int8_unpacked_kernel<F: Float>(
+fn dequantize_per_block_symmetric_int8_native_kernel<F: Float>(
     input: &Tensor<Line<i8>>,
     scale: &Tensor<f32>,
     output: &mut Tensor<Line<F>>,
@@ -188,7 +201,7 @@ fn dequantize_per_block_symmetric_int8_unpacked_kernel<F: Float>(
     // Absolute pos represents the logical block (scale) used to dequantize, not layout
     let scale = qparams.scale(scale, ABSOLUTE_POS * input.line_size());
 
-    output[out_pos] = dequantize_symmetric_int8(input[in_pos], scale);
+    output[out_pos] = dequantize_symmetric(input[in_pos], scale);
 }
 
 /// Convert the tensor back to a higher precision data type.
@@ -296,7 +309,7 @@ where
                 let scales = tensor.scales().unwrap();
 
                 unsafe {
-                    dequantize_per_tensor_symmetric_int8_unpacked_kernel::launch_unchecked::<F, R>(
+                    dequantize_per_tensor_symmetric_int8_native_kernel::launch_unchecked::<F, R>(
                         &tensor.client,
                         cube_count,
                         cube_dim,
@@ -323,8 +336,12 @@ where
 
                 let scales = tensor.scales().unwrap();
 
+                println!(
+                    "dequantize per block native w/ scales {}",
+                    crate::ops::into_data_sync::<R, f32>(scales.clone())
+                );
                 unsafe {
-                    dequantize_per_block_symmetric_int8_unpacked_kernel::launch_unchecked::<F, R>(
+                    dequantize_per_block_symmetric_int8_native_kernel::launch_unchecked::<F, R>(
                         &tensor.client,
                         cube_count,
                         cube_dim,
