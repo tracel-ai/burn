@@ -54,7 +54,7 @@ mod tests {
         // shape(input) = [2, 3]
         let index = Tensor::<Backend, 1, Int>::from_ints([0], &device);
         let output = model.forward(input, index);
-        let expected = [2usize];
+        let expected = [2i64];
 
         assert_eq!(output, expected);
     }

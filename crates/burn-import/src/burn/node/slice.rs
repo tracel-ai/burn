@@ -166,7 +166,7 @@ impl SliceNode {
                 if start_val == -1 && (end_val == i64::MAX || end_val >= shape.rank as i64) {
                     // This gets the last element
                     quote! {
-                        let #output: [usize; 1] = [#shape_name[#shape_name.len() - 1]];
+                        let #output: [i64; 1] = [#shape_name[#shape_name.len() - 1]];
                     }
                 } else if start_val < 0 || end_val < 0 {
                     // Handle negative indices - convert at compile time since we know the shape length
@@ -186,7 +186,7 @@ impl SliceNode {
                     let end_lit = Literal::usize_unsuffixed(actual_end);
 
                     quote! {
-                        let #output: [usize; #output_rank_lit] = #shape_name[#start_lit..#end_lit].try_into().unwrap();
+                        let #output: [i64; #output_rank_lit] = #shape_name[#start_lit..#end_lit].try_into().unwrap();
                     }
                 } else {
                     // Positive indices
@@ -204,7 +204,7 @@ impl SliceNode {
                     let output_rank = Literal::usize_unsuffixed(output_len);
 
                     quote! {
-                        let #output: [usize; #output_rank] = #shape_name[s![#start..#end].into_ranges([#shape_len].into())[0].clone()].try_into().unwrap();
+                        let #output: [i64; #output_rank] = #shape_name[s![#start..#end].into_ranges([#shape_len].into())[0].clone()].try_into().unwrap();
                     }
                 }
             }
@@ -362,9 +362,9 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, shape1: [usize; 4]) -> [usize; 2] {
+                pub fn forward(&self, shape1: [i64; 4]) -> [i64; 2] {
                      // Use s!, ensure no usize suffix
-                     let shape2: [usize; 2] = shape1[s![1..3].into_ranges([4].into())[0].clone()].try_into().unwrap();
+                     let shape2: [i64; 2] = shape1[s![1..3].into_ranges([4].into())[0].clone()].try_into().unwrap();
                      shape2
                 }
             }
@@ -407,9 +407,9 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, shape1: [usize; 4]) -> [usize; 4] {
+                pub fn forward(&self, shape1: [i64; 4]) -> [i64; 4] {
                     // Use s!, ensure no usize suffix
-                     let shape2: [usize; 4] = shape1[s![0..4].into_ranges([4].into())[0].clone()].try_into().unwrap();
+                     let shape2: [i64; 4] = shape1[s![0..4].into_ranges([4].into())[0].clone()].try_into().unwrap();
                      shape2
                 }
             }
@@ -563,7 +563,7 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 3>, start_shape: [usize; 1], end_shape: [usize; 1]) -> Tensor<B, 3> {
+                pub fn forward(&self, tensor1: Tensor<B, 3>, start_shape: [i64; 1], end_shape: [i64; 1]) -> Tensor<B, 3> {
                     let tensor2 = tensor1.slice(s![start_shape[0]..end_shape[0], .., ..]);
                     tensor2
                 }
@@ -613,7 +613,7 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>, start_shape: [usize; 3], end_shape: [usize; 3]) -> Tensor<B, 4> {
+                pub fn forward(&self, tensor1: Tensor<B, 4>, start_shape: [i64; 3], end_shape: [i64; 3]) -> Tensor<B, 4> {
                     let tensor2 = tensor1.slice(s![start_shape[0]..end_shape[0], start_shape[1]..end_shape[1], start_shape[2]..end_shape[2], ..]);
                     tensor2
                 }

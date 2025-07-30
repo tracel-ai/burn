@@ -151,7 +151,7 @@ impl BinaryNode {
                     {
                         let mut result = #lhs;
                         for result_item in result.iter_mut() {
-                            *result_item += #rhs as usize;
+                            *result_item += #rhs as i64;
                         }
                         result
                     }
@@ -162,7 +162,7 @@ impl BinaryNode {
                     {
                         let mut result = #rhs;
                         for result_item in result.iter_mut() {
-                            *result_item += #lhs as usize;
+                            *result_item += #lhs as i64;
                         }
                         result
                     }
@@ -199,7 +199,7 @@ impl BinaryNode {
                     {
                         let mut result = #lhs;
                         for result_item in result.iter_mut() {
-                            *result_item -= #rhs as usize;
+                            *result_item -= #rhs as i64;
                         }
                         result
                     }
@@ -210,7 +210,7 @@ impl BinaryNode {
                     {
                         let mut result = #rhs;
                         for result_item in result.iter_mut() {
-                            *result_item = (#lhs as usize) - *result_item;
+                            *result_item = (#lhs as i64) - *result_item;
                         }
                         result
                     }
@@ -247,7 +247,7 @@ impl BinaryNode {
                     {
                         let mut result = #lhs;
                         for result_item in result.iter_mut() {
-                            *result_item *= #rhs as usize;
+                            *result_item *= #rhs as i64;
                         }
                         result
                     }
@@ -258,7 +258,7 @@ impl BinaryNode {
                     {
                         let mut result = #rhs;
                         for result_item in result.iter_mut() {
-                            *result_item *= #lhs as usize;
+                            *result_item *= #lhs as i64;
                         }
                         result
                     }
@@ -294,7 +294,7 @@ impl BinaryNode {
                     {
                         let mut result = #lhs;
                         for result_item in result.iter_mut() {
-                            *result_item /= #rhs as usize;
+                            *result_item /= #rhs as i64;
                         }
                         result
                     }
@@ -305,7 +305,7 @@ impl BinaryNode {
                     {
                         let mut result = #rhs;
                         for result_item in result.iter_mut() {
-                            *result_item = (#lhs as usize) / *result_item;
+                            *result_item = (#lhs as i64) / *result_item;
                         }
                         result
                     }

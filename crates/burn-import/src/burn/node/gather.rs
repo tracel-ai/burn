@@ -124,7 +124,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
                                     for &idx in &indices_vec {
                                         output_shape.push(input_shape[idx]);
                                     }
-                                    let #output: [usize; #output_rank] = output_shape.try_into().unwrap();
+                                    let #output: [i64; #output_rank] = output_shape.try_into().unwrap();
                                 }
                             } else {
                                 panic!(
@@ -151,7 +151,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
 
                             quote! {
                                 let input_shape = &#input_shape_name;
-                                let #output: [usize; #output_rank] = [#(#gather_elements),*];
+                                let #output: [i64; #output_rank] = [#(#gather_elements),*];
                             }
                         }
                         _ => panic!(
@@ -445,9 +445,9 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(
                     &self,
-                    shape1: [usize; 3],
+                    shape1: [i64; 3],
                     tensor1: Tensor<B, 1, Int>
-                ) -> [usize; 1] {
+                ) -> [i64; 1] {
                     let input_shape = &shape1;
                     let indices_data = tensor1.to_data();
                     let indices_vec: alloc::vec::Vec<usize> = indices_data.iter::<i64>().map(|x| x as usize).collect();
@@ -455,7 +455,7 @@ mod tests {
                     for &idx in &indices_vec {
                         output_shape.push(input_shape[idx]);
                     }
-                    let shape2: [usize; 1usize] = output_shape.try_into().unwrap();
+                    let shape2: [i64; 1usize] = output_shape.try_into().unwrap();
                     shape2
                 }
             }
@@ -608,10 +608,10 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(
                     &self,
-                    shape1: [usize; 4]
-                ) -> [usize; 2] {
+                    shape1: [i64; 4]
+                ) -> [i64; 2] {
                     let input_shape = &shape1;
-                    let shape2: [usize; 2usize] = [input_shape[0usize], input_shape[2usize]];
+                    let shape2: [i64; 2usize] = [input_shape[0usize], input_shape[2usize]];
                     shape2
                 }
             }
@@ -657,7 +657,7 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(
                     &self,
-                    shape1: [usize; 4]
+                    shape1: [i64; 4]
                 ) -> i64 {
                     let input_shape = &shape1;
                     let dim1 = input_shape[1usize];

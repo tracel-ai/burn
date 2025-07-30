@@ -41,7 +41,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
                     }
                 }
                 Type::Shape(shape) => {
-                    // Shape implements BroadcastArgs, allowing it to be passed directly to the expand method.
+                    // Shape arrays are [i64; N] and expand now accepts them directly via Element trait
                     let shape_name = &shape.name;
                     quote! { #shape_name }
                 }
@@ -158,7 +158,7 @@ mod tests {
                 pub fn forward(
                     &self,
                     tensor1: Tensor<B, 4>,
-                    shape1: [usize; 4],
+                    shape1: [i64; 4],
                 ) -> Tensor<B, 4> {
                     let tensor2 = tensor1.expand(shape1);
 

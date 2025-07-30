@@ -50,7 +50,7 @@ impl ConstantValue {
             }
             ConstantValue::Shape(shape_vec) => {
                 let rank = proc_macro2::Literal::usize_unsuffixed(shape_vec.len());
-                quote! { [usize; #rank] }
+                quote! { [i64; #rank] }
             }
         }
     }
@@ -69,7 +69,7 @@ impl ConstantValue {
                 let values: Vec<_> = shape_vec
                     .iter()
                     .map(|&v| {
-                        let v_lit = proc_macro2::Literal::usize_unsuffixed(v);
+                        let v_lit = proc_macro2::Literal::i64_suffixed(v as i64);
                         quote! { #v_lit }
                     })
                     .collect();
@@ -112,10 +112,9 @@ impl ConstantNode {
             }),
 
             ConstantValue::Tensor(tensor_type, _) => Type::Tensor(tensor_type.clone()),
-            ConstantValue::Shape(shape_vec) => Type::Shape(ShapeType {
-                name,
-                rank: shape_vec.len(),
-            }),
+            ConstantValue::Shape(shape_vec) => {
+                Type::Shape(ShapeType::new(name.to_string(), shape_vec.len()))
+            }
         }
     }
 }
@@ -539,8 +538,8 @@ mod tests {
                 }
 
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self) -> [usize; 3] {
-                    let output: [usize; 3] = [2, 3, 4];
+                pub fn forward(&self) -> [i64; 3] {
+                    let output: [i64; 3] = [2i64, 3i64, 4i64];
                     output
                 }
             }

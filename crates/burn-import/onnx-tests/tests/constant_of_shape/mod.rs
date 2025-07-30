@@ -15,8 +15,8 @@ mod tests {
         // This tests shape is being passed directly to the model
         let device = Default::default();
         let model = constant_of_shape::Model::<Backend>::new(&device);
-        let input_shape = [2, 3, 2];
-        let expected = Tensor::<Backend, 3>::full(input_shape, 1.125, &device).to_data();
+        let input_shape = [2i64, 3i64, 2i64];
+        let expected = Tensor::<Backend, 3>::full([2, 3, 2], 1.125, &device).to_data();
 
         let output = model.forward(input_shape);
 

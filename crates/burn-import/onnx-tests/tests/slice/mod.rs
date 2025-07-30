@@ -193,11 +193,11 @@ mod tests {
         // Create test input tensor [2, 3, 4, 5]
         let input = Tensor::<Backend, 4>::ones([2, 3, 4, 5], &device);
 
-        let output: [usize; 2] = model.forward(input);
+        let output: [i64; 2] = model.forward(input);
 
         // The graph does: Shape -> Slice(starts=[-3], ends=[-1])
         // Shape produces [2, 3, 4, 5]
         // Slice with [-3:-1] should get elements from 3rd last to 2nd last: [3, 4]
-        assert_eq!(output, [3, 4]);
+        assert_eq!(output, [3i64, 4i64]);
     }
 }

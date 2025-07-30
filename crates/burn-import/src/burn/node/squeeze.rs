@@ -169,7 +169,7 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, shape1: [usize; 1]) -> i64 {
+                pub fn forward(&self, shape1: [i64; 1]) -> i64 {
                     let scalar1 = shape1[0] as i64;
                     scalar1
                 }
@@ -212,7 +212,7 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, shape1: [usize; 2]) -> [usize; 2] {
+                pub fn forward(&self, shape1: [i64; 2]) -> [i64; 2] {
                     let shape2 = shape1;
                     shape2
                 }

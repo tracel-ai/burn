@@ -137,8 +137,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
         match &self.output {
             Type::Shape(shape_type) => {
                 let dim = shape_type.rank.to_tokens();
+
+                // Shape operations now return i64 directly from the shape function
                 quote! {
-                    let #output: [usize;#dim] = #function.try_into().unwrap();
+                    let #output: [i64;#dim] = #function.try_into().unwrap();
                 }
             }
             _ => {
@@ -360,7 +362,17 @@ impl UnaryNode {
                     )
                 }
             }
-            _ => panic!("output must be a tensor or scalar"),
+            (Type::Shape(_), Type::Shape(_)) => {
+                // Shape types are always represented as [i64; N] in Burn
+                // Even when casting to int32, we keep them as i64 arrays
+                Self::new(
+                    input,
+                    output,
+                    UnaryNodeKind::Cast(None, None),
+                    Rc::new(move |input| quote! { #input }),
+                )
+            }
+            _ => panic!("Cast: unsupported type combination"),
         }
     }
 
@@ -516,6 +528,11 @@ impl UnaryNode {
         let function = move |input| {
             quote! {
                 #input.dims()[#start_dim..#end_dim]
+                    .iter()
+                    .map(|&x| x as i64)
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .unwrap()
             }
         };
         Self::new(input, output, UnaryNodeKind::Shape, Rc::new(function))
@@ -1229,13 +1246,20 @@ mod tests {
         one_node_graph(
             UnaryNode::shape(
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Shape(ShapeType::new("shape1", 4)),
+                Type::Shape(ShapeType::new("shape1", 2)),
                 1,
                 3,
             ),
             quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> [usize; 4] {
-                    let shape1: [usize; 4] = tensor1.dims()[1..3].try_into().unwrap();
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> [i64; 2] {
+                    let shape1: [i64; 2] = tensor1.dims()[1..3]
+                        .iter()
+                        .map(|&x| x as i64)
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap()
+                        .try_into()
+                        .unwrap();
 
                     shape1
                 }
