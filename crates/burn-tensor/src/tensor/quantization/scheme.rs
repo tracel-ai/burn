@@ -83,13 +83,14 @@ pub enum QuantInputType {
     QInt8,
 }
 
+/// Data type used to stored quantized values.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum QuantStoreType {
     /// Native quantization doesn't require packing and unpacking.
     Native,
     /// Store data in a byte.
     I8,
-    /// Store data in a 4 bytes.
+    /// Store data in 4 bytes.
     I32,
 }
 
