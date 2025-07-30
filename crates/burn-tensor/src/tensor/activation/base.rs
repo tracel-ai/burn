@@ -1,6 +1,6 @@
 use crate::backend::Backend;
 use crate::check::TensorCheck;
-use crate::{Tensor, TensorPrimitive, check};
+use crate::{Tensor, TensorPrimitive, check, s};
 
 /// Applies the rectified linear unit function element-wise
 /// as described in the paper [Deep Learning using Rectified Linear Units (ReLU)](https://arxiv.org/pdf/1803.08375).
@@ -258,4 +258,27 @@ pub fn mish<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
 /// Applies the tanh function element-wise.
 pub fn tanh<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     tensor.tanh()
+}
+
+/// Applies the gated linear unit function.
+///
+/// $$
+/// \text{GLU}(a,b) = a \otimes \sigma(b)
+/// $$
+/// where $a$ is the first half of the input matrices and $b$ is the second half.
+///
+/// # Arguments
+///
+/// * `tensor` - The input tensor. With shape [∗1,N,∗2] where * means, any number of additional dimensions
+/// * `dim` - The dimension on which to split the input.
+///
+/// # Returns
+/// Output tensor with shape [∗1​,M,∗2​] where M=N/2
+pub fn glu<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
+    // TODO: Handle negative indicies with AsIndex for compatibility with Pytorch nn.GLU.
+    let new_len = tensor.dims()[dim] / 2;
+    let a = tensor.clone().slice(s![dim, 0..new_len]);
+    let b = tensor.slice(s![dim, new_len..new_len * 2]);
+
+    a.mul(sigmoid(b))
 }
