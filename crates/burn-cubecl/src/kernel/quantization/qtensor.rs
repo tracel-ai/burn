@@ -24,8 +24,8 @@ impl QParams {
             };
             let size_store = match scheme.q_store_type {
                 QuantStoreType::Native => size_quant,
-                QuantStoreType::I8 => 8u32,
-                QuantStoreType::I32 => 32u32,
+                QuantStoreType::U8 => 8u32,
+                QuantStoreType::U32 => 32u32,
             };
 
             size_store / size_quant

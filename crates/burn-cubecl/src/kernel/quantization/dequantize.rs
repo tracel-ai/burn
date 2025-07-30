@@ -80,11 +80,9 @@ fn unpack_q<F: Float, QI: Int>(value: QI, #[comptime] quant: QuantInputType) -> 
 #[cube]
 fn extract_i8(value: u32, offset: u32) -> i32 {
     // Extract 8-bit segment
-    let value = (value >> offset) & 0xFF;
-    // Check if the value is negative by inspecting the MSB and subtract 256 if it is
-    // Subtract 0 or 256 to circumvent unsupported conditional assignment (let x = if {} else {};)
-    let sub = i32::cast_from(value & 0x80 != 0) * 256;
-    i32::cast_from(value) - sub
+    let raw = (value >> offset) & 0xFF;
+    // Sign-extend: move sign bit to MSB via leftshift, then rightshift to restore sign
+    i32::cast_from(raw << 24) >> 24
 }
 
 #[cube]

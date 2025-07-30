@@ -29,7 +29,7 @@ impl Default for QuantScheme {
             level: QuantLevel::Tensor,
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
-            q_store_type: QuantStoreType::I32,
+            q_store_type: QuantStoreType::U32,
             acc_precision: QuantAccPrecision::Full,
             propagation: QuantPropagation::Inhibit,
         }
@@ -94,10 +94,10 @@ pub enum QuantInputType {
 pub enum QuantStoreType {
     /// Native quantization doesn't require packing and unpacking.
     Native,
-    /// Store data in a byte.
-    I8,
-    /// Store data in 4 bytes.
-    I32,
+    /// Store packed quantized values in a 8-bit unsigned integer.
+    U8,
+    /// Store packed quantized values in a 4-byte unsigned integer.
+    U32,
 }
 
 /// Strategy used to quantize values.

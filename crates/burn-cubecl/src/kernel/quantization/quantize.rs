@@ -10,7 +10,7 @@ use cubecl::prelude::*;
 use cubecl::std::tensor::{StridedLayout, index_offset_contiguous};
 
 #[cube]
-fn pack_i8s_to_u32s(value: Line<u32>) -> u32 {
+fn pack_i8s_to_u32s(value: Line<i32>) -> u32 {
     // NOTE: assuming line size of 4
     let line_size = value.size();
     let mut v_packed = 0;
@@ -18,7 +18,7 @@ fn pack_i8s_to_u32s(value: Line<u32>) -> u32 {
     #[unroll]
     for i in 0..line_size {
         // Shift and combine into u32
-        v_packed |= (value[i] & 0xFF) << (8 * i);
+        v_packed |= u32::cast_from(value[i] & 0xFF) << (8 * i);
     }
     v_packed
 }
@@ -47,15 +47,12 @@ fn quantize_symmetric_int8_packed<F: Float>(
 ) -> u32 {
     // Assuming a line size of 4 (equal to the number of values packed)
     // x_q = clamp(round(x / scale), a, b)
-    // NOTE: we add 256 before casting to unsigned to correctly represent negative values
-    let value = Line::cast_from(
-        Line::clamp(
-            Line::round(input / Line::cast_from(scale)),
-            Line::new(range_min),
-            Line::new(range_max),
-        ) + Line::cast_from(comptime!(256f32)),
-    );
-    // Shift and combine into u32
+    let value = Line::cast_from(Line::clamp(
+        Line::round(input / Line::cast_from(scale)),
+        Line::new(range_min),
+        Line::new(range_max),
+    ));
+    // Shift and combine into u32 (using i32 for sign extension)
     pack_i8s_to_u32s(value)
 }
 

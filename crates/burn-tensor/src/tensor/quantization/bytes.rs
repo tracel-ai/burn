@@ -121,7 +121,7 @@ impl QuantizedBytes {
             }
             #[cfg(target_endian = "big")]
             {
-                pack_i8s_to_u32s(bytemuck::cast_vec(qparams))
+                crate::quantization::pack_i8s_to_u32s(bytemuck::cast_vec(qparams))
             }
         };
 
