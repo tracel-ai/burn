@@ -7,6 +7,9 @@ import onnx
 from onnx import helper, TensorProto
 from onnx.reference import ReferenceEvaluator
 
+# ONNX opset version to use for model generation
+OPSET_VERSION = 16
+
 def main():
     # Create a graph that tests both Shape-Scalar and Shape-Shape operations
     # Input tensors
@@ -66,8 +69,11 @@ def main():
     )
     
     # Create the model
-    model_def = helper.make_model(graph_def, producer_name='onnx-tests')
-    model_def.opset_import[0].version = 16
+    model_def = helper.make_model(
+        graph_def, 
+        producer_name='onnx-tests',
+        opset_imports=[helper.make_operatorsetid("", OPSET_VERSION)]
+    )
     
     # Save the model
     onnx_name = "sub_shape.onnx"

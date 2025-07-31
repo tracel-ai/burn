@@ -9,6 +9,9 @@ from onnx import helper, TensorProto
 import onnx.shape_inference
 from onnx.reference import ReferenceEvaluator
 
+# ONNX opset version to use for model generation
+OPSET_VERSION = 16
+
 def main():
     # Test Shape(2) -> Shape(2) (no-op)
     # We'll create the model without shape inference to bypass validation
@@ -41,8 +44,10 @@ def main():
     )
     
     # Create the model
-    opset = helper.make_opsetid("", 16)
-    model = helper.make_model(graph, opset_imports=[opset])
+    model = helper.make_model(
+        graph, 
+        opset_imports=[helper.make_operatorsetid("", OPSET_VERSION)]
+    )
     
     # Skip shape inference to avoid validation errors
     # onnx.checker.check_model(model, full_check=True)

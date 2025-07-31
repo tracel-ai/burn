@@ -7,6 +7,9 @@ import onnx
 from onnx import helper, TensorProto
 from onnx.reference import ReferenceEvaluator
 
+# ONNX opset version to use for model generation
+OPSET_VERSION = 16
+
 def main():
     # Test Shape(1) -> Scalar
     # Create input tensor
@@ -37,8 +40,10 @@ def main():
     )
     
     # Create the model
-    opset = helper.make_opsetid("", 16)
-    model = helper.make_model(graph, opset_imports=[opset])
+    model = helper.make_model(
+        graph, 
+        opset_imports=[helper.make_operatorsetid("", OPSET_VERSION)]
+    )
     
     # Check and save
     onnx.checker.check_model(model, full_check=True)

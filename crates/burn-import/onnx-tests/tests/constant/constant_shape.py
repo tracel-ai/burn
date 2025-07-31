@@ -5,6 +5,10 @@
 import numpy as np
 import onnx
 from onnx import helper, TensorProto
+from onnx.reference import ReferenceEvaluator
+
+# ONNX opset version to use for model generation
+OPSET_VERSION = 16
 
 def main():
     # Create a graph that tests Shape type with Constants
@@ -91,23 +95,32 @@ def main():
     )
     
     # Create the model
-    model_def = helper.make_model(graph_def, producer_name='onnx-tests')
-    model_def.opset_import[0].version = 16
+    model_def = helper.make_model(
+        graph_def, 
+        producer_name='onnx-tests',
+        opset_imports=[helper.make_operatorsetid("", OPSET_VERSION)]
+    )
     
     # Save the model
     onnx_name = "constant_shape.onnx"
     onnx.save(model_def, onnx_name)
     print("Finished exporting model to {}".format(onnx_name))
     
-    # Print test expectations
-    print("Input shape: [2, 4, 6]")
-    print("Scalar constant: 2")
-    print("Shape constant: [1, 2, 3]")
-    print("Expected outputs:")
-    print("  shape_add_scalar: [4, 6, 8] (shape + 2)")
-    print("  shape_mul_scalar: [4, 8, 12] (shape * 2)")
-    print("  shape_add_shape: [3, 6, 9] (shape + [1, 2, 3])")
-    print("  shape_mul_shape: [2, 8, 18] (shape * [1, 2, 3])")
+    # Test the model with sample data
+    test_input = np.random.randn(2, 4, 6).astype(np.float32)
+    
+    print(f"\nTest input shape: {test_input.shape}")
+    
+    # Run the model using ReferenceEvaluator
+    session = ReferenceEvaluator(onnx_name, verbose=0)
+    outputs = session.run(None, {"input": test_input})
+    
+    shape_add_scalar, shape_mul_scalar, shape_add_shape, shape_mul_shape = outputs
+    
+    print(f"\nTest output shape_add_scalar: {repr(shape_add_scalar)}")
+    print(f"Test output shape_mul_scalar: {repr(shape_mul_scalar)}")
+    print(f"Test output shape_add_shape: {repr(shape_add_shape)}")
+    print(f"Test output shape_mul_shape: {repr(shape_mul_shape)}")
 
 if __name__ == '__main__':
     main()
