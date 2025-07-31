@@ -665,7 +665,7 @@ mod tests {
                     &self,
                     shape1: [i64; 4]
                 ) -> i64 {
-                    let dim1 = shape1[1usize];
+                    let dim1 = shape1[1usize] as i64;
                     dim1
                 }
             }
