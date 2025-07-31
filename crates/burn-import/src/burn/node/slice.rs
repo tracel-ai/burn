@@ -35,7 +35,7 @@ impl SliceNode {
             Type::Tensor(tensor) => {
                 self.generate_tensor_slice(tensor, scope, node_position, output)
             }
-            Type::Shape(shape) => self.generate_shape_slice(shape, scope, node_position, output),
+            Type::Shape(shape) => self.generate_shape_slice(shape, output),
             _ => panic!("Unsupported input type for SliceNode"),
         }
     }
@@ -143,8 +143,6 @@ impl SliceNode {
     fn generate_shape_slice(
         &self,
         shape: &crate::burn::ShapeType,
-        _scope: &mut Scope,
-        _node_position: usize,
         output: &proc_macro2::Ident,
     ) -> TokenStream {
         let shape_name = &shape.name;
