@@ -4,7 +4,9 @@ use crate::{
     ops::{empty_qtensor, max_line_size},
 };
 use crate::{kernel::utils::strided_layout, tensor::CubeTensor};
-use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
+use burn_tensor::quantization::{
+    QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantStoreType,
+};
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 use cubecl::std::tensor::{StridedLayout, index_offset_contiguous};
@@ -203,10 +205,23 @@ where
 {
     let output = empty_qtensor(tensor.shape.clone(), *scheme, &tensor.device);
 
-    if i8::is_supported(&tensor.client) {
-        quantize_native::<R, F>(tensor, scheme, scale, output)
-    } else {
-        quantize_packed::<R, F>(tensor, scheme, scale, output)
+    match scheme {
+        QuantScheme {
+            q_type: QuantInputType::QInt8,
+            q_store_type: QuantStoreType::U32,
+            ..
+        } => quantize_packed::<R, F>(tensor, scheme, scale, output),
+        QuantScheme {
+            q_type: QuantInputType::QInt8,
+            q_store_type: QuantStoreType::Native,
+            ..
+        } => {
+            if !i8::is_supported(&tensor.client) {
+                panic!("QInt8 is not supported for native quantization");
+            }
+
+            quantize_native::<R, F>(tensor, scheme, scale, output)
+        }
     }
 }
 
@@ -258,7 +273,7 @@ fn quantize_native<R: CubeRuntime, F: FloatElement>(
             // We could use line_size = block_size if it's in the supported line sizes.. but let's keep it simple
             assert!(
                 *block_size as u8 % line_size == 0,
-                "block size must be divisible by line size, got block_size={block_size}, line_size={line_size}"
+                "Block size must be divisible by line size, got block_size={block_size}, line_size={line_size}"
             );
             unsafe {
                 quantize_per_block_symmetric_int8_kernel::launch_unchecked::<F, R>(
@@ -330,7 +345,7 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement>(
         } => {
             assert!(
                 *block_size % 4 == 0,
-                "block size must be divisible by 4, got block_size={block_size}"
+                "Block size must be divisible by 4, got block_size={block_size}"
             );
             unsafe {
                 quantize_per_block_symmetric_int8_packed_kernel::launch_unchecked::<F, R>(

@@ -1,8 +1,6 @@
 #![allow(missing_docs)] // cube derive macros
 
-use burn_tensor::quantization::{
-    QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantStoreType,
-};
+use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
 use cubecl::prelude::*;
 
 /// Quantization parameters.
@@ -18,18 +16,7 @@ pub struct QParams {
 impl QParams {
     /// Create a new quantization parameters instance.
     pub fn new(#[comptime] scheme: QuantScheme) -> Self {
-        let num_quants = comptime!(
-            let size_quant = match scheme.q_type {
-                QuantInputType::QInt8 => 8u32,
-            };
-            let size_store = match scheme.q_store_type {
-                QuantStoreType::Native => size_quant,
-                QuantStoreType::U8 => 8u32,
-                QuantStoreType::U32 => 32u32,
-            };
-
-            size_store / size_quant
-        );
+        let num_quants = comptime!((scheme.bits_stored() / scheme.bits_type()) as u32);
         QParams { scheme, num_quants }
     }
 

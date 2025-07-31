@@ -13,9 +13,10 @@ pub struct QuantScheme {
     pub level: QuantLevel,
     /// Quantization mode (e.g., symmetric).
     pub mode: QuantMode,
-    /// Data type used for storing quantized values (e.g., QInt8).
+    /// The logical data type of quantized input values (e.g., QInt8). This defines how values
+    /// are interpreted during computation, independent of how they're stored (`q_store_type`).
     pub q_type: QuantInputType,
-    /// The data type used
+    /// Data type used for storing quantized values.
     pub q_store_type: QuantStoreType,
     /// Precision used for accumulating intermediate values (e.g., during matmul).
     pub acc_precision: QuantAccPrecision,
@@ -55,7 +56,7 @@ impl QuantScheme {
         self
     }
 
-    /// Set the data type used to stored quantized values.
+    /// Set the data type used to store quantized values.
     pub fn set_q_store_type(mut self, q_store_type: QuantStoreType) -> Self {
         self.q_store_type = q_store_type;
         self
@@ -71,6 +72,22 @@ impl QuantScheme {
     pub fn set_propagation(mut self, propagation: QuantPropagation) -> Self {
         self.propagation = propagation;
         self
+    }
+
+    /// Returns the size of the quantization input type in bits.
+    pub fn bits_type(&self) -> usize {
+        match self.q_type {
+            QuantInputType::QInt8 => 8,
+        }
+    }
+
+    /// Returns the size of the quantization storage type in bits.
+    pub fn bits_stored(&self) -> usize {
+        match self.q_store_type {
+            QuantStoreType::Native => self.bits_type(),
+            QuantStoreType::U32 => 32,
+            // QuantStoreType::U8 => 8,
+        }
     }
 }
 /// Level or granularity of quantization.
@@ -94,10 +111,10 @@ pub enum QuantInputType {
 pub enum QuantStoreType {
     /// Native quantization doesn't require packing and unpacking.
     Native,
-    /// Store packed quantized values in a 8-bit unsigned integer.
-    U8,
     /// Store packed quantized values in a 4-byte unsigned integer.
     U32,
+    // /// Store packed quantized values in a 8-bit unsigned integer.
+    // U8,
 }
 
 /// Strategy used to quantize values.
