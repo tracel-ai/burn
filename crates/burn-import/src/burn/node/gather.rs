@@ -50,15 +50,16 @@ impl GatherNode {
         };
 
         match &self.output {
-            Type::Scalar(_) => {
+            Type::Scalar(scalar_type) => {
                 // Gathering a single element from a shape produces a scalar
+                let scalar_ty = scalar_type.ty();
                 match &self.index {
                     GatherIndices::Runtime(Type::Scalar(idx_scalar)) => {
                         let index = &idx_scalar.name;
                         let input_shape_name = &input_shape.name;
                         let output = &self.output.name();
                         quote! {
-                            let #output = #input_shape_name[#index as usize];
+                            let #output = #input_shape_name[#index as usize] as #scalar_ty;
                         }
                     }
                     GatherIndices::Static(indices) => {
@@ -72,7 +73,7 @@ impl GatherNode {
                         let input_shape_name = &input_shape.name;
                         let output = &self.output.name();
                         quote! {
-                            let #output = #input_shape_name[#idx];
+                            let #output = #input_shape_name[#idx] as #scalar_ty;
                         }
                     }
                     _ => panic!(
