@@ -14,10 +14,10 @@ use tokio::runtime::{Builder, Runtime};
 use crate::{
     AllReduceStrategy, BroadcastStrategy, CollectiveConfig, CollectiveError, PeerId,
     ReduceOperation, ReduceStrategy,
-    client::LocalCollectiveClient,
     global::node::base::Node,
     local::{
         centralized::{all_reduce_sum_centralized, broadcast_centralized, reduce_sum_centralized},
+        client::LocalCollectiveClient,
         ring::all_reduce_sum_ring,
         tree::{all_reduce_sum_tree, broadcast_tree, reduce_sum_tree},
     },

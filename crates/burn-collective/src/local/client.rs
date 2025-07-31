@@ -1,15 +1,13 @@
-use std::sync::mpsc::SyncSender;
-
-use burn_tensor::{Tensor, backend::Backend};
-
 use crate::{
     CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
     local::server::{
         AllReduceResult, BroadcastResult, FinishResult, Message, ReduceResult, RegisterResult,
     },
 };
+use burn_tensor::{Tensor, backend::Backend};
+use std::sync::mpsc::SyncSender;
 
-/// Local client that talks to the Node. Each thread has a client.
+/// Local client to comminicate with the local server. Each thread has a client.
 #[derive(Clone)]
 pub(crate) struct LocalCollectiveClient<B: Backend> {
     pub channel: SyncSender<Message<B>>,

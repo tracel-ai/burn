@@ -1,5 +1,3 @@
-pub(crate) mod client;
-
 mod global;
 pub use global::*;
 
