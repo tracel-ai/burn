@@ -1,57 +1,44 @@
-use crate::components::{LearnerComponents, TrainBackend, ValidBackend};
-use crate::metric::processor::EventProcessor;
+use crate::components::{LearnerComponentTypes, TrainBackend};
+use crate::learner::strategies::ddp;
 use crate::metric::store::EventStoreClient;
 use crate::{
-    EarlyStoppingStrategy, LearnerCheckpointer, TrainStep, TrainingInterrupter, ValidStep, ddp,
+    EarlyStoppingStrategyRef, LearnerCheckpointer, TrainLoader, TrainingInterrupter, ValidLoader,
 };
 use burn_collective::{self, CollectiveConfig, PeerId};
-use burn_core::data::dataloader::DataLoader;
-use burn_core::module::AutodiffModule;
 use burn_core::prelude::Backend;
 use burn_core::tensor::backend::AutodiffBackend;
 use std::marker::PhantomData;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread::JoinHandle;
 
 /// A worker runs the model, syncing gradients using collective operations.
-/// Event processing and validation is optional too. 
-pub(crate) struct DdpWorker<LC, InputTrain, OutputTrain, InputValid, OutputValid>
+/// Event processing and validation is optional too.
+pub(crate) struct DdpWorker<LC>
 where
-    LC: LearnerComponents,
-    LC::Model: TrainStep<InputTrain, OutputTrain>,
-    <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
-    LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain, ItemValid = OutputValid>,
+    LC: LearnerComponentTypes + Send + 'static,
 {
     pub peer_id: PeerId,
     pub device: <TrainBackend<LC> as Backend>::Device,
     pub model: LC::Model,
     pub optim: LC::Optimizer,
-    pub early_stopping: Option<Arc<Mutex<dyn EarlyStoppingStrategy + Send>>>,
+    pub early_stopping: Option<EarlyStoppingStrategyRef>,
     pub event_processor: Option<LC::EventProcessor>,
     pub event_store: Arc<EventStoreClient>,
     pub checkpointer: Option<LearnerCheckpointer<LC>>,
     pub lr_scheduler: LC::LrScheduler,
     pub interrupter: TrainingInterrupter,
-    pub dataloader_train: Arc<dyn DataLoader<TrainBackend<LC>, InputTrain>>,
-    pub dataloader_valid: Option<Arc<dyn DataLoader<ValidBackend<LC>, InputValid>>>,
+    pub dataloader_train: TrainLoader<LC>,
+    pub dataloader_valid: Option<ValidLoader<LC>>,
     pub collective_config: CollectiveConfig,
     pub starting_epoch: usize,
     pub num_epochs: usize,
     pub grad_accumulation: Option<usize>,
-    _p: PhantomData<(OutputTrain, InputValid)>,
+    _p: PhantomData<LC>,
 }
 
-impl<LC, InputTrain, OutputTrain, InputValid, OutputValid>
-    DdpWorker<LC, InputTrain, OutputTrain, InputValid, OutputValid>
+impl<LC: LearnerComponentTypes> DdpWorker<LC>
 where
-    LC: LearnerComponents + 'static,
-    InputTrain: Send + 'static,
-    OutputTrain: Send + 'static,
-    InputValid: Send + 'static,
-    OutputValid: Send + 'static,
-    LC::Model: TrainStep<InputTrain, OutputTrain>,
-    <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
-    LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain, ItemValid = OutputValid>,
+    LC: LearnerComponentTypes + Send + 'static,
 {
     /// Starts a worker that runs the model in a data distributed parallel
     #[allow(clippy::too_many_arguments)]
@@ -60,14 +47,14 @@ where
         device: <TrainBackend<LC> as Backend>::Device,
         model: LC::Model,
         optim: LC::Optimizer,
-        early_stopping: Option<Arc<Mutex<dyn EarlyStoppingStrategy + Send>>>,
+        early_stopping: Option<EarlyStoppingStrategyRef>,
         event_processor: Option<LC::EventProcessor>,
         event_store: Arc<EventStoreClient>,
         checkpointer: Option<LearnerCheckpointer<LC>>,
         lr_scheduler: LC::LrScheduler,
         interrupter: TrainingInterrupter,
-        dataloader_train: Arc<dyn DataLoader<TrainBackend<LC>, InputTrain> + Sync>,
-        dataloader_valid: Option<Arc<dyn DataLoader<ValidBackend<LC>, InputValid>>>,
+        dataloader_train: TrainLoader<LC>,
+        dataloader_valid: Option<ValidLoader<LC>>,
         collective_config: CollectiveConfig,
         starting_epoch: usize,
         num_epochs: usize,
@@ -106,7 +93,7 @@ where
         .expect("Couldn't register for collective operations!");
 
         // Changed the train epoch to keep the dataloaders
-        let mut epoch_train = ddp::epoch::TrainEpoch::new(
+        let mut epoch_train = ddp::epoch::TrainEpoch::<LC>::new(
             self.dataloader_train.clone(),
             self.starting_epoch,
             self.num_epochs,
@@ -114,7 +101,7 @@ where
         );
 
         for epoch in self.starting_epoch..self.num_epochs + 1 {
-            (self.model, self.optim) = epoch_train.run::<LC, OutputTrain>(
+            (self.model, self.optim) = epoch_train.run(
                 self.model,
                 self.optim,
                 &mut self.lr_scheduler,
@@ -129,13 +116,12 @@ where
 
             // Validation
             if let Some(dataloader_valid) = &self.dataloader_valid {
-                let epoch_valid =
-                    ddp::epoch::ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
-                epoch_valid.run::<LC, OutputValid>(
-                    &self.model,
-                    &mut self.event_processor,
-                    &self.interrupter,
+                let epoch_valid = ddp::epoch::ValidEpoch::<LC>::new(
+                    dataloader_valid.clone(),
+                    epoch,
+                    self.num_epochs,
                 );
+                epoch_valid.run(&self.model, &mut self.event_processor, &self.interrupter);
             }
 
             if let Some(checkpointer) = &mut self.checkpointer {
@@ -149,7 +135,7 @@ where
             }
 
             if let Some(early_stopping) = &mut self.early_stopping {
-                let mut early_stopping = early_stopping.lock().unwrap();
+                let mut early_stopping = early_stopping.write().unwrap();
                 if early_stopping.should_stop(epoch, &self.event_store) {
                     break;
                 }

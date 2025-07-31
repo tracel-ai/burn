@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use super::Learner;
 use crate::checkpoint::{
@@ -62,7 +62,7 @@ where
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     num_loggers: usize,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
-    early_stopping: Option<Arc<Mutex<dyn EarlyStoppingStrategy + Send>>>,
+    early_stopping: Option<EarlyStoppingStrategyRef>,
     // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
     summary_metrics: BTreeSet<String>,
     summary: bool,
@@ -245,9 +245,9 @@ where
     /// conditions are meet.
     pub fn early_stopping<Strategy>(mut self, strategy: Strategy) -> Self
     where
-        Strategy: EarlyStoppingStrategy + Send + 'static,
+        Strategy: EarlyStoppingStrategy + Send + Sync + 'static,
     {
-        self.early_stopping = Some(Arc::new(Mutex::new(strategy)));
+        self.early_stopping = Some(Arc::new(RwLock::new(strategy)));
         self
     }
 

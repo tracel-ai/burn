@@ -1,55 +1,46 @@
 use burn_collective::all_reduce;
 use burn_collective::{PeerId, ReduceOperation};
-use burn_core::data::dataloader::DataLoader;
 use burn_core::module::{ModuleVisitor, ParamId};
 use burn_core::optim::GradientsParams;
 use burn_core::tensor::Tensor;
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_core::{
-    lr_scheduler::LrScheduler, module::AutodiffModule, optim::GradientsAccumulator,
-    tensor::backend::Backend,
-};
+use burn_core::{lr_scheduler::LrScheduler, module::AutodiffModule, optim::GradientsAccumulator};
 use std::marker::PhantomData;
-use std::sync::Arc;
 
 use crate::metric::processor::{Event, EventProcessor, LearnerItem};
-use crate::{TrainStep, ValidStep};
-use crate::{components::LearnerComponents, learner::base::TrainingInterrupter};
+use crate::{TrainLoader, TrainStep, ValidLoader, ValidStep};
+use crate::{components::LearnerComponentTypes, learner::base::TrainingInterrupter};
 
 /// A validation epoch.
 #[derive(new)]
-pub struct ValidEpoch<B: Backend, VI> {
-    dataloader: Arc<dyn DataLoader<B, VI>>,
+pub struct ValidEpoch<LC: LearnerComponentTypes> {
+    dataloader: ValidLoader<LC>,
     epoch: usize,
     epoch_total: usize,
 }
 
 /// A training epoch.
 #[derive(new)]
-pub struct TrainEpoch<B: AutodiffBackend, TI> {
-    dataloader: Arc<dyn DataLoader<B, TI>>,
+pub struct TrainEpoch<LC: LearnerComponentTypes> {
+    dataloader: TrainLoader<LC>,
     epoch: usize,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<B: Backend, VI> ValidEpoch<B, VI> {
+impl<LC: LearnerComponentTypes> ValidEpoch<LC> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
     ///
     /// * `model` - The model to validate.
     /// * `processor` - The event processor to use.
-    pub fn run<LC: LearnerComponents, VO>(
+    pub fn run(
         &self,
         model: &LC::Model,
         processor: &mut Option<LC::EventProcessor>,
         interrupter: &TrainingInterrupter,
-    ) where
-        LC::EventProcessor: EventProcessor<ItemValid = VO>,
-        <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<VI, VO>,
-        LC::Backend: AutodiffBackend<InnerBackend = B>,
-    {
+    ) {
         log::info!("Executing validation step for epoch {}", self.epoch);
         let model = model.valid();
 
@@ -85,7 +76,7 @@ impl<B: Backend, VI> ValidEpoch<B, VI> {
     }
 }
 
-impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
+impl<LC: LearnerComponentTypes> TrainEpoch<LC> {
     /// Runs the training epoch.
     ///
     /// # Arguments
@@ -98,7 +89,7 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    pub fn run<LC: LearnerComponents<Backend = B>, TO>(
+    pub fn run(
         &mut self,
         mut model: LC::Model,
         mut optim: LC::Optimizer,
@@ -106,11 +97,7 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
         processor: &mut Option<LC::EventProcessor>,
         interrupter: &TrainingInterrupter,
         peer_id: PeerId,
-    ) -> (LC::Model, LC::Optimizer)
-    where
-        LC::EventProcessor: EventProcessor<ItemTrain = TO>,
-        LC::Model: TrainStep<TI, TO>,
-    {
+    ) -> (LC::Model, LC::Optimizer) {
         log::info!("Executing training step for epoch {}", self.epoch,);
 
         let mut iterator = self.dataloader.iter();
@@ -173,6 +160,7 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     }
 }
 
+/// Params visitor for syncing gradients in a model, using [collective operations](burn_collective)
 #[derive(new)]
 struct GradientsParamsSync<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
     peer_id: PeerId,
@@ -207,7 +195,8 @@ trait GradientsParamsCollectiveExt {
 }
 
 impl GradientsParamsCollectiveExt for GradientsParams {
-    /// All-Reduce the gradients for the given [module](AutodiffModule).
+    /// All-Reduce the gradients for the given [module](AutodiffModule)
+    /// using [collective operations](burn_collective)
     fn all_reduce<B: AutodiffBackend, M: AutodiffModule<B>>(
         mut self,
         device_id: burn_collective::PeerId,

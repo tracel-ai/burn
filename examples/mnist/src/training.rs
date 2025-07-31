@@ -9,7 +9,6 @@ use burn::{
     tensor::backend::AutodiffBackend,
     train::{
         LearnerBuilder, MetricEarlyStoppingStrategy, StoppingCondition,
-        ddp::DdpLearner,
         metric::{
             AccuracyMetric, CpuMemory, CpuTemperature, CpuUse, LossMetric,
             store::{Aggregate, Direction, Split},
@@ -66,6 +65,10 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .num_workers(config.num_workers)
         .build(MnistDataset::test());
 
+    // for collective ops
+    let collective =
+        CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Tree(3));
+
     // Model
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
         .metric_train_numeric(AccuracyMetric::new())
@@ -86,18 +89,13 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             Split::Valid,
             StoppingCondition::NoImprovementSince { n_epochs: 1 },
         ))
-        .learning_strategy(burn::train::LearningStrategy::MultiDeviceNaive(vec![
-            B::Device::default(),
-        ]))
+        .learning_strategy(burn::train::LearningStrategy::DistributedDataParallel {
+            devices: vec![B::Device::default(); 4],
+            config: collective,
+        })
         .num_epochs(config.num_epochs)
         .summary()
         .build(model, config.optimizer.init(), 1e-4);
-
-    let collective = CollectiveConfig::default()
-        .with_num_devices(devices.len())
-        .with_local_all_reduce_strategy(AllReduceStrategy::Tree(3));
-
-    let learner = DdpLearner::new(learner, collective);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
