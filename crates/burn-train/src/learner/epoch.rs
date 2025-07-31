@@ -12,7 +12,7 @@ use crate::{components::LearnerComponents, learner::base::TrainingInterrupter};
 
 /// A validation epoch.
 #[derive(new)]
-pub struct ValidEpoch<B: Backend, VI> {
+pub struct SingleDeviceValidEpoch<B: Backend, VI> {
     dataloader: Arc<dyn DataLoader<B, VI>>,
     epoch: usize,
     epoch_total: usize,
@@ -20,14 +20,23 @@ pub struct ValidEpoch<B: Backend, VI> {
 
 /// A training epoch.
 #[derive(new)]
-pub struct TrainEpoch<B: AutodiffBackend, TI> {
-    dataloader: Vec<Arc<dyn DataLoader<B, TI>>>,
+pub struct SingleDeviceTrainEpoch<B: AutodiffBackend, TI> {
+    dataloader: Arc<dyn DataLoader<B, TI>>,
     epoch: usize,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<B: Backend, VI> ValidEpoch<B, VI> {
+/// A training epoch.
+#[derive(new)]
+pub struct MultiDeviceTrainEpoch<B: AutodiffBackend, TI> {
+    dataloaders: Vec<Arc<dyn DataLoader<B, TI>>>,
+    epoch: usize,
+    epoch_total: usize,
+    grad_accumulation: Option<usize>,
+}
+
+impl<B: Backend, VI> SingleDeviceValidEpoch<B, VI> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
@@ -75,7 +84,7 @@ impl<B: Backend, VI> ValidEpoch<B, VI> {
     }
 }
 
-impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
+impl<B: AutodiffBackend, TI> SingleDeviceTrainEpoch<B, TI> {
     /// Runs the training epoch.
     ///
     /// # Arguments
@@ -103,7 +112,7 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
         log::info!("Executing training step for epoch {}", self.epoch,);
 
         // Single device / dataloader
-        let mut iterator = self.dataloader[0].iter();
+        let mut iterator = self.dataloader.iter();
         let mut iteration = 0;
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
@@ -154,7 +163,7 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     }
 }
 
-impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
+impl<B: AutodiffBackend, TI> MultiDeviceTrainEpoch<B, TI> {
     /// Runs the training epoch on multiple devices.
     ///
     /// # Arguments
@@ -168,7 +177,7 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    pub fn run_multi_device<LC: LearnerComponents<Backend = B>, TO>(
+    pub fn run<LC: LearnerComponents<Backend = B>, TO>(
         &mut self,
         mut model: LC::Model,
         mut optim: LC::Optimizer,
@@ -189,7 +198,11 @@ impl<B: AutodiffBackend, TI> TrainEpoch<B, TI> {
             devices
         );
 
-        let mut iterators = self.dataloader.iter().map(|d| d.iter()).collect::<Vec<_>>();
+        let mut iterators = self
+            .dataloaders
+            .iter()
+            .map(|d| d.iter())
+            .collect::<Vec<_>>();
         let mut iteration = 0;
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;

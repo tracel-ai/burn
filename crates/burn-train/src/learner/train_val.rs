@@ -1,9 +1,8 @@
 use crate::components::{LearnerComponents, TrainBackend, ValidBackend};
 use crate::metric::processor::{Event, EventProcessor};
-use crate::{Learner, TrainEpoch, ValidEpoch};
+use crate::{Learner, LearningStrategyExt};
 use burn_core::data::dataloader::DataLoader;
-use burn_core::data::dataloader::split::split_dataloader;
-use burn_core::module::{AutodiffModule, Module};
+use burn_core::module::AutodiffModule;
 use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::AutodiffBackend;
 use std::sync::Arc;
@@ -98,6 +97,23 @@ pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
 }
 
+pub(crate) type TrainLoader<LC, I> = Arc<dyn DataLoader<TrainBackend<LC>, I>>;
+pub(crate) type ValidLoader<LC, I> = Arc<dyn DataLoader<ValidBackend<LC>, I>>;
+
+/// Data loaders after having been prepared, split if needed
+pub(crate) enum LearnerDataLoaders<LC: LearnerComponents, InputTrain, InputValid> {
+    /// One dataloader for the training and one of the validation
+    SingleTrainSingleValid {
+        dataloader_train: TrainLoader<LC, InputTrain>,
+        dataloader_valid: ValidLoader<LC, InputValid>,
+    },
+    /// Multiple data loaders for the training, one dataloader for the validation
+    MultiTrainSingleValid {
+        dataloader_train: Vec<TrainLoader<LC, InputTrain>>,
+        dataloader_valid: ValidLoader<LC, InputValid>,
+    },
+}
+
 impl<LC: LearnerComponents> Learner<LC> {
     /// Fits the model.
     ///
@@ -109,27 +125,21 @@ impl<LC: LearnerComponents> Learner<LC> {
     /// # Returns
     ///
     /// The fitted model.
-    pub fn fit<InputTrain, InputValid, OutputTrain, OutputValid>(
+    pub fn fit<TI, VI, TO, VO>(
         mut self,
-        mut dataloader_train: Arc<dyn DataLoader<TrainBackend<LC>, InputTrain>>,
-        mut dataloader_valid: Arc<dyn DataLoader<ValidBackend<LC>, InputValid>>,
+        dataloader_train: Arc<dyn DataLoader<TrainBackend<LC>, TI>>,
+        dataloader_valid: Arc<dyn DataLoader<ValidBackend<LC>, VI>>,
     ) -> LC::Model
     where
-        InputTrain: Send + 'static,
-        InputValid: Send,
-        OutputTrain: Send + 'static,
-        OutputValid: Send,
-        LC::Model: TrainStep<InputTrain, OutputTrain>,
-        <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
-        LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain, ItemValid = OutputValid>,
+        TI: Send + 'static,
+        VI: Send,
+        TO: Send + 'static,
+        VO: Send,
+        LC::Model: TrainStep<TI, TO>,
+        <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<VI, VO>,
+        LC::EventProcessor: EventProcessor<ItemTrain = TO, ItemValid = VO>,
     {
         log::info!("Fitting the model:\n {}", self.model);
-        // The reference model is always on the first device provided.
-        if let Some(device) = self.devices.first() {
-            self.model = self.model.fork(device);
-            dataloader_train = dataloader_train.to_device(device);
-            dataloader_valid = dataloader_valid.to_device(device);
-        }
 
         let starting_epoch = match self.checkpoint {
             Some(checkpoint) => {
@@ -147,73 +157,27 @@ impl<LC: LearnerComponents> Learner<LC> {
             None => 1,
         };
 
-        // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy
-        // for each (worker) data loader. This matches the expected device on the worker, so we
-        // don't have to move the data between devices.
-        let dataloaders_train = split_dataloader(dataloader_train, &self.devices);
+        let dataloaders = self
+            .learning_strategy
+            .prepare_dataloaders::<LC, TI, VI>(dataloader_train, dataloader_valid);
 
-        // Changed the train epoch to keep the dataloaders
-        let mut epoch_train = TrainEpoch::new(
-            dataloaders_train,
-            starting_epoch,
-            self.num_epochs,
-            self.grad_accumulation,
-        );
+        self = self.learning_strategy.clone().prepare_model(self);
 
-        for epoch in starting_epoch..self.num_epochs + 1 {
-            if self.devices.len() > 1 {
-                (self.model, self.optim) = epoch_train.run_multi_device::<LC, OutputTrain>(
-                    self.model,
-                    self.optim,
-                    &mut self.lr_scheduler,
-                    &mut self.event_processor,
-                    self.devices.clone(),
-                    &self.interrupter,
-                )
-            } else {
-                (self.model, self.optim) = epoch_train.run::<LC, OutputTrain>(
-                    self.model,
-                    self.optim,
-                    &mut self.lr_scheduler,
-                    &mut self.event_processor,
-                    &self.interrupter,
-                );
-            }
-
-            if self.interrupter.should_stop() {
-                break;
-            }
-
-            // TODO: multi-device validation?
-            let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
-            epoch_valid.run::<LC, OutputValid>(
-                &self.model,
-                &mut self.event_processor,
-                &self.interrupter,
-            );
-
-            if let Some(checkpointer) = &mut self.checkpointer {
-                checkpointer.checkpoint(
-                    &self.model,
-                    &self.optim,
-                    &self.lr_scheduler,
-                    epoch,
-                    &self.event_store,
-                );
-            }
-
-            if let Some(early_stopping) = &mut self.early_stopping {
-                if early_stopping.should_stop(epoch, &self.event_store) {
-                    break;
-                }
-            }
-        }
+        self = self
+            .learning_strategy
+            .clone()
+            .learn(self, dataloaders, starting_epoch);
 
         // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
         self.event_processor.process_train(Event::End);
 
-        // Display learner summary
-        if let Some(summary) = self.summary {
+        self.display_learner_summary();
+
+        self.model
+    }
+
+    fn display_learner_summary(&self) {
+        if let Some(summary) = &self.summary {
             match summary.init() {
                 Ok(summary) => {
                     println!("{}", summary.with_model(self.model.to_string()))
@@ -221,7 +185,5 @@ impl<LC: LearnerComponents> Learner<LC> {
                 Err(err) => log::error!("Could not retrieve learner summary:\n{err}"),
             }
         }
-
-        self.model
     }
 }

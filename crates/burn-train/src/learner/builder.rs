@@ -17,7 +17,7 @@ use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::{
     ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerCheckpointer,
-    LearnerSummaryConfig,
+    LearnerSummaryConfig, LearningStrategy,
 };
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
@@ -48,7 +48,7 @@ where
     checkpoint: Option<usize>,
     directory: PathBuf,
     grad_accumulation: Option<usize>,
-    devices: Vec<B::Device>,
+    learning_strategy: LearningStrategy<B>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     metrics: Metrics<T, V>,
     event_store: LogEventStore,
@@ -85,7 +85,7 @@ where
             checkpointers: None,
             directory,
             grad_accumulation: None,
-            devices: vec![B::Device::default()],
+            learning_strategy: LearningStrategy::default(),
             metrics: Metrics::default(),
             event_store: LogEventStore::default(),
             renderer: None,
@@ -213,9 +213,9 @@ where
         self
     }
 
-    /// Run the training loop on multiple devices.
-    pub fn devices(mut self, devices: Vec<B::Device>) -> Self {
-        self.devices = devices;
+    /// Run the training loop with different strategies
+    pub fn learning_strategy(mut self, learning_strategy: LearningStrategy<B>) -> Self {
+        self.learning_strategy = learning_strategy;
         self
     }
 
@@ -359,7 +359,7 @@ where
             event_store,
             checkpoint: self.checkpoint,
             grad_accumulation: self.grad_accumulation,
-            devices: self.devices,
+            learning_strategy: self.learning_strategy,
             interrupter: self.interrupter,
             early_stopping: self.early_stopping,
             summary,

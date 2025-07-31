@@ -1,13 +1,12 @@
-use crate::LearnerSummaryConfig;
 use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy};
 use crate::components::LearnerComponents;
 use crate::learner::EarlyStoppingStrategy;
 use crate::metric::store::EventStoreClient;
+use crate::{LearnerSummaryConfig, LearningStrategy};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
 use burn_core::optim::Optimizer;
 use burn_core::tensor::Device;
-use burn_core::tensor::backend::Backend;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -22,7 +21,7 @@ pub struct Learner<LC: LearnerComponents> {
     pub(crate) checkpoint: Option<usize>,
     pub(crate) grad_accumulation: Option<usize>,
     pub(crate) checkpointer: Option<LearnerCheckpointer<LC>>,
-    pub(crate) devices: Vec<<LC::Backend as Backend>::Device>,
+    pub(crate) learning_strategy: LearningStrategy<LC::Backend>,
     pub(crate) interrupter: TrainingInterrupter,
     pub(crate) early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
     pub(crate) event_processor: LC::EventProcessor,
