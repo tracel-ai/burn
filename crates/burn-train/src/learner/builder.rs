@@ -18,7 +18,6 @@ use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::{
     ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerCheckpointer,
-    LearnerSummaryConfig, LearningStrategy, TrainStep, ValidStep,
 };
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
