@@ -12,50 +12,64 @@ use cubecl::prelude::*;
 use cubecl::std::tensor::{StridedLayout, index_offset_contiguous};
 
 #[cube]
-fn pack_i8s_to_u32s(value: Line<i32>) -> u32 {
-    // NOTE: assuming line size of 4
-    let line_size = value.size();
-    let mut v_packed = 0;
-
-    #[unroll]
-    for i in 0..line_size {
-        // Shift and combine into u32
-        v_packed |= u32::cast_from(value[i] & 0xFF) << (8 * i);
-    }
-    v_packed
+fn quantize_symmetric<F: Float>(value: Line<F>, scale: f32, range_min: F, range_max: F) -> Line<F> {
+    // x_q = clamp(round(x / scale), a, b)
+    Line::clamp(
+        Line::round(value / Line::cast_from(scale)),
+        Line::new(range_min),
+        Line::new(range_max),
+    )
 }
 
 #[cube]
-fn quantize_symmetric_int8<F: Float>(
+fn quantize_symmetric_i<F: Float, I: Int>(
     value: Line<F>,
     scale: f32,
     range_min: F,
     range_max: F,
-) -> Line<i8> {
-    // x_q = clamp(round(x / scale), a, b)
-    Line::cast_from(Line::clamp(
-        Line::round(value / Line::cast_from(scale)),
-        Line::new(range_min),
-        Line::new(range_max),
-    ))
+) -> Line<I> {
+    Line::cast_from(quantize_symmetric(value, scale, range_min, range_max))
 }
 
 #[cube]
-fn quantize_symmetric_int8_packed<F: Float>(
-    input: Line<F>,
+fn quantize_packed_value<F: Float, QS: Int>(
+    value: Line<F>,
     scale: f32,
     range_min: F,
     range_max: F,
-) -> u32 {
-    // Assuming a line size of 4 (equal to the number of values packed)
-    // x_q = clamp(round(x / scale), a, b)
-    let value = Line::cast_from(Line::clamp(
-        Line::round(input / Line::cast_from(scale)),
-        Line::new(range_min),
-        Line::new(range_max),
-    ));
-    // Shift and combine into u32 (using i32 for sign extension)
-    pack_i8s_to_u32s(value)
+    #[comptime] scheme: QuantScheme,
+) -> QS {
+    let value = quantize_symmetric(value, scale, range_min, range_max);
+    pack_q::<F, QS>(value, scheme.q_type)
+}
+
+/// Pack a line of quantized floating-point values into a single integer (the stored quantization type),
+/// according to the specified quantization input type.
+#[allow(clippy::explicit_counter_loop)]
+#[cube]
+fn pack_q<F: Float, QS: Int>(value: Line<F>, #[comptime] quant: QuantInputType) -> QS {
+    let size_quant = comptime!(match quant {
+        QuantInputType::QInt8 => 8,
+        // Add more types (e.g., QInt4) here if needed
+    });
+
+    let size_store = comptime!(QS::size_bits().unwrap() as u32);
+    let num_quants = comptime!(size_store / size_quant);
+
+    let mask = i32::cast_from(comptime!((1 << size_quant) - 1));
+    let mut position = comptime!(0);
+    let mut packed = QS::cast_from(0);
+
+    // Shift and combine into QS (using i32 for sign extension)
+    #[unroll]
+    for _ in 0..num_quants {
+        let offset = QS::cast_from(comptime!(position * size_quant));
+        let shifted = QS::cast_from(i32::cast_from(value[position]) & mask) << offset;
+        packed |= shifted;
+        comptime!(position += 1);
+    }
+
+    packed
 }
 
 #[cube]
@@ -108,7 +122,7 @@ fn quantize_per_tensor_symmetric_int8_kernel<F: Float>(
     let in_pos = index_offset_contiguous(input, ABSOLUTE_POS, rank);
     let out_pos = out_layout.index(output, ABSOLUTE_POS);
 
-    output[out_pos] = quantize_symmetric_int8(input[in_pos], scale, range_min, range_max);
+    output[out_pos] = quantize_symmetric_i(input[in_pos], scale, range_min, range_max);
 }
 
 #[cube(launch_unchecked)]
@@ -128,11 +142,11 @@ fn quantize_per_block_symmetric_int8_kernel<F: Float>(
     }
 
     let in_pos = index_offset_contiguous(input, ABSOLUTE_POS, rank);
+    let out_pos = out_layout.index(output, ABSOLUTE_POS);
 
     let scale = write_scale_per_block(in_pos * input.line_size(), scale, out_scale, block_size);
 
-    let out_pos = out_layout.index(output, ABSOLUTE_POS);
-    output[out_pos] = quantize_symmetric_int8(input[in_pos], scale, range_min, range_max);
+    output[out_pos] = quantize_symmetric_i(input[in_pos], scale, range_min, range_max);
 }
 
 #[cube(launch_unchecked)]
@@ -143,6 +157,7 @@ fn quantize_per_tensor_symmetric_int8_packed_kernel<F: Float>(
     range_max: F,
     output: &mut Array<u32>,
     out_scale: &mut Array<f32>,
+    #[comptime] scheme: QuantScheme,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
@@ -150,19 +165,24 @@ fn quantize_per_tensor_symmetric_int8_packed_kernel<F: Float>(
 
     let scale = write_scale_per_tensor(ABSOLUTE_POS, scale, out_scale);
 
-    if comptime!(input.line_size() == 4) {
-        output[ABSOLUTE_POS] =
-            quantize_symmetric_int8_packed::<F>(input[ABSOLUTE_POS], scale, range_min, range_max);
+    let num_quants = comptime!((scheme.bits_stored() / scheme.bits_type()) as u32);
+    if comptime!(input.line_size() == num_quants) {
+        output[ABSOLUTE_POS] = quantize_packed_value::<F, u32>(
+            input[ABSOLUTE_POS],
+            scale,
+            range_min,
+            range_max,
+            scheme,
+        );
     } else {
-        // line size 1
-        let num_packed = comptime!(4);
-        let mut values = Line::<F>::empty(num_packed);
+        // Input line size = 1
+        let mut values = Line::<F>::empty(num_quants);
         #[unroll]
-        for i in 0..num_packed {
-            values[i] = input[ABSOLUTE_POS * num_packed + i][0];
+        for i in 0..num_quants {
+            values[i] = input[ABSOLUTE_POS * num_quants + i][0];
         }
         output[ABSOLUTE_POS] =
-            quantize_symmetric_int8_packed::<F>(values, scale, range_min, range_max);
+            quantize_packed_value::<F, u32>(values, scale, range_min, range_max, scheme);
     }
 }
 
@@ -174,23 +194,25 @@ fn quantize_per_block_symmetric_int8_packed_kernel<F: Float>(
     range_max: F,
     output: &mut Array<u32>,
     out_scale: &mut Array<f32>,
+    #[comptime] scheme: QuantScheme,
     #[comptime] block_size: u32,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
     }
 
-    // line size 1
-    let num_packed = comptime!(4);
-    let packed_pos = ABSOLUTE_POS * num_packed;
+    // Input line size 1
+    let num_quants = comptime!((scheme.bits_stored() / scheme.bits_type()) as u32);
+    let packed_pos = ABSOLUTE_POS * num_quants;
     let scale = write_scale_per_block(packed_pos, scale, out_scale, block_size);
 
-    let mut values = Line::<F>::empty(num_packed);
+    let mut values = Line::<F>::empty(num_quants);
     #[unroll]
-    for i in 0..num_packed {
+    for i in 0..num_quants {
         values[i] = input[packed_pos + i][0];
     }
-    output[ABSOLUTE_POS] = quantize_symmetric_int8_packed::<F>(values, scale, range_min, range_max);
+    output[ABSOLUTE_POS] =
+        quantize_packed_value::<F, u32>(values, scale, range_min, range_max, scheme);
 }
 
 /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
@@ -334,6 +356,7 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement>(
                     ScalarArg::new(F::from_int(i8::MAX as i64)),
                     output.as_array_arg::<u32>(1),
                     out_scale.as_array_arg::<f32>(1),
+                    scheme.clone(),
                 )
             };
         }
@@ -358,6 +381,7 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement>(
                     ScalarArg::new(F::from_int(i8::MAX as i64)),
                     output.as_array_arg::<u32>(1),
                     out_scale.as_array_arg::<f32>(1),
+                    scheme.clone(),
                     *block_size as u32,
                 )
             };

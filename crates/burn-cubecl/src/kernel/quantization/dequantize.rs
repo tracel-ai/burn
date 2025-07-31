@@ -11,6 +11,13 @@ use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 use cubecl::std::tensor::{StridedLayout, index_offset_contiguous};
 
+/// Dequantize a line of values into floating-point values using the provided scale.
+#[cube]
+pub fn dequantize_symmetric<F: Float>(value: Line<F>, scale: f32) -> Line<F> {
+    // x = scale * x_q
+    Line::cast_from(scale) * value
+}
+
 /// Dequantize the value at a specified position using the provided quantization scheme.
 ///
 /// Returns a line of floating-point values. The number of values in the line depends on the number of packed
@@ -47,22 +54,15 @@ pub fn dequantize_packed_value_at<F: Float, QI: Int>(
 /// Returns a line of floating-point values. The number of values in the line depends on the number of packed
 /// values in the stored quantization type.
 #[cube]
-pub fn dequantize_packed_value<F: Float, QI: Int>(
-    value: QI,
+pub fn dequantize_packed_value<F: Float, QS: Int>(
+    value: QS,
     scale: f32,
     #[comptime] scheme: QuantScheme,
 ) -> Line<F> {
     // TODO: q_store_type: QuantStoreType::Native
-    let floats = unpack_q::<F, QI>(value, scheme.q_type);
+    let floats = unpack_q::<F, QS>(value, scheme.q_type);
 
     dequantize_symmetric(floats, scale)
-}
-
-/// Dequantize a line of values into floating-point values using the provided scale.
-#[cube]
-pub fn dequantize_symmetric<F: Float>(value: Line<F>, scale: f32) -> Line<F> {
-    // x = scale * x_q
-    Line::cast_from(scale) * value
 }
 
 /// Unpack a quantized integer into a line of floating-point values, according to the specified quantization input type.
@@ -70,21 +70,21 @@ pub fn dequantize_symmetric<F: Float>(value: Line<F>, scale: f32) -> Line<F> {
 /// This handles types where multiple quantized values are packed into a single integer (the stored quantization type).
 #[allow(clippy::explicit_counter_loop)]
 #[cube]
-fn unpack_q<F: Float, QI: Int>(value: QI, #[comptime] quant: QuantInputType) -> Line<F> {
+fn unpack_q<F: Float, QS: Int>(value: QS, #[comptime] quant: QuantInputType) -> Line<F> {
     let size_quant = comptime!(match quant {
         QuantInputType::QInt8 => 8,
     });
-    let size_store = comptime!(QI::size_bits().unwrap() as u32);
+    let size_store = comptime!(QS::size_bits().unwrap() as u32);
     let num_quant = comptime!(size_store / size_quant);
 
     let mut output = Line::empty(num_quant);
     let mut position = comptime!(0);
-    let mask = QI::cast_from(comptime!((1 << size_quant) - 1));
-    let shift_sign = QI::cast_from(comptime!(24));
+    let mask = QS::cast_from(comptime!((1 << size_quant) - 1));
+    let shift_sign = QS::cast_from(comptime!(24));
 
     #[unroll]
     for _ in 0..num_quant {
-        let offset = QI::cast_from(comptime!(position * size_quant));
+        let offset = QS::cast_from(comptime!(position * size_quant));
         let raw = (value >> offset) & mask;
         // Sign-extend: move sign bit to MSB via leftshift, then rightshift to restore sign
         output[position] = F::cast_from(i32::cast_from(raw << shift_sign) >> 24);
