@@ -38,6 +38,211 @@ impl GatherNode {
             dim,
         }
     }
+
+    fn forward_shape_gather(
+        &self,
+        scope: &mut crate::burn::Scope,
+        node_position: usize,
+    ) -> proc_macro2::TokenStream {
+        let input_shape = match &self.input {
+            Type::Shape(in_shape) => in_shape,
+            _ => unreachable!(),
+        };
+
+        match &self.output {
+            Type::Scalar(_) => {
+                // Gathering a single element from a shape produces a scalar
+                match &self.index {
+                    GatherIndices::Runtime(Type::Scalar(idx_scalar)) => {
+                        let index = &idx_scalar.name;
+                        let input_shape_name = &input_shape.name;
+                        let output = &self.output.name();
+                        quote! {
+                            let #output = #input_shape_name[#index as usize];
+                        }
+                    }
+                    GatherIndices::Static(indices) => {
+                        if indices.len() != 1 {
+                            panic!(
+                                "Static indices length {} doesn't match scalar output",
+                                indices.len()
+                            );
+                        }
+                        let idx = indices[0] as usize;
+                        let input_shape_name = &input_shape.name;
+                        let output = &self.output.name();
+                        quote! {
+                            let #output = #input_shape_name[#idx];
+                        }
+                    }
+                    _ => panic!(
+                        "Gather from Shape to Scalar needs scalar index, got {:?}!",
+                        self.index
+                    ),
+                }
+            }
+            Type::Shape(out_shape) => {
+                match &self.index {
+                    GatherIndices::Runtime(Type::Tensor(idx_tensor)) => {
+                        let index = scope.tensor_use_owned(idx_tensor, node_position);
+                        let index_rank = idx_tensor.rank;
+                        let output_rank = out_shape.rank;
+                        let input_shape_name = &input_shape.name;
+                        let output = &self.output.name();
+
+                        if index_rank == 1 {
+                            quote! {
+                                let #output: [i64; #output_rank] = #index.to_data()
+                                    .iter::<i64>()
+                                    .map(|idx| #input_shape_name[idx as usize])
+                                    .collect::<alloc::vec::Vec<_>>()
+                                    .try_into()
+                                    .unwrap();
+                            }
+                        } else {
+                            unreachable!(
+                                "Multi-dimensional indices for Shape gather should be 1-dimensional"
+                            );
+                        }
+                    }
+                    GatherIndices::Static(indices) => {
+                        let output_rank = out_shape.rank;
+                        let input_shape_name = &input_shape.name;
+                        let output = &self.output.name();
+                        let indices_len = indices.len();
+
+                        if indices_len != output_rank {
+                            panic!(
+                                "Static indices length {indices_len} doesn't match output rank {output_rank}"
+                            );
+                        }
+
+                        // Generate static gathering code
+                        let gather_elements = indices.iter().map(|&idx| {
+                            let idx_usize = idx as usize;
+                            quote! { #input_shape_name[#idx_usize] }
+                        });
+
+                        quote! {
+                            let #output: [i64; #output_rank] = [#(#gather_elements),*];
+                        }
+                    }
+                    _ => panic!(
+                        "Gather from Shape to Shape needs Tensor index, got {:?}!",
+                        self.index
+                    ),
+                }
+            }
+            _ => panic!(
+                "Gather from Shape input can only output Shape or Scalar, got {:?}!",
+                self.output
+            ),
+        }
+    }
+
+    fn forward_tensor_gather(
+        &self,
+        scope: &mut crate::burn::Scope,
+        node_position: usize,
+    ) -> proc_macro2::TokenStream {
+        let dim = self.dim.to_tokens();
+        let input = match &self.input {
+            Type::Tensor(in_tensor) => scope.tensor_use_owned(in_tensor, node_position),
+            _ => unreachable!(),
+        };
+        let input_rank = match &self.input {
+            Type::Tensor(in_tensor) => in_tensor.rank,
+            _ => unreachable!(),
+        };
+        let output = &self.output.name();
+
+        match &self.output {
+            Type::Tensor(_) => {
+                match &self.index {
+                    GatherIndices::Runtime(Type::Scalar(idx_scalar)) => {
+                        // To do a scalar select (select just a single index in one dim),
+                        // convert the 0-D index to a 1-D Tensor with len 1 to use burn's select,
+                        // then squeeze the dimension to reduce the rank
+                        let index = &idx_scalar.name;
+                        let output_rank = input_rank - 1;
+
+                        if output_rank == 0 {
+                            // If output rank is 0, squeeze and keep as 1D tensor
+                            quote! {
+                                let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
+                                let #output = Tensor::select(#input, #dim, indices);
+                            }
+                        } else {
+                            quote! {
+                                let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
+                                let slice = Tensor::select(#input, #dim, indices);
+                                let #output = slice.squeeze::<#output_rank>(#dim);
+                            }
+                        }
+                    }
+                    GatherIndices::Runtime(Type::Tensor(idx_tensor)) => {
+                        let index = scope.tensor_use_owned(idx_tensor, node_position);
+                        let index_rank = idx_tensor.rank;
+                        let output_rank = index_rank + input_rank - 1;
+                        let final_rank = output_rank.max(1); // Ensure minimum rank of 1
+
+                        match index_rank {
+                            1 => {
+                                quote! {
+                                    let indices = #index;
+                                    let #output = Tensor::select(#input, #dim, indices);
+                                }
+                            }
+                            _ => quote! {
+                                let indices = #index;
+
+                                let n_dims = indices.dims().len();
+                                let index_flat = match n_dims {
+                                    1 => indices.reshape([1, -1]),
+                                    n if n >= 2 => indices.flatten::<2>(0, n - 2),
+                                    _ => panic!("Number of dimensions must be greater than 0"),
+                                };
+
+                                let out = index_flat
+                                    .iter_dim(0)
+                                    .map(|idxs| {
+                                        let idxs = idxs.squeeze::<1>(0);
+                                        Tensor::select(#input.clone(), #dim, idxs)
+                                    })
+                                    .collect();
+                                let #output = Tensor::stack::<#final_rank>(out, #dim);
+                            },
+                        }
+                    }
+                    GatherIndices::Static(indices) => {
+                        // Static indices for tensor gathering
+                        let indices_tokens = indices
+                            .iter()
+                            .map(|&idx| quote! { #idx })
+                            .collect::<Vec<_>>();
+
+                        // Calculate output rank based on indices dimensionality
+                        let indices_rank = 1; // Static indices are always 1D
+                        let output_rank = indices_rank + input_rank - 1;
+
+                        if output_rank == 0 {
+                            quote! {
+                                let indices = Tensor::<B, 1, _>::from_data([#(#indices_tokens),*], &*self.device);
+                                let #output = Tensor::select(#input, #dim, indices);
+                            }
+                        } else {
+                            quote! {
+                                let indices = Tensor::<B, 1, _>::from_data([#(#indices_tokens),*], &*self.device);
+                                let #output = Tensor::select(#input, #dim, indices);
+                            }
+                        }
+                    }
+                    _ => panic!("Gather needs Scalar or Tensor index, got {:?}!", self.index),
+                }
+            }
+            _ => panic!("Gather needs Tensor output, got {:?}!", self.output),
+        }
+    }
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
@@ -57,207 +262,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
         scope: &mut crate::burn::Scope,
         node_position: usize,
     ) -> proc_macro2::TokenStream {
-        let dim = self.dim.to_tokens();
-        let input_rank = match &self.input {
-            Type::Tensor(in_tensor) => in_tensor.rank,
-            Type::Shape(_) => 1,
+        match &self.input {
+            Type::Shape(_) => self.forward_shape_gather(scope, node_position),
+            Type::Tensor(_) => self.forward_tensor_gather(scope, node_position),
             _ => panic!("Gather needs Tensor or Shape input, got {:?}!", self.input),
-        };
-
-        let output = &self.output.name();
-
-        // Handle Shape input with CPU computation
-        if matches!(&self.input, Type::Shape(_)) {
-            let input_shape = match &self.input {
-                Type::Shape(in_shape) => in_shape,
-                _ => unreachable!(),
-            };
-
-            match &self.output {
-                Type::Scalar(_) => {
-                    // Gathering a single element from a shape produces a scalar
-                    match &self.index {
-                        GatherIndices::Runtime(Type::Scalar(idx_scalar)) => {
-                            let index = &idx_scalar.name;
-                            let input_shape_name = &input_shape.name;
-                            let output = &self.output.name();
-                            quote! {
-                                let input_shape = &#input_shape_name;
-                                let #output = input_shape[#index as usize];
-                            }
-                        }
-                        GatherIndices::Static(indices) => {
-                            if indices.len() != 1 {
-                                panic!(
-                                    "Static indices length {} doesn't match scalar output",
-                                    indices.len()
-                                );
-                            }
-                            let idx = indices[0] as usize;
-                            let input_shape_name = &input_shape.name;
-                            let output = &self.output.name();
-                            quote! {
-                                let input_shape = &#input_shape_name;
-                                let #output = input_shape[#idx];
-                            }
-                        }
-                        _ => panic!(
-                            "Gather from Shape to Scalar needs scalar index, got {:?}!",
-                            self.index
-                        ),
-                    }
-                }
-                Type::Shape(out_shape) => {
-                    match &self.index {
-                        GatherIndices::Runtime(Type::Tensor(idx_tensor)) => {
-                            let index = scope.tensor_use_owned(idx_tensor, node_position);
-                            let index_rank = idx_tensor.rank;
-                            let output_rank = out_shape.rank;
-                            let input_shape_name = &input_shape.name;
-
-                            if index_rank == 1 {
-                                quote! {
-                                    let input_shape = &#input_shape_name;
-                                    let indices_data = #index.to_data();
-                                    let indices_vec: alloc::vec::Vec<usize> = indices_data.iter::<i64>().map(|x| x as usize).collect();
-                                    let mut output_shape = alloc::vec::Vec::with_capacity(indices_vec.len());
-                                    for &idx in &indices_vec {
-                                        output_shape.push(input_shape[idx]);
-                                    }
-                                    let #output: [i64; #output_rank] = output_shape.try_into().unwrap();
-                                }
-                            } else {
-                                panic!(
-                                    "Multi-dimensional indices for Shape gather not yet supported"
-                                );
-                            }
-                        }
-                        GatherIndices::Static(indices) => {
-                            let output_rank = out_shape.rank;
-                            let input_shape_name = &input_shape.name;
-                            let indices_len = indices.len();
-
-                            if indices_len != output_rank {
-                                panic!(
-                                    "Static indices length {indices_len} doesn't match output rank {output_rank}"
-                                );
-                            }
-
-                            // Generate static gathering code
-                            let gather_elements = indices.iter().map(|&idx| {
-                                let idx_usize = idx as usize;
-                                quote! { input_shape[#idx_usize] }
-                            });
-
-                            quote! {
-                                let input_shape = &#input_shape_name;
-                                let #output: [i64; #output_rank] = [#(#gather_elements),*];
-                            }
-                        }
-                        _ => panic!(
-                            "Gather from Shape to Shape needs Tensor index, got {:?}!",
-                            self.index
-                        ),
-                    }
-                }
-                _ => panic!(
-                    "Gather from Shape input can only output Shape or Scalar, got {:?}!",
-                    self.output
-                ),
-            }
-        } else {
-            // Handle Tensor input with tensor operations
-            let input = match &self.input {
-                Type::Tensor(in_tensor) => scope.tensor_use_owned(in_tensor, node_position),
-                _ => unreachable!(),
-            };
-
-            match &self.output {
-                Type::Tensor(_) => {
-                    match &self.index {
-                        GatherIndices::Runtime(Type::Scalar(idx_scalar)) => {
-                            // To do a scalar select (select just a single index in one dim),
-                            // convert the 0-D index to a 1-D Tensor with len 1 to use burn's select,
-                            // then squeeze the dimension to reduce the rank
-                            let index = &idx_scalar.name;
-                            let output_rank = input_rank - 1;
-
-                            if output_rank == 0 {
-                                // If output rank is 0, squeeze and keep as 1D tensor
-                                quote! {
-                                    let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
-                                    let #output = Tensor::select(#input, #dim, indices);
-                                }
-                            } else {
-                                quote! {
-                                    let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
-                                    let slice = Tensor::select(#input, #dim, indices);
-                                    let #output = slice.squeeze::<#output_rank>(#dim);
-                                }
-                            }
-                        }
-                        GatherIndices::Runtime(Type::Tensor(idx_tensor)) => {
-                            let index = scope.tensor_use_owned(idx_tensor, node_position);
-                            let index_rank = idx_tensor.rank;
-                            let output_rank = index_rank + input_rank - 1;
-                            let final_rank = output_rank.max(1); // Ensure minimum rank of 1
-
-                            match index_rank {
-                                1 => {
-                                    quote! {
-                                        let indices = #index;
-                                        let #output = Tensor::select(#input, #dim, indices);
-                                    }
-                                }
-                                _ => quote! {
-                                    let indices = #index;
-
-                                    let n_dims = indices.dims().len();
-                                    let index_flat = match n_dims {
-                                        1 => indices.reshape([1, -1]),
-                                        n if n >= 2 => indices.flatten::<2>(0, n - 2),
-                                        _ => panic!("Number of dimensions must be greater than 0"),
-                                    };
-
-                                    let out = index_flat
-                                        .iter_dim(0)
-                                        .map(|idxs| {
-                                            let idxs = idxs.squeeze::<1>(0);
-                                            Tensor::select(#input.clone(), #dim, idxs)
-                                        })
-                                        .collect();
-                                    let #output = Tensor::stack::<#final_rank>(out, #dim);
-                                },
-                            }
-                        }
-                        GatherIndices::Static(indices) => {
-                            // Static indices for tensor gathering
-                            let indices_tokens = indices
-                                .iter()
-                                .map(|&idx| quote! { #idx })
-                                .collect::<Vec<_>>();
-
-                            // Calculate output rank based on indices dimensionality
-                            let indices_rank = 1; // Static indices are always 1D
-                            let output_rank = indices_rank + input_rank - 1;
-
-                            if output_rank == 0 {
-                                quote! {
-                                    let indices = Tensor::<B, 1, _>::from_data([#(#indices_tokens),*], &*self.device);
-                                    let #output = Tensor::select(#input, #dim, indices);
-                                }
-                            } else {
-                                quote! {
-                                    let indices = Tensor::<B, 1, _>::from_data([#(#indices_tokens),*], &*self.device);
-                                    let #output = Tensor::select(#input, #dim, indices);
-                                }
-                            }
-                        }
-                        _ => panic!("Gather needs Scalar or Tensor index, got {:?}!", self.index),
-                    }
-                }
-                _ => panic!("Gather needs Tensor output, got {:?}!", self.output),
-            }
         }
     }
 
@@ -448,14 +456,12 @@ mod tests {
                     shape1: [i64; 3],
                     tensor1: Tensor<B, 1, Int>
                 ) -> [i64; 1] {
-                    let input_shape = &shape1;
-                    let indices_data = tensor1.to_data();
-                    let indices_vec: alloc::vec::Vec<usize> = indices_data.iter::<i64>().map(|x| x as usize).collect();
-                    let mut output_shape = alloc::vec::Vec::with_capacity(indices_vec.len());
-                    for &idx in &indices_vec {
-                        output_shape.push(input_shape[idx]);
-                    }
-                    let shape2: [i64; 1usize] = output_shape.try_into().unwrap();
+                    let shape2: [i64; 1usize] = tensor1.to_data()
+                        .iter::<i64>()
+                        .map(|idx| shape1[idx as usize])
+                        .collect::<alloc::vec::Vec<_>>()
+                        .try_into()
+                        .unwrap();
                     shape2
                 }
             }
@@ -610,8 +616,7 @@ mod tests {
                     &self,
                     shape1: [i64; 4]
                 ) -> [i64; 2] {
-                    let input_shape = &shape1;
-                    let shape2: [i64; 2usize] = [input_shape[0usize], input_shape[2usize]];
+                    let shape2: [i64; 2usize] = [shape1[0usize], shape1[2usize]];
                     shape2
                 }
             }
@@ -659,8 +664,7 @@ mod tests {
                     &self,
                     shape1: [i64; 4]
                 ) -> i64 {
-                    let input_shape = &shape1;
-                    let dim1 = input_shape[1usize];
+                    let dim1 = shape1[1usize];
                     dim1
                 }
             }
