@@ -1,7 +1,7 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
-description = "Backend router decorator over websocket."
+description = "Backend router decorator over the network."
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
@@ -18,7 +18,14 @@ workspace = true
 default = ["client", "server"]
 doc = []
 client = ["tokio-tungstenite", "async-channel", "tokio/sync"]
-server = ["tokio-tungstenite", "async-channel", "tokio/sync", "axum", "tracing-core", "tracing-subscriber"]
+server = [
+    "tokio-tungstenite",
+    "async-channel",
+    "tokio/sync",
+    "axum",
+    "tracing-core",
+    "tracing-subscriber",
+]
 
 
 [dependencies]
@@ -26,28 +33,33 @@ burn-ir = { path = "../burn-ir", version = "0.19.0", default-features = true }
 burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = true }
 burn-common = { path = "../burn-common", version = "0.19.0", default-features = true }
 burn-router = { path = "../burn-router", version = "0.19.0", default-features = true }
+burn-communication = { path = "../burn-communication", version = "0.19.0", features = [
+    "data-service",
+    "websocket",
+] }
 
-bytes = { version = "1.0" }
+bytes = { workspace = true }
 
 # Basic dependencies
 derive-new = { workspace = true }
 log = { workspace = true }
 
 # Shared dependencies
-tokio = { version = "1.47", features = ["rt-multi-thread"] }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 serde = { workspace = true, features = ["derive"] }
 serde_bytes = { workspace = true }
 rmp-serde = { workspace = true }
-futures-util = { version = "0.3" }
+futures-util = { workspace = true }
 
 # Client dependencies
 async-channel = { workspace = true, optional = true }
-tokio-tungstenite = { version = "0.27", optional = true }
+tokio-tungstenite = { workspace = true, optional = true }
 
 # Server dependencies
-axum = { version = "0.8.3", features = ["ws"], optional = true }
+axum = { workspace = true, features = ["ws"], optional = true }
 tracing-core = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
+tokio-util = { workspace = true }
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "0.19.0" }
