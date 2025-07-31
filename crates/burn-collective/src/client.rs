@@ -4,7 +4,7 @@ use burn_tensor::{Tensor, backend::Backend};
 
 use crate::{
     CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
-    local_server::{
+    local::server::{
         AllReduceResult, BroadcastResult, FinishResult, Message, ReduceResult, RegisterResult,
     },
 };

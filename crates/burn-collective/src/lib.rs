@@ -1,8 +1,4 @@
-pub(crate) mod centralized;
 pub(crate) mod client;
-pub(crate) mod local_server;
-pub(crate) mod ring;
-pub(crate) mod tree;
 
 mod global;
 pub use global::*;
@@ -12,6 +8,8 @@ pub use config::*;
 
 mod api;
 pub use api::*;
+
+mod local;
 
 #[cfg(all(
     test,

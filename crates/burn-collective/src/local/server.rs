@@ -14,11 +14,13 @@ use tokio::runtime::{Builder, Runtime};
 use crate::{
     AllReduceStrategy, BroadcastStrategy, CollectiveConfig, CollectiveError, PeerId,
     ReduceOperation, ReduceStrategy,
-    centralized::{all_reduce_sum_centralized, broadcast_centralized, reduce_sum_centralized},
     client::LocalCollectiveClient,
     global::node::base::Node,
-    ring::all_reduce_sum_ring,
-    tree::{all_reduce_sum_tree, broadcast_tree, reduce_sum_tree},
+    local::{
+        centralized::{all_reduce_sum_centralized, broadcast_centralized, reduce_sum_centralized},
+        ring::all_reduce_sum_ring,
+        tree::{all_reduce_sum_tree, broadcast_tree, reduce_sum_tree},
+    },
 };
 
 /// Define the client/server communication on the network
