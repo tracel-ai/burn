@@ -107,7 +107,7 @@ impl FuseTraceBuilder {
             panic!("Can't add a new input that is already used in an index operation");
         }
 
-        let precision = tensor.dtype.into();
+        let precision = tensor.dtype.try_into().unwrap();
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
@@ -173,7 +173,7 @@ impl FuseTraceBuilder {
 
     /// Register a scalar value.
     pub fn scalar<E: Element>(&mut self, id: &E, dtype: DType) -> Arg {
-        let precision = dtype.into();
+        let precision = dtype.try_into().unwrap();
         let id = ScalarId { value: id.elem() };
 
         // Bool scalars are encoded as bool_precision.

@@ -295,6 +295,13 @@ fn fuse(
             } => select_indices::<NumericExpand<DYN_ELEM_ID>>(
                 inputs, outputs, locals, pos, dim, input, indices, output, config,
             ),
+            FuseOp::Dequantize {
+                input,
+                scales,
+                output,
+            } => {
+                todo!()
+            }
         }
     }
 }

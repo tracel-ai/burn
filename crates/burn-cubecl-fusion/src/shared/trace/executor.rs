@@ -223,6 +223,14 @@ fn register_scalars<'h, R: Runtime>(
 ) {
     for (precision, id) in scalars {
         match precision {
+            FusePrecision::F64 => {
+                inputs.scalars.push(GlobalScalar::F64(
+                    match context.scalars.get(&ScalarId { value: *id }) {
+                        Some(ScalarValue::F64(val)) => *val,
+                        _ => panic!(),
+                    },
+                ));
+            }
             FusePrecision::F32 | FusePrecision::Flex32 => {
                 inputs.scalars.push(GlobalScalar::F32(
                     match context.scalars.get(&ScalarId { value: *id }) {

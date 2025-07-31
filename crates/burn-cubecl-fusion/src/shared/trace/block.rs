@@ -53,7 +53,10 @@ impl FuseBlockBuilder {
         if resources.indexed.contains_key(&tensor.id) {
             return None;
         }
-        let precision = tensor.dtype.into();
+        let precision = match tensor.dtype.try_into() {
+            Ok(val) => val,
+            Err(_) => return None,
+        };
 
         // Bool tensors are encoded as bool_precision.
         let precision_output = match precision {
@@ -82,7 +85,10 @@ impl FuseBlockBuilder {
             return None;
         }
 
-        let precision = tensor.dtype.into();
+        let precision = match tensor.dtype.try_into() {
+            Ok(val) => val,
+            Err(_) => return None,
+        };
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
@@ -132,7 +138,10 @@ impl FuseBlockBuilder {
         dims: (u32, u32),
         resources: &mut FuseResources,
     ) -> Option<Arg> {
-        let precision = tensor.dtype.into();
+        let precision = match tensor.dtype.try_into() {
+            Ok(val) => val,
+            Err(_) => return None,
+        };
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
@@ -199,7 +208,10 @@ impl FuseBlockBuilder {
         output: &TensorIr,
         resources: &mut FuseResources,
     ) -> Option<Arg> {
-        let precision = tensor.dtype.into();
+        let precision = match tensor.dtype.try_into() {
+            Ok(val) => val,
+            Err(_) => return None,
+        };
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
@@ -364,7 +376,6 @@ impl FuseBlockBuilder {
                 &mut local_tensor_ids_input,
                 &mut local_tensor_ids_output,
             ),
-
             FuseOp::Sub(op) => mark_binary(
                 op,
                 &mut local_tensor_ids_input,
@@ -455,7 +466,7 @@ impl FuseBlockBuilder {
                 input,
                 indices,
                 output,
-                ..
+                dim: _,
             } => {
                 mark(input, &mut local_tensor_ids_input);
                 mark(indices, &mut local_tensor_ids_input);
@@ -465,7 +476,7 @@ impl FuseBlockBuilder {
                 input,
                 indices,
                 output,
-                ..
+                dim: _,
             } => {
                 mark(input, &mut local_tensor_ids_input);
                 mark(indices, &mut local_tensor_ids_input);
@@ -496,6 +507,14 @@ impl FuseBlockBuilder {
                 &mut local_tensor_ids_input,
                 &mut local_tensor_ids_output,
             ),
+            FuseOp::Dequantize {
+                input,
+                scales: _,
+                output,
+            } => {
+                mark(input, &mut local_tensor_ids_input);
+                mark(output, &mut local_tensor_ids_output);
+            }
         };
 
         // For all operators, mark their local tensor id in the proper set.
