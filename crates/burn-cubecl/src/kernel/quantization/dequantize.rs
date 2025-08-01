@@ -81,14 +81,15 @@ fn unpack_q<F: Float, QS: Int>(value: QS, #[comptime] quant: QuantInputType) -> 
     let mut output = Line::empty(num_quant);
     let mut position = comptime!(0);
     let mask = QS::cast_from(comptime!((1 << size_quant) - 1));
-    let shift_sign = QS::cast_from(comptime!(24));
+    let shift_sign = comptime!(size_store - size_quant);
 
     #[unroll]
     for _ in 0..num_quant {
         let offset = QS::cast_from(comptime!(position * size_quant));
         let raw = (value >> offset) & mask;
         // Sign-extend: move sign bit to MSB via leftshift, then rightshift to restore sign
-        output[position] = F::cast_from(i32::cast_from(raw << shift_sign) >> 24);
+        output[position] =
+            F::cast_from(i32::cast_from(raw << QS::cast_from(shift_sign)) >> shift_sign);
         comptime!(position += 1);
     }
 
