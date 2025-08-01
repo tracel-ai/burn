@@ -4,7 +4,7 @@ use burn::{
     optim::AdamConfig,
     tensor::backend::AutodiffBackend,
     train::{
-        LearnerBuilder,
+        LearnerBuilder, LearningStrategy,
         renderer::{MetricState, MetricsRenderer, TrainingProgress},
     },
 };
@@ -72,7 +72,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
     // artifact dir does not need to be provided when log_to_file is false
     let builder = LearnerBuilder::new("")
-        .devices(vec![device])
+        .learning_strategy(LearningStrategy::SingleDevice(device.clone()))
         .num_epochs(config.num_epochs)
         .renderer(CustomRenderer {})
         .with_application_logger(None);
