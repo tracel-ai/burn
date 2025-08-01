@@ -1054,7 +1054,18 @@ impl ParsedOnnxGraph {
             }
         }
 
-        SliceNode::new(input, output, starts_param, ends_param)
+        let mut slice_node = SliceNode::new(input, output, starts_param, ends_param);
+
+        // Convert axes parameter if present
+        if let Some(axes) = config.axes {
+            let axes_param = match axes {
+                SliceInput::Static(values) => SliceParam::Static(values),
+                SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+            };
+            slice_node = slice_node.with_axes(axes_param);
+        }
+
+        slice_node
     }
 
     fn space_to_depth_conversion(node: Node) -> SpaceToDepthNode {
