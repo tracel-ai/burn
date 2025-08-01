@@ -16,7 +16,10 @@ use crate::metric::processor::{AsyncProcessor, FullEventProcessor, ItemLazy, Met
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{MetricsRenderer, default_renderer};
-use crate::{ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller, LearnerCheckpointer, LearnerSummaryConfig, LearningStrategy, TrainStep, ValidStep};
+use crate::{
+    ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
+    LearnerCheckpointer, LearnerSummaryConfig, LearningStrategy, TrainStep, ValidStep,
+};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
 use burn_core::optim::Optimizer;
