@@ -18,6 +18,8 @@ pub fn dequantize_symmetric<F: Float>(value: Line<F>, scale: f32) -> Line<F> {
     Line::cast_from(scale) * value
 }
 
+// TODO: use for fusion @nath
+
 /// Dequantize the value at a specified position using the provided quantization scheme.
 ///
 /// Returns a line of floating-point values. The number of values in the line depends on the number of packed

@@ -338,6 +338,8 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement>(
     let cube_count =
         calculate_cube_count_elemwise(num_elems.div_ceil(line_size as usize), cube_dim);
 
+    // TODO: line_size_in based on num_quants similar to dequant
+
     match scheme {
         QuantScheme {
             level: QuantLevel::Tensor,
@@ -356,7 +358,7 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement>(
                     ScalarArg::new(F::from_int(i8::MAX as i64)),
                     output.as_array_arg::<u32>(1),
                     out_scale.as_array_arg::<f32>(1),
-                    scheme.clone(),
+                    *scheme,
                 )
             };
         }
@@ -381,7 +383,7 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement>(
                     ScalarArg::new(F::from_int(i8::MAX as i64)),
                     output.as_array_arg::<u32>(1),
                     out_scale.as_array_arg::<f32>(1),
-                    scheme.clone(),
+                    *scheme,
                     *block_size as u32,
                 )
             };
