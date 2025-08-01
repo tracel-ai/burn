@@ -252,7 +252,7 @@ impl TensorData {
                 DType::Bool => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
                 DType::QFloat(scheme) => match scheme {
                     QuantScheme {
-                        level: QuantLevel::Tensor,
+                        level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         q_type: QuantInputType::QInt8,
                         ..
@@ -541,7 +541,9 @@ impl TensorData {
                 } else {
                     panic!("Quantized data differs from other not quantized data")
                 };
-                if q == q_other {
+
+                // Data equality mostly depends on input quantization type, but we also check level
+                if q.q_type == q_other.q_type && q.level == q_other.level {
                     self.assert_eq_elem::<i8>(other)
                 } else {
                     panic!("Quantization schemes differ ({q:?} != {q_other:?})")
@@ -811,7 +813,7 @@ impl core::fmt::Display for TensorData {
             DType::Bool => format!("{:?}", self.as_slice::<bool>().unwrap()),
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
-                    level: QuantLevel::Tensor,
+                    level: QuantLevel::Tensor | QuantLevel::Block(_),
                     mode: QuantMode::Symmetric,
                     q_type: QuantInputType::QInt8,
                     ..

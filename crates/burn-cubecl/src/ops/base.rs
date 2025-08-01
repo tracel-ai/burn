@@ -148,6 +148,7 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
     if tensor.qparams.is_some() {
         match tensor.scheme().level {
             QuantLevel::Tensor => {}
+            QuantLevel::Block(_) => todo!(),
         }
     }
 
