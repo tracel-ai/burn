@@ -89,10 +89,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             Split::Valid,
             StoppingCondition::NoImprovementSince { n_epochs: 1 },
         ))
-        .learning_strategy(burn::train::LearningStrategy::DistributedDataParallel {
-            devices: vec![B::Device::default(); 4],
-            config: collective,
-        })
+        .learning_strategy(burn::train::ddp(vec![device], collective))
         .num_epochs(config.num_epochs)
         .summary()
         .build(model, config.optimizer.init(), 1e-4);

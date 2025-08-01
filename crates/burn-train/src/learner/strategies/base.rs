@@ -36,6 +36,14 @@ pub enum LearningStrategy<B: AutodiffBackend> {
     },
 }
 
+/// Constructor for a distributed data parallel (DDP) learning strategy
+pub fn ddp<B: AutodiffBackend>(
+    devices: Vec<B::Device>,
+    config: CollectiveConfig,
+) -> LearningStrategy<B> {
+    LearningStrategy::DistributedDataParallel { devices, config }
+}
+
 impl<B: AutodiffBackend> Default for LearningStrategy<B> {
     fn default() -> Self {
         Self::SingleDevice(Default::default())

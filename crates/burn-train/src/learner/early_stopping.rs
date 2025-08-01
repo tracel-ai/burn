@@ -45,6 +45,7 @@ impl Clone for Box<dyn CloneEarlyStoppingStrategy> {
 
 /// An [early stopping strategy](EarlyStoppingStrategy) based on a metrics collected
 /// during training or validation.
+#[derive(Clone)]
 pub struct MetricEarlyStoppingStrategy {
     condition: StoppingCondition,
     metric_name: String,
