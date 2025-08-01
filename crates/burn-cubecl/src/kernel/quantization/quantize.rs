@@ -78,12 +78,12 @@ fn pack_q<F: Float, QS: Int>(value: Line<F>, #[comptime] quant: QuantInputType) 
 }
 
 #[cube]
-fn write_scale_per_tensor<FS: Float>(
+fn write_scale_per_tensor<F: Float, FS: Float>(
     in_pos: u32,
-    scale: &Array<FS>,
+    scale: &Array<F>,
     out_scale: &mut Array<FS>,
 ) -> FS {
-    let scale = scale[0];
+    let scale = FS::cast_from(scale[0]);
 
     // Write the scale into the output buffer
     if in_pos == 0 {
@@ -94,14 +94,14 @@ fn write_scale_per_tensor<FS: Float>(
 }
 
 #[cube]
-fn write_scale_per_block<FS: Float>(
+fn write_scale_per_block<F: Float, FS: Float>(
     in_pos: u32,
-    scale: &Array<FS>,
+    scale: &Array<F>,
     out_scale: &mut Array<FS>,
     #[comptime] block_size: u32,
 ) -> FS {
     let scale_pos = in_pos / block_size;
-    let scale = scale[scale_pos];
+    let scale = FS::cast_from(scale[scale_pos]);
 
     // Write the scale into the output buffer
     if in_pos % block_size == 0 {
@@ -114,7 +114,7 @@ fn write_scale_per_block<FS: Float>(
 #[cube(launch_unchecked)]
 fn quantize_symmetric_int8_native_kernel<F: Float, FS: Float>(
     input: &Tensor<Line<F>>,
-    scale: &Array<FS>,
+    scale: &Array<F>,
     range_min: F,
     range_max: F,
     output: &mut Tensor<Line<i8>>,
@@ -152,7 +152,7 @@ fn quantize_symmetric_int8_native_kernel<F: Float, FS: Float>(
 #[cube(launch_unchecked)]
 fn quantize_symmetric_int8_packed_kernel<F: Float, FS: Float>(
     input: &Tensor<Line<F>>,
-    scale: &Array<FS>,
+    scale: &Array<F>,
     range_min: F,
     range_max: F,
     output: &mut Array<u32>,
@@ -275,11 +275,12 @@ fn quantize_native<R: CubeRuntime, F: FloatElement, FS: FloatElement>(
                     cube_count,
                     cube_dim,
                     tensor.as_tensor_arg::<F>(line_size),
-                    scale.as_array_arg::<f32>(1),
+                    // scale is computed based on input float dtype, but stored based on qparams precision
+                    scale.as_array_arg::<F>(1),
                     ScalarArg::new(F::from_int(-i8::MAX as i64)),
                     ScalarArg::new(F::from_int(i8::MAX as i64)),
                     output.as_tensor_arg::<i8>(line_size),
-                    out_scale.as_array_arg::<f32>(1),
+                    out_scale.as_array_arg::<FS>(1),
                     out_layout,
                     Some(tensor.shape.num_dims() as u32),
                     *scheme,
@@ -333,11 +334,12 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement, FS: FloatElement>(
                     cube_count,
                     cube_dim,
                     tensor.as_tensor_arg::<F>(line_size),
-                    scale.as_array_arg::<f32>(1),
+                    // scale is computed based on input float dtype, but stored based on qparams precision
+                    scale.as_array_arg::<F>(1),
                     ScalarArg::new(F::from_int(-i8::MAX as i64)),
                     ScalarArg::new(F::from_int(i8::MAX as i64)),
                     output.as_array_arg::<u32>(1),
-                    out_scale.as_array_arg::<f32>(1),
+                    out_scale.as_array_arg::<FS>(1),
                     *scheme,
                 )
             };

@@ -230,7 +230,7 @@ where
                     cube_count,
                     cube_dim,
                     tensor.as_tensor_arg::<u32>(line_size_in),
-                    scales.as_tensor_arg::<f32>(1),
+                    scales.as_tensor_arg::<FS>(1),
                     output.as_tensor_arg::<F>(line_size_out),
                     scheme,
                 )
@@ -281,7 +281,7 @@ where
                     cube_count,
                     cube_dim,
                     tensor.as_tensor_arg::<i8>(line_size),
-                    scales.as_tensor_arg::<f32>(1),
+                    scales.as_tensor_arg::<FS>(1),
                     output.as_tensor_arg::<F>(line_size),
                     out_layout,
                     scheme,
