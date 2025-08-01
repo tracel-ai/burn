@@ -25,7 +25,24 @@ mod tests {
         qparams
             .scales
             .into_data()
-            .assert_approx_eq::<FT>(&TensorData::from([0.014_173_228]), Tolerance::default());
+            .assert_approx_eq::<FT>(&TensorData::from([0.014_173_23]), Tolerance::default());
+    }
+
+    #[test]
+    fn per_block_symmetric_int8() {
+        let device = Default::default();
+        let scheme = QuantScheme::default().set_level(QuantLevel::Block(4));
+        let range = CalibrationRange {
+            min: TestTensor::<1>::from_floats([-1.8, -0.5, 0.01, -0.04], &device),
+            max: TestTensor::<1>::from_floats([0.5, 1.8, 0.04, -0.01], &device),
+        };
+
+        let qparams = scheme.compute_q_params(range);
+
+        qparams.scales.into_data().assert_approx_eq::<FT>(
+            &TensorData::from([0.014_173_23, 0.014_173_23, 0.000_314_96, 0.000_314_96]),
+            Tolerance::default(),
+        );
     }
 
     #[test]

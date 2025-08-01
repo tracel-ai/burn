@@ -97,6 +97,8 @@ pub enum FuseOp {
     Greater(BinaryFuseArgs),
     LowerEqual(BinaryFuseArgs),
     GreaterEqual(BinaryFuseArgs),
+    // TODO @nath
+    // Dequantize(BinaryFuseArgs),
     ConditionalAssign {
         cond: Arg,
         lhs: Arg,
