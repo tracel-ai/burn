@@ -273,7 +273,6 @@ where
 
     /// Alias for `transpose`.
     #[inline(always)]
-    #[allow(non_snake_case)]
     pub fn t(self) -> Tensor<B, D, K> {
         self.transpose()
     }
