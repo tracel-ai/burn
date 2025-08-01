@@ -27,6 +27,9 @@ use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
 
 /// Struct to configure and create a [learner](Learner).
+///
+/// The generics components of the builder should probably not be set manually, as they are
+/// optimized for Rust type inference.
 pub struct LearnerBuilder<B, M, O, S, TI, VI, TO, VO>
 where
     B: AutodiffBackend,

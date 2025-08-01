@@ -122,7 +122,7 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
     ) -> LC::Model;
 }
 
-/// Struct to minimise parameters passed to LearningStrategyExt::learn
+/// Struct to minimise parameters passed to [LearningMethod::learn]
 /// These components are used during training
 pub(crate) struct LearnerComponents<'a, LC: LearnerComponentTypes> {
     pub optim: LC::Optimizer,

@@ -46,6 +46,7 @@ pub trait LearnerComponentTypes {
         > + 'static;
     /// The strategy to save and delete checkpoints.
     type CheckpointerStrategy: CheckpointingStrategy;
+    /// The data used to perform training and validation.
     type LearningData: LearningData;
 }
 
