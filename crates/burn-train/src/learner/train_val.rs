@@ -132,7 +132,7 @@ impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
                 let multi_device = MultiDeviceLearningStrategy::new(devices.clone());
                 multi_device.fit(self, dataloader_train, dataloader_valid)
             }
-            
+
             #[cfg(feature = "ddp")]
             LearningStrategy::DistributedDataParallel { devices, config } => {
                 let ddp = DdpLearningStrategy::new(devices.clone(), config.clone());

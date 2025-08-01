@@ -1,4 +1,5 @@
 use crate::components::{LearnerComponentTypes, TrainBackend};
+use crate::ddp::epoch::DdpValidEpoch;
 use crate::learner::strategies::ddp;
 use crate::metric::store::EventStoreClient;
 use crate::{
@@ -93,7 +94,7 @@ where
         .expect("Couldn't register for collective operations!");
 
         // Changed the train epoch to keep the dataloaders
-        let mut epoch_train = ddp::epoch::TrainEpoch::<LC>::new(
+        let mut epoch_train = ddp::epoch::DdpTrainEpoch::<LC>::new(
             self.dataloader_train.clone(),
             self.starting_epoch,
             self.num_epochs,
@@ -116,11 +117,8 @@ where
 
             // Validation
             if let Some(dataloader_valid) = &self.dataloader_valid {
-                let epoch_valid = ddp::epoch::ValidEpoch::<LC>::new(
-                    dataloader_valid.clone(),
-                    epoch,
-                    self.num_epochs,
-                );
+                let epoch_valid =
+                    DdpValidEpoch::<LC>::new(dataloader_valid.clone(), epoch, self.num_epochs);
                 epoch_valid.run(&self.model, &mut self.event_processor, &self.interrupter);
             }
 

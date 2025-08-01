@@ -13,7 +13,7 @@ use crate::{components::LearnerComponentTypes, learner::base::TrainingInterrupte
 
 /// A validation epoch.
 #[derive(new)]
-pub struct ValidEpoch<LC: LearnerComponentTypes> {
+pub struct DdpValidEpoch<LC: LearnerComponentTypes> {
     dataloader: ValidLoader<LC>,
     epoch: usize,
     epoch_total: usize,
@@ -21,14 +21,14 @@ pub struct ValidEpoch<LC: LearnerComponentTypes> {
 
 /// A training epoch.
 #[derive(new)]
-pub struct TrainEpoch<LC: LearnerComponentTypes> {
+pub struct DdpTrainEpoch<LC: LearnerComponentTypes> {
     dataloader: TrainLoader<LC>,
     epoch: usize,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<LC: LearnerComponentTypes> ValidEpoch<LC> {
+impl<LC: LearnerComponentTypes> DdpValidEpoch<LC> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
@@ -76,7 +76,7 @@ impl<LC: LearnerComponentTypes> ValidEpoch<LC> {
     }
 }
 
-impl<LC: LearnerComponentTypes> TrainEpoch<LC> {
+impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
     /// Runs the training epoch.
     ///
     /// # Arguments
