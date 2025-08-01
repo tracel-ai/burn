@@ -73,9 +73,8 @@ pub fn dequantize_packed_value<F: Float, QS: Int>(
 #[allow(clippy::explicit_counter_loop)]
 #[cube]
 fn unpack_q<F: Float, QS: Int>(value: QS, #[comptime] quant: QuantInputType) -> Line<F> {
-    let size_quant = comptime!(match quant {
-        QuantInputType::QInt8 => 8,
-    });
+    let size_quant = comptime!(quant.size_bits() as u32);
+
     let size_store = comptime!(QS::size_bits().unwrap() as u32);
     let num_quant = comptime!(size_store / size_quant);
 
@@ -200,7 +199,7 @@ where
     };
 
     // Output line size selected based on the number of packed values per storage type
-    let num_quants = (scheme.bits_stored() / scheme.bits_type()) as u8;
+    let num_quants = (scheme.size_bits_stored() / scheme.q_type.size_bits()) as u8;
     let use_packed_line_size =
         num_out_elems % num_quants as usize == 0 && R::supported_line_sizes().contains(&num_quants);
 

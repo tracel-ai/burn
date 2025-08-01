@@ -74,22 +74,16 @@ impl QuantScheme {
         self
     }
 
-    /// Returns the size of the quantization input type in bits.
-    pub fn bits_type(&self) -> usize {
-        match self.q_type {
-            QuantInputType::QInt8 => 8,
-        }
-    }
-
     /// Returns the size of the quantization storage type in bits.
-    pub fn bits_stored(&self) -> usize {
+    pub fn size_bits_stored(&self) -> usize {
         match self.q_store_type {
-            QuantStoreType::Native => self.bits_type(),
+            QuantStoreType::Native => self.q_type.size_bits(),
             QuantStoreType::U32 => 32,
             // QuantStoreType::U8 => 8,
         }
     }
 }
+
 /// Level or granularity of quantization.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum QuantLevel {
@@ -104,6 +98,15 @@ pub enum QuantLevel {
 pub enum QuantInputType {
     /// 8-bit signed integer.
     QInt8,
+}
+
+impl QuantInputType {
+    /// Returns the size of the quantization input type in bits.
+    pub fn size_bits(&self) -> usize {
+        match self {
+            QuantInputType::QInt8 => 8,
+        }
+    }
 }
 
 /// Data type used to stored quantized values.

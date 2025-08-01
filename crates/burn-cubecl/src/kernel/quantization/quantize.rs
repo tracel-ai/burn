@@ -48,10 +48,7 @@ fn quantize_packed_value<F: Float, QS: Int>(
 #[allow(clippy::explicit_counter_loop)]
 #[cube]
 fn pack_q<F: Float, QS: Int>(value: Line<F>, #[comptime] quant: QuantInputType) -> QS {
-    let size_quant = comptime!(match quant {
-        QuantInputType::QInt8 => 8,
-        // Add more types (e.g., QInt4) here if needed
-    });
+    let size_quant = comptime!(quant.size_bits() as u32);
 
     let size_store = comptime!(QS::size_bits().unwrap() as u32);
     let num_quants = comptime!(size_store / size_quant);
@@ -165,7 +162,7 @@ fn quantize_per_tensor_symmetric_int8_packed_kernel<F: Float>(
 
     let scale = write_scale_per_tensor(ABSOLUTE_POS, scale, out_scale);
 
-    let num_quants = comptime!((scheme.bits_stored() / scheme.bits_type()) as u32);
+    let num_quants = comptime!((scheme.size_bits_stored() / scheme.q_type.size_bits()) as u32);
     if comptime!(input.line_size() == num_quants) {
         output[ABSOLUTE_POS] = quantize_packed_value::<F, u32>(
             input[ABSOLUTE_POS],
@@ -202,7 +199,7 @@ fn quantize_per_block_symmetric_int8_packed_kernel<F: Float>(
     }
 
     // Input line size 1
-    let num_quants = comptime!((scheme.bits_stored() / scheme.bits_type()) as u32);
+    let num_quants = comptime!((scheme.size_bits_stored() / scheme.q_type.size_bits()) as u32);
     let packed_pos = ABSOLUTE_POS * num_quants;
     let scale = write_scale_per_block(packed_pos, scale, out_scale, block_size);
 
