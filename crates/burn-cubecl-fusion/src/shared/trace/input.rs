@@ -77,7 +77,6 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     let scales = handle.scales(scheme).unwrap();
                     let precision = scales.dtype.try_into().unwrap();
 
-                    let global_id = tensor_global.id;
                     plan.handle_inputs
                         .push(HandleInput::QuantData(QuantDataHandleInput {
                             relative_id: tensor_relative.id,
@@ -85,15 +84,13 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                             precision,
                             handle,
                             vectorization: 1,
-                            scheme,
                         }));
 
                     plan.handle_inputs
                         .push(HandleInput::QuantScales(QuantScalesHandleInput {
-                            data_relative_id: tensor_relative.id,
-                            data_global_id: global_id,
                             precision,
                             handle: scales,
+                            scheme,
                         }));
                 }
             }

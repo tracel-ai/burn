@@ -161,15 +161,13 @@ pub struct QuantDataHandleInput<R: Runtime> {
     pub precision: FusePrecision,
     pub handle: CubeFusionHandle<R>,
     pub vectorization: u8,
-    pub scheme: QuantScheme,
 }
 
 #[derive(Debug)]
 pub struct QuantScalesHandleInput<R: Runtime> {
-    pub data_relative_id: TensorId,
-    pub data_global_id: TensorId,
     pub precision: FusePrecision,
     pub handle: CubeFusionHandle<R>,
+    pub scheme: QuantScheme,
 }
 
 #[derive(Debug)]
