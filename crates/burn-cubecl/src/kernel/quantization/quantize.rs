@@ -235,11 +235,14 @@ fn quantize_native<R: CubeRuntime, F: FloatElement>(
 
     match scheme {
         QuantScheme {
-            level: QuantLevel::Tensor,
+            level: QuantLevel::Tensor | QuantLevel::Block(_),
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
+            q_store_type: QuantStoreType::Native,
             ..
         } => {
+            // We could use line_size = block_size if it's in the supported line sizes.. but let's keep it simple
+            super::check_block_size_compat(scheme, line_size as usize);
             unsafe {
                 quantize_symmetric_int8_native_kernel::launch_unchecked::<F, R>(
                     &client,
@@ -258,33 +261,9 @@ fn quantize_native<R: CubeRuntime, F: FloatElement>(
             };
         }
         QuantScheme {
-            level: QuantLevel::Block(block_size),
-            mode: QuantMode::Symmetric,
-            q_type: QuantInputType::QInt8,
+            q_store_type: QuantStoreType::U32,
             ..
-        } => {
-            // We could use line_size = block_size if it's in the supported line sizes.. but let's keep it simple
-            assert!(
-                *block_size as u8 % line_size == 0,
-                "Block size must be divisible by line size, got block_size={block_size}, line_size={line_size}"
-            );
-            unsafe {
-                quantize_symmetric_int8_native_kernel::launch_unchecked::<F, R>(
-                    &client,
-                    cube_count,
-                    cube_dim,
-                    tensor.as_tensor_arg::<F>(line_size),
-                    scale.as_array_arg::<f32>(1),
-                    ScalarArg::new(F::from_int(-i8::MAX as i64)),
-                    ScalarArg::new(F::from_int(i8::MAX as i64)),
-                    output.as_tensor_arg::<i8>(line_size),
-                    out_scale.as_array_arg::<f32>(1),
-                    out_layout,
-                    Some(tensor.shape.num_dims() as u32),
-                    *scheme,
-                )
-            };
-        }
+        } => panic!("Invalid quantization storage type for scheme {scheme:?}"),
     }
 
     output
@@ -309,18 +288,19 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement>(
 
     let line_size = if use_packed_line_size { num_quants } else { 1 };
 
-    println!("Quantize packed w/ line size {line_size}");
     let cube_dim = CubeDim::default();
     let cube_count =
         calculate_cube_count_elemwise(num_elems.div_ceil(line_size as usize), cube_dim);
 
     match scheme {
         QuantScheme {
-            level: QuantLevel::Tensor,
+            level: QuantLevel::Tensor | QuantLevel::Block(_),
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
+            q_store_type: QuantStoreType::U32,
             ..
         } => {
+            super::check_block_size_compat(scheme, num_quants as usize); // 32 / 8 = 4
             unsafe {
                 quantize_symmetric_int8_packed_kernel::launch_unchecked::<F, R>(
                     &client,
@@ -337,30 +317,9 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement>(
             };
         }
         QuantScheme {
-            level: QuantLevel::Block(block_size),
-            mode: QuantMode::Symmetric,
-            q_type: QuantInputType::QInt8,
+            q_store_type: QuantStoreType::Native,
             ..
-        } => {
-            assert!(
-                *block_size % 4 == 0,
-                "Block size must be divisible by 4, got block_size={block_size}"
-            );
-            unsafe {
-                quantize_symmetric_int8_packed_kernel::launch_unchecked::<F, R>(
-                    &client,
-                    cube_count,
-                    cube_dim,
-                    tensor.as_tensor_arg::<F>(line_size),
-                    scale.as_array_arg::<f32>(1),
-                    ScalarArg::new(F::from_int(-i8::MAX as i64)),
-                    ScalarArg::new(F::from_int(i8::MAX as i64)),
-                    output.as_array_arg::<u32>(1),
-                    out_scale.as_array_arg::<f32>(1),
-                    *scheme,
-                )
-            };
-        }
+        } => panic!("Invalid quantization storage type for scheme {scheme:?}"),
     }
 
     output

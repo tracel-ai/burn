@@ -207,37 +207,13 @@ where
 
     match scheme {
         QuantScheme {
-            level: QuantLevel::Tensor,
+            level: QuantLevel::Tensor | QuantLevel::Block(_),
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
             q_store_type: QuantStoreType::U32,
             ..
         } => {
-            let scales = tensor.scales().unwrap();
-
-            unsafe {
-                dequantize_symmetric_packed_kernel::launch_unchecked::<F, R>(
-                    &tensor.client,
-                    cube_count,
-                    cube_dim,
-                    tensor.as_tensor_arg::<u32>(line_size_in),
-                    scales.as_tensor_arg::<f32>(1),
-                    output.as_tensor_arg::<F>(line_size_out),
-                    scheme,
-                )
-            };
-        }
-        QuantScheme {
-            level: QuantLevel::Block(block_size),
-            mode: QuantMode::Symmetric,
-            q_type: QuantInputType::QInt8,
-            q_store_type: QuantStoreType::U32,
-            ..
-        } => {
-            assert!(
-                block_size % 4 == 0,
-                "Block size must be divisible by 4, got block_size={block_size}"
-            );
+            super::check_block_size_compat(&scheme, num_quants as usize); // 32 / 8 = 4
             let scales = tensor.scales().unwrap();
 
             unsafe {
@@ -280,41 +256,14 @@ where
 
     match scheme {
         QuantScheme {
-            level: QuantLevel::Tensor,
-            mode: QuantMode::Symmetric,
-            q_type: QuantInputType::QInt8,
-            q_store_type: QuantStoreType::Native,
-            ..
-        } => {
-            let scales = tensor.scales().unwrap();
-
-            unsafe {
-                dequantize_symmetric_int8_native_kernel::launch_unchecked::<F, R>(
-                    &tensor.client,
-                    cube_count,
-                    cube_dim,
-                    tensor.as_tensor_arg::<i8>(line_size),
-                    scales.as_tensor_arg::<f32>(1),
-                    output.as_tensor_arg::<F>(line_size),
-                    out_layout,
-                    scheme,
-                    Some(tensor.shape.num_dims() as u32),
-                )
-            };
-        }
-        QuantScheme {
-            level: QuantLevel::Block(block_size),
+            level: QuantLevel::Tensor | QuantLevel::Block(_),
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
             q_store_type: QuantStoreType::Native,
             ..
         } => {
             // We could use line_size = block_size if it's in the supported line sizes.. but let's keep it simple
-            assert!(
-                block_size as u8 % line_size == 0,
-                "Block size must evenly divide line size, got {block_size} / {line_size}"
-            );
-
+            super::check_block_size_compat(&scheme, line_size as usize);
             let scales = tensor.scales().unwrap();
 
             unsafe {
