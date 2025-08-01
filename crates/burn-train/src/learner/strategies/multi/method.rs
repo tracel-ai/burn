@@ -1,27 +1,26 @@
+use crate::{
+    LearnerComponents, LearningMethod, TrainLoader, ValidLoader, components::LearnerComponentTypes,
+    learner::strategies::single::epoch::SingleDeviceValidEpoch,
+    multi::epoch::MultiDeviceTrainEpoch,
+};
+use burn_core::{data::dataloader::split::split_dataloader, module::Module, prelude::Backend};
 use std::marker::PhantomData;
 
-use burn_core::{module::Module, prelude::Backend};
-
-use crate::{
-    LearnComponents, LearningMethod, SingleDeviceTrainEpoch, SingleDeviceValidEpoch, TrainLoader,
-    ValidLoader, components::LearnerComponents,
-};
-
-pub struct SingleDeviceLearningStrategy<LC: LearnerComponents> {
-    device: <LC::Backend as Backend>::Device,
+pub struct MultiDeviceLearningStrategy<LC: LearnerComponentTypes> {
+    devices: Vec<<LC::Backend as Backend>::Device>,
     _p: PhantomData<LC>,
 }
-impl<LC: LearnerComponents> SingleDeviceLearningStrategy<LC> {
-    pub fn new(device: <LC::Backend as Backend>::Device) -> Self {
+impl<LC: LearnerComponentTypes> MultiDeviceLearningStrategy<LC> {
+    pub fn new(devices: Vec<<LC::Backend as Backend>::Device>) -> Self {
         Self {
-            device,
+            devices,
             _p: PhantomData,
         }
     }
 }
 
-impl<LC: LearnerComponents> LearningMethod<LC> for SingleDeviceLearningStrategy<LC> {
-    type PreparedDataloaders = (TrainLoader<LC>, ValidLoader<LC>);
+impl<LC: LearnerComponentTypes> LearningMethod<LC> for MultiDeviceLearningStrategy<LC> {
+    type PreparedDataloaders = (Vec<TrainLoader<LC>>, ValidLoader<LC>);
 
     type PreparedModel = LC::Model;
 
@@ -30,28 +29,29 @@ impl<LC: LearnerComponents> LearningMethod<LC> for SingleDeviceLearningStrategy<
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
     ) -> Self::PreparedDataloaders {
-        // The reference model is always on the first device provided.
-        let train = dataloader_train.to_device(&self.device);
-        let valid = dataloader_valid.to_device(&self.device);
+        // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy
+        // for each (worker) data loader. This matches the expected device on the worker, so we
+        // don't have to move the data between devices.
+        let train = split_dataloader(dataloader_train, &self.devices);
+        let main_device = self.devices.first().unwrap();
+        let valid = dataloader_valid.to_device(main_device);
 
         (train, valid)
     }
 
     fn prepare_model(&self, model: LC::Model) -> Self::PreparedModel {
-        model.fork(&self.device)
+        let main_device = self.devices.first().unwrap();
+        model.fork(main_device)
     }
 
     fn learn(
         &self,
-        model: Self::PreparedModel,
-        dataloaders: Self::PreparedDataloaders,
+        mut model: LC::Model,
+        (dataloader_train, dataloader_valid): Self::PreparedDataloaders,
         starting_epoch: usize,
-        mut components: LearnComponents<LC>,
+        mut components: LearnerComponents<LC>,
     ) -> LC::Model {
-        let (dataloader_train, dataloader_valid) = dataloaders;
-        let mut model: LC::Model = model;
-
-        let mut epoch_train = SingleDeviceTrainEpoch::new(
+        let mut epoch_train = MultiDeviceTrainEpoch::<LC>::new(
             dataloader_train,
             starting_epoch,
             components.num_epochs,
@@ -59,11 +59,12 @@ impl<LC: LearnerComponents> LearningMethod<LC> for SingleDeviceLearningStrategy<
         );
 
         for epoch in starting_epoch..components.num_epochs + 1 {
-            (model, components.optim) = epoch_train.run::<LC>(
+            (model, components.optim) = epoch_train.run(
                 model,
                 components.optim,
                 &mut components.lr_scheduler,
                 components.event_processor,
+                self.devices.to_vec(),
                 &components.interrupter,
             );
 

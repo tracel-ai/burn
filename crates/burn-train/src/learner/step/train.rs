@@ -1,4 +1,4 @@
-use crate::components::{InputTrain, LearnerComponents, OutputTrain};
+use crate::components::{InputTrain, LearnerComponentTypes, OutputTrain};
 use crate::{TrainOutput, TrainStep};
 use burn_core::data::dataloader::DataLoaderIterator;
 use burn_core::data::dataloader::Progress;
@@ -8,7 +8,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
 
 /// Multi devices train step.
-pub struct MultiDevicesTrainStep<LC: LearnerComponents> {
+pub struct MultiDevicesTrainStep<LC: LearnerComponentTypes> {
     workers: Vec<Worker<LC>>,
     receiver: Receiver<TrainOutput<OutputTrain<LC>>>,
 }
@@ -18,12 +18,12 @@ struct Message<M, TI> {
     model: M,
 }
 
-struct Worker<LC: LearnerComponents> {
+struct Worker<LC: LearnerComponentTypes> {
     sender_input: Sender<Message<LC::Model, InputTrain<LC>>>,
     device: <LC::Backend as Backend>::Device,
 }
 
-impl<LC: LearnerComponents> Worker<LC> {
+impl<LC: LearnerComponentTypes> Worker<LC> {
     fn register(&self, item: InputTrain<LC>, model: &LC::Model) {
         let message = Message {
             item,
@@ -58,7 +58,7 @@ impl<LC: LearnerComponents> Worker<LC> {
     }
 }
 
-impl<LC: LearnerComponents> MultiDevicesTrainStep<LC> {
+impl<LC: LearnerComponentTypes> MultiDevicesTrainStep<LC> {
     /// Create a new multi devices train step.
     ///
     /// # Arguments

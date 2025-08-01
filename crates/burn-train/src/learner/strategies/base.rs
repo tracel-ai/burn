@@ -5,7 +5,7 @@ use burn_core::tensor::backend::AutodiffBackend;
 use crate::{
     EarlyStoppingStrategy, Learner, LearnerCheckpointer, TrainLoader, TrainingInterrupter,
     ValidLoader,
-    components::LearnerComponents,
+    components::LearnerComponentTypes,
     metric::{
         processor::{Event, EventProcessor},
         store::EventStoreClient,
@@ -29,11 +29,14 @@ impl<B: AutodiffBackend> Default for LearningStrategy<B> {
 }
 
 /// Provides the `fit` function for any learning strategy
-pub(crate) trait LearningMethod<LC: LearnerComponents> {
+pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
     /// The dataloaders after being prepared for this trainin strategy
+    ///
     /// (eg: splitting for multiple devices)
     type PreparedDataloaders;
     /// The model after being prepared for this training strategy
+    ///
+    /// The prepared model will be correctly initialized on the proper device for training.
     type PreparedModel;
 
     /// Fit the learner's model with this strategy.
@@ -68,7 +71,7 @@ pub(crate) trait LearningMethod<LC: LearnerComponents> {
         let model = self.prepare_model(model);
 
         // Training loop
-        let components = LearnComponents {
+        let components = LearnerComponents {
             optim,
             lr_scheduler,
             num_epochs: learner.num_epochs,
@@ -115,13 +118,13 @@ pub(crate) trait LearningMethod<LC: LearnerComponents> {
         model: Self::PreparedModel,
         dataloaders: Self::PreparedDataloaders,
         starting_epoch: usize,
-        components: LearnComponents<LC>,
+        components: LearnerComponents<LC>,
     ) -> LC::Model;
 }
 
 /// Struct to minimise parameters passed to LearningStrategyExt::learn
 /// These components are used during training
-pub(crate) struct LearnComponents<'a, LC: LearnerComponents> {
+pub(crate) struct LearnerComponents<'a, LC: LearnerComponentTypes> {
     pub optim: LC::Optimizer,
     pub lr_scheduler: LC::LrScheduler,
     pub num_epochs: usize,

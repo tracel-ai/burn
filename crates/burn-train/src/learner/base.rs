@@ -1,5 +1,5 @@
 use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy};
-use crate::components::LearnerComponents;
+use crate::components::LearnerComponentTypes;
 use crate::learner::EarlyStoppingStrategy;
 use crate::metric::store::EventStoreClient;
 use crate::{LearnerSummaryConfig, LearningStrategy};
@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 ///
 /// To create a learner, use the [builder](crate::learner::LearnerBuilder) struct.
-pub struct Learner<LC: LearnerComponents> {
+pub struct Learner<LC: LearnerComponentTypes> {
     pub(crate) model: LC::Model,
     pub(crate) optim: LC::Optimizer,
     pub(crate) lr_scheduler: LC::LrScheduler,
@@ -30,14 +30,14 @@ pub struct Learner<LC: LearnerComponents> {
 }
 
 #[derive(new)]
-pub(crate) struct LearnerCheckpointer<LC: LearnerComponents> {
+pub(crate) struct LearnerCheckpointer<LC: LearnerComponentTypes> {
     model: LC::CheckpointerModel,
     optim: LC::CheckpointerOptimizer,
     lr_scheduler: LC::CheckpointerLrScheduler,
     strategy: LC::CheckpointerStrategy,
 }
 
-impl<LC: LearnerComponents> LearnerCheckpointer<LC> {
+impl<LC: LearnerComponentTypes> LearnerCheckpointer<LC> {
     pub(crate) fn checkpoint(
         &mut self,
         model: &LC::Model,

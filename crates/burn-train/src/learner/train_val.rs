@@ -1,8 +1,9 @@
-use crate::components::{InputTrain, InputValid, LearnerComponents, TrainBackend, ValidBackend};
-use crate::{
-    Learner, LearningMethod, LearningStrategy, MultiDeviceLearningStrategy,
-    SingleDeviceLearningStrategy,
+use crate::components::{
+    InputTrain, InputValid, LearnerComponentTypes, TrainBackend, ValidBackend,
 };
+use crate::multi::MultiDeviceLearningStrategy;
+use crate::single::SingleDeviceLearningStrategy;
+use crate::{Learner, LearningMethod, LearningStrategy};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::AutodiffModule;
 use burn_core::optim::{GradientsParams, Optimizer};
@@ -102,7 +103,7 @@ pub trait ValidStep<VI, VO> {
 pub(crate) type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>>>;
 pub(crate) type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>>>;
 
-impl<LC: LearnerComponents> Learner<LC> {
+impl<LC: LearnerComponentTypes> Learner<LC> {
     /// Fits the model.
     ///
     /// # Arguments
@@ -120,13 +121,13 @@ impl<LC: LearnerComponents> Learner<LC> {
     ) -> LC::Model {
         log::info!("Fitting the model:\n {}", self.model);
 
-        match self.learning_strategy.clone() {
+        match &self.learning_strategy {
             LearningStrategy::SingleDevice(device) => {
-                let single_device = SingleDeviceLearningStrategy::new(device);
+                let single_device = SingleDeviceLearningStrategy::new(device.clone());
                 single_device.fit(self, dataloader_train, dataloader_valid)
             }
             LearningStrategy::MultiDeviceNaive(devices) => {
-                let multi_device = MultiDeviceLearningStrategy::new(devices);
+                let multi_device = MultiDeviceLearningStrategy::new(devices.clone());
                 multi_device.fit(self, dataloader_train, dataloader_valid)
             }
         }

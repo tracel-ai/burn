@@ -15,7 +15,6 @@ pub use base::*;
 pub use builder::*;
 pub use classification::*;
 pub use early_stopping::*;
-pub use epoch::*;
 pub use regression::*;
 pub use step::*;
 pub use strategies::*;

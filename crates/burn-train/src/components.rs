@@ -12,7 +12,7 @@ use burn_core::{
 use std::marker::PhantomData;
 
 /// All components necessary to train a model grouped in one trait.
-pub trait LearnerComponents {
+pub trait LearnerComponentTypes {
     /// The backend in used for the training.
     type Backend: AutodiffBackend;
     /// The learning rate scheduler used for the training.
@@ -63,7 +63,7 @@ pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S, LD> {
     _learning_data: PhantomData<LD>,
 }
 
-impl<B, LR, M, O, CM, CO, CS, EP, S, LD> LearnerComponents
+impl<B, LR, M, O, CM, CO, CS, EP, S, LD> LearnerComponentTypes
     for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S, LD>
 where
     B: AutodiffBackend,
@@ -95,27 +95,28 @@ where
 }
 
 /// The training backend.
-pub type TrainBackend<LC> = <LC as LearnerComponents>::Backend;
+pub type TrainBackend<LC> = <LC as LearnerComponentTypes>::Backend;
 
 /// The validation backend.
-pub type ValidBackend<LC> = <<LC as LearnerComponents>::Backend as AutodiffBackend>::InnerBackend;
+pub type ValidBackend<LC> =
+    <<LC as LearnerComponentTypes>::Backend as AutodiffBackend>::InnerBackend;
 
 /// Type for training input
 pub(crate) type InputTrain<LC> =
-    <<LC as LearnerComponents>::LearningData as LearningData>::TrainInput;
+    <<LC as LearnerComponentTypes>::LearningData as LearningData>::TrainInput;
 
 /// Type for validation input
 pub(crate) type InputValid<LC> =
-    <<LC as LearnerComponents>::LearningData as LearningData>::ValidInput;
+    <<LC as LearnerComponentTypes>::LearningData as LearningData>::ValidInput;
 
 /// Type for training output
 pub(crate) type OutputTrain<LC> =
-    <<LC as LearnerComponents>::LearningData as LearningData>::TrainOutput;
+    <<LC as LearnerComponentTypes>::LearningData as LearningData>::TrainOutput;
 
 /// Type for validation output
 #[allow(unused)]
 pub(crate) type OutputValid<LC> =
-    <<LC as LearnerComponents>::LearningData as LearningData>::ValidOutput;
+    <<LC as LearnerComponentTypes>::LearningData as LearningData>::ValidOutput;
 
 /// Regroups types of input and outputs for training and validation
 pub trait LearningData {
