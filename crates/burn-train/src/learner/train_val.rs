@@ -1,4 +1,4 @@
-use crate::components::{LearnerComponents, TrainBackend, ValidBackend};
+use crate::components::{InputTrain, InputValid, LearnerComponents, TrainBackend, ValidBackend};
 use crate::metric::processor::{Event, EventProcessor};
 use crate::{Learner, LearningStrategyExt};
 use burn_core::data::dataloader::DataLoader;
@@ -97,20 +97,20 @@ pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
 }
 
-pub(crate) type TrainLoader<LC, I> = Arc<dyn DataLoader<TrainBackend<LC>, I>>;
-pub(crate) type ValidLoader<LC, I> = Arc<dyn DataLoader<ValidBackend<LC>, I>>;
+pub(crate) type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>>>;
+pub(crate) type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>>>;
 
 /// Data loaders after having been prepared, split if needed
-pub(crate) enum LearnerDataLoaders<LC: LearnerComponents, InputTrain, InputValid> {
+pub(crate) enum LearnerDataLoaders<LC: LearnerComponents> {
     /// One dataloader for the training and one of the validation
     SingleTrainSingleValid {
-        dataloader_train: TrainLoader<LC, InputTrain>,
-        dataloader_valid: ValidLoader<LC, InputValid>,
+        dataloader_train: TrainLoader<LC>,
+        dataloader_valid: ValidLoader<LC>,
     },
     /// Multiple data loaders for the training, one dataloader for the validation
     MultiTrainSingleValid {
-        dataloader_train: Vec<TrainLoader<LC, InputTrain>>,
-        dataloader_valid: ValidLoader<LC, InputValid>,
+        dataloader_train: Vec<TrainLoader<LC>>,
+        dataloader_valid: ValidLoader<LC>,
     },
 }
 
@@ -125,20 +125,11 @@ impl<LC: LearnerComponents> Learner<LC> {
     /// # Returns
     ///
     /// The fitted model.
-    pub fn fit<TI, VI, TO, VO>(
+    pub fn fit(
         mut self,
-        dataloader_train: Arc<dyn DataLoader<TrainBackend<LC>, TI>>,
-        dataloader_valid: Arc<dyn DataLoader<ValidBackend<LC>, VI>>,
-    ) -> LC::Model
-    where
-        TI: Send + 'static,
-        VI: Send,
-        TO: Send + 'static,
-        VO: Send,
-        LC::Model: TrainStep<TI, TO>,
-        <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<VI, VO>,
-        LC::EventProcessor: EventProcessor<ItemTrain = TO, ItemValid = VO>,
-    {
+        dataloader_train: TrainLoader<LC>,
+        dataloader_valid: ValidLoader<LC>,
+    ) -> LC::Model {
         log::info!("Fitting the model:\n {}", self.model);
 
         let starting_epoch = match self.checkpoint {
@@ -159,7 +150,7 @@ impl<LC: LearnerComponents> Learner<LC> {
 
         let dataloaders = self
             .learning_strategy
-            .prepare_dataloaders::<LC, TI, VI>(dataloader_train, dataloader_valid);
+            .prepare_dataloaders(dataloader_train, dataloader_valid);
 
         self = self.learning_strategy.clone().prepare_model(self);
 

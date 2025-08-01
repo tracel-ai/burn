@@ -6,14 +6,15 @@ use burn_core::{
 };
 use std::sync::Arc;
 
+use crate::components::OutputTrain;
 use crate::metric::processor::{Event, EventProcessor, LearnerItem};
-use crate::{MultiDevicesTrainStep, TrainStep, ValidStep};
+use crate::{MultiDevicesTrainStep, TrainLoader, TrainStep, ValidLoader, ValidStep};
 use crate::{components::LearnerComponents, learner::base::TrainingInterrupter};
 
 /// A validation epoch.
 #[derive(new)]
-pub struct SingleDeviceValidEpoch<B: Backend, VI> {
-    dataloader: Arc<dyn DataLoader<B, VI>>,
+pub struct SingleDeviceValidEpoch<LC: LearnerComponents> {
+    dataloader: ValidLoader<LC>,
     epoch: usize,
     epoch_total: usize,
 }
@@ -29,30 +30,26 @@ pub struct SingleDeviceTrainEpoch<B: AutodiffBackend, TI> {
 
 /// A training epoch.
 #[derive(new)]
-pub struct MultiDeviceTrainEpoch<B: AutodiffBackend, TI> {
-    dataloaders: Vec<Arc<dyn DataLoader<B, TI>>>,
+pub struct MultiDeviceTrainEpoch<LC: LearnerComponents> {
+    dataloaders: Vec<TrainLoader<LC>>,
     epoch: usize,
     epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
-impl<B: Backend, VI> SingleDeviceValidEpoch<B, VI> {
+impl<LC: LearnerComponents> SingleDeviceValidEpoch<LC> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
     ///
     /// * `model` - The model to validate.
     /// * `processor` - The event processor to use.
-    pub fn run<LC: LearnerComponents, VO>(
+    pub fn run(
         &self,
         model: &LC::Model,
         processor: &mut LC::EventProcessor,
         interrupter: &TrainingInterrupter,
-    ) where
-        LC::EventProcessor: EventProcessor<ItemValid = VO>,
-        <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<VI, VO>,
-        LC::Backend: AutodiffBackend<InnerBackend = B>,
-    {
+    ) {
         log::info!("Executing validation step for epoch {}", self.epoch);
         let model = model.valid();
 
@@ -97,7 +94,7 @@ impl<B: AutodiffBackend, TI> SingleDeviceTrainEpoch<B, TI> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    pub fn run<LC: LearnerComponents<Backend = B>, TO>(
+    pub fn run<LC: LearnerComponents<Backend = B>>(
         &mut self,
         mut model: LC::Model,
         mut optim: LC::Optimizer,
@@ -106,8 +103,7 @@ impl<B: AutodiffBackend, TI> SingleDeviceTrainEpoch<B, TI> {
         interrupter: &TrainingInterrupter,
     ) -> (LC::Model, LC::Optimizer)
     where
-        LC::EventProcessor: EventProcessor<ItemTrain = TO>,
-        LC::Model: TrainStep<TI, TO>,
+        LC::Model: TrainStep<TI, OutputTrain<LC>>,
     {
         log::info!("Executing training step for epoch {}", self.epoch,);
 
@@ -163,7 +159,7 @@ impl<B: AutodiffBackend, TI> SingleDeviceTrainEpoch<B, TI> {
     }
 }
 
-impl<B: AutodiffBackend, TI> MultiDeviceTrainEpoch<B, TI> {
+impl<LC: LearnerComponents> MultiDeviceTrainEpoch<LC> {
     /// Runs the training epoch on multiple devices.
     ///
     /// # Arguments
@@ -177,7 +173,7 @@ impl<B: AutodiffBackend, TI> MultiDeviceTrainEpoch<B, TI> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    pub fn run<LC: LearnerComponents<Backend = B>, TO>(
+    pub fn run(
         &mut self,
         mut model: LC::Model,
         mut optim: LC::Optimizer,
@@ -185,13 +181,7 @@ impl<B: AutodiffBackend, TI> MultiDeviceTrainEpoch<B, TI> {
         processor: &mut LC::EventProcessor,
         devices: Vec<<LC::Backend as Backend>::Device>,
         interrupter: &TrainingInterrupter,
-    ) -> (LC::Model, LC::Optimizer)
-    where
-        LC::EventProcessor: EventProcessor<ItemTrain = TO>,
-        LC::Model: TrainStep<TI, TO>,
-        TO: Send + 'static,
-        TI: Send + 'static,
-    {
+    ) -> (LC::Model, LC::Optimizer) {
         log::info!(
             "Executing training step for epoch {} on devices {:?}",
             self.epoch,
@@ -208,7 +198,7 @@ impl<B: AutodiffBackend, TI> MultiDeviceTrainEpoch<B, TI> {
         let mut accumulation_current = 0;
 
         let accumulation = self.grad_accumulation.unwrap_or(1) * devices.len();
-        let step = MultiDevicesTrainStep::new(&devices);
+        let step = MultiDevicesTrainStep::<LC>::new(&devices);
 
         // The main device is always the first in the list.
         let device_main = devices.first().expect("A minimum of one device.").clone();

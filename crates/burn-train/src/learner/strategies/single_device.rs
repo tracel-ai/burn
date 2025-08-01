@@ -1,19 +1,15 @@
-use burn_core::{
-    module::{AutodiffModule, Module},
-    prelude::Backend,
-};
+use burn_core::{module::Module, prelude::Backend};
 
 use crate::{
     Learner, LearnerDataLoaders, SingleDeviceTrainEpoch, SingleDeviceValidEpoch, TrainLoader,
-    TrainStep, ValidLoader, ValidStep, components::LearnerComponents,
-    metric::processor::EventProcessor,
+    ValidLoader, components::LearnerComponents,
 };
 
-pub(crate) fn prepare_dataloaders_single_device<LC, TI, VI>(
+pub(crate) fn prepare_dataloaders_single_device<LC>(
     device: &<LC::Backend as Backend>::Device,
-    dataloader_train: TrainLoader<LC, TI>,
-    dataloader_valid: ValidLoader<LC, VI>,
-) -> LearnerDataLoaders<LC, TI, VI>
+    dataloader_train: TrainLoader<LC>,
+    dataloader_valid: ValidLoader<LC>,
+) -> LearnerDataLoaders<LC>
 where
     LC: LearnerComponents,
 {
@@ -36,18 +32,13 @@ pub(crate) fn prepare_model_single_device<LC: LearnerComponents>(
     learner
 }
 
-pub(crate) fn learn_single_device<LC, TI, VI, TO, VO>(
+pub(crate) fn learn_single_device<LC>(
     mut learner: Learner<LC>,
-    dataloaders: LearnerDataLoaders<LC, TI, VI>,
+    dataloaders: LearnerDataLoaders<LC>,
     starting_epoch: usize,
 ) -> Learner<LC>
 where
-    TI: Send + 'static,
-    TO: Send + 'static,
     LC: LearnerComponents,
-    LC::EventProcessor: EventProcessor<ItemValid = VO, ItemTrain = TO>,
-    <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<VI, VO>,
-    <LC as LearnerComponents>::Model: TrainStep<TI, TO>,
 {
     let LearnerDataLoaders::SingleTrainSingleValid {
         dataloader_train,
@@ -65,7 +56,7 @@ where
     );
 
     for epoch in starting_epoch..learner.num_epochs + 1 {
-        (learner.model, learner.optim) = epoch_train.run::<LC, TO>(
+        (learner.model, learner.optim) = epoch_train.run::<LC>(
             learner.model,
             learner.optim,
             &mut learner.lr_scheduler,
@@ -78,8 +69,8 @@ where
         }
 
         let epoch_valid =
-            SingleDeviceValidEpoch::new(dataloader_valid.clone(), epoch, learner.num_epochs);
-        epoch_valid.run::<LC, VO>(
+            SingleDeviceValidEpoch::<LC>::new(dataloader_valid.clone(), epoch, learner.num_epochs);
+        epoch_valid.run(
             &learner.model,
             &mut learner.event_processor,
             &learner.interrupter,

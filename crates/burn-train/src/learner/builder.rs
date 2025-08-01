@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -7,7 +8,7 @@ use crate::checkpoint::{
     AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
     KeepLastNCheckpoints, MetricCheckpointingStrategy,
 };
-use crate::components::LearnerComponentsMarker;
+use crate::components::{LearnerComponentsMarker, LearningDataMarker};
 use crate::learner::EarlyStoppingStrategy;
 use crate::learner::base::TrainingInterrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
@@ -17,7 +18,7 @@ use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::{
     ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerCheckpointer,
-    LearnerSummaryConfig, LearningStrategy,
+    LearnerSummaryConfig, LearningStrategy, TrainStep, ValidStep,
 };
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
@@ -26,14 +27,17 @@ use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
 
 /// Struct to configure and create a [learner](Learner).
-pub struct LearnerBuilder<B, T, V, M, O, S>
+pub struct LearnerBuilder<B, M, O, S, TI, VI, TO, VO>
 where
-    T: ItemLazy + 'static,
-    V: ItemLazy + 'static,
     B: AutodiffBackend,
-    M: AutodiffModule<B>,
+    M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
+    M::InnerModule: ValidStep<VI, VO>,
     O: Optimizer<M, B>,
     S: LrScheduler,
+    TI: Send + 'static,
+    VI: Send + 'static,
+    TO: ItemLazy + 'static,
+    VO: ItemLazy + 'static,
 {
     // Not that complex and very convenient when the traits are
     // already constrained correctly. Extracting in another type
@@ -50,7 +54,7 @@ where
     grad_accumulation: Option<usize>,
     learning_strategy: LearningStrategy<B>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    metrics: Metrics<T, V>,
+    metrics: Metrics<TO, VO>,
     event_store: LogEventStore,
     interrupter: TrainingInterrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
@@ -60,16 +64,20 @@ where
     // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
     summary_metrics: BTreeSet<String>,
     summary: bool,
+    _p: PhantomData<(TI, VI, TO, VO)>,
 }
 
-impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
+impl<B, M, O, S, TI, VI, TO, VO> LearnerBuilder<B, M, O, S, TI, VI, TO, VO>
 where
     B: AutodiffBackend,
-    T: ItemLazy + 'static,
-    V: ItemLazy + 'static,
-    M: AutodiffModule<B> + core::fmt::Display + 'static,
+    M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
+    M::InnerModule: ValidStep<VI, VO>,
     O: Optimizer<M, B>,
     S: LrScheduler,
+    TI: Send + 'static,
+    VI: Send + 'static,
+    TO: ItemLazy + 'static,
+    VO: ItemLazy + 'static,
 {
     /// Creates a new learner builder.
     ///
@@ -108,6 +116,7 @@ where
             early_stopping: None,
             summary_metrics: BTreeSet::new(),
             summary: false,
+            _p: PhantomData,
         }
     }
 
@@ -153,7 +162,7 @@ where
     /// Register a training metric.
     pub fn metric_train<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        T::ItemSync: Adaptor<Me::Input>,
+        <TO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.metrics.register_train_metric(metric);
         self
@@ -162,7 +171,7 @@ where
     /// Register a validation metric.
     pub fn metric_valid<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        V::ItemSync: Adaptor<Me::Input>,
+        <VO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.metrics.register_valid_metric(metric);
         self
@@ -187,7 +196,7 @@ where
     pub fn metric_train_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + crate::metric::Numeric + 'static,
-        T::ItemSync: Adaptor<Me::Input>,
+        <TO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name());
         self.metrics.register_train_metric_numeric(metric);
@@ -200,7 +209,7 @@ where
         metric: Me,
     ) -> Self
     where
-        V::ItemSync: Adaptor<Me::Input>,
+        <VO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name());
         self.metrics.register_valid_metric_numeric(metric);
@@ -304,8 +313,9 @@ where
             AsyncCheckpointer<M::Record, B>,
             AsyncCheckpointer<O::Record, B>,
             AsyncCheckpointer<S::Record<B>, B>,
-            AsyncProcessor<FullEventProcessor<T, V>>,
+            AsyncProcessor<FullEventProcessor<TO, VO>>,
             Box<dyn CheckpointingStrategy>,
+            LearningDataMarker<TI, VI, TO, VO>,
         >,
     >
     where
