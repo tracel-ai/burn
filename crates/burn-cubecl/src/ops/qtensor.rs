@@ -4,8 +4,8 @@ use burn_tensor::{
     DType, Device, Shape, TensorData, TensorPrimitive,
     ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParamTensor, QTensorPrimitive, QuantInputType, QuantLevel, QuantMode, QuantPropagation,
-        QuantScheme, QuantizationParametersPrimitive,
+        QParamTensor, QTensorPrimitive, QuantFloatPrecision, QuantInputType, QuantLevel, QuantMode,
+        QuantPropagation, QuantScheme, QuantizationParametersPrimitive,
     },
 };
 use cubecl::{
@@ -34,7 +34,10 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
     let client = R::client(device);
     let shape: Shape = shape.into();
     let scales_shape: Shape;
-    let scales_dtype = DType::F32; // Make this variable at some point
+    let scales_dtype = match scheme.q_params_precision {
+        QuantFloatPrecision::Full => DType::F32,
+        QuantFloatPrecision::Half => DType::F16,
+    };
 
     let (data, shapes, elem_sizes) = match scheme {
         // Just to ensure we get and error if more modes are added and unhandled
@@ -46,7 +49,7 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
         } => {
             let data = vec![&data[..shape.num_elements()], &data[shape.num_elements()..]];
             let shapes = vec![shape.dims.as_slice(), &[1]];
-            let elem_sizes = vec![size_of::<i8>(), size_of::<f32>()];
+            let elem_sizes = vec![size_of::<i8>(), scales_dtype.size()];
             scales_shape = Shape::new([1]);
             (data, shapes, elem_sizes)
         }
@@ -61,7 +64,7 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
             scales_shape = Shape::new([num_blocks]);
             let data = vec![&data[..numel], &data[numel..]];
             let shapes = vec![shape.dims.as_slice(), scales_shape.dims.as_slice()];
-            let elem_sizes = vec![size_of::<i8>(), size_of::<f32>()];
+            let elem_sizes = vec![size_of::<i8>(), scales_dtype.size()];
             (data, shapes, elem_sizes)
         }
     };
@@ -99,7 +102,11 @@ pub fn empty_qtensor<R: CubeRuntime>(
     let client = R::client(device);
     let shape: Shape = shape.into();
     let scales_shape: Shape;
-    let scales_dtype: DType;
+
+    let scales_dtype = match scheme.q_params_precision {
+        QuantFloatPrecision::Full => DType::F32,
+        QuantFloatPrecision::Half => DType::F16,
+    };
     let (shapes, elem_sizes) = match scheme {
         // Just to ensure we get and error if more modes are added and unhandled
         QuantScheme {
@@ -109,9 +116,8 @@ pub fn empty_qtensor<R: CubeRuntime>(
             ..
         } => {
             let shapes = vec![shape.dims.as_slice(), &[1]];
-            let elem_sizes = vec![size_of::<i8>(), size_of::<f32>()];
+            let elem_sizes = vec![size_of::<i8>(), scales_dtype.size()];
             scales_shape = Shape::new([1]);
-            scales_dtype = DType::F32;
             (shapes, elem_sizes)
         }
         QuantScheme {
@@ -122,9 +128,8 @@ pub fn empty_qtensor<R: CubeRuntime>(
         } => {
             let num_blocks = shape.num_elements() / block_size;
             scales_shape = Shape::new([num_blocks]);
-            scales_dtype = DType::F32;
             let shapes = vec![shape.dims.as_slice(), scales_shape.dims.as_slice()];
-            let elem_sizes = vec![size_of::<i8>(), size_of::<f32>()];
+            let elem_sizes = vec![size_of::<i8>(), scales_dtype.size()];
             (shapes, elem_sizes)
         }
     };

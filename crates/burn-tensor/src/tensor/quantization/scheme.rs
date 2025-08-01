@@ -18,8 +18,10 @@ pub struct QuantScheme {
     pub q_type: QuantInputType,
     /// Data type used for storing quantized values.
     pub q_store_type: QuantStoreType,
+    /// Precision used for quantization parameters (e.g., scale).
+    pub q_params_precision: QuantFloatPrecision,
     /// Precision used for accumulating intermediate values (e.g., during matmul).
-    pub acc_precision: QuantAccPrecision,
+    pub acc_precision: QuantFloatPrecision,
     /// Whether to propagate quantization to outputs or return unquantized results.
     pub propagation: QuantPropagation,
 }
@@ -31,7 +33,8 @@ impl Default for QuantScheme {
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
             q_store_type: QuantStoreType::U32,
-            acc_precision: QuantAccPrecision::Full,
+            q_params_precision: QuantFloatPrecision::Full,
+            acc_precision: QuantFloatPrecision::Full,
             propagation: QuantPropagation::Inhibit,
         }
     }
@@ -62,8 +65,14 @@ impl QuantScheme {
         self
     }
 
+    /// Set the precision used for quantization parameters
+    pub fn set_q_params_precision(mut self, q_params_precision: QuantFloatPrecision) -> Self {
+        self.q_params_precision = q_params_precision;
+        self
+    }
+
     /// Set the accumulation precision used during computations.
-    pub fn set_acc_precision(mut self, acc_precision: QuantAccPrecision) -> Self {
+    pub fn set_acc_precision(mut self, acc_precision: QuantFloatPrecision) -> Self {
         self.acc_precision = acc_precision;
         self
     }
@@ -127,10 +136,12 @@ pub enum QuantMode {
     Symmetric,
 }
 
-/// Quantization accumulator precision. This is the precision to used when accumulating values
-/// while executing algorithms such as matmul.
+/// Quantization floating-point precision.
+///
+/// This is used to represent the floating-point precision of quantization parameters like the scale(s)
+/// or the accumulation precision used during operations like matrix multiplication.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum QuantAccPrecision {
+pub enum QuantFloatPrecision {
     /// Full precision accumulation (f32).
     Full,
     /// Half precision accumulation (f16).

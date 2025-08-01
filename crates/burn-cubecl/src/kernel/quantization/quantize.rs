@@ -4,15 +4,21 @@ use crate::{
     ops::{empty_qtensor, max_line_size},
 };
 use crate::{kernel::utils::strided_layout, tensor::CubeTensor};
+use burn_tensor::f16;
 use burn_tensor::quantization::{
-    QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantStoreType,
+    QuantFloatPrecision, QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantStoreType,
 };
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 use cubecl::std::tensor::{StridedLayout, index_offset_contiguous};
 
 #[cube]
-fn quantize_symmetric<F: Float>(value: Line<F>, scale: f32, range_min: F, range_max: F) -> Line<F> {
+fn quantize_symmetric<F: Float, FS: Float>(
+    value: Line<F>,
+    scale: FS,
+    range_min: F,
+    range_max: F,
+) -> Line<F> {
     // x_q = clamp(round(x / scale), a, b)
     Line::clamp(
         Line::round(value / Line::cast_from(scale)),
@@ -22,24 +28,26 @@ fn quantize_symmetric<F: Float>(value: Line<F>, scale: f32, range_min: F, range_
 }
 
 #[cube]
-fn quantize_symmetric_i<F: Float, I: Int>(
+fn quantize_symmetric_i<F: Float, FS: Float, I: Int>(
     value: Line<F>,
-    scale: f32,
+    scale: FS,
     range_min: F,
     range_max: F,
 ) -> Line<I> {
-    Line::cast_from(quantize_symmetric(value, scale, range_min, range_max))
+    Line::cast_from(quantize_symmetric::<F, FS>(
+        value, scale, range_min, range_max,
+    ))
 }
 
 #[cube]
-fn quantize_packed_value<F: Float, QS: Int>(
+fn quantize_packed_value<F: Float, FS: Float, QS: Int>(
     value: Line<F>,
-    scale: f32,
+    scale: FS,
     range_min: F,
     range_max: F,
     #[comptime] scheme: QuantScheme,
 ) -> QS {
-    let value = quantize_symmetric(value, scale, range_min, range_max);
+    let value = quantize_symmetric::<F, FS>(value, scale, range_min, range_max);
     pack_q::<F, QS>(value, scheme.q_type)
 }
 
@@ -70,7 +78,11 @@ fn pack_q<F: Float, QS: Int>(value: Line<F>, #[comptime] quant: QuantInputType) 
 }
 
 #[cube]
-fn write_scale_per_tensor(in_pos: u32, scale: &Array<f32>, out_scale: &mut Array<f32>) -> f32 {
+fn write_scale_per_tensor<FS: Float>(
+    in_pos: u32,
+    scale: &Array<FS>,
+    out_scale: &mut Array<FS>,
+) -> FS {
     let scale = scale[0];
 
     // Write the scale into the output buffer
@@ -82,12 +94,12 @@ fn write_scale_per_tensor(in_pos: u32, scale: &Array<f32>, out_scale: &mut Array
 }
 
 #[cube]
-fn write_scale_per_block(
+fn write_scale_per_block<FS: Float>(
     in_pos: u32,
-    scale: &Array<f32>,
-    out_scale: &mut Array<f32>,
+    scale: &Array<FS>,
+    out_scale: &mut Array<FS>,
     #[comptime] block_size: u32,
-) -> f32 {
+) -> FS {
     let scale_pos = in_pos / block_size;
     let scale = scale[scale_pos];
 
@@ -100,13 +112,13 @@ fn write_scale_per_block(
 }
 
 #[cube(launch_unchecked)]
-fn quantize_symmetric_int8_native_kernel<F: Float>(
+fn quantize_symmetric_int8_native_kernel<F: Float, FS: Float>(
     input: &Tensor<Line<F>>,
-    scale: &Array<f32>,
+    scale: &Array<FS>,
     range_min: F,
     range_max: F,
     output: &mut Tensor<Line<i8>>,
-    out_scale: &mut Array<f32>,
+    out_scale: &mut Array<FS>,
     out_layout: StridedLayout,
     #[comptime] rank: Option<u32>,
     #[comptime] scheme: QuantScheme,
@@ -134,17 +146,17 @@ fn quantize_symmetric_int8_native_kernel<F: Float>(
         } => write_scale_per_tensor(ABSOLUTE_POS, scale, out_scale),
     };
 
-    output[out_pos] = quantize_symmetric_i(input[in_pos], scale, range_min, range_max);
+    output[out_pos] = quantize_symmetric_i::<F, FS, i8>(input[in_pos], scale, range_min, range_max);
 }
 
 #[cube(launch_unchecked)]
-fn quantize_symmetric_int8_packed_kernel<F: Float>(
+fn quantize_symmetric_int8_packed_kernel<F: Float, FS: Float>(
     input: &Tensor<Line<F>>,
-    scale: &Array<f32>,
+    scale: &Array<FS>,
     range_min: F,
     range_max: F,
     output: &mut Array<u32>,
-    out_scale: &mut Array<f32>,
+    out_scale: &mut Array<FS>,
     #[comptime] scheme: QuantScheme,
 ) {
     if ABSOLUTE_POS >= output.len() {
@@ -166,7 +178,7 @@ fn quantize_symmetric_int8_packed_kernel<F: Float>(
     };
 
     if comptime!(input.line_size() == num_quants) {
-        output[ABSOLUTE_POS] = quantize_packed_value::<F, u32>(
+        output[ABSOLUTE_POS] = quantize_packed_value::<F, FS, u32>(
             input[ABSOLUTE_POS],
             scale,
             range_min,
@@ -181,7 +193,7 @@ fn quantize_symmetric_int8_packed_kernel<F: Float>(
             values[i] = input[packed_pos + i][0];
         }
         output[ABSOLUTE_POS] =
-            quantize_packed_value::<F, u32>(values, scale, range_min, range_max, scheme);
+            quantize_packed_value::<F, FS, u32>(values, scale, range_min, range_max, scheme);
     }
 }
 
@@ -202,7 +214,14 @@ where
             q_type: QuantInputType::QInt8,
             q_store_type: QuantStoreType::U32,
             ..
-        } => quantize_packed::<R, F>(tensor, scheme, scale, output),
+        } => match scheme.q_params_precision {
+            QuantFloatPrecision::Full => {
+                quantize_packed::<R, F, f32>(tensor, scheme, scale, output)
+            }
+            QuantFloatPrecision::Half => {
+                quantize_packed::<R, F, f16>(tensor, scheme, scale, output)
+            }
+        },
         QuantScheme {
             q_type: QuantInputType::QInt8,
             q_store_type: QuantStoreType::Native,
@@ -212,12 +231,19 @@ where
                 panic!("QInt8 is not supported for native quantization");
             }
 
-            quantize_native::<R, F>(tensor, scheme, scale, output)
+            match scheme.q_params_precision {
+                QuantFloatPrecision::Full => {
+                    quantize_native::<R, F, f32>(tensor, scheme, scale, output)
+                }
+                QuantFloatPrecision::Half => {
+                    quantize_native::<R, F, f16>(tensor, scheme, scale, output)
+                }
+            }
         }
     }
 }
 
-fn quantize_native<R: CubeRuntime, F: FloatElement>(
+fn quantize_native<R: CubeRuntime, F: FloatElement, FS: FloatElement>(
     tensor: CubeTensor<R>,
     scheme: &QuantScheme,
     scale: CubeTensor<R>,
@@ -244,7 +270,7 @@ fn quantize_native<R: CubeRuntime, F: FloatElement>(
             // We could use line_size = block_size if it's in the supported line sizes.. but let's keep it simple
             super::check_block_size_compat(scheme, line_size as usize);
             unsafe {
-                quantize_symmetric_int8_native_kernel::launch_unchecked::<F, R>(
+                quantize_symmetric_int8_native_kernel::launch_unchecked::<F, FS, R>(
                     &client,
                     cube_count,
                     cube_dim,
@@ -269,7 +295,7 @@ fn quantize_native<R: CubeRuntime, F: FloatElement>(
     output
 }
 
-fn quantize_packed<R: CubeRuntime, F: FloatElement>(
+fn quantize_packed<R: CubeRuntime, F: FloatElement, FS: FloatElement>(
     tensor: CubeTensor<R>,
     scheme: &QuantScheme,
     scale: CubeTensor<R>,
@@ -302,7 +328,7 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement>(
         } => {
             super::check_block_size_compat(scheme, num_quants as usize); // 32 / 8 = 4
             unsafe {
-                quantize_symmetric_int8_packed_kernel::launch_unchecked::<F, R>(
+                quantize_symmetric_int8_packed_kernel::launch_unchecked::<F, FS, R>(
                     &client,
                     cube_count,
                     cube_dim,

@@ -4,7 +4,7 @@ mod tests {
     use burn_tensor::{
         DType, Element, Tensor, TensorData,
         quantization::{
-            CalibrationRange, QuantAccPrecision, QuantInputType, QuantLevel, QuantMode,
+            CalibrationRange, QuantFloatPrecision, QuantInputType, QuantLevel, QuantMode,
             QuantPropagation, QuantScheme,
         },
     };
@@ -70,7 +70,7 @@ mod tests {
         let device = Default::default();
         let scheme = QuantScheme {
             propagation: QuantPropagation::Inhibit,
-            acc_precision: QuantAccPrecision::Full, // f32
+            acc_precision: QuantFloatPrecision::Full, // f32
             ..Default::default()
         };
 
