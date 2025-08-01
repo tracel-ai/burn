@@ -274,7 +274,7 @@ where
     /// Alias for `transpose`.
     #[inline(always)]
     #[allow(non_snake_case)]
-    pub fn T(self) -> Tensor<B, D, K> {
+    pub fn t(self) -> Tensor<B, D, K> {
         self.transpose()
     }
 

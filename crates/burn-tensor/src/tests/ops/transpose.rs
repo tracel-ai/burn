@@ -15,8 +15,8 @@ mod tests {
             &Default::default(),
         );
 
-        // Check the .T() alias.
-        let output = tensor.T();
+        // Check the .t() alias.
+        let output = tensor.t();
 
         let expected = TensorData::from([
             [[0.0, 3.0], [1.0, 4.0], [2.0, 5.0]],
