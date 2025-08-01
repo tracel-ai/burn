@@ -180,7 +180,7 @@ impl FuseOptimizationBuilder {
         let args = arguments.map(|arg| {
             // We need to register the argument as input in the current block so that we retrieve
             // its value locally.
-            let input = self.builder.builder.input(arg);
+            let input = self.builder.builder.input(arg, None);
 
             if input.is_none() {
                 is_success = false;
@@ -380,10 +380,20 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
+                let mut quant_out_dtype_tensor = None;
+                let mut quant_out_dtype_value = None;
+
+                if self.input_is_quantized(&desc.tensor) {
+                    quant_out_dtype_tensor = Some(desc.out.dtype);
+                }
+                if self.input_is_quantized(&desc.value) {
+                    quant_out_dtype_value = Some(desc.out.dtype);
+                }
+
                 self.builder.register(|build| {
-                    let cond = build.input(&desc.mask)?;
-                    let lhs = build.input(&desc.value)?;
-                    let rhs = build.input(&desc.tensor)?;
+                    let cond = build.input(&desc.mask, None)?;
+                    let rhs = build.input(&desc.tensor, quant_out_dtype_tensor)?;
+                    let lhs = build.input(&desc.value, quant_out_dtype_value)?;
                     let out = build.output(&desc.out)?;
 
                     build.register_operation(FuseOp::ConditionalAssign {
@@ -401,10 +411,16 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
+                let mut quant_out_dtype_tensor = None;
+
+                if self.input_is_quantized(&desc.tensor) {
+                    quant_out_dtype_tensor = Some(desc.out.dtype);
+                }
+
                 self.builder.register(|build| {
-                    let cond = build.input(&desc.mask)?;
+                    let cond = build.input(&desc.mask, None)?;
                     let lhs = build.scalar(&desc.value, desc.out.dtype);
-                    let rhs = build.input(&desc.tensor)?;
+                    let rhs = build.input(&desc.tensor, quant_out_dtype_tensor)?;
                     let out = build.output(&desc.out)?;
 
                     build.register_operation(FuseOp::ConditionalAssign {
@@ -525,13 +541,19 @@ impl FuseOptimizationBuilder {
             return false;
         }
 
+        let mut quant_out_dtype_lhs = None;
+        let mut quant_out_dtype_rhs = None;
+
         if self.input_is_quantized(&desc.lhs) {
-            return false;
+            quant_out_dtype_lhs = Some(desc.out.dtype);
+        }
+        if self.input_is_quantized(&desc.rhs) {
+            quant_out_dtype_rhs = Some(desc.out.dtype);
         }
 
         self.builder.register(|build| {
-            let lhs = build.input(&desc.lhs)?;
-            let rhs = build.input(&desc.rhs)?;
+            let lhs = build.input(&desc.lhs, quant_out_dtype_lhs)?;
+            let rhs = build.input(&desc.rhs, quant_out_dtype_rhs)?;
             let out = build.output(&desc.out)?;
 
             build.register_operation(func(lhs, rhs, out));
@@ -548,12 +570,14 @@ impl FuseOptimizationBuilder {
             return false;
         }
 
+        let mut quant_out_dtype = None;
+
         if self.input_is_quantized(&desc.input) {
-            return false;
+            quant_out_dtype = Some(desc.out.dtype);
         }
 
         self.builder.register(|build| {
-            let input = build.input(&desc.input)?;
+            let input = build.input(&desc.input, quant_out_dtype)?;
             let out = build.output(&desc.out)?;
             build.register_operation(func(input, out));
             Some(())
@@ -568,13 +592,15 @@ impl FuseOptimizationBuilder {
             return false;
         }
 
+        let mut quant_out_dtype = None;
+
         if self.input_is_quantized(&desc.lhs) {
-            return false;
+            quant_out_dtype = Some(desc.out.dtype);
         }
 
         self.builder.register(|build| {
             let elem = desc.lhs.dtype;
-            let lhs = build.input(&desc.lhs)?;
+            let lhs = build.input(&desc.lhs, quant_out_dtype)?;
             let rhs = build.scalar(&desc.rhs, elem);
             let out = build.output(&desc.out)?;
 

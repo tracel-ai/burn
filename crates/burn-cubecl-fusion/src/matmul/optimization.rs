@@ -10,6 +10,7 @@ use crate::shared::ir::RefLayout;
 use crate::shared::trace::TraceError;
 use crate::shared::trace::TuneOutput;
 use crate::shared::trace::Vectorization;
+use crate::shared::trace::VectorizationHandle;
 use crate::shared::trace::vectorization::LineSizeOverrides;
 use crate::shared::trace::vectorization::Vect;
 use crate::shared::trace::vectorization::vectorization_default;
@@ -299,8 +300,7 @@ impl<R: Runtime> Vectorization<R> for FusedMatmul {
         &self,
         context: &Context<'_, CubeFusionHandle<R>>,
         vectorizations: &mut BTreeMap<TensorId, Vect>,
-        handles_inputs: impl Iterator<Item = &'a CubeFusionHandle<R>>,
-        inputs: impl Iterator<Item = &'a TensorIr>,
+        inputs: impl Iterator<Item = VectorizationHandle<'a, R>>,
         outputs: impl Iterator<Item = &'a TensorIr>,
         reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
         swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
@@ -311,7 +311,6 @@ impl<R: Runtime> Vectorization<R> for FusedMatmul {
         match &self.selector {
             FusedMatmulSelector::SimpleUnit(line_size_overrides) => vectorization_default(
                 vectorizations,
-                handles_inputs,
                 inputs,
                 outputs,
                 reshaped,
@@ -323,7 +322,6 @@ impl<R: Runtime> Vectorization<R> for FusedMatmul {
             ),
             _ => vectorization_default(
                 vectorizations,
-                handles_inputs,
                 inputs,
                 outputs,
                 reshaped,

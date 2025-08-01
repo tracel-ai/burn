@@ -28,6 +28,22 @@ pub trait TraceRunner<R: Runtime>: Vectorization<R> {
     ) -> Result<(), Self::Error>;
 }
 
+pub enum VectorizationHandle<'a, R: Runtime> {
+    NormalInput(&'a CubeFusionHandle<R>, &'a TensorIr),
+    QuantData(&'a CubeFusionHandle<R>, &'a TensorIr),
+    QuantScales(&'a CubeFusionHandle<R>),
+}
+
+impl<'a, R: Runtime> VectorizationHandle<'a, R> {
+    pub fn from_tensor(&self, id: TensorId) -> bool {
+        match self {
+            VectorizationHandle::NormalInput(_, tensor_ir) => tensor_ir.id == id,
+            VectorizationHandle::QuantData(_, tensor_ir) => tensor_ir.id == id,
+            VectorizationHandle::QuantScales(_) => false,
+        }
+    }
+}
+
 pub trait Vectorization<R: Runtime> {
     fn axis(&self) -> Option<usize> {
         None
@@ -38,8 +54,7 @@ pub trait Vectorization<R: Runtime> {
         &self,
         _context: &Context<'_, CubeFusionHandle<R>>,
         vectorizations: &mut BTreeMap<TensorId, Vect>,
-        handles_inputs: impl Iterator<Item = &'a CubeFusionHandle<R>>,
-        inputs: impl Iterator<Item = &'a TensorIr>,
+        inputs: impl Iterator<Item = VectorizationHandle<'a, R>>,
         outputs: impl Iterator<Item = &'a TensorIr>,
         reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
         swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
@@ -49,7 +64,6 @@ pub trait Vectorization<R: Runtime> {
     ) {
         vectorization_default(
             vectorizations,
-            handles_inputs,
             inputs,
             outputs,
             reshaped,

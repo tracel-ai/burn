@@ -5,7 +5,7 @@ use burn_ir::{TensorId, TensorIr};
 use cubecl::{Runtime, ir::Elem};
 use serde::{Deserialize, Serialize};
 
-use crate::CubeFusionHandle;
+use crate::{CubeFusionHandle, shared::trace::VectorizationHandle};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Vect {
@@ -99,8 +99,7 @@ impl LineSizeOverrides {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn vectorization_default<'a, R: Runtime>(
     vectorizations: &mut BTreeMap<TensorId, Vect>,
-    handles_inputs: impl Iterator<Item = &'a CubeFusionHandle<R>>,
-    inputs: impl Iterator<Item = &'a TensorIr>,
+    inputs: impl Iterator<Item = VectorizationHandle<'a, R>>,
     outputs: impl Iterator<Item = &'a TensorIr>,
     reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
     swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
@@ -112,9 +111,16 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
 ) {
     let swapped: Vec<_> = swapped.collect();
 
-    for (handle, tensor) in handles_inputs.zip(inputs) {
-        if let Some((s, o, mr, dims)) = swapped.iter().find(|(_s, o, _mr, _dims)| o.id == tensor.id)
+    for input in inputs {
+        if let Some((s, o, mr, dims)) = swapped
+            .iter()
+            .find(|(_s, o, _mr, _dims)| input.from_tensor(o.id))
         {
+            let (handle, id) = match input {
+                VectorizationHandle::NormalInput(handle, tensor_ir) => (handle, &tensor_ir.id),
+                VectorizationHandle::QuantData(..) => panic!("Can't be swapped"),
+                VectorizationHandle::QuantScales(..) => panic!("Can't be swapped"),
+            };
             let val = vectorization_swapped::<R>(
                 handle,
                 s,
@@ -124,13 +130,29 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
                 max,
                 axis,
                 ref_elem,
-                overrides.tensor(&tensor.id),
+                overrides.tensor(id),
             );
             multi_reads_vectorization_update(vectorizations, o.id, val);
         } else {
-            let val =
-                vectorization_input(handle, tensor, axis, ref_elem, overrides.tensor(&tensor.id));
-            vectorizations.insert(tensor.id, val);
+            match input {
+                VectorizationHandle::NormalInput(handle, tensor_ir) => {
+                    let val = vectorization_input(
+                        handle,
+                        tensor_ir,
+                        axis,
+                        ref_elem,
+                        overrides.tensor(&tensor_ir.id),
+                    );
+                    vectorizations.insert(tensor_ir.id, val);
+                }
+                VectorizationHandle::QuantData(_, tensor_ir) => {
+                    // Set to 1 right now
+                    vectorizations.insert(tensor_ir.id, Vect::Aligned(1));
+                }
+                VectorizationHandle::QuantScales(..) => {
+                    // Doesn't have vectorization for now.
+                }
+            };
         }
     }
 

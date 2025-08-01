@@ -7,11 +7,17 @@ use cubecl::{
     ir::{Elem, UIntKind},
 };
 
-use crate::{CubeFusionHandle, shared::settings::VectorizationSetting};
+use crate::{
+    CubeFusionHandle,
+    shared::{
+        settings::VectorizationSetting,
+        trace::{HandleInput, VectorizationHandle},
+    },
+};
 
 use super::{
     super::{
-        BlockPlan, FuseResources, HandleInput, HandleOutput, LaunchPlan, TensorView, Vectorization,
+        BlockPlan, FuseResources, HandleOutput, LaunchPlan, TensorView, Vectorization,
         block::FuseBlock,
     },
     Vect,
@@ -72,8 +78,12 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
 
         let mut ref_elem = (Elem::UInt(UIntKind::U64), 8);
 
-        for r in plan.global_inputs.iter() {
-            let elem: Elem = r.dtype.into();
+        for input in plan.handle_inputs.iter() {
+            let elem: Elem = match input {
+                HandleInput::Normal(h) => h.global_ir.dtype.into(),
+                HandleInput::QuantData(..) => continue,
+                HandleInput::QuantScales(..) => continue,
+            };
             let elem_size = elem.size();
 
             if ref_elem.1 >= elem_size {
@@ -92,7 +102,12 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         let filtered = plan
             .handle_inputs
             .iter()
-            .map(|item| !self.resources.indexed.contains_key(&item.relative_id))
+            .map(|item| {
+                item.as_normal()
+                    // Filter out indexed ressources.
+                    .map(|item| !self.resources.indexed.contains_key(&item.relative_id))
+                    .unwrap_or(true)
+            })
             .collect::<Vec<_>>();
 
         runner.vectorization(
@@ -103,15 +118,21 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 .enumerate()
                 .filter_map(|(i, item)| {
                     if filtered[i] {
-                        Some(&item.handle)
+                        Some(match item {
+                            HandleInput::Normal(h) => {
+                                VectorizationHandle::NormalInput(&h.handle, &h.global_ir)
+                            }
+                            HandleInput::QuantData(h) => {
+                                VectorizationHandle::QuantData(&h.handle, &h.global_ir)
+                            }
+                            HandleInput::QuantScales(h) => {
+                                VectorizationHandle::QuantScales(&h.handle)
+                            }
+                        })
                     } else {
                         None
                     }
                 }),
-            plan.global_inputs
-                .iter()
-                .enumerate()
-                .filter_map(|(i, item)| if filtered[i] { Some(item) } else { None }),
             plan.global_outputs.iter(),
             tensors_reshaped,
             tensors_swapped,
@@ -131,13 +152,18 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         }
 
         for (input_pos, handle) in plan.handle_inputs.iter_mut().enumerate() {
-            let (vect, br) = match plan.vectorizations.get(&handle.global_id) {
+            let (global_ir, relative_id) = match handle {
+                HandleInput::Normal(h) => (&h.global_ir, &h.relative_id),
+                HandleInput::QuantData(h) => (&h.global_ir, &h.relative_id),
+                HandleInput::QuantScales(_) => continue,
+            };
+            let (vect, br) = match plan.vectorizations.get(&global_ir.id) {
                 Some(v) => (v.line_size(), v.is_broadcast()),
-                None => panic!("No vectorization factor found for {:?}", handle.global_id),
+                None => panic!("No vectorization factor found for {:?}", global_ir.id),
             };
 
             for (block_pos, block_plan) in plan.blocks.iter().enumerate() {
-                if block_plan.reads.contains_key(&handle.relative_id) {
+                if block_plan.reads.contains_key(relative_id) {
                     block_vectorization[block_pos].push(BlockVectorization {
                         action: VectorizationAction::Input(input_pos),
                         potential: vect,
@@ -235,8 +261,18 @@ fn apply_vectorization_block<R: Runtime>(
                     (1, false)
                 };
 
-                inputs[pos].vectorization = vect;
-                inputs[pos].broadcated = br;
+                match &mut inputs[pos] {
+                    HandleInput::Normal(input) => {
+                        input.vectorization = vect;
+                        input.broadcated = br;
+                    }
+                    HandleInput::QuantData(input) => {
+                        input.vectorization = vect;
+                    }
+                    HandleInput::QuantScales(_) => {
+                        // Not vectorized
+                    }
+                }
 
                 if block_plan.width < vect {
                     block_plan.width = vect;

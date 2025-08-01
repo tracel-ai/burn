@@ -5,6 +5,7 @@ use crate::{
     shared::ir::{Arg, FuseOp, FusePrecision},
 };
 use burn_ir::{TensorId, TensorIr};
+use burn_tensor::quantization::QuantScheme;
 use cubecl::Runtime;
 
 use super::{block::FuseBlock, vectorization::Vect};
@@ -13,7 +14,7 @@ use super::{block::FuseBlock, vectorization::Vect};
 /// at one place.
 #[derive(Debug)]
 pub(crate) struct LaunchPlan<'a, R: Runtime> {
-    pub global_inputs: Vec<TensorIr>,
+    // pub global_inputs: Vec<TensorIr>,
     pub global_outputs: Vec<TensorIr>,
     pub handle_inputs: Vec<HandleInput<R>>,
     pub handle_outputs: Vec<HandleOutput<R>>,
@@ -103,7 +104,7 @@ impl<R: Runtime> LaunchPlan<'_, R> {
         }
 
         LaunchPlan {
-            global_inputs: Vec::new(),
+            // global_inputs: Vec::new(),
             global_outputs: Vec::new(),
             handle_inputs: Vec::new(),
             handle_outputs: Vec::new(),
@@ -142,21 +143,54 @@ pub enum HandleOutput<R: Runtime> {
 }
 
 #[derive(Debug)]
-pub struct HandleInput<R: Runtime> {
+pub struct NormalHandleInput<R: Runtime> {
     pub relative_id: TensorId,
-    pub global_id: TensorId,
+    pub global_ir: TensorIr,
     pub precision: FusePrecision,
     pub handle: CubeFusionHandle<R>,
-    pub global_shape: Vec<usize>,
     pub vectorization: u8,
     pub broadcated: bool,
     // Strides can be modified during plan execution, but need to be restored on rollback
     pub orig_strides: Vec<usize>,
 }
 
+#[derive(Debug)]
+pub struct QuantDataHandleInput<R: Runtime> {
+    pub relative_id: TensorId,
+    pub global_ir: TensorIr,
+    pub precision: FusePrecision,
+    pub handle: CubeFusionHandle<R>,
+    pub vectorization: u8,
+    pub scheme: QuantScheme,
+}
+
+#[derive(Debug)]
+pub struct QuantScalesHandleInput<R: Runtime> {
+    pub data_relative_id: TensorId,
+    pub data_global_id: TensorId,
+    pub precision: FusePrecision,
+    pub handle: CubeFusionHandle<R>,
+}
+
+#[derive(Debug)]
+pub enum HandleInput<R: Runtime> {
+    Normal(NormalHandleInput<R>),
+    QuantData(QuantDataHandleInput<R>),
+    QuantScales(QuantScalesHandleInput<R>),
+}
+
 impl<R: Runtime> HandleInput<R> {
+    pub fn as_normal(&self) -> Option<&NormalHandleInput<R>> {
+        match self {
+            HandleInput::Normal(normal) => Some(normal),
+            _ => None,
+        }
+    }
+}
+
+impl<R: Runtime> NormalHandleInput<R> {
     pub fn new(
-        tensor_global: &TensorIr,
+        tensor_global: TensorIr,
         tensor_relative: &TensorIr,
         precision: FusePrecision,
         mut handle: CubeFusionHandle<R>,
@@ -168,8 +202,7 @@ impl<R: Runtime> HandleInput<R> {
             precision,
             handle,
             relative_id: tensor_relative.id,
-            global_id: tensor_global.id,
-            global_shape: tensor_global.shape.clone(),
+            global_ir: tensor_global,
             vectorization: 1,
             broadcated: false,
             orig_strides: strides,

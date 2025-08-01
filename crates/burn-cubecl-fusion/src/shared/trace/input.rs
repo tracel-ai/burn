@@ -1,11 +1,17 @@
-use super::{BlockPlan, FuseResources, InputReference, TensorView, block::FuseBlock};
-use crate::CubeFusionHandle;
+use super::{
+    BlockPlan, FuseResources, HandleInput, InputReference, RegisterTensor, TensorView,
+    block::FuseBlock,
+};
+use crate::{
+    CubeFusionHandle,
+    shared::trace::{QuantDataHandleInput, QuantScalesHandleInput},
+};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
 use cubecl::Runtime;
 use std::marker::PhantomData;
 
-use super::{HandleInput, LaunchPlan, PotentialInplace};
+use super::{LaunchPlan, NormalHandleInput, PotentialInplace};
 
 /// Fetch and register [input handles](HandleInput). Also identifies potential inputs that
 /// can be used inplace and/or as the [reference layout](super::super::ir::RefLayout).
@@ -25,36 +31,72 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
     }
 
     pub fn run(self, context: &mut Context<'_, CubeFusionHandle<R>>, plan: &mut LaunchPlan<'a, R>) {
-        for (pos, (tensor_relative, precision)) in self.resources.inputs.iter().enumerate() {
-            let mut tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
-            let handle = context
-                .handles
-                .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
+        for (pos, input) in self.resources.inputs.iter().enumerate() {
+            match input {
+                RegisterTensor::Normal(tensor_relative, precision) => {
+                    let mut tensor_global =
+                        context.tensors.get(&tensor_relative.id).unwrap().clone();
+                    let handle = context
+                        .handles
+                        .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
 
-            if let TensorStatus::ReadWrite = tensor_relative.status {
-                plan.cleared.push(tensor_global.id);
-            }
+                    if let TensorStatus::ReadWrite = tensor_relative.status {
+                        plan.cleared.push(tensor_global.id);
+                    }
 
-            self.analyze(plan, pos, tensor_relative, &handle);
+                    self.analyze(plan, pos, tensor_relative, &handle);
 
-            let mut new_strides = handle.strides.clone();
+                    let mut new_strides = handle.strides.clone();
 
-            if tensor_global.shape.len() < plan.rank {
-                let num_elem: usize = tensor_global.shape.iter().product();
-                for _ in 0..(plan.rank - tensor_global.shape.len()) {
-                    tensor_global.shape.insert(0, 1);
-                    new_strides.insert(0, num_elem);
+                    if tensor_global.shape.len() < plan.rank {
+                        let num_elem: usize = tensor_global.shape.iter().product();
+                        for _ in 0..(plan.rank - tensor_global.shape.len()) {
+                            tensor_global.shape.insert(0, 1);
+                            new_strides.insert(0, num_elem);
+                        }
+                    }
+
+                    plan.handle_inputs
+                        .push(HandleInput::Normal(NormalHandleInput::new(
+                            tensor_global,
+                            tensor_relative,
+                            *precision,
+                            handle,
+                            new_strides,
+                        )));
+                }
+                RegisterTensor::Quant(tensor_relative) => {
+                    let tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
+                    let handle = context
+                        .handles
+                        .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
+                    let scheme = match tensor_relative.dtype {
+                        burn_tensor::DType::QFloat(scheme) => scheme,
+                        _ => panic!(),
+                    };
+                    let scales = handle.scales(scheme).unwrap();
+                    let precision = scales.dtype.try_into().unwrap();
+
+                    let global_id = tensor_global.id;
+                    plan.handle_inputs
+                        .push(HandleInput::QuantData(QuantDataHandleInput {
+                            relative_id: tensor_relative.id,
+                            global_ir: tensor_global,
+                            precision,
+                            handle,
+                            vectorization: 1,
+                            scheme,
+                        }));
+
+                    plan.handle_inputs
+                        .push(HandleInput::QuantScales(QuantScalesHandleInput {
+                            data_relative_id: tensor_relative.id,
+                            data_global_id: global_id,
+                            precision,
+                            handle: scales,
+                        }));
                 }
             }
-
-            plan.handle_inputs.push(HandleInput::new(
-                &tensor_global,
-                tensor_relative,
-                *precision,
-                handle,
-                new_strides,
-            ));
-            plan.global_inputs.push(tensor_global);
         }
     }
 

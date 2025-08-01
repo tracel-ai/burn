@@ -9,7 +9,7 @@ use cubecl::{
 };
 
 use super::{
-    FuseResources, HandleInput, HandleOutput, LaunchPlan, ReferenceSelection, TensorView,
+    FuseResources, HandleOutput, LaunchPlan, NormalHandleInput, ReferenceSelection, TensorView,
     TraceError, TraceRunner, TuneOutput, block::FuseBlock,
 };
 use crate::{
@@ -17,6 +17,7 @@ use crate::{
     shared::{
         ir::{FuseBlockConfig, FuseOp, FusePrecision, GlobalArgsLaunch, RefLayout, VirtualLayout},
         tensor::{GlobalScalar, GlobalTensorArg},
+        trace::HandleInput,
     },
 };
 
@@ -148,12 +149,20 @@ fn register_inputs<'h, R: Runtime>(
     inputs: &mut GlobalArgsLaunch<'h, R>,
 ) {
     for hi in handle_inputs.iter() {
-        let arg = hi.handle.as_tensor_arg(&hi.global_shape, hi.vectorization);
-        inputs.tensors.push(GlobalTensorArg::new(
-            arg,
-            hi.precision.into_elem(),
-            hi.broadcated,
-        ));
+        match hi {
+            HandleInput::Normal(hi) => {
+                let arg = hi
+                    .handle
+                    .as_tensor_arg(&hi.global_ir.shape, hi.vectorization);
+                inputs.tensors.push(GlobalTensorArg::new(
+                    arg,
+                    hi.precision.into_elem(),
+                    hi.broadcated,
+                ));
+            }
+            HandleInput::QuantData(hi) => todo!(),
+            HandleInput::QuantScales(hi) => todo!(),
+        }
     }
 }
 
