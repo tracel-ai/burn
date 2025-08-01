@@ -1,97 +1,105 @@
+use std::marker::PhantomData;
+
 use burn_core::{data::dataloader::split::split_dataloader, module::Module, prelude::Backend};
 
 use crate::{
-    Learner, LearnerDataLoaders, MultiDeviceTrainEpoch, SingleDeviceValidEpoch, TrainLoader,
+    LearnComponents, LearningMethod, MultiDeviceTrainEpoch, SingleDeviceValidEpoch, TrainLoader,
     ValidLoader, components::LearnerComponents,
 };
 
-pub(crate) fn prepare_dataloaders_multi_device<LC: LearnerComponents>(
-    devices: &[<LC::Backend as Backend>::Device],
-    dataloader_train: TrainLoader<LC>,
-    dataloader_valid: ValidLoader<LC>,
-) -> LearnerDataLoaders<LC> {
-    // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy
-    // for each (worker) data loader. This matches the expected device on the worker, so we
-    // don't have to move the data between devices.
-    let train = split_dataloader(dataloader_train, devices);
-    let main_device = devices.first().unwrap();
-    let valid = dataloader_valid.to_device(main_device);
-
-    LearnerDataLoaders::MultiTrainSingleValid {
-        dataloader_train: train,
-        dataloader_valid: valid,
+pub struct MultiDeviceLearningStrategy<LC: LearnerComponents> {
+    devices: Vec<<LC::Backend as Backend>::Device>,
+    _p: PhantomData<LC>,
+}
+impl<LC: LearnerComponents> MultiDeviceLearningStrategy<LC> {
+    pub fn new(devices: Vec<<LC::Backend as Backend>::Device>) -> Self {
+        Self {
+            devices,
+            _p: PhantomData,
+        }
     }
 }
 
-pub(crate) fn prepare_model_multi_device<LC: LearnerComponents>(
-    devices: &[<LC::Backend as Backend>::Device],
-    mut learner: Learner<LC>,
-) -> Learner<LC> {
-    let main_device = devices.first().unwrap();
-    learner.model = learner.model.fork(main_device);
+impl<LC: LearnerComponents> LearningMethod<LC> for MultiDeviceLearningStrategy<LC> {
+    type PreparedDataloaders = (Vec<TrainLoader<LC>>, ValidLoader<LC>);
 
-    learner
-}
+    type PreparedModel = LC::Model;
 
-pub(crate) fn learn_multi_device<LC: LearnerComponents>(
-    devices: &[<LC::Backend as Backend>::Device],
-    mut learner: Learner<LC>,
-    dataloaders: LearnerDataLoaders<LC>,
-    starting_epoch: usize,
-) -> Learner<LC> {
-    let LearnerDataLoaders::MultiTrainSingleValid {
-        dataloader_train,
-        dataloader_valid,
-    } = dataloaders
-    else {
-        panic!("Wrong dataloaders for strategy");
-    };
+    fn prepare_dataloaders(
+        &self,
+        dataloader_train: TrainLoader<LC>,
+        dataloader_valid: ValidLoader<LC>,
+    ) -> Self::PreparedDataloaders {
+        // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy
+        // for each (worker) data loader. This matches the expected device on the worker, so we
+        // don't have to move the data between devices.
+        let train = split_dataloader(dataloader_train, &self.devices);
+        let main_device = self.devices.first().unwrap();
+        let valid = dataloader_valid.to_device(main_device);
 
-    let mut epoch_train = MultiDeviceTrainEpoch::<LC>::new(
-        dataloader_train,
-        starting_epoch,
-        learner.num_epochs,
-        learner.grad_accumulation,
-    );
+        (train, valid)
+    }
 
-    for epoch in starting_epoch..learner.num_epochs + 1 {
-        (learner.model, learner.optim) = epoch_train.run(
-            learner.model,
-            learner.optim,
-            &mut learner.lr_scheduler,
-            &mut learner.event_processor,
-            devices.to_vec(),
-            &learner.interrupter,
+    fn prepare_model(&self, model: LC::Model) -> Self::PreparedModel {
+        let main_device = self.devices.first().unwrap();
+        model.fork(main_device)
+    }
+
+    fn learn(
+        &self,
+        model: Self::PreparedModel,
+        dataloaders: Self::PreparedDataloaders,
+        starting_epoch: usize,
+        mut components: LearnComponents<LC>,
+    ) -> LC::Model {
+        let (dataloader_train, dataloader_valid) = dataloaders;
+        let mut model: LC::Model = model;
+
+        let mut epoch_train = MultiDeviceTrainEpoch::<LC>::new(
+            dataloader_train,
+            starting_epoch,
+            components.num_epochs,
+            components.grad_accumulation,
         );
 
-        if learner.interrupter.should_stop() {
-            break;
-        }
-
-        let epoch_valid =
-            SingleDeviceValidEpoch::<LC>::new(dataloader_valid.clone(), epoch, learner.num_epochs);
-        epoch_valid.run(
-            &learner.model,
-            &mut learner.event_processor,
-            &learner.interrupter,
-        );
-
-        if let Some(checkpointer) = &mut learner.checkpointer {
-            checkpointer.checkpoint(
-                &learner.model,
-                &learner.optim,
-                &learner.lr_scheduler,
-                epoch,
-                &learner.event_store,
+        for epoch in starting_epoch..components.num_epochs + 1 {
+            (model, components.optim) = epoch_train.run(
+                model,
+                components.optim,
+                &mut components.lr_scheduler,
+                components.event_processor,
+                self.devices.to_vec(),
+                &components.interrupter,
             );
-        }
 
-        if let Some(early_stopping) = &mut learner.early_stopping {
-            if early_stopping.should_stop(epoch, &learner.event_store) {
+            if components.interrupter.should_stop() {
                 break;
             }
-        }
-    }
 
-    learner
+            let epoch_valid = SingleDeviceValidEpoch::<LC>::new(
+                dataloader_valid.clone(),
+                epoch,
+                components.num_epochs,
+            );
+            epoch_valid.run(&model, components.event_processor, &components.interrupter);
+
+            if let Some(checkpointer) = &mut components.checkpointer {
+                checkpointer.checkpoint(
+                    &model,
+                    &components.optim,
+                    &components.lr_scheduler,
+                    epoch,
+                    &components.event_store,
+                );
+            }
+
+            if let Some(early_stopping) = &mut components.early_stopping {
+                if early_stopping.should_stop(epoch, &components.event_store) {
+                    break;
+                }
+            }
+        }
+
+        model
+    }
 }

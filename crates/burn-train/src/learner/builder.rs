@@ -359,6 +359,8 @@ where
             None
         };
 
+        let learning_strategy = Self::prepare_learning_strategy(self.learning_strategy);
+
         Learner {
             model,
             optim,
@@ -369,10 +371,20 @@ where
             event_store,
             checkpoint: self.checkpoint,
             grad_accumulation: self.grad_accumulation,
-            learning_strategy: self.learning_strategy,
+            learning_strategy,
             interrupter: self.interrupter,
             early_stopping: self.early_stopping,
             summary,
         }
+    }
+
+    fn prepare_learning_strategy(learning_strategy: LearningStrategy<B>) -> LearningStrategy<B> {
+        if let LearningStrategy::MultiDeviceNaive(devices) = &learning_strategy {
+            if devices.len() == 1 {
+                return LearningStrategy::SingleDevice(devices[0].clone());
+            }
+        }
+
+        learning_strategy
     }
 }

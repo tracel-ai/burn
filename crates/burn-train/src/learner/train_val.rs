@@ -1,6 +1,8 @@
 use crate::components::{InputTrain, InputValid, LearnerComponents, TrainBackend, ValidBackend};
-use crate::metric::processor::{Event, EventProcessor};
-use crate::{Learner, LearningStrategyExt};
+use crate::{
+    Learner, LearningMethod, LearningStrategy, MultiDeviceLearningStrategy,
+    SingleDeviceLearningStrategy,
+};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::AutodiffModule;
 use burn_core::optim::{GradientsParams, Optimizer};
@@ -100,20 +102,6 @@ pub trait ValidStep<VI, VO> {
 pub(crate) type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>>>;
 pub(crate) type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>>>;
 
-/// Data loaders after having been prepared, split if needed
-pub(crate) enum LearnerDataLoaders<LC: LearnerComponents> {
-    /// One dataloader for the training and one of the validation
-    SingleTrainSingleValid {
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
-    },
-    /// Multiple data loaders for the training, one dataloader for the validation
-    MultiTrainSingleValid {
-        dataloader_train: Vec<TrainLoader<LC>>,
-        dataloader_valid: ValidLoader<LC>,
-    },
-}
-
 impl<LC: LearnerComponents> Learner<LC> {
     /// Fits the model.
     ///
@@ -126,54 +114,20 @@ impl<LC: LearnerComponents> Learner<LC> {
     ///
     /// The fitted model.
     pub fn fit(
-        mut self,
+        self,
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
     ) -> LC::Model {
         log::info!("Fitting the model:\n {}", self.model);
 
-        let starting_epoch = match self.checkpoint {
-            Some(checkpoint) => {
-                if let Some(checkpointer) = &mut self.checkpointer {
-                    (self.model, self.optim, self.lr_scheduler) = checkpointer.load_checkpoint(
-                        self.model,
-                        self.optim,
-                        self.lr_scheduler,
-                        &Default::default(), // Load the checkpoint on the default device.
-                        checkpoint,
-                    );
-                }
-                checkpoint + 1
+        match self.learning_strategy.clone() {
+            LearningStrategy::SingleDevice(device) => {
+                let single_device = SingleDeviceLearningStrategy::new(device);
+                single_device.fit(self, dataloader_train, dataloader_valid)
             }
-            None => 1,
-        };
-
-        let dataloaders = self
-            .learning_strategy
-            .prepare_dataloaders(dataloader_train, dataloader_valid);
-
-        self = self.learning_strategy.clone().prepare_model(self);
-
-        self = self
-            .learning_strategy
-            .clone()
-            .learn(self, dataloaders, starting_epoch);
-
-        // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
-        self.event_processor.process_train(Event::End);
-
-        self.display_learner_summary();
-
-        self.model
-    }
-
-    fn display_learner_summary(&self) {
-        if let Some(summary) = &self.summary {
-            match summary.init() {
-                Ok(summary) => {
-                    println!("{}", summary.with_model(self.model.to_string()))
-                }
-                Err(err) => log::error!("Could not retrieve learner summary:\n{err}"),
+            LearningStrategy::MultiDeviceNaive(devices) => {
+                let multi_device = MultiDeviceLearningStrategy::new(devices);
+                multi_device.fit(self, dataloader_train, dataloader_valid)
             }
         }
     }

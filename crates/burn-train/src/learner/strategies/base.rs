@@ -1,9 +1,15 @@
+use std::sync::Arc;
+
 use burn_core::tensor::backend::AutodiffBackend;
 
 use crate::{
-    Learner, LearnerDataLoaders, TrainLoader, ValidLoader, components::LearnerComponents,
-    learn_multi_device, learn_single_device, prepare_dataloaders_multi_device,
-    prepare_dataloaders_single_device, prepare_model_multi_device, prepare_model_single_device,
+    EarlyStoppingStrategy, Learner, LearnerCheckpointer, TrainLoader, TrainingInterrupter,
+    ValidLoader,
+    components::LearnerComponents,
+    metric::{
+        processor::{Event, EventProcessor},
+        store::EventStoreClient,
+    },
 };
 
 /// How should the learner run the learning for the model
@@ -22,63 +28,107 @@ impl<B: AutodiffBackend> Default for LearningStrategy<B> {
     }
 }
 
-pub(crate) trait LearningStrategyExt<LC: LearnerComponents> {
+/// Provides the `fit` function for any learning strategy
+pub(crate) trait LearningMethod<LC: LearnerComponents> {
+    /// The dataloaders after being prepared for this trainin strategy
+    /// (eg: splitting for multiple devices)
+    type PreparedDataloaders;
+    /// The model after being prepared for this training strategy
+    type PreparedModel;
+
+    /// Fit the learner's model with this strategy.
+    fn fit(
+        &self,
+        mut learner: Learner<LC>,
+        dataloader_train: TrainLoader<LC>,
+        dataloader_valid: ValidLoader<LC>,
+    ) -> LC::Model {
+        let mut model = learner.model;
+        let mut optim = learner.optim;
+        let mut lr_scheduler = learner.lr_scheduler;
+        let checkpoint = learner.checkpoint;
+
+        let starting_epoch = match checkpoint {
+            Some(checkpoint) => {
+                if let Some(checkpointer) = &mut learner.checkpointer {
+                    (model, optim, lr_scheduler) = checkpointer.load_checkpoint(
+                        model,
+                        optim,
+                        lr_scheduler,
+                        &Default::default(), // Load the checkpoint on the default device.
+                        checkpoint,
+                    );
+                }
+                checkpoint + 1
+            }
+            None => 1,
+        };
+
+        let dataloaders = self.prepare_dataloaders(dataloader_train, dataloader_valid);
+        let model = self.prepare_model(model);
+
+        // Training loop
+        let components = LearnComponents {
+            optim,
+            lr_scheduler,
+            num_epochs: learner.num_epochs,
+            checkpointer: learner.checkpointer,
+            grad_accumulation: learner.grad_accumulation,
+            interrupter: learner.interrupter,
+            early_stopping: learner.early_stopping,
+            event_processor: &mut learner.event_processor,
+            event_store: learner.event_store,
+        };
+        let model = self.learn(model, dataloaders, starting_epoch, components);
+
+        // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
+        learner.event_processor.process_train(Event::End);
+
+        let summary = learner.summary;
+        if let Some(summary) = summary {
+            match summary.init() {
+                Ok(summary) => {
+                    println!("{}", summary.with_model(model.to_string()))
+                }
+                Err(err) => log::error!("Could not retrieve learner summary:\n{err}"),
+            }
+        }
+
+        model
+    }
+
+    /// Prepare the dataloaders for this strategy.
+    /// The output will be used in [the learn function](Self::learn)
     fn prepare_dataloaders(
         &self,
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
-    ) -> LearnerDataLoaders<LC>;
+    ) -> Self::PreparedDataloaders;
 
-    fn prepare_model(&self, learner: Learner<LC>) -> Learner<LC>;
+    /// Prepare the model for this training strategy.
+    /// The output will be used in [the learn function](Self::learn)
+    fn prepare_model(&self, model: LC::Model) -> Self::PreparedModel;
 
+    /// Training loop for this strategy
     fn learn(
         &self,
-        learner: Learner<LC>,
-        dataloaders: LearnerDataLoaders<LC>,
+        model: Self::PreparedModel,
+        dataloaders: Self::PreparedDataloaders,
         starting_epoch: usize,
-    ) -> Learner<LC>;
+        components: LearnComponents<LC>,
+    ) -> LC::Model;
 }
 
-impl<LC: LearnerComponents> LearningStrategyExt<LC> for LearningStrategy<LC::Backend> {
-    fn prepare_dataloaders(
-        &self,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
-    ) -> LearnerDataLoaders<LC> {
-        match self {
-            LearningStrategy::SingleDevice(device) => {
-                prepare_dataloaders_single_device::<LC>(device, dataloader_train, dataloader_valid)
-            }
-            LearningStrategy::MultiDeviceNaive(devices) => {
-                prepare_dataloaders_multi_device::<LC>(devices, dataloader_train, dataloader_valid)
-            }
-        }
-    }
-
-    fn prepare_model(&self, learner: Learner<LC>) -> Learner<LC> {
-        match self {
-            LearningStrategy::SingleDevice(device) => {
-                prepare_model_single_device::<LC>(device, learner)
-            }
-            LearningStrategy::MultiDeviceNaive(devices) => {
-                prepare_model_multi_device::<LC>(devices, learner)
-            }
-        }
-    }
-
-    fn learn(
-        &self,
-        learner: Learner<LC>,
-        dataloaders: LearnerDataLoaders<LC>,
-        starting_epoch: usize,
-    ) -> Learner<LC> {
-        match self {
-            LearningStrategy::SingleDevice(_device) => {
-                learn_single_device::<LC>(learner, dataloaders, starting_epoch)
-            }
-            LearningStrategy::MultiDeviceNaive(devices) => {
-                learn_multi_device::<LC>(devices, learner, dataloaders, starting_epoch)
-            }
-        }
-    }
+/// Struct to minimise parameters passed to LearningStrategyExt::learn
+/// These components are used during training
+pub(crate) struct LearnComponents<'a, LC: LearnerComponents> {
+    pub optim: LC::Optimizer,
+    pub lr_scheduler: LC::LrScheduler,
+    pub num_epochs: usize,
+    pub grad_accumulation: Option<usize>,
+    pub checkpointer: Option<LearnerCheckpointer<LC>>,
+    pub interrupter: TrainingInterrupter,
+    pub early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
+    pub event_processor: &'a mut LC::EventProcessor,
+    pub event_store: Arc<EventStoreClient>,
 }
