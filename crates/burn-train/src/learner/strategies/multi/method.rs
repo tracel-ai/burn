@@ -94,7 +94,6 @@ impl<LC: LearnerComponentTypes> LearningMethod<LC> for MultiDeviceLearningStrate
             }
 
             if let Some(early_stopping) = &mut components.early_stopping {
-                let mut early_stopping = early_stopping.write().unwrap();
                 if early_stopping.should_stop(epoch, &components.event_store) {
                     break;
                 }

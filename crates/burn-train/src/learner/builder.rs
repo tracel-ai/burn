@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use super::Learner;
 use crate::checkpoint::{
@@ -245,9 +245,9 @@ where
     /// conditions are meet.
     pub fn early_stopping<Strategy>(mut self, strategy: Strategy) -> Self
     where
-        Strategy: EarlyStoppingStrategy + Send + Sync + 'static,
+        Strategy: EarlyStoppingStrategy + Clone + Send + Sync + 'static,
     {
-        self.early_stopping = Some(Arc::new(RwLock::new(strategy)));
+        self.early_stopping = Some(Box::new(strategy));
         self
     }
 

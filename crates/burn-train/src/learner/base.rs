@@ -1,14 +1,12 @@
 use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy};
 use crate::components::LearnerComponentTypes;
-use crate::learner::EarlyStoppingStrategy;
 use crate::metric::store::EventStoreClient;
-use crate::{LearnerSummaryConfig, LearningStrategy};
+use crate::{CloneEarlyStoppingStrategy, LearnerSummaryConfig, LearningStrategy};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
 use burn_core::optim::Optimizer;
 use burn_core::tensor::Device;
 use std::sync::Arc;
-use std::sync::RwLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
@@ -30,8 +28,8 @@ pub struct Learner<LC: LearnerComponentTypes> {
     pub(crate) summary: Option<LearnerSummaryConfig>,
 }
 
-/// Sharable reference to the early stopping strategy
-pub(crate) type EarlyStoppingStrategyRef = Arc<RwLock<dyn EarlyStoppingStrategy + Send + Sync>>;
+/// Clonable reference to an early stopping strategy
+pub(crate) type EarlyStoppingStrategyRef = Box<dyn CloneEarlyStoppingStrategy>;
 
 #[derive(new)]
 pub(crate) struct LearnerCheckpointer<LC: LearnerComponentTypes> {
