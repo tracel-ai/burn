@@ -113,6 +113,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
         // Note: in the generated code, self.device is a &module::Ignored<Device>,
         // so to get a &Device, &* is needed
 
+        // Shape (i64 array) now implements Into<Shape> directly
+        let shape_expr = quote! { #input };
+
         match &self.value {
             ConstantValue::Bool(bool) => {
                 // Currently there is no full bool tensor support in the backend
@@ -120,16 +123,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
                 // See: https://github.com/tracel-ai/burn/issues/1535
                 if *bool {
                     quote! {
-                        let #output = Tensor::<B, #output_rank, Int>::ones(#input, &*self.device).bool();
+                        let #output = Tensor::<B, #output_rank, Int>::ones(#shape_expr, &*self.device).bool();
                     }
                 } else {
                     quote! {
-                        let #output = Tensor::<B, #output_rank, Int>::zeros(#input, &*self.device).bool();
+                        let #output = Tensor::<B, #output_rank, Int>::zeros(#shape_expr, &*self.device).bool();
                     }
                 }
             }
             _ => quote! {
-                let #output = Tensor::full(#input, #value, &*self.device);
+                let #output = Tensor::full(#shape_expr, #value, &*self.device);
             },
         }
     }
@@ -196,7 +199,7 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, shape1: [usize;4]) -> Tensor<B, 4> {
+                pub fn forward(&self, shape1: [i64;4]) -> Tensor<B, 4> {
                     let tensor2 = Tensor::full(shape1, 1.25f32, &*self.device);
                     tensor2
                 }

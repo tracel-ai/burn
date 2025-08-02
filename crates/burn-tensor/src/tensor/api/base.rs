@@ -3300,16 +3300,16 @@ impl<const D2: usize> ReshapeArgs<D2> for [usize; D2] {
     }
 }
 
-impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
+impl<const D2: usize> ReshapeArgs<D2> for [i64; D2] {
     fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
         self,
         tensor: &Tensor<B, D, K>,
     ) -> Shape {
         // Validate the reshape arguments
-        check!(TensorCheck::reshape_args_i32(&self));
+        check!(TensorCheck::reshape_args_i64(&self));
 
         // Temporary shape
-        let mut new_shape: [i32; D2] = [1; D2];
+        let mut new_shape: [i64; D2] = [1; D2];
 
         // We need to find the index of the 0 dimension and
         // replace it with the actual dimension value.
@@ -3317,7 +3317,7 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
             if s != 0 {
                 new_shape[i] = s;
             } else {
-                new_shape[i] = tensor.dims()[i] as i32;
+                new_shape[i] = tensor.dims()[i] as i64;
             }
         }
 
@@ -3333,7 +3333,7 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
                     product *= s;
                 }
             }
-            let product_current = tensor.shape().num_elements() as i32;
+            let product_current = tensor.shape().num_elements() as i64;
 
             new_shape[index] = product_current / product;
 
@@ -3351,6 +3351,17 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
         let new_shape: [usize; D2] = new_shape.map(|x| x as usize);
 
         Shape::from(new_shape)
+    }
+}
+
+impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
+    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
+        self,
+        tensor: &Tensor<B, D, K>,
+    ) -> Shape {
+        // Convert i32 array to i64 array and use existing implementation
+        let i64_array: [i64; D2] = self.map(|x| x as i64);
+        ReshapeArgs::into_shape(i64_array, tensor)
     }
 }
 

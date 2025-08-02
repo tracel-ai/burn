@@ -177,10 +177,11 @@ impl ShapeType {
             rank,
         }
     }
+
     pub fn ty(&self) -> TokenStream {
         let rank = self.rank.to_tokens();
-
-        quote! { [usize; #rank] }
+        // Shape operations always return i64 arrays per ONNX spec
+        quote! { [i64; #rank] }
     }
 
     /// Helper for Ops that need to process a shape as a tensor on device

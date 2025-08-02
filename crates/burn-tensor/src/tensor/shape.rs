@@ -48,6 +48,22 @@ impl<const D: usize> From<[usize; D]> for Shape {
     }
 }
 
+impl<const D: usize> From<[i64; D]> for Shape {
+    fn from(dims: [i64; D]) -> Self {
+        Shape {
+            dims: dims.into_iter().map(|d| d as usize).collect(),
+        }
+    }
+}
+
+impl<const D: usize> From<[i32; D]> for Shape {
+    fn from(dims: [i32; D]) -> Self {
+        Shape {
+            dims: dims.into_iter().map(|d| d as usize).collect(),
+        }
+    }
+}
+
 impl From<&[usize]> for Shape {
     fn from(dims: &[usize]) -> Self {
         Shape { dims: dims.into() }
