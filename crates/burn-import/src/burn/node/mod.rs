@@ -2,6 +2,7 @@ mod base;
 
 pub(crate) mod argmax;
 pub(crate) mod argmin;
+pub(crate) mod attention;
 pub(crate) mod avg_pool1d;
 pub(crate) mod avg_pool2d;
 pub(crate) mod batch_norm;

@@ -1,15 +1,16 @@
+use crate::components::{InputTrain, LearnerComponentTypes, OutputTrain};
 use crate::{TrainOutput, TrainStep};
+use burn_core::data::dataloader::DataLoaderIterator;
 use burn_core::data::dataloader::Progress;
-use burn_core::{
-    data::dataloader::DataLoaderIterator, module::AutodiffModule, tensor::backend::AutodiffBackend,
-};
+use burn_core::module::Module;
+use burn_core::prelude::Backend;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
 
 /// Multi devices train step.
-pub struct MultiDevicesTrainStep<B: AutodiffBackend, M, TI, TO> {
-    workers: Vec<Worker<B, M, TI>>,
-    receiver: Receiver<TrainOutput<TO>>,
+pub struct MultiDevicesTrainStep<LC: LearnerComponentTypes> {
+    workers: Vec<Worker<LC>>,
+    receiver: Receiver<TrainOutput<OutputTrain<LC>>>,
 }
 
 struct Message<M, TI> {
@@ -17,17 +18,13 @@ struct Message<M, TI> {
     model: M,
 }
 
-struct Worker<B: AutodiffBackend, M, TI> {
-    sender_input: Sender<Message<M, TI>>,
-    device: B::Device,
+struct Worker<LC: LearnerComponentTypes> {
+    sender_input: Sender<Message<LC::Model, InputTrain<LC>>>,
+    device: <LC::Backend as Backend>::Device,
 }
 
-impl<B, M, TI> Worker<B, M, TI>
-where
-    B: AutodiffBackend,
-    M: AutodiffModule<B>,
-{
-    fn register(&self, item: TI, model: &M) {
+impl<LC: LearnerComponentTypes> Worker<LC> {
+    fn register(&self, item: InputTrain<LC>, model: &LC::Model) {
         let message = Message {
             item,
             model: model.clone(),
@@ -35,15 +32,11 @@ where
         self.sender_input.send(message).unwrap();
     }
 
-    fn start<TO>(
+    fn start(
         &self,
-        sender_output: Sender<TrainOutput<TO>>,
-        receiver_input: Receiver<Message<M, TI>>,
-    ) where
-        TI: Send + 'static,
-        TO: Send + 'static,
-        M: TrainStep<TI, TO> + Send + 'static,
-    {
+        sender_output: Sender<TrainOutput<OutputTrain<LC>>>,
+        receiver_input: Receiver<Message<LC::Model, InputTrain<LC>>>,
+    ) {
         let device = self.device.clone();
 
         spawn(move || {
@@ -65,13 +58,7 @@ where
     }
 }
 
-impl<B, M, TI, TO> MultiDevicesTrainStep<B, M, TI, TO>
-where
-    B: AutodiffBackend,
-    M: AutodiffModule<B> + TrainStep<TI, TO> + Send + Clone + 'static,
-    TI: Send + 'static,
-    TO: Send + 'static,
-{
+impl<LC: LearnerComponentTypes> MultiDevicesTrainStep<LC> {
     /// Create a new multi devices train step.
     ///
     /// # Arguments
@@ -81,10 +68,7 @@ where
     /// # Returns
     ///
     /// MultiDevicesTrainStep instance.
-    pub fn new(devices: &[B::Device]) -> Self
-    where
-        TI: Send + 'static,
-    {
+    pub fn new(devices: &[<LC::Backend as Backend>::Device]) -> Self {
         let (sender_output, receiver_output) = std::sync::mpsc::channel();
         let workers = devices
             .iter()
@@ -118,9 +102,9 @@ where
     /// Outputs.
     pub fn step<'a>(
         &self,
-        dataloaders: &mut [Box<dyn DataLoaderIterator<TI> + 'a>],
-        model: &M,
-    ) -> (Vec<TrainOutput<TO>>, Progress) {
+        dataloaders: &mut [Box<dyn DataLoaderIterator<InputTrain<LC>> + 'a>],
+        model: &LC::Model,
+    ) -> (Vec<TrainOutput<OutputTrain<LC>>>, Progress) {
         let mut num_send = 0;
 
         let mut items_total = 0;

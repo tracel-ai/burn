@@ -271,6 +271,12 @@ where
         Tensor::new(K::transpose(self.primitive))
     }
 
+    /// Alias for `transpose`.
+    #[inline(always)]
+    pub fn t(self) -> Tensor<B, D, K> {
+        self.transpose()
+    }
+
     /// Swaps two dimensions of a tensor.
     ///
     /// # Arguments
@@ -2283,26 +2289,6 @@ where
     }
 }
 
-/// Transpose marker (zero-size type). Used to sugar the transpose of a tensor, e.g.
-/// ```rust
-/// use burn_tensor::backend::Backend;
-/// use burn_tensor::{Tensor, T};
-///
-/// fn example<B: Backend>() {
-///     let device = Default::default();
-///     let tensor = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
-///     let transposed = tensor^T;
-/// }
-/// ```
-pub struct T;
-
-impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
-    type Output = Self;
-    fn bitxor(self, _: T) -> Self::Output {
-        self.transpose()
-    }
-}
-
 /// Trait that list all operations that can be applied on all tensors.
 ///
 /// # Warnings
@@ -2876,14 +2862,14 @@ impl<B: Backend> BasicOps<B> for Float {
 
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
         match data.dtype {
-            DType::QFloat(_strategy) => TensorPrimitive::QFloat(B::q_from_data(data, device)),
+            DType::QFloat(_scheme) => TensorPrimitive::QFloat(B::q_from_data(data, device)),
             _ => TensorPrimitive::Float(B::float_from_data(data.convert::<B::FloatElem>(), device)),
         }
     }
 
     fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
         match dtype {
-            DType::QFloat(_strategy) => {
+            DType::QFloat(_scheme) => {
                 TensorPrimitive::QFloat(B::q_from_data(data.convert_dtype(dtype), device))
             }
             _ if dtype.is_float() => {

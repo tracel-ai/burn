@@ -1,3 +1,5 @@
+use core::cmp::Ordering;
+
 /// The device id.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, new)]
 pub struct DeviceId {
@@ -16,5 +18,20 @@ pub trait DeviceOps: Clone + Default + PartialEq + Send + Sync + core::fmt::Debu
 impl core::fmt::Display for DeviceId {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_fmt(format_args!("{self:?}"))
+    }
+}
+
+impl Ord for DeviceId {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.type_id.cmp(&other.type_id) {
+            Ordering::Equal => self.index_id.cmp(&other.index_id),
+            other => other,
+        }
+    }
+}
+
+impl PartialOrd for DeviceId {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }

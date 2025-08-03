@@ -173,6 +173,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.to_data()`                          | N/A                                                                       |
 | `tensor.to_device(device)`                  | `tensor.to(device)`                                                       |
 | `tensor.transpose()`                        | `tensor.T`                                                                |
+| `tensor.t()`                                | `tensor.T`                                                                |
 | `tensor.unsqueeze()`                        | `tensor.unsqueeze(0)`                                                     |
 | `tensor.unsqueeze_dim(dim)`                 | `tensor.unsqueeze(dim)`                                                   |
 | `tensor.unsqueeze_dims(dims)`               | N/A                                                                       |
