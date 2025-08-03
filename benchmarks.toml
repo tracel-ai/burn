@@ -28,3 +28,4 @@ github_workflow = "benchmarks.yml"
 backends = ["cuda-fusion"]
 benches = ["matmul"]
 dtypes = ["f16"]
+
