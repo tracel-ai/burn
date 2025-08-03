@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Tensor, TensorPrimitive, backend::Backend};
+use crate::{Shape, Tensor, TensorMetadata, TensorPrimitive, backend::Backend};
 
 use super::{
     Calibration, CalibrationRange, QuantizationParameters, QuantizationParametersPrimitive,
@@ -13,8 +13,11 @@ pub struct QuantScheme {
     pub level: QuantLevel,
     /// Quantization mode (e.g., symmetric).
     pub mode: QuantMode,
-    /// Data type used for storing quantized values (e.g., QInt8).
+    /// The logical data type of quantized input values (e.g., QInt8). This defines how values
+    /// are interpreted during computation, independent of how they're stored (`q_store_type`).
     pub q_type: QuantInputType,
+    /// Data type used for storing quantized values.
+    pub q_store_type: QuantStoreType,
     /// Precision used for accumulating intermediate values (e.g., during matmul).
     pub acc_precision: QuantAccPrecision,
     /// Whether to propagate quantization to outputs or return unquantized results.
@@ -27,6 +30,7 @@ impl Default for QuantScheme {
             level: QuantLevel::Tensor,
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
+            q_store_type: QuantStoreType::U32,
             acc_precision: QuantAccPrecision::Full,
             propagation: QuantPropagation::Inhibit,
         }
@@ -52,6 +56,12 @@ impl QuantScheme {
         self
     }
 
+    /// Set the data type used to store quantized values.
+    pub fn set_q_store_type(mut self, q_store_type: QuantStoreType) -> Self {
+        self.q_store_type = q_store_type;
+        self
+    }
+
     /// Set the accumulation precision used during computations.
     pub fn set_acc_precision(mut self, acc_precision: QuantAccPrecision) -> Self {
         self.acc_precision = acc_precision;
@@ -63,12 +73,30 @@ impl QuantScheme {
         self.propagation = propagation;
         self
     }
+
+    /// Returns the size of the quantization input type in bits.
+    pub fn bits_type(&self) -> usize {
+        match self.q_type {
+            QuantInputType::QInt8 => 8,
+        }
+    }
+
+    /// Returns the size of the quantization storage type in bits.
+    pub fn bits_stored(&self) -> usize {
+        match self.q_store_type {
+            QuantStoreType::Native => self.bits_type(),
+            QuantStoreType::U32 => 32,
+            // QuantStoreType::U8 => 8,
+        }
+    }
 }
 /// Level or granularity of quantization.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum QuantLevel {
     /// Quantize the whole tensor using a single tensor.
     Tensor,
+    /// Quantize a tensor using multiple 1D linear blocks.
+    Block(usize),
 }
 
 /// Data type used to represent quantized values.
@@ -76,6 +104,17 @@ pub enum QuantLevel {
 pub enum QuantInputType {
     /// 8-bit signed integer.
     QInt8,
+}
+
+/// Data type used to stored quantized values.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum QuantStoreType {
+    /// Native quantization doesn't require packing and unpacking.
+    Native,
+    /// Store packed quantized values in a 4-byte unsigned integer.
+    U32,
+    // /// Store packed quantized values in a 8-bit unsigned integer.
+    // U8,
 }
 
 /// Strategy used to quantize values.
@@ -133,6 +172,27 @@ impl QuantScheme {
         match calibration {
             Calibration::MinMax => match self.level {
                 QuantLevel::Tensor => (B::float_min(tensor.clone()), B::float_max(tensor)),
+                QuantLevel::Block(block_size) => {
+                    let shape = tensor.shape();
+                    let numel = shape.num_elements();
+
+                    assert_eq!(
+                        numel % block_size,
+                        0,
+                        "Tensor {shape:?} must be evenly divisible by block size {block_size}"
+                    );
+
+                    let num_blocks = numel / block_size;
+
+                    let blocks = B::float_reshape(tensor, Shape::new([num_blocks, block_size]));
+                    let blocks_min = B::float_reshape(
+                        B::float_min_dim(blocks.clone(), 1),
+                        Shape::new([num_blocks]),
+                    );
+                    let blocks_max =
+                        B::float_reshape(B::float_max_dim(blocks, 1), Shape::new([num_blocks]));
+                    (blocks_min, blocks_max)
+                }
             },
         }
     }
@@ -144,7 +204,7 @@ impl QuantScheme {
     ) -> QuantizationParameters<B> {
         match self {
             QuantScheme {
-                level: QuantLevel::Tensor,
+                level: QuantLevel::Tensor | QuantLevel::Block(_),
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
                 ..

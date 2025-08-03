@@ -10,13 +10,13 @@ pub fn start() {
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "ndarray")]{
-            burn::server::start::<burn::backend::NdArray>(Default::default(), port);
+            burn::server::start_websocket::<burn::backend::NdArray>(Default::default(), port);
         } else if #[cfg(feature = "cuda")]{
-            burn::server::start::<burn::backend::Cuda>(Default::default(), port);
+            burn::server::start_websocket::<burn::backend::Cuda>(Default::default(), port);
         } else if #[cfg(feature = "webgpu")] {
-            burn::server::start::<burn::backend::WebGpu>(Default::default(), port);
+            burn::server::start_websocket::<burn::backend::WebGpu>(Default::default(), port);
         } else if #[cfg(feature = "vulkan")] {
-            burn::server::start::<burn::backend::Vulkan>(Default::default(), port);
+            burn::server::start_websocket::<burn::backend::Vulkan>(Default::default(), port);
         } else {
             panic!("No backend selected, can't start server on port {port}");
         }

@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use burn_common::id::{IdGenerator, StreamId};
+use burn_communication::{Address, data_service::TensorTransferId};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::TensorData;
 use serde::{Deserialize, Serialize};
@@ -45,8 +46,8 @@ pub enum Task {
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TensorRemote {
-    pub id: TensorId,
-    pub address: String,
+    pub transfer_id: TensorTransferId,
+    pub address: Address,
 }
 
 #[allow(missing_docs)]
@@ -55,7 +56,11 @@ pub enum ComputeTask {
     RegisterOperation(Box<OperationIr>),
     RegisterTensor(TensorId, TensorData),
     RegisterTensorRemote(TensorRemote, TensorId),
-    ExposeTensorRemote { tensor: TensorIr, count: u32 },
+    ExposeTensorRemote {
+        tensor: TensorIr,
+        count: u32,
+        transfer_id: TensorTransferId,
+    },
     ReadTensor(TensorIr),
     SyncBackend,
 }
