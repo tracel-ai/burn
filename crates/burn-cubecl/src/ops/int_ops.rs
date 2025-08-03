@@ -357,6 +357,36 @@ where
         kernel::flip::<R, I, BT>(tensor, axes)
     }
 
+    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
+        match (tensor.dtype, dtype) {
+            (Dtype::I8, IntDType::I8)
+            | (Dtype::I16, IntDType::I16)
+            | (Dtype::I32, IntDType::I32)
+            | (Dtype::I64, IntDType::I64)
+            | (Dtype::U32, IntDType::U32) => tensor,
+            (Dtype::I64, IntDType::I32) => kernel::cast::<R, i64, i32>(tensor),
+            (Dtype::I64, IntDType::I16) => kernel::cast::<R, i64, i16>(tensor),
+            (Dtype::I64, IntDType::I8) => kernel::cast::<R, i64, i8>(tensor),
+            (Dtype::I32, IntDType::I64) => kernel::cast::<R, i32, i64>(tensor),
+            (Dtype::I32, IntDType::I16) => kernel::cast::<R, i32, i16>(tensor),
+            (Dtype::I32, IntDType::I8) => kernel::cast::<R, i32, i8>(tensor),
+            (Dtype::I16, IntDType::I64) => kernel::cast::<R, i16, i64>(tensor),
+            (Dtype::I16, IntDType::I32) => kernel::cast::<R, i16, i32>(tensor),
+            (Dtype::I16, IntDType::I8) => kernel::cast::<R, i16, i8>(tensor),
+            (Dtype::I8, IntDType::I64) => kernel::cast::<R, i8, i64>(tensor),
+            (Dtype::I8, IntDType::I32) => kernel::cast::<R, i8, i32>(tensor),
+            (Dtype::I8, IntDType::I16) => kernel::cast::<R, i8, i16>(tensor),
+            (Dtype::I64, IntDType::U32) => kernel::cast::<R, i64, u32>(tensor),
+            (Dtype::I32, IntDType::U32) => kernel::cast::<R, i32, u32>(tensor),
+            (Dtype::I16, IntDType::U32) => kernel::cast::<R, i16, u32>(tensor),
+            (Dtype::I8, IntDType::U32) => kernel::cast::<R, i8, u32>(tensor),
+            (Dtype::U32, IntDType::I64) => kernel::cast::<R, u32, i64>(tensor),
+            (Dtype::U32, IntDType::I32) => kernel::cast::<R, u32, i32>(tensor),
+            (Dtype::U32, IntDType::I16) => kernel::cast::<R, u32, i16>(tensor),
+            (Dtype::U32, IntDType::I8) => kernel::cast::<R, u32, i8>(tensor),
+        }
+    }
+
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         numeric::bitwise_and::<R, I>(lhs, rhs)
     }

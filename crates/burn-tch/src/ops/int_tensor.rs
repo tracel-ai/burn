@@ -1,9 +1,7 @@
 use std::ops::Range;
 
 use burn_tensor::{
-    Distribution, Shape, TensorData, TensorMetadata,
-    backend::Backend,
-    ops::{IntTensor, IntTensorOps},
+    backend::Backend, ops::{IntTensor, IntTensorOps}, DType, Distribution, IntDType, Shape, TensorData, TensorMetadata
 };
 
 use crate::{LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor, element::TchElement};
@@ -398,6 +396,23 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
 
     fn int_argsort(tensor: IntTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
         TchOps::argsort(tensor, dim, descending)
+    }
+
+    fn int_cast(tensor: TchTensor, dtype: IntDType) -> TchTensor {
+        let kind = match dtype {
+            IntDType::I64 => tch::Kind::Int64,
+            IntDType::I32 => tch::Kind::Int,
+            IntDType::I16 => tch::Kind::Int16,
+            IntDType::I8 => tch::Kind::Int8,
+            IntDType::U8 => tch::Kind::Uint8,
+            _ => unimplemented!("torch doesn't support this dtype: {:?}", dtype),
+        };
+
+        if tensor.tensor.kind() == kind {
+            tensor
+        } else {
+            TchTensor::new(tensor.tensor.to_kind(kind))
+        }
     }
 
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
