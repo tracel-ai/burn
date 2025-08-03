@@ -729,12 +729,12 @@ fn dequantize<C: Float>(
     #[comptime] config: &FuseBlockConfig,
 ) {
     // TODO: Not hardcode to u32.
-    let input = read_factored_input::<u32>(inputs, locals, write_pos, input, config);
+    let input = read_quantized::<u32>(inputs, locals, write_pos, input, config, scheme);
     let pos = comptime!(match scales {
         Arg::Input(pos, ..) => pos,
         _ => unreachable!(""),
     });
-    let scales = read_input_window::<f32>(inputs, pos, 0u32, 10000u32);
+    let scales = input_as_slice::<f32>(inputs, pos);
     let result = dequantize_packed_value_at::<C, u32>(write_pos, input, scales, scheme);
 
     write::<C>(inputs, outputs, locals, write_pos, result, output, config);
