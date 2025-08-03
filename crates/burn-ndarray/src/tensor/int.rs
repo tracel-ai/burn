@@ -104,7 +104,7 @@ macro_rules! execute_with_int_dtype {
             ($crate::NdArrayTensorInt::I64(lhs), $crate::NdArrayTensorInt::I64(rhs)) => {
                 $op(lhs, rhs)
             }
-            ($crate::NdArrayTensorInt::U8(lhs), $crate::NdArrayTensorInt::U8(rhs)) {
+            ($crate::NdArrayTensorInt::U8(lhs), $crate::NdArrayTensorInt::U8(rhs)) => {
                 $op(lhs, rhs)
             }
             _ => panic!(

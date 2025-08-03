@@ -1,4 +1,4 @@
-use crate::NdArrayTensor;
+use crate::{NdArrayTensor, QuantElement};
 use burn_tensor::quantization::{
     QParams, QTensorPrimitive, QuantInputType, QuantLevel, QuantMode, QuantScheme,
     QuantizationStrategy, SymmetricQuantization,

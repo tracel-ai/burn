@@ -17,7 +17,10 @@ mod tests {
     use burn_tensor::{
         Distribution, Shape, TensorData,
         ops::{FloatTensorOps, QTensorOps},
-        quantization::QuantizationParametersPrimitive,
+        quantization::{
+            QTensorPrimitive, QuantScheme, QuantizationParametersPrimitive, QuantizationStrategy,
+            SymmetricQuantization,
+        },
     };
 
     #[test]
