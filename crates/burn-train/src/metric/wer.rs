@@ -4,30 +4,15 @@ use crate::metric::{Metric, Numeric};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
 use core::marker::PhantomData;
+use super::cer::edit_distance;
 
 // The edit_distance function remains the same as it calculates the Levenshtein distance
 // between two sequences. The "units" within the sequences will now be treated as words.
-fn edit_distance(a: &[i32], b: &[i32]) -> usize {
-    let mut prev = (0..=b.len()).collect::<Vec<_>>();
-    let mut curr = vec![0; b.len() + 1];
-
-    for (i, &ca) in a.iter().enumerate() {
-        curr[0] = i + 1;
-        for (j, &cb) in b.iter().enumerate() {
-            curr[j + 1] = if ca == cb {
-                prev[j] // match
-            } else {
-                1 + prev[j].min(prev[j + 1]).min(curr[j]) // subst/ins/del
-            };
-        }
-        core::mem::swap(&mut prev, &mut curr);
-    }
-    prev[b.len()]
-}
-
-/// The word error rate metric.
+/// The word error rate (WER) metric, similar to the CER, is defined as the edit distance (e.g. Levenshtein distance) between the predicted
+/// and reference word sequences, divided by the total number of words in the reference. Here, the "units" within the sequences are words.
+///
 #[derive(Default)]
-pub struct WerMetric<B: Backend> {
+pub struct WordErrorRate<B: Backend> {
     state: NumericMetricState,
     pad_token: Option<usize>,
     _b: PhantomData<B>,
@@ -42,7 +27,7 @@ pub struct WerInput<B: Backend> {
     pub targets: Tensor<B, 2, Int>,
 }
 
-impl<B: Backend> WerMetric<B> {
+impl<B: Backend> WordErrorRate<B> {
     /// Creates the metric.
     pub fn new() -> Self {
         Self::default()
@@ -55,7 +40,7 @@ impl<B: Backend> WerMetric<B> {
     }
 }
 
-impl<B: Backend> Metric for WerMetric<B> {
+impl<B: Backend> Metric for WordErrorRate<B> {
     type Input = WerInput<B>;
 
     fn update(&mut self, input: &WerInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
@@ -133,7 +118,7 @@ impl<B: Backend> Metric for WerMetric<B> {
 }
 
 /// The [word error rate metric](WerMetric) implementation.
-impl<B: Backend> Numeric for WerMetric<B> {
+impl<B: Backend> Numeric for WordErrorRate<B> {
     fn value(&self) -> f64 {
         self.state.value()
     }
@@ -148,7 +133,7 @@ mod tests {
     #[test]
     fn test_wer_without_padding() {
         let device = Default::default();
-        let mut metric = WerMetric::<TestBackend>::new();
+        let mut metric = WordErrorRate::<TestBackend>::new();
 
         // Batch size = 2, sequence length = 2
         let preds = Tensor::from_data([[1, 2], [3, 4]], &device);
@@ -163,7 +148,7 @@ mod tests {
     #[test]
     fn test_wer_without_padding_two_errors() {
         let device = Default::default();
-        let mut metric = WerMetric::<TestBackend>::new();
+        let mut metric = WordErrorRate::<TestBackend>::new();
 
         // One substitution in each sequence.
         // Sequence 1: target [1, 3], pred [1, 2] -> 1 error (3 vs 2)
@@ -182,7 +167,7 @@ mod tests {
     fn test_wer_with_padding() {
         let device = Default::default();
         let pad = 9_i64;
-        let mut metric = WerMetric::<TestBackend>::new().with_pad_token(pad as usize);
+        let mut metric = WordErrorRate::<TestBackend>::new().with_pad_token(pad as usize);
 
         // Each row has three columns, last one is the pad token.
         // Target sequences after removing pad: [1, 3] and [3, 4] (total length 4)
@@ -198,7 +183,7 @@ mod tests {
     #[test]
     fn test_clear_resets_state() {
         let device = Default::default();
-        let mut metric = WerMetric::<TestBackend>::new();
+        let mut metric = WordErrorRate::<TestBackend>::new();
 
         let preds = Tensor::from_data([[1, 2]], &device);
         let tgts = Tensor::from_data([[1, 3]], &device); // one error

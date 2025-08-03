@@ -5,27 +5,38 @@ use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
 use core::marker::PhantomData;
 
-fn edit_distance(a: &[i32], b: &[i32]) -> usize {
-    let mut prev = (0..=b.len()).collect::<Vec<_>>();
-    let mut curr = vec![0; b.len() + 1];
+/// Computes the edit distance (Levenshtein distance) between two sequences of integers.
+///
+/// The edit distance is defined as the minimum number of single-element edits (insertions,
+/// deletions, or substitutions) required to change one sequence into the other. This
+/// implementation is optimized for space, using only two rows of the dynamic programming table.
+/// 
+pub fn edit_distance(reference: &[i32], prediction: &[i32]) -> usize {
+    let mut prev = (0..=prediction.len()).collect::<Vec<_>>();
+    let mut curr = vec![0; prediction.len() + 1];
 
-    for (i, &ca) in a.iter().enumerate() {
+    for (i, &r) in reference.iter().enumerate() {
         curr[0] = i + 1;
-        for (j, &cb) in b.iter().enumerate() {
-            curr[j + 1] = if ca == cb {
-                prev[j] // match
+        for (j, &p) in prediction.iter().enumerate() {
+            curr[j + 1] = if r == p {
+                prev[j] // no operation needed
             } else {
-                1 + prev[j].min(prev[j + 1]).min(curr[j]) // subst/ins/del
+                1 + prev[j].min(prev[j + 1]).min(curr[j]) // substitution, insertion, deletion
             };
         }
         core::mem::swap(&mut prev, &mut curr);
     }
-    prev[b.len()]
+    prev[prediction.len()]
 }
 
-/// The character error rate metric.
+
+/// Character error rate (CER) is defined as the edit distance (e.g. Levenshtein distance) between the predicted
+/// and reference character sequences, divided by the total number of characters in the reference.
+/// This metric is commonly used in tasks such as speech recognition, OCR, or text generation
+/// to quantify how closely the predicted output matches the ground truth at a character level.
+///
 #[derive(Default)]
-pub struct CerMetric<B: Backend> {
+pub struct CharErrorRate<B: Backend> {
     state: NumericMetricState,
     pad_token: Option<usize>,
     _b: PhantomData<B>,
@@ -40,7 +51,7 @@ pub struct CerInput<B: Backend> {
     pub targets: Tensor<B, 2, Int>,
 }
 
-impl<B: Backend> CerMetric<B> {
+impl<B: Backend> CharErrorRate<B> {
     /// Creates the metric.
     pub fn new() -> Self {
         Self::default()
@@ -54,67 +65,60 @@ impl<B: Backend> CerMetric<B> {
 }
 
 /// The [character error rate metric](CerMetric) implementation.
-impl<B: Backend> Metric for CerMetric<B> {
+impl<B: Backend> Metric for CharErrorRate<B> {
     type Input = CerInput<B>;
 
     fn update(&mut self, input: &CerInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
-        let outputs = input.outputs.clone();
-        let targets = input.targets.clone();
+        let outputs = &input.outputs;
+        let targets = &input.targets;
         let [batch_size, seq_len] = targets.dims();
-
-        let outputs_data = outputs
-            .to_data()
-            .to_vec::<i64>()
-            .expect("Failed to convert outputs to Vec");
-        let targets_data = targets
-            .to_data()
-            .to_vec::<i64>()
-            .expect("Failed to convert targets to Vec");
-
-        let pad_token = self.pad_token;
-
-        let mut total_edit_distance = 0.0;
-        let mut total_target_length = 0.0;
-
-        // Process each sequence in the batch
-        for i in 0..batch_size {
-            let start = i * seq_len;
-            let end = (i + 1) * seq_len;
-            let output_seq = &outputs_data[start..end];
-            let target_seq = &targets_data[start..end];
-
-            // FIX 2 & 3: Handle padding and map elements to i32.
-            let output_seq_no_pad = match pad_token {
-                Some(pad) => output_seq
-                    .iter()
-                    .take_while(|&&x| x != pad as i64)
-                    .map(|&x| x as i32)
-                    .collect::<Vec<_>>(),
-                None => output_seq.iter().map(|&x| x as i32).collect(),
-            };
-
-            let target_seq_no_pad = match pad_token {
-                Some(pad) => target_seq
-                    .iter()
-                    .take_while(|&&x| x != pad as i64)
-                    .map(|&x| x as i32)
-                    .collect::<Vec<_>>(),
-                None => target_seq.iter().map(|&x| x as i32).collect(),
-            };
-
-            // Now this call is valid.
-            let ed = edit_distance(&target_seq_no_pad, &output_seq_no_pad);
-            total_edit_distance += ed as f64;
-            total_target_length += target_seq_no_pad.len() as f64;
-        }
-
-        // Compute current CER value as a percentage
+    
+        let (output_lengths, target_lengths) = if let Some(pad) = self.pad_token {
+            // Create boolean masks for non-padding tokens.
+            let output_mask = outputs.clone().not_equal_elem(pad as i64);
+            let target_mask = targets.clone().not_equal_elem(pad as i64);
+    
+            let output_lengths_tensor = output_mask.int().sum_dim(1);
+            let target_lengths_tensor = target_mask.int().sum_dim(1);
+    
+            (
+                output_lengths_tensor.to_data().to_vec::<i64>().unwrap(),
+                target_lengths_tensor.to_data().to_vec::<i64>().unwrap(),
+            )
+        } else {
+            // If there's no padding, all sequences have the full length.
+            (vec![seq_len as i64; batch_size], vec![seq_len as i64; batch_size])
+        };
+    
+        let outputs_data = outputs.to_data().to_vec::<i64>().unwrap();
+        let targets_data = targets.to_data().to_vec::<i64>().unwrap();
+    
+        let total_edit_distance: usize = (0..batch_size)
+            .into_iter()
+            .map(|i| {
+                let start = i * seq_len;
+    
+                // Get pre-calculated lengths for the current sequence.
+                let output_len = output_lengths[i] as usize;
+                let target_len = target_lengths[i] as usize;
+    
+                let output_seq_slice = &outputs_data[start..(start + output_len)];
+                let target_seq_slice = &targets_data[start..(start + target_len)];
+                let output_seq: Vec<i32> = output_seq_slice.iter().map(|&x| x as i32).collect();
+                let target_seq: Vec<i32> = target_seq_slice.iter().map(|&x| x as i32).collect();
+    
+                edit_distance(&target_seq, &output_seq)
+            })
+            .sum();
+    
+        let total_target_length = target_lengths.iter().map(|&x| x as f64).sum::<f64>();
+    
         let value = if total_target_length > 0.0 {
-            100.0 * total_edit_distance / total_target_length
+            100.0 * total_edit_distance as f64 / total_target_length
         } else {
             0.0
         };
-
+    
         self.state.update(
             value,
             batch_size,
@@ -132,7 +136,7 @@ impl<B: Backend> Metric for CerMetric<B> {
 }
 
 /// The [character error rate metric](CerMetric) implementation.
-impl<B: Backend> Numeric for CerMetric<B> {
+impl<B: Backend> Numeric for CharErrorRate<B> {
     fn value(&self) -> f64 {
         self.state.value()
     }
@@ -147,7 +151,7 @@ mod tests {
     #[test]
     fn test_cer_without_padding() {
         let device = Default::default();
-        let mut metric = CerMetric::<TestBackend>::new();
+        let mut metric = CharErrorRate::<TestBackend>::new();
 
         // Batch size = 2, sequence length = 2
         let preds = Tensor::from_data([[1, 2], [3, 4]], &device);
@@ -162,7 +166,7 @@ mod tests {
     #[test]
     fn test_cer_without_padding_two_errors() {
         let device = Default::default();
-        let mut metric = CerMetric::<TestBackend>::new();
+        let mut metric = CharErrorRate::<TestBackend>::new();
 
         // One substitution in each sequence.
         let preds = Tensor::from_data([[1, 2], [3, 5]], &device);
@@ -179,7 +183,7 @@ mod tests {
     fn test_cer_with_padding() {
         let device = Default::default();
         let pad = 9_i64;
-        let mut metric = CerMetric::<TestBackend>::new().with_pad_token(pad as usize);
+        let mut metric = CharErrorRate::<TestBackend>::new().with_pad_token(pad as usize);
 
         // Each row has three columns, last one is the pad token.
         let preds = Tensor::from_data([[1, 2, pad], [3, 5, pad]], &device);
@@ -193,7 +197,7 @@ mod tests {
     #[test]
     fn test_clear_resets_state() {
         let device = Default::default();
-        let mut metric = CerMetric::<TestBackend>::new();
+        let mut metric = CharErrorRate::<TestBackend>::new();
 
         let preds = Tensor::from_data([[1, 2]], &device);
         let tgts = Tensor::from_data([[1, 3]], &device); // one error
