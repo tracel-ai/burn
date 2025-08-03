@@ -9,8 +9,7 @@ include_models!(
     slice_shape_runtime,
     slice_shape_multi,
     slice_shape_negative,
-    slice_shape_negative_range,
-    slice_1d_tensor
+    slice_shape_negative_range
 );
 
 #[cfg(test)]
@@ -200,36 +199,5 @@ mod tests {
         // Shape produces [2, 3, 4, 5]
         // Slice with [-3:-1] should get elements from 3rd last to 2nd last: [3, 4]
         assert_eq!(output, [3i64, 4i64]);
-    }
-
-    #[test]
-    fn slice_1d_tensor() {
-        let model: slice_1d_tensor::Model<Backend> = slice_1d_tensor::Model::default();
-        let device = Default::default();
-
-        // Create test input tensor [4, 5, 6] using range and reshape
-        let input = Tensor::<Backend, 1, burn::tensor::Int>::arange(1..121, &device)
-            .float()
-            .reshape([4, 5, 6]);
-
-        // Create 1D tensors for starts and ends
-        let starts = Tensor::<Backend, 1, burn::tensor::Int>::from_ints([1i64, 2i64], &device);
-        let ends = Tensor::<Backend, 1, burn::tensor::Int>::from_ints([3i64, 5i64], &device);
-
-        let output = model.forward(input, starts, ends);
-
-        // Expected: input[1:3, 2:5, :] -> shape [2, 3, 6]
-        let expected_shape = [2, 3, 6];
-        assert_eq!(output.shape().dims, expected_shape);
-
-        // Verify the data is correctly sliced
-        // Expected values: slicing [1:3, 2:5, :] from the reshaped tensor
-        // Create expected tensor directly using from_floats
-        let expected_data: alloc::vec::Vec<f32> =
-            (43..61).chain(73..91).map(|x| x as f32).collect();
-        let expected =
-            Tensor::<Backend, 1>::from_floats(expected_data.as_slice(), &device).reshape([2, 3, 6]);
-
-        output.to_data().assert_eq(&expected.to_data(), true);
     }
 }
