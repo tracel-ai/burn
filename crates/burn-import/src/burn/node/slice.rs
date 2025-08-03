@@ -343,30 +343,29 @@ impl SliceNode {
                 }
             }
             _ => {
-                // Runtime slicing - check if we have 1D tensor inputs
-                match (&self.starts, &self.ends) {
-                    (
-                        SliceParam::Runtime(Type::Tensor(start_t)),
-                        SliceParam::Runtime(Type::Tensor(end_t)),
-                    ) if start_t.rank == 1 && end_t.rank == 1 => {
+                // Check if we have 1D tensor inputs (not supported for shape slicing)
+                if let (
+                    SliceParam::Runtime(Type::Tensor(start_t)),
+                    SliceParam::Runtime(Type::Tensor(end_t)),
+                ) = (&self.starts, &self.ends)
+                {
+                    if start_t.rank == 1 && end_t.rank == 1 {
                         panic!(
                             "1D tensor slicing is not supported for shape inputs - shapes must be sliced with scalar or static indices"
                         );
                     }
-                    _ => {
-                        // Runtime slicing with scalars - we still know the output size from type inference
-                        // and we know the shape length at compile time
-                        let (start_expr, end_expr) = self.get_slice_range_expressions();
-                        let shape_len_lit = Literal::i64_suffixed(shape.rank as i64);
+                }
 
-                        quote! {
-                            let _start_val = #start_expr as i64;
-                            let _end_val = #end_expr as i64;
-                            let _start = if _start_val < 0 { (#shape_len_lit + _start_val) as usize } else { _start_val as usize };
-                            let _end = if _end_val < 0 { (#shape_len_lit + _end_val) as usize } else { _end_val as usize };
-                            let #output: [i64; #output_rank_lit] = #shape_name[_start.._end].try_into().unwrap();
-                        }
-                    }
+                // Runtime slicing with scalars
+                let (start_expr, end_expr) = self.get_slice_range_expressions();
+                let shape_len_lit = Literal::i64_suffixed(shape.rank as i64);
+
+                quote! {
+                    let _start_val = #start_expr as i64;
+                    let _end_val = #end_expr as i64;
+                    let _start = if _start_val < 0 { (#shape_len_lit + _start_val) as usize } else { _start_val as usize };
+                    let _end = if _end_val < 0 { (#shape_len_lit + _end_val) as usize } else { _end_val as usize };
+                    let #output: [i64; #output_rank_lit] = #shape_name[_start.._end].try_into().unwrap();
                 }
             }
         }
