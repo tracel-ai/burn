@@ -38,7 +38,7 @@ pub fn squeeze_update_output(node: &mut Node) {
         node.attrs.get("axes").cloned().map(|v| v.into_i64s())
     };
 
-    // If axes is None, PyTorch squeezes all dimensions of size 1
+    // If axes is None, ONNX spec squeezes all dimensions of size 1
     // For scalar inputs or Shape inputs, this is handled differently
     let axes = axes.unwrap_or_else(Vec::new);
     log::debug!("Squeeze axes for {}: {:?}", node.name, axes);
@@ -47,7 +47,7 @@ pub fn squeeze_update_output(node: &mut Node) {
         ArgType::Tensor(tensor) => {
             log::debug!("Squeeze input rank for {}: {}", node.name, tensor.rank);
             let output_rank = if axes.is_empty() {
-                // When axes is empty, PyTorch squeezes all dimensions of size 1
+                // When axes is empty, ONNX spec squeezes all dimensions of size 1
                 // Without static shape info, we can't know which dims are size 1
                 // The output type will be corrected later if ONNX provides it
                 // TODO: Infer rank from output tensor shape based on static shape inference
