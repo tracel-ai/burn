@@ -14,7 +14,7 @@ use burn::{
     record::{CompactRecorder, DefaultRecorder, Recorder},
     tensor::backend::AutodiffBackend,
     train::{
-        LearnerBuilder,
+        LearnerBuilder, LearningStrategy,
         metric::{AccuracyMetric, CudaMetric, LearningRateMetric, LossMetric},
     },
 };
@@ -77,7 +77,7 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
         .metric_valid(LossMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .devices(vec![device])
+        .learning_strategy(LearningStrategy::SingleDevice(device))
         .grads_accumulation(accum)
         .num_epochs(config.num_epochs)
         .summary()

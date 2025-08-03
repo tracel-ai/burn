@@ -161,8 +161,7 @@ mod tests {
             assert_eq!(
                 topology.parents.get(child),
                 Some(parent),
-                "wrong parent for {:?}",
-                child
+                "wrong parent for {child:?}"
             );
         }
         // There should be exactly 6 entries in parents
@@ -190,8 +189,7 @@ mod tests {
             assert_eq!(
                 topology.children.get(&leaf.into()),
                 Some(&Vec::new()),
-                "leaf {:?} should have no children",
-                leaf
+                "leaf {leaf:?} should have no children"
             );
         }
         // Ensure we have exactly 7 entries in children
