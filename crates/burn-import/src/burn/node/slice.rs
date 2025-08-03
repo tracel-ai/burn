@@ -361,11 +361,11 @@ impl SliceNode {
                 let shape_len_lit = Literal::i64_suffixed(shape.rank as i64);
 
                 quote! {
-                    let _start_val = #start_expr as i64;
-                    let _end_val = #end_expr as i64;
-                    let _start = if _start_val < 0 { (#shape_len_lit + _start_val) as usize } else { _start_val as usize };
-                    let _end = if _end_val < 0 { (#shape_len_lit + _end_val) as usize } else { _end_val as usize };
-                    let #output: [i64; #output_rank_lit] = #shape_name[_start.._end].try_into().unwrap();
+                    let start_val = #start_expr as i64;
+                    let end_val = #end_expr as i64;
+                    let start_idx = if start_val < 0 { (#shape_len_lit + start_val) as usize } else { start_val as usize };
+                    let end_idx = if end_val < 0 { (#shape_len_lit + end_val) as usize } else { end_val as usize };
+                    let #output: [i64; #output_rank_lit] = #shape_name[start_idx..end_idx].try_into().unwrap();
                 }
             }
         }
@@ -632,11 +632,11 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, shape1: [i64; 4], start: i64, end: i64) -> [i64; 2] {
-                    let _start_val = start as i64;
-                    let _end_val = end as i64;
-                    let _start = if _start_val < 0 { (4i64 + _start_val) as usize } else { _start_val as usize };
-                    let _end = if _end_val < 0 { (4i64 + _end_val) as usize } else { _end_val as usize };
-                    let shape2: [i64; 2] = shape1[_start.._end].try_into().unwrap();
+                    let start_val = start as i64;
+                    let end_val = end as i64;
+                    let start_idx = if start_val < 0 { (4i64 + start_val) as usize } else { start_val as usize };
+                    let end_idx = if end_val < 0 { (4i64 + end_val) as usize } else { end_val as usize };
+                    let shape2: [i64; 2] = shape1[start_idx..end_idx].try_into().unwrap();
                     shape2
                 }
             }
