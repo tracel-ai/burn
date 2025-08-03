@@ -35,6 +35,7 @@ pub struct FuseBlockBuilder {
     pub local_outputs: Vec<TensorId>,
 }
 
+#[derive(Debug)]
 pub enum QuantInput {
     AlreadyDequantized { local: Arg },
     Info { data: Arg, scales: Arg },
@@ -169,42 +170,33 @@ impl FuseBlockBuilder {
         &mut self,
         tensor: &TensorIr,
         resources: &mut FuseResources,
-        quant_out_dtype: DType,
     ) -> Option<QuantInput> {
         if resources.indexed.contains_key(&tensor.id) {
             return None;
         }
 
-        let precision = match quant_out_dtype.try_into() {
+        let precision = match tensor.dtype.try_into() {
             Ok(val) => val,
             Err(_) => return None,
         };
 
-        let precision_input = match precision {
-            FusePrecision::Bool => return None,
-            _ => match tensor.dtype {
-                DType::QFloat(quant_scheme) => match quant_scheme.q_type {
-                    QuantInputType::QInt8 => FusePrecision::I8,
-                },
-                _ => return None,
-            },
-        };
-
         let arg = match self.locals.get(precision, tensor.id) {
             Some(local) => {
+                println!("Hre");
                 resources.inputs.update(tensor);
                 QuantInput::AlreadyDequantized { local }
             }
             None => {
-                let new_input = resources.inputs.insert(precision_input, tensor.clone());
-                let q_index = new_input + 1;
-                let input = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
+                let (new_input, q_index) = resources.inputs.insert_quant(precision, tensor.clone());
+                let input = Arg::Input(new_input, precision, LayoutInfo::Unknown);
                 let scales = Arg::Input(q_index, FusePrecision::F32, LayoutInfo::Unknown);
 
-                QuantInput::Info {
+                let info = QuantInput::Info {
                     data: input,
                     scales,
-                }
+                };
+                println!("Info {info:?}");
+                info
             }
         };
 

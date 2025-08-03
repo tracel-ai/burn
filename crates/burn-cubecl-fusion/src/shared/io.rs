@@ -130,6 +130,25 @@ pub fn read<C: CubePrimitive>(
 }
 
 #[cube]
+pub fn read_factored_input<C: CubePrimitive>(
+    inputs: &GlobalArgs,
+    locals: &LocalArgs,
+    ref_pos: u32,
+    #[comptime] arg: Arg,
+    #[comptime] config: &FuseBlockConfig,
+) -> Line<C> {
+    match arg {
+        Arg::Input(pos, _precision, layout) => {
+            let global = inputs.tensors.index(pos);
+            // let line_size = global.tensor.line_size();
+
+            read_input(inputs, locals, pos, ref_pos, layout, config, None)
+        }
+        _ => panic!("Not supported"),
+    }
+}
+
+#[cube]
 pub fn read_scalar<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] arg: Arg) -> C {
     match arg {
         Arg::Scalar(pos, _precision) => {

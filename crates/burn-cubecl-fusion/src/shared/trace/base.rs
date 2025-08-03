@@ -12,7 +12,6 @@ use super::{
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
-use burn_tensor::DType;
 use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -237,14 +236,16 @@ pub struct RegisteredTensors {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum RegisterTensor {
     Normal(TensorIr, FusePrecision),
-    Quant(TensorIr),
+    QuantData(TensorIr),
+    QuantScales(TensorId),
 }
 
 impl RegisterTensor {
     pub fn as_normal_tensor(&self) -> Option<(&TensorIr, &FusePrecision)> {
         match self {
             RegisterTensor::Normal(tensor_ir, precision) => Some((tensor_ir, precision)),
-            RegisterTensor::Quant(_) => None,
+            RegisterTensor::QuantData(_) => None,
+            RegisterTensor::QuantScales(_) => None,
         }
     }
 }
@@ -264,7 +265,8 @@ impl RegisteredTensors {
     pub fn get_id(&self, index: usize) -> Option<TensorId> {
         self.tensors.get(index).map(|entry| match entry {
             RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id,
-            RegisterTensor::Quant(tensor_ir) => tensor_ir.id,
+            RegisterTensor::QuantData(tensor_ir) => tensor_ir.id,
+            RegisterTensor::QuantScales(tensor_id) => *tensor_id,
         })
     }
 
@@ -275,7 +277,8 @@ impl RegisteredTensors {
             .enumerate()
             .find(|(_pos, entry)| match entry {
                 RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor_id,
-                RegisterTensor::Quant(_) => false,
+                RegisterTensor::QuantData(_) => false,
+                RegisterTensor::QuantScales(_) => false,
             })
             .map(|(pos, _)| pos as u32)
     }
@@ -286,52 +289,64 @@ impl RegisteredTensors {
             .iter()
             .find(|entry| match entry {
                 RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor_id,
-                RegisterTensor::Quant(_) => false,
+                RegisterTensor::QuantData(_) => false,
+                RegisterTensor::QuantScales(_) => false,
             })
             .map(|entry| match entry {
                 RegisterTensor::Normal(tensor_ir, fuse_precision) => {
                     Some((tensor_ir, fuse_precision))
                 }
-                RegisterTensor::Quant(_) => None,
+                RegisterTensor::QuantData(_) => None,
+                RegisterTensor::QuantScales(_) => None,
             })
             .flatten()
+    }
+
+    pub fn insert_quant(&mut self, precision: FusePrecision, tensor: TensorIr) -> (u32, u32) {
+        if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
+            RegisterTensor::QuantData(tensor_ir) => tensor_ir == &tensor,
+            _ => false,
+        }) {
+            let val = old.0 as u32;
+            let scales = val + 1;
+            return (val, scales);
+        }
+
+        let scales = RegisterTensor::QuantScales(tensor.id);
+        let data = RegisterTensor::QuantData(tensor);
+        let pos_data = self.len();
+        self.tensors.push(data);
+
+        let pos_scales = self.len();
+        self.tensors.push(scales);
+
+        (pos_data as u32, pos_scales as u32)
     }
 
     pub fn insert(&mut self, precision: FusePrecision, tensor: TensorIr) -> u32 {
         if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
             RegisterTensor::Normal(tensor_ir, _) => tensor_ir == &tensor,
-            RegisterTensor::Quant(_) => false,
+            _ => false,
         }) {
             return old.0 as u32;
         }
 
-        let q_tensor = match tensor.dtype {
-            DType::QFloat(_) => Some(RegisterTensor::Quant(tensor.clone())),
-            _ => None,
-        };
         let value = RegisterTensor::Normal(tensor, precision);
         let pos = self.len();
 
         self.tensors.push(value);
 
-        match q_tensor {
-            Some(value) => {
-                let pos = self.len();
-                self.tensors.insert(pos, value);
-            }
-            None => {}
-        }
         pos as u32
     }
 
     pub fn update(&mut self, tensor: &TensorIr) {
         if let Some(entry) = self.tensors.iter_mut().find(|entry| match entry {
             RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor.id,
-            RegisterTensor::Quant(_) => false,
+            _ => false,
         }) {
             match entry {
                 RegisterTensor::Normal(tensor_ir, _) => tensor_ir.status = tensor.status,
-                RegisterTensor::Quant(_) => {}
+                _ => {}
             }
         }
     }

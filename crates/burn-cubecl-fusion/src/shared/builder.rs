@@ -312,7 +312,7 @@ impl FuseOptimizationBuilder {
                 }
 
                 self.builder.register(|build| {
-                    let qinput = build.input_quantized(&desc.input, desc.out.dtype)?;
+                    let qinput = build.input_quantized(&desc.input)?;
                     let out = build.output(&desc.out)?;
 
                     match qinput {

@@ -4,7 +4,10 @@ use super::{
 };
 use crate::{
     CubeFusionHandle,
-    shared::trace::{QuantDataHandleInput, QuantScalesHandleInput},
+    shared::{
+        ir::FusePrecision,
+        trace::{QuantDataHandleInput, QuantScalesHandleInput},
+    },
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
@@ -65,7 +68,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                             new_strides,
                         )));
                 }
-                RegisterTensor::Quant(tensor_relative) => {
+                RegisterTensor::QuantData(tensor_relative) => {
                     let tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
                     let handle = context
                         .handles
@@ -75,7 +78,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                         _ => panic!(),
                     };
                     let scales = handle.scales(scheme).unwrap();
-                    let precision = scales.dtype.try_into().unwrap();
+                    let precision = tensor_relative.dtype.try_into().unwrap();
 
                     plan.handle_inputs
                         .push(HandleInput::QuantData(QuantDataHandleInput {
@@ -88,10 +91,13 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
 
                     plan.handle_inputs
                         .push(HandleInput::QuantScales(QuantScalesHandleInput {
-                            precision,
+                            precision: FusePrecision::F32, // Hardcoded
                             handle: scales,
                             scheme,
                         }));
+                }
+                RegisterTensor::QuantScales(_) => {
+                    // It is registered at the same time as quant data.
                 }
             }
         }

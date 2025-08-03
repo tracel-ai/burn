@@ -133,13 +133,8 @@ impl FuseTraceBuilder {
     }
 
     /// Register an input tensor.
-    pub fn input_quantized(
-        &mut self,
-        tensor: &TensorIr,
-        quant_out_dtype: DType,
-    ) -> Option<QuantInput> {
-        self.block_current
-            .input_quant(tensor, &mut self.resources, quant_out_dtype)
+    pub fn input_quantized(&mut self, tensor: &TensorIr) -> Option<QuantInput> {
+        self.block_current.input_quant(tensor, &mut self.resources)
     }
 
     /// Register an output tensor.
@@ -206,25 +201,26 @@ impl FuseTraceBuilder {
         let mut outputs = RegisteredTensors::default();
         let mut blocks = Vec::new();
 
-        let mut register_block = |block: &FuseBlockBuilder,
-                                  shape_ref: &Vec<usize>,
-                                  offset: usize| {
-            let (block, block_tensor_writes) =
-                block.build(&self.resources, shape_ref.clone(), offset);
-            blocks.push(block);
+        let mut register_block =
+            |block: &FuseBlockBuilder, shape_ref: &Vec<usize>, offset: usize| {
+                let (block, block_tensor_writes) =
+                    block.build(&self.resources, shape_ref.clone(), offset);
+                blocks.push(block);
 
-            let num_outputs = block_tensor_writes.len();
-            for entry in block_tensor_writes.into_iter() {
-                match entry {
-                    RegisterTensor::Normal(ir, precision) => {
-                        outputs.insert(precision, ir);
+                let num_outputs = block_tensor_writes.len();
+                for entry in block_tensor_writes.into_iter() {
+                    match entry {
+                        RegisterTensor::Normal(ir, precision) => {
+                            outputs.insert(precision, ir);
+                        }
+                        _ => {
+                            panic!("Quantized tensor unsupported for output")
+                        }
                     }
-                    RegisterTensor::Quant(_) => panic!("Quantized tensor unsupported for output"),
                 }
-            }
 
-            num_outputs
-        };
+                num_outputs
+            };
 
         let mut offset = 0;
 

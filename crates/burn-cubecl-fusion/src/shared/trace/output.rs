@@ -55,7 +55,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             .enumerate()
             .filter_map(|(pos, entry)| match entry {
                 RegisterTensor::Normal(ir, p) => Some((pos, ir, p)),
-                RegisterTensor::Quant(_) => None,
+                RegisterTensor::QuantData(_) => None,
+                RegisterTensor::QuantScales(_) => None,
             })
             .map(|(pos, tensor, precision)| OutputSorted {
                 pos_original: pos,
