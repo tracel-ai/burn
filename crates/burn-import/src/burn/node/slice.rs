@@ -37,18 +37,6 @@ impl SliceNode {
         self
     }
 
-    fn generate_slice(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let output = &self.output.name();
-
-        match &self.input {
-            Type::Tensor(tensor) => {
-                self.generate_tensor_slice(tensor, scope, node_position, output)
-            }
-            Type::Shape(shape) => self.generate_shape_slice(shape, output),
-            _ => panic!("Unsupported input type for SliceNode"),
-        }
-    }
-
     fn generate_tensor_slice(
         &self,
         tensor: &crate::burn::TensorType,
@@ -416,7 +404,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        self.generate_slice(scope, node_position)
+        let output = &self.output.name();
+
+        match &self.input {
+            Type::Tensor(tensor) => {
+                self.generate_tensor_slice(tensor, scope, node_position, output)
+            }
+            Type::Shape(shape) => self.generate_shape_slice(shape, output),
+            _ => panic!("Unsupported input type for SliceNode"),
+        }
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
