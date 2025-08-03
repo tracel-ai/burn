@@ -1,3 +1,5 @@
+use crate::shared::trace::block::QuantInput;
+
 use super::{
     super::{
         ir::{Arg, FuseOp, FusePrecision, LayoutInfo},
@@ -128,6 +130,16 @@ impl FuseTraceBuilder {
     pub fn input(&mut self, tensor: &TensorIr, quant_out_dtype: Option<DType>) -> Option<Arg> {
         self.block_current
             .input(tensor, &mut self.resources, quant_out_dtype)
+    }
+
+    /// Register an input tensor.
+    pub fn input_quantized(
+        &mut self,
+        tensor: &TensorIr,
+        quant_out_dtype: DType,
+    ) -> Option<QuantInput> {
+        self.block_current
+            .input_quant(tensor, &mut self.resources, quant_out_dtype)
     }
 
     /// Register an output tensor.

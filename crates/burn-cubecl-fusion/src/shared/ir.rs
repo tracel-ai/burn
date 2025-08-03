@@ -1,4 +1,5 @@
 use burn_tensor::DType;
+use burn_tensor::quantization::QuantScheme;
 use cubecl::ir::{Elem, FloatKind, IntKind, UIntKind};
 use cubecl::prelude::*;
 use half::{bf16, f16};
@@ -121,7 +122,16 @@ pub enum FuseOp {
         input: Arg,
         scales: Arg,
         output: Arg,
+        scheme: QuantSchemeFuse,
     },
+}
+
+#[derive(
+    CubeType, CubeLaunch, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord,
+)]
+pub struct QuantSchemeFuse {
+    #[cube(comptime)]
+    pub(crate) scheme: QuantScheme,
 }
 
 impl FuseOp {
@@ -433,9 +443,14 @@ impl TryFrom<DType> for FusePrecision {
             DType::U8 => Self::U8,
             DType::Bool => Self::Bool,
             DType::F64 => Self::F64,
-            DType::QFloat(_) => {
-                return Err(());
-            }
+            DType::QFloat(scheme) => match scheme.q_store_type {
+                burn_tensor::quantization::QuantStoreType::Native => match scheme.q_type {
+                    burn_tensor::quantization::QuantInputType::QInt8 => {
+                        panic!("no");
+                    }
+                },
+                burn_tensor::quantization::QuantStoreType::U32 => Self::U32,
+            },
         })
     }
 }

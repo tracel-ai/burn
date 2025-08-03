@@ -35,6 +35,11 @@ pub struct FuseBlockBuilder {
     pub local_outputs: Vec<TensorId>,
 }
 
+pub enum QuantInput {
+    AlreadyDequantized { local: Arg },
+    Info { data: Arg, scales: Arg },
+}
+
 impl FuseBlockBuilder {
     pub fn new(bool_precision: FusePrecision, settings: FuseSettings) -> Self {
         Self {
@@ -144,13 +149,7 @@ impl FuseBlockBuilder {
                 };
 
                 if is_quant {
-                    // TODO: Refactor the tensor registry should return that.
-                    let q_index = new_input + 1;
-                    reads.push(FuseOp::Dequantize {
-                        input,
-                        scales: Arg::Input(q_index, FusePrecision::F32, LayoutInfo::Unknown),
-                        output: out.clone(),
-                    });
+                    return None;
                 } else {
                     reads.push(FuseOp::Assign(UnaryFuseArgs {
                         input,
@@ -159,6 +158,53 @@ impl FuseBlockBuilder {
                 }
 
                 out
+            }
+        };
+
+        Some(arg)
+    }
+
+    /// Register an input quantized tensor.
+    pub fn input_quant(
+        &mut self,
+        tensor: &TensorIr,
+        resources: &mut FuseResources,
+        quant_out_dtype: DType,
+    ) -> Option<QuantInput> {
+        if resources.indexed.contains_key(&tensor.id) {
+            return None;
+        }
+
+        let precision = match quant_out_dtype.try_into() {
+            Ok(val) => val,
+            Err(_) => return None,
+        };
+
+        let precision_input = match precision {
+            FusePrecision::Bool => return None,
+            _ => match tensor.dtype {
+                DType::QFloat(quant_scheme) => match quant_scheme.q_type {
+                    QuantInputType::QInt8 => FusePrecision::I8,
+                },
+                _ => return None,
+            },
+        };
+
+        let arg = match self.locals.get(precision, tensor.id) {
+            Some(local) => {
+                resources.inputs.update(tensor);
+                QuantInput::AlreadyDequantized { local }
+            }
+            None => {
+                let new_input = resources.inputs.insert(precision_input, tensor.clone());
+                let q_index = new_input + 1;
+                let input = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
+                let scales = Arg::Input(q_index, FusePrecision::F32, LayoutInfo::Unknown);
+
+                QuantInput::Info {
+                    data: input,
+                    scales,
+                }
             }
         };
 
@@ -549,6 +595,7 @@ impl FuseBlockBuilder {
                 input,
                 scales: _,
                 output,
+                scheme: _,
             } => {
                 mark(input, &mut local_tensor_ids_input);
                 mark(output, &mut local_tensor_ids_output);

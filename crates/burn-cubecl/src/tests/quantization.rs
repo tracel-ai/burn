@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::{
-        Tensor,
+        Int, Tensor, TensorData,
         quantization::{QuantLevel, QuantScheme, QuantStoreType},
     };
     use burn_tensor::{Tolerance, ops::FloatElem};

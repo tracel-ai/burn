@@ -1,7 +1,7 @@
 use super::{
     ir::{Arg, BinaryFuseArgs, FuseOp, FusePrecision, UnaryFuseArgs},
     settings::FuseSettings,
-    trace::{FuseTrace, FuseTraceBuilder},
+    trace::{FuseTrace, FuseTraceBuilder, block::QuantInput},
 };
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_ir::{
@@ -305,6 +305,41 @@ impl FuseOptimizationBuilder {
             FloatOperationIr::Recip(desc) => self.register_unary_ops(desc, |input, out| {
                 FuseOp::Recip(UnaryFuseArgs { input, out })
             }),
+            FloatOperationIr::Dequantize(desc) => {
+                println!("{desc:?}");
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                self.builder.register(|build| {
+                    let qinput = build.input_quantized(&desc.input, desc.out.dtype)?;
+                    let out = build.output(&desc.out)?;
+
+                    match qinput {
+                        QuantInput::AlreadyDequantized { local } => {
+                            build.register_operation(FuseOp::Assign(UnaryFuseArgs {
+                                input: local,
+                                out: out,
+                            }));
+                        }
+                        QuantInput::Info { data, scales } => {
+                            build.register_operation(FuseOp::Dequantize {
+                                input: data,
+                                scales,
+                                output: out,
+                                scheme: match desc.input.dtype {
+                                    DType::QFloat(scheme) => crate::shared::ir::QuantSchemeFuse {
+                                        scheme: scheme.clone(),
+                                    },
+                                    _ => unreachable!(),
+                                },
+                            });
+                        }
+                    }
+
+                    Some(())
+                })
+            }
             _ => false,
         }
     }
@@ -380,20 +415,14 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
-                let mut quant_out_dtype_tensor = None;
-                let mut quant_out_dtype_value = None;
-
-                if self.input_is_quantized(&desc.tensor) {
-                    quant_out_dtype_tensor = Some(desc.out.dtype);
-                }
-                if self.input_is_quantized(&desc.value) {
-                    quant_out_dtype_value = Some(desc.out.dtype);
+                if self.input_is_quantized(&desc.tensor) | self.input_is_quantized(&desc.value) {
+                    return false;
                 }
 
                 self.builder.register(|build| {
                     let cond = build.input(&desc.mask, None)?;
-                    let rhs = build.input(&desc.tensor, quant_out_dtype_tensor)?;
-                    let lhs = build.input(&desc.value, quant_out_dtype_value)?;
+                    let rhs = build.input(&desc.tensor, None)?;
+                    let lhs = build.input(&desc.value, None)?;
                     let out = build.output(&desc.out)?;
 
                     build.register_operation(FuseOp::ConditionalAssign {

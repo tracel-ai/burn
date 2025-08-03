@@ -1,7 +1,10 @@
-use crate::shared::DYN_ELEM_ID;
-
 use super::io::*;
 use super::ir::*;
+use crate::shared::DYN_ELEM_ID;
+use burn_tensor::quantization::QuantInputType;
+use burn_tensor::quantization::QuantLevel;
+use burn_tensor::quantization::QuantMode;
+use burn_tensor::quantization::QuantScheme;
 use cubecl::prelude::*;
 
 #[cube]
@@ -299,9 +302,18 @@ fn fuse(
                 input,
                 scales,
                 output,
-            } => {
-                todo!()
-            }
+                scheme,
+            } => dequantize::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                locals,
+                pos,
+                input,
+                scales,
+                output,
+                scheme.scheme,
+                config,
+            ),
         }
     }
 }
@@ -702,6 +714,139 @@ fn conditional_assign<C: CubePrimitive>(
     let result = select_many(cond, lhs, rhs);
 
     write::<C>(inputs, outputs, locals, write_pos, result, out, config);
+}
+
+#[cube]
+fn dequantize<C: Float>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: u32,
+    #[comptime] input: Arg,
+    #[comptime] scales: Arg,
+    #[comptime] output: Arg,
+    #[comptime] scheme: QuantScheme,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    // TODO: Not hardcode to u32.
+    let input = read::<u32>(inputs, outputs, locals, write_pos, input, config);
+    let pos = comptime!(match scales {
+        Arg::Input(pos, ..) => pos,
+        _ => unreachable!(""),
+    });
+    let scales = read_input_window::<f32>(inputs, pos, 0u32, 10000u32);
+    let result = dequantize_packed_value_at::<C, u32>(write_pos, input, scales, scheme);
+
+    write::<C>(inputs, outputs, locals, write_pos, result, output, config);
+}
+
+/// Dequantize a line of values into floating-point values using the provided scale.
+#[cube]
+pub fn dequantize_symmetric<F: Float>(value: Line<F>, scale: f32) -> Line<F> {
+    // x = scale * x_q
+    Line::cast_from(scale) * value
+}
+
+#[derive(CubeLaunch, CubeType)]
+pub struct QParams {
+    #[cube(comptime)]
+    scheme: QuantScheme,
+    #[cube(comptime)]
+    pub num_quants: u32,
+}
+
+#[cube]
+impl QParams {
+    /// Create a new quantization parameters instance.
+    pub fn new(#[comptime] scheme: QuantScheme) -> Self {
+        let num_quants = comptime!((scheme.bits_stored() / scheme.bits_type()) as u32);
+        QParams { scheme, num_quants }
+    }
+
+    /// Get the quantization parameters values.
+    pub fn scale(&self, scale_tensor: Slice<Line<f32>>, in_pos: u32) -> Line<f32> {
+        match comptime!(self.scheme) {
+            // Symmetric quantization only contains the scaling factor as the last element
+            QuantScheme {
+                level: QuantLevel::Tensor,
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
+                ..
+            } => scale_tensor[0],
+            QuantScheme {
+                level: QuantLevel::Block(block_size),
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
+                ..
+            } => {
+                // The input position is `num_quants` smaller because it acts as vectorize with a line
+                // size, but the scales don't have any line size.
+                let position = in_pos * self.num_quants;
+                scale_tensor[position / comptime! {block_size as u32}]
+            }
+        }
+    }
+}
+
+/// Dequantize a single value using the scale at the specified position.
+///
+/// Returns a line of floating-point values. The number of values in the line depends on the number of packed
+/// values in the stored quantization type.
+#[cube]
+pub fn dequantize_packed_value_at<F: Float, QI: Int>(
+    position: u32,
+    value: Line<QI>,
+    scales: Slice<Line<f32>>,
+    #[comptime] scheme: QuantScheme,
+) -> Line<F> {
+    let qparams = QParams::new(scheme);
+    let scale = qparams.scale(scales, position);
+    dequantize_packed_value::<F, QI>(value[0], scale[0], scheme)
+}
+
+/// Dequantize a single packed value using the scale provided.
+///
+/// Returns a line of floating-point values. The number of values in the line depends on the number of packed
+/// values in the stored quantization type.
+#[cube]
+pub fn dequantize_packed_value<F: Float, QS: Int>(
+    value: QS,
+    scale: f32,
+    #[comptime] scheme: QuantScheme,
+) -> Line<F> {
+    // TODO: q_store_type: QuantStoreType::Native
+    let floats = unpack_q::<F, QS>(value, scheme.q_type);
+
+    dequantize_symmetric(floats, scale)
+}
+
+/// Unpack a quantized integer into a line of floating-point values, according to the specified quantization input type.
+///
+/// This handles types where multiple quantized values are packed into a single integer (the stored quantization type).
+#[allow(clippy::explicit_counter_loop)]
+#[cube]
+fn unpack_q<F: Float, QS: Int>(value: QS, #[comptime] quant: QuantInputType) -> Line<F> {
+    let size_quant = comptime!(match quant {
+        QuantInputType::QInt8 => 8,
+    });
+    let size_store = comptime!(QS::size_bits().unwrap() as u32);
+    let num_quant = comptime!(size_store / size_quant);
+
+    let mut output = Line::empty(num_quant);
+    let mut position = comptime!(0);
+    let mask = QS::cast_from(comptime!((1 << size_quant) - 1));
+    let shift_sign = QS::cast_from(comptime!(24));
+
+    #[unroll]
+    for _ in 0..num_quant {
+        let offset = QS::cast_from(comptime!(position * size_quant));
+        let raw = (value >> offset) & mask;
+        // Sign-extend: move sign bit to MSB via leftshift, then rightshift to restore sign
+        output[position] = F::cast_from(i32::cast_from(raw << shift_sign) >> 24);
+        comptime!(position += 1);
+    }
+
+    output
 }
 
 binary_op!(add, +);

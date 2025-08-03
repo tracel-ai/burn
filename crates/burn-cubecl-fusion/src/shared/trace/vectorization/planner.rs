@@ -91,7 +91,15 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             }
         }
         for r in plan.global_outputs.iter() {
-            let elem: Elem = r.dtype.into();
+            let elem: Elem = match r.dtype.try_into() {
+                Ok(val) => val,
+                Err(_) => match r.dtype {
+                    burn_tensor::DType::QFloat(quant_scheme) => {
+                        Elem::Float(cubecl::ir::FloatKind::F32)
+                    }
+                    _ => panic!(""),
+                },
+            };
             let elem_size = elem.size();
 
             if ref_elem.1 >= elem_size {
