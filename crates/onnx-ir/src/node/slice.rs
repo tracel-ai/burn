@@ -43,7 +43,7 @@ pub fn slice_config(node: &Node) -> SliceConfig {
     }
 
     /// Creates a SliceInput from either a static value or runtime argument.
-    fn get_slice_input(node: &Node, index: usize, attr_name: &str) -> Option<SliceInput> {
+    fn get_slice_input(node: &Node, index: usize) -> Option<SliceInput> {
         // Check if input exists
         if let Some(input) = node.inputs.get(index) {
             if input.value.is_none() {
@@ -57,24 +57,17 @@ pub fn slice_config(node: &Node) -> SliceConfig {
             }
         }
 
-        // Fall back to attributes
-        for (key, value) in node.attrs.iter() {
-            if key == attr_name {
-                return Some(SliceInput::Static(value.clone().into_i64s()));
-            }
-        }
-
         None
     }
 
-    let starts = get_slice_input(node, 1, "starts")
+    let starts = get_slice_input(node, 1)
         .unwrap_or_else(|| panic!("Slice: starts parameter is required"));
 
-    let ends = get_slice_input(node, 2, "ends")
+    let ends = get_slice_input(node, 2)
         .unwrap_or_else(|| panic!("Slice: ends parameter is required"));
 
-    let axes = get_slice_input(node, 3, "axes");
-    let steps = get_slice_input(node, 4, "steps");
+    let axes = get_slice_input(node, 3);
+    let steps = get_slice_input(node, 4);
 
     // Validate steps if present
     if let Some(SliceInput::Static(ref step_values)) = steps {
@@ -205,29 +198,18 @@ mod tests {
         starts: Vec<i64>,
         ends: Vec<i64>,
         axes: Option<Vec<i64>>,
-        use_attrs: bool,
     ) -> Node {
         let mut builder = NodeBuilder::new(NodeType::Slice, "test_slice")
             .input_tensor_f32("data", 3, None)
             .output_default("output");
 
-        if !use_attrs {
-            // Add inputs as tensors
-            builder = builder.input_tensor_i64_data("starts", starts.clone(), vec![starts.len()]);
-            builder = builder.input_tensor_i64_data("ends", ends.clone(), vec![ends.len()]);
+        // Add inputs as tensors
+        builder = builder.input_tensor_i64_data("starts", starts.clone(), vec![starts.len()]);
+        builder = builder.input_tensor_i64_data("ends", ends.clone(), vec![ends.len()]);
 
-            if let Some(axes_vec) = axes.clone() {
-                builder =
-                    builder.input_tensor_i64_data("axes", axes_vec.clone(), vec![axes_vec.len()]);
-            }
-        } else {
-            // Add attributes
-            builder = builder.attr_ints("starts", starts);
-            builder = builder.attr_ints("ends", ends);
-
-            if let Some(axes_vec) = axes {
-                builder = builder.attr_ints("axes", axes_vec);
-            }
+        if let Some(axes_vec) = axes.clone() {
+            builder =
+                builder.input_tensor_i64_data("axes", axes_vec.clone(), vec![axes_vec.len()]);
         }
 
         builder.build()
@@ -279,7 +261,7 @@ mod tests {
     #[test]
     fn test_slice_config_basic() {
         // Create a node with inputs for basic slicing
-        let node = create_test_node(vec![1, 0], vec![3, 2], Some(vec![0, 2]), false);
+        let node = create_test_node(vec![1, 0], vec![3, 2], Some(vec![0, 2]));
 
         let result = slice_config(&node);
 
@@ -297,31 +279,11 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_slice_config_with_attrs() {
-        // Create a node with attributes instead of inputs
-        let node = create_test_node(vec![1, 0], vec![3, 2], Some(vec![0, 2]), true);
-
-        let result = slice_config(&node);
-
-        // Check that we have static starts and ends
-        match (&result.starts, &result.ends) {
-            (SliceInput::Static(starts), SliceInput::Static(ends)) => {
-                assert_eq!(starts, &vec![1, 0]);
-                assert_eq!(ends, &vec![3, 2]);
-                // Check axes
-                if let Some(SliceInput::Static(axes)) = &result.axes {
-                    assert_eq!(axes, &vec![0, 2]);
-                }
-            }
-            _ => panic!("Expected static config"),
-        }
-    }
 
     #[test]
     fn test_slice_config_negative_axes() {
         // Test with negative axes values
-        let node = create_test_node(vec![1], vec![3], Some(vec![-3]), false);
+        let node = create_test_node(vec![1], vec![3], Some(vec![-3]));
 
         let result = slice_config(&node);
 
@@ -342,7 +304,7 @@ mod tests {
     #[test]
     fn test_slice_config_default_axes() {
         // Test the default axes behavior (when axes input is not provided)
-        let node = create_test_node(vec![1, 2], vec![3, 4], None, false);
+        let node = create_test_node(vec![1, 2], vec![3, 4], None);
 
         let result = slice_config(&node);
 
@@ -385,7 +347,7 @@ mod tests {
     #[test]
     fn test_slice_update_output_rank_tensor_input() {
         // Test when input is a Tensor - output should preserve the same type
-        let mut node = create_test_node(vec![1, 2], vec![3, 4], None, false);
+        let mut node = create_test_node(vec![1, 2], vec![3, 4], None);
 
         // Before calling, input is Tensor and output is default
         assert!(matches!(node.inputs[0].ty, ArgType::Tensor(_)));
