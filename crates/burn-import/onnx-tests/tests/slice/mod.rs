@@ -10,7 +10,9 @@ include_models!(
     slice_shape_multi,
     slice_shape_negative,
     slice_shape_negative_range,
-    slice_1d_tensor
+    slice_1d_tensor,
+    slice_shape_start_tensor_end,
+    slice_tensor_start_shape_end
 );
 
 #[cfg(test)]
@@ -231,5 +233,53 @@ mod tests {
             Tensor::<Backend, 1>::from_floats(expected_data.as_slice(), &device).reshape([2, 3, 6]);
 
         output.to_data().assert_eq(&expected.to_data(), true);
+    }
+
+    #[test]
+    fn slice_shape_start_tensor_end() {
+        let model: slice_shape_start_tensor_end::Model<Backend> =
+            slice_shape_start_tensor_end::Model::default();
+        let device = Default::default();
+
+        // Create test input tensor [6, 8, 10]
+        let input = Tensor::<Backend, 3>::ones([6, 8, 10], &device);
+
+        // Create shape input tensor [2, 3] - its shape will be used as starts
+        let shape_input = Tensor::<Backend, 2>::ones([2, 3], &device);
+
+        // Create 1D tensor for ends
+        let ends = Tensor::<Backend, 1, burn::tensor::Int>::from_ints([5i64, 8i64], &device);
+
+        let output = model.forward(input, shape_input, ends);
+
+        // The graph extracts shape [2, 3] and uses it as starts
+        // Slice uses starts=[2, 3], ends=[5, 8], axes=[0, 1]
+        // So it slices: [2:5, 3:8, :]
+        // Result shape should be [3, 5, 10]
+        assert_eq!(output.shape().dims, [3, 5, 10]);
+    }
+
+    #[test]
+    fn slice_tensor_start_shape_end() {
+        let model: slice_tensor_start_shape_end::Model<Backend> =
+            slice_tensor_start_shape_end::Model::default();
+        let device = Default::default();
+
+        // Create test input tensor [10, 12, 8]
+        let input = Tensor::<Backend, 3>::ones([10, 12, 8], &device);
+
+        // Create 1D tensor for starts
+        let starts = Tensor::<Backend, 1, burn::tensor::Int>::from_ints([2i64, 3i64], &device);
+
+        // Create shape input tensor [6, 10] - its shape will be used as ends
+        let shape_input = Tensor::<Backend, 2>::ones([6, 10], &device);
+
+        let output = model.forward(input, starts, shape_input);
+
+        // The graph extracts shape [6, 10] and uses it as ends
+        // Slice uses starts=[2, 3], ends=[6, 10], axes=[0, 1]
+        // So it slices: [2:6, 3:10, :]
+        // Result shape should be [4, 7, 8]
+        assert_eq!(output.shape().dims, [4, 7, 8]);
     }
 }

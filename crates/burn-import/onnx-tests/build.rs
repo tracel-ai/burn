@@ -177,6 +177,8 @@ fn main() {
         .input("tests/slice/slice_shape_negative.onnx")
         .input("tests/slice/slice_shape_negative_range.onnx")
         .input("tests/slice/slice_1d_tensor.onnx")
+        .input("tests/slice/slice_shape_start_tensor_end.onnx")
+        .input("tests/slice/slice_tensor_start_shape_end.onnx")
         .input("tests/softmax/softmax.onnx")
         .input("tests/space_to_depth/space_to_depth.onnx")
         .input("tests/sqrt/sqrt.onnx")

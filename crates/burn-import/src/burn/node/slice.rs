@@ -111,6 +111,167 @@ impl SliceNode {
                 }
             }
 
+            // Both 1D tensors: extract values from tensors at runtime
+            (
+                SliceParam::Runtime(Type::Tensor(start_t)),
+                SliceParam::Runtime(Type::Tensor(end_t)),
+            ) if start_t.rank == 1 && end_t.rank == 1 => {
+                let start_name = &start_t.name;
+                let end_name = &end_t.name;
+
+                // Generate code to extract values from tensors
+                let input_dims_var = quote! { input_dims };
+                let start_data_var = quote! { start_data };
+                let start_vec_var = quote! { start_vec };
+                let end_data_var = quote! { end_data };
+                let end_vec_var = quote! { end_vec };
+
+                // Build ranges for each dimension
+                let range_exprs: Vec<_> = (0..rank).map(|i| {
+                    let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                    quote! {
+                        #start_vec_var.get(#idx).map(|&s| s as usize).unwrap_or(0)..#end_vec_var.get(#idx).map(|&e| e as usize).unwrap_or(#input_dims_var[#idx])
+                    }
+                }).collect();
+
+                return quote! {
+                    let #input_dims_var = #input.dims();
+                    let #start_data_var = #start_name.to_data();
+                    let #start_vec_var: alloc::vec::Vec<i64> = #start_data_var.iter::<i64>().collect();
+                    let #end_data_var = #end_name.to_data();
+                    let #end_vec_var: alloc::vec::Vec<i64> = #end_data_var.iter::<i64>().collect();
+                    let #output = #input.slice(s![#(#range_exprs),*]);
+                };
+            }
+
+            // Static start, 1D tensor end
+            (SliceParam::Static(starts), SliceParam::Runtime(Type::Tensor(end_t)))
+                if end_t.rank == 1 =>
+            {
+                let end_name = &end_t.name;
+
+                // Generate code to extract values from end tensor
+                let input_dims_var = quote! { input_dims };
+                let end_data_var = quote! { end_data };
+                let end_vec_var = quote! { end_vec };
+
+                // Build ranges for each dimension
+                let range_exprs: Vec<_> = (0..rank).map(|i| {
+                    let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                    if i < starts.len() {
+                        let start = Literal::i64_suffixed(starts[i]);
+                        quote! {
+                            #start as usize..#end_vec_var.get(#idx).map(|&e| e as usize).unwrap_or(#input_dims_var[#idx])
+                        }
+                    } else {
+                        quote! { .. }
+                    }
+                }).collect();
+
+                return quote! {
+                    let #input_dims_var = #input.dims();
+                    let #end_data_var = #end_name.to_data();
+                    let #end_vec_var: alloc::vec::Vec<i64> = #end_data_var.iter::<i64>().collect();
+                    let #output = #input.slice(s![#(#range_exprs),*]);
+                };
+            }
+
+            // 1D tensor start, static end
+            (SliceParam::Runtime(Type::Tensor(start_t)), SliceParam::Static(ends))
+                if start_t.rank == 1 =>
+            {
+                let start_name = &start_t.name;
+
+                // Generate code to extract values from start tensor
+                let input_dims_var = quote! { input_dims };
+                let start_data_var = quote! { start_data };
+                let start_vec_var = quote! { start_vec };
+
+                // Build ranges for each dimension
+                let range_exprs: Vec<_> = (0..rank).map(|i| {
+                    let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                    if i < ends.len() {
+                        let end = Literal::i64_suffixed(ends[i]);
+                        quote! {
+                            #start_vec_var.get(#idx).map(|&s| s as usize).unwrap_or(0)..#end as usize
+                        }
+                    } else {
+                        quote! { .. }
+                    }
+                }).collect();
+
+                return quote! {
+                    let #input_dims_var = #input.dims();
+                    let #start_data_var = #start_name.to_data();
+                    let #start_vec_var: alloc::vec::Vec<i64> = #start_data_var.iter::<i64>().collect();
+                    let #output = #input.slice(s![#(#range_exprs),*]);
+                };
+            }
+
+            // Shape start, 1D tensor end
+            (
+                SliceParam::Runtime(Type::Shape(start_shape)),
+                SliceParam::Runtime(Type::Tensor(end_t)),
+            ) if end_t.rank == 1 => {
+                let start_name = &start_shape.name;
+                let end_name = &end_t.name;
+
+                // Generate code to extract values from end tensor
+                let input_dims_var = quote! { input_dims };
+                let end_data_var = quote! { end_data };
+                let end_vec_var = quote! { end_vec };
+
+                // Build ranges for each dimension
+                let range_exprs: Vec<_> = (0..rank).map(|i| {
+                    let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                    if i < start_shape.rank {
+                        quote! {
+                            #start_name[#idx] as usize..#end_vec_var.get(#idx).map(|&e| e as usize).unwrap_or(#input_dims_var[#idx])
+                        }
+                    } else {
+                        quote! { .. }
+                    }
+                }).collect();
+
+                return quote! {
+                    let #input_dims_var = #input.dims();
+                    let #end_data_var = #end_name.to_data();
+                    let #end_vec_var: alloc::vec::Vec<i64> = #end_data_var.iter::<i64>().collect();
+                    let #output = #input.slice(s![#(#range_exprs),*]);
+                };
+            }
+
+            // 1D tensor start, shape end
+            (
+                SliceParam::Runtime(Type::Tensor(start_t)),
+                SliceParam::Runtime(Type::Shape(end_shape)),
+            ) if start_t.rank == 1 => {
+                let start_name = &start_t.name;
+                let end_name = &end_shape.name;
+
+                // Generate code to extract values from start tensor
+                let start_data_var = quote! { start_data };
+                let start_vec_var = quote! { start_vec };
+
+                // Build ranges for each dimension
+                let range_exprs: Vec<_> = (0..rank).map(|i| {
+                    let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                    if i < end_shape.rank {
+                        quote! {
+                            #start_vec_var.get(#idx).map(|&s| s as usize).unwrap_or(0)..#end_name[#idx] as usize
+                        }
+                    } else {
+                        quote! { .. }
+                    }
+                }).collect();
+
+                return quote! {
+                    let #start_data_var = #start_name.to_data();
+                    let #start_vec_var: alloc::vec::Vec<i64> = #start_data_var.iter::<i64>().collect();
+                    let #output = #input.slice(s![#(#range_exprs),*]);
+                };
+            }
+
             // Default: scalar slicing for first dimension
             _ => {
                 let (start_expr, end_expr) = self.get_slice_range_expressions();
