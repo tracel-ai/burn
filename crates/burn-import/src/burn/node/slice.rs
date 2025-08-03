@@ -304,7 +304,6 @@ impl SliceNode {
         output: &proc_macro2::Ident,
     ) -> TokenStream {
         let shape_name = &shape.name;
-        let shape_len = Literal::usize_unsuffixed(shape.rank);
 
         // Get the output rank from the output type
         let output_rank = match &self.output {
@@ -318,50 +317,29 @@ impl SliceNode {
                 let start_val = starts[0];
                 let end_val = ends[0];
 
-                // Handle special case: slice[-1:] pattern
-                if start_val == -1 && (end_val == i64::MAX || end_val >= shape.rank as i64) {
-                    // This gets the last element
-                    quote! {
-                        let #output: [i64; 1] = [#shape_name[#shape_name.len() - 1]];
-                    }
-                } else if start_val < 0 || end_val < 0 {
-                    // Handle negative indices - convert at compile time since we know the shape length
-                    let shape_len = shape.rank as i64;
-                    let actual_start = if start_val < 0 {
-                        (shape_len + start_val).max(0) as usize
-                    } else {
-                        start_val as usize
-                    };
-                    let actual_end = if end_val < 0 {
-                        (shape_len + end_val).max(0) as usize
-                    } else {
-                        end_val as usize
-                    };
+                // Always clamp start/end values
+                let shape_len = shape.rank as i64;
 
-                    let start_lit = Literal::usize_unsuffixed(actual_start);
-                    let end_lit = Literal::usize_unsuffixed(actual_end);
-
-                    quote! {
-                        let #output: [i64; #output_rank_lit] = #shape_name[#start_lit..#end_lit].try_into().unwrap();
-                    }
+                // Handle negative indices and clamp
+                let actual_start = if start_val < 0 {
+                    (shape_len + start_val).max(0) as usize
                 } else {
-                    // Positive indices
-                    let start = start_val.to_tokens();
-                    let end = if end_val == i64::MAX {
-                        quote! { #shape_len }
-                    } else {
-                        end_val.to_tokens()
-                    };
-                    let output_len = if end_val == i64::MAX {
-                        shape.rank.saturating_sub(start_val as usize)
-                    } else {
-                        (end_val as usize).saturating_sub(start_val as usize)
-                    };
-                    let output_rank = Literal::usize_unsuffixed(output_len);
+                    start_val.min(shape_len) as usize
+                };
 
-                    quote! {
-                        let #output: [i64; #output_rank] = #shape_name[s![#start..#end].into_ranges([#shape_len].into())[0].clone()].try_into().unwrap();
-                    }
+                let actual_end = if end_val == i64::MAX {
+                    shape.rank
+                } else if end_val < 0 {
+                    (shape_len + end_val).max(0) as usize
+                } else {
+                    end_val.min(shape_len) as usize
+                };
+
+                let start_lit = Literal::usize_unsuffixed(actual_start);
+                let end_lit = Literal::usize_unsuffixed(actual_end);
+
+                quote! {
+                    let #output: [i64; #output_rank_lit] = #shape_name[#start_lit..#end_lit].try_into().unwrap();
                 }
             }
             _ => {
@@ -602,7 +580,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, shape1: [i64; 4]) -> [i64; 2] {
-                    let shape2: [i64; 2] = shape1[s![1..3].into_ranges([4].into())[0].clone()].try_into().unwrap();
+                    let shape2: [i64; 2] = shape1[1..3].try_into().unwrap();
                     shape2
                 }
             }
