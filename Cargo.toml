@@ -32,7 +32,7 @@ atomic_float = "1"
 axum = "0.8.3"
 bytemuck = "1.23.1"
 bytes = "1"
-clap = { version = "4.5.41", features = ["derive"] }
+clap = { version = "4.5.42", features = ["derive"] }
 candle-core = { version = "0.9.1" }
 colored = "3.0.0"
 console_error_panic_hook = "0.1.7"
