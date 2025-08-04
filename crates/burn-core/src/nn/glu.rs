@@ -24,10 +24,10 @@ impl GLU {
     ///
     /// GLU(a,b)=a⊗σ(b) where `a` is the first half of the input matrices and `b` is the second half.
     ///
-    /// **Note**: 
+    /// **Note**:
     /// * The input tensor along `dim` must have an even size along the specified dimension. N is divisible by 2.
     /// * Negative indices for `dim` are not supported (unlike PyTorch's nn.GLU).
-    /// 
+    ///
     /// ### Arguments
     /// * `tensor` - The input tensor. With shape `[∗1,N,∗2]` where `*` means, any number of additional dimensions
     ///

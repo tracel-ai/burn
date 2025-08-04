@@ -277,9 +277,8 @@ pub fn glu<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tens
     // TODO: Handle negative indicies with AsIndex for compatibility with Pytorch nn.GLU.
 
     assert!(
-        tensor.dims()[dim] % 2 == 0,
-        "Input tensor along dimension {} must have an even size. N is divisible by 2.",
-        dim
+        tensor.dims()[dim].is_multiple_of(2),
+        "Input tensor along dimension {dim} must have an even size. N is divisible by 2."
     );
     let new_len = tensor.dims()[dim] / 2;
     // The `s!` macro is used for slicing tensors along a specific dimension.
