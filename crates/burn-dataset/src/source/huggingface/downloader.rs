@@ -342,9 +342,9 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
         "datasets",
     ]);
 
-    let output = command
-        .output()
-        .map_err(|err| ImporterError::FailToDownloadPythonDependencies(format!("Failed to run pip: {err}")))?;
+    let output = command.output().map_err(|err| {
+        ImporterError::FailToDownloadPythonDependencies(format!("Failed to run pip: {err}"))
+    })?;
 
     // Check if pip actually ran successfully
     if !output.status.success() {
@@ -354,7 +354,8 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
             return Err(ImporterError::FailToDownloadPythonDependencies(
                 "Python environment is missing pip. \
                 Please install pip with:\n\n\
-                python3 -m ensurepip --upgrade && rm -rf ~/.cache/burn-dataset/venv\n".to_string(),
+                python3 -m ensurepip --upgrade && rm -rf ~/.cache/burn-dataset/venv\n"
+                    .to_string(),
             ));
         }
 
