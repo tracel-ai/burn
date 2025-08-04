@@ -24,13 +24,15 @@ impl GLU {
     ///
     /// GLU(a,b)=a⊗σ(b) where `a` is the first half of the input matrices and `b` is the second half.
     ///
-    /// # Arguments
+    /// **Note**: 
+    /// * The input tensor along `dim` must have an even size along the specified dimension. N is divisible by 2.
+    /// * Negative indices for `dim` are not supported (unlike PyTorch's nn.GLU).
+    /// 
+    /// ### Arguments
+    /// * `tensor` - The input tensor. With shape `[∗1,N,∗2]` where `*` means, any number of additional dimensions
     ///
-    /// * `tensor` - The input tensor. With shape [∗1,N,∗2] where * means, any number of additional dimensions
-    ///
-    ///
-    /// # Returns
-    /// Output tensor with shape [∗1​,M,∗2​] where M=N/2M=N/2
+    /// ### Returns
+    /// * Output tensor with shape `[∗1​,M,∗2​]` where M=N/2
     pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         crate::tensor::activation::glu(input, self.dim)
     }

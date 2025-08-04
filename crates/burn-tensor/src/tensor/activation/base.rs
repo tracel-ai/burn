@@ -262,21 +262,28 @@ pub fn tanh<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
 
 /// Applies the gated linear unit function.
 ///
-/// $$
-/// \text{GLU}(a,b) = a \otimes \sigma(b)
-/// $$
-/// where $a$ is the first half of the input matrices and $b$ is the second half.
+/// GLU(a,b)=a⊗σ(b) where `a` is the first half of the input matrices and `b` is the second half.
 ///
-/// # Arguments
+/// **Note**:
+/// * The input tensor along `dim` must have an even size along the specified dimension. N is divisible by 2.
+/// * Negative indices for `dim` are not supported (unlike PyTorch's nn.GLU).
 ///
-/// * `tensor` - The input tensor. With shape [∗1,N,∗2] where * means, any number of additional dimensions
-/// * `dim` - The dimension on which to split the input.
+/// ### Arguments
+/// * `tensor` - The input tensor. With shape `[∗1,N,∗2]` where `*` means, any number of additional dimensions
 ///
-/// # Returns
-/// Output tensor with shape [∗1​,M,∗2​] where M=N/2
+/// ### Returns
+/// * Output tensor with shape `[∗1​,M,∗2​]` where M=N/2
 pub fn glu<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
     // TODO: Handle negative indicies with AsIndex for compatibility with Pytorch nn.GLU.
+
+    assert!(
+        tensor.dims()[dim] % 2 == 0,
+        "Input tensor along dimension {} must have an even size. N is divisible by 2.",
+        dim
+    );
     let new_len = tensor.dims()[dim] / 2;
+    // The `s!` macro is used for slicing tensors along a specific dimension.
+    // Usage: s![dim, start..end] slices the tensor along `dim` from `start` to `end` (exclusive).
     let a = tensor.clone().slice(s![dim, 0..new_len]);
     let b = tensor.slice(s![dim, new_len..new_len * 2]);
 
