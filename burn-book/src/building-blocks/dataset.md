@@ -136,6 +136,23 @@ For now, there are only a couple of dataset sources available with Burn, but mor
 
 ### Hugging Face
 
+⚠️ **Prerequisite**
+
+Hugging Face datasets in Burn require a Python installation with `pip`.  
+If you see errors like:
+
+```
+/venv/bin/python3: No module named pip
+```
+
+install pip in the environment and retry:
+
+```bash
+python3 -m ensurepip --upgrade
+rm -rf ~/.cache/burn-dataset/venv
+```
+This will recreate the Burn dataset cache with pip enabled.
+
 You can easily import any Hugging Face dataset with Burn. We use SQLite as the storage to avoid
 downloading the model each time or starting a Python process. You need to know the format of each
 item in the dataset beforehand. Here's an example with the

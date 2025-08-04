@@ -342,11 +342,27 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
         "datasets",
     ]);
 
-    // Spawn the pip install process and wait for it to complete.
-    let mut handle = command.spawn().unwrap();
-    handle
-        .wait()
-        .map_err(|err| ImporterError::FailToDownloadPythonDependencies(format!(" error: {err}")))?;
+    let output = command
+        .output()
+        .map_err(|err| ImporterError::FailToDownloadPythonDependencies(format!("Failed to run pip: {err}")))?;
 
+    // Check if pip actually ran successfully
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        if stderr.contains("No module named pip") {
+            return Err(ImporterError::FailToDownloadPythonDependencies(
+                "Python environment is missing pip. \
+                Please install pip with:\n\n\
+                python3 -m ensurepip --upgrade && rm -rf ~/.cache/burn-dataset/venv\n".to_string(),
+            ));
+        }
+
+        return Err(ImporterError::FailToDownloadPythonDependencies(format!(
+            "pip failed with status {:?}: {}",
+            output.status.code(),
+            stderr
+        )));
+    }
     Ok(venv_python_path)
 }
