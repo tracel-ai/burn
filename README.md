@@ -581,7 +581,7 @@ Additional examples:
   feature.
 - [ONNX Import Inference](./examples/onnx-inference) : Imports an ONNX model pre-trained on MNIST to
   perform inference on a sample image with Burn.
-- [PyTorch Import Inference](./examples/pytorch-import) : Imports a PyTorch model pre-trained on
+- [PyTorch Import Inference](./examples/import-model-weights) : Imports a PyTorch model pre-trained on
   MNIST to perform inference on a sample image with Burn.
 - [Text Classification](./examples/text-classification) : Trains a text classification transformer
   model on the AG News or DbPedia dataset. The trained model can then be used to classify a text
