@@ -127,9 +127,12 @@ impl FuseTraceBuilder {
     }
 
     /// Register an input tensor.
-    pub fn input(&mut self, tensor: &TensorIr, quant_out_dtype: Option<DType>) -> Option<Arg> {
-        self.block_current
-            .input(tensor, &mut self.resources, quant_out_dtype)
+    pub fn input(&mut self, tensor: &TensorIr) -> Option<Arg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
+
+        self.block_current.input(tensor, &mut self.resources)
     }
 
     /// Register an input tensor.
@@ -139,11 +142,18 @@ impl FuseTraceBuilder {
 
     /// Register an output tensor.
     pub fn output(&mut self, tensor: &TensorIr) -> Option<Arg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
         self.block_current.output(tensor, &mut self.resources)
     }
 
     /// Register an input that will be accessed using custom indexing with no vectorization.
     pub fn input_indexed(&mut self, tensor: &TensorIr) -> Option<Arg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
+
         if let Some(val) = self.resources.indexed.get(&tensor.id) {
             return Some(val.clone());
         };
@@ -169,12 +179,19 @@ impl FuseTraceBuilder {
         output: &TensorIr,
         dims: (u32, u32),
     ) -> Option<Arg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
         self.block_current
             .input_swap_dims(tensor, output, dims, &mut self.resources)
     }
 
     /// Register an input that is reshaped.
     pub fn input_reshaped(&mut self, tensor: &TensorIr, output: &TensorIr) -> Option<Arg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
+
         self.block_current
             .input_reshaped(tensor, output, &mut self.resources)
     }

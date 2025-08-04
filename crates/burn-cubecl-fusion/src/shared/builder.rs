@@ -180,7 +180,7 @@ impl FuseOptimizationBuilder {
         let args = arguments.map(|arg| {
             // We need to register the argument as input in the current block so that we retrieve
             // its value locally.
-            let input = self.builder.builder.input(arg, None);
+            let input = self.builder.builder.input(arg);
 
             if input.is_none() {
                 is_success = false;
@@ -224,10 +224,6 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
-                if self.input_is_quantized(&desc.input) {
-                    return false;
-                }
-
                 if self.builder.register(|build| {
                     build.input_swap_dims(
                         &desc.input,
@@ -256,10 +252,6 @@ impl FuseOptimizationBuilder {
                 }
 
                 if !self.output_is_compatible(&desc.out) {
-                    return false;
-                }
-
-                if self.input_is_quantized(&desc.input) {
                     return false;
                 }
 
@@ -306,7 +298,6 @@ impl FuseOptimizationBuilder {
                 FuseOp::Recip(UnaryFuseArgs { input, out })
             }),
             FloatOperationIr::Dequantize(desc) => {
-                println!("{desc:?}");
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }
@@ -415,14 +406,10 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
-                if self.input_is_quantized(&desc.tensor) | self.input_is_quantized(&desc.value) {
-                    return false;
-                }
-
                 self.builder.register(|build| {
-                    let cond = build.input(&desc.mask, None)?;
-                    let rhs = build.input(&desc.tensor, None)?;
-                    let lhs = build.input(&desc.value, None)?;
+                    let cond = build.input(&desc.mask)?;
+                    let rhs = build.input(&desc.tensor)?;
+                    let lhs = build.input(&desc.value)?;
                     let out = build.output(&desc.out)?;
 
                     build.register_operation(FuseOp::ConditionalAssign {
@@ -440,16 +427,10 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
-                let mut quant_out_dtype_tensor = None;
-
-                if self.input_is_quantized(&desc.tensor) {
-                    quant_out_dtype_tensor = Some(desc.out.dtype);
-                }
-
                 self.builder.register(|build| {
-                    let cond = build.input(&desc.mask, None)?;
+                    let cond = build.input(&desc.mask)?;
                     let lhs = build.scalar(&desc.value, desc.out.dtype);
-                    let rhs = build.input(&desc.tensor, quant_out_dtype_tensor)?;
+                    let rhs = build.input(&desc.tensor)?;
                     let out = build.output(&desc.out)?;
 
                     build.register_operation(FuseOp::ConditionalAssign {
@@ -515,10 +496,6 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
-                if self.input_is_quantized(&desc.tensor) {
-                    return false;
-                }
-
                 self.builder.register(|build| {
                     let input = build.input_indexed(&desc.tensor)?;
                     let indices = build.input_indexed(&desc.indices)?;
@@ -536,10 +513,6 @@ impl FuseOptimizationBuilder {
             }
             NumericOperationIr::Select(desc) => {
                 if !self.output_is_compatible(&desc.out) {
-                    return false;
-                }
-
-                if self.input_is_quantized(&desc.tensor) {
                     return false;
                 }
 
@@ -570,19 +543,9 @@ impl FuseOptimizationBuilder {
             return false;
         }
 
-        let mut quant_out_dtype_lhs = None;
-        let mut quant_out_dtype_rhs = None;
-
-        if self.input_is_quantized(&desc.lhs) {
-            quant_out_dtype_lhs = Some(desc.out.dtype);
-        }
-        if self.input_is_quantized(&desc.rhs) {
-            quant_out_dtype_rhs = Some(desc.out.dtype);
-        }
-
         self.builder.register(|build| {
-            let lhs = build.input(&desc.lhs, quant_out_dtype_lhs)?;
-            let rhs = build.input(&desc.rhs, quant_out_dtype_rhs)?;
+            let lhs = build.input(&desc.lhs)?;
+            let rhs = build.input(&desc.rhs)?;
             let out = build.output(&desc.out)?;
 
             build.register_operation(func(lhs, rhs, out));
@@ -599,14 +562,8 @@ impl FuseOptimizationBuilder {
             return false;
         }
 
-        let mut quant_out_dtype = None;
-
-        if self.input_is_quantized(&desc.input) {
-            quant_out_dtype = Some(desc.out.dtype);
-        }
-
         self.builder.register(|build| {
-            let input = build.input(&desc.input, quant_out_dtype)?;
+            let input = build.input(&desc.input)?;
             let out = build.output(&desc.out)?;
             build.register_operation(func(input, out));
             Some(())
@@ -621,15 +578,9 @@ impl FuseOptimizationBuilder {
             return false;
         }
 
-        let mut quant_out_dtype = None;
-
-        if self.input_is_quantized(&desc.lhs) {
-            quant_out_dtype = Some(desc.out.dtype);
-        }
-
         self.builder.register(|build| {
             let elem = desc.lhs.dtype;
-            let lhs = build.input(&desc.lhs, quant_out_dtype)?;
+            let lhs = build.input(&desc.lhs)?;
             let rhs = build.scalar(&desc.rhs, elem);
             let out = build.output(&desc.out)?;
 
@@ -637,10 +588,6 @@ impl FuseOptimizationBuilder {
 
             Some(())
         })
-    }
-
-    fn input_is_quantized(&self, input: &TensorIr) -> bool {
-        matches!(input.dtype, DType::QFloat(_scheme))
     }
 
     fn output_is_compatible(&mut self, out: &TensorIr) -> bool {

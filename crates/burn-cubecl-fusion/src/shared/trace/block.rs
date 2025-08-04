@@ -3,7 +3,6 @@ use crate::shared::{
     settings::FuseSettings,
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};
-use burn_tensor::{DType, quantization::QuantInputType};
 use cubecl::prelude::Sequence;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, btree_map::Entry};
@@ -87,44 +86,20 @@ impl FuseBlockBuilder {
     }
 
     /// Register an input tensor.
-    pub fn input(
-        &mut self,
-        tensor: &TensorIr,
-        resources: &mut FuseResources,
-        quant_out_dtype: Option<DType>,
-    ) -> Option<Arg> {
+    pub fn input(&mut self, tensor: &TensorIr, resources: &mut FuseResources) -> Option<Arg> {
         if resources.indexed.contains_key(&tensor.id) {
             return None;
         }
-        let is_quant = quant_out_dtype.is_some();
 
         let precision = match tensor.dtype.try_into() {
             Ok(val) => val,
-            Err(_) => match quant_out_dtype {
-                Some(val) => match val.try_into() {
-                    Ok(val) => val,
-                    Err(_) => return None,
-                },
-                None => return None,
-            },
+            Err(_) => return None,
         };
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
             FusePrecision::Bool => self.bool_precision,
-            _ => {
-                if is_quant {
-                    // When quant the precision of the output is the precision.
-                    match tensor.dtype {
-                        DType::QFloat(quant_scheme) => match quant_scheme.q_type {
-                            QuantInputType::QInt8 => FusePrecision::I8,
-                        },
-                        _ => return None,
-                    }
-                } else {
-                    precision
-                }
-            }
+            _ => precision,
         };
 
         let arg = match self.locals.get(precision, tensor.id) {
@@ -149,14 +124,10 @@ impl FuseBlockBuilder {
                     self.reads.get_mut(&tensor.id).unwrap()
                 };
 
-                if is_quant {
-                    return None;
-                } else {
-                    reads.push(FuseOp::Assign(UnaryFuseArgs {
-                        input,
-                        out: out.clone(),
-                    }));
-                }
+                reads.push(FuseOp::Assign(UnaryFuseArgs {
+                    input,
+                    out: out.clone(),
+                }));
 
                 out
             }
