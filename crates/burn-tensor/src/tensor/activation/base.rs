@@ -265,14 +265,13 @@ pub fn tanh<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
 /// GLU(a,b)=a⊗σ(b) where `a` is the first half of the input matrices and `b` is the second half.
 ///
 /// **Note**:
-/// * The input tensor along `dim` must have an even size along the specified dimension. N is divisible by 2.
-/// * Negative indices for `dim` are not supported (unlike PyTorch's nn.GLU).
+/// * The size of the input tensor along `dim` must be divisible by 2.
 ///
 /// ### Arguments
-/// * `tensor` - The input tensor. With shape `[∗1,N,∗2]` where `*` means, any number of additional dimensions
+/// * `tensor` - The input tensor.
 ///
 /// ### Returns
-/// * Output tensor with shape `[∗1​,M,∗2​]` where M=N/2
+/// * A tensor with the same shape as the input, except the size along `dim` is halved.
 pub fn glu<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
     // TODO: Handle negative indicies with AsIndex for compatibility with Pytorch nn.GLU.
 
