@@ -1,6 +1,6 @@
 use crate::backend::Backend;
 use crate::check::TensorCheck;
-use crate::{Tensor, TensorPrimitive, check};
+use crate::{Tensor, TensorPrimitive, check, s};
 
 /// Applies the rectified linear unit function element-wise
 /// as described in the paper [Deep Learning using Rectified Linear Units (ReLU)](https://arxiv.org/pdf/1803.08375).
@@ -258,4 +258,32 @@ pub fn mish<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
 /// Applies the tanh function element-wise.
 pub fn tanh<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     tensor.tanh()
+}
+
+/// Applies the gated linear unit function.
+///
+/// GLU(a,b)=a⊗σ(b) where `a` is the first half of the input matrices and `b` is the second half.
+///
+/// **Note**:
+/// * The size of the input tensor along `dim` must be divisible by 2.
+///
+/// ### Arguments
+/// * `tensor` - The input tensor.
+///
+/// ### Returns
+/// * A tensor with the same shape as the input, except the size along `dim` is halved.
+pub fn glu<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
+    // TODO: Handle negative indicies with AsIndex for compatibility with Pytorch nn.GLU.
+
+    assert!(
+        tensor.dims()[dim].is_multiple_of(2),
+        "Input tensor along dimension {dim} must have an even size. N is divisible by 2."
+    );
+    let new_len = tensor.dims()[dim] / 2;
+    // The `s!` macro is used for slicing tensors along a specific dimension.
+    // Usage: s![dim, start..end] slices the tensor along `dim` from `start` to `end` (exclusive).
+    let a = tensor.clone().slice(s![dim, 0..new_len]);
+    let b = tensor.slice(s![dim, new_len..new_len * 2]);
+
+    a.mul(sigmoid(b))
 }
