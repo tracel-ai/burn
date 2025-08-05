@@ -131,26 +131,25 @@ where
             Some(strategy) => strategy,
             None => Box::new(FixBatchStrategy::new(1)),
         };
-        if let Some(num_threads) = self.num_threads
-            && num_threads > 0
-        {
-            return Arc::new(MultiThreadDataLoader::new(
+        let num_threads = self.num_threads.unwrap_or(0);
+        if num_threads > 0 {
+            Arc::new(MultiThreadDataLoader::new(
                 strategy,
                 dataset,
                 self.batcher,
                 num_threads,
                 device,
                 rng,
-            ));
+            ))
+        } else {
+            Arc::new(BatchDataLoader::new(
+                strategy,
+                dataset,
+                self.batcher,
+                device,
+                rng,
+            ))
         }
-
-        Arc::new(BatchDataLoader::new(
-            strategy,
-            dataset,
-            self.batcher,
-            device,
-            rng,
-        ))
     }
 }
 
