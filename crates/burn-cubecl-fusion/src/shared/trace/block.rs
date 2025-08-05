@@ -35,8 +35,12 @@ pub struct FuseBlockBuilder {
 }
 
 #[derive(Debug)]
+/// How a quantized input can be read.
 pub enum QuantInput {
+    /// If already quantize, we cache the dequantization and returns the local variable
+    /// corresponding to the float value.
     AlreadyDequantized { local: Arg },
+    /// Otherwise we return the infomation necessary to dequantize the tensor.
     Info { data: Arg, scales: Arg },
 }
 
@@ -153,7 +157,6 @@ impl FuseBlockBuilder {
 
         let arg = match self.locals.get(precision, tensor.id) {
             Some(local) => {
-                println!("Hre");
                 resources.inputs.update(tensor);
                 QuantInput::AlreadyDequantized { local }
             }
@@ -162,12 +165,10 @@ impl FuseBlockBuilder {
                 let input = Arg::Input(new_input, precision, LayoutInfo::Unknown);
                 let scales = Arg::Input(q_index, FusePrecision::F32, LayoutInfo::Unknown);
 
-                let info = QuantInput::Info {
+                QuantInput::Info {
                     data: input,
                     scales,
-                };
-                println!("Info {info:?}");
-                info
+                }
             }
         };
 

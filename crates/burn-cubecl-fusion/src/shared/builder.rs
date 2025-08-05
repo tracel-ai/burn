@@ -1,3 +1,5 @@
+use crate::shared::ir::QuantSchemeFuse;
+
 use super::{
     ir::{Arg, BinaryFuseArgs, FuseOp, FusePrecision, UnaryFuseArgs},
     settings::FuseSettings,
@@ -319,10 +321,10 @@ impl FuseOptimizationBuilder {
                                 scales,
                                 output: out,
                                 scheme: match desc.input.dtype {
-                                    DType::QFloat(scheme) => crate::shared::ir::QuantSchemeFuse {
+                                    DType::QFloat(scheme) => QuantSchemeFuse {
                                         scheme: scheme.clone(),
                                     },
-                                    _ => unreachable!(),
+                                    _ => unreachable!("Should be a quant tensor."),
                                 },
                             });
                         }
