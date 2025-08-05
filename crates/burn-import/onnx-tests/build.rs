@@ -154,6 +154,7 @@ fn main() {
         .input("tests/reduce_sum/reduce_sum.onnx")
         .input("tests/relu/relu.onnx")
         .input("tests/reshape/reshape.onnx")
+        .input("tests/reshape/reshape_with_1d_tensor.onnx")
         .input("tests/resize/resize_with_sizes.onnx")
         .input("tests/resize/resize_1d_linear_scale.onnx")
         .input("tests/resize/resize_1d_nearest_scale.onnx")

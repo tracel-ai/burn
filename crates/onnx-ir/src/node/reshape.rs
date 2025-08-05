@@ -1,83 +1,131 @@
-use crate::ir::{ArgType, Data, Node, TensorData, TensorType};
+use crate::ir::{ArgType, Argument, Data, Node, TensorData, TensorType};
+
+/// Configuration for the Reshape operation.
+#[derive(Debug, Clone)]
+pub struct ReshapeConfig {
+    pub shape: ReshapeInput,
+}
+
+/// Represents either a static value or a runtime argument for reshape shape.
+#[derive(Debug, Clone)]
+pub enum ReshapeInput {
+    /// Static shape known at compile time.
+    Static(Vec<i64>),
+    /// Runtime shape determined during execution.
+    Runtime(Argument),
+}
 
 /// Update output rank for Reshape based on shape input if constant, otherwise use input rank.
 pub fn reshape_update_outputs(node: &mut Node) {
-    log::debug!("Reshape rank inference for node {}", node.name);
-
-    let shape = if node.inputs.len() == 2 {
-        log::debug!("Reshape node {} has shape as second input", node.name);
-        match &node.inputs[1].value {
-            Some(value) => match &value.data {
-                Data::Int64s(shape) => {
-                    log::debug!("Reshape node {} has constant shape: {:?}", node.name, shape);
-                    Some(shape.clone())
-                }
-                _ => panic!("Reshape: invalid input types"),
-            },
-            None => {
-                log::debug!(
-                    "Reshape node {} has dynamic shape as second input",
-                    node.name
-                );
-                None
-            }
-        }
-    } else {
-        log::debug!("Reshape node {} using shape from attributes", node.name);
-        node.attrs.get("shape").cloned().map(|v| {
-            let shape = v.into_i64s();
-            log::debug!("Reshape node {} shape attribute: {:?}", node.name, shape);
-            shape
-        })
+    let input_tensor = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Reshape: invalid input types"),
     };
 
-    let tensor = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Reshape: invalid output types"),
-    };
+    // Try to determine output rank from various sources
+    let output_rank = infer_reshape_output_rank(node);
 
-    let rank = match &shape {
-        Some(s) => s.len(),
-        None => tensor.rank,
+    // Get static shape if available from output
+    let static_shape = match &node.outputs[0].ty {
+        ArgType::Tensor(t) => t.static_shape.clone(),
+        _ => None,
     };
-
-    log::debug!("Reshape output rank for node {}: {}", node.name, rank);
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        rank,
-        static_shape: None,
-        elem_type: tensor.elem_type,
+        rank: output_rank,
+        static_shape,
+        elem_type: input_tensor.elem_type.clone(),
     });
 }
 
-pub fn reshape_config(node: &Node) -> Vec<i64> {
-    let mut allowzero = 0;
+/// Infer output rank for reshape operation from available information
+fn infer_reshape_output_rank(node: &Node) -> usize {
+    // Case 1: Static shape from constant shape input or attribute
+    if let Some(shape) = get_static_shape(node) {
+        return shape.len();
+    }
 
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "allowzero" => allowzero = value.clone().into_i64(),
-            "shape" => {} // This can be used when shape is not provided as input - handled elsewhere
-            _ => panic!("Unexpected attribute for Reshape: {key}"),
+    // Case 2: Dynamic shape - try to infer from shape tensor's dimensions
+    if node.inputs.len() == 2 {
+        if let ArgType::Tensor(shape_tensor) = &node.inputs[1].ty {
+            if let Some(dims) = &shape_tensor.static_shape {
+                if !dims.is_empty() {
+                    return dims[0];
+                }
+            }
         }
     }
 
-    // Burn does not support zero size shape (0 means false in ONNX)
+    // Case 3: Use output's static_shape if available
+    if let ArgType::Tensor(output_tensor) = &node.outputs[0].ty {
+        if let Some(shape) = &output_tensor.static_shape {
+            return shape.len();
+        }
+    }
+
+    // Case 4: No rank information available - this is an error
+    panic!(
+        "Reshape node {} has dynamic shape with no rank information available. \
+         Cannot determine output rank.",
+        node.name
+    )
+}
+
+/// Extract static shape from reshape node if available
+fn get_static_shape(node: &Node) -> Option<Vec<i64>> {
+    // Check shape input
+    if node.inputs.len() == 2 {
+        if let Some(value) = &node.inputs[1].value {
+            if let Data::Int64s(shape) = &value.data {
+                return Some(shape.clone());
+            }
+        }
+    }
+
+    None
+}
+
+/// Creates a configuration for reshape operation based on the ONNX Reshape operator.
+/// Returns either static shape or runtime argument for reshape.
+pub fn reshape_config(node: &Node) -> ReshapeConfig {
+    let allowzero = node
+        .attrs
+        .get("allowzero")
+        .map(|v| v.clone().into_i64())
+        .unwrap_or(0);
+
+    // Check the allowzero attribute
     // (see https://onnx.ai/onnx/operators/onnx__Reshape.html#attributes)
     if allowzero != 0 {
         panic!("Zero shape size is not supported");
     }
 
-    // TODO: check "shape" attribute
-    if node.inputs.len() != 2 || node.inputs[1].value.is_none() {
-        panic!("Reshape: shape tensor must be present for {node:?}");
+    if node.inputs.len() != 2 {
+        panic!("Reshape requires exactly 2 inputs");
     }
 
-    match &node.inputs[1].value {
+    let shape = match &node.inputs[1].value {
         Some(TensorData { data, shape, .. }) => {
             assert_eq!(shape.len(), 1, "Reshape: shape tensor must be 1D");
-            data.clone().into_i64s()
+            ReshapeInput::Static(data.clone().into_i64s())
         }
-        _ => panic!("Only tensor input is valid for shape"),
+        None => {
+            // Runtime shape input
+            ReshapeInput::Runtime(node.inputs[1].clone())
+        }
+    };
+
+    ReshapeConfig { shape }
+}
+
+/// Legacy function that returns shape as Vec<i64> - kept for backward compatibility
+pub fn reshape_config_vec(node: &Node) -> Vec<i64> {
+    let config = reshape_config(node);
+    match config.shape {
+        ReshapeInput::Static(shape) => shape,
+        ReshapeInput::Runtime(_) => {
+            panic!("reshape_config_vec cannot be used with runtime shape inputs")
+        }
     }
 }
 
@@ -101,11 +149,22 @@ mod tests {
         builder.build()
     }
 
+    fn create_runtime_reshape_node() -> Node {
+        NodeBuilder::new(NodeType::Reshape, "test_runtime_reshape")
+            .input_tensor_f32("data", 2, None)
+            .input_tensor_i64("shape", 0, None) // No static value - runtime input
+            .output_tensor_f32("reshaped", 2, None)
+            .build()
+    }
+
     #[test]
     fn test_reshape_config_basic() {
         let node = create_test_node(0, vec![2, 3]);
-        let shape = reshape_config(&node);
-        assert_eq!(shape, vec![2, 3]);
+        let config = reshape_config(&node);
+        match config.shape {
+            ReshapeInput::Static(shape) => assert_eq!(shape, vec![2, 3]),
+            _ => panic!("Expected static shape"),
+        }
     }
 
     #[test]
@@ -116,7 +175,17 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "shape tensor must be present")]
+    fn test_reshape_config_runtime() {
+        let node = create_runtime_reshape_node();
+        let config = reshape_config(&node);
+        match config.shape {
+            ReshapeInput::Runtime(arg) => assert_eq!(arg.name, "shape"),
+            _ => panic!("Expected runtime shape"),
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "Reshape requires exactly 2 inputs")]
     fn test_reshape_config_no_shape_input() {
         let mut node = create_test_node(0, vec![2, 3]);
         node.inputs.pop(); // Remove the shape input

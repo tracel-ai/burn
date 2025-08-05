@@ -879,9 +879,17 @@ impl ParsedOnnxGraph {
     fn reshape_conversion(node: Node) -> ReshapeNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let shape = reshape_config(&node);
+        let config = reshape_config(&node);
 
-        ReshapeNode::new(input, output, shape)
+        match config.shape {
+            onnx_ir::node::reshape::ReshapeInput::Static(shape) => {
+                ReshapeNode::new(input, output, shape)
+            }
+            onnx_ir::node::reshape::ReshapeInput::Runtime(shape_arg) => {
+                let shape_input = Type::from(&shape_arg);
+                ReshapeNode::new(input, output, shape_input)
+            }
+        }
     }
 
     fn resize_conversion(node: Node) -> ResizeNode {
