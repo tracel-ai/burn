@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
+#[cfg(feature = "ddp")]
+use burn_collective::CollectiveConfig;
 use burn_core::tensor::backend::AutodiffBackend;
 
 use crate::{
-    EarlyStoppingStrategy, Learner, LearnerCheckpointer, TrainLoader, TrainingInterrupter,
+    EarlyStoppingStrategyRef, Learner, LearnerCheckpointer, TrainLoader, TrainingInterrupter,
     ValidLoader,
     components::LearnerComponentTypes,
     metric::{
@@ -17,9 +19,29 @@ use crate::{
 pub enum LearningStrategy<B: AutodiffBackend> {
     /// Training on one device
     SingleDevice(B::Device),
+
     /// Legacy implementation of local multi-device training
     MultiDeviceNaive(Vec<B::Device>),
-    // DistributedDataParallel...,
+
+    /// Training with input distributed across devices, each device has its own copy of the model.
+    /// Collective ops are used to sync the gradients after each pass.
+    #[cfg(feature = "ddp")]
+    DistributedDataParallel {
+        /// Devices on this node for the DDP
+        devices: Vec<B::Device>,
+
+        /// The configuration for collective operations
+        /// num_devices is ignored
+        config: CollectiveConfig,
+    },
+}
+
+/// Constructor for a distributed data parallel (DDP) learning strategy
+pub fn ddp<B: AutodiffBackend>(
+    devices: Vec<B::Device>,
+    config: CollectiveConfig,
+) -> LearningStrategy<B> {
+    LearningStrategy::DistributedDataParallel { devices, config }
 }
 
 impl<B: AutodiffBackend> Default for LearningStrategy<B> {
@@ -79,13 +101,14 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
             grad_accumulation: learner.grad_accumulation,
             interrupter: learner.interrupter,
             early_stopping: learner.early_stopping,
-            event_processor: &mut learner.event_processor,
+            event_processor: learner.event_processor,
             event_store: learner.event_store,
         };
-        let model = self.learn(model, dataloaders, starting_epoch, components);
+        let (model, mut event_processor) =
+            self.learn(model, dataloaders, starting_epoch, components);
 
         // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
-        learner.event_processor.process_train(Event::End);
+        event_processor.process_train(Event::End);
 
         let summary = learner.summary;
         if let Some(summary) = summary {
@@ -119,19 +142,19 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
         dataloaders: Self::PreparedDataloaders,
         starting_epoch: usize,
         components: LearnerComponents<LC>,
-    ) -> LC::Model;
+    ) -> (LC::Model, LC::EventProcessor);
 }
 
 /// Struct to minimise parameters passed to [LearningMethod::learn]
 /// These components are used during training
-pub(crate) struct LearnerComponents<'a, LC: LearnerComponentTypes> {
+pub(crate) struct LearnerComponents<LC: LearnerComponentTypes> {
     pub optim: LC::Optimizer,
     pub lr_scheduler: LC::LrScheduler,
     pub num_epochs: usize,
     pub grad_accumulation: Option<usize>,
     pub checkpointer: Option<LearnerCheckpointer<LC>>,
     pub interrupter: TrainingInterrupter,
-    pub early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
-    pub event_processor: &'a mut LC::EventProcessor,
+    pub early_stopping: Option<EarlyStoppingStrategyRef>,
+    pub event_processor: LC::EventProcessor,
     pub event_store: Arc<EventStoreClient>,
 }

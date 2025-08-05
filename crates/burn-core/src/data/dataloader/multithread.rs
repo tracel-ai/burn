@@ -7,8 +7,7 @@ use rand::rngs::StdRng;
 
 use super::batcher::Batcher;
 use super::{BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, Progress};
-use core::cell::OnceCell;
-use std::sync::{Arc, mpsc};
+use std::sync::{Arc, OnceLock, mpsc};
 use std::thread;
 
 const MAX_QUEUED_ITEMS: usize = 100;
@@ -24,7 +23,7 @@ pub struct MultiThreadDataLoader<B: Backend, I, O> {
     num_threads: usize,
 
     // The lazily initialized data loaders
-    dataloaders: OnceCell<Vec<BatchDataLoader<B, I, O>>>,
+    dataloaders: OnceLock<Vec<BatchDataLoader<B, I, O>>>,
 }
 
 /// A message that can be sent between threads.
@@ -79,7 +78,7 @@ where
             num_threads,
             device,
             rng,
-            dataloaders: OnceCell::new(),
+            dataloaders: OnceLock::new(),
         }
     }
 

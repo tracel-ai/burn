@@ -17,8 +17,8 @@ use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore
 use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::{
-    ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerCheckpointer,
-    LearnerSummaryConfig, LearningStrategy, TrainStep, ValidStep,
+    ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
+    LearnerCheckpointer, LearnerSummaryConfig, LearningStrategy, TrainStep, ValidStep,
 };
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
@@ -63,7 +63,7 @@ where
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     num_loggers: usize,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
-    early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
+    early_stopping: Option<EarlyStoppingStrategyRef>,
     // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
     summary_metrics: BTreeSet<String>,
     summary: bool,
@@ -246,7 +246,7 @@ where
     /// conditions are meet.
     pub fn early_stopping<Strategy>(mut self, strategy: Strategy) -> Self
     where
-        Strategy: EarlyStoppingStrategy + 'static,
+        Strategy: EarlyStoppingStrategy + Clone + Send + Sync + 'static,
     {
         self.early_stopping = Some(Box::new(strategy));
         self
