@@ -1,10 +1,14 @@
 use super::io::*;
 use super::ir::*;
 use crate::shared::DYN_ELEM_ID;
+use crate::shared::Q_STORE_DYN_ELEM_ID;
 use burn_tensor::quantization::QuantInputType;
 use burn_tensor::quantization::QuantLevel;
 use burn_tensor::quantization::QuantMode;
 use burn_tensor::quantization::QuantScheme;
+use burn_tensor::quantization::QuantStoreType;
+use cubecl::ir::Elem;
+use cubecl::ir::UIntKind;
 use cubecl::prelude::*;
 
 #[cube]
@@ -728,14 +732,24 @@ fn dequantize<C: Float>(
     #[comptime] scheme: QuantScheme,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    // TODO: Not hardcode to u32.
-    let input = read_quantized::<u32>(inputs, locals, write_pos, input, config, scheme);
+    set_polyfill::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(comptime![match scheme.q_store_type {
+        QuantStoreType::Native => match scheme.q_type {
+            QuantInputType::QInt8 => Elem::UInt(UIntKind::U8),
+        },
+        QuantStoreType::U32 => Elem::UInt(UIntKind::U32),
+    }]);
+
+    let input = read_quantized::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(
+        inputs, locals, write_pos, input, config, scheme,
+    );
     let pos = comptime!(match scales {
         Arg::Input(pos, ..) => pos,
         _ => unreachable!(""),
     });
     let scales = input_as_slice::<f32>(inputs, pos);
-    let result = dequantize_packed_value_at::<C, u32>(write_pos, input, scales, scheme);
+    let result = dequantize_packed_value_at::<C, NumericExpand<Q_STORE_DYN_ELEM_ID>>(
+        write_pos, input, scales, scheme,
+    );
 
     write::<C>(inputs, outputs, locals, write_pos, result, output, config);
 }
@@ -815,7 +829,11 @@ pub fn dequantize_packed_value<F: Float, QS: Int>(
     #[comptime] scheme: QuantScheme,
 ) -> Line<F> {
     // TODO: q_store_type: QuantStoreType::Native
-    let floats = unpack_q::<F, QS>(value, scheme.q_type);
+    let floats = unpack_q::<F, QS>(
+        value,
+        comptime!(scheme.q_type.size_bits() as u32),
+        comptime!(scheme.size_bits_stored() as u32),
+    );
 
     dequantize_symmetric(floats, scale)
 }
@@ -825,11 +843,11 @@ pub fn dequantize_packed_value<F: Float, QS: Int>(
 /// This handles types where multiple quantized values are packed into a single integer (the stored quantization type).
 #[allow(clippy::explicit_counter_loop)]
 #[cube]
-fn unpack_q<F: Float, QS: Int>(value: QS, #[comptime] quant: QuantInputType) -> Line<F> {
-    let size_quant = comptime!(match quant {
-        QuantInputType::QInt8 => 8,
-    });
-    let size_store = comptime!(QS::size_bits().unwrap() as u32);
+fn unpack_q<F: Float, QS: Int>(
+    value: QS,
+    #[comptime] size_quant: u32,
+    #[comptime] size_store: u32,
+) -> Line<F> {
     let num_quant = comptime!(size_store / size_quant);
 
     let mut output = Line::empty(num_quant);

@@ -3,6 +3,7 @@ use crate::shared::{
     settings::FuseSettings,
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};
+use burn_tensor::quantization::QuantFloatPrecision;
 use cubecl::prelude::Sequence;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, btree_map::Entry};
@@ -154,6 +155,14 @@ impl FuseBlockBuilder {
             Ok(val) => val,
             Err(_) => return None,
         };
+        let precision_scales = match tensor.dtype {
+            burn_tensor::DType::QFloat(scheme) => match scheme.q_params_precision {
+                QuantFloatPrecision::F32 => FusePrecision::F32,
+                QuantFloatPrecision::F16 => FusePrecision::F16,
+                QuantFloatPrecision::BF16 => FusePrecision::BF16,
+            },
+            _ => return None,
+        };
 
         let arg = match self.locals.get(precision, tensor.id) {
             Some(local) => {
@@ -161,9 +170,9 @@ impl FuseBlockBuilder {
                 QuantInput::AlreadyDequantized { local }
             }
             None => {
-                let (new_input, q_index) = resources.inputs.insert_quant(precision, tensor.clone());
+                let (new_input, q_index) = resources.inputs.insert_quant(tensor.clone());
                 let input = Arg::Input(new_input, precision, LayoutInfo::Unknown);
-                let scales = Arg::Input(q_index, FusePrecision::F32, LayoutInfo::Unknown);
+                let scales = Arg::Input(q_index, precision_scales, LayoutInfo::Unknown);
 
                 QuantInput::Info {
                     data: input,

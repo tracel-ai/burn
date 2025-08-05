@@ -302,7 +302,7 @@ impl RegisteredTensors {
             .flatten()
     }
 
-    pub fn insert_quant(&mut self, precision: FusePrecision, tensor: TensorIr) -> (u32, u32) {
+    pub fn insert_quant(&mut self, tensor: TensorIr) -> (u32, u32) {
         if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
             RegisterTensor::QuantData(tensor_ir) => tensor_ir == &tensor,
             _ => false,

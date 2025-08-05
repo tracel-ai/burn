@@ -1,14 +1,11 @@
-use std::collections::BTreeMap;
-
+use super::{block::FuseBlock, vectorization::Vect};
 use crate::{
     CubeFusionHandle,
     shared::ir::{Arg, FuseOp, FusePrecision},
 };
 use burn_ir::{TensorId, TensorIr};
-use burn_tensor::quantization::QuantScheme;
 use cubecl::Runtime;
-
-use super::{block::FuseBlock, vectorization::Vect};
+use std::collections::BTreeMap;
 
 /// The plan is responsible to keep runtime information related to the launch of a fused kernel
 /// at one place.
@@ -168,7 +165,6 @@ pub struct QuantDataHandleInput<R: Runtime> {
 pub struct QuantScalesHandleInput<R: Runtime> {
     pub precision: FusePrecision,
     pub handle: CubeFusionHandle<R>,
-    pub scheme: QuantScheme,
 }
 
 #[derive(Debug)]
