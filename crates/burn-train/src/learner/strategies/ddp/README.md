@@ -1,8 +1,7 @@
 ## DDP
 Distributed Data Parallel
 
-The DDP is a wrapper over the Learner that implements multi-threaded, multi-node learning using
-the burn's collective ops library.
+The DDP is a learning strategy that trains a replica of the model on each device.
 
 The DDP launches threads for each local device. Each thread on each node will run the model.
 After the forward and backward passes, the gradients are synced between all peers on all nodes 

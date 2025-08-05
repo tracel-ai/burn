@@ -30,7 +30,7 @@ pub trait DataLoader<B: Backend, O>: Send + Sync {
     fn num_items(&self) -> usize;
 
     /// Move the data loader to the given device, ensuring the batches are assigned to the correct device.
-    fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O> + Sync>;
+    fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O>>;
 
     /// Returns a new data loader containing a subset of the data.
     ///
@@ -45,5 +45,5 @@ pub trait DataLoader<B: Backend, O>: Send + Sync {
     /// # Returns
     ///
     /// A boxed [`DataLoader`] instance containing only the specified range.
-    fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O> + Sync>;
+    fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O>>;
 }

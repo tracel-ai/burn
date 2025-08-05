@@ -119,10 +119,10 @@ impl<LC: LearnerComponentTypes + Send + 'static> LearningMethod<LC> for DdpLearn
                 .expect("Distributed data parallel worker failed");
         }
         // Main worker had the event processor
-        let main_worker = main_handle
+        let (model, event_processor) = main_handle
             .join()
             .expect("Distributed data parallel main worker failed");
 
-        (main_worker.model, main_worker.event_processor.unwrap())
+        (model, event_processor.unwrap())
     }
 }

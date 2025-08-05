@@ -146,7 +146,7 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
 }
 
 /// Struct to minimise parameters passed to [LearningMethod::learn]
-/// These components are used during trainingåå
+/// These components are used during training
 pub(crate) struct LearnerComponents<LC: LearnerComponentTypes> {
     pub optim: LC::Optimizer,
     pub lr_scheduler: LC::LrScheduler,

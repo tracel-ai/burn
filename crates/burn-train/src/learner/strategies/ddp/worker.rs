@@ -18,22 +18,22 @@ pub(crate) struct DdpWorker<LC>
 where
     LC: LearnerComponentTypes + Send + 'static,
 {
-    pub peer_id: PeerId,
-    pub device: <TrainBackend<LC> as Backend>::Device,
-    pub model: LC::Model,
-    pub optim: LC::Optimizer,
-    pub early_stopping: Option<EarlyStoppingStrategyRef>,
-    pub event_processor: Option<LC::EventProcessor>,
-    pub event_store: Arc<EventStoreClient>,
-    pub checkpointer: Option<LearnerCheckpointer<LC>>,
-    pub lr_scheduler: LC::LrScheduler,
-    pub interrupter: TrainingInterrupter,
-    pub dataloader_train: TrainLoader<LC>,
-    pub dataloader_valid: Option<ValidLoader<LC>>,
-    pub collective_config: CollectiveConfig,
-    pub starting_epoch: usize,
-    pub num_epochs: usize,
-    pub grad_accumulation: Option<usize>,
+    peer_id: PeerId,
+    device: <TrainBackend<LC> as Backend>::Device,
+    model: LC::Model,
+    optim: LC::Optimizer,
+    early_stopping: Option<EarlyStoppingStrategyRef>,
+    event_processor: Option<LC::EventProcessor>,
+    event_store: Arc<EventStoreClient>,
+    checkpointer: Option<LearnerCheckpointer<LC>>,
+    lr_scheduler: LC::LrScheduler,
+    interrupter: TrainingInterrupter,
+    dataloader_train: TrainLoader<LC>,
+    dataloader_valid: Option<ValidLoader<LC>>,
+    collective_config: CollectiveConfig,
+    starting_epoch: usize,
+    num_epochs: usize,
+    grad_accumulation: Option<usize>,
     _p: PhantomData<LC>,
 }
 
@@ -60,7 +60,7 @@ where
         starting_epoch: usize,
         num_epochs: usize,
         grad_accumulation: Option<usize>,
-    ) -> JoinHandle<Self> {
+    ) -> JoinHandle<(LC::Model, Option<LC::EventProcessor>)> {
         let worker = Self {
             peer_id,
             device,
@@ -85,7 +85,7 @@ where
     }
 
     /// Fits the model,
-    pub fn fit(mut self) -> Self {
+    pub fn fit(mut self) -> (LC::Model, Option<LC::EventProcessor>) {
         burn_collective::register::<<LC::Backend as AutodiffBackend>::InnerBackend>(
             self.peer_id,
             self.device.clone(),
@@ -139,6 +139,6 @@ where
             }
         }
 
-        self
+        (self.model, self.event_processor)
     }
 }

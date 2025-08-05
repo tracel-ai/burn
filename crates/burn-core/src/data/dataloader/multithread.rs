@@ -15,7 +15,7 @@ const MAX_QUEUED_ITEMS: usize = 100;
 /// A multi-threaded data loader that can be used to iterate over a dataset.
 pub struct MultiThreadDataLoader<B: Backend, I, O> {
     // Configuration parameters needed for initialization
-    strategy: Box<dyn BatchStrategy<I> + Sync>,
+    strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
     batcher: Arc<dyn Batcher<B, I, O>>,
     device: B::Device,
@@ -64,7 +64,7 @@ where
     ///
     /// The multi-threaded batch data loader.
     pub fn new(
-        strategy: Box<dyn BatchStrategy<I> + Sync>,
+        strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
         batcher: Arc<dyn Batcher<B, I, O>>,
         num_threads: usize,
@@ -175,7 +175,7 @@ where
         self.dataset.len()
     }
 
-    fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O> + Sync> {
+    fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O>> {
         Arc::new(Self::new(
             self.strategy.clone_dyn(),
             self.dataset.clone(),
@@ -186,7 +186,7 @@ where
         ))
     }
 
-    fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O> + Sync> {
+    fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O>> {
         let dataloader = Self::new(
             self.strategy.clone_dyn(),
             Arc::new(PartialDataset::new(self.dataset.clone(), start, end)),

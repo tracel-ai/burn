@@ -102,8 +102,8 @@ pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
 }
 
-pub(crate) type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>> + Sync>;
-pub(crate) type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>> + Sync>;
+pub(crate) type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>>>;
+pub(crate) type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>>>;
 
 impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
     /// Fits the model.

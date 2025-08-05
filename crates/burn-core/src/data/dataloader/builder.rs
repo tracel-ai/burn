@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 /// A builder for data loaders.
 pub struct DataLoaderBuilder<B: Backend, I, O> {
-    strategy: Option<Box<dyn BatchStrategy<I> + Sync>>,
+    strategy: Option<Box<dyn BatchStrategy<I>>>,
     batcher: Arc<dyn Batcher<B, I, O>>,
     num_threads: Option<usize>,
     shuffle: Option<u64>,
