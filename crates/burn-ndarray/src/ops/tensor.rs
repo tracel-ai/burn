@@ -1,7 +1,7 @@
 // Language
 use alloc::vec::Vec;
 use burn_tensor::cast::ToElement;
-use burn_tensor::ops::FloatTensor;
+use burn_tensor::ops::{FloatTensor, IntTensor};
 use core::ops::Range;
 
 // Current crate
@@ -149,7 +149,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     fn float_gather(
         dim: usize,
         tensor: FloatTensor<Self>,
-        indices: NdArrayTensor<I>,
+        indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::gather(
             dim, tensor, indices
@@ -159,18 +159,18 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     fn float_scatter(
         dim: usize,
         tensor: FloatTensor<Self>,
-        indices: NdArrayTensor<I>,
+        indices: IntTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!((tensor, value), |tensor, value| NdArrayMathOps::scatter(
             dim, tensor, indices, value
-        ))
+        )) 
     }
 
     fn float_select(
         tensor: FloatTensor<Self>,
         dim: usize,
-        indices: NdArrayTensor<I>,
+        indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::select(
             tensor, dim, indices
@@ -180,11 +180,11 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     fn float_select_assign(
         tensor: FloatTensor<Self>,
         dim: usize,
-        indices: NdArrayTensor<I>,
+        indices: IntTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!((tensor, value), |tensor, value| {
-            NdArrayMathOps::select_assign(tensor, dim, indices, value)
+            NdArrayMathOps::select_assign(tensor, dim, indices.into(), value)
         })
     }
 
@@ -304,11 +304,11 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::sum_dim(tensor, dim))
     }
 
-    fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> NdArrayTensor<I> {
+    fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
         execute_with_float_dtype!(tensor => |tensor| NdArrayMathOps::argmax(tensor, dim))
     }
 
-    fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> NdArrayTensor<I> {
+    fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
         execute_with_float_dtype!(tensor => |tensor| NdArrayMathOps::argmin(tensor, dim))
     }
 
@@ -510,7 +510,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         ))
     }
 
-    fn float_into_int(tensor: FloatTensor<Self>) -> NdArrayTensor<I> {
+    fn float_into_int(tensor: FloatTensor<Self>) -> IntTensor<Self> {
         execute_with_float_dtype!(tensor, E => |tensor: NdArrayTensor<E>| {
             let array = tensor.array.mapv(|a| a.elem()).into_shared();
             NdArrayTensor { array }

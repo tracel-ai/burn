@@ -1,5 +1,5 @@
 use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
-use crate::{NdArrayQTensor, NdArrayTensor, NdArrayTensorFloat};
+use crate::{NdArrayQTensor, NdArrayTensor, NdArrayTensorFloat, NdArrayTensorInt};
 use alloc::string::String;
 use burn_common::stub::Mutex;
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
@@ -48,7 +48,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for 
     type FloatTensorPrimitive = NdArrayTensorFloat;
     type FloatElem = E;
 
-    type IntTensorPrimitive = NdArrayTensor<I>;
+    type IntTensorPrimitive = NdArrayTensorInt;
     type IntElem = I;
 
     type BoolTensorPrimitive = NdArrayTensor<bool>;

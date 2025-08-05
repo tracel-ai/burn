@@ -1,7 +1,7 @@
 // Language
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_tensor::ops::{BoolTensorOps, FloatTensor, IntTensorOps};
+use burn_tensor::ops::{BoolTensorOps, FloatTensor, IntTensor, IntTensorOps};
 use burn_tensor::{ElementConversion, TensorMetadata};
 use core::ops::Range;
 use ndarray::IntoDimension;
@@ -42,7 +42,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BoolTensorOp
         NdArrayOps::slice(tensor, ranges)
     }
 
-    fn bool_into_int(tensor: NdArrayTensor<bool>) -> NdArrayTensor<I> {
+    fn bool_into_int(tensor: NdArrayTensor<bool>) -> IntTensor<Self> {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
         NdArray::<E, I>::int_from_data(
