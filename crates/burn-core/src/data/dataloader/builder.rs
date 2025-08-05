@@ -131,7 +131,9 @@ where
             Some(strategy) => strategy,
             None => Box::new(FixBatchStrategy::new(1)),
         };
-        if let Some(num_threads) = self.num_threads {
+        if let Some(num_threads) = self.num_threads
+            && num_threads > 0
+        {
             return Arc::new(MultiThreadDataLoader::new(
                 strategy,
                 dataset,
@@ -157,6 +159,32 @@ mod tests {
     use super::*;
     use crate::data::dataset::FakeDataset;
     use crate::{TestBackend, data::dataloader::batcher::Batcher};
+
+    #[test]
+    fn test_dataloader_no_workers() {
+        type TestDevice = <TestBackend as Backend>::Device;
+
+        #[derive(new, Clone)]
+        pub struct TestBatcher;
+
+        #[cfg(test)]
+        impl<I> Batcher<TestBackend, I, TestDevice> for TestBatcher {
+            fn batch(&self, _items: Vec<I>, device: &TestDevice) -> TestDevice {
+                *device
+            }
+        }
+
+        let default_device = TestDevice::default();
+        let dataloader = DataLoaderBuilder::new(TestBatcher::new())
+            .batch_size(1)
+            .build(FakeDataset::<String>::new(9));
+
+        assert_eq!(dataloader.num_items(), 9);
+
+        for device in dataloader.iter() {
+            assert_eq!(device, default_device)
+        }
+    }
 
     #[test]
     fn test_dataloader_default_device() {
