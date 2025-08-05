@@ -60,11 +60,11 @@ pub fn slice_config(node: &Node) -> SliceConfig {
         None
     }
 
-    let starts = get_slice_input(node, 1)
-        .unwrap_or_else(|| panic!("Slice: starts parameter is required"));
+    let starts =
+        get_slice_input(node, 1).unwrap_or_else(|| panic!("Slice: starts parameter is required"));
 
-    let ends = get_slice_input(node, 2)
-        .unwrap_or_else(|| panic!("Slice: ends parameter is required"));
+    let ends =
+        get_slice_input(node, 2).unwrap_or_else(|| panic!("Slice: ends parameter is required"));
 
     let axes = get_slice_input(node, 3);
     let steps = get_slice_input(node, 4);
@@ -194,11 +194,7 @@ mod tests {
 
     use super::*;
 
-    fn create_test_node(
-        starts: Vec<i64>,
-        ends: Vec<i64>,
-        axes: Option<Vec<i64>>,
-    ) -> Node {
+    fn create_test_node(starts: Vec<i64>, ends: Vec<i64>, axes: Option<Vec<i64>>) -> Node {
         let mut builder = NodeBuilder::new(NodeType::Slice, "test_slice")
             .input_tensor_f32("data", 3, None)
             .output_default("output");
@@ -208,8 +204,7 @@ mod tests {
         builder = builder.input_tensor_i64_data("ends", ends.clone(), vec![ends.len()]);
 
         if let Some(axes_vec) = axes.clone() {
-            builder =
-                builder.input_tensor_i64_data("axes", axes_vec.clone(), vec![axes_vec.len()]);
+            builder = builder.input_tensor_i64_data("axes", axes_vec.clone(), vec![axes_vec.len()]);
         }
 
         builder.build()
@@ -278,7 +273,6 @@ mod tests {
             _ => panic!("Expected static config"),
         }
     }
-
 
     #[test]
     fn test_slice_config_negative_axes() {
