@@ -32,7 +32,7 @@ atomic_float = "1"
 axum = "0.8.3"
 bytemuck = "1.23.1"
 bytes = "1"
-clap = { version = "4.5.41", features = ["derive"] }
+clap = { version = "4.5.42", features = ["derive"] }
 candle-core = { version = "0.9.1" }
 colored = "3.0.0"
 console_error_panic_hook = "0.1.7"
@@ -89,7 +89,7 @@ strum = { version = "0.27.2", features = ["derive"] }
 syn = { version = "2.0.104", features = ["full", "extra-traits"] }
 tempfile = "3.20.0"
 thiserror = "2.0.11"
-tokio = { version = "1.47.0", features = ["rt", "macros"] }
+tokio = { version = "1.47.1", features = ["rt", "macros"] }
 tokio-util = "0.7"
 tokio-tungstenite = "0.26"
 tracing-appender = "0.2.3"
@@ -99,7 +99,7 @@ zip = "4.3.0"
 
 # Async handling
 async-channel = "2.5"
-futures-lite = { version = "2.5.0", default-features = false }
+futures-lite = { version = "2.6.1", default-features = false }
 
 # Terminal UI
 ratatui = "0.29.0"

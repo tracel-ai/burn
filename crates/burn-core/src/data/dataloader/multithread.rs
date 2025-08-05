@@ -96,7 +96,12 @@ where
                     ));
                 }
 
-                let datasets = PartialDataset::split(dataset, self.num_threads);
+                let datasets = match self.strategy.batch_size() {
+                    Some(batch_size) => {
+                        PartialDataset::split_chunks(dataset, self.num_threads, batch_size)
+                    }
+                    None => PartialDataset::split(dataset, self.num_threads),
+                };
 
                 // Create more rngs from the first one, one for each new dataloader.
                 let mut rng = self.rng.clone();
@@ -371,5 +376,44 @@ mod tests {
                 assert_eq!(batch_items.len(), num_classes);
             }
         }
+    }
+
+    #[test]
+    fn test_multi_thread_batch_dataloader_incomplete_batches() {
+        let batcher = Arc::new(TestBatcher::new());
+        let dataset = Arc::new(FakeDataset::<String>::new(27));
+        let dataloader_single_thread = BatchDataLoader::new(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset.clone(),
+            batcher.clone(),
+            Default::default(),
+            None,
+        );
+        let dataloader_multi_thread = MultiThreadDataLoader::new(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset,
+            batcher,
+            4,
+            Default::default(),
+            None,
+        );
+
+        let mut items_single_thread = HashSet::new();
+        let mut items_multi_thread = HashSet::new();
+
+        let mut single_thread_cnt = 0;
+        let mut multi_thread_cnt = 0;
+        for items in dataloader_single_thread.iter() {
+            items_single_thread.insert(items);
+            single_thread_cnt += 1;
+        }
+
+        for items in dataloader_multi_thread.iter() {
+            items_multi_thread.insert(items);
+            multi_thread_cnt += 1;
+        }
+
+        assert_eq!(single_thread_cnt, multi_thread_cnt);
+        assert_eq!(items_single_thread, items_multi_thread);
     }
 }

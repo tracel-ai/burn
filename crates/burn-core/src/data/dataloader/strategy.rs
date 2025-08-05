@@ -24,6 +24,13 @@ pub trait BatchStrategy<I>: Send + Sync {
     ///
     /// The new strategy.
     fn clone_dyn(&self) -> Box<dyn BatchStrategy<I>>;
+
+    /// Returns the expected batch size for this strategy.
+    ///
+    /// # Returns
+    ///
+    /// The batch size, or None if the strategy doesn't have a fixed batch size.
+    fn batch_size(&self) -> Option<usize>;
 }
 
 /// A strategy to batch items with a fixed batch size.
@@ -72,5 +79,9 @@ impl<I: Send + Sync + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
 
     fn clone_dyn(&self) -> Box<dyn BatchStrategy<I>> {
         Box::new(Self::new(self.batch_size))
+    }
+
+    fn batch_size(&self) -> Option<usize> {
+        Some(self.batch_size)
     }
 }
