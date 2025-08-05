@@ -329,6 +329,17 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
         }
     }
 
+    let mut ensurepip_cmd = Command::new(&venv_python_path);
+    ensurepip_cmd.args(["-m", "ensurepip", "--upgrade"]);
+    let status = ensurepip_cmd.status().map_err(|err| {
+        ImporterError::FailToDownloadPythonDependencies(format!("failed to run ensurepip: {err}"))
+    })?;
+    if !status.success() {
+        return Err(ImporterError::FailToDownloadPythonDependencies(
+            "ensurepip failed to initialize pip".to_string(),
+        ));
+    }
+
     let mut command = Command::new(&venv_python_path);
     command.args([
         "-m",
@@ -342,28 +353,11 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
         "datasets",
     ]);
 
-    let output = command.output().map_err(|err| {
-        ImporterError::FailToDownloadPythonDependencies(format!("Failed to run pip: {err}"))
-    })?;
+    // Spawn the pip install process and wait for it to complete.
+    let mut handle = command.spawn().unwrap();
+    handle
+        .wait()
+        .map_err(|err| ImporterError::FailToDownloadPythonDependencies(format!(" error: {err}")))?;
 
-    // Check if pip actually ran successfully
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-
-        if stderr.contains("No module named pip") {
-            return Err(ImporterError::FailToDownloadPythonDependencies(
-                "Python environment is missing pip. \
-                Please install pip with:\n\n\
-                python3 -m ensurepip --upgrade && rm -rf ~/.cache/burn-dataset/venv\n"
-                    .to_string(),
-            ));
-        }
-
-        return Err(ImporterError::FailToDownloadPythonDependencies(format!(
-            "pip failed with status {:?}: {}",
-            output.status.code(),
-            stderr
-        )));
-    }
     Ok(venv_python_path)
 }
