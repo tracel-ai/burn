@@ -18,8 +18,10 @@ pub struct QuantScheme {
     pub q_type: QuantInputType,
     /// Data type used for storing quantized values.
     pub q_store_type: QuantStoreType,
+    /// Precision used for quantization parameters (e.g., scale).
+    pub q_params_precision: QuantFloatPrecision,
     /// Precision used for accumulating intermediate values (e.g., during matmul).
-    pub acc_precision: QuantAccPrecision,
+    pub acc_precision: QuantFloatPrecision,
     /// Whether to propagate quantization to outputs or return unquantized results.
     pub propagation: QuantPropagation,
 }
@@ -31,7 +33,8 @@ impl Default for QuantScheme {
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
             q_store_type: QuantStoreType::U32,
-            acc_precision: QuantAccPrecision::Full,
+            q_params_precision: QuantFloatPrecision::F32,
+            acc_precision: QuantFloatPrecision::F32,
             propagation: QuantPropagation::Inhibit,
         }
     }
@@ -62,8 +65,14 @@ impl QuantScheme {
         self
     }
 
+    /// Set the precision used for quantization parameters
+    pub fn set_q_params_precision(mut self, q_params_precision: QuantFloatPrecision) -> Self {
+        self.q_params_precision = q_params_precision;
+        self
+    }
+
     /// Set the accumulation precision used during computations.
-    pub fn set_acc_precision(mut self, acc_precision: QuantAccPrecision) -> Self {
+    pub fn set_acc_precision(mut self, acc_precision: QuantFloatPrecision) -> Self {
         self.acc_precision = acc_precision;
         self
     }
@@ -74,22 +83,16 @@ impl QuantScheme {
         self
     }
 
-    /// Returns the size of the quantization input type in bits.
-    pub fn bits_type(&self) -> usize {
-        match self.q_type {
-            QuantInputType::QInt8 => 8,
-        }
-    }
-
     /// Returns the size of the quantization storage type in bits.
-    pub fn bits_stored(&self) -> usize {
+    pub fn size_bits_stored(&self) -> usize {
         match self.q_store_type {
-            QuantStoreType::Native => self.bits_type(),
+            QuantStoreType::Native => self.q_type.size_bits(),
             QuantStoreType::U32 => 32,
             // QuantStoreType::U8 => 8,
         }
     }
 }
+
 /// Level or granularity of quantization.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum QuantLevel {
@@ -104,6 +107,15 @@ pub enum QuantLevel {
 pub enum QuantInputType {
     /// 8-bit signed integer.
     QInt8,
+}
+
+impl QuantInputType {
+    /// Returns the size of the quantization input type in bits.
+    pub fn size_bits(&self) -> usize {
+        match self {
+            QuantInputType::QInt8 => 8,
+        }
+    }
 }
 
 /// Data type used to stored quantized values.
@@ -124,14 +136,18 @@ pub enum QuantMode {
     Symmetric,
 }
 
-/// Quantization accumulator precision. This is the precision to used when accumulating values
-/// while executing algorithms such as matmul.
+/// Quantization floating-point precision.
+///
+/// This is used to represent the floating-point precision of quantization parameters like the scale(s)
+/// or the accumulation precision used during operations like matrix multiplication.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum QuantAccPrecision {
-    /// Full precision accumulation (f32).
-    Full,
-    /// Half precision accumulation (f16).
-    Half,
+pub enum QuantFloatPrecision {
+    /// Full precision.
+    F32,
+    /// Half precision.
+    F16,
+    /// bfloat16 precision.
+    BF16,
 }
 
 /// Specify if the output of an operation is quantized using the scheme of the input

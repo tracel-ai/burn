@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::{
         Tensor,
-        quantization::{QuantLevel, QuantScheme, QuantStoreType},
+        quantization::{QuantFloatPrecision, QuantLevel, QuantScheme, QuantStoreType},
     };
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
@@ -57,7 +57,10 @@ mod tests {
         if <TestBackend as burn_tensor::backend::Backend>::name(&Default::default())
             .contains("cuda")
         {
-            scheme = scheme.set_q_store_type(QuantStoreType::Native)
+            scheme = scheme
+                .set_q_store_type(QuantStoreType::Native)
+                // Should probably set input dtype as f16 too
+                .set_q_params_precision(QuantFloatPrecision::F16)
         }
 
         let input = Tensor::<TestBackend, 2>::from_floats(
