@@ -79,7 +79,7 @@ pub fn q_matmul<R: CubeRuntime>(
     let rhs_scales = rhs.scales().unwrap();
 
     match scheme.acc_precision {
-        QuantFloatPrecision::Full => {
+        QuantFloatPrecision::F32 => {
             cubecl::matmul::launch_ref::<R, (i8, half::f16, f32, half::f16, Quantized)>(
                 &Default::default(),
                 client,
@@ -90,7 +90,7 @@ pub fn q_matmul<R: CubeRuntime>(
                 &out.as_handle_ref(),
             )?;
         }
-        QuantFloatPrecision::Half => {
+        QuantFloatPrecision::F16 => {
             cubecl::matmul::launch_ref::<R, (i8, half::f16, half::f16, half::f16, Quantized)>(
                 &Default::default(),
                 client,
@@ -101,6 +101,7 @@ pub fn q_matmul<R: CubeRuntime>(
                 &out.as_handle_ref(),
             )?;
         }
+        QuantFloatPrecision::BF16 => unimplemented!(),
     }
 
     Ok(out)

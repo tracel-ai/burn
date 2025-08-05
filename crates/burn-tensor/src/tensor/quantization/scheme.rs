@@ -33,8 +33,8 @@ impl Default for QuantScheme {
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
             q_store_type: QuantStoreType::U32,
-            q_params_precision: QuantFloatPrecision::Full,
-            acc_precision: QuantFloatPrecision::Full,
+            q_params_precision: QuantFloatPrecision::F32,
+            acc_precision: QuantFloatPrecision::F32,
             propagation: QuantPropagation::Inhibit,
         }
     }
@@ -142,10 +142,12 @@ pub enum QuantMode {
 /// or the accumulation precision used during operations like matrix multiplication.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum QuantFloatPrecision {
-    /// Full precision accumulation (f32).
-    Full,
-    /// Half precision accumulation (f16).
-    Half,
+    /// Full precision.
+    F32,
+    /// Half precision.
+    F16,
+    /// bfloat16 precision.
+    BF16,
 }
 
 /// Specify if the output of an operation is quantized using the scheme of the input

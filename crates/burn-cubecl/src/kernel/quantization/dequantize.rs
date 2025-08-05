@@ -6,7 +6,7 @@ use crate::{ops::numeric::empty_device_strided, tensor::CubeTensor};
 use burn_tensor::quantization::{
     QuantFloatPrecision, QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantStoreType,
 };
-use burn_tensor::{DType, f16};
+use burn_tensor::{DType, bf16, f16};
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 use cubecl::std::tensor::{StridedLayout, index_offset_contiguous};
@@ -172,8 +172,9 @@ where
                 q_store_type: QuantStoreType::U32,
                 ..
             } => match scheme.q_params_precision {
-                QuantFloatPrecision::Full => dequantize_packed::<R, F, f32>(tensor, output),
-                QuantFloatPrecision::Half => dequantize_packed::<R, F, f16>(tensor, output),
+                QuantFloatPrecision::F32 => dequantize_packed::<R, F, f32>(tensor, output),
+                QuantFloatPrecision::F16 => dequantize_packed::<R, F, f16>(tensor, output),
+                QuantFloatPrecision::BF16 => dequantize_packed::<R, F, bf16>(tensor, output),
             },
             QuantScheme {
                 q_type: QuantInputType::QInt8,
@@ -185,8 +186,9 @@ where
                 }
 
                 match scheme.q_params_precision {
-                    QuantFloatPrecision::Full => dequantize_native::<R, F, f32>(tensor, output),
-                    QuantFloatPrecision::Half => dequantize_native::<R, F, f16>(tensor, output),
+                    QuantFloatPrecision::F32 => dequantize_native::<R, F, f32>(tensor, output),
+                    QuantFloatPrecision::F16 => dequantize_native::<R, F, f16>(tensor, output),
+                    QuantFloatPrecision::BF16 => dequantize_native::<R, F, bf16>(tensor, output),
                 }
             }
         },

@@ -70,7 +70,7 @@ mod tests {
         let device = Default::default();
         let scheme = QuantScheme {
             propagation: QuantPropagation::Inhibit,
-            acc_precision: QuantFloatPrecision::Full, // f32
+            acc_precision: QuantFloatPrecision::F32,
             ..Default::default()
         };
 

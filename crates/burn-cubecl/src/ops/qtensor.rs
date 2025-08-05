@@ -35,8 +35,9 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
     let shape: Shape = shape.into();
     let scales_shape: Shape;
     let scales_dtype = match scheme.q_params_precision {
-        QuantFloatPrecision::Full => DType::F32,
-        QuantFloatPrecision::Half => DType::F16,
+        QuantFloatPrecision::F32 => DType::F32,
+        QuantFloatPrecision::F16 => DType::F16,
+        QuantFloatPrecision::BF16 => DType::BF16,
     };
 
     let (data, shapes, elem_sizes) = match scheme {
@@ -104,8 +105,9 @@ pub fn empty_qtensor<R: CubeRuntime>(
     let scales_shape: Shape;
 
     let scales_dtype = match scheme.q_params_precision {
-        QuantFloatPrecision::Full => DType::F32,
-        QuantFloatPrecision::Half => DType::F16,
+        QuantFloatPrecision::F32 => DType::F32,
+        QuantFloatPrecision::F16 => DType::F16,
+        QuantFloatPrecision::BF16 => DType::BF16,
     };
     let (shapes, elem_sizes) = match scheme {
         // Just to ensure we get and error if more modes are added and unhandled

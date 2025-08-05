@@ -70,8 +70,8 @@ impl QuantizationStrategy {
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
                 q_store_type: QuantStoreType::Native,
-                q_params_precision: QuantFloatPrecision::Full,
-                acc_precision: QuantFloatPrecision::Full,
+                q_params_precision: QuantFloatPrecision::F32,
+                acc_precision: QuantFloatPrecision::F32,
                 propagation: QuantPropagation::Inhibit,
             },
             QuantizationStrategy::PerBlockSymmetricInt8(_blocks, block_size) => QuantScheme {
@@ -79,8 +79,8 @@ impl QuantizationStrategy {
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
                 q_store_type: QuantStoreType::Native,
-                q_params_precision: QuantFloatPrecision::Full,
-                acc_precision: QuantFloatPrecision::Full,
+                q_params_precision: QuantFloatPrecision::F32,
+                acc_precision: QuantFloatPrecision::F32,
                 propagation: QuantPropagation::Inhibit,
             },
         }

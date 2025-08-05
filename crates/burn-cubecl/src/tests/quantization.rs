@@ -60,7 +60,7 @@ mod tests {
             scheme = scheme
                 .set_q_store_type(QuantStoreType::Native)
                 // Should probably set input dtype as f16 too
-                .set_q_params_precision(QuantFloatPrecision::Half)
+                .set_q_params_precision(QuantFloatPrecision::F16)
         }
 
         let input = Tensor::<TestBackend, 2>::from_floats(
