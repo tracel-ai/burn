@@ -2,7 +2,7 @@ use super::init_matmul_output;
 use crate::{CubeRuntime, FloatElement, tensor::CubeTensor};
 use burn_tensor::{
     DType,
-    quantization::{QTensorPrimitive, QuantAccPrecision},
+    quantization::{QTensorPrimitive, QuantFloatPrecision},
 };
 use cubecl::matmul::components::{MatmulSetupError, Quantized};
 
@@ -79,7 +79,7 @@ pub fn q_matmul<R: CubeRuntime>(
     let rhs_scales = rhs.scales().unwrap();
 
     match scheme.acc_precision {
-        QuantAccPrecision::Full => {
+        QuantFloatPrecision::F32 => {
             cubecl::matmul::launch_ref::<R, (i8, half::f16, f32, half::f16, Quantized)>(
                 &Default::default(),
                 client,
@@ -90,7 +90,7 @@ pub fn q_matmul<R: CubeRuntime>(
                 &out.as_handle_ref(),
             )?;
         }
-        QuantAccPrecision::Half => {
+        QuantFloatPrecision::F16 => {
             cubecl::matmul::launch_ref::<R, (i8, half::f16, half::f16, half::f16, Quantized)>(
                 &Default::default(),
                 client,
@@ -101,6 +101,7 @@ pub fn q_matmul<R: CubeRuntime>(
                 &out.as_handle_ref(),
             )?;
         }
+        QuantFloatPrecision::BF16 => unimplemented!(),
     }
 
     Ok(out)

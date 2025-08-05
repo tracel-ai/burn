@@ -9,8 +9,8 @@ use cubecl::{
 };
 
 use super::{
-    FuseResources, HandleOutput, LaunchPlan, NormalHandleInput, ReferenceSelection, TensorView,
-    TraceError, TraceRunner, TuneOutput, block::FuseBlock,
+    FuseResources, HandleOutput, LaunchPlan, ReferenceSelection, TensorView, TraceError,
+    TraceRunner, TuneOutput, block::FuseBlock,
 };
 use crate::{
     CubeFusionHandle, elem_dtype,

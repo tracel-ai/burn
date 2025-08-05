@@ -19,12 +19,15 @@ default = ["sys-metrics", "tui"]
 doc = ["default"]
 sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui"]
+# Distributed Data Parallel
+ddp = ["burn-collective"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "0.19.0", features = [
     "dataset",
     "std",
 ], default-features = false }
+burn-collective = { path = "../burn-collective", optional = true }
 
 log = { workspace = true }
 tracing-subscriber = { workspace = true }

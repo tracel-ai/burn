@@ -16,12 +16,12 @@ pub struct QParams {
 impl QParams {
     /// Create a new quantization parameters instance.
     pub fn new(#[comptime] scheme: QuantScheme) -> Self {
-        let num_quants = comptime!((scheme.bits_stored() / scheme.bits_type()) as u32);
+        let num_quants = comptime!((scheme.size_bits_stored() / scheme.q_type.size_bits()) as u32);
         QParams { scheme, num_quants }
     }
 
     /// Get the quantization parameters values.
-    pub fn scale(&self, scale_tensor: &Tensor<f32>, in_pos: u32) -> f32 {
+    pub fn scale<F: Float>(&self, scale_tensor: &Tensor<F>, in_pos: u32) -> F {
         match comptime!(self.scheme) {
             // Symmetric quantization only contains the scaling factor as the last element
             QuantScheme {

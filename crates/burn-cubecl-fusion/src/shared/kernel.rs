@@ -759,7 +759,7 @@ pub struct QParams {
 impl QParams {
     /// Create a new quantization parameters instance.
     pub fn new(#[comptime] scheme: QuantScheme) -> Self {
-        let num_quants = comptime!((scheme.bits_stored() / scheme.bits_type()) as u32);
+        let num_quants = comptime!(scheme.num_quants() as u32);
         QParams { scheme, num_quants }
     }
 

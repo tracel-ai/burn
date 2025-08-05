@@ -1,4 +1,5 @@
 pub(crate) mod gelu;
+pub(crate) mod glu;
 pub(crate) mod hard_sigmoid;
 pub(crate) mod leaky_relu;
 pub(crate) mod log_sigmoid;

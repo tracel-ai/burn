@@ -1,6 +1,8 @@
 use crate::components::{
     InputTrain, InputValid, LearnerComponentTypes, TrainBackend, ValidBackend,
 };
+#[cfg(feature = "ddp")]
+use crate::ddp::DdpLearningStrategy;
 use crate::multi::MultiDeviceLearningStrategy;
 use crate::single::SingleDeviceLearningStrategy;
 use crate::{Learner, LearningMethod, LearningStrategy};
@@ -103,7 +105,7 @@ pub trait ValidStep<VI, VO> {
 pub(crate) type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>>>;
 pub(crate) type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>>>;
 
-impl<LC: LearnerComponentTypes> Learner<LC> {
+impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
     /// Fits the model.
     ///
     /// # Arguments
@@ -129,6 +131,12 @@ impl<LC: LearnerComponentTypes> Learner<LC> {
             LearningStrategy::MultiDeviceNaive(devices) => {
                 let multi_device = MultiDeviceLearningStrategy::new(devices.clone());
                 multi_device.fit(self, dataloader_train, dataloader_valid)
+            }
+
+            #[cfg(feature = "ddp")]
+            LearningStrategy::DistributedDataParallel { devices, config } => {
+                let ddp = DdpLearningStrategy::new(devices.clone(), config.clone());
+                ddp.fit(self, dataloader_train, dataloader_valid)
             }
         }
     }
