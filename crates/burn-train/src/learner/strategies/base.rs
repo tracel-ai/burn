@@ -37,6 +37,7 @@ pub enum LearningStrategy<B: AutodiffBackend> {
 }
 
 /// Constructor for a distributed data parallel (DDP) learning strategy
+#[cfg(feature = "ddp")]
 pub fn ddp<B: AutodiffBackend>(
     devices: Vec<B::Device>,
     config: CollectiveConfig,
