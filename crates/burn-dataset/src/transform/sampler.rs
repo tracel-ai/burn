@@ -42,6 +42,11 @@ where
         }
     }
 
+    /// Creates a builder for the given dataset.
+    pub fn builder(dataset: D) -> SamplerDatasetBuilder<D, I> {
+        SamplerDatasetBuilder::for_dataset(dataset)
+    }
+
     /// Creates a new sampler dataset with replacement.
     ///
     /// # Arguments
@@ -205,11 +210,123 @@ where
     }
 }
 
+/// Fluent builder for SamplerDataset.
+pub struct SamplerDatasetBuilder<D, I>
+where
+    D: Dataset<I>,
+    I: Send + Sync,
+{
+    dataset: D,
+    size: Option<usize>,
+    rng: Option<StdRng>,
+    with_replacement: bool,
+    input: PhantomData<I>,
+}
+
+impl<D, I> SamplerDatasetBuilder<D, I>
+where
+    D: Dataset<I>,
+    I: Send + Sync,
+{
+    /// Create a new builder for the dataset.
+    ///
+    /// Defaults to:
+    /// - Using replacement.
+    /// - Using the size of the dataset.
+    /// - Using a system rng.
+    ///
+    /// # Arguments
+    ///
+    /// - `dataset`: the dataset to wrap.
+    pub fn for_dataset(dataset: D) -> Self {
+        Self {
+            dataset,
+            size: None,
+            rng: None,
+            with_replacement: true,
+            input: PhantomData,
+        }
+    }
+
+    /// Set a size for the sample dataset.
+    pub fn with_size(self, size: usize) -> Self {
+        Self {
+            size: Some(size),
+            ..self
+        }
+    }
+
+    /// Sets the size as a ratio of the wrapped dataset size.
+    pub fn with_size_ratio(self, size_ratio: f64) -> Self {
+        assert!(
+            size_ratio > 0.0,
+            "size_ratio must be positive: {size_ratio}"
+        );
+        let size = ((self.dataset.len() as f64) * size_ratio) as usize;
+        self.with_size(size)
+    }
+
+    /// Sets a seed for constructing the rng.
+    pub fn with_seed(self, seed: u64) -> Self {
+        Self {
+            rng: Some(StdRng::seed_from_u64(seed)),
+            ..self
+        }
+    }
+
+    /// Sets the rng to use.
+    pub fn with_rng(self, rng: StdRng) -> Self {
+        Self {
+            rng: Some(rng),
+            ..self
+        }
+    }
+
+    /// Enables/Disables replacement sampling.
+    pub fn with_replacement(self, replacement: bool) -> Self {
+        Self {
+            with_replacement: replacement,
+            ..self
+        }
+    }
+
+    /// Build the SamplerDataset.
+    pub fn build(self) -> SamplerDataset<D, I> {
+        let size = self.size.unwrap_or(self.dataset.len());
+        let rng = self.rng.unwrap_or_else(|| StdRng::from_os_rng());
+        if self.with_replacement {
+            SamplerDataset::with_replacement_from_rng(self.dataset, size, rng)
+        } else {
+            SamplerDataset::without_replacement_from_rng(self.dataset, size, rng)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::FakeDataset;
     use std::collections::HashMap;
+
+    #[test]
+    fn sampler_dataset_builder() {
+        let ds = SamplerDataset::builder(FakeDataset::<u32>::new(10))
+            .with_size(15)
+            .with_replacement(false)
+            .with_seed(42)
+            .build();
+        assert_eq!(ds.len(), 15);
+        assert_eq!(ds.dataset.len(), 10);
+        assert!(!ds.uses_replacement());
+
+        let ds = SamplerDataset::builder(FakeDataset::<u32>::new(10))
+            .with_size_ratio(1.5)
+            .with_replacement(true)
+            .build();
+        assert_eq!(ds.len(), 15);
+        assert_eq!(ds.dataset.len(), 10);
+        assert!(ds.uses_replacement());
+    }
 
     #[test]
     fn sampler_dataset_constructors_test() {
