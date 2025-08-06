@@ -21,8 +21,6 @@ pub struct UnaryNode {
 /// Type of unary node.
 #[derive(Clone)]
 pub enum UnaryNodeKind {
-    // Input and output tensor types (required for codegen imports)
-    Cast(Option<TensorKind>, Option<TensorKind>),
     Cos,
     Cosh,
     Erf,
@@ -60,7 +58,6 @@ pub enum UnaryNodeKind {
 impl UnaryNodeKind {
     pub fn as_str(&self) -> &str {
         match self {
-            Self::Cast(..) => "cast",
             Self::Cos => "cos",
             Self::Cosh => "cosh",
             Self::Erf => "erf",
@@ -163,14 +160,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
             }
             UnaryNodeKind::Not => {
                 imports.register("burn::tensor::Bool");
-            }
-            UnaryNodeKind::Cast(Some(input_kind), Some(output_kind)) => {
-                if input_kind == TensorKind::Bool || output_kind == TensorKind::Bool {
-                    imports.register("burn::tensor::Bool");
-                }
-                if input_kind == TensorKind::Int || output_kind == TensorKind::Int {
-                    imports.register("burn::tensor::Int");
-                }
             }
             UnaryNodeKind::IsNaN | UnaryNodeKind::IsInf => {
                 if matches!(self.output, Type::Tensor(_)) {
@@ -315,68 +304,6 @@ impl UnaryNode {
         // Not ONNX operator is constrained to bool tensors, so no need to check the type.
         let function = move |input| quote! { #input.bool_not()};
         Self::new(input, output, UnaryNodeKind::Not, Rc::new(function))
-    }
-
-    /// Casts the input to the output type.
-    pub(crate) fn cast(input: Type, output: Type) -> Self {
-        match (input.clone(), output.clone()) {
-            (Type::Scalar(input_scalar), Type::Scalar(output_scalar)) => {
-                if input_scalar.kind == output_scalar.kind {
-                    // If the input and output types are the same, we don't need to cast.
-                    Self::new(
-                        input,
-                        output,
-                        UnaryNodeKind::Cast(None, None),
-                        Rc::new(|input| input),
-                    )
-                } else {
-                    // If the input and output types are different, we need to cast.
-                    let ty = output_scalar.ty();
-                    Self::new(
-                        input,
-                        output,
-                        UnaryNodeKind::Cast(None, None),
-                        Rc::new(move |input| quote! { #input as #ty }),
-                    )
-                }
-            }
-            (Type::Tensor(input_tensor), Type::Tensor(output_tensor)) => {
-                if input_tensor.kind == output_tensor.kind {
-                    // If the input and output types are the same, we don't need to cast.
-                    Self::new(
-                        input,
-                        output,
-                        UnaryNodeKind::Cast(Some(input_tensor.kind), Some(output_tensor.kind)),
-                        Rc::new(|input| input),
-                    )
-                } else {
-                    // If the input and output types are different, we need to cast.
-                    let function = match output_tensor.kind {
-                        TensorKind::Bool => move |input| quote! { #input.bool()},
-                        TensorKind::Int => move |input| quote! { #input.int()},
-                        TensorKind::Float => move |input| quote! { #input.float()},
-                    };
-
-                    Self::new(
-                        input,
-                        output,
-                        UnaryNodeKind::Cast(Some(input_tensor.kind), Some(output_tensor.kind)),
-                        Rc::new(function),
-                    )
-                }
-            }
-            (Type::Shape(_), Type::Shape(_)) => {
-                // Shape types are always represented as [i64; N] in Burn
-                // Even when casting to int32, we keep them as i64 arrays
-                Self::new(
-                    input,
-                    output,
-                    UnaryNodeKind::Cast(None, None),
-                    Rc::new(move |input| quote! { #input }),
-                )
-            }
-            _ => panic!("Cast: unsupported type combination"),
-        }
     }
 
     pub(crate) fn reduce_max(input: Type, output: Type, dim: Option<usize>) -> Self {
@@ -1004,85 +931,6 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.recip();
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-    }
-
-    #[test]
-    fn test_unary_codegen_cast() {
-        one_node_graph(
-            UnaryNode::cast(
-                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float64)),
-                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float32)),
-            ),
-            quote! {
-                pub fn forward(&self, scalar1: f64) -> f32 {
-                    let scalar2 = scalar1 as f32;
-
-                    scalar2
-                }
-            },
-            vec!["scalar1".to_string()],
-            vec!["scalar2".to_string()],
-        );
-        one_node_graph(
-            UnaryNode::cast(
-                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float32)),
-                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float64)),
-            ),
-            quote! {
-                pub fn forward(&self, scalar1: f32) -> f64 {
-                    let scalar2 = scalar1 as f64;
-
-                    scalar2
-                }
-            },
-            vec!["scalar1".to_string()],
-            vec!["scalar2".to_string()],
-        );
-        one_node_graph(
-            UnaryNode::cast(
-                Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_int("tensor2", 4)),
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Int> {
-                    let tensor2 = tensor1.int();
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-        one_node_graph(
-            UnaryNode::cast(
-                Type::Tensor(TensorType::new_int("tensor1", 4)),
-                Type::Tensor(TensorType::new_float("tensor2", 4)),
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4, Int>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.float();
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-        one_node_graph(
-            UnaryNode::cast(
-                Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_bool("tensor2", 4)),
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
-                    let tensor2 = tensor1.bool();
 
                     tensor2
                 }

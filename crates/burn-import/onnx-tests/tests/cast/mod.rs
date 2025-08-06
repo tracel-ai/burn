@@ -1,6 +1,6 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(cast);
+include_models!(cast, cast_shape);
 
 #[cfg(test)]
 mod tests {
@@ -62,5 +62,25 @@ mod tests {
             .assert_approx_eq::<FT>(&expected_float, Tolerance::default());
 
         assert_eq!(output_scalar, expected_scalar);
+    }
+
+    #[test]
+    fn cast_shape() {
+        // This test verifies that Shape types maintain their i64 representation
+        // even when cast to other integer types in ONNX
+
+        let device = Default::default();
+        let model: cast_shape::Model<Backend> = cast_shape::Model::new(&device);
+
+        // Create test input
+        let input = Tensor::<Backend, 3>::ones([2, 3, 4], &device);
+
+        // Run the model
+        let (shape_original, shape_casted) = model.forward(input);
+
+        // Verify both shapes are the same [i64; 3] arrays
+        // In Burn, Shape types always use i64 regardless of ONNX cast operations
+        assert_eq!(shape_original, [2i64, 3i64, 4i64]);
+        assert_eq!(shape_casted, [2i64, 3i64, 4i64]); // Cast to int32 is a no-op for Shape types
     }
 }

@@ -51,6 +51,7 @@ fn main() {
         .input("tests/bitwise_xor/scalar_bitwise_xor_scalar.onnx")
         .input("tests/bernoulli/bernoulli.onnx")
         .input("tests/cast/cast.onnx")
+        .input("tests/cast/cast_shape.onnx")
         .input("tests/ceil/ceil.onnx")
         .input("tests/clip/clip.onnx")
         .input("tests/concat/concat.onnx")

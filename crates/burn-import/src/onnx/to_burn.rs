@@ -29,6 +29,7 @@ use crate::{
             bitwisenot::BitwiseNotNode,
             bitwiseor::BitwiseOrNode,
             bitwisexor::BitwiseXorNode,
+            cast::CastNode,
             ceil::CeilNode,
             clip::ClipNode,
             concat::ConcatNode,
@@ -96,6 +97,7 @@ use onnx_ir::{
         avg_pool1d::avg_pool1d_config,
         avg_pool2d::avg_pool2d_config,
         batch_norm::batch_norm_config,
+        cast::cast_config,
         clip::clip_config,
         concat::concat_config,
         conv_transpose1d::conv_transpose1d_config,
@@ -869,11 +871,12 @@ impl ParsedOnnxGraph {
         UnaryNode::transpose(input, output, perm)
     }
 
-    fn cast_conversion(node: Node) -> UnaryNode {
+    fn cast_conversion(node: Node) -> CastNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
+        let config = cast_config(&node);
 
-        UnaryNode::cast(input, output)
+        CastNode::new(input, output, config.to)
     }
 
     fn reshape_conversion(node: Node) -> ReshapeNode {
