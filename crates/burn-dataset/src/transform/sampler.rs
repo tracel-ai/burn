@@ -293,7 +293,7 @@ where
     /// Build the SamplerDataset.
     pub fn build(self) -> SamplerDataset<D, I> {
         let size = self.size.unwrap_or(self.dataset.len());
-        let rng = self.rng.unwrap_or_else(|| StdRng::from_os_rng());
+        let rng = self.rng.unwrap_or_else(StdRng::from_os_rng);
         if self.with_replacement {
             SamplerDataset::with_replacement_from_rng(self.dataset, size, rng)
         } else {
