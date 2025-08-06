@@ -218,8 +218,7 @@ mod tests {
         ];
 
         let symmetric = SymmetricQuantization::<f32, i8>::new(-1.8, 0.5);
-        let strategy =
-            QuantizationStrategy::PerBlockSymmetricInt8(vec![symmetric.clone(), symmetric], 4);
+        let strategy = QuantizationStrategy::PerBlockSymmetricInt8(vec![symmetric, symmetric], 4);
 
         let q: Vec<i8> = strategy.quantize(&x);
         assert_eq!(q, expected_q);

@@ -5,9 +5,9 @@ use crate::kernel::{
 use crate::{CubeRuntime, FloatElement, IntElement};
 use crate::{element::CubeElement, tensor::CubeTensor};
 use burn_tensor::{ElementConversion, Shape};
-use cubecl::client::ComputeClient;
 use cubecl::tensor_vectorization_factor;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{client::ComputeClient, server::Allocation};
 
 /// Create a tensor filled with `value`
 pub fn full<R: CubeRuntime, E: CubeElement>(
@@ -107,7 +107,7 @@ pub fn empty_device_strided<R: CubeRuntime, E: CubeElement>(
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
-    let (handle, strides) = client.empty_tensor(&shape.dims, size_of::<E>());
+    let Allocation { handle, strides } = client.empty_tensor(&shape.dims, size_of::<E>());
 
     CubeTensor::new(client, handle, shape, device, strides, E::dtype())
 }

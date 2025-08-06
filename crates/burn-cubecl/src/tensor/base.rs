@@ -342,7 +342,7 @@ where
         client: ComputeClient<R::Server, R::Channel>,
         device: R::Device,
     ) -> Self {
-        let bytes = self.client.read_one(self.handle.clone().binding());
+        let bytes = self.client.read_one(self.handle.clone());
         let handle = client.create(&bytes);
 
         if self.qparams.is_some() {
