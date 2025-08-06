@@ -231,14 +231,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         mask: BoolTensor<Self>,
         value: FloatElem<Self>,
     ) -> FloatTensor<Self> {
-        CandleTensor::new(
-            mask.tensor
-                .where_cond(
-                    &super::candle_utils::fill_like::<F>(value, &tensor.tensor),
-                    &tensor.tensor,
-                )
-                .unwrap(),
-        )
+        let value = super::candle_utils::fill_like::<F>(value, &tensor.tensor);
+        super::base::mask_where_broadcasted(tensor, mask, CandleTensor::new(value))
     }
 
     fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
