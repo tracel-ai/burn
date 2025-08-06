@@ -93,8 +93,7 @@ where
     /// When the sample size is greater than the source dataset size,
     /// the entire source dataset will be sampled once for every multiple
     /// of the size ratios; with the remaining samples taken without replacement
-    /// uniformly from the source.
-    ///
+    /// uniformly from the source. All samples will be returned uniformly shuffled.
     ///
     /// # Arguments
     /// - `dataset`: the dataset to wrap.
@@ -112,7 +111,7 @@ where
     /// When the sample size is greater than the source dataset size,
     /// the entire source dataset will be sampled once for every multiple
     /// of the size ratios; with the remaining samples taken without replacement
-    /// uniformly from the source.
+    /// uniformly from the source. All samples will be returned uniformly shuffled.
     ///
     /// # Arguments
     /// - `dataset`: the dataset to wrap.
@@ -131,7 +130,7 @@ where
     /// When the sample size is greater than the source dataset size,
     /// the entire source dataset will be sampled once for every multiple
     /// of the size ratios; with the remaining samples taken without replacement
-    /// uniformly from the source.
+    /// uniformly from the source. All samples will be returned uniformly shuffled.
     ///
     /// # Arguments
     /// - `dataset`: the dataset to wrap.
