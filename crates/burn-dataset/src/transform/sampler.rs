@@ -48,6 +48,14 @@ where
     }
 
     /// Creates a new sampler dataset without replacement.
+    ///
+    /// When the sample size is less than or equal to the source dataset size,
+    /// data will be sampled without replacement from the source dataset in
+    /// a uniformly shuffled order.
+    ///
+    /// When the sample size is greater than the source dataset size,
+    /// the entire source dataset will be exhausted before re-sampling,
+    /// for each multiple of the source size.
     pub fn without_replacement(dataset: D, size: usize) -> Self {
         Self {
             dataset,
@@ -73,9 +81,12 @@ where
                     *indices = (0..self.dataset.len()).choose_multiple(rng, self.dataset.len());
 
                     // From `choose_multiple` documentation:
-                    // Although the elements are selected randomly, the order of elements in
-                    // the buffer is neither stable nor fully random. If random ordering is
-                    // desired, shuffle the result.
+                    // > Although the elements are selected randomly, the order of elements in
+                    // > the buffer is neither stable nor fully random. If random ordering is
+                    // > desired, shuffle the result.
+                    //
+                    // Without this, for size~=ds.size; the indices will return
+                    // essentially in a linear order.
                     indices.shuffle(rng);
                 }
 
@@ -151,5 +162,27 @@ mod tests {
             total += count;
         }
         assert_eq!(total, factor * len_original);
+    }
+
+    #[test]
+    fn sampler_dataset_without_replacement_uniform_order_test() {
+        // This is a reversion test on the indices.shuffle(rng) call in SamplerDataset::index().
+        let size = 100;
+        let dataset_sampler =
+            SamplerDataset::without_replacement(FakeDataset::<i32>::new(size), size);
+
+        let indices: Vec<_> = (0..size).map(|_| dataset_sampler.index()).collect();
+        let mean_delta = indices
+            .windows(2)
+            .map(|pair| pair[1].abs_diff(pair[0]))
+            .sum::<usize>() as f64
+            / (size - 1) as f64;
+
+        let expected = (size + 2) as f64 / 3.0;
+
+        assert!(
+            (mean_delta - expected).abs() <= 0.2 * expected,
+            "Sampled indices are not uniformly distributed: mean_delta: {mean_delta}, expected: {expected}"
+        );
     }
 }
