@@ -58,6 +58,10 @@ pub enum ImporterError {
 ///       .dataset("train")
 ///       .unwrap();
 /// ```
+///
+/// # Note
+/// This loader relies on the [`datasets` library by HuggingFace](https://huggingface.co/docs/datasets/index)
+/// to download datasets. This is a Python library, so you must have an existing Python installation.
 pub struct HuggingfaceDatasetLoader {
     name: String,
     subset: Option<String>,
