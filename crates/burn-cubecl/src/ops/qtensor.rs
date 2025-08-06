@@ -4,14 +4,15 @@ use burn_tensor::{
     DType, Device, Shape, TensorData, TensorPrimitive,
     ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParamTensor, QTensorPrimitive, QuantInputType, QuantLevel, QuantMode, QuantPropagation,
-        QuantScheme, QuantizationParametersPrimitive,
+        QParamTensor, QTensorPrimitive, QuantFloatPrecision, QuantInputType, QuantLevel, QuantMode,
+        QuantPropagation, QuantScheme, QuantizationParametersPrimitive,
     },
 };
 use cubecl::{
     Feature, Runtime,
     client::ComputeClient,
     ir::{Elem, IntKind},
+    server::{Allocation, AllocationDescriptor},
 };
 
 use crate::{
@@ -34,9 +35,13 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
     let client = R::client(device);
     let shape: Shape = shape.into();
     let scales_shape: Shape;
-    let scales_dtype = DType::F32; // Make this variable at some point
+    let scales_dtype = match scheme.q_params_precision {
+        QuantFloatPrecision::F32 => DType::F32,
+        QuantFloatPrecision::F16 => DType::F16,
+        QuantFloatPrecision::BF16 => DType::BF16,
+    };
 
-    let (data, shapes, elem_sizes) = match scheme {
+    let descriptors = match scheme {
         // Just to ensure we get and error if more modes are added and unhandled
         QuantScheme {
             level: QuantLevel::Tensor,
@@ -44,17 +49,37 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
             q_type: QuantInputType::QInt8,
             ..
         } => {
-            let data = vec![&data[..shape.num_elements()], &data[shape.num_elements()..]];
-            let shapes = vec![shape.dims.as_slice(), &[1]];
-            let elem_sizes = vec![size_of::<i8>(), size_of::<f32>()];
+            let data_desc = AllocationDescriptor::optimized(&shape.dims, size_of::<i8>());
+            let scale_desc = AllocationDescriptor::optimized(&[1], scales_dtype.size());
+
             scales_shape = Shape::new([1]);
-            (data, shapes, elem_sizes)
+            vec![
+                (data_desc, &data[..shape.num_elements()]),
+                (scale_desc, &data[shape.num_elements()..]),
+            ]
+        }
+        QuantScheme {
+            level: QuantLevel::Block(block_size),
+            mode: QuantMode::Symmetric,
+            q_type: QuantInputType::QInt8,
+            ..
+        } => {
+            let numel = shape.num_elements();
+            let num_blocks = numel / block_size;
+            scales_shape = Shape::new([num_blocks]);
+            let data_desc = AllocationDescriptor::optimized(&shape.dims, size_of::<i8>());
+            let scales_desc =
+                AllocationDescriptor::optimized(&scales_shape.dims, scales_dtype.size());
+            vec![(data_desc, &data[..numel]), (scales_desc, &data[numel..])]
         }
     };
 
-    let mut tensors = client.create_tensors(data, shapes, elem_sizes);
-    let (scales_handle, scales_strides) = tensors.remove(1);
-    let (handle, strides) = tensors.remove(0);
+    let mut tensors = client.create_tensors(descriptors);
+    let Allocation {
+        handle: scales_handle,
+        strides: scales_strides,
+    } = tensors.remove(1);
+    let Allocation { handle, strides } = tensors.remove(0);
 
     let scales = QParamTensor {
         offset_start: scales_handle.offset_start.unwrap_or(0) as usize,
@@ -85,8 +110,13 @@ pub fn empty_qtensor<R: CubeRuntime>(
     let client = R::client(device);
     let shape: Shape = shape.into();
     let scales_shape: Shape;
-    let scales_dtype: DType;
-    let (shapes, elem_sizes) = match scheme {
+
+    let scales_dtype = match scheme.q_params_precision {
+        QuantFloatPrecision::F32 => DType::F32,
+        QuantFloatPrecision::F16 => DType::F16,
+        QuantFloatPrecision::BF16 => DType::BF16,
+    };
+    let descriptors = match scheme {
         // Just to ensure we get and error if more modes are added and unhandled
         QuantScheme {
             level: QuantLevel::Tensor,
@@ -94,17 +124,32 @@ pub fn empty_qtensor<R: CubeRuntime>(
             q_type: QuantInputType::QInt8,
             ..
         } => {
-            let shapes = vec![shape.dims.as_slice(), &[1]];
-            let elem_sizes = vec![size_of::<i8>(), size_of::<f32>()];
+            let data_desc = AllocationDescriptor::optimized(&shape.dims, size_of::<i8>());
+            let scale_desc = AllocationDescriptor::optimized(&[1], scales_dtype.size());
             scales_shape = Shape::new([1]);
-            scales_dtype = DType::F32;
-            (shapes, elem_sizes)
+            vec![data_desc, scale_desc]
+        }
+        QuantScheme {
+            level: QuantLevel::Block(block_size),
+            mode: QuantMode::Symmetric,
+            q_type: QuantInputType::QInt8,
+            ..
+        } => {
+            let num_blocks = shape.num_elements() / block_size;
+            scales_shape = Shape::new([num_blocks]);
+            let data_desc = AllocationDescriptor::optimized(&shape.dims, size_of::<i8>());
+            let scales_desc =
+                AllocationDescriptor::optimized(&scales_shape.dims, scales_dtype.size());
+            vec![data_desc, scales_desc]
         }
     };
 
-    let mut tensors = client.empty_tensors(shapes, elem_sizes);
-    let (scales_handle, scales_strides) = tensors.remove(1);
-    let (handle, strides) = tensors.remove(0);
+    let mut tensors = client.empty_tensors(descriptors);
+    let Allocation {
+        handle: scales_handle,
+        strides: scales_strides,
+    } = tensors.remove(1);
+    let Allocation { handle, strides } = tensors.remove(0);
 
     let scales = QParamTensor {
         offset_start: scales_handle.offset_start.unwrap_or(0) as usize,
@@ -137,7 +182,7 @@ where
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
-                    level: QuantLevel::Tensor,
+                    level: QuantLevel::Tensor | QuantLevel::Block(_),
                     mode: QuantMode::Symmetric,
                     q_type: QuantInputType::QInt8,
                     ..

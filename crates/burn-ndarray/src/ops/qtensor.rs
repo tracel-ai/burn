@@ -48,7 +48,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
 
                 match scheme {
                     QuantScheme {
-                        level: QuantLevel::Tensor,
+                        level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         q_type: QuantInputType::QInt8,
                         ..
@@ -97,6 +97,21 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                         scales,
                     )),
                     vec![QParams { scales }],
+                )
+            }
+            QuantScheme {
+                level: QuantLevel::Block(block_size),
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
+                ..
+            } => {
+                let (strategy, qparams) = into_data_f(qparams.scales)
+                    .iter()
+                    .map(|s| (SymmetricQuantization::init(s), QParams { scales: s }))
+                    .unzip();
+                (
+                    QuantizationStrategy::PerBlockSymmetricInt8(strategy, *block_size),
+                    qparams,
                 )
             }
         };

@@ -3,7 +3,7 @@ use burn_tensor::{
     Shape, TensorData,
     quantization::{QTensorPrimitive, QuantLevel},
 };
-use cubecl::{server::BindingWithMeta, tensor_vectorization_factor};
+use cubecl::{server::CopyDescriptor, tensor_vectorization_factor};
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let shape: Shape = (&data.shape).into();
@@ -17,11 +17,10 @@ pub(crate) async fn into_data<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor
     let tensor = kernel::into_contiguous_aligned(tensor);
 
     let elem_size = size_of::<E>();
-    let shape = tensor.shape.dims.clone();
-    let actual_len = tensor.shape.num_elements() * elem_size;
-    let binding = BindingWithMeta::new(tensor.handle.binding(), shape, tensor.strides, elem_size);
+    let shape = &tensor.shape.dims;
+    let binding = CopyDescriptor::new(tensor.handle.binding(), shape, &tensor.strides, elem_size);
     let bytes = tensor.client.read_one_tensor_async(binding).await;
-    TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
+    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }
 
 /// Read data from a `CubeTensor` synchronously
@@ -30,11 +29,10 @@ pub fn into_data_sync<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> 
     let tensor = kernel::into_contiguous_aligned(tensor);
 
     let elem_size = size_of::<E>();
-    let shape = tensor.shape.dims.clone();
-    let actual_len = tensor.shape.num_elements() * elem_size;
-    let binding = BindingWithMeta::new(tensor.handle.binding(), shape, tensor.strides, elem_size);
+    let shape = &tensor.shape.dims;
+    let binding = CopyDescriptor::new(tensor.handle.binding(), shape, &tensor.strides, elem_size);
     let bytes = tensor.client.read_one_tensor(binding);
-    TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
+    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }
 
 pub(crate) fn to_device<R: CubeRuntime>(
@@ -148,6 +146,7 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
     if tensor.qparams.is_some() {
         match tensor.scheme().level {
             QuantLevel::Tensor => {}
+            QuantLevel::Block(_) => todo!(),
         }
     }
 

@@ -5,7 +5,7 @@ use burn_tensor::backend::Backend;
 use crate::{LearningRate, record::Record};
 
 /// Learning rate scheduler defines how the learning rate will evolve during training.
-pub trait LrScheduler: Send + Sync {
+pub trait LrScheduler: Clone + Send + Sync {
     /// Scheduler associative type to be used when saving and loading the state.
     type Record<B: Backend>: Record<B>;
 

@@ -58,6 +58,10 @@ pub enum ImporterError {
 ///       .dataset("train")
 ///       .unwrap();
 /// ```
+///
+/// # Note
+/// This loader relies on the [`datasets` library by HuggingFace](https://huggingface.co/docs/datasets/index)
+/// to download datasets. This is a Python library, so you must have an existing Python installation.
 pub struct HuggingfaceDatasetLoader {
     name: String,
     subset: Option<String>,
@@ -327,6 +331,17 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
         if !check_python_version_is_3(venv_python_path.to_str().unwrap()) {
             return Err(ImporterError::VenvNotInitialized);
         }
+    }
+
+    let mut ensurepip_cmd = Command::new(&venv_python_path);
+    ensurepip_cmd.args(["-m", "ensurepip", "--upgrade"]);
+    let status = ensurepip_cmd.status().map_err(|err| {
+        ImporterError::FailToDownloadPythonDependencies(format!("failed to run ensurepip: {err}"))
+    })?;
+    if !status.success() {
+        return Err(ImporterError::FailToDownloadPythonDependencies(
+            "ensurepip failed to initialize pip".to_string(),
+        ));
     }
 
     let mut command = Command::new(&venv_python_path);

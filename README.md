@@ -13,8 +13,8 @@
 
 ---
 
-**Burn is a next generation Deep Learning Framework that doesn't compromise on <br />
-flexibility, efficiency and portability.**
+**Burn is a next generation Deep Learning Framework that doesn't compromise on <br /> flexibility,
+efficiency and portability.**
 
 <br/>
 </div>
@@ -70,9 +70,8 @@ Asynchronous execution ❤️‍🔥
 </summary>
 <br />
 
-For [first-party backends](#backends), an asynchronous execution style
-is used, which allows to perform various optimizations, such as the previously mentioned automatic
-kernel fusion.
+For [first-party backends](#backends), an asynchronous execution style is used, which allows to
+perform various optimizations, such as the previously mentioned automatic kernel fusion.
 
 Asynchronous execution also ensures that the normal execution of the framework does not block the
 model computations, which implies that the framework overhead won't impact the speed of execution
@@ -157,8 +156,8 @@ since this is how fully-connected neural networks are modeled.
 
 More and more, hardware manufacturers optimize their chips specifically for matrix multiplication
 workloads. For instance, Nvidia has its _Tensor Cores_ and today most cellphones have AI specialized
-chips. As of this moment, we support Tensor Cores with our LibTorch, Candle, CUDA, Metal and WGPU/SPIR-V
-backends, but not other accelerators yet. We hope
+chips. As of this moment, we support Tensor Cores with our LibTorch, Candle, CUDA, Metal and
+WGPU/SPIR-V backends, but not other accelerators yet. We hope
 [this issue](https://github.com/gpuweb/gpuweb/issues/4195) gets resolved at some point to bring
 support to our WGPU backend.
 
@@ -176,8 +175,8 @@ functionalities of a backend implementation to suit your personal modeling requi
 
 This versatility is advantageous in numerous ways, such as supporting custom operations like flash
 attention or manually writing your own kernel for a specific backend to enhance performance. See
-[this section](https://burn.dev/books/burn/advanced/backend-extension/index.html) in the Burn Book 🔥
-for more details.
+[this section](https://burn.dev/books/burn/advanced/backend-extension/index.html) in the Burn Book
+🔥 for more details.
 
 </details>
 
@@ -188,9 +187,9 @@ for more details.
 <div align="left">
 <img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/backend-chip.png" height="96px"/>
 
-Burn strives to be as fast as possible on as many hardwares as possible, with robust implementations.
-We believe this flexibility is crucial for modern needs where you may train your models in the cloud,
-then deploy on customer hardwares, which vary from user to user.
+Burn strives to be as fast as possible on as many hardwares as possible, with robust
+implementations. We believe this flexibility is crucial for modern needs where you may train your
+models in the cloud, then deploy on customer hardwares, which vary from user to user.
 
 </div>
 
@@ -235,8 +234,10 @@ use burn::tensor::{Distribution, Tensor};
 fn main() {
     type Backend = Autodiff<Wgpu>;
 
-    let x: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default);
-    let y: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default).require_grad();
+    let device = Default::default();
+
+    let x: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default, &device);
+    let y: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default, &device).require_grad();
 
     let tmp = x.clone() + y.clone();
     let tmp = tmp.matmul(x);
@@ -264,27 +265,15 @@ Fusion: Backend decorator that brings kernel fusion to all first-party backends
 
 This backend decorator enhances a backend with kernel fusion, provided that the inner backend
 supports it. Note that you can compose this backend with other backend decorators such as Autodiff.
-For now, only the WGPU and CUDA backends have support for fused kernels.
+All first-party accelerated backends (like WGPU and CUDA) use Fusion by default (`burn/fusion`
+feature flag), so you typically don't need to apply it manually.
 
 ```rust
-use burn::backend::{Autodiff, Fusion, Wgpu};
-use burn::tensor::{Distribution, Tensor};
+#[cfg(not(feature = "fusion"))]
+pub type Cuda<F = f32, I = i32> = CubeBackend<CudaRuntime, F, I, u8>;
 
-fn main() {
-    type Backend = Autodiff<Fusion<Wgpu>>;
-
-    let x: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default);
-    let y: Tensor<Backend, 2> = Tensor::random([32, 32], Distribution::Default).require_grad();
-
-    let tmp = x.clone() + y.clone();
-    let tmp = tmp.matmul(x);
-    let tmp = tmp.exp();
-
-    let grads = tmp.backward();
-    let y_grad = y.grad(&grads).unwrap();
-    println!("{y_grad}");
-}
-
+#[cfg(feature = "fusion")]
+pub type Cuda<F = f32, I = i32> = burn_fusion::Fusion<CubeBackend<CudaRuntime, F, I, u8>>;
 ```
 
 Of note, we plan to implement automatic gradient checkpointing based on compute bound and memory
@@ -301,7 +290,8 @@ Router (Beta): Backend decorator that composes multiple backends into a single o
 </summary>
 <br />
 
-That backend simplifies hardware operability, if for instance you want to execute some operations on the CPU and other operations on the GPU.
+That backend simplifies hardware operability, if for instance you want to execute some operations on
+the CPU and other operations on the GPU.
 
 ```rust
 use burn::tensor::{Distribution, Tensor};
@@ -331,9 +321,9 @@ Remote (Beta): Backend decorator for remote backend execution, useful for distri
 </summary>
 <br />
 
-That backend has two parts, one client and one server.
-The client sends tensor operations over the network to a remote compute backend.
-You can use any first-party backend as server in a single line of code:
+That backend has two parts, one client and one server. The client sends tensor operations over the
+network to a remote compute backend. You can use any first-party backend as server in a single line
+of code:
 
 ```rust
 fn main_server() {
@@ -430,7 +420,9 @@ Importing PyTorch or Safetensors Models 🚚
 </summary>
 <br />
 
-You can load weights from PyTorch or Safetensors formats directly into your Burn-defined models. This makes it easy to reuse existing models while benefiting from Burn's performance and deployment features.
+You can load weights from PyTorch or Safetensors formats directly into your Burn-defined models.
+This makes it easy to reuse existing models while benefiting from Burn's performance and deployment
+features.
 
 Learn more:
 
@@ -445,9 +437,9 @@ Inference in the Browser 🌐
 </summary>
 <br />
 
-Several of our backends can compile to Web Assembly: Candle and NdArray for CPU, and WGPU for GPU.
-This means that you can run inference directly within a browser. We provide several examples of
-this:
+Several of our backends can run in WebAssembly environments: Candle and NdArray for CPU execution,
+and WGPU for GPU acceleration via WebGPU. This means that you can run inference directly within a
+browser. We provide several examples of this:
 
 - [MNIST](./examples/mnist-inference-web) where you can draw digits and a small convnet tries to
   find which one it is! 2️⃣ 7️⃣ 😰
@@ -478,15 +470,17 @@ dedicated benchmarking suite.
 
 Run and compare benchmarks using [burn-bench](https://github.com/tracel-ai/burn-bench).
 
-> ⚠️ **Warning**
-> When using one of the `wgpu` backends, you may encounter compilation errors related to recursive type evaluation. This is due to complex type nesting within the `wgpu` dependency chain.
-> To resolve this issue, add the following line at the top of your `main.rs` or `lib.rs` file:
+> ⚠️ **Warning** When using one of the `wgpu` backends, you may encounter compilation errors related
+> to recursive type evaluation. This is due to complex type nesting within the `wgpu` dependency
+> chain. To resolve this issue, add the following line at the top of your `main.rs` or `lib.rs`
+> file:
 >
 > ```rust
 > #![recursion_limit = "256"]
 > ```
 >
-> The default recursion limit (128) is often just below the required depth (typically 130-150) due to deeply nested associated types and trait bounds.
+> The default recursion limit (128) is often just below the required depth (typically 130-150) due
+> to deeply nested associated types and trait bounds.
 
 ## Getting Started
 
@@ -581,7 +575,7 @@ Additional examples:
   feature.
 - [ONNX Import Inference](./examples/onnx-inference) : Imports an ONNX model pre-trained on MNIST to
   perform inference on a sample image with Burn.
-- [PyTorch Import Inference](./examples/pytorch-import) : Imports a PyTorch model pre-trained on
+- [PyTorch Import Inference](./examples/import-model-weights) : Imports a PyTorch model pre-trained on
   MNIST to perform inference on a sample image with Burn.
 - [Text Classification](./examples/text-classification) : Trains a text classification transformer
   model on the AG News or DbPedia dataset. The trained model can then be used to classify a text

@@ -45,6 +45,21 @@ impl QuantizedBytes {
                 let scale_bytes = bytemuck::bytes_of(&quant.scale);
                 bytes.extend_from_byte_slice_aligned(scale_bytes, align_of::<f32>());
             }
+            QuantizationStrategy::PerBlockSymmetricInt8(quant, _block_size) => {
+                if TypeId::of::<E>() == TypeId::of::<i8>() {
+                    // Re-interpret `Vec<E>` as `Vec<i8>` with `Vec::from_raw_parts`
+                    let i8s: Vec<i8> = bytemuck::allocation::cast_vec(value);
+                    bytes = Bytes::from_elems(i8s);
+                } else {
+                    panic!("Invalid quantized type");
+                }
+
+                let mut scale_bytes = Vec::with_capacity(quant.len() * size_of::<f32>());
+                for q in quant {
+                    scale_bytes.extend_from_slice(bytemuck::bytes_of(&q.scale));
+                }
+                bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), align_of::<f32>());
+            }
         }
 
         Self {
@@ -60,10 +75,8 @@ impl QuantizedBytes {
 
         // Quantization parameters are added at the end of the tensor data.
         // As such, the last bytes always correspond to the scale parameter(s).
-        // If the quantization scheme includes an offset (zero-point) parameter, the value(s)
-        // precede(s) the scale parameter(s) bytes.
         // For example, per-block quantization can have multiple parameters for a single tensor:
-        // [offset, offset, offset, ..., scale, scale, scale, ...]
+        // [scale, scale, scale, ...]
         let scale_size = core::mem::size_of::<f32>(); // scale is stored as f32
         let qparams_bytes: &[u8] = bytemuck::cast_slice(&qparams);
         let total_bytes = qparams_bytes.len();
@@ -83,9 +96,10 @@ impl QuantizedBytes {
 
         let num_params = match self.scheme.level {
             QuantLevel::Tensor => 1,
+            QuantLevel::Block(block_size) => self.num_elements / block_size,
         };
 
-        let scale_size = num_params * size_of::<f32>(); // f32 scale is the same number of bytes as u32
+        let scale_size = num_params * size_of::<f32>();
         let values_end = values.len() - scale_size;
 
         let qparams = values.split_off(values_end);
@@ -103,11 +117,11 @@ impl QuantizedBytes {
             #[cfg(target_endian = "little")]
             {
                 // SAFETY: quantized bytes representation is created from packed u32 values in little endian
-                unsafe { reinterpret_vec(qparams) }
+                bytemuck::cast_vec(qparams)
             }
             #[cfg(target_endian = "big")]
             {
-                pack_i8s_to_u32s(bytemuck::allocation::cast_vec(qparams))
+                crate::quantization::pack_i8s_to_u32s(bytemuck::cast_vec(qparams))
             }
         };
 
@@ -129,38 +143,26 @@ impl QuantizedBytes {
                 );
                 (strategy.dequantize(&values), qparams)
             }
+            QuantScheme {
+                level: QuantLevel::Block(block_size),
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
+                ..
+            } => {
+                let (values, qparams) = self.into_vec_i8();
+                assert_eq!(values.len() / qparams.scales.len(), block_size);
+                let strategy = QuantizationStrategy::PerBlockSymmetricInt8(
+                    qparams
+                        .scales
+                        .iter()
+                        .map(|&s| SymmetricQuantization::init(s))
+                        .collect(),
+                    block_size,
+                );
+                (strategy.dequantize(&values), qparams)
+            }
         }
     }
-}
-
-/// Reinterprets a `Vec<T>` as a `Vec<U>` without reallocation.
-///
-/// # Safety
-/// - The alignment of `U` must be compatible with `T`.
-/// - The size of `T` must be a multiple of the size of `U`.
-/// - The input `Vec<T>` must have a length that aligns with the size of `U`.
-unsafe fn reinterpret_vec<T, U>(mut input: Vec<T>) -> Vec<U> {
-    // Ensure alignment and size compatibility
-    assert!(
-        input.as_mut_ptr().align_offset(align_of::<U>()) == 0,
-        "Alignment mismatch"
-    );
-    assert!(
-        size_of::<T>() != 0 && size_of::<U>() != 0,
-        "Zero-sized types not allowed"
-    );
-    assert!(
-        input.len() * size_of::<T>() % size_of::<U>() == 0,
-        "Size mismatch"
-    );
-
-    let len = input.len() * size_of::<T>() / size_of::<U>();
-    let cap = input.capacity() * size_of::<T>() / size_of::<U>();
-    let ptr = input.as_mut_ptr() as *mut U;
-
-    core::mem::forget(input);
-
-    unsafe { Vec::from_raw_parts(ptr, len, cap) }
 }
 
 #[cfg(test)]

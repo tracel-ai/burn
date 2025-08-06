@@ -1,6 +1,7 @@
 use crate::{data::MnistBatcher, model::Model};
 
 use burn::{
+    collective::{AllReduceStrategy, CollectiveConfig},
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     optim::{AdamConfig, decay::WeightDecayConfig},
     prelude::*,
@@ -44,6 +45,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     create_artifact_dir(ARTIFACT_DIR);
     // Config
     let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
+
     let config = MnistTrainingConfig::new(config_optimizer);
     B::seed(config.seed);
 
@@ -62,6 +64,10 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .shuffle(config.seed)
         .num_workers(config.num_workers)
         .build(MnistDataset::test());
+
+    // for collective ops
+    let collective =
+        CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Tree(3));
 
     // Model
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
@@ -83,7 +89,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             Split::Valid,
             StoppingCondition::NoImprovementSince { n_epochs: 1 },
         ))
-        .devices(vec![device.clone()])
+        .learning_strategy(burn::train::ddp(vec![device], collective))
         .num_epochs(config.num_epochs)
         .summary()
         .build(model, config.optimizer.init(), 1e-4);

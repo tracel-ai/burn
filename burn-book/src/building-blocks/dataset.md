@@ -4,10 +4,11 @@ At its core, a dataset is a collection of data typically related to a specific a
 processing task. The data modality can vary depending on the task, but most datasets primarily
 consist of images, texts, audio or videos.
 
-This data source represents an integral part of machine learning to successfully train a model. Thus,
-it is essential to provide a convenient and performant API to handle your data. Since this process
-varies wildly from one problem to another, it is defined as a trait that should be implemented on
-your type. The dataset trait is quite similar to the dataset abstract class in PyTorch:
+This data source represents an integral part of machine learning to successfully train a model.
+Thus, it is essential to provide a convenient and performant API to handle your data. Since this
+process varies wildly from one problem to another, it is defined as a trait that should be
+implemented on your type. The dataset trait is quite similar to the dataset abstract class in
+PyTorch:
 
 ```rust, ignore
 pub trait Dataset<I>: Send + Sync {
@@ -31,7 +32,7 @@ transformations is to provide you with the necessary tools so that you can model
 distributions.
 
 | Transformation     | Description                                                                                                              |
-|--------------------|--------------------------------------------------------------------------------------------------------------------------|
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
 | `SamplerDataset`   | Samples items from a dataset. This is a convenient way to model a dataset as a probability distribution of a fixed size. |
 | `SelectionDataset` | Selects a subset of items by index from a dataset. Can be randomly shuffled; can be re-shuffled.                         |
 | `ShuffledDataset`  | Shuffles a wrapped dataset; This is a thin wrapper around `SelectionDataset`.                                            |
@@ -67,7 +68,7 @@ let dataset = SamplerDataset<DbPedia, DbPediaItem>::new(dataset, 10000);
 
   The `SelectionDataset` can also be initialized with a random seed to shuffle the indices before
   selection. This is useful when you want to randomly select a subset of items from the dataset.
- 
+
   Base dataset items may be included more than once in the selection.
 
 ```rust, ignore
@@ -80,7 +81,6 @@ let mut mutable = SelectionDataset::new_select_all(dataset.clone(), vec![0, 1, 2
 mutable.shuffle_with_seed(42);
 mutable.shuffle(&mut rng);
 ```
-
 
 - **ShuffledDataset**: This transform can be used to shuffle the items of a dataset. Particularly
   useful before splitting the raw dataset into train/test splits. Can be initialized with a seed to
@@ -159,10 +159,20 @@ fn main() {
 We see that items must derive `serde::Serialize`, `serde::Deserialize`, `Clone`, and `Debug`, but
 those are the only requirements.
 
+<div class="warning">
+
+The `HuggingfaceDatasetLoader` relies on the
+[`datasets` library by HuggingFace](https://huggingface.co/docs/datasets/index) to download
+datasets. This is a Python library, so you must have an existing Python installation to use this
+loader.
+
+</div>
+
 ### Images
 
 `ImageFolderDataset` is a generic vision dataset used to load images from disk. It is currently
-available for multi-class and multi-label classification tasks as well as semantic segmentation and object detection tasks.
+available for multi-class and multi-label classification tasks as well as semantic segmentation and
+object detection tasks.
 
 ```rust, ignore
 // Create an image classification dataset from the root folder,
@@ -236,6 +246,7 @@ let dataset = ImageFolderDataset::new_coco_detection(
 .unwrap();
 
 ```
+
 ### Comma-Separated Values (CSV)
 
 Loading records from a simple CSV file in-memory is simple with the `InMemDataset`:

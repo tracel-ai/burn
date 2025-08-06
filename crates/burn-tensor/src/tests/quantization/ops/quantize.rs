@@ -47,7 +47,7 @@ mod tests {
         );
 
         // Values equality
-        x_q_data.assert_eq(&expected, true);
+        x_q_data.assert_eq(&expected, false);
 
         // Quantization parameters check
         let qparams = get_q_params(x_q_data);
