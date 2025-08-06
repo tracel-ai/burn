@@ -114,7 +114,7 @@ mod tests {
     };
 
     #[test]
-    fn test_codegen_nodes() {
+    fn test_codegen_reshape_with_static_shape() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(ReshapeNode::new(
@@ -158,7 +158,7 @@ mod tests {
     }
 
     #[test]
-    fn test_codegen_nodes_with_shape_input() {
+    fn test_codegen_reshape_with_tensor_as_shape() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(ReshapeNode::new(
@@ -198,6 +198,55 @@ mod tests {
                     let shape_data = shape.to_data();
                     let shape_array = shape_data.as_slice::<i64>().unwrap();
                     let output = tensor1.reshape([shape_array[0] as usize, shape_array[1] as usize]);
+
+                    output
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_reshape_with_shape_type() {
+        use crate::burn::ShapeType;
+
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(ReshapeNode::new(
+            TensorType::new_float("tensor1", 4),
+            TensorType::new_float("output", 2),
+            Type::Shape(ShapeType::new("shape", 2)),
+        ));
+
+        graph.register_input_output(
+            vec!["tensor1".to_string(), "shape".to_string()],
+            vec!["output".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, tensor1: Tensor<B, 4>, shape: [i64; 2]) -> Tensor<B, 2> {
+                    let output = tensor1.reshape(shape);
 
                     output
                 }

@@ -45,14 +45,21 @@ fn infer_reshape_output_rank(node: &Node) -> usize {
         return shape.len();
     }
 
-    // Case 2: Dynamic shape - try to infer from shape tensor's dimensions
+    // Case 2: Dynamic shape - try to infer from shape input type
     if node.inputs.len() == 2 {
-        if let ArgType::Tensor(shape_tensor) = &node.inputs[1].ty {
-            if let Some(dims) = &shape_tensor.static_shape {
-                if !dims.is_empty() {
-                    return dims[0];
+        match &node.inputs[1].ty {
+            ArgType::Tensor(shape_tensor) => {
+                if let Some(dims) = &shape_tensor.static_shape {
+                    if !dims.is_empty() {
+                        return dims[0];
+                    }
                 }
             }
+            ArgType::Shape(rank) => {
+                // Shape type directly gives us the rank
+                return *rank;
+            }
+            _ => {}
         }
     }
 
@@ -104,15 +111,24 @@ pub fn reshape_config(node: &Node) -> ReshapeConfig {
         panic!("Reshape requires exactly 2 inputs");
     }
 
-    let shape = match &node.inputs[1].value {
-        Some(TensorData { data, shape, .. }) => {
-            assert_eq!(shape.len(), 1, "Reshape: shape tensor must be 1D");
-            ReshapeInput::Static(data.clone().into_i64s())
+    let shape = match &node.inputs[1].ty {
+        ArgType::Tensor(_) => {
+            match &node.inputs[1].value {
+                Some(TensorData { data, shape, .. }) => {
+                    assert_eq!(shape.len(), 1, "Reshape: shape tensor must be 1D");
+                    ReshapeInput::Static(data.clone().into_i64s())
+                }
+                None => {
+                    // Runtime shape input from tensor
+                    ReshapeInput::Runtime(node.inputs[1].clone())
+                }
+            }
         }
-        None => {
-            // Runtime shape input
+        ArgType::Shape(_) => {
+            // Runtime shape input from Shape node
             ReshapeInput::Runtime(node.inputs[1].clone())
         }
+        _ => panic!("Reshape: second input must be either a Tensor or Shape type"),
     };
 
     ReshapeConfig { shape }
@@ -153,6 +169,14 @@ mod tests {
         NodeBuilder::new(NodeType::Reshape, "test_runtime_reshape")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64("shape", 0, None) // No static value - runtime input
+            .output_tensor_f32("reshaped", 2, None)
+            .build()
+    }
+
+    fn create_reshape_with_shape_input() -> Node {
+        NodeBuilder::new(NodeType::Reshape, "test_reshape_with_shape")
+            .input_tensor_f32("data", 4, None)
+            .add_input("shape", ArgType::Shape(2))
             .output_tensor_f32("reshaped", 2, None)
             .build()
     }
@@ -233,6 +257,31 @@ mod tests {
                 assert_eq!(tensor.static_shape, None);
                 assert_eq!(tensor.elem_type, ElementType::Int32);
                 assert_eq!(tensor.rank, 2);
+            }
+            _ => panic!("Expected tensor output"),
+        }
+    }
+
+    #[test]
+    fn test_reshape_config_with_shape_type() {
+        let node = create_reshape_with_shape_input();
+        let config = reshape_config(&node);
+        match config.shape {
+            ReshapeInput::Runtime(arg) => assert_eq!(arg.name, "shape"),
+            _ => panic!("Expected runtime shape"),
+        }
+    }
+
+    #[test]
+    fn test_reshape_update_outputs_with_shape_type() {
+        let mut node = create_reshape_with_shape_input();
+
+        reshape_update_outputs(&mut node);
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.static_shape, None);
+                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.rank, 2); // Should get rank from Shape(2) input
             }
             _ => panic!("Expected tensor output"),
         }
