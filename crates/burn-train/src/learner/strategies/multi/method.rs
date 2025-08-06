@@ -50,7 +50,7 @@ impl<LC: LearnerComponentTypes> LearningMethod<LC> for MultiDeviceLearningStrate
         (dataloader_train, dataloader_valid): Self::PreparedDataloaders,
         starting_epoch: usize,
         mut components: LearnerComponents<LC>,
-    ) -> LC::Model {
+    ) -> (LC::Model, LC::EventProcessor) {
         let mut epoch_train = MultiDeviceTrainEpoch::<LC>::new(
             dataloader_train,
             starting_epoch,
@@ -63,7 +63,7 @@ impl<LC: LearnerComponentTypes> LearningMethod<LC> for MultiDeviceLearningStrate
                 model,
                 components.optim,
                 &mut components.lr_scheduler,
-                components.event_processor,
+                &mut components.event_processor,
                 self.devices.to_vec(),
                 &components.interrupter,
             );
@@ -77,7 +77,11 @@ impl<LC: LearnerComponentTypes> LearningMethod<LC> for MultiDeviceLearningStrate
                 epoch,
                 components.num_epochs,
             );
-            epoch_valid.run(&model, components.event_processor, &components.interrupter);
+            epoch_valid.run(
+                &model,
+                &mut components.event_processor,
+                &components.interrupter,
+            );
 
             if let Some(checkpointer) = &mut components.checkpointer {
                 checkpointer.checkpoint(
@@ -96,6 +100,6 @@ impl<LC: LearnerComponentTypes> LearningMethod<LC> for MultiDeviceLearningStrate
             }
         }
 
-        model
+        (model, components.event_processor)
     }
 }

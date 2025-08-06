@@ -17,7 +17,7 @@ pub enum CheckpointerError {
 }
 
 /// The trait for checkpointer.
-pub trait Checkpointer<R, B>
+pub trait Checkpointer<R, B>: Send + Sync
 where
     R: Record<B>,
     B: Backend,

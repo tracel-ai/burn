@@ -1,8 +1,7 @@
 use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy};
 use crate::components::LearnerComponentTypes;
-use crate::learner::EarlyStoppingStrategy;
 use crate::metric::store::EventStoreClient;
-use crate::{LearnerSummaryConfig, LearningStrategy};
+use crate::{CloneEarlyStoppingStrategy, LearnerSummaryConfig, LearningStrategy};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
 use burn_core::optim::Optimizer;
@@ -23,11 +22,14 @@ pub struct Learner<LC: LearnerComponentTypes> {
     pub(crate) checkpointer: Option<LearnerCheckpointer<LC>>,
     pub(crate) learning_strategy: LearningStrategy<LC::Backend>,
     pub(crate) interrupter: TrainingInterrupter,
-    pub(crate) early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
+    pub(crate) early_stopping: Option<EarlyStoppingStrategyRef>,
     pub(crate) event_processor: LC::EventProcessor,
     pub(crate) event_store: Arc<EventStoreClient>,
     pub(crate) summary: Option<LearnerSummaryConfig>,
 }
+
+/// Clonable reference to an early stopping strategy
+pub(crate) type EarlyStoppingStrategyRef = Box<dyn CloneEarlyStoppingStrategy>;
 
 #[derive(new)]
 pub(crate) struct LearnerCheckpointer<LC: LearnerComponentTypes> {
