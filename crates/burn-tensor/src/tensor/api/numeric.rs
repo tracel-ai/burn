@@ -1006,7 +1006,11 @@ where
         indices: Tensor<B, 1, Int>,
         values: Tensor<B, D, K>,
     ) -> Self {
-        check!(TensorCheck::select_assign::<D>(dim));
+        check!(TensorCheck::select_assign::<D>(
+            dim,
+            &indices.shape(),
+            &values.shape()
+        ));
 
         Self::new(K::select_assign(
             self.primitive,
