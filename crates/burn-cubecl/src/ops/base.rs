@@ -18,7 +18,7 @@ pub(crate) async fn into_data<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor
 
     let elem_size = size_of::<E>();
     let shape = &tensor.shape.dims;
-    let binding = CopyDescriptor::new(tensor.handle, shape, &tensor.strides, elem_size);
+    let binding = CopyDescriptor::new(tensor.handle.binding(), shape, &tensor.strides, elem_size);
     let bytes = tensor.client.read_one_tensor_async(binding).await;
     TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }
@@ -30,7 +30,7 @@ pub fn into_data_sync<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> 
 
     let elem_size = size_of::<E>();
     let shape = &tensor.shape.dims;
-    let binding = CopyDescriptor::new(tensor.handle, shape, &tensor.strides, elem_size);
+    let binding = CopyDescriptor::new(tensor.handle.binding(), shape, &tensor.strides, elem_size);
     let bytes = tensor.client.read_one_tensor(binding);
     TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }
