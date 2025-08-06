@@ -1,6 +1,7 @@
 use crate::Dataset;
 use rand::prelude::SliceRandom;
 use rand::{Rng, SeedableRng, distr::Uniform, rngs::StdRng, seq::IteratorRandom};
+use std::cmp::min;
 use std::{marker::PhantomData, ops::DerefMut, sync::Mutex};
 
 /// Sample items from a dataset.
@@ -90,8 +91,10 @@ where
     /// a uniformly shuffled order.
     ///
     /// When the sample size is greater than the source dataset size,
-    /// the entire source dataset will be exhausted before re-sampling,
-    /// for each multiple of the source size.
+    /// the entire source dataset will be sampled once for every multiple
+    /// of the size ratios; with the remaining samples taken without replacement
+    /// uniformly from the source.
+    ///
     ///
     /// # Arguments
     /// - `dataset`: the dataset to wrap.
@@ -107,8 +110,9 @@ where
     /// a uniformly shuffled order.
     ///
     /// When the sample size is greater than the source dataset size,
-    /// the entire source dataset will be exhausted before re-sampling,
-    /// for each multiple of the source size.
+    /// the entire source dataset will be sampled once for every multiple
+    /// of the size ratios; with the remaining samples taken without replacement
+    /// uniformly from the source.
     ///
     /// # Arguments
     /// - `dataset`: the dataset to wrap.
@@ -125,8 +129,9 @@ where
     /// a uniformly shuffled order.
     ///
     /// When the sample size is greater than the source dataset size,
-    /// the entire source dataset will be exhausted before re-sampling,
-    /// for each multiple of the source size.
+    /// the entire source dataset will be sampled once for every multiple
+    /// of the size ratios; with the remaining samples taken without replacement
+    /// uniformly from the source.
     ///
     /// # Arguments
     /// - `dataset`: the dataset to wrap.
@@ -136,7 +141,7 @@ where
         Self::new_from_state(
             dataset,
             size,
-            SamplerState::WithoutReplacement(rng, Vec::new()),
+            SamplerState::WithoutReplacement(rng, Vec::with_capacity(size)),
         )
     }
 
@@ -162,7 +167,10 @@ where
             SamplerState::WithoutReplacement(rng, indices) => {
                 if indices.is_empty() {
                     // Refill the state.
-                    *indices = (0..self.dataset.len()).choose_multiple(rng, self.dataset.len());
+                    while indices.len() < self.size {
+                        let k = min(self.size - indices.len(), self.dataset.len());
+                        indices.extend((0..self.dataset.len()).choose_multiple(rng, k));
+                    }
 
                     // From `choose_multiple` documentation:
                     // > Although the elements are selected randomly, the order of elements in
