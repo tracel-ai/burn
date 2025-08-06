@@ -165,6 +165,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn should_panic_select_assign_invalid_num_indices() {
         let device = Default::default();
         let tensor = TestTensorInt::<1>::from_data([0; 12], &device);
