@@ -329,6 +329,17 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
         }
     }
 
+    let mut ensurepip_cmd = Command::new(&venv_python_path);
+    ensurepip_cmd.args(["-m", "ensurepip", "--upgrade"]);
+    let status = ensurepip_cmd.status().map_err(|err| {
+        ImporterError::FailToDownloadPythonDependencies(format!("failed to run ensurepip: {err}"))
+    })?;
+    if !status.success() {
+        return Err(ImporterError::FailToDownloadPythonDependencies(
+            "ensurepip failed to initialize pip".to_string(),
+        ));
+    }
+
     let mut command = Command::new(&venv_python_path);
     command.args([
         "-m",
