@@ -32,19 +32,55 @@ where
     D: Dataset<I>,
     I: Send + Sync,
 {
-    /// Creates a new sampler dataset with replacement.
-    pub fn new(dataset: D, size: usize) -> Self {
+    fn new_from_state(dataset: D, size: usize, state: SamplerState) -> Self {
         Self {
             dataset,
             size,
-            state: Mutex::new(SamplerState::WithReplacement(StdRng::from_os_rng())),
+            state: Mutex::new(state),
             input: PhantomData,
         }
     }
 
     /// Creates a new sampler dataset with replacement.
+    ///
+    /// # Arguments
+    ///
+    /// - `dataset`: the dataset to wrap.
+    /// - `size`: the effective size of the sampled dataset.
+    pub fn new(dataset: D, size: usize) -> Self {
+        Self::with_replacement(dataset, size)
+    }
+
+    /// Creates a new sampler dataset with replacement.
+    ///
+    /// # Arguments
+    ///
+    /// - `dataset`: the dataset to wrap.
+    /// - `size`: the effective size of the sampled dataset.
     pub fn with_replacement(dataset: D, size: usize) -> Self {
-        Self::new(dataset, size)
+        Self::with_replacement_from_rng(dataset, size, StdRng::from_os_rng())
+    }
+
+    /// Creates a new sampler dataset with replacement.
+    ///
+    /// # Arguments
+    ///
+    /// - `dataset`: the dataset to wrap.
+    /// - `size`: the effective size of the sampled dataset.
+    /// - `seed`: the seed to seed the rng with.
+    pub fn with_replacement_from_seed(dataset: D, size: usize, seed: u64) -> Self {
+        Self::with_replacement_from_rng(dataset, size, StdRng::seed_from_u64(seed))
+    }
+
+    /// Creates a new sampler dataset with replacement.
+    ///
+    /// # Arguments
+    ///
+    /// - `dataset`: the dataset to wrap.
+    /// - `size`: the effective size of the sampled dataset.
+    /// - `rng`: the rng to use.
+    pub fn with_replacement_from_rng(dataset: D, size: usize, rng: StdRng) -> Self {
+        Self::new_from_state(dataset, size, SamplerState::WithReplacement(rng))
     }
 
     /// Creates a new sampler dataset without replacement.
@@ -56,15 +92,63 @@ where
     /// When the sample size is greater than the source dataset size,
     /// the entire source dataset will be exhausted before re-sampling,
     /// for each multiple of the source size.
+    ///
+    /// # Arguments
+    /// - `dataset`: the dataset to wrap.
+    /// - `size`: the effective size of the sampled dataset.
     pub fn without_replacement(dataset: D, size: usize) -> Self {
-        Self {
+        Self::without_replacement_from_rng(dataset, size, StdRng::from_os_rng())
+    }
+
+    /// Creates a new sampler dataset without replacement.
+    ///
+    /// When the sample size is less than or equal to the source dataset size,
+    /// data will be sampled without replacement from the source dataset in
+    /// a uniformly shuffled order.
+    ///
+    /// When the sample size is greater than the source dataset size,
+    /// the entire source dataset will be exhausted before re-sampling,
+    /// for each multiple of the source size.
+    ///
+    /// # Arguments
+    /// - `dataset`: the dataset to wrap.
+    /// - `size`: the effective size of the sampled dataset.
+    /// - `seed`: the seed to seed the rng with.
+    pub fn without_replacement_from_seed(dataset: D, size: usize, seed: u64) -> Self {
+        Self::without_replacement_from_rng(dataset, size, StdRng::seed_from_u64(seed))
+    }
+
+    /// Creates a new sampler dataset without replacement.
+    ///
+    /// When the sample size is less than or equal to the source dataset size,
+    /// data will be sampled without replacement from the source dataset in
+    /// a uniformly shuffled order.
+    ///
+    /// When the sample size is greater than the source dataset size,
+    /// the entire source dataset will be exhausted before re-sampling,
+    /// for each multiple of the source size.
+    ///
+    /// # Arguments
+    /// - `dataset`: the dataset to wrap.
+    /// - `size`: the effective size of the sampled dataset.
+    /// - `rng`: the rng to use.
+    pub fn without_replacement_from_rng(dataset: D, size: usize, rng: StdRng) -> Self {
+        Self::new_from_state(
             dataset,
             size,
-            state: Mutex::new(SamplerState::WithoutReplacement(
-                StdRng::from_os_rng(),
-                Vec::new(),
-            )),
-            input: PhantomData,
+            SamplerState::WithoutReplacement(rng, Vec::new()),
+        )
+    }
+
+    /// Determines if the sampler is using the "with replacement" strategy.
+    ///
+    /// # Returns
+    /// - `true`: If the sampler is configured to sample with replacement.
+    /// - `false`: If the sampler is configured to sample without replacement.
+    pub fn uses_replacement(&self) -> bool {
+        match self.state.lock().unwrap().deref_mut() {
+            SamplerState::WithReplacement(_) => true,
+            SamplerState::WithoutReplacement(_, _) => false,
         }
     }
 
@@ -119,6 +203,52 @@ mod tests {
     use super::*;
     use crate::FakeDataset;
     use std::collections::HashMap;
+
+    #[test]
+    fn sampler_dataset_constructors_test() {
+        let ds = SamplerDataset::new(FakeDataset::<u32>::new(10), 15);
+        assert_eq!(ds.len(), 15);
+        assert_eq!(ds.dataset.len(), 10);
+        assert!(ds.uses_replacement());
+
+        let ds = SamplerDataset::with_replacement(FakeDataset::<u32>::new(10), 15);
+        assert_eq!(ds.len(), 15);
+        assert_eq!(ds.dataset.len(), 10);
+        assert!(ds.uses_replacement());
+
+        let ds = SamplerDataset::with_replacement_from_seed(FakeDataset::<u32>::new(10), 15, 42);
+        assert_eq!(ds.len(), 15);
+        assert_eq!(ds.dataset.len(), 10);
+        assert!(ds.uses_replacement());
+
+        let ds = SamplerDataset::with_replacement_from_rng(
+            FakeDataset::<u32>::new(10),
+            15,
+            StdRng::seed_from_u64(42),
+        );
+        assert_eq!(ds.len(), 15);
+        assert_eq!(ds.dataset.len(), 10);
+        assert!(ds.uses_replacement());
+
+        let ds = SamplerDataset::without_replacement(FakeDataset::<u32>::new(10), 15);
+        assert_eq!(ds.len(), 15);
+        assert_eq!(ds.dataset.len(), 10);
+        assert!(!ds.uses_replacement());
+
+        let ds = SamplerDataset::without_replacement_from_seed(FakeDataset::<u32>::new(10), 15, 42);
+        assert_eq!(ds.len(), 15);
+        assert_eq!(ds.dataset.len(), 10);
+        assert!(!ds.uses_replacement());
+
+        let ds = SamplerDataset::without_replacement_from_rng(
+            FakeDataset::<u32>::new(10),
+            15,
+            StdRng::seed_from_u64(42),
+        );
+        assert_eq!(ds.len(), 15);
+        assert_eq!(ds.dataset.len(), 10);
+        assert!(!ds.uses_replacement());
+    }
 
     #[test]
     fn sampler_dataset_with_replacement_iter() {
