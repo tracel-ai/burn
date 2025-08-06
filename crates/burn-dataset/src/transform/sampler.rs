@@ -1,4 +1,5 @@
 use crate::Dataset;
+use rand::prelude::SliceRandom;
 use rand::{Rng, SeedableRng, distr::Uniform, rngs::StdRng, seq::IteratorRandom};
 use std::{marker::PhantomData, ops::DerefMut, sync::Mutex};
 
@@ -70,6 +71,12 @@ where
                 if indices.is_empty() {
                     // Refill the state.
                     *indices = (0..self.dataset.len()).choose_multiple(rng, self.dataset.len());
+
+                    // From `choose_multiple` documentation:
+                    // Although the elements are selected randomly, the order of elements in
+                    // the buffer is neither stable nor fully random. If random ordering is
+                    // desired, shuffle the result.
+                    indices.shuffle(rng);
                 }
 
                 indices.pop().expect("Indices are refilled when empty.")
