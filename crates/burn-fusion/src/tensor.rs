@@ -211,7 +211,7 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
 }
 
 impl<R: FusionRuntime> QTensorPrimitive for FusionTensor<R> {
-    fn settings(&self) -> &QuantSettings {
+    fn scheme(&self) -> &QuantSettings {
         if let DType::QFloat(scheme) = &self.dtype {
             todo!()
         } else {

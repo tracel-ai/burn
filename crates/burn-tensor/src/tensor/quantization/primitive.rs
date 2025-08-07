@@ -1,7 +1,17 @@
-use super::QuantSettings;
+use cubecl_quant::scheme::QuantScheme;
+
+use crate::quantization::{QuantAcc, QuantPropagation};
 
 /// Quantized tensor primitive.
 pub trait QTensorPrimitive {
     /// Returns the quantization settings for the given tensor.
-    fn settings(&self) -> &QuantSettings;
+    fn scheme(&self) -> &QuantScheme;
+    /// The precision used for the accumulation in varius kernels.
+    fn acc_precision(&self) -> QuantAcc {
+        QuantAcc::F32
+    }
+    /// How quantization is propagated during computation.
+    fn propagation(&self) -> QuantPropagation {
+        QuantPropagation::Inhibit
+    }
 }

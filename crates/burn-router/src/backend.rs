@@ -33,7 +33,7 @@ impl<R: RunnerChannel> Default for BackendRouter<R> {
 
 // TODO: quantization tensor primitive (w/ qparams)
 impl<R: RunnerClient> QTensorPrimitive for RouterTensor<R> {
-    fn settings(&self) -> &QuantSettings {
+    fn scheme(&self) -> &QuantSettings {
         todo!()
     }
 }

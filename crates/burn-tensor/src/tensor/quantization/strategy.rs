@@ -3,12 +3,7 @@ use core::marker::PhantomData;
 use num_traits::{Float, PrimInt, Signed};
 use serde::{Deserialize, Serialize};
 
-use crate::quantization::QuantAcc;
-
-use super::{
-    QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme, QuantSettings, QuantStore,
-    QuantValue,
-};
+use super::{QuantLevel, QuantMode, QuantParam, QuantScheme, QuantStore, QuantValue};
 
 /// Quantization strategy.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -65,29 +60,21 @@ impl QuantizationStrategy {
 
 impl QuantizationStrategy {
     /// Returns the corresponding quantization scheme.
-    pub fn settings(&self) -> QuantSettings {
+    pub fn scheme(&self) -> QuantScheme {
         match self {
-            QuantizationStrategy::PerTensorSymmetricInt8(_) => QuantSettings {
-                scheme: QuantScheme {
-                    level: QuantLevel::Tensor,
-                    mode: QuantMode::Symmetric,
-                    value: QuantValue::QInt8,
-                    store: QuantStore::U32,
-                    param: QuantParam::F32,
-                },
-                acc_precision: QuantAcc::F32,
-                propagation: QuantPropagation::Inhibit,
+            QuantizationStrategy::PerTensorSymmetricInt8(_) => QuantScheme {
+                level: QuantLevel::Tensor,
+                mode: QuantMode::Symmetric,
+                value: QuantValue::QInt8,
+                store: QuantStore::U32,
+                param: QuantParam::F32,
             },
-            QuantizationStrategy::PerBlockSymmetricInt8(_blocks, block_size) => QuantSettings {
-                scheme: QuantScheme {
-                    level: QuantLevel::Block(*block_size),
-                    mode: QuantMode::Symmetric,
-                    value: QuantValue::QInt8,
-                    store: QuantStore::U32,
-                    param: QuantParam::F32,
-                },
-                acc_precision: QuantAcc::F32,
-                propagation: QuantPropagation::Inhibit,
+            QuantizationStrategy::PerBlockSymmetricInt8(_blocks, block_size) => QuantScheme {
+                level: QuantLevel::Block(*block_size),
+                mode: QuantMode::Symmetric,
+                value: QuantValue::QInt8,
+                store: QuantStore::U32,
+                param: QuantParam::F32,
             },
         }
     }

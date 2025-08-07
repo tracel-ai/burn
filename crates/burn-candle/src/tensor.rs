@@ -67,7 +67,7 @@ pub struct CandleQTensor {
 }
 
 impl QTensorPrimitive for CandleQTensor {
-    fn settings(&self) -> &QuantSettings {
+    fn scheme(&self) -> &QuantSettings {
         &self.scheme
     }
 }

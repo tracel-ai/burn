@@ -361,7 +361,7 @@ impl TensorMetadata for TchQTensor {
 }
 
 impl QTensorPrimitive for TchQTensor {
-    fn settings(&self) -> &QuantSettings {
+    fn scheme(&self) -> &QuantSettings {
         &self.scheme
     }
 }
@@ -446,7 +446,7 @@ mod tests {
         };
         let qtensor: TchQTensor = LibTorch::quantize(tensor, &scheme, qparams);
 
-        assert_eq!(qtensor.settings(), &scheme);
+        assert_eq!(qtensor.scheme(), &scheme);
         assert_eq!(
             qtensor.strategy(),
             QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(

@@ -4,7 +4,7 @@ use burn_tensor::{
     Device, Shape, TensorData,
     backend::Backend,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
-    quantization::{QuantSettings, QuantizationParametersPrimitive},
+    quantization::{QuantScheme, QuantizationParametersPrimitive},
 };
 
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy};
@@ -16,7 +16,7 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
 
     fn quantize(
         _tensor: FloatTensor<Self>,
-        _scheme: &QuantSettings,
+        _scheme: &QuantScheme,
         _qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         todo!() // required for QAT
@@ -24,7 +24,7 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
 
     fn quantize_dynamic(
         _tensor: FloatTensor<Self>,
-        _scheme: &QuantSettings,
+        _scheme: &QuantScheme,
     ) -> QuantizedTensor<Self> {
         todo!()
     }

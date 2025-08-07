@@ -155,7 +155,7 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
 }
 
 impl<R: CubeRuntime> QTensorPrimitive for CubeTensor<R> {
-    fn settings(&self) -> &burn_tensor::quantization::QuantSettings {
+    fn scheme(&self) -> &burn_tensor::quantization::QuantSettings {
         if let DType::QFloat(scheme) = &self.dtype {
             todo!()
         } else {

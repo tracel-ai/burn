@@ -31,7 +31,7 @@ impl QuantizedBytes {
     pub fn new<E: Element>(value: Vec<E>, strategy: QuantizationStrategy) -> Self {
         let mut bytes: Bytes;
         let num_elements = value.len();
-        let scheme = strategy.settings().scheme;
+        let scheme = strategy.scheme();
 
         match strategy {
             QuantizationStrategy::PerTensorSymmetricInt8(quant) => {

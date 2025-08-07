@@ -231,7 +231,7 @@ where
         }
 
         let tensor = kernel::into_contiguous_aligned(tensor);
-        let mut data = match tensor.settings() {
+        let mut data = match tensor.scheme() {
             QuantSettings {
                 q_type: QuantInputType::QInt8,
                 ..
@@ -287,14 +287,14 @@ where
 
     fn q_matmul(lhs: QuantizedTensor<Self>, rhs: QuantizedTensor<Self>) -> TensorPrimitive<Self> {
         if features_enabled::<R>(&lhs.client)
-            && both_matches_symmetric_qint8(lhs.settings(), rhs.settings())
+            && both_matches_symmetric_qint8(lhs.scheme(), rhs.scheme())
         {
             let out =
                 kernel::matmul::q_matmul(lhs.clone(), rhs.clone(), None, MatmulStrategy::default());
             if let Ok(out) = out {
-                return match lhs.settings().propagation {
+                return match lhs.scheme().propagation {
                     QuantPropagation::Propagate => {
-                        TensorPrimitive::QFloat(Self::quantize_dynamic(out, lhs.settings()))
+                        TensorPrimitive::QFloat(Self::quantize_dynamic(out, lhs.scheme()))
                     }
                     QuantPropagation::Inhibit => TensorPrimitive::Float(out),
                 };
@@ -302,7 +302,7 @@ where
         }
 
         // If the above quantized matmul fail, we fallback to the dequantize-then-matmul pattern.
-        let scheme = *lhs.settings();
+        let scheme = *lhs.scheme();
         let t1_f = <Self>::dequantize(lhs);
         let t2_f = <Self>::dequantize(rhs);
         let out = Self::float_matmul(t1_f, t2_f);
