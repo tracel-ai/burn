@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use burn_communication::Address;
 use serde::{Deserialize, Serialize};
 
@@ -6,26 +8,61 @@ use serde::{Deserialize, Serialize};
 /// This config is per-node. It is passed to [reduce](crate::register).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CollectiveConfig {
-    pub num_devices: usize,
-    pub local_all_reduce_strategy: AllReduceStrategy,
-    pub local_reduce_strategy: ReduceStrategy,
-    pub local_broadcast_strategy: BroadcastStrategy,
+    pub(crate) num_devices: usize,
+    pub(crate) local_all_reduce_strategy: AllReduceStrategy,
+    pub(crate) local_reduce_strategy: ReduceStrategy,
+    pub(crate) local_broadcast_strategy: BroadcastStrategy,
 
     // Global parameters (all are optional, but if one is defined they should all be)
-    pub num_nodes: Option<u32>,
-    pub global_address: Option<Address>,
-    pub node_address: Option<Address>,
-    pub data_service_port: Option<u16>,
+    pub(crate) num_nodes: Option<u32>,
+    pub(crate) global_address: Option<Address>,
+    pub(crate) node_address: Option<Address>,
+    pub(crate) data_service_port: Option<u16>,
 
     // These strategies may be defined when no other global params are defined
-    pub global_all_reduce_strategy: Option<AllReduceStrategy>,
-    pub global_reduce_strategy: Option<ReduceStrategy>,
-    pub global_broadcast_strategy: Option<BroadcastStrategy>,
+    pub(crate) global_all_reduce_strategy: Option<AllReduceStrategy>,
+    pub(crate) global_reduce_strategy: Option<ReduceStrategy>,
+    pub(crate) global_broadcast_strategy: Option<BroadcastStrategy>,
 }
 
 impl Default for CollectiveConfig {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Display for CollectiveConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let num_devices = self.num_devices;
+        let local_all_reduce_strategy = self.local_all_reduce_strategy;
+        let local_reduce_strategy = self.local_reduce_strategy;
+        let local_broadcast_strategy = self.local_broadcast_strategy;
+        let num_nodes = self.num_nodes;
+        let global_address = &self.global_address;
+        let node_address = &self.node_address;
+        let data_service_port = self.data_service_port;
+        let global_all_reduce_strategy = self.global_all_reduce_strategy;
+        let global_reduce_strategy = self.global_reduce_strategy;
+        let global_broadcast_strategy = self.global_broadcast_strategy;
+
+        write!(
+            f,
+            r#"
+CollectiveConfig {{
+    num_devices: {num_devices:?},
+    local_all_reduce_strategy: {local_all_reduce_strategy:?},
+    local_reduce_strategy: {local_reduce_strategy:?},
+    local_broadcast_strategy: {local_broadcast_strategy:?},
+    num_nodes: {num_nodes:?},
+    global_address: {global_address:?},
+    node_address: {node_address:?},
+    data_service_port: {data_service_port:?},
+    global_all_reduce_strategy: {global_all_reduce_strategy:?},
+    global_reduce_strategy: {global_reduce_strategy:?},
+    global_broadcast_strategy: {global_broadcast_strategy:?},
+}}
+"#
+        )
     }
 }
 
@@ -274,6 +311,12 @@ pub enum BroadcastStrategy {
 /// This is like the rank in NCCL
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PeerId(u32);
+
+impl Display for PeerId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PeerId({})", self.0)
+    }
+}
 
 impl From<u32> for PeerId {
     fn from(value: u32) -> Self {

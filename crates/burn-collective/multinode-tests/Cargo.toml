@@ -7,15 +7,13 @@ license.workspace = true
 [features]
 default = ["ndarray"]
 ndarray = ["burn/ndarray"]
-ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
-ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
-ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 
 [dependencies]
-burn = { path = "../../burn" }
-burn-common = { path = "../../burn-common" }
-burn-communication = { path = "../../burn-communication" }
+burn = { path = "../../burn", default-features = false, features = ["std"] }
+burn-common = { path = "../../burn-common", default-features = false }
 burn-collective = { path = "..", features = ["orchestrator"] }
+burn-communication = { path = "../../burn-communication" }
+
 tokio = { workspace = true, features = ["rt-multi-thread", "process"] }
 
 serde = { workspace = true, features = ["derive"] }
