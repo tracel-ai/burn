@@ -1,6 +1,6 @@
 use crate::{
-    Point,
-    backends::cpu::{self, MorphOp, morph},
+    Point, Transform2D,
+    backends::cpu::{self, MorphOp, morph, resample},
 };
 use bon::Builder;
 use burn_tensor::{
@@ -259,6 +259,20 @@ pub trait FloatVisionOps: Backend {
     ) -> FloatTensor<Self> {
         let input = Tensor::<Self, 3>::from_primitive(TensorPrimitive::Float(input));
         morph(input, kernel, MorphOp::Dilate, opts)
+            .into_primitive()
+            .tensor()
+    }
+
+    /// Rotates an input tensor around a point
+    ///
+    /// `input` - A tensor to treat as an image
+    fn float_resample(
+        input: FloatTensor<Self>,
+        transform: Transform2D<Self>,
+        default: f32,
+    ) -> FloatTensor<Self> {
+        let input = Tensor::<Self, 3>::from_primitive(TensorPrimitive::Float(input));
+        resample(input, transform, default)
             .into_primitive()
             .tensor()
     }

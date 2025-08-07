@@ -25,8 +25,9 @@ default = ["ndarray", "cubecl-backend", "fusion", "std", "export-tests"]
 export-tests = ["burn-tensor-testgen", "image"]
 fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
 ndarray = ["burn-ndarray"]
-std = []
+fusion-cubecl = ["cubecl-backend", "fusion"]
 tch = ["burn-tch"]
+std = []
 
 # Test features
 test-cpu = ["export-tests"]
@@ -45,6 +46,7 @@ burn-ndarray = { path = "../burn-ndarray", version = "0.19.0", optional = true }
 burn-tch = { path = "../burn-tch", version = "0.19.0", optional = true }
 burn-tensor = { path = "../burn-tensor", version = "0.19.0" }
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.19.0", optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "0.19.0", optional = true }
 bytemuck = { workspace = true }
 cubecl = { workspace = true, optional = true }
 derive-new = { workspace = true }

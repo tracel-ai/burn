@@ -87,7 +87,8 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
         };
 
         let mut border_table = Vec::new();
-        let border_length = (ksize.width - 1).max(1);
+        // equivalent to max(width - 1, 1), but avoiding overflow
+        let border_length = ksize.width.max(2) - 1;
         let mut const_border_value = Vec::new();
         if matches!(border_type, BorderType::Constant) {
             const_border_value = vec![Zeroable::zeroed(); border_length * ch];

@@ -1,6 +1,7 @@
 use crate::{data::MnistBatcher, model::Model};
 
 use burn::{
+    backend::NdArray,
     collective::{AllReduceStrategy, CollectiveConfig},
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     optim::{AdamConfig, decay::WeightDecayConfig},
@@ -14,6 +15,7 @@ use burn::{
             store::{Aggregate, Direction, Split},
         },
     },
+    vision::VisionBackend,
 };
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
@@ -26,7 +28,7 @@ pub struct MnistTrainingConfig {
     #[config(default = 64)]
     pub batch_size: usize,
 
-    #[config(default = 4)]
+    #[config(default = 8)]
     pub num_workers: usize,
 
     #[config(default = 42)]
@@ -41,7 +43,10 @@ fn create_artifact_dir(artifact_dir: &str) {
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
-pub fn run<B: AutodiffBackend>(device: B::Device) {
+pub fn run<B: AutodiffBackend>(device: B::Device)
+where
+    B::InnerBackend: VisionBackend,
+{
     create_artifact_dir(ARTIFACT_DIR);
     // Config
     let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
@@ -52,7 +57,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let model = Model::<B>::new(&device);
 
     // Data
-    let batcher = MnistBatcher::default();
+    let batcher = MnistBatcher::<NdArray>::default();
 
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())
         .batch_size(config.batch_size)

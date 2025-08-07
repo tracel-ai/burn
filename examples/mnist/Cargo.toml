@@ -10,8 +10,7 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["burn/tui"]
-ndarray = ["burn/ndarray"]
+default = ["burn/tui", "burn/ndarray"]
 ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
 ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
 ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
@@ -29,7 +28,20 @@ burn = { path = "../../crates/burn", features = [
     "metrics",
     "std",
     "collective",
+    "vision",
 ], default-features = false }
+
+image = "0.25.0"  # or latest version
+
+rand.workspace = true
+
+# cubecl = { workspace = true, features = [
+#     "matmul",
+#     "convolution",
+#     "reduce",
+#     "random",
+#     "stdlib",
+# ] }
 
 # Serialization
 log = { workspace = true }

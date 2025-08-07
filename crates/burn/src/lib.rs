@@ -117,3 +117,7 @@ pub use burn_remote::server;
 /// Module for collective operations
 #[cfg(feature = "collective")]
 pub mod collective;
+
+/// Module for vision ops
+#[cfg(feature = "vision")]
+pub mod vision;
