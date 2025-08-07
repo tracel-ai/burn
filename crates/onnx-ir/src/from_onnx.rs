@@ -94,7 +94,6 @@ impl GraphData {
                 if let Some(initial_arg) = constants.get(&x.name) && arg.value.is_none() {
                         log::warn!("Input {} is also an initializer. Initializer as default values are currently not supported", x.name);
                         arg.copy_value(initial_arg);
-                    
                 }
 
                 arg.name = in_name;
