@@ -74,7 +74,7 @@ impl QTensorPrimitive for CandleQTensor {
 
 impl TensorMetadata for CandleQTensor {
     fn dtype(&self) -> DType {
-        DType::QFloat(self.scheme.scheme)
+        DType::QFloat(self.scheme)
     }
 
     fn shape(&self) -> Shape {
