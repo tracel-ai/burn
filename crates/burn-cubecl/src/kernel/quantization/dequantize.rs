@@ -4,7 +4,7 @@ use super::QParams;
 use crate::{CubeRuntime, FloatElement, kernel::utils::strided_layout, ops::max_line_size};
 use crate::{ops::numeric::empty_device_strided, tensor::CubeTensor};
 use burn_tensor::quantization::{
-    QuantFloatPrecision, QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantStoreType,
+    QuantFloatPrecision, QuantInputType, QuantLevel, QuantMode, QuantSettings, QuantStoreType,
 };
 use burn_tensor::{DType, bf16, f16};
 use cubecl::calculate_cube_count_elemwise;
@@ -29,7 +29,7 @@ pub fn dequantize_packed_values<F: Float, FS: Float, QI: Int>(
     position: u32,
     values: &Tensor<QI>,
     scales: &Tensor<FS>,
-    #[comptime] scheme: QuantScheme,
+    #[comptime] scheme: QuantSettings,
 ) -> Line<F> {
     let value = values[position];
     dequantize_packed_value_at::<F, FS, QI>(position, value, scales, scheme)
@@ -44,7 +44,7 @@ pub fn dequantize_packed_value_at<F: Float, FS: Float, QI: Int>(
     position: u32,
     value: QI,
     scales: &Tensor<FS>,
-    #[comptime] scheme: QuantScheme,
+    #[comptime] scheme: QuantSettings,
 ) -> Line<F> {
     let qparams = QParams::new(scheme);
     let scale = qparams.scale(scales, position);
@@ -59,7 +59,7 @@ pub fn dequantize_packed_value_at<F: Float, FS: Float, QI: Int>(
 pub fn dequantize_packed_value<F: Float, FS: Float, QS: Int>(
     value: QS,
     scale: FS,
-    #[comptime] scheme: QuantScheme,
+    #[comptime] scheme: QuantSettings,
 ) -> Line<F> {
     // TODO: q_store_type: QuantStoreType::Native
     let floats = unpack_q::<F, QS>(value, scheme.q_type);
@@ -108,7 +108,7 @@ fn dequantize_symmetric_packed_kernel<F: Float, FS: Float>(
     input: &Tensor<Line<u32>>,
     scales: &Tensor<FS>,
     output: &mut Tensor<Line<F>>,
-    #[comptime] scheme: QuantScheme,
+    #[comptime] scheme: QuantSettings,
 ) {
     if ABSOLUTE_POS >= input.len() {
         terminate!();
@@ -139,7 +139,7 @@ fn dequantize_symmetric_int8_native_kernel<F: Float, FS: Float>(
     scale: &Tensor<FS>,
     output: &mut Tensor<Line<F>>,
     out_layout: StridedLayout,
-    #[comptime] scheme: QuantScheme,
+    #[comptime] scheme: QuantSettings,
     #[comptime] rank: Option<u32>,
 ) {
     if ABSOLUTE_POS >= input.len() {
@@ -167,7 +167,7 @@ where
 
     match tensor.dtype {
         DType::QFloat(scheme) => match scheme {
-            QuantScheme {
+            QuantSettings {
                 q_type: QuantInputType::QInt8,
                 q_store_type: QuantStoreType::U32,
                 ..
@@ -176,7 +176,7 @@ where
                 QuantFloatPrecision::F16 => dequantize_packed::<R, F, f16>(tensor, output),
                 QuantFloatPrecision::BF16 => dequantize_packed::<R, F, bf16>(tensor, output),
             },
-            QuantScheme {
+            QuantSettings {
                 q_type: QuantInputType::QInt8,
                 q_store_type: QuantStoreType::Native,
                 ..
@@ -223,7 +223,7 @@ where
     let line_size_out = if use_packed_line_size { num_quants } else { 1 };
 
     match scheme {
-        QuantScheme {
+        QuantSettings {
             level: QuantLevel::Tensor | QuantLevel::Block(_),
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
@@ -245,7 +245,7 @@ where
                 )
             };
         }
-        QuantScheme {
+        QuantSettings {
             q_store_type: QuantStoreType::Native,
             ..
         } => panic!("Invalid quantization storage type for scheme {scheme:?}"),
@@ -273,7 +273,7 @@ where
     };
 
     match scheme {
-        QuantScheme {
+        QuantSettings {
             level: QuantLevel::Tensor | QuantLevel::Block(_),
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
@@ -298,7 +298,7 @@ where
                 )
             };
         }
-        QuantScheme {
+        QuantSettings {
             q_store_type: QuantStoreType::U32,
             ..
         } => panic!("Invalid quantization storage type for scheme {scheme:?}"),

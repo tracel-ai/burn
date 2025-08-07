@@ -1,7 +1,7 @@
 use burn_tensor::{
     Tensor,
     backend::Backend,
-    quantization::{Calibration, QuantScheme},
+    quantization::{Calibration, QuantSettings},
 };
 
 use crate::module::{ModuleMapper, ParamId};
@@ -11,7 +11,7 @@ pub struct Quantizer {
     /// The calibration method used in quantization.
     pub calibration: Calibration,
     /// The quantization scheme.
-    pub scheme: QuantScheme,
+    pub scheme: QuantSettings,
 }
 
 impl<B: Backend> ModuleMapper<B> for Quantizer {

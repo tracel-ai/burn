@@ -4,7 +4,7 @@ use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParams, QuantInputType, QuantLevel, QuantMode, QuantScheme,
+        QParams, QuantInputType, QuantLevel, QuantMode, QuantSettings,
         QuantizationParametersPrimitive, QuantizedBytes,
     },
 };
@@ -15,7 +15,7 @@ use super::TchOps;
 
 fn quantize<E: TchElement>(
     tensor: tch::Tensor,
-    scheme: &QuantScheme,
+    scheme: &QuantSettings,
     qparams: &QParams<E>,
 ) -> tch::Tensor {
     let mut tensor = tensor;
@@ -25,13 +25,13 @@ fn quantize<E: TchElement>(
     }
 
     match scheme {
-        QuantScheme {
+        QuantSettings {
             level: QuantLevel::Tensor,
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
             ..
         } => tensor.quantize_per_tensor(qparams.scales.elem(), 0, tch::Kind::QInt8),
-        QuantScheme {
+        QuantSettings {
             level: QuantLevel::Block(_),
             ..
         } => unimplemented!("LibTorch backend does not support per-block quantization"),
@@ -53,7 +53,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                     let num_elements = data.num_elements();
                     let q_bytes = QuantizedBytes {
                         bytes: data.into_bytes(),
-                        scheme,
+                        settings: scheme,
                         num_elements,
                     };
 
@@ -82,7 +82,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
 
     fn quantize(
         tensor: FloatTensor<Self>,
-        scheme: &QuantScheme,
+        scheme: &QuantSettings,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         let mut tensor = tensor;
@@ -92,7 +92,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         }
 
         let qtensor = match scheme {
-            QuantScheme {
+            QuantSettings {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
@@ -102,7 +102,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                 &tch::Tensor::zeros_like(&qparams.scales.tensor),
                 tch::Kind::QInt8,
             ),
-            QuantScheme {
+            QuantSettings {
                 level: QuantLevel::Block(_),
                 ..
             } => unimplemented!("LibTorch backend does not support per-block quantization"),
@@ -114,9 +114,12 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         }
     }
 
-    fn quantize_dynamic(tensor: FloatTensor<Self>, scheme: &QuantScheme) -> QuantizedTensor<Self> {
+    fn quantize_dynamic(
+        tensor: FloatTensor<Self>,
+        scheme: &QuantSettings,
+    ) -> QuantizedTensor<Self> {
         let qtensor = match &scheme {
-            QuantScheme {
+            QuantSettings {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
@@ -129,7 +132,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                     .tensor
                     .quantize_per_tensor_dynamic(tch::Kind::QInt8, /*reduce_range*/ false)
             }
-            QuantScheme {
+            QuantSettings {
                 level: QuantLevel::Block(_),
                 ..
             } => unimplemented!("LibTorch backend does not support per-block quantization"),

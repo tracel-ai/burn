@@ -57,7 +57,7 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
 
 fn into_contiguous_quantized<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
     execute_with_dtype!(tensor.dtype, E, {
-        let output = empty_qtensor(tensor.shape.clone(), *tensor.scheme(), &tensor.device);
+        let output = empty_qtensor(tensor.shape.clone(), *tensor.settings(), &tensor.device);
 
         cubecl::std::tensor::into_contiguous_ref::<R, E>(
             &tensor.client,

@@ -3,7 +3,7 @@ use core::mem;
 use burn_tensor::{
     DType, Element, Shape, TensorData, TensorMetadata,
     quantization::{
-        QParams, QTensorPrimitive, QuantInputType, QuantLevel, QuantMode, QuantScheme,
+        QParams, QTensorPrimitive, QuantLevel, QuantMode, QuantScheme, QuantSettings, QuantValue,
         QuantizationStrategy, SymmetricQuantization,
     },
 };
@@ -321,7 +321,7 @@ pub struct NdArrayQTensor<Q: QuantElement> {
     /// The quantized tensor.
     pub qtensor: NdArrayTensor<Q>,
     /// The quantization scheme.
-    pub scheme: QuantScheme,
+    pub settings: QuantSettings,
     /// The quantization parameters.
     pub qparams: Vec<QParams<f32>>,
 }
@@ -329,11 +329,11 @@ pub struct NdArrayQTensor<Q: QuantElement> {
 impl<Q: QuantElement> NdArrayQTensor<Q> {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
     pub fn strategy(&self) -> QuantizationStrategy {
-        match self.scheme {
+        match self.settings.scheme {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
                 self.qparams[0].scales,
@@ -341,7 +341,7 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
             QuantScheme {
                 level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => QuantizationStrategy::PerBlockSymmetricInt8(
                 self.qparams
@@ -355,14 +355,14 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
 }
 
 impl<Q: QuantElement> QTensorPrimitive for NdArrayQTensor<Q> {
-    fn scheme(&self) -> &QuantScheme {
-        &self.scheme
+    fn settings(&self) -> &QuantSettings {
+        &self.settings
     }
 }
 
 impl<Q: QuantElement> TensorMetadata for NdArrayQTensor<Q> {
     fn dtype(&self) -> DType {
-        DType::QFloat(self.scheme)
+        DType::QFloat(self.settings.scheme)
     }
 
     fn shape(&self) -> Shape {
@@ -445,13 +445,13 @@ mod tests {
         let device = Default::default();
 
         let tensor = B::float_from_data(TensorData::from([-1.8f32, -1.0, 0.0, 0.5]), &device);
-        let scheme = QuantScheme::default();
+        let scheme = QuantSettings::default();
         let qparams = QuantizationParametersPrimitive {
             scales: B::float_from_data(TensorData::from([scale]), &device),
         };
         let qtensor: NdArrayQTensor<i8> = B::quantize(tensor, &scheme, qparams);
 
-        assert_eq!(qtensor.scheme(), &scheme);
+        assert_eq!(qtensor.settings(), &scheme);
         assert_eq!(
             qtensor.strategy(),
             QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(scale))

@@ -2,7 +2,7 @@ use crate::{LibTorchDevice, TchElement};
 use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     quantization::{
-        QTensorPrimitive, QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantizationStrategy,
+        QTensorPrimitive, QuantLevel, QuantMode, QuantSettings, QuantValue, QuantizationStrategy,
         SymmetricQuantization,
     },
 };
@@ -324,14 +324,14 @@ pub struct TchQTensor {
     /// The quantized tensor.
     pub qtensor: TchTensor,
     /// The quantization scheme.
-    pub scheme: QuantScheme,
+    pub scheme: QuantSettings,
 }
 
 impl TchQTensor {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
     pub fn strategy(&self) -> QuantizationStrategy {
         match &self.scheme {
-            QuantScheme {
+            QuantSettings {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
@@ -342,7 +342,7 @@ impl TchQTensor {
                     scale as f32,
                 ))
             }
-            QuantScheme {
+            QuantSettings {
                 level: QuantLevel::Block(_),
                 ..
             } => unimplemented!("LibTorch backend does not support per-block quantization"),
@@ -361,7 +361,7 @@ impl TensorMetadata for TchQTensor {
 }
 
 impl QTensorPrimitive for TchQTensor {
-    fn scheme(&self) -> &QuantScheme {
+    fn settings(&self) -> &QuantSettings {
         &self.scheme
     }
 }
@@ -437,7 +437,7 @@ mod tests {
     fn should_support_qtensor_strategy() {
         let tensor =
             TchTensor::from_data::<f32>(TensorData::from([-1.8, -1.0, 0.0, 0.5]), tch::Device::Cpu);
-        let scheme = QuantScheme::default();
+        let scheme = QuantSettings::default();
         let qparams = QuantizationParametersPrimitive::<LibTorch<f32, i8>> {
             scales: TchTensor::from_data::<f32>(
                 TensorData::from([0.009_019_608]),
@@ -446,7 +446,7 @@ mod tests {
         };
         let qtensor: TchQTensor = LibTorch::quantize(tensor, &scheme, qparams);
 
-        assert_eq!(qtensor.scheme(), &scheme);
+        assert_eq!(qtensor.settings(), &scheme);
         assert_eq!(
             qtensor.strategy(),
             QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(

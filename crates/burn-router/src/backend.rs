@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 
 use burn_tensor::{
     backend::Backend,
-    quantization::{QTensorPrimitive, QuantScheme},
+    quantization::{QTensorPrimitive, QuantSettings},
 };
 
 use super::{RouterTensor, RunnerChannel, RunnerClient, get_client, set_seed};
@@ -33,7 +33,7 @@ impl<R: RunnerChannel> Default for BackendRouter<R> {
 
 // TODO: quantization tensor primitive (w/ qparams)
 impl<R: RunnerClient> QTensorPrimitive for RouterTensor<R> {
-    fn scheme(&self) -> &QuantScheme {
+    fn settings(&self) -> &QuantSettings {
         todo!()
     }
 }

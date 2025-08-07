@@ -5,8 +5,8 @@ use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParams, QuantInputType, QuantLevel, QuantMode, QuantScheme,
-        QuantizationParametersPrimitive, QuantizationStrategy, QuantizedBytes,
+        QParams, QuantAcc, QuantLevel, QuantMode, QuantPropagation, QuantScheme, QuantSettings,
+        QuantValue, QuantizationParametersPrimitive, QuantizationStrategy, QuantizedBytes,
         SymmetricQuantization,
     },
 };
@@ -50,7 +50,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                     QuantScheme {
                         level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
-                        q_type: QuantInputType::QInt8,
+                        value: QuantValue::QInt8,
                         ..
                     } => {
                         // We should probably check that `Q` matches i8.. but it's the only valid type now
@@ -65,7 +65,11 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
 
                         NdArrayQTensor {
                             qtensor: NdArrayTensor::<Q>::from_data(data),
-                            scheme,
+                            settings: QuantSettings {
+                                scheme,
+                                acc_precision: QuantAcc::F32,
+                                propagation: QuantPropagation::Inhibit,
+                            },
                             qparams,
                         }
                     }
@@ -80,15 +84,15 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
 
     fn quantize(
         tensor: FloatTensor<Self>,
-        scheme: &QuantScheme,
+        settings: &QuantSettings,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         // Implement with ndarray instead of QuantizationStrategy?
-        let (strategy, qparams) = match scheme {
+        let (strategy, qparams) = match settings.scheme {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => {
                 let scales = into_data_f(qparams.scales).iter().next().unwrap();
@@ -102,7 +106,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
             QuantScheme {
                 level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => {
                 let (strategy, qparams) = into_data_f(qparams.scales)
@@ -110,7 +114,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                     .map(|s| (SymmetricQuantization::init(s), QParams { scales: s }))
                     .unzip();
                 (
-                    QuantizationStrategy::PerBlockSymmetricInt8(strategy, *block_size),
+                    QuantizationStrategy::PerBlockSymmetricInt8(strategy, block_size),
                     qparams,
                 )
             }
@@ -121,7 +125,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
         let num_elements = data.num_elements();
         let q_bytes = QuantizedBytes {
             bytes: data.into_bytes(),
-            scheme: *scheme,
+            scheme: settings.scheme,
             num_elements,
         };
         let (values, _) = q_bytes.into_vec_i8();
@@ -129,7 +133,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
 
         NdArrayQTensor {
             qtensor: NdArrayTensor::<Q>::from_data(data),
-            scheme: *scheme,
+            settings: *settings,
             qparams,
         }
     }
@@ -156,7 +160,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
         NdArrayQTensor {
             qtensor: NdArrayOps::reshape(tensor.qtensor, shape),
-            scheme: tensor.scheme,
+            settings: tensor.settings,
             qparams: tensor.qparams,
         }
     }
@@ -175,7 +179,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
     ) -> QuantizedTensor<Self> {
         NdArrayQTensor {
             qtensor: NdArrayOps::swap_dims(tensor.qtensor, dim1, dim2),
-            scheme: tensor.scheme,
+            settings: tensor.settings,
             qparams: tensor.qparams,
         }
     }
@@ -183,7 +187,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
     fn q_permute(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
         NdArrayQTensor {
             qtensor: NdArrayOps::permute(tensor.qtensor, axes),
-            scheme: tensor.scheme,
+            settings: tensor.settings,
             qparams: tensor.qparams,
         }
     }
@@ -191,7 +195,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
     fn q_flip(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
         NdArrayQTensor {
             qtensor: NdArrayOps::flip(tensor.qtensor, axes),
-            scheme: tensor.scheme,
+            settings: tensor.settings,
             qparams: tensor.qparams,
         }
     }
@@ -203,7 +207,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
     ) -> QuantizedTensor<Self> {
         NdArrayQTensor {
             qtensor: NdArrayMathOps::gather(dim, tensor.qtensor, indices),
-            scheme: tensor.scheme,
+            settings: tensor.settings,
             qparams: tensor.qparams,
         }
     }
@@ -215,7 +219,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
     ) -> QuantizedTensor<Self> {
         NdArrayQTensor {
             qtensor: NdArrayMathOps::select(tensor.qtensor, dim, indices),
-            scheme: tensor.scheme,
+            settings: tensor.settings,
             qparams: tensor.qparams,
         }
     }
@@ -223,7 +227,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
     fn q_slice(tensor: QuantizedTensor<Self>, ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
         NdArrayQTensor {
             qtensor: NdArrayOps::slice(tensor.qtensor, ranges),
-            scheme: tensor.scheme,
+            settings: tensor.settings,
             qparams: tensor.qparams,
         }
     }
@@ -239,7 +243,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
     fn q_expand(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
         NdArrayQTensor {
             qtensor: NdArrayOps::expand(tensor.qtensor, shape),
-            scheme: tensor.scheme,
+            settings: tensor.settings,
             qparams: tensor.qparams,
         }
     }

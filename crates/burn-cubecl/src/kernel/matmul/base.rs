@@ -70,7 +70,7 @@ pub fn q_matmul<R: CubeRuntime>(
 
     let client = &lhs.client;
 
-    let scheme = *lhs.scheme();
+    let scheme = *lhs.settings();
 
     lhs.dtype = DType::I8;
     rhs.dtype = DType::I8;
