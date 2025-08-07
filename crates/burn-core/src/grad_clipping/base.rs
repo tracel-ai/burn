@@ -74,17 +74,10 @@ impl GradientClipping {
         grad: Tensor<B, D>,
         threshold: f32,
     ) -> Tensor<B, D> {
-        use burn_tensor::ElementConversion;
-
         let norm = Self::l2_norm(grad.clone());
-        let norm_float = norm.into_scalar().elem::<f32>();
-
-        if norm_float > threshold {
-            let scale = threshold / norm_float;
-            grad.mul_scalar(scale)
-        } else {
-            grad
-        }
+        let clip_coef = threshold / norm.add_scalar(1e-6); // avoid div by zero
+        let clip_coef_clamped = clip_coef.clamp_max(1.0);
+        grad.mul(clip_coef_clamped.unsqueeze())
     }
 
     fn l2_norm<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, 1> {
@@ -134,5 +127,18 @@ mod tests {
         for value in clipped_gradient_data.iter::<f32>() {
             assert!(value <= 0.88);
         }
+    }
+    #[test]
+    fn test_clip_by_norm_no_clipping() {
+        let gradient: Tensor<TestBackend, 2> = Tensor::from_floats(
+            [[0.3, 0.4, 0.5, 0.2], [0.1, 0.6, 0.3, 0.4]],
+            &Default::default(),
+        );
+
+        let clipped_gradient = GradientClipping::Norm(2.2).clip_gradient(gradient.clone());
+
+        clipped_gradient
+            .into_data()
+            .assert_eq(&gradient.into_data(), true);
     }
 }
