@@ -326,10 +326,10 @@ where
         O::Record: 'static,
         S::Record<B>: 'static,
     {
-        if self.tracing_logger.is_some() {
-            if let Err(e) = self.tracing_logger.as_ref().unwrap().install() {
-                log::warn!("Failed to install the experiment logger: {e}");
-            }
+        if self.tracing_logger.is_some()
+            && let Err(e) = self.tracing_logger.as_ref().unwrap().install()
+        {
+            log::warn!("Failed to install the experiment logger: {e}");
         }
         let renderer = self
             .renderer
@@ -382,10 +382,10 @@ where
     }
 
     fn prepare_learning_strategy(learning_strategy: LearningStrategy<B>) -> LearningStrategy<B> {
-        if let LearningStrategy::MultiDeviceNaive(devices) = &learning_strategy {
-            if devices.len() == 1 {
-                return LearningStrategy::SingleDevice(devices[0].clone());
-            }
+        if let LearningStrategy::MultiDeviceNaive(devices) = &learning_strategy
+            && devices.len() == 1
+        {
+            return LearningStrategy::SingleDevice(devices[0].clone());
         }
 
         learning_strategy

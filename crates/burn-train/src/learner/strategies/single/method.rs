@@ -90,10 +90,10 @@ impl<LC: LearnerComponentTypes> LearningMethod<LC> for SingleDeviceLearningStrat
                 );
             }
 
-            if let Some(early_stopping) = &mut components.early_stopping {
-                if early_stopping.should_stop(epoch, &components.event_store) {
-                    break;
-                }
+            if let Some(early_stopping) = &mut components.early_stopping
+                && early_stopping.should_stop(epoch, &components.event_store)
+            {
+                break;
             }
         }
 

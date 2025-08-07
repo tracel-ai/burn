@@ -36,9 +36,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ClipNode {
                 }
             }
         } else if let Some(max) = self.max {
-            return quote! {
+            quote! {
                 let #output = #input.clamp_max(#max);
-            };
+            }
         } else {
             panic!("Clip node must have at least one min or max value");
         }

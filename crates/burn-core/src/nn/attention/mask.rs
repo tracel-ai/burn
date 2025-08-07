@@ -39,11 +39,11 @@ pub fn generate_padding_mask<B: Backend>(
             max_size = tokens.len();
         }
 
-        if let Some(max_seq_length) = max_seq_length {
-            if tokens.len() >= max_seq_length {
-                max_size = max_seq_length;
-                break;
-            }
+        if let Some(max_seq_length) = max_seq_length
+            && tokens.len() >= max_seq_length
+        {
+            max_size = max_seq_length;
+            break;
         }
     }
 
