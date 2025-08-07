@@ -6,9 +6,9 @@ pub use dequantize::*;
 pub use qtensor::*;
 pub use quantize::*;
 
-fn check_block_size_compat(scheme: &burn_tensor::quantization::QuantSettings, div: usize) {
+fn check_block_size_compat(scheme: &burn_tensor::quantization::QuantScheme, div: usize) {
     // Validate block size compatibility
-    if let burn_tensor::quantization::QuantSettings {
+    if let burn_tensor::quantization::QuantScheme {
         level: burn_tensor::quantization::QuantLevel::Block(block_size),
         ..
     } = scheme

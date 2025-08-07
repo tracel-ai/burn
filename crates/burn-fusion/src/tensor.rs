@@ -6,7 +6,7 @@ use crate::{
 use burn_ir::{OperationIr, TensorId, TensorIr, TensorStatus};
 use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
-    quantization::{QTensorPrimitive, QuantSettings},
+    quantization::{QTensorPrimitive, QuantScheme},
 };
 use std::sync::{
     Arc,
@@ -211,9 +211,9 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
 }
 
 impl<R: FusionRuntime> QTensorPrimitive for FusionTensor<R> {
-    fn scheme(&self) -> &QuantSettings {
+    fn scheme(&self) -> &QuantScheme {
         if let DType::QFloat(scheme) = &self.dtype {
-            todo!()
+            scheme
         } else {
             panic!(
                 "Quantization scheme is not valid for dtype {:?}",

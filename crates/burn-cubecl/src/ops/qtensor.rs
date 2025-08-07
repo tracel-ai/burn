@@ -5,7 +5,7 @@ use burn_tensor::{
     ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
         QParamTensor, QTensorPrimitive, QuantFloatPrecision, QuantInputType, QuantLevel, QuantMode,
-        QuantPropagation, QuantSettings, QuantizationParametersPrimitive,
+        QuantPropagation, QuantScheme, QuantizationParametersPrimitive,
     },
 };
 use cubecl::{
@@ -29,7 +29,7 @@ use super::{into_data, permute, swap_dims};
 fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
     data: &[u8],
     shape: S,
-    scheme: QuantSettings,
+    scheme: QuantScheme,
     device: &R::Device,
 ) -> CubeTensor<R> {
     let client = R::client(device);
@@ -43,7 +43,7 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
 
     let descriptors = match scheme {
         // Just to ensure we get and error if more modes are added and unhandled
-        QuantSettings {
+        QuantScheme {
             level: QuantLevel::Tensor,
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
@@ -58,7 +58,7 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
                 (scale_desc, &data[shape.num_elements()..]),
             ]
         }
-        QuantSettings {
+        QuantScheme {
             level: QuantLevel::Block(block_size),
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
@@ -104,7 +104,7 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
 /// Create an empty quantized tensor.
 pub fn empty_qtensor<R: CubeRuntime>(
     shape: impl Into<Shape>,
-    scheme: QuantSettings,
+    scheme: QuantScheme,
     device: &R::Device,
 ) -> CubeTensor<R> {
     let client = R::client(device);
@@ -118,7 +118,7 @@ pub fn empty_qtensor<R: CubeRuntime>(
     };
     let descriptors = match scheme {
         // Just to ensure we get and error if more modes are added and unhandled
-        QuantSettings {
+        QuantScheme {
             level: QuantLevel::Tensor,
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
@@ -129,7 +129,7 @@ pub fn empty_qtensor<R: CubeRuntime>(
             scales_shape = Shape::new([1]);
             vec![data_desc, scale_desc]
         }
-        QuantSettings {
+        QuantScheme {
             level: QuantLevel::Block(block_size),
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
@@ -181,7 +181,7 @@ where
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
-                QuantSettings {
+                QuantScheme {
                     level: QuantLevel::Tensor | QuantLevel::Block(_),
                     mode: QuantMode::Symmetric,
                     q_type: QuantInputType::QInt8,
@@ -203,7 +203,7 @@ where
 
     fn quantize(
         tensor: FloatTensor<Self>,
-        scheme: &QuantSettings,
+        scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         kernel::quantization::quantize::<R, F>(tensor, scheme, qparams.scales)
@@ -232,7 +232,7 @@ where
 
         let tensor = kernel::into_contiguous_aligned(tensor);
         let mut data = match tensor.scheme() {
-            QuantSettings {
+            QuantScheme {
                 q_type: QuantInputType::QInt8,
                 ..
             } => into_data::<R, i8>(tensor.clone()).await,
@@ -316,11 +316,11 @@ where
     }
 }
 
-fn both_matches_symmetric_qint8(lhs: &QuantSettings, rhs: &QuantSettings) -> bool {
+fn both_matches_symmetric_qint8(lhs: &QuantScheme, rhs: &QuantScheme) -> bool {
     [lhs, rhs].iter().all(|scheme| {
         matches!(
             scheme,
-            QuantSettings {
+            QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,

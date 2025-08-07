@@ -1,13 +1,13 @@
 #![allow(missing_docs)] // cube derive macros
 
-use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantSettings};
+use burn_tensor::quantization::{QuantInputType, QuantLevel, QuantMode, QuantScheme};
 use cubecl::prelude::*;
 
 /// Quantization parameters.
 #[derive(CubeLaunch, CubeType)]
 pub struct QParams {
     #[cube(comptime)]
-    scheme: QuantSettings,
+    scheme: QuantScheme,
     #[cube(comptime)]
     pub num_quants: u32,
 }
@@ -15,7 +15,7 @@ pub struct QParams {
 #[cube]
 impl QParams {
     /// Create a new quantization parameters instance.
-    pub fn new(#[comptime] scheme: QuantSettings) -> Self {
+    pub fn new(#[comptime] scheme: QuantScheme) -> Self {
         let num_quants = comptime!((scheme.size_bits_stored() / scheme.q_type.size_bits()) as u32);
         QParams { scheme, num_quants }
     }
@@ -24,13 +24,13 @@ impl QParams {
     pub fn scale<F: Float>(&self, scale_tensor: &Tensor<F>, in_pos: u32) -> F {
         match comptime!(self.scheme) {
             // Symmetric quantization only contains the scaling factor as the last element
-            QuantSettings {
+            QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
                 ..
             } => scale_tensor[0],
-            QuantSettings {
+            QuantScheme {
                 level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,

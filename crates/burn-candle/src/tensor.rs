@@ -1,6 +1,6 @@
 use burn_tensor::{
     DType, Element, Shape, TensorData, TensorMetadata,
-    quantization::{QTensorPrimitive, QuantSettings},
+    quantization::{QTensorPrimitive, QuantScheme},
 };
 
 use crate::{CandleDevice, element::CandleElement};
@@ -63,11 +63,11 @@ pub struct CandleQTensor {
     // NOTE: candle  does not implement `WithDType` for i8
     pub qtensor: CandleTensor,
     /// The quantization scheme.
-    pub scheme: QuantSettings,
+    pub scheme: QuantScheme,
 }
 
 impl QTensorPrimitive for CandleQTensor {
-    fn scheme(&self) -> &QuantSettings {
+    fn scheme(&self) -> &QuantScheme {
         &self.scheme
     }
 }

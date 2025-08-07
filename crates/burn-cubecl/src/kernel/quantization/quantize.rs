@@ -5,7 +5,7 @@ use crate::{
 };
 use crate::{kernel::utils::strided_layout, tensor::CubeTensor};
 use burn_tensor::quantization::{
-    QuantFloatPrecision, QuantInputType, QuantLevel, QuantMode, QuantSettings, QuantStoreType,
+    QuantFloatPrecision, QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantStoreType,
 };
 use burn_tensor::{bf16, f16};
 use cubecl::calculate_cube_count_elemwise;
@@ -45,7 +45,7 @@ fn quantize_packed_value<F: Float, FS: Float, QS: Int>(
     scale: FS,
     range_min: F,
     range_max: F,
-    #[comptime] scheme: QuantSettings,
+    #[comptime] scheme: QuantScheme,
 ) -> QS {
     let value = quantize_symmetric::<F, FS>(value, scale, range_min, range_max);
     pack_q::<F, QS>(value, scheme.q_type)
@@ -121,7 +121,7 @@ fn quantize_symmetric_int8_native_kernel<F: Float, FS: Float>(
     out_scale: &mut Array<FS>,
     out_layout: StridedLayout,
     #[comptime] rank: Option<u32>,
-    #[comptime] scheme: QuantSettings,
+    #[comptime] scheme: QuantScheme,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
@@ -131,7 +131,7 @@ fn quantize_symmetric_int8_native_kernel<F: Float, FS: Float>(
     let out_pos = out_layout.index(output, ABSOLUTE_POS);
 
     let scale = match comptime!(scheme) {
-        QuantSettings {
+        QuantScheme {
             level: QuantLevel::Block(block_size),
             ..
         } => write_scale_per_block(
@@ -140,7 +140,7 @@ fn quantize_symmetric_int8_native_kernel<F: Float, FS: Float>(
             out_scale,
             comptime!(block_size as u32),
         ),
-        QuantSettings {
+        QuantScheme {
             level: QuantLevel::Tensor,
             ..
         } => write_scale_per_tensor(ABSOLUTE_POS, scale, out_scale),
@@ -157,7 +157,7 @@ fn quantize_symmetric_int8_packed_kernel<F: Float, FS: Float>(
     range_max: F,
     output: &mut Array<u32>,
     out_scale: &mut Array<FS>,
-    #[comptime] scheme: QuantSettings,
+    #[comptime] scheme: QuantScheme,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
@@ -167,11 +167,11 @@ fn quantize_symmetric_int8_packed_kernel<F: Float, FS: Float>(
     let packed_pos = ABSOLUTE_POS * num_quants;
 
     let scale = match comptime!(scheme) {
-        QuantSettings {
+        QuantScheme {
             level: QuantLevel::Block(block_size),
             ..
         } => write_scale_per_block(packed_pos, scale, out_scale, comptime!(block_size as u32)),
-        QuantSettings {
+        QuantScheme {
             level: QuantLevel::Tensor,
             ..
         } => write_scale_per_tensor(ABSOLUTE_POS, scale, out_scale),
@@ -200,7 +200,7 @@ fn quantize_symmetric_int8_packed_kernel<F: Float, FS: Float>(
 /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
 pub fn quantize<R, F>(
     tensor: CubeTensor<R>,
-    scheme: &QuantSettings,
+    scheme: &QuantScheme,
     scale: CubeTensor<R>,
 ) -> CubeTensor<R>
 where
@@ -210,7 +210,7 @@ where
     let output = empty_qtensor(tensor.shape.clone(), *scheme, &tensor.device);
 
     match scheme {
-        QuantSettings {
+        QuantScheme {
             q_type: QuantInputType::QInt8,
             q_store_type: QuantStoreType::U32,
             ..
@@ -221,7 +221,7 @@ where
                 quantize_packed::<R, F, bf16>(tensor, scheme, scale, output)
             }
         },
-        QuantSettings {
+        QuantScheme {
             q_type: QuantInputType::QInt8,
             q_store_type: QuantStoreType::Native,
             ..
@@ -247,7 +247,7 @@ where
 
 fn quantize_native<R: CubeRuntime, F: FloatElement, FS: FloatElement>(
     tensor: CubeTensor<R>,
-    scheme: &QuantSettings,
+    scheme: &QuantScheme,
     scale: CubeTensor<R>,
     output: CubeTensor<R>,
 ) -> CubeTensor<R> {
@@ -262,7 +262,7 @@ fn quantize_native<R: CubeRuntime, F: FloatElement, FS: FloatElement>(
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
     match scheme {
-        QuantSettings {
+        QuantScheme {
             level: QuantLevel::Tensor | QuantLevel::Block(_),
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
@@ -289,7 +289,7 @@ fn quantize_native<R: CubeRuntime, F: FloatElement, FS: FloatElement>(
                 )
             };
         }
-        QuantSettings {
+        QuantScheme {
             q_store_type: QuantStoreType::U32,
             ..
         } => panic!("Invalid quantization storage type for scheme {scheme:?}"),
@@ -300,7 +300,7 @@ fn quantize_native<R: CubeRuntime, F: FloatElement, FS: FloatElement>(
 
 fn quantize_packed<R: CubeRuntime, F: FloatElement, FS: FloatElement>(
     tensor: CubeTensor<R>,
-    scheme: &QuantSettings,
+    scheme: &QuantScheme,
     scale: CubeTensor<R>,
     output: CubeTensor<R>,
 ) -> CubeTensor<R> {
@@ -322,7 +322,7 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement, FS: FloatElement>(
         calculate_cube_count_elemwise(num_elems.div_ceil(line_size as usize), cube_dim);
 
     match scheme {
-        QuantSettings {
+        QuantScheme {
             level: QuantLevel::Tensor | QuantLevel::Block(_),
             mode: QuantMode::Symmetric,
             q_type: QuantInputType::QInt8,
@@ -346,7 +346,7 @@ fn quantize_packed<R: CubeRuntime, F: FloatElement, FS: FloatElement>(
                 )
             };
         }
-        QuantSettings {
+        QuantScheme {
             q_store_type: QuantStoreType::Native,
             ..
         } => panic!("Invalid quantization storage type for scheme {scheme:?}"),

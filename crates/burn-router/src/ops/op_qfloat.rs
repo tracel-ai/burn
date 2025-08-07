@@ -3,7 +3,7 @@ use core::ops::Range;
 use burn_tensor::{
     Device, Shape, TensorData,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
-    quantization::{QuantSettings, QuantizationParametersPrimitive},
+    quantization::{QuantScheme, QuantizationParametersPrimitive},
 };
 
 use crate::{BackendRouter, RunnerChannel};
@@ -15,7 +15,7 @@ impl<R: RunnerChannel> QTensorOps<Self> for BackendRouter<R> {
 
     fn quantize(
         _tensor: FloatTensor<Self>,
-        _scheme: &QuantSettings,
+        _scheme: &QuantScheme,
         _qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         unimplemented!()
@@ -23,7 +23,7 @@ impl<R: RunnerChannel> QTensorOps<Self> for BackendRouter<R> {
 
     fn quantize_dynamic(
         _tensor: FloatTensor<Self>,
-        _scheme: &QuantSettings,
+        _scheme: &QuantScheme,
     ) -> QuantizedTensor<Self> {
         unimplemented!()
     }

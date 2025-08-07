@@ -445,7 +445,7 @@ mod tests {
         let device = Default::default();
 
         let tensor = B::float_from_data(TensorData::from([-1.8f32, -1.0, 0.0, 0.5]), &device);
-        let scheme = QuantSettings::default();
+        let scheme = QuantScheme::default();
         let qparams = QuantizationParametersPrimitive {
             scales: B::float_from_data(TensorData::from([scale]), &device),
         };
