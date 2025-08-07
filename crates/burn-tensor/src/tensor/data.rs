@@ -11,7 +11,7 @@ use num_traits::{Float, ToPrimitive};
 
 use crate::{
     DType, Distribution, Element, ElementConversion,
-    quantization::{QuantSettings, QuantValue, QuantizationStrategy, QuantizedBytes},
+    quantization::{QuantValue, QuantizationStrategy, QuantizedBytes},
     tensor::bytes::Bytes,
 };
 

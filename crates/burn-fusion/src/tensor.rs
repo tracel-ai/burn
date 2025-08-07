@@ -213,7 +213,7 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
 impl<R: FusionRuntime> QTensorPrimitive for FusionTensor<R> {
     fn settings(&self) -> &QuantSettings {
         if let DType::QFloat(scheme) = &self.dtype {
-            scheme
+            todo!()
         } else {
             panic!(
                 "Quantization scheme is not valid for dtype {:?}",

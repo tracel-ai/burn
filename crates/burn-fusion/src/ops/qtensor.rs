@@ -43,7 +43,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
     fn quantize(
         tensor: FloatTensor<Self>,
-        scheme: &QuantSettings,
+        settings: &QuantSettings,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         #[derive(new, Debug)]
@@ -67,7 +67,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let dtype = tensor.dtype;
         let out = tensor
             .client
-            .tensor_uninitialized(shape, DType::QFloat(*scheme.scheme));
+            .tensor_uninitialized(shape, DType::QFloat(settings.scheme));
 
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
@@ -78,7 +78,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             qparams: QuantizationParametersIr {
                 scales: qparams.scales.clone().into_ir(),
             },
-            scheme: *scheme,
+            scheme: *settings,
             out: out.to_ir_out(),
         };
 
