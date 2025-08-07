@@ -438,8 +438,10 @@ mod tests {
                         let k = k;
                         let v = v;
                         let [batch_size, q_sequence_length, q_hidden_size] = q.dims();
+                        #[allow(clippy::identity_op)]
                         let head_size = q_hidden_size / 1usize;
                         let kv_sequence_length = k.dims()[1];
+                        #[allow(clippy::identity_op)]
                         let v_head_size = v.dims()[2] / 1usize;
                         let q = q
                             .reshape([batch_size, q_sequence_length, 1usize, head_size])

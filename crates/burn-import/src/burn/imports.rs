@@ -31,10 +31,9 @@ impl BurnImports {
         }
 
         quote! {
-            #[allow(unused_imports)]
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #(use #import_tokens;)*
