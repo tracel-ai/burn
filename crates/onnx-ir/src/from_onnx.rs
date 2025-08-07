@@ -91,11 +91,9 @@ impl GraphData {
                 input_key_map.insert(in_name.clone(), x.name.clone());
 
                 let mut arg = Argument::try_from(x.clone()).unwrap();
-                if let Some(initial_arg) = constants.get(&x.name) {
-                    if arg.value.is_none() {
+                if let Some(initial_arg) = constants.get(&x.name) && arg.value.is_none() {
                         log::warn!("Input {} is also an initializer. Initializer as default values are currently not supported", x.name);
                         arg.copy_value(initial_arg);
-                    }
                 }
 
                 arg.name = in_name;
@@ -134,13 +132,13 @@ impl GraphData {
     fn mark_input_passed(&mut self, node: &Node) {
         // we have to double map the inputs because the input might be replaced by an initializer
         node.inputs.iter().for_each(|node_input| {
-            if let Some(old_input_name) = self.input_key_map.get(&node_input.name) {
-                if !self.initializers.contains_key(old_input_name) {
-                    match self.input_name_map.get(old_input_name) {
-                        Some(IOEntry::In(i)) => self.inputs[*i].passed = true,
-                        _ => {
-                            panic!("Should not happen, please report this error");
-                        }
+            if let Some(old_input_name) = self.input_key_map.get(&node_input.name)
+                && !self.initializers.contains_key(old_input_name)
+            {
+                match self.input_name_map.get(old_input_name) {
+                    Some(IOEntry::In(i)) => self.inputs[*i].passed = true,
+                    _ => {
+                        panic!("Should not happen, please report this error");
                     }
                 }
             }

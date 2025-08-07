@@ -132,10 +132,10 @@ where
                 );
             }
 
-            if let Some(early_stopping) = &mut self.early_stopping {
-                if early_stopping.should_stop(epoch, &self.event_store) {
-                    break;
-                }
+            if let Some(early_stopping) = &mut self.early_stopping
+                && early_stopping.should_stop(epoch, &self.event_store)
+            {
+                break;
             }
         }
 

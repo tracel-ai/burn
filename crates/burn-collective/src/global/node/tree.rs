@@ -80,12 +80,12 @@ where
     }
 
     // Transfer 3: Expose final result to children (if any)
-    if let Some(children) = strategy.children.get(&node) {
-        if !children.is_empty() {
-            data_service
-                .expose(result.clone(), children.len() as u32, 1.into())
-                .await;
-        }
+    if let Some(children) = strategy.children.get(&node)
+        && !children.is_empty()
+    {
+        data_service
+            .expose(result.clone(), children.len() as u32, 1.into())
+            .await;
     }
 
     // Final barrier

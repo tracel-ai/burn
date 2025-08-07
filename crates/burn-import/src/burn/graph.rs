@@ -266,6 +266,9 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
         // Register imports for bool and int tensors
         for ty in all_types {
+            if matches!(ty, Type::Tensor(_)) {
+                self.imports.register("burn::tensor::Tensor");
+            }
             match ty {
                 Type::Tensor(TensorType {
                     kind: TensorKind::Bool,

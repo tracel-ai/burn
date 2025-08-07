@@ -50,14 +50,12 @@ pub fn might_panic(args: TokenStream, input: TokenStream) -> TokenStream {
     // Extract the expected panic reason
     let mut expected_reason = None;
     for arg in args.args.iter() {
-        if let Meta::NameValue(MetaNameValue { path, value, .. }) = arg {
-            if path.is_ident("reason") {
-                if let Expr::Lit(lit) = value {
-                    if let Lit::Str(ref lit_str) = lit.lit {
-                        expected_reason = Some(lit_str.value());
-                    }
-                }
-            }
+        if let Meta::NameValue(MetaNameValue { path, value, .. }) = arg
+            && path.is_ident("reason")
+            && let Expr::Lit(lit) = value
+            && let Lit::Str(ref lit_str) = lit.lit
+        {
+            expected_reason = Some(lit_str.value());
         }
     }
 

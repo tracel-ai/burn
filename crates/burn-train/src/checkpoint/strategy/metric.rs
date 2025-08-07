@@ -46,10 +46,10 @@ impl CheckpointingStrategy for MetricCheckpointingStrategy {
 
         let mut actions = Vec::new();
 
-        if let Some(current) = self.current {
-            if current != best_epoch {
-                actions.push(CheckpointingAction::Delete(current));
-            }
+        if let Some(current) = self.current
+            && current != best_epoch
+        {
+            actions.push(CheckpointingAction::Delete(current));
         }
 
         if best_epoch == epoch {
