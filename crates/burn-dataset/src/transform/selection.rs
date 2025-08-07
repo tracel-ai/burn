@@ -377,6 +377,7 @@ mod tests {
         let sliced_selection = selection.slice(start, end);
 
         assert_eq!(sliced_selection.len(), end - start);
+
         #[allow(clippy::needless_range_loop)]
         for i in start..end {
             assert_eq!(
