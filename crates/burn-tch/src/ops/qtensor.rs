@@ -4,8 +4,8 @@ use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParams, QuantInputType, QuantLevel, QuantMode, QuantScheme,
-        QuantizationParametersPrimitive, QuantizedBytes,
+        QParams, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizationParametersPrimitive,
+        QuantizedBytes,
     },
 };
 
@@ -28,7 +28,7 @@ fn quantize<E: TchElement>(
         QuantScheme {
             level: QuantLevel::Tensor,
             mode: QuantMode::Symmetric,
-            q_type: QuantInputType::QInt8,
+            value: QuantValue::QInt8,
             ..
         } => tensor.quantize_per_tensor(qparams.scales.elem(), 0, tch::Kind::QInt8),
         QuantScheme {
@@ -53,7 +53,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                     let num_elements = data.num_elements();
                     let q_bytes = QuantizedBytes {
                         bytes: data.into_bytes(),
-                        settings: scheme,
+                        scheme,
                         num_elements,
                     };
 
@@ -95,7 +95,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => tensor.tensor.quantize_per_tensor_tensor_qparams(
                 &qparams.scales.tensor,
@@ -119,7 +119,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => {
                 log::warn!(

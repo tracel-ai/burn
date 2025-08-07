@@ -334,7 +334,7 @@ impl TchQTensor {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => {
                 let scale = self.qtensor.tensor.q_scale();
