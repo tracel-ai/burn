@@ -4,7 +4,7 @@ use super::QParams;
 use crate::{CubeRuntime, FloatElement, kernel::utils::strided_layout, ops::max_line_size};
 use crate::{ops::numeric::empty_device_strided, tensor::CubeTensor};
 use burn_tensor::quantization::{
-    QuantFloatPrecision, QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantStoreType,
+    QuantLevel, QuantMode, QuantParam, QuantScheme, QuantStore, QuantValue,
 };
 use burn_tensor::{DType, bf16, f16};
 use cubecl::calculate_cube_count_elemwise;
@@ -62,7 +62,7 @@ pub fn dequantize_packed_value<F: Float, FS: Float, QS: Int>(
     #[comptime] scheme: QuantScheme,
 ) -> Line<F> {
     // TODO: q_store_type: QuantStoreType::Native
-    let floats = unpack_q::<F, QS>(value, scheme.q_type);
+    let floats = unpack_q::<F, QS>(value, scheme.value);
 
     dequantize_symmetric::<F, FS>(floats, scale)
 }
@@ -72,7 +72,7 @@ pub fn dequantize_packed_value<F: Float, FS: Float, QS: Int>(
 /// This handles types where multiple quantized values are packed into a single integer (the stored quantization type).
 #[allow(clippy::explicit_counter_loop)]
 #[cube]
-fn unpack_q<F: Float, QS: Int>(value: QS, #[comptime] quant: QuantInputType) -> Line<F> {
+fn unpack_q<F: Float, QS: Int>(value: QS, #[comptime] quant: QuantValue) -> Line<F> {
     let size_quant = comptime!(quant.size_bits() as u32);
 
     let size_store = comptime!(QS::size_bits().unwrap() as u32);
@@ -168,27 +168,27 @@ where
     match tensor.dtype {
         DType::QFloat(scheme) => match scheme {
             QuantScheme {
-                q_type: QuantInputType::QInt8,
-                q_store_type: QuantStoreType::U32,
+                value: QuantValue::QInt8,
+                store: QuantStore::U32,
                 ..
-            } => match scheme.q_params_precision {
-                QuantFloatPrecision::F32 => dequantize_packed::<R, F, f32>(tensor, output),
-                QuantFloatPrecision::F16 => dequantize_packed::<R, F, f16>(tensor, output),
-                QuantFloatPrecision::BF16 => dequantize_packed::<R, F, bf16>(tensor, output),
+            } => match scheme.param {
+                QuantParam::F32 => dequantize_packed::<R, F, f32>(tensor, output),
+                QuantParam::F16 => dequantize_packed::<R, F, f16>(tensor, output),
+                QuantParam::BF16 => dequantize_packed::<R, F, bf16>(tensor, output),
             },
             QuantScheme {
-                q_type: QuantInputType::QInt8,
-                q_store_type: QuantStoreType::Native,
+                value: QuantValue::QInt8,
+                store: QuantStore::Native,
                 ..
             } => {
                 if !i8::is_supported(&tensor.client) {
                     panic!("QInt8 is not supported for native quantization");
                 }
 
-                match scheme.q_params_precision {
-                    QuantFloatPrecision::F32 => dequantize_native::<R, F, f32>(tensor, output),
-                    QuantFloatPrecision::F16 => dequantize_native::<R, F, f16>(tensor, output),
-                    QuantFloatPrecision::BF16 => dequantize_native::<R, F, bf16>(tensor, output),
+                match scheme.param {
+                    QuantParam::F32 => dequantize_native::<R, F, f32>(tensor, output),
+                    QuantParam::F16 => dequantize_native::<R, F, f16>(tensor, output),
+                    QuantParam::BF16 => dequantize_native::<R, F, bf16>(tensor, output),
                 }
             }
         },
@@ -216,7 +216,7 @@ where
     };
 
     // Output line size selected based on the number of packed values per storage type
-    let num_quants = (scheme.size_bits_stored() / scheme.q_type.size_bits()) as u8;
+    let num_quants = (scheme.size_bits_stored() / scheme.size_bits_value()) as u8;
     let use_packed_line_size =
         num_out_elems % num_quants as usize == 0 && R::supported_line_sizes().contains(&num_quants);
 
@@ -226,8 +226,8 @@ where
         QuantScheme {
             level: QuantLevel::Tensor | QuantLevel::Block(_),
             mode: QuantMode::Symmetric,
-            q_type: QuantInputType::QInt8,
-            q_store_type: QuantStoreType::U32,
+            value: QuantValue::QInt8,
+            store: QuantStore::U32,
             ..
         } => {
             super::check_block_size_compat(&scheme, num_quants as usize); // 32 / 8 = 4
@@ -246,7 +246,7 @@ where
             };
         }
         QuantScheme {
-            q_store_type: QuantStoreType::Native,
+            store: QuantStore::Native,
             ..
         } => panic!("Invalid quantization storage type for scheme {scheme:?}"),
     }
@@ -276,8 +276,8 @@ where
         QuantScheme {
             level: QuantLevel::Tensor | QuantLevel::Block(_),
             mode: QuantMode::Symmetric,
-            q_type: QuantInputType::QInt8,
-            q_store_type: QuantStoreType::Native,
+            value: QuantValue::QInt8,
+            store: QuantStore::Native,
             ..
         } => {
             // We could use line_size = block_size if it's in the supported line sizes.. but let's keep it simple
@@ -299,7 +299,7 @@ where
             };
         }
         QuantScheme {
-            q_store_type: QuantStoreType::U32,
+            store: QuantStore::U32,
             ..
         } => panic!("Invalid quantization storage type for scheme {scheme:?}"),
     }

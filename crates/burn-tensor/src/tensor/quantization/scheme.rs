@@ -11,10 +11,13 @@ use super::{
     Calibration, CalibrationRange, QuantizationParameters, QuantizationParametersPrimitive,
 };
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default,
+)]
 /// The precision of accumulating elements.
 pub enum QuantAcc {
     /// Full precision.
+    #[default]
     F32,
     /// Half precision.
     F16,
@@ -24,11 +27,14 @@ pub enum QuantAcc {
 
 /// Specify if the output of an operation is quantized using the scheme of the input
 /// or returned unquantized.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default,
+)]
 pub enum QuantPropagation {
     /// The output is quantized using the scheme of the input.
     Propagate,
     /// The output is not quantized.
+    #[default]
     Inhibit,
 }
 

@@ -114,10 +114,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         }
     }
 
-    fn quantize_dynamic(
-        tensor: FloatTensor<Self>,
-        scheme: &QuantScheme,
-    ) -> QuantizedTensor<Self> {
+    fn quantize_dynamic(tensor: FloatTensor<Self>, scheme: &QuantScheme) -> QuantizedTensor<Self> {
         let qtensor = match &scheme {
             QuantScheme {
                 level: QuantLevel::Tensor,

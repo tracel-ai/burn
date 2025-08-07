@@ -157,7 +157,7 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
 impl<R: CubeRuntime> QTensorPrimitive for CubeTensor<R> {
     fn scheme(&self) -> &burn_tensor::quantization::QuantScheme {
         if let DType::QFloat(scheme) = &self.dtype {
-            todo!()
+            scheme
         } else {
             panic!(
                 "Quantization scheme is not valid for dtype {:?}",

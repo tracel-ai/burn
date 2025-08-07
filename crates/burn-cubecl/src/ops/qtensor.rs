@@ -4,8 +4,8 @@ use burn_tensor::{
     DType, Device, Shape, TensorData, TensorPrimitive,
     ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParamTensor, QTensorPrimitive, QuantFloatPrecision, QuantInputType, QuantLevel, QuantMode,
-        QuantPropagation, QuantScheme, QuantizationParametersPrimitive,
+        QParamTensor, QTensorPrimitive, QuantLevel, QuantMode, QuantParam, QuantPropagation,
+        QuantScheme, QuantValue, QuantizationParametersPrimitive,
     },
 };
 use cubecl::{
@@ -35,10 +35,10 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
     let client = R::client(device);
     let shape: Shape = shape.into();
     let scales_shape: Shape;
-    let scales_dtype = match scheme.q_params_precision {
-        QuantFloatPrecision::F32 => DType::F32,
-        QuantFloatPrecision::F16 => DType::F16,
-        QuantFloatPrecision::BF16 => DType::BF16,
+    let scales_dtype = match scheme.param {
+        QuantParam::F32 => DType::F32,
+        QuantParam::F16 => DType::F16,
+        QuantParam::BF16 => DType::BF16,
     };
 
     let descriptors = match scheme {
@@ -46,7 +46,7 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
         QuantScheme {
             level: QuantLevel::Tensor,
             mode: QuantMode::Symmetric,
-            q_type: QuantInputType::QInt8,
+            value: QuantValue::QInt8,
             ..
         } => {
             let data_desc = AllocationDescriptor::optimized(&shape.dims, size_of::<i8>());
@@ -61,7 +61,7 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
         QuantScheme {
             level: QuantLevel::Block(block_size),
             mode: QuantMode::Symmetric,
-            q_type: QuantInputType::QInt8,
+            value: QuantValue::QInt8,
             ..
         } => {
             let numel = shape.num_elements();
@@ -111,17 +111,17 @@ pub fn empty_qtensor<R: CubeRuntime>(
     let shape: Shape = shape.into();
     let scales_shape: Shape;
 
-    let scales_dtype = match scheme.q_params_precision {
-        QuantFloatPrecision::F32 => DType::F32,
-        QuantFloatPrecision::F16 => DType::F16,
-        QuantFloatPrecision::BF16 => DType::BF16,
+    let scales_dtype = match scheme.param {
+        QuantParam::F32 => DType::F32,
+        QuantParam::F16 => DType::F16,
+        QuantParam::BF16 => DType::BF16,
     };
     let descriptors = match scheme {
         // Just to ensure we get and error if more modes are added and unhandled
         QuantScheme {
             level: QuantLevel::Tensor,
             mode: QuantMode::Symmetric,
-            q_type: QuantInputType::QInt8,
+            value: QuantValue::QInt8,
             ..
         } => {
             let data_desc = AllocationDescriptor::optimized(&shape.dims, size_of::<i8>());
@@ -132,7 +132,7 @@ pub fn empty_qtensor<R: CubeRuntime>(
         QuantScheme {
             level: QuantLevel::Block(block_size),
             mode: QuantMode::Symmetric,
-            q_type: QuantInputType::QInt8,
+            value: QuantValue::QInt8,
             ..
         } => {
             let num_blocks = shape.num_elements() / block_size;
@@ -184,7 +184,7 @@ where
                 QuantScheme {
                     level: QuantLevel::Tensor | QuantLevel::Block(_),
                     mode: QuantMode::Symmetric,
-                    q_type: QuantInputType::QInt8,
+                    value: QuantValue::QInt8,
                     ..
                 } => {
                     // TensorData quantized representation is the same, with multiple quantized values
@@ -233,7 +233,7 @@ where
         let tensor = kernel::into_contiguous_aligned(tensor);
         let mut data = match tensor.scheme() {
             QuantScheme {
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => into_data::<R, i8>(tensor.clone()).await,
         };
@@ -292,7 +292,7 @@ where
             let out =
                 kernel::matmul::q_matmul(lhs.clone(), rhs.clone(), None, MatmulStrategy::default());
             if let Ok(out) = out {
-                return match lhs.scheme().propagation {
+                return match QuantPropagation::default() {
                     QuantPropagation::Propagate => {
                         TensorPrimitive::QFloat(Self::quantize_dynamic(out, lhs.scheme()))
                     }
@@ -307,7 +307,7 @@ where
         let t2_f = <Self>::dequantize(rhs);
         let out = Self::float_matmul(t1_f, t2_f);
 
-        match scheme.propagation {
+        match QuantPropagation::default() {
             QuantPropagation::Propagate => {
                 TensorPrimitive::QFloat(Self::quantize_dynamic(out, &scheme))
             }
@@ -323,7 +323,7 @@ fn both_matches_symmetric_qint8(lhs: &QuantScheme, rhs: &QuantScheme) -> bool {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             }
         )
