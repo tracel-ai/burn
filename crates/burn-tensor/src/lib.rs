@@ -51,7 +51,12 @@ mod cube {
                 crate::DType::U16 => Elem::UInt(UIntKind::U16),
                 crate::DType::U8 => Elem::UInt(UIntKind::U8),
                 crate::DType::Bool => Elem::Bool,
-                crate::DType::QFloat(_) => panic!("quantized type is not supported yet."),
+                crate::DType::QFloat(scheme) => match scheme.q_store_type {
+                    crate::quantization::QuantStoreType::Native => match scheme.q_type {
+                        crate::quantization::QuantInputType::QInt8 => Self::Int(IntKind::I8),
+                    },
+                    crate::quantization::QuantStoreType::U32 => Self::UInt(UIntKind::U32),
+                },
             }
         }
     }

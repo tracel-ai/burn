@@ -3,6 +3,7 @@ use crate::shared::{
     settings::FuseSettings,
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};
+use burn_tensor::quantization::QuantFloatPrecision;
 use cubecl::prelude::Sequence;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, btree_map::Entry};
@@ -34,6 +35,16 @@ pub struct FuseBlockBuilder {
     pub local_outputs: Vec<TensorId>,
 }
 
+#[derive(Debug)]
+/// How a quantized input can be read.
+pub enum QuantInput {
+    /// If already quantize, we cache the dequantization and returns the local variable
+    /// corresponding to the float value.
+    AlreadyDequantized { local: Arg },
+    /// Otherwise we return the infomation necessary to dequantize the tensor.
+    Info { data: Arg, scales: Arg },
+}
+
 impl FuseBlockBuilder {
     pub fn new(bool_precision: FusePrecision, settings: FuseSettings) -> Self {
         Self {
@@ -53,7 +64,10 @@ impl FuseBlockBuilder {
         if resources.indexed.contains_key(&tensor.id) {
             return None;
         }
-        let precision = tensor.dtype.into();
+        let precision = match tensor.dtype.try_into() {
+            Ok(val) => val,
+            Err(_) => return None,
+        };
 
         // Bool tensors are encoded as bool_precision.
         let precision_output = match precision {
@@ -82,7 +96,10 @@ impl FuseBlockBuilder {
             return None;
         }
 
-        let precision = tensor.dtype.into();
+        let precision = match tensor.dtype.try_into() {
+            Ok(val) => val,
+            Err(_) => return None,
+        };
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
@@ -124,6 +141,49 @@ impl FuseBlockBuilder {
         Some(arg)
     }
 
+    /// Register an input quantized tensor.
+    pub fn input_quant(
+        &mut self,
+        tensor: &TensorIr,
+        resources: &mut FuseResources,
+    ) -> Option<QuantInput> {
+        if resources.indexed.contains_key(&tensor.id) {
+            return None;
+        }
+
+        let precision = match tensor.dtype.try_into() {
+            Ok(val) => val,
+            Err(_) => return None,
+        };
+        let precision_scales = match tensor.dtype {
+            burn_tensor::DType::QFloat(scheme) => match scheme.q_params_precision {
+                QuantFloatPrecision::F32 => FusePrecision::F32,
+                QuantFloatPrecision::F16 => FusePrecision::F16,
+                QuantFloatPrecision::BF16 => FusePrecision::BF16,
+            },
+            _ => return None,
+        };
+
+        let arg = match self.locals.get(precision, tensor.id) {
+            Some(local) => {
+                resources.inputs.update(tensor);
+                QuantInput::AlreadyDequantized { local }
+            }
+            None => {
+                let (new_input, q_index) = resources.inputs.insert_quant(tensor.clone());
+                let input = Arg::Input(new_input, precision, LayoutInfo::Unknown);
+                let scales = Arg::Input(q_index, precision_scales, LayoutInfo::Unknown);
+
+                QuantInput::Info {
+                    data: input,
+                    scales,
+                }
+            }
+        };
+
+        Some(arg)
+    }
+
     /// Register an input with swapped dims.
     pub fn input_swap_dims(
         &mut self,
@@ -132,7 +192,10 @@ impl FuseBlockBuilder {
         dims: (u32, u32),
         resources: &mut FuseResources,
     ) -> Option<Arg> {
-        let precision = tensor.dtype.into();
+        let precision = match tensor.dtype.try_into() {
+            Ok(val) => val,
+            Err(_) => return None,
+        };
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
@@ -199,7 +262,10 @@ impl FuseBlockBuilder {
         output: &TensorIr,
         resources: &mut FuseResources,
     ) -> Option<Arg> {
-        let precision = tensor.dtype.into();
+        let precision = match tensor.dtype.try_into() {
+            Ok(val) => val,
+            Err(_) => return None,
+        };
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
@@ -283,7 +349,10 @@ impl FuseBlockBuilder {
 
         let mut writes = BTreeMap::new();
 
-        for (tensor, precision) in tensor_writes.iter() {
+        for (tensor, precision) in tensor_writes
+            .iter()
+            .filter_map(|entry| entry.as_normal_tensor())
+        {
             if let Some(local) = self.locals.get_any_precision(tensor.id) {
                 let out_index = tensor_writes.get_index(tensor.id).unwrap();
 
@@ -364,7 +433,6 @@ impl FuseBlockBuilder {
                 &mut local_tensor_ids_input,
                 &mut local_tensor_ids_output,
             ),
-
             FuseOp::Sub(op) => mark_binary(
                 op,
                 &mut local_tensor_ids_input,
@@ -455,7 +523,7 @@ impl FuseBlockBuilder {
                 input,
                 indices,
                 output,
-                ..
+                dim: _,
             } => {
                 mark(input, &mut local_tensor_ids_input);
                 mark(indices, &mut local_tensor_ids_input);
@@ -465,7 +533,7 @@ impl FuseBlockBuilder {
                 input,
                 indices,
                 output,
-                ..
+                dim: _,
             } => {
                 mark(input, &mut local_tensor_ids_input);
                 mark(indices, &mut local_tensor_ids_input);
@@ -496,6 +564,15 @@ impl FuseBlockBuilder {
                 &mut local_tensor_ids_input,
                 &mut local_tensor_ids_output,
             ),
+            FuseOp::Dequantize {
+                input,
+                scales: _,
+                output,
+                scheme: _,
+            } => {
+                mark(input, &mut local_tensor_ids_input);
+                mark(output, &mut local_tensor_ids_output);
+            }
         };
 
         // For all operators, mark their local tensor id in the proper set.
@@ -530,10 +607,12 @@ impl FuseBlockBuilder {
 
         // All tensors where their latest representation is read only should be written to since they
         // are going to be used after the fused kernel by other operations.
-        for (tensor, precision) in self.outputs.iter() {
-            if let TensorStatus::ReadOnly = tensor.status {
-                if !resources.dropped.contains(&tensor.id) {
-                    result.insert(*precision, tensor.clone());
+        for output in self.outputs.iter() {
+            if let Some((tensor, precision)) = output.as_normal_tensor() {
+                if let TensorStatus::ReadOnly = tensor.status {
+                    if !resources.dropped.contains(&tensor.id) {
+                        result.insert(*precision, tensor.clone());
+                    }
                 }
             }
         }

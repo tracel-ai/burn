@@ -3,7 +3,7 @@ use core::cmp::Ordering;
 use crate::{
     Distribution,
     cast::ToElement,
-    quantization::{QuantInputType, QuantScheme},
+    quantization::{QuantInputType, QuantScheme, QuantStoreType},
 };
 #[cfg(feature = "cubecl")]
 use cubecl::flex32;
@@ -374,8 +374,11 @@ impl DType {
             DType::U16 => core::mem::size_of::<u16>(),
             DType::U8 => core::mem::size_of::<u8>(),
             DType::Bool => core::mem::size_of::<bool>(),
-            DType::QFloat(scheme) => match scheme.q_type {
-                QuantInputType::QInt8 => core::mem::size_of::<i8>(),
+            DType::QFloat(scheme) => match scheme.q_store_type {
+                QuantStoreType::Native => match scheme.q_type {
+                    QuantInputType::QInt8 => core::mem::size_of::<i8>(),
+                },
+                QuantStoreType::U32 => core::mem::size_of::<u32>(),
             },
         }
     }

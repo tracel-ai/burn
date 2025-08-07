@@ -91,6 +91,11 @@ impl QuantScheme {
             // QuantStoreType::U8 => 8,
         }
     }
+
+    /// Returns the number of quantized values stored in a single element.
+    pub fn num_quants(&self) -> usize {
+        self.size_bits_stored() / self.q_type.size_bits()
+    }
 }
 
 /// Level or granularity of quantization.

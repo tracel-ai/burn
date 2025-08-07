@@ -1,9 +1,11 @@
+use crate::shared::trace::block::QuantInput;
+
 use super::{
     super::{
         ir::{Arg, FuseOp, FusePrecision, LayoutInfo},
         settings::FuseSettings,
     },
-    FuseResources,
+    FuseResources, RegisterTensor,
     block::FuseBlockBuilder,
 };
 use super::{FuseTrace, RegisteredTensors};
@@ -107,7 +109,7 @@ impl FuseTraceBuilder {
             panic!("Can't add a new input that is already used in an index operation");
         }
 
-        let precision = tensor.dtype.into();
+        let precision = tensor.dtype.try_into().unwrap();
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
@@ -126,16 +128,32 @@ impl FuseTraceBuilder {
 
     /// Register an input tensor.
     pub fn input(&mut self, tensor: &TensorIr) -> Option<Arg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
+
         self.block_current.input(tensor, &mut self.resources)
+    }
+
+    /// Register an input tensor.
+    pub fn input_quantized(&mut self, tensor: &TensorIr) -> Option<QuantInput> {
+        self.block_current.input_quant(tensor, &mut self.resources)
     }
 
     /// Register an output tensor.
     pub fn output(&mut self, tensor: &TensorIr) -> Option<Arg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
         self.block_current.output(tensor, &mut self.resources)
     }
 
     /// Register an input that will be accessed using custom indexing with no vectorization.
     pub fn input_indexed(&mut self, tensor: &TensorIr) -> Option<Arg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
+
         if let Some(val) = self.resources.indexed.get(&tensor.id) {
             return Some(val.clone());
         };
@@ -161,19 +179,26 @@ impl FuseTraceBuilder {
         output: &TensorIr,
         dims: (u32, u32),
     ) -> Option<Arg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
         self.block_current
             .input_swap_dims(tensor, output, dims, &mut self.resources)
     }
 
     /// Register an input that is reshaped.
     pub fn input_reshaped(&mut self, tensor: &TensorIr, output: &TensorIr) -> Option<Arg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
+
         self.block_current
             .input_reshaped(tensor, output, &mut self.resources)
     }
 
     /// Register a scalar value.
     pub fn scalar<E: Element>(&mut self, id: &E, dtype: DType) -> Arg {
-        let precision = dtype.into();
+        let precision = dtype.try_into().unwrap();
         let id = ScalarId { value: id.elem() };
 
         // Bool scalars are encoded as bool_precision.
@@ -200,8 +225,15 @@ impl FuseTraceBuilder {
                 blocks.push(block);
 
                 let num_outputs = block_tensor_writes.len();
-                for (ir, precision) in block_tensor_writes.into_iter() {
-                    outputs.insert(precision, ir);
+                for entry in block_tensor_writes.into_iter() {
+                    match entry {
+                        RegisterTensor::Normal(ir, precision) => {
+                            outputs.insert(precision, ir);
+                        }
+                        _ => {
+                            panic!("Quantized tensor unsupported for output")
+                        }
+                    }
                 }
 
                 num_outputs
