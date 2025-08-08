@@ -1,4 +1,4 @@
-use crate::{backend::Backend, ops::{FloatTensor}, ElementConversion, Shape, TensorMetadata};
+use crate::{ElementConversion, Shape, TensorMetadata, backend::Backend, ops::FloatTensor};
 
 /// Default implementation of float_grid_sample_2d with bilinear interpolation and border padding
 ///
