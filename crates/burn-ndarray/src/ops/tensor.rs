@@ -8,7 +8,9 @@ use core::ops::Range;
 use super::{NdArrayMathOps, NdArrayOps, matmul::matmul};
 use crate::element::{ExpElement, FloatNdArrayElement, IntNdArrayElement, QuantElement};
 use crate::{NdArray, tensor::NdArrayTensor};
-use crate::{NdArrayDevice, NdArrayTensorFloat, SEED, execute_with_float_dtype};
+use crate::{
+    NdArrayDevice, NdArrayTensorFloat, SEED, execute_with_float_dtype, execute_with_int_dtype,
+};
 
 // Workspace crates
 use burn_common::rand::get_seeded_rng;
@@ -151,9 +153,11 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         tensor: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::gather(
+        execute_with_float_dtype!(tensor, |tensor| {
+            execute_with_int_dtype!(indices => |indices| NdArrayMathOps::gather(
             dim, tensor, indices
         ))
+        })
     }
 
     fn float_scatter(
@@ -162,9 +166,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         indices: IntTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_float_dtype!((tensor, value), |tensor, value| NdArrayMathOps::scatter(
-            dim, tensor, indices, value
-        )) 
+        execute_with_float_dtype!((tensor, value), |tensor, value| {
+            execute_with_int_dtype!(indices => |indices| NdArrayMathOps::scatter(dim, tensor, indices, value))
+        })
     }
 
     fn float_select(
@@ -172,9 +176,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         dim: usize,
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::select(
-            tensor, dim, indices
-        ))
+        execute_with_float_dtype!(tensor, |tensor| {
+            execute_with_int_dtype!(indices => |indices| NdArrayMathOps::select(tensor, dim, indices))
+        })
     }
 
     fn float_select_assign(
@@ -184,7 +188,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!((tensor, value), |tensor, value| {
-            NdArrayMathOps::select_assign(tensor, dim, indices.into(), value)
+            execute_with_int_dtype!(indices => |indices| NdArrayMathOps::select_assign(tensor, dim, indices, value))
         })
     }
 

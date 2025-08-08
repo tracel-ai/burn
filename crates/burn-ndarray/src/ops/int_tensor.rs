@@ -20,7 +20,7 @@ use crate::{NdArray, tensor::NdArrayTensor};
 use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
-use burn_tensor::{DType, IntDType, Shape, TensorData, backend::Backend};
+use burn_tensor::{DType, IntDType, Shape, TensorData, TensorMetadata, backend::Backend};
 
 use super::{NdArrayBitOps, NdArrayMathOps, NdArrayOps};
 
@@ -278,9 +278,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
         tensor: IntTensor<Self>,
         indices: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::gather(
-            dim, tensor, indices
-        ))
+        execute_with_int_dtype!(tensor, |tensor| {
+            execute_with_int_dtype!(indices => |indices| NdArrayMathOps::gather(dim, tensor, indices))
+        })
     }
 
     fn int_scatter(
@@ -289,11 +289,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::gather(
-            dim,
-            tensor,
-            indices.into()
-        ))
+        execute_with_int_dtype!((tensor, value), |tensor, value| {
+            execute_with_int_dtype!(indices => |indices| NdArrayMathOps::scatter(dim, tensor, indices, value))
+        })
     }
 
     fn int_select(
@@ -301,9 +299,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
         dim: usize,
         indices: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::select(
-            tensor, dim, indices
-        ))
+        execute_with_int_dtype!(tensor, |tensor| {
+            execute_with_int_dtype!(indices => |indices| NdArrayMathOps::select(tensor, dim, indices))
+        })
     }
 
     fn int_select_assign(
@@ -313,7 +311,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         execute_with_int_dtype!((tensor, value), |tensor, value| {
-            NdArrayMathOps::select_assign(tensor, dim, indices, value)
+            execute_with_int_dtype!(indices => |indices| NdArrayMathOps::select_assign(tensor, dim, indices, value))
         })
     }
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {

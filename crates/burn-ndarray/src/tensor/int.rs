@@ -1,5 +1,5 @@
 use crate::NdArrayTensor;
-use burn_tensor::{TensorMetadata, DType, Shape}; 
+use burn_tensor::{DType, Shape, TensorMetadata};
 
 /// Int tensor primitive.
 #[derive(Debug, Clone)]
@@ -50,12 +50,11 @@ macro_rules! new_tensor_int {
     }};
 }
 
-
 /// Macro to execute an operation a given element type.
 ///
 /// # Panics
 /// Since there is no automatic type cast at this time, binary operations for different
-/// floating point precision data types will panic with a data type mismatch.
+/// integer point precision data types will panic with a data type mismatch.
 #[macro_export]
 macro_rules! execute_with_int_dtype {
     // Binary op: type automatically inferred by the compiler
@@ -104,9 +103,7 @@ macro_rules! execute_with_int_dtype {
             ($crate::NdArrayTensorInt::I64(lhs), $crate::NdArrayTensorInt::I64(rhs)) => {
                 $op(lhs, rhs)
             }
-            ($crate::NdArrayTensorInt::U8(lhs), $crate::NdArrayTensorInt::U8(rhs)) => {
-                $op(lhs, rhs)
-            }
+            ($crate::NdArrayTensorInt::U8(lhs), $crate::NdArrayTensorInt::U8(rhs)) => $op(lhs, rhs),
             _ => panic!(
                 "Data type mismatch (lhs: {:?}, rhs: {:?})",
                 lhs_dtype, rhs_dtype
@@ -136,7 +133,7 @@ macro_rules! execute_with_int_dtype {
         }
     }};
 
-    // Unary op: type automatically inferred by the compiler but return type is not a float tensor
+    // Unary op: type automatically inferred by the compiler but return type is not a int tensor
     ($tensor:expr => $op:expr) => {{
         match $tensor {
             $crate::NdArrayTensorInt::I64(tensor) => $op(tensor),
@@ -144,7 +141,7 @@ macro_rules! execute_with_int_dtype {
         }
     }};
 
-    // Unary op: generic type cannot be inferred for an operation and return type is not a float tensor
+    // Unary op: generic type cannot be inferred for an operation and return type is not a int tensor
     ($tensor:expr, $element:ident => $op:expr) => {{
         match $tensor {
             $crate::NdArrayTensorInt::I64(tensor) => {
@@ -154,8 +151,7 @@ macro_rules! execute_with_int_dtype {
             $crate::NdArrayTensorInt::U8(tensor) => {
                 type $element = u8;
                 $op(tensor)
-            }    
+            }
         }
-
     }};
 }

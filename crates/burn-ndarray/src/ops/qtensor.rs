@@ -14,7 +14,7 @@ use burn_tensor::{
 use crate::{
     FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor, NdArrayTensorFloat,
     element::{IntNdArrayElement, NdArrayElement, QuantElement},
-    new_tensor_float,
+    execute_with_int_dtype, new_tensor_float,
 };
 
 use super::{NdArrayMathOps, NdArrayOps};
@@ -192,11 +192,13 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
         tensor: QuantizedTensor<Self>,
         indices: IntTensor<Self>,
     ) -> QuantizedTensor<Self> {
+        execute_with_int_dtype!(indices => |indices| {
         NdArrayQTensor {
             qtensor: NdArrayMathOps::gather(dim, tensor.qtensor, indices),
             scheme: tensor.scheme,
             qparams: tensor.qparams,
         }
+        })
     }
 
     fn q_select(
@@ -204,11 +206,13 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
         dim: usize,
         indices: IntTensor<Self>,
     ) -> QuantizedTensor<Self> {
-        NdArrayQTensor {
-            qtensor: NdArrayMathOps::select(tensor.qtensor, dim, indices),
-            scheme: tensor.scheme,
-            qparams: tensor.qparams,
-        }
+        execute_with_int_dtype!(indices => |indices| {
+            NdArrayQTensor {
+                qtensor: NdArrayMathOps::select(tensor.qtensor, dim, indices),
+                scheme: tensor.scheme,
+                qparams: tensor.qparams,
+            }
+        })
     }
 
     fn q_slice(tensor: QuantizedTensor<Self>, ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
@@ -220,11 +224,16 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
     }
 
     fn q_argmax(tensor: QuantizedTensor<Self>, dim: usize) -> IntTensor<Self> {
-        NdArrayMathOps::argmax(tensor.qtensor, dim)
+        match I::dtype() {
+            DType::I64 => NdArrayMathOps::argmax::<i64>(tensor.qtensor, dim).into(),
+            _ => panic!("Unsupported integer type for argmax"),
+        }
     }
-
     fn q_argmin(tensor: QuantizedTensor<Self>, dim: usize) -> IntTensor<Self> {
-        NdArrayMathOps::argmin(tensor.qtensor, dim)
+        match I::dtype() {
+            DType::I64 => NdArrayMathOps::argmin::<i64>(tensor.qtensor, dim).into(),
+            _ => panic!("Unsupported integer type for argmax"),
+        }
     }
 
     fn q_expand(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
