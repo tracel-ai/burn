@@ -16,3 +16,7 @@ out
 # Virtual Environment of Python
 .venv
 uv.lock
+
+# Nix direnv
+.envrc
+.direnv
