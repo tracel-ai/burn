@@ -22,6 +22,7 @@ network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 rayon = ["dep:rayon"]
 
 [dependencies]
+derive-new = { workspace = true }
 serde = { workspace = true }
 
 # Network downloader

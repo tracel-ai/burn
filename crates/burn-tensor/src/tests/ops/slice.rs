@@ -1,7 +1,9 @@
 #[burn_tensor_testgen::testgen(slice)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, Slice, Tensor, TensorData, as_type, s};
+    use burn_common::baselib::indexing::Slice;
+    use burn_common::s;
+    use burn_tensor::{Int, Tensor, TensorData, as_type};
 
     #[test]
     fn should_support_slice_dim_1d() {

@@ -14,6 +14,10 @@ pub use serde;
 /// The configuration module.
 pub mod config;
 
+/// Common utilities available to all Burn crates and third-party libraries.
+pub use burn_common::baselib;
+
+pub use burn_common::s;
 /// Data module.
 #[cfg(feature = "std")]
 pub mod data;
