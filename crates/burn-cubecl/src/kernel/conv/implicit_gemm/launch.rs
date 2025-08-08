@@ -10,7 +10,7 @@ use cubecl::{
         launch_conv,
     },
     matmul::components::{
-        MatmulPrecision,
+        LhsG, MatmulPrecision, RhsG,
         global::args::{ConcreteOutputFactory, MatmulArgs},
         tile::accelerated::AcceleratedMatmul,
     },
@@ -83,17 +83,16 @@ pub fn conv_gemm_tma_multi_stage<R: CubeRuntime, F: FloatElement, const N: usize
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-pub fn conv_gemm_with_algo<R: CubeRuntime, SP: MatmulPrecision, Alg: Algorithm, const N: usize>(
+pub fn conv_gemm_with_algo<R: CubeRuntime, MP: MatmulPrecision, Alg: Algorithm, const N: usize>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvLaunchError>
 where
-    SP::EI: CubeElement,
-    SP::EO: CubeElement,
-    <Alg::Args as MatmulArgs>::Input<SP::EI>: ConvInputsLaunch,
-    <Alg::Args as MatmulArgs>::Output<SP::EO>: ConcreteOutputFactory,
+    MP::EO: CubeElement,
+    <Alg::Args as MatmulArgs>::Input<LhsG<MP>, RhsG<MP>>: ConvInputsLaunch,
+    <Alg::Args as MatmulArgs>::Output<MP::EO>: ConcreteOutputFactory,
 {
     if options.groups != 1 {
         return Err(ConvLaunchError::Groups(options.groups));
@@ -118,7 +117,7 @@ where
     out_shape.insert(0, batch_size);
     out_shape.push(out_channels);
 
-    let out = empty_device_strided::<R, SP::EO>(
+    let out = empty_device_strided::<R, MP::EO>(
         input.client.clone(),
         input.device.clone(),
         out_shape.into(),
@@ -126,7 +125,7 @@ where
 
     let bias = bias.as_ref().map(|bias| bias.as_handle_ref());
 
-    launch_conv::<R, SP, Alg, N>(
+    launch_conv::<R, MP, Alg, N>(
         &input.client,
         &input.as_handle_ref(),
         &weight.as_handle_ref(),
