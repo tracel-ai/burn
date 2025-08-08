@@ -13,6 +13,7 @@ pub(crate) mod bitwiseand;
 pub(crate) mod bitwisenot;
 pub(crate) mod bitwiseor;
 pub(crate) mod bitwisexor;
+pub(crate) mod cast;
 pub(crate) mod ceil;
 pub(crate) mod clip;
 pub(crate) mod concat;
