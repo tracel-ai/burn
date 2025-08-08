@@ -29,6 +29,7 @@ mod flip;
 mod floor;
 mod full;
 mod gather_scatter;
+mod grid_sample;
 mod inf;
 mod init;
 mod iter_dim;
