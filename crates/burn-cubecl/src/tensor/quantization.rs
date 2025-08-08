@@ -38,7 +38,6 @@ impl<R: CubeRuntime> CubeTensor<R> {
             DType::QFloat(sc) => sc,
             _ => return None,
         };
-        println!("{scheme:?}");
         match scheme.store {
             cubecl_quant::scheme::QuantStore::Native => match scheme.value {
                 cubecl_quant::scheme::QuantValue::QInt8 => {
@@ -49,10 +48,6 @@ impl<R: CubeRuntime> CubeTensor<R> {
                 let rank = self.shape.num_dims();
                 self.shape.dims[rank - 1] /= scheme.num_quants();
                 self.dtype = DType::U32;
-                let size_handle = self.handle.size();
-                println!("Size handle {:?}", size_handle);
-                println!("Size scale {:?}", scales.handle.size());
-                self.handle = self.handle.offset_end(size_handle - scales.handle.size());
             }
         };
 
