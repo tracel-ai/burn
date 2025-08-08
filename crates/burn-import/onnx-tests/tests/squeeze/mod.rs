@@ -4,7 +4,8 @@ include_models!(
     squeeze_multiple,
     squeeze_shape,
     squeeze_shape_noop,
-    squeeze_scalar
+    squeeze_scalar,
+    squeeze_float
 );
 
 #[cfg(test)]
@@ -68,5 +69,16 @@ mod tests {
         // Expected: 1.5 -> 1.5 (no-op)
         let output = model.forward();
         assert_eq!(output, 1.5f32);
+    }
+
+    #[test]
+    fn squeeze_float() {
+        // Test verifies that the improved squeeze implementation using .into_scalar()
+        // works correctly for float tensors with .elem::<f32>() casting
+        let device = Default::default();
+        let model = squeeze_float::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 1>::from_data([14159.222f32], &device);
+        let output = model.forward(input);
+        assert!((output - 14159.222f32).abs() < 1e-6);
     }
 }

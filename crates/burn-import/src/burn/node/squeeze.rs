@@ -67,6 +67,26 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
                     let #output_name = #input_name;
                 }
             }
+            (Type::Tensor(input), Type::Scalar(output)) if input.rank == 1 => {
+                // General case: 1D tensor to scalar conversion
+                // This handles ONNX models where single-element tensors need to be converted to scalars
+                // Works for all tensor types (Float, Int, Bool) using the .into_scalar() method
+                let input = scope.tensor_use_owned(input, node_position);
+                let output_name = &output.name;
+
+                // Use .into_scalar() and cast to the appropriate concrete type using .elem::<T>()
+                let elem_cast = match &output.kind {
+                    crate::burn::ScalarKind::Float32 => quote! { .elem::<f32>() },
+                    crate::burn::ScalarKind::Float64 => quote! { .elem::<f64>() },
+                    crate::burn::ScalarKind::Int32 => quote! { .elem::<i32>() },
+                    crate::burn::ScalarKind::Int64 => quote! { .elem::<i64>() },
+                    crate::burn::ScalarKind::Bool => quote! { .elem::<bool>() },
+                };
+
+                quote! {
+                    let #output_name = #input.into_scalar()#elem_cast;
+                }
+            }
             _ => panic!(
                 "Squeeze: unsupported input/output combination: {:?} -> {:?}",
                 self.input, self.output
@@ -76,6 +96,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Squeeze(self)
+    }
+
+    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
+        match (&self.input, &self.output) {
+            (Type::Tensor(_), Type::Scalar(_)) => {
+                // Import for the .elem::<T>() conversion
+                imports.register("burn::tensor::ElementConversion");
+            }
+            _ => {}
+        }
     }
 }
 
