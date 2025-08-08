@@ -226,10 +226,7 @@ mod tests {
         graph.register_input_output(vec!["scalar1".to_string()], vec!["shape1".to_string()]);
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::{module::Module, tensor::backend::Backend};
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -269,10 +266,7 @@ mod tests {
         graph.register_input_output(vec!["scalar1".to_string()], vec!["shape1".to_string()]);
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::{module::Module, tensor::backend::Backend};
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
