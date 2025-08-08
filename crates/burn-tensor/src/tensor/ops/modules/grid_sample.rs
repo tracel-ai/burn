@@ -29,6 +29,7 @@ pub fn float_grid_sample_2d_bilinear<B: Backend>(
     // shape: (N, H_out, W_out, 1)
     let grid_x_slice = &[0..n, 0..h_out, 0..w_out, 0..1];
     let grid_y_slice = &[0..n, 0..h_out, 0..w_out, 1..2];
+
     let grid_x = B::float_slice(grid.clone(), grid_x_slice);
     let grid_x = B::float_reshape(grid_x, Shape::new([n, 1, h_out, w_out]));
     let grid_y = B::float_slice(grid.clone(), grid_y_slice);
