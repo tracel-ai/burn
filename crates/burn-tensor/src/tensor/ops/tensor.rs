@@ -1,5 +1,6 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
+use super::grid_sample::float_grid_sample_2d_bilinear;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
 use crate::{Distribution, ElementConversion, Float, TensorData, backend::Backend, tensor::Shape};
 use crate::{FloatDType, TensorMetadata, TensorPrimitive};
@@ -1343,36 +1344,19 @@ pub trait FloatTensorOps<B: Backend> {
         argsort::<B, Float>(TensorPrimitive::Float(tensor), dim, descending)
     }
 
-    /// Samples tensor as a one-dimensional spatial grid of (possibly multi-channel) values,
-    /// using the given locations in [0, 1] along the given dimension.
+    /// Samples tensor as a two-dimensional spatial grid of (possibly multi-channel) values,
+    /// using the given locations in [-1, 1].
+    /// 
+    /// Interpolation is bilinear.
     ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor being sampled from.
-    /// * `dim` - the axis along which to sample.
-    /// * `locations` - A tensor of 1D spatial locations in the range [0, 1].
+    /// * `tensor` - The tensor being sampled from, shape (N, C, H_in, W_in)
+    /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
+    ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
     ///
     /// # Returns
     ///
-    /// A tensor with mystery shape????
-    // TODO: figure out the output shape and what it depends on
-    fn float_grid_sample_1d(
-        tensor: FloatTensor<B>,
-        dim: usize,
-        locations: FloatTensor<B>,
-    ) -> FloatTensor<B> {
-        let length = (tensor.shape().dims[dim] - 1) as f64;
-        let locations = B::float_mul_scalar(locations, FloatElem::<B>::from_elem(length));
-        let locations_floored = B::float_floor(locations.clone());
-        let indices_low = B::float_into_int(locations_floored.clone());
-        let indices_high = B::float_into_int(B::float_ceil(locations.clone()));
-        let deltas = B::float_sub(locations, locations_floored);
-        let values_low = B::float_gather(dim, tensor.clone(), indices_low);
-        let values_high = B::float_gather(dim, tensor, indices_high);
-
-        B::float_add(
-            values_low.clone(),
-            B::float_mul(deltas, B::float_sub(values_high, values_low)),
-        )
+    /// A tensor with shape (N, C, H_out, W_out)
+    fn float_grid_sample_2d(tensor: FloatTensor<B>, grid: FloatTensor<B>) -> FloatTensor<B> {
+        float_grid_sample_2d_bilinear::<B>(tensor, grid)
     }
 }

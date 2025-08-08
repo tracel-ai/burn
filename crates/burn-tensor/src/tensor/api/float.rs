@@ -614,12 +614,24 @@ where
             .bool_and(self.is_inf().bool_not())
     }
 
-    /// Sample the tensor's values as a one-dimensional
-    pub fn grid_sample_1d(self, dim: usize, locations: Tensor<B, D>) -> Tensor<B, D> {
-        Tensor::new(TensorPrimitive::Float(B::float_grid_sample_1d(
+    /// Samples tensor as a two-dimensional spatial grid of (possibly multi-channel) values,
+    /// using the given locations in [-1, 1].
+    /// 
+    /// Interpolation is bilinear.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor being sampled from, shape (N, C, H_in, W_in)
+    /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
+    ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
+    ///
+    /// # Returns
+    ///
+    /// A tensor with shape (N, C, H_out, W_out)
+    pub fn grid_sample_2d(self, grid: Tensor<B, D>) -> Tensor<B, D> {
+        Tensor::new(TensorPrimitive::Float(B::float_grid_sample_2d(
             self.primitive.tensor(),
-            dim,
-            locations.primitive.tensor(),
+            grid.primitive.tensor(),
         )))
     }
 }
