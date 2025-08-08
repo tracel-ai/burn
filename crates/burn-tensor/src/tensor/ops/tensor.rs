@@ -1,6 +1,6 @@
 use super::cat::cat_with_slice_assign;
-use super::repeat_dim::repeat_with_slice_assign;
 use super::grid_sample::float_grid_sample_2d_bilinear;
+use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
 use crate::{Distribution, ElementConversion, Float, TensorData, backend::Backend, tensor::Shape};
 use crate::{FloatDType, TensorMetadata, TensorPrimitive};
@@ -1346,8 +1346,9 @@ pub trait FloatTensorOps<B: Backend> {
 
     /// Samples tensor as a two-dimensional spatial grid of (possibly multi-channel) values,
     /// using the given locations in [-1, 1].
-    /// 
+    ///
     /// Interpolation is bilinear.
+    /// Padding is border: out of bounds locations will be clamped to the nearest border
     ///
     /// * `tensor` - The tensor being sampled from, shape (N, C, H_in, W_in)
     /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].

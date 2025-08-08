@@ -616,8 +616,9 @@ where
 
     /// Samples tensor as a two-dimensional spatial grid of (possibly multi-channel) values,
     /// using the given locations in [-1, 1].
-    /// 
+    ///
     /// Interpolation is bilinear.
+    /// Padding is border: out of bounds locations will be clamped to the nearest border
     ///
     /// # Arguments
     ///
