@@ -43,8 +43,8 @@ macro_rules! new_tensor_int {
     // Op executed with default dtype
     ($tensor:expr) => {{
         match E::dtype() {
-            burn_tensor::DType::I64 => $crate::NdArrayTensorFloat::I64($tensor),
-            burn_tensor::DType::U8 => $crate::NdArrayTensorFloat::U8($tensor),
+            burn_tensor::DType::I64 => $crate::NdArrayTensorInt::I64($tensor),
+            burn_tensor::DType::U8 => $crate::NdArrayTensorInt::U8($tensor),
             _ => unimplemented!("Unsupported dtype"),
         }
     }};
@@ -125,13 +125,13 @@ macro_rules! execute_with_int_dtype {
     // Unary op: generic type cannot be inferred for an operation
     ($tensor:expr, $element:ident, $op:expr) => {{
         match $tensor {
-            $crate::NdArrayTensorFloat::I64(tensor) => {
+            $crate::NdArrayTensorInt::I64(tensor) => {
                 type $element = i64;
-                $crate::NdArrayTensorFloat::I64($op(tensor))
+                $crate::NdArrayTensorInt::I64($op(tensor))
             }
-            $crate::NdArrayTensorFloat::U8(tensor) => {
+            $crate::NdArrayTensorInt::U8(tensor) => {
                 type $element = u8;
-                $crate::NdArrayTensorFloat::U8($op(tensor))
+                $crate::NdArrayTensorInt::U8($op(tensor))
             }
         }
     }};

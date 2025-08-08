@@ -93,7 +93,40 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn int_cat(tensors: Vec<IntTensor<Self>>, dim: usize) -> IntTensor<Self> {
-        execute_with_int_dtype!(tensors, |tensors| NdArrayOps::cat(tensors, dim))
+        match &tensors[0] {
+            NdArrayTensorInt::U8(_) => {
+                let tensors = tensors
+                    .iter()
+                    .map(|t| {
+                        if let NdArrayTensorInt::U8(tensor) = t {
+                            tensor.array.view()
+                        } else {
+                            panic!(
+                                "Concatenate data type mismatch (expected u8, got {:?})",
+                                t.dtype()
+                            )
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                NdArrayTensorInt::U8(NdArrayOps::concatenate(&tensors, dim))
+            }
+            NdArrayTensorInt::I64(_) => {
+                let tensors = tensors
+                    .iter()
+                    .map(|t| {
+                        if let NdArrayTensorInt::I64(tensor) = t {
+                            tensor.array.view()
+                        } else {
+                            panic!(
+                                "Concatenate data type mismatch (expected i46, got {:?})",
+                                t.dtype()
+                            )
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                NdArrayTensorInt::I64(NdArrayOps::concatenate(&tensors, dim))
+            }
+        }
     }
 
     fn int_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> NdArrayTensor<bool> {
