@@ -25,9 +25,6 @@ pub fn float_grid_sample_2d_bilinear<B: Backend>(
     let x_max_half = (w_in - 1) as f64 / 2.0;
     let y_max_half = (h_in - 1) as f64 / 2.0;
 
-    // Clamp locations: border padding
-    let grid = B::float_clamp(grid, ElementConversion::elem(-1.0), 1.0.elem());
-
     // Seperate x and y coordinates
     // shape: (N, H_out, W_out, 1)
     let grid_x_slice = &[0..n, 0..h_out, 0..w_out, 0..1];
@@ -54,6 +51,12 @@ pub fn float_grid_sample_2d_bilinear<B: Backend>(
     let grid_y_plus_one = B::float_floor(B::float_add_scalar(grid_y.clone(), 1.elem()));
     let y_indices_low = B::float_into_int(grid_y_floored.clone());
     let y_indices_high = B::float_into_int(grid_y_plus_one.clone());
+
+    // Clamp locations: border padding
+    let x_indices_low = B::int_clamp(x_indices_low, 0.elem(), ((w_in - 1) as u32).elem());
+    let x_indices_high = B::int_clamp(x_indices_high, 0.elem(), ((w_in - 1) as u32).elem());
+    let y_indices_low = B::int_clamp(y_indices_low, 0.elem(), ((h_in - 1) as u32).elem());
+    let y_indices_high = B::int_clamp(y_indices_high, 0.elem(), ((h_in - 1) as u32).elem());
 
     // Needs shape (N, C, H_out, W_out, W_in) for the first gather operationd
     let y_indices_low = B::int_reshape(y_indices_low, Shape::new([n, 1, h_out, w_out, 1]));
