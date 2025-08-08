@@ -1,4 +1,4 @@
-use crate::{ElementConversion, Shape, TensorMetadata, backend::Backend, ops::FloatTensor};
+use crate::{backend::Backend, ops::{FloatTensor}, ElementConversion, Shape, TensorMetadata};
 
 /// Default implementation of float_grid_sample_2d with bilinear interpolation and border padding
 ///
@@ -26,7 +26,7 @@ pub fn float_grid_sample_2d_bilinear<B: Backend>(
     let y_max_half = (h_in - 1) as f64 / 2.0;
 
     // Clamp locations: border padding
-    let grid = B::float_clamp(grid, (-1.0 as f32).elem(), 1.0.elem());
+    let grid = B::float_clamp(grid, ElementConversion::elem(-1.0), 1.0.elem());
 
     // Seperate x and y coordinates
     // shape: (N, H_out, W_out, 1)
