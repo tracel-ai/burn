@@ -80,12 +80,12 @@ where
     }
 
     // Transfer 3: Expose final result to children (if any)
-    if let Some(children) = strategy.children.get(&node) {
-        if !children.is_empty() {
-            data_service
-                .expose(result.clone(), children.len() as u32, 1.into())
-                .await;
-        }
+    if let Some(children) = strategy.children.get(&node)
+        && !children.is_empty()
+    {
+        data_service
+            .expose(result.clone(), children.len() as u32, 1.into())
+            .await;
     }
 
     // Final barrier
@@ -161,8 +161,7 @@ mod tests {
             assert_eq!(
                 topology.parents.get(child),
                 Some(parent),
-                "wrong parent for {:?}",
-                child
+                "wrong parent for {child:?}"
             );
         }
         // There should be exactly 6 entries in parents
@@ -190,8 +189,7 @@ mod tests {
             assert_eq!(
                 topology.children.get(&leaf.into()),
                 Some(&Vec::new()),
-                "leaf {:?} should have no children",
-                leaf
+                "leaf {leaf:?} should have no children"
             );
         }
         // Ensure we have exactly 7 entries in children

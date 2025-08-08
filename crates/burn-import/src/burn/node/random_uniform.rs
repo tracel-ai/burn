@@ -89,9 +89,10 @@ mod tests {
         let expected = quote! {
             use burn::prelude::Shape;
             use burn::tensor::Distribution;
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]

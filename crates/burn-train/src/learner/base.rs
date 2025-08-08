@@ -1,20 +1,18 @@
-use crate::LearnerSummaryConfig;
 use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy};
-use crate::components::LearnerComponents;
-use crate::learner::EarlyStoppingStrategy;
+use crate::components::LearnerComponentTypes;
 use crate::metric::store::EventStoreClient;
+use crate::{CloneEarlyStoppingStrategy, LearnerSummaryConfig, LearningStrategy};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
 use burn_core::optim::Optimizer;
 use burn_core::tensor::Device;
-use burn_core::tensor::backend::Backend;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 ///
 /// To create a learner, use the [builder](crate::learner::LearnerBuilder) struct.
-pub struct Learner<LC: LearnerComponents> {
+pub struct Learner<LC: LearnerComponentTypes> {
     pub(crate) model: LC::Model,
     pub(crate) optim: LC::Optimizer,
     pub(crate) lr_scheduler: LC::LrScheduler,
@@ -22,23 +20,26 @@ pub struct Learner<LC: LearnerComponents> {
     pub(crate) checkpoint: Option<usize>,
     pub(crate) grad_accumulation: Option<usize>,
     pub(crate) checkpointer: Option<LearnerCheckpointer<LC>>,
-    pub(crate) devices: Vec<<LC::Backend as Backend>::Device>,
+    pub(crate) learning_strategy: LearningStrategy<LC::Backend>,
     pub(crate) interrupter: TrainingInterrupter,
-    pub(crate) early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
+    pub(crate) early_stopping: Option<EarlyStoppingStrategyRef>,
     pub(crate) event_processor: LC::EventProcessor,
     pub(crate) event_store: Arc<EventStoreClient>,
     pub(crate) summary: Option<LearnerSummaryConfig>,
 }
 
+/// Clonable reference to an early stopping strategy
+pub(crate) type EarlyStoppingStrategyRef = Box<dyn CloneEarlyStoppingStrategy>;
+
 #[derive(new)]
-pub(crate) struct LearnerCheckpointer<LC: LearnerComponents> {
+pub(crate) struct LearnerCheckpointer<LC: LearnerComponentTypes> {
     model: LC::CheckpointerModel,
     optim: LC::CheckpointerOptimizer,
     lr_scheduler: LC::CheckpointerLrScheduler,
     strategy: LC::CheckpointerStrategy,
 }
 
-impl<LC: LearnerComponents> LearnerCheckpointer<LC> {
+impl<LC: LearnerComponentTypes> LearnerCheckpointer<LC> {
     pub(crate) fn checkpoint(
         &mut self,
         model: &LC::Model,

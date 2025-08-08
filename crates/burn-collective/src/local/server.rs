@@ -14,11 +14,13 @@ use tokio::runtime::{Builder, Runtime};
 use crate::{
     AllReduceStrategy, BroadcastStrategy, CollectiveConfig, CollectiveError, PeerId,
     ReduceOperation, ReduceStrategy,
-    centralized::{all_reduce_sum_centralized, broadcast_centralized, reduce_sum_centralized},
-    client::LocalCollectiveClient,
     global::node::base::Node,
-    ring::all_reduce_sum_ring,
-    tree::{all_reduce_sum_tree, broadcast_tree, reduce_sum_tree},
+    local::{
+        centralized::{all_reduce_sum_centralized, broadcast_centralized, reduce_sum_centralized},
+        client::LocalCollectiveClient,
+        ring::all_reduce_sum_ring,
+        tree::{all_reduce_sum_tree, broadcast_tree, reduce_sum_tree},
+    },
 };
 
 /// Define the client/server communication on the network
@@ -281,10 +283,10 @@ impl<B: Backend> LocalCollectiveServer<B> {
         // Remove registered with id
         self.peers.retain(|x| *x != id);
 
-        if self.peers.is_empty() {
-            if let Some(mut global_client) = self.global_client.take() {
-                global_client.finish().await;
-            }
+        if self.peers.is_empty()
+            && let Some(mut global_client) = self.global_client.take()
+        {
+            global_client.finish().await;
         }
 
         callback.send(Ok(())).unwrap();
@@ -315,12 +317,12 @@ impl<B: Backend> LocalCollectiveServer<B> {
 
         let config = self.config.as_ref().unwrap();
         let global_params = config.global_register_params();
-        if let Some(global_params) = &global_params {
-            if self.global_client.is_none() {
-                let server = WsServer::new(global_params.data_service_port);
-                let client = Node::new(&global_params.global_address, server);
-                self.global_client = Some(client)
-            }
+        if let Some(global_params) = &global_params
+            && self.global_client.is_none()
+        {
+            let server = WsServer::new(global_params.data_service_port);
+            let client = Node::new(&global_params.global_address, server);
+            self.global_client = Some(client)
         }
 
         // All have registered, callback

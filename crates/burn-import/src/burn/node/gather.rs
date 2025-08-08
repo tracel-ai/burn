@@ -308,9 +308,10 @@ mod tests {
 
         let expected = quote! {
             use burn::tensor::Int;
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
@@ -362,9 +363,10 @@ mod tests {
 
         let expected = quote! {
             use burn::tensor::Int;
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
@@ -431,9 +433,10 @@ mod tests {
 
         let expected = quote! {
             use burn::tensor::Int;
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
@@ -488,9 +491,10 @@ mod tests {
         );
 
         let expected = quote! {
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
@@ -543,9 +547,11 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
+            use burn::tensor::cast::ToElement;
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]

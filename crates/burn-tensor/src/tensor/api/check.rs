@@ -904,8 +904,27 @@ impl TensorCheck {
         Self::check_select_basic::<D>(Self::Ok, "select", dim)
     }
 
-    pub(crate) fn select_assign<const D: usize>(dim: usize) -> Self {
-        Self::check_select_basic::<D>(Self::Ok, "select_assign", dim)
+    pub(crate) fn select_assign<const D: usize>(
+        dim: usize,
+        shape_indices: &Shape,
+        shape_value: &Shape,
+    ) -> Self {
+        let mut check = Self::check_select_basic::<D>(Self::Ok, "Select Assign", dim);
+
+        if shape_value.dims[dim] != shape_indices.dims[0] {
+            check = check.register(
+                "Select Assign",
+                TensorError::new(
+                    format!(
+                        "Number of indices ({}) should be equal to value tensor dimensions {:?} on axis (dim={dim})",
+                        shape_indices.dims[0],
+                        shape_value.dims
+                    ),
+                )
+            );
+        }
+
+        check
     }
 
     fn check_select_basic<const D: usize>(mut check: Self, ops: &str, dim: usize) -> Self {

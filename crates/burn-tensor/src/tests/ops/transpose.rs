@@ -15,7 +15,9 @@ mod tests {
             &Default::default(),
         );
 
-        let output = tensor.transpose();
+        // Check the .t() alias.
+        let output = tensor.t();
+
         let expected = TensorData::from([
             [[0.0, 3.0], [1.0, 4.0], [2.0, 5.0]],
             [[6.0, 9.0], [7.0, 10.0], [8.0, 11.0]],

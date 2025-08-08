@@ -162,9 +162,10 @@ mod tests {
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
 
         let expected = quote! {
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
             use burn::nn::PaddingConfig3d;
             use burn::nn::conv::Conv3d;

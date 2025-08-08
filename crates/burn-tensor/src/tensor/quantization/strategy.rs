@@ -4,7 +4,7 @@ use num_traits::{Float, PrimInt, Signed};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    QuantAccPrecision, QuantInputType, QuantLevel, QuantMode, QuantPropagation, QuantScheme,
+    QuantFloatPrecision, QuantInputType, QuantLevel, QuantMode, QuantPropagation, QuantScheme,
     QuantStoreType,
 };
 
@@ -69,17 +69,19 @@ impl QuantizationStrategy {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
-                acc_precision: QuantAccPrecision::Full,
-                propagation: QuantPropagation::Inhibit,
                 q_store_type: QuantStoreType::Native,
+                q_params_precision: QuantFloatPrecision::F32,
+                acc_precision: QuantFloatPrecision::F32,
+                propagation: QuantPropagation::Inhibit,
             },
             QuantizationStrategy::PerBlockSymmetricInt8(_blocks, block_size) => QuantScheme {
                 level: QuantLevel::Block(*block_size),
                 mode: QuantMode::Symmetric,
                 q_type: QuantInputType::QInt8,
-                acc_precision: QuantAccPrecision::Full,
-                propagation: QuantPropagation::Inhibit,
                 q_store_type: QuantStoreType::Native,
+                q_params_precision: QuantFloatPrecision::F32,
+                acc_precision: QuantFloatPrecision::F32,
+                propagation: QuantPropagation::Inhibit,
             },
         }
     }
@@ -216,8 +218,7 @@ mod tests {
         ];
 
         let symmetric = SymmetricQuantization::<f32, i8>::new(-1.8, 0.5);
-        let strategy =
-            QuantizationStrategy::PerBlockSymmetricInt8(vec![symmetric.clone(), symmetric], 4);
+        let strategy = QuantizationStrategy::PerBlockSymmetricInt8(vec![symmetric, symmetric], 4);
 
         let q: Vec<i8> = strategy.quantize(&x);
         assert_eq!(q, expected_q);

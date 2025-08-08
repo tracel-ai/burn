@@ -612,13 +612,13 @@ pub mod backward {
         };
 
         // `for_each` expects a 2-tuple argument with `.into_par_iter()`, but 2 separate arguments otherwise
-        #[cfg(feature = "std")]
+        #[cfg(feature = "multi-threads")]
         run_par!(|| {
             iter_par!(Zip::indexed(columns))
                 .for_each(|(args0, args1)| compute_for_each(args0, args1))
         });
 
-        #[cfg(not(feature = "std"))]
+        #[cfg(not(feature = "multi-threads"))]
         run_par!(|| { iter_par!(Zip::indexed(columns)).for_each(&compute_for_each) });
 
         let grad_in: Array1<F> = grad_in

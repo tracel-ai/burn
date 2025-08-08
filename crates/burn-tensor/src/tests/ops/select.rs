@@ -163,4 +163,15 @@ mod tests {
 
         tensor.select(10, indices);
     }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_select_assign_invalid_num_indices() {
+        let device = Default::default();
+        let tensor = TestTensorInt::<1>::from_data([0; 12], &device);
+        let values = TestTensorInt::from_data([1; 12], &device);
+        let indices = TestTensorInt::from_data(TensorData::from([1]), &device);
+
+        tensor.select_assign(0, indices, values);
+    }
 }

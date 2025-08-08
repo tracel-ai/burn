@@ -20,7 +20,7 @@ use crate::{
         },
         shared::{GlobalCollectiveError, RemoteRequest, RemoteResponse},
     },
-    local_server::get_server_runtime,
+    local::server::get_server_runtime,
 };
 
 // Must be synchronized between all nodes for collective operations to work

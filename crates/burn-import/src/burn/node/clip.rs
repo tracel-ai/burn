@@ -36,9 +36,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ClipNode {
                 }
             }
         } else if let Some(max) = self.max {
-            return quote! {
+            quote! {
                 let #output = #input.clamp_max(#max);
-            };
+            }
         } else {
             panic!("Clip node must have at least one min or max value");
         }
@@ -70,9 +70,10 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
@@ -115,9 +116,10 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
@@ -160,9 +162,10 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]

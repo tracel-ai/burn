@@ -135,6 +135,45 @@ mod tests {
         .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
     }
 
+    #[test]
+    fn test_interpolate_coord_float_precision_boundary() {
+        let test = InterpolateTestCase {
+            batch_size: 1,
+            channels: 1,
+            height: 28,
+            width: 4,
+            height_out: 24,
+            width_out: 2,
+        };
+
+        test.assert_output(TestTensor::from([[[
+            [0.0, 3.0],
+            [4.6956, 7.6956],
+            [9.3913, 12.3913],
+            [14.0869, 17.0869],
+            [18.7826, 21.7826],
+            [23.4782, 26.4782],
+            [28.1739, 31.1739],
+            [32.8695, 35.8695],
+            [37.5652, 40.5652],
+            [42.2608, 45.2608],
+            [46.9565, 49.9565],
+            [51.6521, 54.6521],
+            [56.3478, 59.3478],
+            [61.0434, 64.0434],
+            [65.7391, 68.7391],
+            [70.4347, 73.4347],
+            [75.1304, 78.1304],
+            [79.8260, 82.8260],
+            [84.5217, 87.5217],
+            [89.2173, 92.2173],
+            [93.9130, 96.9130],
+            [98.6086, 101.6086],
+            [103.3043, 106.3043],
+            [108.0, 111.0],
+        ]]]));
+    }
+
     struct InterpolateTestCase {
         batch_size: usize,
         channels: usize,

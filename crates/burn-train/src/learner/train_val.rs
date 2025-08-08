@@ -1,9 +1,13 @@
-use crate::components::{LearnerComponents, TrainBackend, ValidBackend};
-use crate::metric::processor::{Event, EventProcessor};
-use crate::{Learner, TrainEpoch, ValidEpoch};
+use crate::components::{
+    InputTrain, InputValid, LearnerComponentTypes, TrainBackend, ValidBackend,
+};
+#[cfg(feature = "ddp")]
+use crate::ddp::DdpLearningStrategy;
+use crate::multi::MultiDeviceLearningStrategy;
+use crate::single::SingleDeviceLearningStrategy;
+use crate::{Learner, LearningMethod, LearningStrategy};
 use burn_core::data::dataloader::DataLoader;
-use burn_core::data::dataloader::split::split_dataloader;
-use burn_core::module::{AutodiffModule, Module};
+use burn_core::module::AutodiffModule;
 use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::AutodiffBackend;
 use std::sync::Arc;
@@ -98,7 +102,10 @@ pub trait ValidStep<VI, VO> {
     fn step(&self, item: VI) -> VO;
 }
 
-impl<LC: LearnerComponents> Learner<LC> {
+pub(crate) type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>>>;
+pub(crate) type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>>>;
+
+impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
     /// Fits the model.
     ///
     /// # Arguments
@@ -109,119 +116,28 @@ impl<LC: LearnerComponents> Learner<LC> {
     /// # Returns
     ///
     /// The fitted model.
-    pub fn fit<InputTrain, InputValid, OutputTrain, OutputValid>(
-        mut self,
-        mut dataloader_train: Arc<dyn DataLoader<TrainBackend<LC>, InputTrain>>,
-        mut dataloader_valid: Arc<dyn DataLoader<ValidBackend<LC>, InputValid>>,
-    ) -> LC::Model
-    where
-        InputTrain: Send + 'static,
-        InputValid: Send,
-        OutputTrain: Send + 'static,
-        OutputValid: Send,
-        LC::Model: TrainStep<InputTrain, OutputTrain>,
-        <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
-        LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain, ItemValid = OutputValid>,
-    {
+    pub fn fit(
+        self,
+        dataloader_train: TrainLoader<LC>,
+        dataloader_valid: ValidLoader<LC>,
+    ) -> LC::Model {
         log::info!("Fitting the model:\n {}", self.model);
-        // The reference model is always on the first device provided.
-        if let Some(device) = self.devices.first() {
-            self.model = self.model.fork(device);
-            dataloader_train = dataloader_train.to_device(device);
-            dataloader_valid = dataloader_valid.to_device(device);
-        }
 
-        let starting_epoch = match self.checkpoint {
-            Some(checkpoint) => {
-                if let Some(checkpointer) = &mut self.checkpointer {
-                    (self.model, self.optim, self.lr_scheduler) = checkpointer.load_checkpoint(
-                        self.model,
-                        self.optim,
-                        self.lr_scheduler,
-                        &Default::default(), // Load the checkpoint on the default device.
-                        checkpoint,
-                    );
-                }
-                checkpoint + 1
+        match &self.learning_strategy {
+            LearningStrategy::SingleDevice(device) => {
+                let single_device = SingleDeviceLearningStrategy::new(device.clone());
+                single_device.fit(self, dataloader_train, dataloader_valid)
             }
-            None => 1,
-        };
-
-        // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy
-        // for each (worker) data loader. This matches the expected device on the worker, so we
-        // don't have to move the data between devices.
-        let dataloaders_train = split_dataloader(dataloader_train, &self.devices);
-
-        // Changed the train epoch to keep the dataloaders
-        let mut epoch_train = TrainEpoch::new(
-            dataloaders_train,
-            starting_epoch,
-            self.num_epochs,
-            self.grad_accumulation,
-        );
-
-        for epoch in starting_epoch..self.num_epochs + 1 {
-            if self.devices.len() > 1 {
-                (self.model, self.optim) = epoch_train.run_multi_device::<LC, OutputTrain>(
-                    self.model,
-                    self.optim,
-                    &mut self.lr_scheduler,
-                    &mut self.event_processor,
-                    self.devices.clone(),
-                    &self.interrupter,
-                )
-            } else {
-                (self.model, self.optim) = epoch_train.run::<LC, OutputTrain>(
-                    self.model,
-                    self.optim,
-                    &mut self.lr_scheduler,
-                    &mut self.event_processor,
-                    &self.interrupter,
-                );
+            LearningStrategy::MultiDeviceNaive(devices) => {
+                let multi_device = MultiDeviceLearningStrategy::new(devices.clone());
+                multi_device.fit(self, dataloader_train, dataloader_valid)
             }
 
-            if self.interrupter.should_stop() {
-                break;
-            }
-
-            // TODO: multi-device validation?
-            let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
-            epoch_valid.run::<LC, OutputValid>(
-                &self.model,
-                &mut self.event_processor,
-                &self.interrupter,
-            );
-
-            if let Some(checkpointer) = &mut self.checkpointer {
-                checkpointer.checkpoint(
-                    &self.model,
-                    &self.optim,
-                    &self.lr_scheduler,
-                    epoch,
-                    &self.event_store,
-                );
-            }
-
-            if let Some(early_stopping) = &mut self.early_stopping {
-                if early_stopping.should_stop(epoch, &self.event_store) {
-                    break;
-                }
+            #[cfg(feature = "ddp")]
+            LearningStrategy::DistributedDataParallel { devices, config } => {
+                let ddp = DdpLearningStrategy::new(devices.clone(), config.clone());
+                ddp.fit(self, dataloader_train, dataloader_valid)
             }
         }
-
-        // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
-        self.event_processor.process_train(Event::End);
-
-        // Display learner summary
-        if let Some(summary) = self.summary {
-            match summary.init() {
-                Ok(summary) => {
-                    println!("{}", summary.with_model(self.model.to_string()))
-                }
-                Err(err) => log::error!("Could not retrieve learner summary:\n{err}"),
-            }
-        }
-
-        self.model
     }
 }

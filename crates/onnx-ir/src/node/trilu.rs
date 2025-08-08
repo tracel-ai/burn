@@ -26,14 +26,13 @@ pub fn trilu_config(node: &Node) -> TriluConfig {
         }
     }
     // The second input of the Trilu node is the diagonal value, coming from a constant node
-    if let Some(diagonal_arg) = node.inputs.get(1) {
-        if let Some(TensorData {
+    if let Some(diagonal_arg) = node.inputs.get(1)
+        && let Some(TensorData {
             data: Data::Int64(diagonal_val),
             ..
         }) = &diagonal_arg.value
-        {
-            diagonal = *diagonal_val;
-        }
+    {
+        diagonal = *diagonal_val;
     }
     TriluConfig::new(upper, diagonal)
 }

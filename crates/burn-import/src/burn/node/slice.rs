@@ -454,9 +454,10 @@ mod tests {
 
         let expected = quote! {
             use burn::tensor::s;
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
@@ -556,7 +557,7 @@ mod tests {
             use burn::tensor::RangesArg;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]

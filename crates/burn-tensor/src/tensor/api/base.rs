@@ -271,6 +271,12 @@ where
         Tensor::new(K::transpose(self.primitive))
     }
 
+    /// Alias for `transpose`.
+    #[inline(always)]
+    pub fn t(self) -> Tensor<B, D, K> {
+        self.transpose()
+    }
+
     /// Swaps two dimensions of a tensor.
     ///
     /// # Arguments
@@ -2280,26 +2286,6 @@ where
 
         writeln!(f, "  dtype:  {:?},", dtype.name())?;
         write!(f, "}}")
-    }
-}
-
-/// Transpose marker (zero-size type). Used to sugar the transpose of a tensor, e.g.
-/// ```rust
-/// use burn_tensor::backend::Backend;
-/// use burn_tensor::{Tensor, T};
-///
-/// fn example<B: Backend>() {
-///     let device = Default::default();
-///     let tensor = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
-///     let transposed = tensor^T;
-/// }
-/// ```
-pub struct T;
-
-impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
-    type Output = Self;
-    fn bitxor(self, _: T) -> Self::Output {
-        self.transpose()
     }
 }
 
