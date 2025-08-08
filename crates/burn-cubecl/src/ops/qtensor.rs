@@ -14,6 +14,7 @@ use cubecl::{
     ir::{Elem, IntKind},
     server::{Allocation, AllocationDescriptor},
 };
+use cubecl_quant::scheme::QuantStore;
 
 use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
@@ -109,7 +110,25 @@ pub fn empty_qtensor<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let client = R::client(device);
     let shape: Shape = shape.into();
+    let mut shape_value: Shape = shape.clone();
+
     let scales_shape: Shape;
+    let rank = shape.dims.len();
+    let shape_last = shape.dims[rank - 1];
+    let num_quants = scheme.num_quants();
+
+    let data_size = match scheme.store {
+        QuantStore::U32 => {
+            if shape_last % num_quants != 0 {
+                panic!("Can't store u32, padding not yet implemented for quantization.");
+            }
+            shape_value.dims[rank - 1] = shape_last / num_quants;
+            size_of::<u32>()
+        }
+        QuantStore::Native => match scheme.value {
+            QuantValue::QInt8 => size_of::<i8>(),
+        },
+    };
 
     let scales_dtype = match scheme.param {
         QuantParam::F32 => DType::F32,
@@ -124,7 +143,7 @@ pub fn empty_qtensor<R: CubeRuntime>(
             value: QuantValue::QInt8,
             ..
         } => {
-            let data_desc = AllocationDescriptor::optimized(&shape.dims, size_of::<i8>());
+            let data_desc = AllocationDescriptor::optimized(&shape_value.dims, data_size);
             let scale_desc = AllocationDescriptor::optimized(&[1], scales_dtype.size());
             scales_shape = Shape::new([1]);
             vec![data_desc, scale_desc]
@@ -137,7 +156,7 @@ pub fn empty_qtensor<R: CubeRuntime>(
         } => {
             let num_blocks = shape.num_elements() / block_size;
             scales_shape = Shape::new([num_blocks]);
-            let data_desc = AllocationDescriptor::optimized(&shape.dims, size_of::<i8>());
+            let data_desc = AllocationDescriptor::optimized(&shape_value.dims, data_size);
             let scales_desc =
                 AllocationDescriptor::optimized(&scales_shape.dims, scales_dtype.size());
             vec![data_desc, scales_desc]

@@ -741,6 +741,7 @@ dependencies = [
  "burn-tensor-testgen",
  "bytemuck",
  "cubecl",
+ "cubecl-quant",
  "derive-new",
  "futures-lite",
  "half",
@@ -1944,6 +1945,9 @@ dependencies = [
 name = "cubecl-quant"
 version = "0.7.0"
 dependencies = [
+ "cubecl-core",
+ "cubecl-runtime",
+ "cubecl-std",
  "half",
  "serde",
 ]

@@ -31,10 +31,39 @@ impl<R: CubeRuntime> CubeTensor<R> {
         }
     }
 
+    /// TODO
+    pub fn quantized_handles(mut self) -> Option<(CubeTensor<R>, CubeTensor<R>)> {
+        let scales = self.scales()?;
+        let scheme = match self.dtype {
+            DType::QFloat(sc) => sc,
+            _ => return None,
+        };
+        println!("{scheme:?}");
+        match scheme.store {
+            cubecl_quant::scheme::QuantStore::Native => match scheme.value {
+                cubecl_quant::scheme::QuantValue::QInt8 => {
+                    self.dtype = DType::I8;
+                }
+            },
+            cubecl_quant::scheme::QuantStore::U32 => {
+                let rank = self.shape.num_dims();
+                self.shape.dims[rank - 1] /= scheme.num_quants();
+                self.dtype = DType::U32;
+                let size_handle = self.handle.size();
+                println!("Size handle {:?}", size_handle);
+                println!("Size scale {:?}", scales.handle.size());
+                self.handle = self.handle.offset_end(size_handle - scales.handle.size());
+            }
+        };
+
+        Some((self, scales))
+    }
+
     /// Construct a separate tensor for the quantization scales, if present
     pub fn scales(&self) -> Option<CubeTensor<R>> {
         let qparams = self.qparams.as_ref()?;
         let mut handle = self.handle.clone();
+        println!("{:?}", qparams.scales);
         handle.offset_start = Some(qparams.scales.offset_start as u64);
         handle.offset_end = Some(qparams.scales.offset_end as u64);
 
