@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, Scope, TensorKind, TensorType, ToTokens, Type};
+use crate::burn::{Scope, TensorKind, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::node::reduce::ReduceConfig;
 use proc_macro2::TokenStream;
@@ -124,27 +124,25 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
         let output_expr = match self.reduction_type {
             ReductionType::SumSquare => {
                 let input_square = quote! { #input.powi_scalar(2) };
-                let input_square_reduced = Self::forward_reduce(
+                Self::forward_reduce(
                     ReductionType::Sum,
                     input_square,
                     dims,
                     keepdims,
                     input_rank,
                     output_rank,
-                );
-                input_square_reduced
+                )
             }
             ReductionType::L1 => {
                 let input_abs = quote! { #input.abs() };
-                let input_abs_reduced = Self::forward_reduce(
+                Self::forward_reduce(
                     ReductionType::Sum,
                     input_abs,
                     dims,
                     keepdims,
                     input_rank,
                     output_rank,
-                );
-                input_abs_reduced
+                )
             }
             ReductionType::L2 => {
                 let input_square = quote! { #input.powi_scalar(2) };
@@ -307,11 +305,11 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 2> {
-                    let tensor2 = { 
+                    let tensor2 = {
                         tensor1
                             .max_dim(0usize)
                             .max_dim(2usize)
-                            .squeeze_dims(&[0, 2]) 
+                            .squeeze_dims(&[0, 2])
                     };
                     tensor2
                 }

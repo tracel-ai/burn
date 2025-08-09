@@ -381,7 +381,9 @@ impl ParsedOnnxGraph {
                 NodeType::ReduceL1 => graph.register(Self::reduce_l1_conversion(node)),
                 NodeType::ReduceL2 => graph.register(Self::reduce_l2_conversion(node)),
                 NodeType::ReduceLogSum => graph.register(Self::reduce_log_sum_conversion(node)),
-                NodeType::ReduceLogSumExp => graph.register(Self::reduce_log_sum_exp_conversion(node)),
+                NodeType::ReduceLogSumExp => {
+                    graph.register(Self::reduce_log_sum_exp_conversion(node))
+                }
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Resize => graph.register(Self::resize_conversion(node)),
                 NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
@@ -929,7 +931,7 @@ impl ParsedOnnxGraph {
 
         ReduceNode::new(input, output, ReductionType::SumSquare, config)
     }
-    
+
     fn reduce_l1_conversion(node: Node) -> ReduceNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
@@ -937,7 +939,7 @@ impl ParsedOnnxGraph {
 
         ReduceNode::new(input, output, ReductionType::L1, config)
     }
-    
+
     fn reduce_l2_conversion(node: Node) -> ReduceNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
@@ -953,7 +955,7 @@ impl ParsedOnnxGraph {
 
         ReduceNode::new(input, output, ReductionType::LogSum, config)
     }
-    
+
     fn reduce_log_sum_exp_conversion(node: Node) -> ReduceNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
@@ -961,7 +963,6 @@ impl ParsedOnnxGraph {
 
         ReduceNode::new(input, output, ReductionType::LogSumExp, config)
     }
-
 
     fn shape_conversion(node: Node) -> UnaryNode {
         let input = Type::from(node.inputs.first().unwrap());
