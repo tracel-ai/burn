@@ -120,7 +120,7 @@ pub fn empty_qtensor<R: CubeRuntime>(
     let data_size = match scheme.store {
         QuantStore::U32 => {
             if shape_last % num_quants != 0 {
-                panic!("Can't store u32, padding not yet implemented for quantization.");
+                panic!("Can't store in u32, padding not yet implemented for quantization.");
             }
             shape_value.dims[rank - 1] = shape_last / num_quants;
             size_of::<u32>()
@@ -144,7 +144,7 @@ pub fn empty_qtensor<R: CubeRuntime>(
             ..
         } => {
             let data_desc = AllocationDescriptor::optimized(&shape_value.dims, data_size);
-            let scale_desc = AllocationDescriptor::optimized(&[1], scales_dtype.size());
+            let scale_desc = AllocationDescriptor::contiguous(&[1], scales_dtype.size());
             scales_shape = Shape::new([1]);
             vec![data_desc, scale_desc]
         }
@@ -158,10 +158,11 @@ pub fn empty_qtensor<R: CubeRuntime>(
             scales_shape = Shape::new([num_blocks]);
             let data_desc = AllocationDescriptor::optimized(&shape_value.dims, data_size);
             let scales_desc =
-                AllocationDescriptor::optimized(&scales_shape.dims, scales_dtype.size());
+                AllocationDescriptor::contiguous(&scales_shape.dims, scales_dtype.size());
             vec![data_desc, scales_desc]
         }
     };
+    println!("{:?}", descriptors);
 
     let mut tensors = client.empty_tensors(descriptors);
     let Allocation {
@@ -249,19 +250,34 @@ where
             return execute_with_dtype!(tensor.dtype, E, into_data::<R, E>(tensor).await);
         }
 
-        let tensor = kernel::into_contiguous_aligned(tensor);
-        let mut data = match tensor.scheme() {
-            QuantScheme {
-                value: QuantValue::QInt8,
-                ..
-            } => into_data::<R, i8>(tensor.clone()).await,
+        let (shape, dtype) = (tensor.shape.dims.to_vec(), tensor.dtype.clone());
+        let scheme = match dtype {
+            DType::QFloat(val) => val,
+            _ => unreachable!("Already checked if quantized."),
         };
-        data.dtype = tensor.dtype; // Reset to qfloat after reading
-        let scales = tensor.scales().unwrap();
-        let scales_data = execute_with_dtype!(scales.dtype, E, into_data::<R, E>(scales).await);
-        data.bytes.extend_from_byte_slice(&scales_data.bytes);
+        let (values, params) = tensor.quantized_handles().unwrap();
 
-        data
+        println!("Into data values");
+        let mut data_values = match scheme.store {
+            QuantStore::Native => match scheme.value {
+                QuantValue::QInt8 => into_data::<R, i8>(values).await,
+            },
+            QuantStore::U32 => into_data::<R, u32>(values).await,
+        };
+        println!("Into data params");
+        let data_params = match scheme.param {
+            QuantParam::F16 => into_data::<R, half::f16>(params).await,
+            QuantParam::BF16 => into_data::<R, half::bf16>(params).await,
+            QuantParam::F32 => into_data::<R, f32>(params).await,
+        };
+
+        data_values.bytes.extend_from_byte_slice(&data_params.bytes);
+
+        TensorData {
+            bytes: data_values.bytes,
+            shape,
+            dtype,
+        }
     }
 
     fn q_swap_dims(

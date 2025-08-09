@@ -32,26 +32,42 @@ impl<R: CubeRuntime> CubeTensor<R> {
     }
 
     /// TODO
-    pub fn quantized_handles(mut self) -> Option<(CubeTensor<R>, CubeTensor<R>)> {
-        let scales = self.scales()?;
+    pub fn quantized_handles(&self) -> Option<(CubeTensor<R>, CubeTensor<R>)> {
+        let params = self.scales()?;
         let scheme = match self.dtype {
             DType::QFloat(sc) => sc,
             _ => return None,
         };
-        match scheme.store {
+        let values = match scheme.store {
             cubecl_quant::scheme::QuantStore::Native => match scheme.value {
-                cubecl_quant::scheme::QuantValue::QInt8 => {
-                    self.dtype = DType::I8;
-                }
+                cubecl_quant::scheme::QuantValue::QInt8 => CubeTensor {
+                    client: self.client.clone(),
+                    handle: self.handle.clone(),
+                    shape: self.shape.clone(),
+                    device: self.device.clone(),
+                    strides: self.strides.clone(),
+                    dtype: DType::I8,
+                    qparams: None,
+                },
             },
             cubecl_quant::scheme::QuantStore::U32 => {
                 let rank = self.shape.num_dims();
-                self.shape.dims[rank - 1] /= scheme.num_quants();
-                self.dtype = DType::U32;
+                let mut shape = self.shape.clone();
+                shape.dims[rank - 1] /= scheme.num_quants();
+
+                CubeTensor {
+                    client: self.client.clone(),
+                    handle: self.handle.clone(),
+                    shape,
+                    device: self.device.clone(),
+                    strides: self.strides.clone(),
+                    dtype: DType::U32,
+                    qparams: None,
+                }
             }
         };
 
-        Some((self, scales))
+        Some((values, params))
     }
 
     /// Construct a separate tensor for the quantization scales, if present
