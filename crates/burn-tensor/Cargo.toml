@@ -15,11 +15,11 @@ version.workspace = true
 workspace = true
 
 [features]
+default = ["std"]
 cubecl = ["dep:cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
 cubecl-hip = ["cubecl", "cubecl/hip"]
 cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
-default = ["std", "burn-common/rayon"]
 doc = ["default"]
 experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen", "cubecl"]

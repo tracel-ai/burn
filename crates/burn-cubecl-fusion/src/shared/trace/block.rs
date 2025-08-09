@@ -328,18 +328,18 @@ impl FuseBlockBuilder {
         //
         // Only local variables can become outputs.
         let mark = |var: &Arg, list: &mut Vec<(TensorId, FusePrecision)>| {
-            if let Arg::Local(index, precision) = var {
-                if let Some(tensor_id) = self.locals.find_tensor_id(*precision, *index) {
-                    // Input and outputs tensors are using bool_precision for booleans.
-                    let precision = match precision {
-                        FusePrecision::Bool => self.bool_precision,
-                        _ => *precision,
-                    };
+            if let Arg::Local(index, precision) = var
+                && let Some(tensor_id) = self.locals.find_tensor_id(*precision, *index)
+            {
+                // Input and outputs tensors are using bool_precision for booleans.
+                let precision = match precision {
+                    FusePrecision::Bool => self.bool_precision,
+                    _ => *precision,
+                };
 
-                    let entry = (tensor_id, precision);
-                    if !list.contains(&entry) {
-                        list.push(entry);
-                    }
+                let entry = (tensor_id, precision);
+                if !list.contains(&entry) {
+                    list.push(entry);
                 }
             }
         };
@@ -531,10 +531,10 @@ impl FuseBlockBuilder {
         // All tensors where their latest representation is read only should be written to since they
         // are going to be used after the fused kernel by other operations.
         for (tensor, precision) in self.outputs.iter() {
-            if let TensorStatus::ReadOnly = tensor.status {
-                if !resources.dropped.contains(&tensor.id) {
-                    result.insert(*precision, tensor.clone());
-                }
+            if let TensorStatus::ReadOnly = tensor.status
+                && !resources.dropped.contains(&tensor.id)
+            {
+                result.insert(*precision, tensor.clone());
             }
         }
 
@@ -549,10 +549,10 @@ struct LocalVariablePool {
 
 impl LocalVariablePool {
     fn get(&self, precision: FusePrecision, tensor_id: TensorId) -> Option<Arg> {
-        if let Some(indexes) = self.values.get(&precision) {
-            if let Some(index) = indexes.get(&tensor_id) {
-                return Some(Arg::Local(*index, precision));
-            }
+        if let Some(indexes) = self.values.get(&precision)
+            && let Some(index) = indexes.get(&tensor_id)
+        {
+            return Some(Arg::Local(*index, precision));
         }
 
         None

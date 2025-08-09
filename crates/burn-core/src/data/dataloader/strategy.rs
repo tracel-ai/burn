@@ -1,5 +1,5 @@
 /// A strategy to batch items.
-pub trait BatchStrategy<I>: Send {
+pub trait BatchStrategy<I>: Send + Sync {
     /// Adds an item to the strategy.
     ///
     /// # Arguments
@@ -24,6 +24,13 @@ pub trait BatchStrategy<I>: Send {
     ///
     /// The new strategy.
     fn clone_dyn(&self) -> Box<dyn BatchStrategy<I>>;
+
+    /// Returns the expected batch size for this strategy.
+    ///
+    /// # Returns
+    ///
+    /// The batch size, or None if the strategy doesn't have a fixed batch size.
+    fn batch_size(&self) -> Option<usize>;
 }
 
 /// A strategy to batch items with a fixed batch size.
@@ -60,7 +67,7 @@ impl<I> FixBatchStrategy<I> {
     }
 }
 
-impl<I: Send + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
+impl<I: Send + Sync + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
     fn add(&mut self, item: I) {
         self.items.push(item);
     }
@@ -81,5 +88,9 @@ impl<I: Send + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
     }
     fn clone_dyn(&self) -> Box<dyn BatchStrategy<I>> {
         Box::new(Self::new_with_drop_last(self.batch_size, self.drop_last))
+    }
+
+    fn batch_size(&self) -> Option<usize> {
+        Some(self.batch_size)
     }
 }

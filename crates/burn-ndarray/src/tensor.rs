@@ -338,6 +338,18 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
             } => QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
                 self.qparams[0].scales,
             )),
+            QuantScheme {
+                level: QuantLevel::Block(block_size),
+                mode: QuantMode::Symmetric,
+                q_type: QuantInputType::QInt8,
+                ..
+            } => QuantizationStrategy::PerBlockSymmetricInt8(
+                self.qparams
+                    .iter()
+                    .map(|q| SymmetricQuantization::init(q.scales))
+                    .collect(),
+                block_size,
+            ),
         }
     }
 }

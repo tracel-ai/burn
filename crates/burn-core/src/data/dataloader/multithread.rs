@@ -7,8 +7,7 @@ use rand::rngs::StdRng;
 
 use super::batcher::Batcher;
 use super::{BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, Progress};
-use core::cell::OnceCell;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, OnceLock, mpsc};
 use std::thread;
 
 const MAX_QUEUED_ITEMS: usize = 100;
@@ -24,7 +23,7 @@ pub struct MultiThreadDataLoader<B: Backend, I, O> {
     num_threads: usize,
 
     // The lazily initialized data loaders
-    dataloaders: OnceCell<Vec<BatchDataLoader<B, I, O>>>,
+    dataloaders: OnceLock<Vec<BatchDataLoader<B, I, O>>>,
 }
 
 /// A message that can be sent between threads.
@@ -65,13 +64,54 @@ where
             num_threads,
             device,
             rng,
-            dataloaders: OnceCell::new(),
+            dataloaders: OnceLock::new(),
         }
     }
     /// Force initialization if needed.
     fn initialize(&self) -> &[BatchDataLoader<B, I, O>] {
-        // This is now unused, but kept for compatibility.
-        &[]
+        self.dataloaders
+            .get_or_init(|| {
+                let mut dataset = self.dataset.clone();
+                if let Some(rng) = self.rng.as_ref() {
+                    // Pre-shuffle the dataset before split if shuffle is enabled.
+                    // This ensures that each thread gets a uniform random sample of the dataset.
+                    let mut rng = rng.clone();
+                    dataset = Arc::new(burn_dataset::transform::ShuffledDataset::new(
+                        dataset, &mut rng,
+                    ));
+                }
+
+                let datasets = match self.strategy.batch_size() {
+                    Some(batch_size) => {
+                        PartialDataset::split_chunks(dataset, self.num_threads, batch_size)
+                    }
+                    None => PartialDataset::split(dataset, self.num_threads),
+                };
+
+                // Create more rngs from the first one, one for each new dataloader.
+                let mut rng = self.rng.clone();
+                let rngs = (0..self.num_threads).map(|_| {
+                    rng.as_mut().map(|rng| {
+                        StdRng::seed_from_u64(Distribution::sample(&StandardUniform, rng))
+                    })
+                });
+
+                datasets
+                    .into_iter()
+                    .zip(rngs)
+                    .map(|(dataset, rng)| {
+                        let strategy = self.strategy.clone_dyn();
+                        BatchDataLoader::new(
+                            strategy,
+                            Arc::new(dataset),
+                            self.batcher.clone(),
+                            self.device.clone(),
+                            rng,
+                        )
+                    })
+                    .collect()
+            })
+            .as_ref()
     }
 }
 
@@ -339,5 +379,44 @@ mod tests {
                 assert_eq!(batch_items.len(), num_classes);
             }
         }
+    }
+
+    #[test]
+    fn test_multi_thread_batch_dataloader_incomplete_batches() {
+        let batcher = Arc::new(TestBatcher::new());
+        let dataset = Arc::new(FakeDataset::<String>::new(27));
+        let dataloader_single_thread = BatchDataLoader::new(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset.clone(),
+            batcher.clone(),
+            Default::default(),
+            None,
+        );
+        let dataloader_multi_thread = MultiThreadDataLoader::new(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset,
+            batcher,
+            4,
+            Default::default(),
+            None,
+        );
+
+        let mut items_single_thread = HashSet::new();
+        let mut items_multi_thread = HashSet::new();
+
+        let mut single_thread_cnt = 0;
+        let mut multi_thread_cnt = 0;
+        for items in dataloader_single_thread.iter() {
+            items_single_thread.insert(items);
+            single_thread_cnt += 1;
+        }
+
+        for items in dataloader_multi_thread.iter() {
+            items_multi_thread.insert(items);
+            multi_thread_cnt += 1;
+        }
+
+        assert_eq!(single_thread_cnt, multi_thread_cnt);
+        assert_eq!(items_single_thread, items_multi_thread);
     }
 }

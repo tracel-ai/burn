@@ -31,10 +31,7 @@ env:
   # Note: It is not possible to define top level env vars and pass them to composite actions.
   # To work around this issue we use inputs and define all the env vars here.
 
-  RUST_PREVIOUS_VERSION: 1.87.0
-
-  # Cargo
-  CARGO_TERM_COLOR: "always"
+  RUST_PREVIOUS_VERSION: 1.88.0
 
   # Dependency versioning
   # from wgpu repo: https://github.com/gfx-rs/wgpu/blob/trunk/.github/workflows/ci.yml
@@ -58,15 +55,6 @@ env:
   # Mozilla Grcov
   GRCOV_LINK: "https://github.com/mozilla/grcov/releases/download"
   GRCOV_VERSION: "0.8.19"
-
-  # Typos version
-  TYPOS_LINK: "https://github.com/crate-ci/typos/releases/download"
-  TYPOS_VERSION: "1.23.4"
-
-  # GCP runners
-  GCP_RUNNERS_IMAGE_FAMILY: "tracel-ci-ubuntu-2404-amd64-nvidia"
-  GCP_RUNNERS_MACHINE_TYPE: "g2-standard-4"
-  GCP_RUNNERS_ZONE: "us-east1-c"
 
   # Test in release mode (make it an empty string to test in debug mode)
   TEST_RELEASE_FLAG: "--release"
@@ -142,97 +130,6 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Documentation Tests
         run: cargo xtask doc tests
-
-  linux-std-cuda-tests:
-    needs: [prepare-checks, code-quality]
-    timeout-minutes: 60
-    # '@id:' label must be unique within this worklow
-    runs-on: [
-      '@id:burn-cuda-job-${{github.run_id}}-${{github.run_attempt}}',
-      '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
-      '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
-      '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
-      '@gpu:true' ]
-    env:
-      LD_LIBRARY_PATH: '/usr/local/cuda/lib64'
-      # disable incremental compilation (reduces artifact size)
-      CARGO_PROFILE_TEST_INCREMENTAL: 'false'
-    # Keep the stragegy to be able to easily add new rust versions if required
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
-    steps:
-      - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v3
-        with:
-          rust-toolchain: ${{ matrix.toolchain }}
-          enable-cache: false
-      # --------------------------------------------------------------------------------
-      - name: Tests (burn-cuda)
-        run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci gcp-cuda-runner
-
-  linux-std-vulkan-tests:
-    needs: [prepare-checks, code-quality]
-    timeout-minutes: 60
-    # '@id:' label must be unique within this worklow
-    runs-on: [
-      '@id:burn-vulkan-job-${{github.run_id}}-${{github.run_attempt}}',
-      '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
-      '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
-      '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
-      '@gpu:true' ]
-    env:
-      # disable incremental compilation (reduces artifact size)
-      CARGO_PROFILE_TEST_INCREMENTAL: 'false'
-    # Keep the stragegy to be able to easily add new rust versions if required
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
-    steps:
-      - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v3
-        with:
-          rust-toolchain: ${{ matrix.toolchain }}
-          enable-cache: false
-      # --------------------------------------------------------------------------------
-      - name: Tests (burn-vulkan)
-        run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci gcp-vulkan-runner
-
-  linux-std-wgpu-tests:
-    needs: [prepare-checks, code-quality]
-    timeout-minutes: 60
-    # '@id:' label must be unique within this worklow
-    runs-on: [
-      '@id:burn-wgpu-job-${{github.run_id}}-${{github.run_attempt}}',
-      '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
-      '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
-      '@zone:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
-      '@gpu:true' ]
-    env:
-      # disable incremental compilation (reduces artifact size)
-      CARGO_PROFILE_TEST_INCREMENTAL: 'false'
-    # Keep the stragegy to be able to easily add new rust versions if required
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
-    steps:
-      - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v3
-        with:
-          rust-toolchain: ${{ matrix.toolchain }}
-          enable-cache: false
-      # --------------------------------------------------------------------------------
-      - name: Tests (burn-wgpu)
-        run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci gcp-wgpu-runner
 
   linux-std-tests:
     runs-on: ubuntu-22.04
@@ -343,28 +240,3 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Tests
         run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
-
-# TODO: fix macos CI tests (M2 virtualization)
-  # macos-std-metal-tests:
-  #   runs-on: blaze/macos-14
-  #   needs: [prepare-checks, code-quality]
-  #   timeout-minutes: 60
-  #   # Keep the stragegy to be able to easily add new rust versions if required
-  #   strategy:
-  #     matrix:
-  #       rust: [stable]
-  #       include:
-  #         - rust: stable
-  #           toolchain: stable
-  #   steps:
-  #     - name: Setup Rust
-  #       uses: tracel-ai/github-actions/setup-rust@v3
-  #       with:
-  #         rust-toolchain: ${{ matrix.toolchain }}
-  #         cache-key: ${{ matrix.rust }}-macos
-  #     # --------------------------------------------------------------------------------
-  #     - name: Device check
-  #       run: system_profiler SPHardwareDataType
-  #     # --------------------------------------------------------------------------------
-  #     - name: Tests
-  #       run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-mac-runner

@@ -21,10 +21,14 @@ use burn_ir::TensorIr;
 use cubecl::ir::Elem;
 use cubecl::matmul::components;
 use cubecl::matmul::components::AvailableLineSizes;
+use cubecl::matmul::components::LhsG;
+use cubecl::matmul::components::LhsS;
 use cubecl::matmul::components::MatmulLineSizes;
 use cubecl::matmul::components::MatmulPrecision;
 use cubecl::matmul::components::MatmulProblem;
 use cubecl::matmul::components::MatmulSetupError;
+use cubecl::matmul::components::RhsG;
+use cubecl::matmul::components::RhsS;
 use cubecl::matmul::components::tile::TileMatmulFamily;
 use cubecl::matmul::components::tile::accelerated::AcceleratedMatmul;
 use cubecl::matmul::kernels::layered::Algorithm;
@@ -521,7 +525,7 @@ impl FusedMatmul {
     }
 }
 
-fn launch_inner_fix_dtype<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
+fn launch_inner_fix_dtype<'a, R: Runtime, MP: MatmulPrecision, A: Algorithm>(
     client: &ComputeClient<R::Server, R::Channel>,
     input: FusedMatmulInputLaunch<'a, R>,
     output: GlobalArgsLaunch<'a, R>,
@@ -540,15 +544,36 @@ fn launch_inner_fix_dtype<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
 
     let plane_size = fix_plane_dim(A::select_plane_dim::<R>(client));
 
-    if <A::TileMatmul as TileMatmulFamily>::requires_accelerator()
-        && TypeId::of::<EG::ES>() == TypeId::of::<f32>()
-        && tf32::is_supported(client)
-    {
-        launch_kernel_virtual::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
-            client, input, output, problem, line_sizes, plane_size, selection,
-        )
+    if <A::TileMatmul as TileMatmulFamily>::requires_accelerator() && tf32::is_supported(client) {
+        match (
+            TypeId::of::<LhsG<MP>>() == TypeId::of::<f32>(),
+            TypeId::of::<RhsG<MP>>() == TypeId::of::<f32>(),
+        ) {
+            (true, true) => {
+                launch_kernel_virtual::<FusedMatmulSpec<(f32, f32, tf32, tf32, MP::EA, MP::EO)>, R, A>(
+                    client, input, output, problem, line_sizes, plane_size, selection,
+                )
+            }
+            (true, false) => launch_kernel_virtual::<
+                FusedMatmulSpec<(f32, RhsG<MP>, tf32, RhsS<MP>, MP::EA, MP::EO)>,
+                R,
+                A,
+            >(
+                client, input, output, problem, line_sizes, plane_size, selection,
+            ),
+            (false, true) => launch_kernel_virtual::<
+                FusedMatmulSpec<(LhsG<MP>, f32, LhsS<MP>, tf32, MP::EA, MP::EO)>,
+                R,
+                A,
+            >(
+                client, input, output, problem, line_sizes, plane_size, selection,
+            ),
+            (false, false) => launch_kernel_virtual::<FusedMatmulSpec<MP>, R, A>(
+                client, input, output, problem, line_sizes, plane_size, selection,
+            ),
+        }
     } else {
-        launch_kernel_virtual::<FusedMatmulSpec<EG>, R, A>(
+        launch_kernel_virtual::<FusedMatmulSpec<MP>, R, A>(
             client, input, output, problem, line_sizes, plane_size, selection,
         )
     }

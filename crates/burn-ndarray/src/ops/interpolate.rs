@@ -110,6 +110,11 @@ pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
     let mut output = Array4::zeros((batch_size, channels, out_height, out_width));
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
 
+    // clamp ceil(frac) to stay within bounds in case of floating-point imprecision
+    fn ceil_clamp(frac: f64, max: usize) -> f64 {
+        frac.ceil().min(max as f64)
+    }
+
     run_par!(|| {
         iter_range_par!(0, out_element_num).for_each(|id| {
             let (b, c, h, w) = (
@@ -122,12 +127,12 @@ pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
             // We convert everything to `f64` for calculations and then back to `E` at the end.
             let y_frac = y_ratio * h as f64;
             let y0 = y_frac.floor();
-            let y1 = y_frac.ceil();
+            let y1 = ceil_clamp(y_frac, in_height - 1);
             let yw = y_frac - y0;
 
             let x_frac = x_ratio * w as f64;
             let x0 = x_frac.floor();
-            let x1 = x_frac.ceil();
+            let x1 = ceil_clamp(x_frac, in_width - 1);
             let xw = x_frac - x0;
 
             let (x0, x1, y0, y1) = (x0 as usize, x1 as usize, y0 as usize, y1 as usize);

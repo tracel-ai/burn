@@ -1,6 +1,7 @@
 use crate::{
+    TrainStep, ValidStep,
     checkpoint::{Checkpointer, CheckpointingStrategy},
-    metric::processor::EventProcessor,
+    metric::{ItemLazy, processor::EventProcessor},
 };
 use burn_core::{
     lr_scheduler::LrScheduler,
@@ -11,13 +12,23 @@ use burn_core::{
 use std::marker::PhantomData;
 
 /// All components necessary to train a model grouped in one trait.
-pub trait LearnerComponents {
+pub trait LearnerComponentTypes {
     /// The backend in used for the training.
     type Backend: AutodiffBackend;
     /// The learning rate scheduler used for the training.
     type LrScheduler: LrScheduler;
     /// The model to train.
-    type Model: AutodiffModule<Self::Backend> + core::fmt::Display + 'static;
+    type Model: AutodiffModule<Self::Backend, InnerModule = Self::InnerModel>
+        + TrainStep<
+            <Self::LearningData as LearningData>::TrainInput,
+            <Self::LearningData as LearningData>::TrainOutput,
+        > + core::fmt::Display
+        + 'static;
+    /// The non-autodiff type of the model, should implement ValidationStep
+    type InnerModel: ValidStep<
+            <Self::LearningData as LearningData>::ValidInput,
+            <Self::LearningData as LearningData>::ValidOutput,
+        >;
     /// The optimizer used for the training.
     type Optimizer: Optimizer<Self::Model, Self::Backend>;
     /// The checkpointer used for the model.
@@ -26,16 +37,21 @@ pub trait LearnerComponents {
     type CheckpointerOptimizer: Checkpointer<
             <Self::Optimizer as Optimizer<Self::Model, Self::Backend>>::Record,
             Self::Backend,
-        >;
+        > + Send;
     /// The checkpointer used for the scheduler.
     type CheckpointerLrScheduler: Checkpointer<<Self::LrScheduler as LrScheduler>::Record<Self::Backend>, Self::Backend>;
-    type EventProcessor: EventProcessor + 'static;
+    type EventProcessor: EventProcessor<
+            ItemTrain = <Self::LearningData as LearningData>::TrainOutput,
+            ItemValid = <Self::LearningData as LearningData>::ValidOutput,
+        > + 'static;
     /// The strategy to save and delete checkpoints.
     type CheckpointerStrategy: CheckpointingStrategy;
+    /// The data used to perform training and validation.
+    type LearningData: LearningData;
 }
 
 /// Concrete type that implements [training components trait](TrainingComponents).
-pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S> {
+pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S, LD> {
     _backend: PhantomData<B>,
     _lr_scheduler: PhantomData<LR>,
     _model: PhantomData<M>,
@@ -45,34 +61,90 @@ pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S> {
     _checkpointer_scheduler: PhantomData<CS>,
     _event_processor: PhantomData<EP>,
     _strategy: S,
+    _learning_data: PhantomData<LD>,
 }
 
-impl<B, LR, M, O, CM, CO, CS, EP, S> LearnerComponents
-    for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S>
+impl<B, LR, M, O, CM, CO, CS, EP, S, LD> LearnerComponentTypes
+    for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S, LD>
 where
     B: AutodiffBackend,
     LR: LrScheduler,
-    M: AutodiffModule<B> + core::fmt::Display + 'static,
+    M: AutodiffModule<B>
+        + TrainStep<LD::TrainInput, LD::TrainOutput>
+        + core::fmt::Display
+        + 'static,
+    M::InnerModule: ValidStep<LD::ValidInput, LD::ValidOutput>,
     O: Optimizer<M, B>,
     CM: Checkpointer<M::Record, B>,
     CO: Checkpointer<O::Record, B>,
     CS: Checkpointer<LR::Record<B>, B>,
-    EP: EventProcessor + 'static,
+    EP: EventProcessor<ItemTrain = LD::TrainOutput, ItemValid = LD::ValidOutput> + 'static,
     S: CheckpointingStrategy,
+    LD: LearningData,
 {
     type Backend = B;
     type LrScheduler = LR;
     type Model = M;
+    type InnerModel = M::InnerModule;
     type Optimizer = O;
     type CheckpointerModel = CM;
     type CheckpointerOptimizer = CO;
     type CheckpointerLrScheduler = CS;
     type EventProcessor = EP;
     type CheckpointerStrategy = S;
+    type LearningData = LD;
 }
 
 /// The training backend.
-pub type TrainBackend<LC> = <LC as LearnerComponents>::Backend;
+pub type TrainBackend<LC> = <LC as LearnerComponentTypes>::Backend;
 
 /// The validation backend.
-pub type ValidBackend<LC> = <<LC as LearnerComponents>::Backend as AutodiffBackend>::InnerBackend;
+pub type ValidBackend<LC> =
+    <<LC as LearnerComponentTypes>::Backend as AutodiffBackend>::InnerBackend;
+
+/// Type for training input
+pub(crate) type InputTrain<LC> =
+    <<LC as LearnerComponentTypes>::LearningData as LearningData>::TrainInput;
+
+/// Type for validation input
+pub(crate) type InputValid<LC> =
+    <<LC as LearnerComponentTypes>::LearningData as LearningData>::ValidInput;
+
+/// Type for training output
+pub(crate) type OutputTrain<LC> =
+    <<LC as LearnerComponentTypes>::LearningData as LearningData>::TrainOutput;
+
+/// Type for validation output
+#[allow(unused)]
+pub(crate) type OutputValid<LC> =
+    <<LC as LearnerComponentTypes>::LearningData as LearningData>::ValidOutput;
+
+/// Regroups types of input and outputs for training and validation
+pub trait LearningData {
+    /// Type of input to the training stop
+    type TrainInput: Send + 'static;
+    /// Type of input to the validation step
+    type ValidInput: Send + 'static;
+    /// Type of output of the training step
+    type TrainOutput: ItemLazy + 'static;
+    /// Type of output of the validation step
+    type ValidOutput: ItemLazy + 'static;
+}
+
+/// Concrete type that implements [training data trait](TrainingData).
+pub struct LearningDataMarker<TI, VI, TO, VO> {
+    _phantom_data: PhantomData<(TI, VI, TO, VO)>,
+}
+
+impl<TI, VI, TO, VO> LearningData for LearningDataMarker<TI, VI, TO, VO>
+where
+    TI: Send + 'static,
+    VI: Send + 'static,
+    TO: ItemLazy + 'static,
+    VO: ItemLazy + 'static,
+{
+    type TrainInput = TI;
+    type ValidInput = VI;
+    type TrainOutput = TO;
+    type ValidOutput = VO;
+}

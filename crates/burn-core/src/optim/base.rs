@@ -5,7 +5,7 @@ use crate::record::Record;
 use crate::tensor::backend::AutodiffBackend;
 
 /// General trait to optimize [module](AutodiffModule).
-pub trait Optimizer<M, B>: Send
+pub trait Optimizer<M, B>: Send + Clone
 where
     M: AutodiffModule<B>,
     B: AutodiffBackend,

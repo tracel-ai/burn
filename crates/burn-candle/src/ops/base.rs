@@ -139,9 +139,14 @@ pub fn mask_where_broadcasted(
         .unwrap();
 
     let mut tensor = tensor.tensor;
+    let mut mask = mask.tensor;
+
     if shape != *tensor.shape() {
-        tensor = tensor.broadcast_as(shape).unwrap();
+        tensor = tensor.broadcast_as(shape.clone()).unwrap();
+    }
+    if shape != *mask.shape() {
+        mask = mask.broadcast_as(shape).unwrap();
     }
 
-    CandleTensor::new(mask.tensor.where_cond(&value.tensor, &tensor).unwrap())
+    CandleTensor::new(mask.where_cond(&value.tensor, &tensor).unwrap())
 }

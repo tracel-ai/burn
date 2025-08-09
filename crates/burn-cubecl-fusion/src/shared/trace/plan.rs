@@ -124,6 +124,7 @@ pub struct HandleOutputAliasDebugInfo<R: Runtime> {
 }
 
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum HandleOutput<R: Runtime> {
     Alias {
         input_pos: usize,

@@ -83,11 +83,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
 
     fn register_imports(&self, imports: &mut BurnImports) {
         // Register ElementConversion for scalar operations
-        for input in &self.inputs {
-            if matches!(input, Type::Scalar(_)) {
-                imports.register("burn::tensor::ElementConversion");
-                break;
-            }
+        if matches!(
+            (&self.inputs[0], &self.inputs[1]),
+            (Type::Tensor(_), Type::Scalar(_))
+        ) {
+            imports.register("burn::tensor::ElementConversion");
         }
     }
 }
@@ -123,9 +123,10 @@ mod tests {
 
         let expected = quote! {
             use burn::tensor::Int;
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
@@ -173,9 +174,10 @@ mod tests {
 
         let expected = quote! {
             use burn::tensor::Int;
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]

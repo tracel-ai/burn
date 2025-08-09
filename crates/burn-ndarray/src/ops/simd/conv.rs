@@ -271,7 +271,8 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
     k_height: usize,
     k_width: usize,
 ) {
-    let (in_channels, in_height, in_width) = x.dim();
+    let in_channels = weights.shape()[0];
+    let (_, in_height, in_width) = x.dim();
     let (out_height, out_width, _) = out.dim();
     let oh_start = pad_h;
     let oh_end = out_height.saturating_sub(pad_h);
@@ -390,7 +391,7 @@ macro_rules! inner_with_register_blocking_size {
             pad_h: usize,
             pad_w: usize,
         ) {
-            let in_channels = x.shape()[0];
+            let in_channels = weights.shape()[0];
 
             seq!(N in 0..$rb {
                 let mut acc~N = bias;
@@ -451,7 +452,7 @@ macro_rules! inner_with_register_blocking_size {
             pad_h: usize,
             pad_w: usize,
         ) {
-            let in_channels = x.shape()[0];
+            let in_channels = weights.shape()[0];
 
             seq!(N in 0..$rb {
                 let mut acc~N = bias;

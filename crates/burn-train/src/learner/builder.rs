@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -7,7 +8,7 @@ use crate::checkpoint::{
     AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
     KeepLastNCheckpoints, MetricCheckpointingStrategy,
 };
-use crate::components::LearnerComponentsMarker;
+use crate::components::{LearnerComponentsMarker, LearningDataMarker};
 use crate::learner::EarlyStoppingStrategy;
 use crate::learner::base::TrainingInterrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
@@ -16,8 +17,8 @@ use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore
 use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::{
-    ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerCheckpointer,
-    LearnerSummaryConfig,
+    ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
+    LearnerCheckpointer, LearnerSummaryConfig, LearningStrategy, TrainStep, ValidStep,
 };
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
@@ -26,14 +27,20 @@ use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
 
 /// Struct to configure and create a [learner](Learner).
-pub struct LearnerBuilder<B, T, V, M, O, S>
+///
+/// The generics components of the builder should probably not be set manually, as they are
+/// optimized for Rust type inference.
+pub struct LearnerBuilder<B, M, O, S, TI, VI, TO, VO>
 where
-    T: ItemLazy + 'static,
-    V: ItemLazy + 'static,
     B: AutodiffBackend,
-    M: AutodiffModule<B>,
+    M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
+    M::InnerModule: ValidStep<VI, VO>,
     O: Optimizer<M, B>,
     S: LrScheduler,
+    TI: Send + 'static,
+    VI: Send + 'static,
+    TO: ItemLazy + 'static,
+    VO: ItemLazy + 'static,
 {
     // Not that complex and very convenient when the traits are
     // already constrained correctly. Extracting in another type
@@ -48,28 +55,32 @@ where
     checkpoint: Option<usize>,
     directory: PathBuf,
     grad_accumulation: Option<usize>,
-    devices: Vec<B::Device>,
+    learning_strategy: LearningStrategy<B>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    metrics: Metrics<T, V>,
+    metrics: Metrics<TO, VO>,
     event_store: LogEventStore,
     interrupter: TrainingInterrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     num_loggers: usize,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
-    early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
+    early_stopping: Option<EarlyStoppingStrategyRef>,
     // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
     summary_metrics: BTreeSet<String>,
     summary: bool,
+    _p: PhantomData<(TI, VI, TO, VO)>,
 }
 
-impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
+impl<B, M, O, S, TI, VI, TO, VO> LearnerBuilder<B, M, O, S, TI, VI, TO, VO>
 where
     B: AutodiffBackend,
-    T: ItemLazy + 'static,
-    V: ItemLazy + 'static,
-    M: AutodiffModule<B> + core::fmt::Display + 'static,
+    M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
+    M::InnerModule: ValidStep<VI, VO>,
     O: Optimizer<M, B>,
     S: LrScheduler,
+    TI: Send + 'static,
+    VI: Send + 'static,
+    TO: ItemLazy + 'static,
+    VO: ItemLazy + 'static,
 {
     /// Creates a new learner builder.
     ///
@@ -85,7 +96,7 @@ where
             checkpointers: None,
             directory,
             grad_accumulation: None,
-            devices: vec![B::Device::default()],
+            learning_strategy: LearningStrategy::default(),
             metrics: Metrics::default(),
             event_store: LogEventStore::default(),
             renderer: None,
@@ -108,6 +119,7 @@ where
             early_stopping: None,
             summary_metrics: BTreeSet::new(),
             summary: false,
+            _p: PhantomData,
         }
     }
 
@@ -153,7 +165,7 @@ where
     /// Register a training metric.
     pub fn metric_train<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        T::ItemSync: Adaptor<Me::Input>,
+        <TO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.metrics.register_train_metric(metric);
         self
@@ -162,7 +174,7 @@ where
     /// Register a validation metric.
     pub fn metric_valid<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        V::ItemSync: Adaptor<Me::Input>,
+        <VO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.metrics.register_valid_metric(metric);
         self
@@ -187,7 +199,7 @@ where
     pub fn metric_train_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + crate::metric::Numeric + 'static,
-        T::ItemSync: Adaptor<Me::Input>,
+        <TO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name());
         self.metrics.register_train_metric_numeric(metric);
@@ -200,7 +212,7 @@ where
         metric: Me,
     ) -> Self
     where
-        V::ItemSync: Adaptor<Me::Input>,
+        <VO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name());
         self.metrics.register_valid_metric_numeric(metric);
@@ -213,9 +225,9 @@ where
         self
     }
 
-    /// Run the training loop on multiple devices.
-    pub fn devices(mut self, devices: Vec<B::Device>) -> Self {
-        self.devices = devices;
+    /// Run the training loop with different strategies
+    pub fn learning_strategy(mut self, learning_strategy: LearningStrategy<B>) -> Self {
+        self.learning_strategy = learning_strategy;
         self
     }
 
@@ -234,7 +246,7 @@ where
     /// conditions are meet.
     pub fn early_stopping<Strategy>(mut self, strategy: Strategy) -> Self
     where
-        Strategy: EarlyStoppingStrategy + 'static,
+        Strategy: EarlyStoppingStrategy + Clone + Send + Sync + 'static,
     {
         self.early_stopping = Some(Box::new(strategy));
         self
@@ -304,8 +316,9 @@ where
             AsyncCheckpointer<M::Record, B>,
             AsyncCheckpointer<O::Record, B>,
             AsyncCheckpointer<S::Record<B>, B>,
-            AsyncProcessor<FullEventProcessor<T, V>>,
+            AsyncProcessor<FullEventProcessor<TO, VO>>,
             Box<dyn CheckpointingStrategy>,
+            LearningDataMarker<TI, VI, TO, VO>,
         >,
     >
     where
@@ -313,10 +326,10 @@ where
         O::Record: 'static,
         S::Record<B>: 'static,
     {
-        if self.tracing_logger.is_some() {
-            if let Err(e) = self.tracing_logger.as_ref().unwrap().install() {
-                log::warn!("Failed to install the experiment logger: {e}");
-            }
+        if self.tracing_logger.is_some()
+            && let Err(e) = self.tracing_logger.as_ref().unwrap().install()
+        {
+            log::warn!("Failed to install the experiment logger: {e}");
         }
         let renderer = self
             .renderer
@@ -349,6 +362,8 @@ where
             None
         };
 
+        let learning_strategy = Self::prepare_learning_strategy(self.learning_strategy);
+
         Learner {
             model,
             optim,
@@ -359,10 +374,20 @@ where
             event_store,
             checkpoint: self.checkpoint,
             grad_accumulation: self.grad_accumulation,
-            devices: self.devices,
+            learning_strategy,
             interrupter: self.interrupter,
             early_stopping: self.early_stopping,
             summary,
         }
+    }
+
+    fn prepare_learning_strategy(learning_strategy: LearningStrategy<B>) -> LearningStrategy<B> {
+        if let LearningStrategy::MultiDeviceNaive(devices) = &learning_strategy
+            && devices.len() == 1
+        {
+            return LearningStrategy::SingleDevice(devices[0].clone());
+        }
+
+        learning_strategy
     }
 }

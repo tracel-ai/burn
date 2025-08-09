@@ -31,6 +31,10 @@ fn quantize<E: TchElement>(
             q_type: QuantInputType::QInt8,
             ..
         } => tensor.quantize_per_tensor(qparams.scales.elem(), 0, tch::Kind::QInt8),
+        QuantScheme {
+            level: QuantLevel::Block(_),
+            ..
+        } => unimplemented!("LibTorch backend does not support per-block quantization"),
     }
 }
 
@@ -65,6 +69,9 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                         scheme,
                     }
                 }
+                QuantLevel::Block(_) => {
+                    unimplemented!("LibTorch backend does not support per-block quantization")
+                }
             },
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
@@ -95,6 +102,10 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                 &tch::Tensor::zeros_like(&qparams.scales.tensor),
                 tch::Kind::QInt8,
             ),
+            QuantScheme {
+                level: QuantLevel::Block(_),
+                ..
+            } => unimplemented!("LibTorch backend does not support per-block quantization"),
         };
 
         TchQTensor {
@@ -118,6 +129,10 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                     .tensor
                     .quantize_per_tensor_dynamic(tch::Kind::QInt8, /*reduce_range*/ false)
             }
+            QuantScheme {
+                level: QuantLevel::Block(_),
+                ..
+            } => unimplemented!("LibTorch backend does not support per-block quantization"),
         };
 
         TchQTensor {
