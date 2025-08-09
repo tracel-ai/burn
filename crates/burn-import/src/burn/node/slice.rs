@@ -336,12 +336,12 @@ impl SliceNode {
                     SliceParam::Runtime(Type::Tensor(start_t)),
                     SliceParam::Runtime(Type::Tensor(end_t)),
                 ) = (&self.starts, &self.ends)
+                    && start_t.rank == 1
+                    && end_t.rank == 1
                 {
-                    if start_t.rank == 1 && end_t.rank == 1 {
-                        panic!(
-                            "1D tensor slicing is not supported for shape inputs - shapes must be sliced with scalar or static indices"
-                        );
-                    }
+                    panic!(
+                        "1D tensor slicing is not supported for shape inputs - shapes must be sliced with scalar or static indices"
+                    );
                 }
 
                 // Runtime slicing with scalars

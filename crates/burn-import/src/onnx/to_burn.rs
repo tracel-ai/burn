@@ -1059,10 +1059,10 @@ impl ParsedOnnxGraph {
         };
 
         // Validate steps if present
-        if let Some(SliceInput::Static(steps)) = &config.steps {
-            if steps.iter().any(|&x| x != 1) {
-                panic!("Slice: steps other than 1 are not supported");
-            }
+        if let Some(SliceInput::Static(steps)) = &config.steps
+            && steps.iter().any(|&x| x != 1)
+        {
+            panic!("Slice: steps other than 1 are not supported");
         }
 
         let mut slice_node = SliceNode::new(input, output, starts_param, ends_param);

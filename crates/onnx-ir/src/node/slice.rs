@@ -70,10 +70,10 @@ pub fn slice_config(node: &Node) -> SliceConfig {
     let steps = get_slice_input(node, 4);
 
     // Validate steps if present
-    if let Some(SliceInput::Static(ref step_values)) = steps {
-        if step_values.iter().any(|&x| x != 1) {
-            panic!("Slice: steps other than 1 are not supported");
-        }
+    if let Some(SliceInput::Static(ref step_values)) = steps
+        && step_values.iter().any(|&x| x != 1)
+    {
+        panic!("Slice: steps other than 1 are not supported");
     }
 
     SliceConfig {

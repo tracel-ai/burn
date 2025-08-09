@@ -49,10 +49,10 @@ fn infer_reshape_output_rank(node: &Node) -> usize {
     if node.inputs.len() == 2 {
         match &node.inputs[1].ty {
             ArgType::Tensor(shape_tensor) => {
-                if let Some(dims) = &shape_tensor.static_shape {
-                    if !dims.is_empty() {
-                        return dims[0];
-                    }
+                if let Some(dims) = &shape_tensor.static_shape
+                    && !dims.is_empty()
+                {
+                    return dims[0];
                 }
             }
             ArgType::Shape(rank) => {
@@ -64,10 +64,10 @@ fn infer_reshape_output_rank(node: &Node) -> usize {
     }
 
     // Case 3: Use output's static_shape if available
-    if let ArgType::Tensor(output_tensor) = &node.outputs[0].ty {
-        if let Some(shape) = &output_tensor.static_shape {
-            return shape.len();
-        }
+    if let ArgType::Tensor(output_tensor) = &node.outputs[0].ty
+        && let Some(shape) = &output_tensor.static_shape
+    {
+        return shape.len();
     }
 
     // Case 4: No rank information available - this is an error
@@ -81,12 +81,11 @@ fn infer_reshape_output_rank(node: &Node) -> usize {
 /// Extract static shape from reshape node if available
 fn get_static_shape(node: &Node) -> Option<Vec<i64>> {
     // Check shape input
-    if node.inputs.len() == 2 {
-        if let Some(value) = &node.inputs[1].value {
-            if let Data::Int64s(shape) = &value.data {
-                return Some(shape.clone());
-            }
-        }
+    if node.inputs.len() == 2
+        && let Some(value) = &node.inputs[1].value
+        && let Data::Int64s(shape) = &value.data
+    {
+        return Some(shape.clone());
     }
 
     None
