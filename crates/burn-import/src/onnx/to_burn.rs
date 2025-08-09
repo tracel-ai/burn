@@ -64,6 +64,7 @@ use crate::{
             random_uniform::RandomUniformNode,
             random_uniform_like::RandomUniformLikeNode,
             range::RangeNode,
+            reduce::{ReduceNode, ReductionType},
             reshape::ReshapeNode,
             resize::ResizeNode,
             round::RoundNode,
@@ -101,9 +102,7 @@ use onnx_ir::{
         instance_norm::instance_norm_config, is_inf::is_inf_config, layer_norm::layer_norm_config,
         leaky_relu::leaky_relu_config, linear::linear_config, log_softmax::log_softmax_config,
         max_pool1d::max_pool1d_config, max_pool2d::max_pool2d_config, one_hot::one_hot_config,
-        pad::pad_config, reduce_max::reduce_max_config, reduce_mean::reduce_mean_config,
-        reduce_min::reduce_min_config, reduce_prod::reduce_prod_config,
-        reduce_sum::reduce_sum_config, reshape::reshape_config, resize::resize_config,
+        pad::pad_config, reduce::reduce_config, reshape::reshape_config, resize::resize_config,
         slice::slice_config, softmax::softmax_config, space_to_depth::space_to_depth_config,
         split::split_config, squeeze::squeeze_config, tile::tile_config, topk::top_k_config,
         transpose::transpose_config, trilu::trilu_config, unsqueeze::unsqueeze_config,
@@ -376,6 +375,13 @@ impl ParsedOnnxGraph {
                 NodeType::ReduceMean => graph.register(Self::reduce_mean_conversion(node)),
                 NodeType::ReduceProd => graph.register(Self::reduce_prod_conversion(node)),
                 NodeType::ReduceSum => graph.register(Self::reduce_sum_conversion(node)),
+                NodeType::ReduceSumSquare => {
+                    graph.register(Self::reduce_sum_square_conversion(node))
+                }
+                NodeType::ReduceL1 => graph.register(Self::reduce_l1_conversion(node)),
+                NodeType::ReduceL2 => graph.register(Self::reduce_l2_conversion(node)),
+                NodeType::ReduceLogSum => graph.register(Self::reduce_log_sum_conversion(node)),
+                NodeType::ReduceLogSumExp => graph.register(Self::reduce_log_sum_exp_conversion(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
                 NodeType::Resize => graph.register(Self::resize_conversion(node)),
                 NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
@@ -876,45 +882,86 @@ impl ParsedOnnxGraph {
         RangeNode::new(start, end, step, output)
     }
 
-    fn reduce_max_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let dim = reduce_max_config(&node);
+    fn reduce_max_conversion(node: Node) -> ReduceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = reduce_config(&node);
 
-        UnaryNode::reduce_max(input, output, dim)
+        ReduceNode::new(input, output, ReductionType::Max, config)
     }
 
-    fn reduce_min_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let dim = reduce_min_config(&node);
+    fn reduce_min_conversion(node: Node) -> ReduceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = reduce_config(&node);
 
-        UnaryNode::reduce_min(input, output, dim)
+        ReduceNode::new(input, output, ReductionType::Min, config)
     }
 
-    fn reduce_mean_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let dim = reduce_mean_config(&node);
+    fn reduce_mean_conversion(node: Node) -> ReduceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = reduce_config(&node);
 
-        UnaryNode::reduce_mean(input, output, dim)
+        ReduceNode::new(input, output, ReductionType::Mean, config)
     }
 
-    fn reduce_prod_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let dim = reduce_prod_config(&node);
+    fn reduce_prod_conversion(node: Node) -> ReduceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = reduce_config(&node);
 
-        UnaryNode::reduce_prod(input, output, dim)
+        ReduceNode::new(input, output, ReductionType::Prod, config)
     }
 
-    fn reduce_sum_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let dim = reduce_sum_config(&node);
+    fn reduce_sum_conversion(node: Node) -> ReduceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = reduce_config(&node);
 
-        UnaryNode::reduce_sum(input, output, dim)
+        ReduceNode::new(input, output, ReductionType::Sum, config)
     }
+
+    fn reduce_sum_square_conversion(node: Node) -> ReduceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = reduce_config(&node);
+
+        ReduceNode::new(input, output, ReductionType::SumSquare, config)
+    }
+    
+    fn reduce_l1_conversion(node: Node) -> ReduceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = reduce_config(&node);
+
+        ReduceNode::new(input, output, ReductionType::L1, config)
+    }
+    
+    fn reduce_l2_conversion(node: Node) -> ReduceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = reduce_config(&node);
+
+        ReduceNode::new(input, output, ReductionType::L2, config)
+    }
+
+    fn reduce_log_sum_conversion(node: Node) -> ReduceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = reduce_config(&node);
+
+        ReduceNode::new(input, output, ReductionType::LogSum, config)
+    }
+    
+    fn reduce_log_sum_exp_conversion(node: Node) -> ReduceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = reduce_config(&node);
+
+        ReduceNode::new(input, output, ReductionType::LogSumExp, config)
+    }
+
 
     fn shape_conversion(node: Node) -> UnaryNode {
         let input = Type::from(node.inputs.first().unwrap());
