@@ -33,7 +33,7 @@ impl BurnImports {
         quote! {
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #(use #import_tokens;)*

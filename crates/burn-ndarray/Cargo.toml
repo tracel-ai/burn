@@ -15,23 +15,24 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "simd"]
-doc = ["default"]
+default = ["std", "simd", "multi-threads"]
 std = [
     "burn-autodiff",
     "burn-common/std",
-    "burn-common/rayon",
     "burn-tensor/std",
     "burn-ir/std",
-    "matrixmultiply/std",
-    "matrixmultiply/threading",
-    "ndarray/rayon",
     "ndarray/std",
+    "matrixmultiply/std",
     "rand/std",
     "num-traits/std",
     "macerator/std",
 ]
-
+doc = ["default"]
+multi-threads = [
+    "ndarray/rayon",
+    "burn-common/rayon",
+    "matrixmultiply/threading",
+]
 blas-accelerate = [
     "blas-src/accelerate", # Accelerate framework (macOS only)
     "ndarray/blas",

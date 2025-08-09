@@ -175,36 +175,36 @@ impl TuiMetricsRenderer {
             if self.popup.is_empty() {
                 self.metrics_numeric.on_event(&event);
 
-                if let Event::Key(key) = event {
-                    if let KeyCode::Char('q') = key.code {
-                        self.popup = PopupState::Full(
-                            "Quit".to_string(),
-                            vec![
-                                Callback::new(
-                                    "Stop the training.",
-                                    "Stop the training immediately. This will break from the \
+                if let Event::Key(key) = event
+                    && let KeyCode::Char('q') = key.code
+                {
+                    self.popup = PopupState::Full(
+                        "Quit".to_string(),
+                        vec![
+                            Callback::new(
+                                "Stop the training.",
+                                "Stop the training immediately. This will break from the \
                                      training loop, but any remaining code after the loop will be \
                                      executed.",
-                                    's',
-                                    QuitPopupAccept(self.interuptor.clone()),
-                                ),
-                                Callback::new(
-                                    "Stop the training immediately.",
-                                    "Kill the program. This will create a panic! which will make \
+                                's',
+                                QuitPopupAccept(self.interuptor.clone()),
+                            ),
+                            Callback::new(
+                                "Stop the training immediately.",
+                                "Kill the program. This will create a panic! which will make \
                                      the current training fails. Any code following the training \
                                      won't be executed.",
-                                    'k',
-                                    KillPopupAccept,
-                                ),
-                                Callback::new(
-                                    "Cancel",
-                                    "Cancel the action, continue the training.",
-                                    'c',
-                                    PopupCancel,
-                                ),
-                            ],
-                        );
-                    }
+                                'k',
+                                KillPopupAccept,
+                            ),
+                            Callback::new(
+                                "Cancel",
+                                "Cancel the action, continue the training.",
+                                'c',
+                                PopupCancel,
+                            ),
+                        ],
+                    );
                 }
             }
         }
@@ -259,10 +259,10 @@ impl TuiMetricsRenderer {
     fn reset(&mut self) -> Result<(), Box<dyn Error>> {
         // If previous panic hook has already been re-instated, then the terminal was already reset.
         if self.previous_panic_hook.is_some() {
-            if self.persistent {
-                if let Err(err) = self.handle_post_training() {
-                    eprintln!("Error in post-training handling: {err}");
-                }
+            if self.persistent
+                && let Err(err) = self.handle_post_training()
+            {
+                eprintln!("Error in post-training handling: {err}");
             }
 
             disable_raw_mode()?;

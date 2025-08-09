@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
-use burn_tensor::backend::{Backend, DeviceOps};
-
 use crate::PeerId;
+use burn_tensor::backend::{Backend, DeviceOps};
+use std::collections::HashMap;
 
 /// Performs a all-reduce on the provided tensors in a b-tree structure with `arity`.
 /// Similar to [reduce_sum_tree](reduce_sum_tree), but this function broadcasts the result with

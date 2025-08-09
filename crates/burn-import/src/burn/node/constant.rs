@@ -134,7 +134,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
                     crate::burn::TensorKind::Int => Some(quote! {
                         let #name: burn::module::Param<#ty> = burn::module::Param::uninitialized(
                             burn::module::ParamId::new(),
-                            move |device, _require_grad| Tensor::<B, #rank, Int>::zeros(#shape, &device),
+                            move |device, _require_grad| Tensor::<B, #rank, Int>::zeros(#shape, device),
                             device.clone(),
                             false
                         );
@@ -142,7 +142,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
                     crate::burn::TensorKind::Float => Some(quote! {
                         let #name: burn::module::Param<#ty> = burn::module::Param::uninitialized(
                             burn::module::ParamId::new(),
-                            move |device, _require_grad| Tensor::<B, #rank>::zeros(#shape, &device),
+                            move |device, _require_grad| Tensor::<B, #rank>::zeros(#shape, device),
                             device.clone(),
                             false,
                         );
@@ -150,7 +150,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
                     crate::burn::TensorKind::Bool => Some(quote! {
                         let #name: burn::module::Param<#ty> = burn::module::Param::uninitialized(
                             burn::module::ParamId::new(),
-                            move |device, _require_grad| Tensor::<B, #rank, Bool>::empty(#shape, &device),
+                            move |device, _require_grad| Tensor::<B, #rank, Bool>::empty(#shape, device),
                             device.clone(),
                             false,
                         );
@@ -215,7 +215,7 @@ mod tests {
         quote! {
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
@@ -308,9 +308,10 @@ mod tests {
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
         let expected = quote! {
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
@@ -325,7 +326,7 @@ mod tests {
                 pub fn new(device: &B::Device) -> Self {
                     let const_tensor: burn::module::Param<Tensor<B, 1>> = burn::module::Param::uninitialized(
                         burn::module::ParamId::new(),
-                        move |device, _require_grad| Tensor::<B, 1>::zeros([4], &device),
+                        move |device, _require_grad| Tensor::<B, 1>::zeros([4], device),
                         device.clone(),
                         false
                     );
@@ -367,9 +368,10 @@ mod tests {
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
         let expected = quote! {
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
             use burn::tensor::Int;
 
@@ -385,7 +387,7 @@ mod tests {
                 pub fn new(device: &B::Device) -> Self {
                     let const_tensor_int: burn::module::Param<Tensor<B, 1, Int>> = burn::module::Param::uninitialized(
                         burn::module::ParamId::new(),
-                        move |device, _require_grad| Tensor::<B, 1, Int>::zeros([3], &device),
+                        move |device, _require_grad| Tensor::<B, 1, Int>::zeros([3], device),
                         device.clone(),
                         false
                     );
@@ -427,9 +429,10 @@ mod tests {
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
         let expected = quote! {
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
             use burn::tensor::Bool;
 
@@ -445,7 +448,7 @@ mod tests {
                 pub fn new(device: &B::Device) -> Self {
                     let const_tensor_3d: burn::module::Param<Tensor<B, 3, Bool>> = burn::module::Param::uninitialized(
                         burn::module::ParamId::new(),
-                        move |device, _require_grad| Tensor::<B, 3, Bool>::empty([1, 3, 2], &device),
+                        move |device, _require_grad| Tensor::<B, 3, Bool>::empty([1, 3, 2], device),
                         device.clone(),
                         false
                     );

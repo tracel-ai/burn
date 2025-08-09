@@ -4,7 +4,7 @@ use burn_tensor::{
     DType,
     quantization::{QTensorPrimitive, QuantFloatPrecision},
 };
-use cubecl::matmul::components::{MatmulSetupError, Quantized};
+use cubecl::matmul::{MatmulInputHandleRef, components::MatmulSetupError};
 
 #[cfg(feature = "autotune")]
 use super::matmul_autotune;
@@ -45,10 +45,8 @@ pub fn matmul<R: CubeRuntime, E: FloatElement>(
             cubecl::matmul::launch_ref::<R, E>(
                 &Default::default(),
                 client,
-                &lhs.as_handle_ref(),
-                &None,
-                &rhs.as_handle_ref(),
-                &None,
+                &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
+                &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
                 &out.as_handle_ref(),
             )?;
 
@@ -80,24 +78,32 @@ pub fn q_matmul<R: CubeRuntime>(
 
     match scheme.acc_precision {
         QuantFloatPrecision::F32 => {
-            cubecl::matmul::launch_ref::<R, (i8, half::f16, f32, half::f16, Quantized)>(
+            cubecl::matmul::launch_ref::<R, (i8, i8, half::f16, half::f16, f32, half::f16)>(
                 &Default::default(),
                 client,
-                &lhs.as_handle_ref(),
-                &Some(lhs_scales.as_handle_ref()),
-                &rhs.as_handle_ref(),
-                &Some(rhs_scales.as_handle_ref()),
+                &MatmulInputHandleRef::Quantized {
+                    data: lhs.as_handle_ref(),
+                    scale: lhs_scales.as_handle_ref(),
+                },
+                &MatmulInputHandleRef::Quantized {
+                    data: rhs.as_handle_ref(),
+                    scale: rhs_scales.as_handle_ref(),
+                },
                 &out.as_handle_ref(),
             )?;
         }
         QuantFloatPrecision::F16 => {
-            cubecl::matmul::launch_ref::<R, (i8, half::f16, half::f16, half::f16, Quantized)>(
+            cubecl::matmul::launch_ref::<R, (i8, i8, half::f16, half::f16, half::f16, half::f16)>(
                 &Default::default(),
                 client,
-                &lhs.as_handle_ref(),
-                &Some(lhs_scales.as_handle_ref()),
-                &rhs.as_handle_ref(),
-                &Some(rhs_scales.as_handle_ref()),
+                &MatmulInputHandleRef::Quantized {
+                    data: lhs.as_handle_ref(),
+                    scale: lhs_scales.as_handle_ref(),
+                },
+                &MatmulInputHandleRef::Quantized {
+                    data: rhs.as_handle_ref(),
+                    scale: rhs_scales.as_handle_ref(),
+                },
                 &out.as_handle_ref(),
             )?;
         }

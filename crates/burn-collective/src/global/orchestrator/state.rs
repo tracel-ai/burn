@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::{
     PeerId,
     global::{
@@ -11,6 +9,7 @@ use crate::{
     },
 };
 use burn_communication::Address;
+use std::collections::HashMap;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 pub(crate) struct Session {
@@ -45,7 +44,6 @@ pub(crate) struct GlobalCollectiveState {
     /// How many peers have registered total
     num_global_peers: u32,
 
-    all_reduce_requests: Vec<(SessionId, RequestId, Address)>,
     register_requests: Vec<(SessionId, RequestId, NodeId)>,
 
     sessions: HashMap<SessionId, Session>,
@@ -59,7 +57,6 @@ impl GlobalCollectiveState {
             node_peers: HashMap::new(),
             cur_num_nodes: None,
             num_global_peers: 0,
-            all_reduce_requests: Vec::new(),
             register_requests: Vec::new(),
             sessions: HashMap::new(),
         }
@@ -152,23 +149,6 @@ impl GlobalCollectiveState {
             } else {
                 // keep the register request
                 self.register_requests.push((session, req, node_id));
-            }
-        }
-
-        let mut all_reduce_requests = vec![];
-        core::mem::swap(&mut all_reduce_requests, &mut self.all_reduce_requests);
-        for (session, req, addr) in all_reduce_requests {
-            if session == session_id {
-                // Send a response if we are finishing a session with a pending register request
-                let content = RemoteResponse::Error(GlobalCollectiveError::PendingRegisterOnFinish);
-                let response = CollectiveMessageResponse {
-                    request_id: req,
-                    content,
-                };
-                self.respond(session_id, response).await;
-            } else {
-                // keep the register request
-                self.all_reduce_requests.push((session, req, addr));
             }
         }
 

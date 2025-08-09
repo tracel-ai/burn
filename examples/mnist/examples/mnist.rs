@@ -49,26 +49,6 @@ mod wgpu {
     }
 }
 
-#[cfg(feature = "wgpu-ndarray")]
-mod wgpu_ndarray {
-    use burn::backend::{
-        Autodiff,
-        ndarray::{NdArray, NdArrayDevice},
-        wgpu::{Wgpu, WgpuDevice},
-    };
-    use burn_router::{Router, duo};
-    use mnist::training;
-
-    pub fn run() {
-        type DualBackend = Router<(Wgpu, NdArray)>;
-
-        let gpu_device = duo::MultiDevice::B1(WgpuDevice::default());
-        let cpu_device = duo::MultiDevice::B2(NdArrayDevice::Cpu);
-
-        training::run::<Autodiff<DualBackend>>(vec![gpu_device, cpu_device]);
-    }
-}
-
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
     use burn::backend::{
