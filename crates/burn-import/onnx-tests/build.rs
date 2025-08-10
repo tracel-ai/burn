@@ -55,6 +55,7 @@ fn main() {
         .input("tests/ceil/ceil.onnx")
         .input("tests/clip/clip.onnx")
         .input("tests/concat/concat.onnx")
+        .input("tests/concat/concat_shape.onnx")
         .input("tests/constant/constant_f32.onnx")
         .input("tests/constant/constant_f64.onnx")
         .input("tests/constant/constant_i32.onnx")
