@@ -229,7 +229,29 @@ impl OnnxGraphBuilder {
             // args : node, peek_iter, graph_data
             self.handle_unsqueeze(&mut node, &graph_data);
 
-            rank_inference(&mut node);
+            // Special handling for Concat with mixed types - defer rank inference
+            if node.node_type == NodeType::Concat {
+                let has_shape = node
+                    .inputs
+                    .iter()
+                    .any(|i| matches!(i.ty, ArgType::Shape(_)));
+                let has_rank1_tensor = node
+                    .inputs
+                    .iter()
+                    .any(|i| matches!(&i.ty, ArgType::Tensor(t) if t.rank == 1));
+
+                if has_shape && has_rank1_tensor {
+                    // Skip rank inference for now - will be done after constant conversion
+                    log::debug!(
+                        "Deferring rank inference for Concat node {} with mixed Shape/Tensor inputs",
+                        node.name
+                    );
+                } else {
+                    rank_inference(&mut node);
+                }
+            } else {
+                rank_inference(&mut node);
+            }
             graph_data.add_node(node);
         }
 
@@ -279,39 +301,96 @@ impl OnnxGraphBuilder {
         let mut constants_to_convert: HashMap<String, usize> = HashMap::new();
 
         for node in nodes.iter() {
-            // Only process binary operations
-            if !matches!(
-                node.node_type,
-                NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div
-            ) {
-                continue;
-            }
+            match node.node_type {
+                // Binary operations
+                NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div => {
+                    if node.inputs.len() != 2 {
+                        continue;
+                    }
 
-            if node.inputs.len() != 2 {
-                continue;
-            }
+                    // Find shape input and its rank
+                    let shape_rank = node.inputs.iter().find_map(|input| match input.ty {
+                        ArgType::Shape(rank) => Some(rank),
+                        _ => None,
+                    });
 
-            // Find shape input and its rank
-            let shape_rank = node.inputs.iter().find_map(|input| match input.ty {
-                ArgType::Shape(rank) => Some(rank),
-                _ => None,
-            });
+                    let Some(shape_rank) = shape_rank else {
+                        continue;
+                    };
 
-            let Some(shape_rank) = shape_rank else {
-                continue;
-            };
-
-            // Mark rank-1 tensor inputs for conversion
-            for input in &node.inputs {
-                if let ArgType::Tensor(tensor) = &input.ty
-                    && tensor.rank == 1
-                {
-                    constants_to_convert.insert(input.name.clone(), shape_rank);
+                    // Mark rank-1 tensor inputs for conversion
+                    for input in &node.inputs {
+                        if let ArgType::Tensor(tensor) = &input.ty
+                            && tensor.rank == 1
+                        {
+                            constants_to_convert.insert(input.name.clone(), shape_rank);
+                        }
+                    }
                 }
+                // Concat operation
+                NodeType::Concat => {
+                    // Check if any input is a Shape
+                    let has_shape_input = node
+                        .inputs
+                        .iter()
+                        .any(|input| matches!(input.ty, ArgType::Shape(_)));
+
+                    if !has_shape_input {
+                        continue;
+                    }
+
+                    // For Concat with Shape inputs, mark all rank-1 tensor inputs for conversion
+                    // We need to determine the actual size of each constant from its data
+                    for input in &node.inputs {
+                        if let ArgType::Tensor(tensor) = &input.ty
+                            && tensor.rank == 1
+                        {
+                            // We'll determine the actual rank from the tensor data in the second pass
+                            constants_to_convert.insert(input.name.clone(), 0); // 0 is placeholder
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 
         // Second pass: convert constants and update references
+        // First update the map with actual ranks from constant data
+        let mut updated_ranks = HashMap::new();
+        for node in nodes.iter() {
+            if node.node_type == NodeType::Constant {
+                let Some(output) = node.outputs.first() else {
+                    continue;
+                };
+
+                // Check if this constant needs conversion
+                if !constants_to_convert.contains_key(&output.name) {
+                    continue;
+                }
+
+                // Get the actual rank from tensor data
+                if let ArgType::Tensor(tensor) = &output.ty
+                    && tensor.rank == 1
+                    && let Some(AttributeValue::Tensor(tensor_data)) = node.attrs.get("value")
+                    && tensor_data.shape.len() == 1
+                {
+                    let actual_rank = tensor_data.shape[0];
+                    updated_ranks.insert(output.name.clone(), actual_rank);
+                    log::debug!(
+                        "Found constant {} with actual rank {}",
+                        output.name,
+                        actual_rank
+                    );
+                }
+            }
+        }
+
+        // Update the conversion map with actual ranks
+        for (name, rank) in updated_ranks {
+            constants_to_convert.insert(name, rank);
+        }
+
+        // Now apply the conversions
         for node in nodes.iter_mut() {
             match node.node_type {
                 NodeType::Constant => {
@@ -322,22 +401,16 @@ impl OnnxGraphBuilder {
                         continue;
                     };
 
-                    // Verify this is a rank-1 tensor with correct size
+                    // Convert to Shape type
                     if let ArgType::Tensor(tensor) = &output.ty
                         && tensor.rank == 1
                     {
-                        // Check the tensor data has the right size
-                        if let Some(AttributeValue::Tensor(tensor_data)) = node.attrs.get("value")
-                            && tensor_data.shape.len() == 1
-                            && tensor_data.shape[0] == shape_rank
-                        {
-                            output.ty = ArgType::Shape(shape_rank);
-                            log::debug!(
-                                "Converted constant {} to Shape({})",
-                                output.name,
-                                shape_rank
-                            );
-                        }
+                        output.ty = ArgType::Shape(shape_rank);
+                        log::debug!(
+                            "Converted constant {} to Shape({})",
+                            output.name,
+                            shape_rank
+                        );
                     }
                 }
                 NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div => {
@@ -349,6 +422,35 @@ impl OnnxGraphBuilder {
                             input.ty = ArgType::Shape(shape_rank);
                             log::debug!("Updated input {} to Shape({})", input.name, shape_rank);
                         }
+                    }
+                }
+                NodeType::Concat => {
+                    // Update input types for Concat operations
+                    let has_shape_input = node
+                        .inputs
+                        .iter()
+                        .any(|input| matches!(input.ty, ArgType::Shape(_)));
+
+                    if has_shape_input {
+                        for input in &mut node.inputs {
+                            if let Some(&shape_rank) = constants_to_convert.get(&input.name)
+                                && matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1)
+                            {
+                                input.ty = ArgType::Shape(shape_rank);
+                                log::debug!(
+                                    "Updated Concat input {} to Shape({})",
+                                    input.name,
+                                    shape_rank
+                                );
+                            }
+                        }
+
+                        // Re-run rank inference for this Concat node since inputs have changed
+                        rank_inference(node);
+                        log::debug!(
+                            "Re-ran rank inference for Concat node {} after constant conversion",
+                            node.name
+                        );
                     }
                 }
                 _ => {}

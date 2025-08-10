@@ -6,22 +6,30 @@ pub fn concat_update_outputs(node: &mut Node) {
 
     // Get the first input type - it determines the output type
     let first_input_type = &node.inputs[0].ty;
-    
+
     match first_input_type {
         ArgType::Tensor(tensor) => {
-            log::debug!("Concat using tensor input rank for {}: {}", node.name, tensor.rank);
-            
+            log::debug!(
+                "Concat using tensor input rank for {}: {}",
+                node.name,
+                tensor.rank
+            );
+
             node.outputs[0].ty = ArgType::Tensor(TensorType {
                 elem_type: tensor.elem_type.clone(),
                 rank: tensor.rank,
                 static_shape: None,
             });
-            
+
             log::debug!("Concat output rank for {}: {}", node.name, tensor.rank);
         }
         ArgType::Shape(shape_rank) => {
-            log::debug!("Concat using shape input rank for {}: {}", node.name, shape_rank);
-            
+            log::debug!(
+                "Concat using shape input rank for {}: {}",
+                node.name,
+                shape_rank
+            );
+
             // When concatenating shapes, we sum up their ranks
             let total_rank: usize = node
                 .inputs
@@ -31,9 +39,9 @@ pub fn concat_update_outputs(node: &mut Node) {
                     _ => panic!("All inputs to Concat must be of the same type (Shape)"),
                 })
                 .sum();
-            
+
             node.outputs[0].ty = ArgType::Shape(total_rank);
-            
+
             log::debug!("Concat output shape rank for {}: {}", node.name, total_rank);
         }
         _ => panic!("Concat only supports Tensor or Shape inputs"),
@@ -44,43 +52,38 @@ pub fn concat_update_outputs(node: &mut Node) {
 pub fn concat_config(node: &Node) -> usize {
     // Extract the axis attribute (required per ONNX spec)
     let mut axis: Option<i64> = None;
-    
+
     for (key, value) in node.attrs.iter() {
         if key.as_str() == "axis" {
             axis = Some(value.clone().into_i64());
             break;
         }
     }
-    
-    let axis = axis.unwrap_or_else(|| {
-        panic!("Concat requires 'axis' attribute per ONNX specification")
-    });
+
+    let axis =
+        axis.unwrap_or_else(|| panic!("Concat requires 'axis' attribute per ONNX specification"));
 
     // extract the rank based on input type
     let rank = match &node.inputs.first().unwrap().ty {
         ArgType::Tensor(tensor) => tensor.rank as i64,
-        ArgType::Shape(_) => 1,  // Shapes are 1D
+        ArgType::Shape(_) => 1, // Shapes are 1D
         _ => panic!("Only tensor or shape input is valid"),
     };
 
     // if axis is negative, it is counted from the end
-    let normalized_axis = if axis < 0 {
-        axis + rank
-    } else {
-        axis
-    };
+    let normalized_axis = if axis < 0 { axis + rank } else { axis };
 
     // Validate axis is within bounds
     if normalized_axis < 0 || normalized_axis >= rank {
-        panic!(
-            "Concat axis {} is out of bounds for rank {}",
-            axis, rank
-        );
+        panic!("Concat axis {} is out of bounds for rank {}", axis, rank);
     }
 
     // For shapes, axis must be 0 (since they're 1D)
     if matches!(&node.inputs.first().unwrap().ty, ArgType::Shape(_)) && normalized_axis != 0 {
-        panic!("Concat on Shape inputs only supports axis=0, got axis={}", axis);
+        panic!(
+            "Concat on Shape inputs only supports axis=0, got axis={}",
+            axis
+        );
     }
 
     normalized_axis as usize
@@ -120,9 +123,9 @@ mod tests {
             .input_shape("shape1", 2)
             .input_shape("shape2", 3)
             .output_shape("output", 5)
-            .attr_int("axis", 0)  // Required attribute
+            .attr_int("axis", 0) // Required attribute
             .build();
-        
+
         let config = concat_config(&node);
         assert_eq!(config, 0); // Shape concat uses axis 0
     }
@@ -135,7 +138,7 @@ mod tests {
             .input_tensor_f32("data2", 3, None)
             .output_tensor_f32("output", 3, None)
             .build();
-        
+
         let _ = concat_config(&node);
     }
 
@@ -148,7 +151,7 @@ mod tests {
             .output_tensor_f32("output", 3, None)
             .attr_int("axis", 3)
             .build();
-        
+
         let _ = concat_config(&node);
     }
 
@@ -159,11 +162,11 @@ mod tests {
             .input_shape("shape2", 3)
             .input_shape("shape3", 1)
             .output_shape("output", 0) // Will be updated
-            .attr_int("axis", 0)  // Required attribute
+            .attr_int("axis", 0) // Required attribute
             .build();
-        
+
         concat_update_outputs(&mut node);
-        
+
         // Check that output is Shape with sum of input ranks
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => assert_eq!(*rank, 6), // 2 + 3 + 1
@@ -179,7 +182,7 @@ mod tests {
             .output_shape("output", 5)
             .attr_int("axis", -1) // -1 should become 0 for 1D shapes
             .build();
-        
+
         let config = concat_config(&node);
         assert_eq!(config, 0); // -1 + 1 = 0
     }
@@ -193,7 +196,7 @@ mod tests {
             .output_shape("output", 5)
             .attr_int("axis", 1)
             .build();
-        
+
         let _ = concat_config(&node);
     }
 
@@ -205,7 +208,7 @@ mod tests {
             .input_tensor_f32("tensor1", 3, None)
             .output_shape("output", 0)
             .build();
-        
+
         concat_update_outputs(&mut node);
     }
 }

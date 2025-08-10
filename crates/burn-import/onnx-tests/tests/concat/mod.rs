@@ -1,6 +1,6 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(concat, concat_shape);
+include_models!(concat, concat_shape, concat_shape_with_constant);
 
 #[cfg(test)]
 mod tests {
@@ -41,6 +41,24 @@ mod tests {
 
         // The output should be an array [i64; 6] containing [2, 3, 4, 5, 6, 7]
         let expected: [i64; 6] = [2, 3, 4, 5, 6, 7];
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn concat_shape_with_constant() {
+        // Initialize the model
+        let device = Default::default();
+        let model: concat_shape_with_constant::Model<Backend> =
+            concat_shape_with_constant::Model::new(&device);
+
+        // Create test input with shape [3, 4, 5]
+        let input1 = Tensor::<Backend, 3>::zeros([3, 4, 5], &device);
+
+        // Run the model - it extracts shape and concatenates with constant [10, 20]
+        let output = model.forward(input1);
+
+        // The output should be an array [i64; 5] containing [3, 4, 5, 10, 20]
+        let expected: [i64; 5] = [3, 4, 5, 10, 20];
         assert_eq!(output, expected);
     }
 }
