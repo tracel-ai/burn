@@ -30,8 +30,7 @@ mod tests {
 
     #[test]
     fn should_quantize_dequantize_symmetric_per_block() {
-        let mut scheme = QuantScheme::default().with_level(QuantLevel::Block(8));
-        // .with_param(QuantParam::F16);
+        let scheme = QuantScheme::default().with_level(QuantLevel::Block(8));
 
         let input = Tensor::<TestBackend, 2>::from_floats(
             [

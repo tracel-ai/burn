@@ -143,7 +143,7 @@ pub fn empty_qtensor<R: CubeRuntime>(
             value: QuantValue::QInt8,
             ..
         } => {
-            let data_desc = AllocationDescriptor::optimized(&shape_value.dims, data_size);
+            let data_desc = AllocationDescriptor::contiguous(&shape_value.dims, data_size);
             let scale_desc = AllocationDescriptor::contiguous(&[1], scales_dtype.size());
             scales_shape = Shape::new([1]);
             vec![data_desc, scale_desc]
@@ -156,12 +156,13 @@ pub fn empty_qtensor<R: CubeRuntime>(
         } => {
             let num_blocks = shape.num_elements() / block_size;
             scales_shape = Shape::new([num_blocks]);
-            let data_desc = AllocationDescriptor::optimized(&shape_value.dims, data_size);
+            let data_desc = AllocationDescriptor::contiguous(&shape_value.dims, data_size);
             let scales_desc =
                 AllocationDescriptor::contiguous(&scales_shape.dims, scales_dtype.size());
             vec![data_desc, scales_desc]
         }
     };
+    println!("Here");
     println!("{:?}", descriptors);
 
     let mut tensors = client.empty_tensors(descriptors);

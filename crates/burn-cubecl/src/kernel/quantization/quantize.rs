@@ -12,6 +12,7 @@ where
     R: CubeRuntime,
     F: FloatElement,
 {
+    println!("Quantize");
     let output = empty_qtensor(tensor.shape.clone(), *scheme, &tensor.device);
     let (out_values, out_params) = output.clone().quantized_handles().unwrap();
 

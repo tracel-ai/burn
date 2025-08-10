@@ -1,5 +1,6 @@
+use crate::ops::numeric::empty_device;
+use crate::tensor::CubeTensor;
 use crate::{CubeRuntime, FloatElement};
-use crate::{ops::numeric::empty_device_strided, tensor::CubeTensor};
 use burn_tensor::DType;
 
 /// Convert the tensor back to a higher precision data type.
@@ -9,7 +10,7 @@ where
     F: FloatElement,
 {
     let (shape, dtype) = (tensor.shape.clone(), tensor.dtype);
-    let output = empty_device_strided::<R, F>(tensor.client.clone(), tensor.device.clone(), shape);
+    let output = empty_device::<R, F>(tensor.client.clone(), tensor.device.clone(), shape);
     let (values, params) = tensor.quantized_handles().unwrap();
 
     match dtype {
