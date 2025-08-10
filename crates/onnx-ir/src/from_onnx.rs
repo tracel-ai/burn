@@ -229,29 +229,7 @@ impl OnnxGraphBuilder {
             // args : node, peek_iter, graph_data
             self.handle_unsqueeze(&mut node, &graph_data);
 
-            // Special handling for Concat with mixed types - defer rank inference
-            if node.node_type == NodeType::Concat {
-                let has_shape = node
-                    .inputs
-                    .iter()
-                    .any(|i| matches!(i.ty, ArgType::Shape(_)));
-                let has_rank1_tensor = node
-                    .inputs
-                    .iter()
-                    .any(|i| matches!(&i.ty, ArgType::Tensor(t) if t.rank == 1));
-
-                if has_shape && has_rank1_tensor {
-                    // Skip rank inference for now - will be done after constant conversion
-                    log::debug!(
-                        "Deferring rank inference for Concat node {} with mixed Shape/Tensor inputs",
-                        node.name
-                    );
-                } else {
-                    rank_inference(&mut node);
-                }
-            } else {
-                rank_inference(&mut node);
-            }
+            rank_inference(&mut node);
             graph_data.add_node(node);
         }
 
@@ -425,14 +403,15 @@ impl OnnxGraphBuilder {
                     // Convert constant output to Shape type
                     if let Some(output) = node.outputs.first_mut()
                         && let Some(&shape_rank) = constants_to_convert.get(&output.name)
-                            && matches!(&output.ty, ArgType::Tensor(t) if t.rank == 1) {
-                                output.ty = ArgType::Shape(shape_rank);
-                                log::debug!(
-                                    "Converted constant {} to Shape({})",
-                                    output.name,
-                                    shape_rank
-                                );
-                            }
+                        && matches!(&output.ty, ArgType::Tensor(t) if t.rank == 1)
+                    {
+                        output.ty = ArgType::Shape(shape_rank);
+                        log::debug!(
+                            "Converted constant {} to Shape({})",
+                            output.name,
+                            shape_rank
+                        );
+                    }
                 }
                 NodeType::Add
                 | NodeType::Sub
@@ -444,16 +423,17 @@ impl OnnxGraphBuilder {
 
                     for input in &mut node.inputs {
                         if let Some(&shape_rank) = constants_to_convert.get(&input.name)
-                            && matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1) {
-                                input.ty = ArgType::Shape(shape_rank);
-                                needs_reinference = true;
-                                log::debug!(
-                                    "Updated {} input {} to Shape({})",
-                                    node.node_type,
-                                    input.name,
-                                    shape_rank
-                                );
-                            }
+                            && matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1)
+                        {
+                            input.ty = ArgType::Shape(shape_rank);
+                            needs_reinference = true;
+                            log::debug!(
+                                "Updated {} input {} to Shape({})",
+                                node.node_type,
+                                input.name,
+                                shape_rank
+                            );
+                        }
                     }
 
                     // Re-run rank inference for Concat if inputs changed

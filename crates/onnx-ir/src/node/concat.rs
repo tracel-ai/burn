@@ -4,6 +4,50 @@ use crate::ir::{ArgType, Node, TensorType};
 pub fn concat_update_outputs(node: &mut Node) {
     log::debug!("Concat rank inference for node {}", node.name);
 
+    // Check if we have mixed Shape and rank-1 tensor inputs
+    let has_shape = node
+        .inputs
+        .iter()
+        .any(|i| matches!(i.ty, ArgType::Shape(_)));
+    let has_rank1_tensor = node
+        .inputs
+        .iter()
+        .any(|i| matches!(&i.ty, ArgType::Tensor(t) if t.rank == 1));
+
+    if has_shape && has_rank1_tensor {
+        // Mixed inputs that will be unified after constant conversion
+        // For now, assume rank-1 tensors are shape-like (common pattern in ONNX models)
+        // The exact rank will be corrected after constant conversion
+
+        // Use a provisional rank - sum of known Shape ranks
+        // Rank-1 tensors are assumed to contribute their dimension count (unknown for now)
+        let mut provisional_rank: usize = 0;
+
+        for input in &node.inputs {
+            match &input.ty {
+                ArgType::Shape(rank) => {
+                    provisional_rank += rank;
+                }
+                ArgType::Tensor(t) if t.rank == 1 => {
+                    // We don't know the exact contribution yet
+                    // This will be fixed after constant conversion
+                    // For now, don't add anything (will be corrected later)
+                }
+                _ => panic!("Concat with mixed inputs only supports Shape and rank-1 Tensor"),
+            }
+        }
+
+        // Output as Shape type since we have Shape inputs
+        // The rank is provisional and will be corrected after constant conversion
+        node.outputs[0].ty = ArgType::Shape(provisional_rank);
+        log::debug!(
+            "Concat {} has mixed Shape/Tensor inputs, using provisional Shape({}) output",
+            node.name,
+            provisional_rank
+        );
+        return;
+    }
+
     // Get the first input type - it determines the output type
     let first_input_type = &node.inputs[0].ty;
 
