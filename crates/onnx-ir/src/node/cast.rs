@@ -68,9 +68,30 @@ pub fn cast_update_outputs(node: &mut Node) {
         }
         ArgType::Scalar(_) => output.ty = ArgType::Scalar(elem_type),
         ArgType::Shape(rank) => {
-            // Shape types always remain as Shape with i64 storage, regardless of cast target
-            // This matches Burn's representation where shapes are always [i64; N]
-            output.ty = ArgType::Shape(rank);
+            // When casting Shape to float or bool types, convert to 1D tensor
+            // This allows Shape values to be used in tensor operations
+            match elem_type {
+                ElementType::Float32
+                | ElementType::Float64
+                | ElementType::Float16
+                | ElementType::Bool => {
+                    output.ty = ArgType::Tensor(TensorType {
+                        elem_type: elem_type.clone(),
+                        rank: 1,
+                        static_shape: Some(vec![rank]),
+                    });
+                    log::debug!(
+                        "Cast converting Shape({}) to rank-1 tensor of {:?}",
+                        rank,
+                        elem_type
+                    );
+                }
+                _ => {
+                    // For int types, keep as Shape
+                    // This matches Burn's representation where shapes are always [i64; N]
+                    output.ty = ArgType::Shape(rank);
+                }
+            }
         }
     }
 }
@@ -174,6 +195,64 @@ mod tests {
                 assert_eq!(*elem_type, ElementType::Bool);
             }
             _ => panic!("Expected scalar output"),
+        }
+    }
+
+    #[test]
+    fn test_cast_shape_to_float32() {
+        let mut node = NodeBuilder::new(NodeType::Cast, "test_cast")
+            .input_shape("shape_input", 3)
+            .output_shape("output", 3) // Will be overwritten
+            .attr_int("to", DataType::FLOAT.value() as i64)
+            .build();
+
+        cast_update_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.rank, 1);
+                assert_eq!(tensor.static_shape, Some(vec![3]));
+            }
+            _ => panic!("Expected rank-1 tensor output when casting Shape to float"),
+        }
+    }
+
+    #[test]
+    fn test_cast_shape_to_int64_remains_shape() {
+        let mut node = NodeBuilder::new(NodeType::Cast, "test_cast")
+            .input_shape("shape_input", 4)
+            .output_shape("output", 4) // Will be preserved
+            .attr_int("to", DataType::INT64.value() as i64)
+            .build();
+
+        cast_update_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Shape(rank) => {
+                assert_eq!(*rank, 4);
+            }
+            _ => panic!("Expected Shape output when casting Shape to int64"),
+        }
+    }
+
+    #[test]
+    fn test_cast_shape_to_bool() {
+        let mut node = NodeBuilder::new(NodeType::Cast, "test_cast")
+            .input_shape("shape_input", 3)
+            .output_shape("output", 3) // Will be overwritten
+            .attr_int("to", DataType::BOOL.value() as i64)
+            .build();
+
+        cast_update_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.elem_type, ElementType::Bool);
+                assert_eq!(tensor.rank, 1);
+                assert_eq!(tensor.static_shape, Some(vec![3]));
+            }
+            _ => panic!("Expected rank-1 bool tensor output when casting Shape to bool"),
         }
     }
 }

@@ -52,6 +52,8 @@ fn main() {
         .input("tests/bernoulli/bernoulli.onnx")
         .input("tests/cast/cast.onnx")
         .input("tests/cast/cast_shape.onnx")
+        .input("tests/cast/cast_shape_to_float.onnx")
+        .input("tests/cast/cast_shape_to_bool.onnx")
         .input("tests/ceil/ceil.onnx")
         .input("tests/clip/clip.onnx")
         .input("tests/concat/concat.onnx")

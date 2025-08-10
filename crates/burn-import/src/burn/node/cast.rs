@@ -124,11 +124,62 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                     let #output = #input;
                 }
             }
+            (Type::Shape(input_shape), Type::Tensor(output_tensor)) => {
+                // Cast Shape to Tensor (only for float types)
+                let input = &input_shape.name;
+                let output = &output_tensor.name;
+                let rank = input_shape.rank;
+
+                // Only convert to tensor for float types
+                // For int types, this should have been handled in onnx-ir as Shape->Shape
+                match self.target_elem_type {
+                    ElementType::Float32 | ElementType::Float64 | ElementType::Float16 => {
+                        quote! {
+                            let #output = {
+                                let shape_array = #input as [i64; #rank];
+                                let float_array: [f32; #rank] = shape_array.map(|x| x as f32);
+                                Tensor::<B, 1>::from_data(
+                                    TensorData::from(float_array),
+                                    &self.device
+                                )
+                            };
+                        }
+                    }
+                    ElementType::Bool => {
+                        quote! {
+                            let #output = {
+                                let shape_array = #input as [i64; #rank];
+                                let bool_array: [bool; #rank] = shape_array.map(|x| x != 0);
+                                Tensor::<B, 1, Bool>::from_data(
+                                    TensorData::from(bool_array),
+                                    &self.device
+                                )
+                            };
+                        }
+                    }
+                    ElementType::Int32 | ElementType::Int64 => {
+                        // This shouldn't happen - onnx-ir should keep Shape as Shape for int casts
+                        panic!(
+                            "Cast: Shape to Int tensor should be handled as Shape->Shape in onnx-ir"
+                        )
+                    }
+                    ElementType::String => panic!("Cast: String type not supported"),
+                }
+            }
             _ => panic!("Cast: unsupported type combination"),
         }
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
+        // Check if we're converting Shape to Tensor
+        if matches!(self.input, Type::Shape(_)) && matches!(self.output, Type::Tensor(_)) {
+            imports.register("burn::tensor::TensorData");
+            // Register Bool if casting to bool
+            if matches!(self.target_elem_type, ElementType::Bool) {
+                imports.register("burn::tensor::Bool");
+            }
+        }
+
         if let (Some(input_kind), Some(output_kind)) = (self.input_kind, self.output_kind) {
             if input_kind == TensorKind::Bool || output_kind == TensorKind::Bool {
                 imports.register("burn::tensor::Bool");
