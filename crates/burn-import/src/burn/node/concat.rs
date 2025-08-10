@@ -1,40 +1,88 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorType, ToTokens, Type};
+use crate::burn::{Scope, ToTokens, Type};
 
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
+#[derive(Debug, Clone)]
 pub struct ConcatNode {
-    pub inputs: Vec<TensorType>,
-    pub output: TensorType,
+    pub inputs: Vec<Type>,
+    pub output: Type,
     pub dim: usize,
+}
+
+impl ConcatNode {
+    /// Create a new concat node
+    pub fn new(inputs: Vec<Type>, output: Type, dim: usize) -> Self {
+        Self {
+            inputs,
+            output,
+            dim,
+        }
+    }
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ConcatNode {
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+        vec![self.output.clone()]
     }
 
     fn input_types(&self) -> Vec<Type> {
-        self.inputs
-            .iter()
-            .map(|t| Type::Tensor(t.clone()))
-            .collect()
+        self.inputs.clone()
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let dim = self.dim.to_tokens();
-        let inputs = self
-            .inputs
-            .iter()
-            .map(|t| scope.tensor_use_owned(t, node_position));
+        match &self.output {
+            Type::Tensor(_) => {
+                // Tensor concatenation
+                let dim = self.dim.to_tokens();
+                let inputs = self.inputs.iter().map(|t| match t {
+                    Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
+                    _ => panic!("Expected tensor input for tensor concatenation"),
+                });
 
-        let output = &self.output.name;
+                let output = match &self.output {
+                    Type::Tensor(tensor) => &tensor.name,
+                    _ => panic!("Expected tensor output"),
+                };
 
-        quote! {
-            let #output = burn::tensor::Tensor::cat([#(#inputs),*].into(), #dim);
+                quote! {
+                    let #output = burn::tensor::Tensor::cat([#(#inputs),*].into(), #dim);
+                }
+            }
+            Type::Shape(shape_type) => {
+                // Shape concatenation - shapes are 1D so concat is always on axis 0
+                if self.dim != 0 {
+                    panic!(
+                        "Shape concatenation only supports dim=0, got dim={}",
+                        self.dim
+                    );
+                }
+                let output = &shape_type.name;
+                let output_rank = shape_type.rank;
+
+                // Generate code to concatenate shape arrays
+                let mut shape_parts = Vec::new();
+                for input in &self.inputs {
+                    match input {
+                        Type::Shape(shape) => {
+                            let input_name = &shape.name;
+                            shape_parts.push(quote! { &#input_name[..] });
+                        }
+                        _ => panic!("Expected shape input for shape concatenation"),
+                    }
+                }
+
+                quote! {
+                    let #output: [i64; #output_rank] = {
+                        let mut result = alloc::vec::Vec::new();
+                        #(result.extend_from_slice(#shape_parts);)*
+                        result.try_into().unwrap()
+                    };
+                }
+            }
+            _ => panic!("Concat only supports Tensor or Shape outputs"),
         }
     }
 
@@ -50,21 +98,21 @@ mod tests {
 
     use super::*;
     use crate::burn::{
-        TensorType,
+        TensorType, Type,
         graph::BurnGraph,
         node::{concat::ConcatNode, test::assert_tokens},
     };
 
     #[test]
-    fn test_codegen_concat() {
+    fn test_codegen_concat_tensors() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(ConcatNode::new(
             vec![
-                TensorType::new_float("tensor1", 4),
-                TensorType::new_float("tensor2", 4),
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
             ],
-            TensorType::new_float("tensor3", 4),
+            Type::Tensor(TensorType::new_float("tensor3", 4)),
             1,
         ));
 
@@ -104,6 +152,73 @@ mod tests {
                     let tensor3 = burn::tensor::Tensor::cat([tensor1, tensor2].into(), 1);
 
                     tensor3
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_concat_shapes() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(ConcatNode::new(
+            vec![
+                Type::Shape(crate::burn::ShapeType::new("shape1", 2)),
+                Type::Shape(crate::burn::ShapeType::new("shape2", 3)),
+                Type::Shape(crate::burn::ShapeType::new("shape3", 1)),
+            ],
+            Type::Shape(crate::burn::ShapeType::new("output_shape", 6)),
+            0,
+        ));
+
+        graph.register_input_output(
+            vec![
+                "shape1".to_string(),
+                "shape2".to_string(),
+                "shape3".to_string(),
+            ],
+            vec!["output_shape".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::backend::Backend,
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(
+                    &self,
+                    shape1: [i64; 2],
+                    shape2: [i64; 3],
+                    shape3: [i64; 1]
+                ) -> [i64; 6] {
+                    let output_shape: [i64; 6usize] = {
+                        let mut result = alloc::vec::Vec::new();
+                        result.extend_from_slice(&shape1[..]);
+                        result.extend_from_slice(&shape2[..]);
+                        result.extend_from_slice(&shape3[..]);
+                        result.try_into().unwrap()
+                    };
+
+                    output_shape
                 }
             }
         };

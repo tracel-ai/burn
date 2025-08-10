@@ -1162,11 +1162,9 @@ impl ParsedOnnxGraph {
     }
 
     fn concat_conversion(node: Node) -> ConcatNode {
-        let inputs = node.inputs.iter().map(TensorType::from).collect();
-
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let inputs: Vec<Type> = node.inputs.iter().map(Type::from).collect();
+        let output = Type::from(node.outputs.first().unwrap());
         let dim = concat_config(&node);
-
         ConcatNode::new(inputs, output, dim)
     }
 
