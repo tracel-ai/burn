@@ -52,6 +52,26 @@ macro_rules! new_tensor_float {
     }};
 }
 
+/// Macro to dispatch a float-to-int cast.
+/// It takes a float tensor and the generic integer type,
+/// and returns the correct integer enum variant.
+#[macro_export]
+macro_rules! dispatch_float_to_int_cast {
+    ($tensor:expr, $int_ty:ty) => {{
+        match <$int_ty as burn_tensor::Element>::dtype() {
+            burn_tensor::DType::I64 => {
+                let array = $tensor.array.mapv(|a| a.elem::<i64>()).into_shared();
+                NdArrayTensor::<i64>::new(array).into()
+            }
+            burn_tensor::DType::U8 => {
+                let array = $tensor.array.mapv(|a| a.elem::<u8>()).into_shared();
+                NdArrayTensor::<u8>::new(array).into()
+            }
+            dtype => panic!("Unsupported integer dtype for cast: {:?}", dtype),
+        }
+    }};
+}
+
 /// Macro to execute an operation a given element type.
 ///
 /// # Panics

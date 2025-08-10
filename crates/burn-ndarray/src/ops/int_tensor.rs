@@ -10,6 +10,7 @@ use burn_tensor::ElementConversion;
 use core::ops::Range;
 
 use crate::ExpElement;
+use crate::execute_with_float_dtype;
 // Current crate
 use crate::NdArrayTensorInt;
 use crate::element::FloatNdArrayElement;
@@ -77,7 +78,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
         mask: NdArrayTensor<bool>,
         value: I,
     ) -> IntTensor<Self> {
-        execute_with_int_dtype!((tensor, value), |tensor, value| {
+        execute_with_int_dtype!(tensor, |tensor| {
             NdArrayMathOps::mask_fill(tensor, mask, value.elem())
         })
     }
@@ -315,11 +316,21 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
         })
     }
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        execute_with_int_dtype!(tensor => |tensor| NdArrayMathOps::argmax(tensor, dim))
+        execute_with_int_dtype!(tensor => |tensor| {
+            match I::dtype() {
+                DType::I64 => NdArrayMathOps::argmax::<i64>(tensor, dim).into(),
+                _ => panic!("Unsupported integer type for argmax"),
+            }
+        })
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        execute_with_int_dtype!(tensor => |tensor| NdArrayMathOps::argmin(tensor, dim))
+        execute_with_int_dtype!(tensor => |tensor| {
+            match I::dtype() {
+                DType::I64 => NdArrayMathOps::argmin::<i64>(tensor, dim).into(),
+                _ => panic!("Unsupported integer type for argmax"),
+            }
+        })
     }
 
     fn int_clamp_min(tensor: IntTensor<Self>, min: I) -> IntTensor<Self> {
@@ -345,7 +356,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn int_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_int_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+        execute_with_int_dtype!(tensor, I, |tensor: NdArrayTensor<I>| {
             let array = tensor.array.mapv_into(|a| a.abs_elem()).into_shared();
 
             NdArrayTensor::new(array)
@@ -353,9 +364,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
-        execute_with_int_dtype!(tensor, E => |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv(|a| a.elem()).into_shared();
-            NdArrayTensor { array }
+        execute_with_int_dtype!(tensor, I => |tensor: NdArrayTensor<I> | {
+            crate::dispatch_int_to_float_cast!(tensor, E)
         })
     }
 
@@ -398,9 +408,11 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn int_powf(lhs: IntTensor<Self>, rhs: FloatTensor<Self>) -> IntTensor<Self> {
-        execute_with_int_dtype!(rhs => |rhs| {
-            NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| {
-                (a.elem::<i64>().pow(*b as u32)).elem()
+        execute_with_int_dtype!(lhs => |lhs| {
+                execute_with_float_dtype!(rhs => |rhs| {
+                    NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| {
+                    (a.elem::<i64>().pow(*b as u32)).elem()
+                })
             })
         })
     }
@@ -451,16 +463,13 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
 
         match (&tensor, dtype) {
             // No cast
-            (NdArrayTensorInt::I64(_), IntDType::I64)
-            | (NdArrayTensorInt::U8(_), IntDType::U8) => tensor,
+            (NdArrayTensorInt::I64(_), IntDType::I64) | (NdArrayTensorInt::U8(_), IntDType::U8) => {
+                tensor
+            }
             // I64 to U8
-            (NdArrayTensorInt::I64(tensor), IntDType::I64) => {
-                NdArrayTensorInt::U8(cast(tensor))
-            }
+            (NdArrayTensorInt::I64(tensor), IntDType::I64) => NdArrayTensorInt::U8(cast(tensor)),
             // U8 to I64
-             (NdArrayTensorInt::U8(tensor), IntDType::U8) => {
-                NdArrayTensorInt::I64(cast(tensor))
-            }
+            (NdArrayTensorInt::U8(tensor), IntDType::U8) => NdArrayTensorInt::I64(cast(tensor)),
             _ => panic!("Invalid cast types"),
         }
     }
@@ -470,7 +479,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: I) -> IntTensor<Self> {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayBitOps::bitand_scalar(lhs, rhs))
+        execute_with_int_dtype!(lhs, |lhs| {NdArrayBitOps::bitand_scalar(lhs, rhs.elem())})
     }
 
     fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -478,7 +487,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: I) -> IntTensor<Self> {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayBitOps::bitor_scalar(lhs, rhs))
+        execute_with_int_dtype!(lhs, |lhs| NdArrayBitOps::bitor_scalar(lhs, rhs.elem()))
     }
 
     fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -486,7 +495,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: I) -> IntTensor<Self> {
-        execute_with_int_dtype!(lhs, |lhs| NdArrayBitOps::bitxor_scalar(lhs, rhs))
+        execute_with_int_dtype!(lhs, |lhs| NdArrayBitOps::bitxor_scalar(lhs, rhs.elem()))
     }
 
     fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
@@ -502,7 +511,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: I) -> IntTensor<Self> {
-        execute_with_int_dtype!(lhs, E, |lhs| {
+        execute_with_int_dtype!(lhs, I, |lhs| {
             NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
                 (a.elem() << rhs.elem::<u32>()).elem()
             })
@@ -510,15 +519,15 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_int_dtype!((lhs, rhs), E, |lhs, rhs| {
-            NdArrayMathOps::elementwise_op(lhs, rhs, |a: &E, b: &E| {
+        execute_with_int_dtype!((lhs, rhs), I, |lhs, rhs| {
+            NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
                 (a.elem() >> (*b).elem::<u32>()).elem()
             })
         })
     }
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: I) -> IntTensor<Self> {
-        execute_with_int_dtype!(lhs, E, |lhs| {
+        execute_with_int_dtype!(lhs, I, |lhs| {
             NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
                 (a.elem() >> rhs.elem::<u32>()).elem()
             })

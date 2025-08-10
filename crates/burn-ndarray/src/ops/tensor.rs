@@ -155,8 +155,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, |tensor| {
             execute_with_int_dtype!(indices => |indices| NdArrayMathOps::gather(
-            dim, tensor, indices
-        ))
+                dim, tensor, indices
+            ))
         })
     }
 
@@ -309,11 +309,21 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
-        execute_with_float_dtype!(tensor => |tensor| NdArrayMathOps::argmax(tensor, dim))
+        execute_with_float_dtype!(tensor => |tensor| {
+            match I::dtype() {
+                DType::I64 => NdArrayMathOps::argmax::<i64>(tensor, dim).into(),
+                _ => panic!("Unsupported integer type for argmax"),
+            }
+        })
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
-        execute_with_float_dtype!(tensor => |tensor| NdArrayMathOps::argmin(tensor, dim))
+        execute_with_float_dtype!(tensor => |tensor| {
+            match I::dtype() {
+                DType::I64 => NdArrayMathOps::argmin::<i64>(tensor, dim).into(),
+                _ => panic!("Unsupported integer type for argmax"),
+            }
+        })
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -516,8 +526,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
 
     fn float_into_int(tensor: FloatTensor<Self>) -> IntTensor<Self> {
         execute_with_float_dtype!(tensor, E => |tensor: NdArrayTensor<E>| {
-            let array = tensor.array.mapv(|a| a.elem()).into_shared();
-            NdArrayTensor { array }
+            crate::dispatch_float_to_int_cast!(tensor, I)
         })
     }
 

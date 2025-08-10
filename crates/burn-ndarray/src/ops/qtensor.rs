@@ -193,11 +193,11 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
         indices: IntTensor<Self>,
     ) -> QuantizedTensor<Self> {
         execute_with_int_dtype!(indices => |indices| {
-        NdArrayQTensor {
-            qtensor: NdArrayMathOps::gather(dim, tensor.qtensor, indices),
-            scheme: tensor.scheme,
-            qparams: tensor.qparams,
-        }
+            NdArrayQTensor {
+                qtensor: NdArrayMathOps::gather(dim, tensor.qtensor, indices),
+                scheme: tensor.scheme,
+                qparams: tensor.qparams,
+            }
         })
     }
 

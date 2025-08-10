@@ -26,7 +26,6 @@ impl TensorMetadata for NdArrayTensorInt {
             NdArrayTensorInt::I64(tensor) => tensor.dtype(),
             NdArrayTensorInt::U8(tensor) => tensor.dtype(),
         }
-
     }
 
     fn shape(&self) -> Shape {
@@ -46,6 +45,26 @@ macro_rules! new_tensor_int {
             burn_tensor::DType::I64 => $crate::NdArrayTensorInt::I64($tensor),
             burn_tensor::DType::U8 => $crate::NdArrayTensorInt::U8($tensor),
             _ => unimplemented!("Unsupported dtype"),
+        }
+    }};
+}
+
+/// Macro to dispatch a float-to-int cast.
+/// It takes a float tensor and the generic integer type,
+/// and returns the correct integer enum variant.
+#[macro_export]
+macro_rules! dispatch_int_to_float_cast {
+    ($tensor:expr, $int_ty:ty) => {{
+        match <$int_ty as burn_tensor::Element>::dtype() {
+            burn_tensor::DType::F32 => {
+                let array = $tensor.array.mapv(|a| a.elem::<f32>()).into_shared();
+                NdArrayTensor::<f32>::new(array).into()
+            }
+            burn_tensor::DType::F64 => {
+                let array = $tensor.array.mapv(|a| a.elem::<f64>()).into_shared();
+                NdArrayTensor::<f64>::new(array).into()
+            }
+            dtype => panic!("Unsupported integer dtype for cast: {:?}", dtype),
         }
     }};
 }
@@ -95,7 +114,7 @@ macro_rules! execute_with_int_dtype {
         }
     }};
 
-    // Binary op: type automatically inferred by the compiler but return type is not a float tensor
+    // Binary op: type automatically inferred by the compiler but return type is not a int tensor
     (($lhs:expr, $rhs:expr) => $op:expr) => {{
         let lhs_dtype = burn_tensor::TensorMetadata::dtype(&$lhs);
         let rhs_dtype = burn_tensor::TensorMetadata::dtype(&$rhs);
