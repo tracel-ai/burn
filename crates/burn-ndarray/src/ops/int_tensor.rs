@@ -400,10 +400,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn int_powi(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_int_dtype!((lhs, rhs), E, |lhs, rhs| NdArrayMathOps::elementwise_op(
+        execute_with_int_dtype!((lhs, rhs), I, |lhs, rhs| NdArrayMathOps::elementwise_op(
             lhs,
             rhs,
-            |a: &E, b: &E| a.pow((*b).try_into().unwrap())
+            |a: &I, b: &I| a.pow((*b).try_into().unwrap())
         ))
     }
 
@@ -418,7 +418,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn int_powf_scalar(tensor: IntTensor<Self>, value: f32) -> IntTensor<Self> {
-        execute_with_int_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+        execute_with_int_dtype!(tensor, I, |tensor: NdArrayTensor<I>| {
             let array = if value == 2.0 {
                 // Happens often and is faster.
                 tensor.array.mapv_into(|a| a * a).into_shared()
@@ -467,9 +467,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
                 tensor
             }
             // I64 to U8
-            (NdArrayTensorInt::I64(tensor), IntDType::I64) => NdArrayTensorInt::U8(cast(tensor)),
+            (NdArrayTensorInt::I64(tensor), IntDType::U8) => NdArrayTensorInt::U8(cast(tensor)),
             // U8 to I64
-            (NdArrayTensorInt::U8(tensor), IntDType::U8) => NdArrayTensorInt::I64(cast(tensor)),
+            (NdArrayTensorInt::U8(tensor), IntDType::I64) => NdArrayTensorInt::I64(cast(tensor)),
             _ => panic!("Invalid cast types"),
         }
     }
