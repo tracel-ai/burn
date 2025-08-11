@@ -100,13 +100,13 @@ let dataset = ShuffledDataset<DbPedia, DbPediaItem>::with_seed(dataset, 42);
 // define chained dataset type here for brevity
 type PartialData = PartialDataset<ShuffledDataset<DbPedia, DbPediaItem>>;
 let len = dataset.len();
-let split == "train"; // or "val"/"test"
+let split = "train"; // or "val"/"test"
 
 let data_split = match split {
-            "train" => PartialData::new(dataset, 0, len * 8 / 10), // Get first 80% dataset
-            "test" => PartialData::new(dataset, len * 8 / 10, len), // Take remaining 20%
-            _ => panic!("Invalid split type"),                     // Handle unexpected split types
-        };
+    "train" => PartialData::new(dataset, 0, len * 8 / 10),  // Get first 80% dataset
+    "test" => PartialData::new(dataset, len * 8 / 10, len), // Take remaining 20%
+    _ => panic!("Invalid split type"),                      // Handle unexpected split types
+};
 ```
 
 - **MapperDataset**: This transform is useful to apply a transformation on each of the items of a
