@@ -4,7 +4,6 @@ use hashbrown::HashMap;
 
 use super::{OperationStreams, Stream};
 use crate::FusionRuntime;
-use crate::stream::shared_tensors::SharedTensorAnalysis::SharedFromCurrentStream;
 
 #[derive(Default)]
 /// Manages tensors that are shared between multiple streams.
@@ -55,13 +54,6 @@ pub enum SharedTensorAnalysis {
         /// The stream id of the new stream.
         stream_id: StreamId,
     },
-}
-
-impl SharedTensorAnalysis {
-    /// Legacy (misspelled) alias for [SharedFromCurrentStream].
-    #[deprecated(since = "0.19.0", note = "Use SharedFromCurrentStream instead")]
-    #[allow(non_upper_case_globals)]
-    pub const SharedFromCurrentStrean: Self = SharedFromCurrentStream;
 }
 
 impl SharedTensors {
