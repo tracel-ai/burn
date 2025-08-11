@@ -125,7 +125,16 @@ where
     /// * `options`: the options to configure the sampler dataset.
     ///
     /// ## Examples
-    /// ```rust,norun
+    /// ```rust,no_run
+    /// use burn_dataset::transform::{
+    ///   SamplerDataset,
+    ///   SamplerDatasetOptions,
+    ///   ReplacementMode,
+    ///   WithReplacementModeSetters,
+    ///   WithRandomSourceSetters,
+    ///   WithWrapperSizeSourceSetters
+    /// };
+    /// use burn_dataset::FakeDataset;
     ///
     /// // sample size: 5
     /// // WithReplacement

@@ -9,7 +9,7 @@ pub enum RandomSource {
     System,
 
     /// The rng is passed as an option.
-    FromRng(StdRng),
+    FromRng(Box<StdRng>),
 
     /// The rng is passed as a seed.
     FromSeed(u64),
@@ -17,18 +17,18 @@ pub enum RandomSource {
 
 impl RandomSource {
     /// Convert the source into a rng.
-    pub fn to_rng(self) -> StdRng {
+    pub fn build(&self) -> StdRng {
         match self {
             RandomSource::System => StdRng::from_os_rng(),
-            RandomSource::FromRng(rng) => rng,
-            RandomSource::FromSeed(seed) => StdRng::seed_from_u64(seed),
+            RandomSource::FromRng(rng) => rng.as_ref().clone(),
+            RandomSource::FromSeed(seed) => StdRng::seed_from_u64(*seed),
         }
     }
 }
 
 impl From<RandomSource> for StdRng {
     fn from(source: RandomSource) -> Self {
-        source.to_rng()
+        source.build()
     }
 }
 
@@ -52,7 +52,7 @@ impl From<u64> for RandomSource {
 
 impl From<StdRng> for RandomSource {
     fn from(rng: StdRng) -> Self {
-        Self::FromRng(rng)
+        Self::FromRng(Box::new(rng))
     }
 }
 
@@ -239,13 +239,13 @@ mod tests {
         let rng = StdRng::seed_from_u64(42);
         assert_eq!(
             RandomSource::from(rng.clone()),
-            RandomSource::FromRng(rng.clone())
+            RandomSource::FromRng(Box::new(rng.clone()))
         );
         assert_eq!(
             <RandomSource as Into<StdRng>>::into(RandomSource::from(rng.clone()).into()),
             rng.clone()
         );
-        assert_eq!(RandomSource::from(rng.clone()).to_rng(), rng.clone());
+        assert_eq!(RandomSource::from(rng.clone()).build(), rng.clone());
 
         // from seed.
         assert_eq!(RandomSource::from(42), RandomSource::FromSeed(42));
@@ -253,7 +253,7 @@ mod tests {
             <RandomSource as Into<StdRng>>::into(RandomSource::from(42).into()),
             StdRng::seed_from_u64(42)
         );
-        assert_eq!(RandomSource::from(42).to_rng(), StdRng::seed_from_u64(42));
+        assert_eq!(RandomSource::from(42).build(), StdRng::seed_from_u64(42));
 
         // from system
         assert_eq!(
