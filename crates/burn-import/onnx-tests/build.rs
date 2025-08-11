@@ -161,6 +161,8 @@ fn main() {
         .input("tests/reshape/reshape.onnx")
         .input("tests/reshape/reshape_with_1d_tensor.onnx")
         .input("tests/reshape/reshape_with_shape.onnx")
+        .input("tests/reshape/reshape_to_scalar.onnx")
+        .input("tests/reshape/reshape_3d_to_scalar.onnx")
         .input("tests/resize/resize_with_sizes.onnx")
         .input("tests/resize/resize_1d_linear_scale.onnx")
         .input("tests/resize/resize_1d_nearest_scale.onnx")

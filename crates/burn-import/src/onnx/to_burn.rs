@@ -881,7 +881,8 @@ impl ParsedOnnxGraph {
 
     fn reshape_conversion(node: Node) -> ReshapeNode {
         let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let output_arg = node.outputs.first().unwrap();
+        let output = Type::from(output_arg);
         let config = reshape_config(&node);
 
         match config.shape {

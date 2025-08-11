@@ -13,12 +13,12 @@ pub enum ReshapeShape {
 #[derive(Debug, Clone)]
 pub struct ReshapeNode {
     pub input: TensorType,
-    pub output: TensorType,
+    pub output: Type, // Changed from TensorType to Type to support scalar outputs
     pub shape: ReshapeShape,
 }
 
 impl ReshapeNode {
-    pub fn new<S: Into<ReshapeShape>>(input: TensorType, output: TensorType, shape: S) -> Self {
+    pub fn new<S: Into<ReshapeShape>>(input: TensorType, output: Type, shape: S) -> Self {
         Self {
             input,
             output,
@@ -41,7 +41,14 @@ impl From<Type> for ReshapeShape {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ReshapeNode {
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+        vec![self.output.clone()]
+    }
+
+    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
+        // Register ElementConversion if output is a scalar
+        if let Type::Scalar(_) = &self.output {
+            imports.register("burn::tensor::ElementConversion");
+        }
     }
 
     fn input_types(&self) -> Vec<Type> {
@@ -55,45 +62,62 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReshapeNode {
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
 
-        match &self.shape {
-            ReshapeShape::Static(shape_values) => {
-                let shape_values = shape_values.to_tokens();
+        // Check if output is scalar
+        match &self.output {
+            Type::Scalar(scalar) => {
+                let output_name = &scalar.name;
+                let elem_type = scalar.ty();
+
+                // Convert tensor with single element to scalar
+                // into_scalar() works on any tensor shape as long as it has exactly one element
                 quote! {
-                    let #output = #input.reshape(#shape_values);
+                    let #output_name = #input.into_scalar().elem::<#elem_type>();
                 }
             }
-            ReshapeShape::Runtime(shape_type) => {
-                match shape_type {
-                    Type::Shape(shape) => {
-                        let shape_name = &shape.name;
+            Type::Tensor(output_tensor) => {
+                let output = &output_tensor.name;
+
+                match &self.shape {
+                    ReshapeShape::Static(shape_values) => {
+                        let shape_values = shape_values.to_tokens();
                         quote! {
-                            let #output = #input.reshape(#shape_name);
+                            let #output = #input.reshape(#shape_values);
                         }
                     }
-                    Type::Tensor(tensor) => {
-                        let shape_name = &tensor.name;
-                        let output_rank = self.output.rank;
+                    ReshapeShape::Runtime(shape_type) => {
+                        match shape_type {
+                            Type::Shape(shape) => {
+                                let shape_name = &shape.name;
+                                quote! {
+                                    let #output = #input.reshape(#shape_name);
+                                }
+                            }
+                            Type::Tensor(tensor) => {
+                                let shape_name = &tensor.name;
+                                let output_rank = output_tensor.rank;
 
-                        // Generate a const generic array initialization
-                        // This will create: shape_array[0] as usize, shape_array[1] as usize, ...
-                        let array_init = (0..output_rank)
-                            .map(|i| {
-                                let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                                quote! { shape_array[#idx] as usize }
-                            })
-                            .collect::<Vec<_>>();
+                                // Generate a const generic array initialization
+                                // This will create: shape_array[0] as usize, shape_array[1] as usize, ...
+                                let array_init = (0..output_rank)
+                                    .map(|i| {
+                                        let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                                        quote! { shape_array[#idx] as usize }
+                                    })
+                                    .collect::<Vec<_>>();
 
-                        quote! {
-                            let shape_data = #shape_name.to_data();
-                            let shape_array = shape_data.as_slice::<i64>().unwrap();
-                            let #output = #input.reshape([#(#array_init),*]);
+                                quote! {
+                                    let shape_data = #shape_name.to_data();
+                                    let shape_array = shape_data.as_slice::<i64>().unwrap();
+                                    let #output = #input.reshape([#(#array_init),*]);
+                                }
+                            }
+                            _ => panic!("Shape input must be a tensor or shape type"),
                         }
                     }
-                    _ => panic!("Shape input must be a tensor or shape type"),
                 }
             }
+            _ => panic!("Reshape output must be a tensor or scalar"),
         }
     }
 
@@ -119,7 +143,7 @@ mod tests {
 
         graph.register(ReshapeNode::new(
             TensorType::new_float("tensor1", 4),
-            TensorType::new_float("tensor2", 4),
+            Type::Tensor(TensorType::new_float("tensor2", 4)),
             vec![4, 4, 4, 4],
         ));
 
@@ -164,7 +188,7 @@ mod tests {
 
         graph.register(ReshapeNode::new(
             TensorType::new_float("tensor1", 1),
-            TensorType::new_float("output", 2),
+            Type::Tensor(TensorType::new_float("output", 2)),
             Type::Tensor(TensorType::new_int("shape", 1)),
         ));
 
@@ -217,7 +241,7 @@ mod tests {
 
         graph.register(ReshapeNode::new(
             TensorType::new_float("tensor1", 4),
-            TensorType::new_float("output", 2),
+            Type::Tensor(TensorType::new_float("output", 2)),
             Type::Shape(ShapeType::new("shape", 2)),
         ));
 
@@ -250,6 +274,54 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>, shape: [i64; 2]) -> Tensor<B, 2> {
                     let output = tensor1.reshape(shape);
+
+                    output
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_reshape_to_scalar() {
+        use crate::burn::ScalarType;
+
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(ReshapeNode::new(
+            TensorType::new_float("tensor1", 2),
+            Type::Scalar(ScalarType::new("output", crate::burn::ScalarKind::Float32)),
+            vec![], // Empty shape for scalar
+        ));
+
+        graph.register_input_output(vec!["tensor1".to_string()], vec!["output".to_string()]);
+
+        let expected = quote! {
+            use burn::tensor::ElementConversion;
+            use burn::tensor::Tensor;
+            use burn::{
+                module::Module,
+                tensor::backend::Backend,
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, tensor1: Tensor<B, 2>) -> f32 {
+                    let output = tensor1.into_scalar().elem::<f32>();
 
                     output
                 }

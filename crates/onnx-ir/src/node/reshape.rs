@@ -31,11 +31,17 @@ pub fn reshape_update_outputs(node: &mut Node) {
         _ => None,
     };
 
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        rank: output_rank,
-        static_shape,
-        elem_type: input_tensor.elem_type.clone(),
-    });
+    // Convert rank-0 tensors to Scalar type in ONNX-IR
+    if output_rank == 0 {
+        log::debug!("Reshape node {} outputs a scalar", node.name);
+        node.outputs[0].ty = ArgType::Scalar(input_tensor.elem_type.clone());
+    } else {
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            rank: output_rank,
+            static_shape,
+            elem_type: input_tensor.elem_type.clone(),
+        });
+    }
 }
 
 /// Infer output rank for reshape operation from available information
@@ -283,6 +289,24 @@ mod tests {
                 assert_eq!(tensor.rank, 2); // Should get rank from Shape(2) input
             }
             _ => panic!("Expected tensor output"),
+        }
+    }
+
+    #[test]
+    fn test_reshape_to_scalar() {
+        // Test reshaping to a scalar (rank 0)
+        let mut node = NodeBuilder::new(NodeType::Reshape, "test_reshape_scalar")
+            .input_tensor_f32("data", 2, None)
+            .input_tensor_i64_data("shape", vec![], vec![0]) // Empty shape = scalar
+            .output_tensor_f32("reshaped", 0, None)
+            .build();
+
+        reshape_update_outputs(&mut node);
+        match &node.outputs[0].ty {
+            ArgType::Scalar(elem_type) => {
+                assert_eq!(*elem_type, ElementType::Float32);
+            }
+            _ => panic!("Expected scalar output"),
         }
     }
 }

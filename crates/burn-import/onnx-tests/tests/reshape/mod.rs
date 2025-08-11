@@ -1,5 +1,11 @@
 use crate::include_models;
-include_models!(reshape, reshape_with_1d_tensor, reshape_with_shape);
+include_models!(
+    reshape,
+    reshape_with_1d_tensor,
+    reshape_with_shape,
+    reshape_to_scalar,
+    reshape_3d_to_scalar
+);
 
 #[cfg(test)]
 mod tests {
@@ -66,5 +72,37 @@ mod tests {
         // Output should be 2D with shape [3, 4] extracted from shape_source
         let expected = TensorData::from([[0f32, 1., 2., 3.], [4., 5., 6., 7.], [8., 9., 10., 11.]]);
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn reshape_to_scalar_test() {
+        // This test verifies that reshape can convert a 1x1 tensor to a scalar
+
+        // Initialize the model
+        let device = Default::default();
+        let model: reshape_to_scalar::Model<Backend> = reshape_to_scalar::Model::new(&device);
+
+        // Run the model with a 1x1 tensor input
+        let input = Tensor::<Backend, 2>::from_floats([[1.5]], &device);
+        let output = model.forward(input);
+
+        // Output should be a scalar value
+        assert_eq!(output, 1.5f32);
+    }
+
+    #[test]
+    fn reshape_3d_to_scalar_test() {
+        // This test verifies that reshape can convert a 1x1x1 tensor to a scalar
+
+        // Initialize the model
+        let device = Default::default();
+        let model: reshape_3d_to_scalar::Model<Backend> = reshape_3d_to_scalar::Model::new(&device);
+
+        // Run the model with a 1x1x1 tensor input
+        let input = Tensor::<Backend, 3>::from_floats([[[2.5]]], &device);
+        let output = model.forward(input);
+
+        // Output should be a scalar value
+        assert_eq!(output, 2.5f32);
     }
 }
