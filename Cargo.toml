@@ -42,7 +42,7 @@ data-encoding = { version = "2.9.0", default-features = false, features = [
     "alloc",
 ] }
 dirs = "6.0.0"
-fake = "4.3.0"
+fake = "4.4.0"
 flate2 = "1.1.2"
 float-cmp = "0.10.0"
 futures = "0.3"
