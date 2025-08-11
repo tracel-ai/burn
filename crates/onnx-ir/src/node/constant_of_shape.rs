@@ -52,12 +52,18 @@ pub fn constant_of_shape_update_output(node: &mut Node) {
         node.name
     );
 
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: value_type,
-        rank,
-        static_shape: None,
-    });
-    log::debug!("ConstantOfShape output rank for {}: {}", node.name, rank);
+    // When rank is 0, output should be a scalar
+    if rank == 0 {
+        node.outputs[0].ty = ArgType::Scalar(value_type);
+        log::debug!("ConstantOfShape output is Scalar for {}", node.name);
+    } else {
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: value_type,
+            rank,
+            static_shape: None,
+        });
+        log::debug!("ConstantOfShape output rank for {}: {}", node.name, rank);
+    }
 }
 
 #[cfg(test)]
@@ -134,5 +140,61 @@ mod tests {
     fn test_invalid_input_type() {
         let mut node = create_test_node(ArgType::Scalar(ElementType::Float32));
         constant_of_shape_update_output(&mut node);
+    }
+
+    #[test]
+    fn test_scalar_output_with_shape_0() {
+        // Test when input is Shape(0), output should be Scalar
+        let mut node = create_test_node(ArgType::Shape(0));
+
+        constant_of_shape_update_output(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Scalar(elem_type) => {
+                assert_eq!(*elem_type, ElementType::Float32);
+            }
+            _ => panic!("Expected scalar output for rank 0 input"),
+        }
+    }
+
+    #[test]
+    fn test_scalar_output_with_tensor_shape_0() {
+        // Test when input is a tensor with static shape [0], output should be Scalar
+        let mut node = create_test_node(ArgType::Tensor(TensorType {
+            elem_type: ElementType::Int64,
+            rank: 1,
+            static_shape: Some(vec![0]), // Shape is [0], meaning rank-0 output
+        }));
+
+        constant_of_shape_update_output(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Scalar(elem_type) => {
+                assert_eq!(*elem_type, ElementType::Float32);
+            }
+            _ => panic!("Expected scalar output for rank 0 input"),
+        }
+    }
+
+    #[test]
+    fn test_scalar_output_with_custom_value() {
+        // Test scalar output with custom value type
+        let mut node = create_test_node(ArgType::Shape(0));
+        node.attrs.insert(
+            "value".to_string(),
+            AttributeValue::Tensor(TensorData {
+                shape: vec![],
+                data: Data::Int64s(vec![42]), // Custom Int64 value
+            }),
+        );
+
+        constant_of_shape_update_output(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Scalar(elem_type) => {
+                assert_eq!(*elem_type, ElementType::Int64);
+            }
+            _ => panic!("Expected scalar output for rank 0 input"),
+        }
     }
 }
