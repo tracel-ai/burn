@@ -15,6 +15,7 @@ where
 
     match dtype {
         DType::QFloat(scheme) => {
+            // TODO: Only works with contiguous tensors.
             cubecl_quant::dequantize::launch_ref::<R, F>(
                 &values.client,
                 &values.as_handle_ref(),
