@@ -1,10 +1,12 @@
 #[burn_tensor_testgen::testgen(grid_sample)]
 mod tests {
+    use burn_tensor::ops::InterpolateMode;
+
     use super::*;
     use burn_tensor::{Tensor, TensorData, Tolerance, ops::FloatElem};
 
     #[test]
-    fn should_grid_sample_2d() {
+    fn should_grid_sample_2d_bilinear() {
         let device = Default::default();
         let tensor = TestTensor::<4>::from_floats(
             [[[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]]],
@@ -15,7 +17,11 @@ mod tests {
             &device,
         );
 
-        let output = tensor.grid_sample_2d(grid);
+        println!("Tensor {}", tensor.clone());
+        println!("Grid {}", grid.clone());
+        let output = tensor.grid_sample_2d(grid, InterpolateMode::Bilinear);
+
+        println!("Out {}", output.clone());
 
         let expected = TensorData::from([[[[4.0, 3.75], [8.0, 1.8]]]]);
         output
@@ -24,7 +30,7 @@ mod tests {
     }
 
     #[test]
-    fn should_pad_border_grid_sample_2d() {
+    fn should_pad_border_grid_sample_2d_bilinear() {
         let device = Default::default();
         let tensor = TestTensor::<4>::from_floats(
             [[[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]]],
@@ -32,7 +38,7 @@ mod tests {
         );
         let grid = TestTensor::<4>::from_floats([[[[0.0, -2.0]]]], &device);
 
-        let output = tensor.grid_sample_2d(grid);
+        let output = tensor.grid_sample_2d(grid, InterpolateMode::Bilinear);
 
         // Should clamp to nearest: 1.0
         let expected = TensorData::from([[[[1.0]]]]);

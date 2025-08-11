@@ -17,9 +17,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatVisionO
     ///
     /// `input` - A tensor to treat as an image
     fn float_resample(
-        input: FloatTensor<Self>,
-        transform: Transform2D<Self>,
-        default: f32,
+        _input: FloatTensor<Self>,
+        _transform: Transform2D,
     ) -> FloatTensor<Self> {
         todo!();
     }

@@ -18,5 +18,6 @@ pub(crate) mod macros;
 pub(crate) mod matmul;
 pub(crate) mod maxpool;
 pub(crate) mod padding;
+pub(crate) mod grid_sample;
 
 pub(crate) use base::*;

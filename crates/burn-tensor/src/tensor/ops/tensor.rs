@@ -2,6 +2,7 @@ use super::cat::cat_with_slice_assign;
 use super::grid_sample::float_grid_sample_2d_bilinear;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
+use crate::ops::InterpolateMode;
 use crate::{Distribution, ElementConversion, Float, TensorData, backend::Backend, tensor::Shape};
 use crate::{FloatDType, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
@@ -1357,7 +1358,14 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with shape (N, C, H_out, W_out)
-    fn float_grid_sample_2d(tensor: FloatTensor<B>, grid: FloatTensor<B>) -> FloatTensor<B> {
-        float_grid_sample_2d_bilinear::<B>(tensor, grid)
+    fn float_grid_sample_2d(
+        tensor: FloatTensor<B>,
+        grid: FloatTensor<B>,
+        method: InterpolateMode
+    ) -> FloatTensor<B> {
+        match method {
+            InterpolateMode::Bilinear => float_grid_sample_2d_bilinear::<B>(tensor, grid),
+            _ => todo!("Default implementation for grid_sample_2d with {method:?} unimplemented"),
+        }
     }
 }

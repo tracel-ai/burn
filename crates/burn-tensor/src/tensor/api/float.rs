@@ -1,3 +1,4 @@
+use crate::ops::InterpolateMode;
 use crate::FloatDType;
 use crate::Tensor;
 use crate::cast::ToElement;
@@ -629,10 +630,11 @@ where
     /// # Returns
     ///
     /// A tensor with shape (N, C, H_out, W_out)
-    pub fn grid_sample_2d(self, grid: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn grid_sample_2d(self, grid: Tensor<B, D>, method: InterpolateMode) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::Float(B::float_grid_sample_2d(
             self.primitive.tensor(),
             grid.primitive.tensor(),
+            method,
         )))
     }
 }

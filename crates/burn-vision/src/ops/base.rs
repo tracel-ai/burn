@@ -1,6 +1,6 @@
 use crate::{
     Point, Transform2D,
-    backends::cpu::{self, MorphOp, morph, resample},
+    backends::cpu::{self, MorphOp, morph},
 };
 use bon::Builder;
 use burn_tensor::{
@@ -263,18 +263,19 @@ pub trait FloatVisionOps: Backend {
             .tensor()
     }
 
-    /// Rotates an input tensor around a point
+    /// Resample a 2D tensor using a coodinate transform and bilinear interpolation.
     ///
-    /// `input` - A tensor to treat as an image
-    fn float_resample(
-        input: FloatTensor<Self>,
-        transform: Transform2D<Self>,
-        default: f32,
-    ) -> FloatTensor<Self> {
-        let input = Tensor::<Self, 3>::from_primitive(TensorPrimitive::Float(input));
-        resample(input, transform, default)
-            .into_primitive()
-            .tensor()
+    /// # Arguments
+    /// * `input` - The tensor to resample. Shape is (N, C, height, width)
+    /// * `transform` - A 3x3 transformation matrix to transform the coordinates of each value for
+    ///   resampling
+    ///
+    /// # Returns
+    /// A new Tensor<B, 2> containing the rotated image.
+    fn float_resample(input: FloatTensor<Self>, _transform: Transform2D) -> FloatTensor<Self> {
+        let _input = Tensor::<Self, 4>::from_primitive(TensorPrimitive::Float(input));
+        todo!("asdf");
+        //resample(input, transform).into_primitive().tensor()
     }
 }
 

@@ -326,7 +326,7 @@ macro_rules! impl_to_element_float_to_signed_int {
                     return float_to_int_unchecked!(*self => $i);
                 }
             }
-            panic!("Float cannot be represented in the target signed int type")
+            panic!("Float cannot be represented in the target signed int type: {self:?}")
         }
     )*}
 }
