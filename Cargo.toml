@@ -30,7 +30,7 @@ version = "0.19.0"
 [workspace.dependencies]
 atomic_float = "1"
 axum = "0.8.3"
-bytemuck = "1.23.1"
+bytemuck = "1.23.2"
 bytes = "1"
 candle-core = { version = "0.9.1" }
 clap = { version = "4.5.42", features = ["derive"] }
