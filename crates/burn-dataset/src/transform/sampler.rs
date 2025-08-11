@@ -1,7 +1,6 @@
 use crate::Dataset;
 use rand::prelude::SliceRandom;
 use rand::{Rng, SeedableRng, distr::Uniform, rngs::StdRng, seq::IteratorRandom};
-use std::cmp::min;
 use std::{marker::PhantomData, ops::DerefMut, sync::Mutex};
 
 /// Sample items from a dataset.
@@ -162,27 +161,28 @@ where
     }
 
     fn index(&self) -> usize {
-        let mut state = self.state.lock().unwrap();
-
-        match state.deref_mut() {
+        match self.state.lock().unwrap().deref_mut() {
             SamplerState::WithReplacement(rng) => {
                 rng.sample(Uniform::new(0, self.dataset.len()).unwrap())
             }
             SamplerState::WithoutReplacement(rng, indices) => {
                 if indices.is_empty() {
                     // Refill the state.
-                    while indices.len() < self.size {
-                        let k = min(self.size - indices.len(), self.dataset.len());
-                        indices.extend((0..self.dataset.len()).choose_multiple(rng, k));
+                    let idx_range = 0..self.dataset.len();
+                    for _ in 0..(self.size / self.dataset.len()) {
+                        // No need to `.choose_multiple` here because we're using
+                        // the entire source range; and `.choose_multiple` will
+                        // not return a random sample anyway.
+                        indices.extend(idx_range.clone())
                     }
 
                     // From `choose_multiple` documentation:
                     // > Although the elements are selected randomly, the order of elements in
                     // > the buffer is neither stable nor fully random. If random ordering is
                     // > desired, shuffle the result.
-                    //
-                    // Without this, for size~=ds.size; the indices will return
-                    // essentially in a linear order.
+                    indices.extend(idx_range.choose_multiple(rng, self.size - indices.len()));
+
+                    // The real shuffling is done here.
                     indices.shuffle(rng);
                 }
 
