@@ -74,7 +74,6 @@ impl<R: CubeRuntime> CubeTensor<R> {
     pub fn scales(&self) -> Option<CubeTensor<R>> {
         let qparams = self.qparams.as_ref()?;
         let mut handle = self.handle.clone();
-        println!("{:?}", qparams.scales);
         handle.offset_start = Some(qparams.scales.offset_start as u64);
         handle.offset_end = Some(qparams.scales.offset_end as u64);
 

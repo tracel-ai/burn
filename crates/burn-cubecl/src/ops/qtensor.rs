@@ -162,8 +162,6 @@ pub fn empty_qtensor<R: CubeRuntime>(
             vec![data_desc, scales_desc]
         }
     };
-    println!("Here");
-    println!("{:?}", descriptors);
 
     let mut tensors = client.empty_tensors(descriptors);
     let Allocation {
@@ -258,14 +256,12 @@ where
         };
         let (values, params) = tensor.quantized_handles().unwrap();
 
-        println!("Into data values");
         let mut data_values = match scheme.store {
             QuantStore::Native => match scheme.value {
                 QuantValue::QInt8 => into_data::<R, i8>(values).await,
             },
             QuantStore::U32 => into_data::<R, u32>(values).await,
         };
-        println!("Into data params");
         let data_params = match scheme.param {
             QuantParam::F16 => into_data::<R, half::f16>(params).await,
             QuantParam::BF16 => into_data::<R, half::bf16>(params).await,
