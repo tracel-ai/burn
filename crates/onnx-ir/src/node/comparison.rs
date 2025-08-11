@@ -7,7 +7,7 @@ pub fn elementwise_comparison_outputs(node: &mut Node) {
     let max_rank = node.inputs.iter().fold(0, |acc, input| match &input.ty {
         ArgType::Tensor(tensor) => acc.max(tensor.rank),
         ArgType::Scalar(_) => acc,
-        _ => panic!("Invalid input type for comparison op"),
+        ArgType::Shape(_) => acc.max(1), // Shape types are always rank 1
     });
 
     log::debug!("Max rank for comparison node {}: {}", node.name, max_rank);
@@ -76,10 +76,33 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Invalid input type for comparison op")]
-    fn test_comparison_invalid_input() {
+    fn test_comparison_with_shape_input() {
         let mut node = create_test_node(2, 2);
-        node.inputs[0].ty = ArgType::Shape(2);
+        node.inputs[0].ty = ArgType::Shape(3);
         elementwise_comparison_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.elem_type, ElementType::Bool);
+                assert_eq!(tensor.rank, 2); // max(1, 2) = 2 (Shape is rank 1, other is rank 2)
+            }
+            _ => panic!("Expected tensor output"),
+        }
+    }
+
+    #[test]
+    fn test_comparison_both_shape_inputs() {
+        let mut node = create_test_node(0, 0);
+        node.inputs[0].ty = ArgType::Shape(3);
+        node.inputs[1].ty = ArgType::Shape(3);
+        elementwise_comparison_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.elem_type, ElementType::Bool);
+                assert_eq!(tensor.rank, 1); // Both Shape inputs are rank 1
+            }
+            _ => panic!("Expected tensor output"),
+        }
     }
 }
