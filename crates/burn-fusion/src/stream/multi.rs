@@ -262,7 +262,7 @@ impl<R: FusionRuntime> MultiStream<R> {
                 .shared_tensors
                 .analyse(current, node, streams, &self.streams);
             match analysis {
-                SharedTensorAnalysis::SharedFromCurrentStrean => {
+                SharedTensorAnalysis::SharedFromCurrentStream => {
                     shared_analysis.current.push(node.id);
                 }
                 SharedTensorAnalysis::NotShared => {}

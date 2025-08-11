@@ -17,8 +17,8 @@ use alloc::vec::Vec;
 /// * `Cartesian` indexing; where the first two dimensions are swapped.
 ///
 /// See:
-///  - https://numpy.org/doc/stable/reference/generated/numpy.meshgrid.html
-///  - https://pytorch.org/docs/stable/generated/torch.meshgrid.html
+///  - [numpy.meshgrid](https://numpy.org/doc/stable/reference/generated/numpy.meshgrid.html)
+///  - [torch.meshgrid](https://pytorch.org/docs/stable/generated/torch.meshgrid.html)
 ///
 /// # Arguments
 ///
