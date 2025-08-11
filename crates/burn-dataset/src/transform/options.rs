@@ -151,6 +151,11 @@ pub trait WithWrapperSizeSourceSetters: Sized {
     where
         S: Into<WrapperSizeSource>;
 
+    /// Set the size to the size of the source.
+    fn with_source_size(self) -> Self {
+        self.with_size(WrapperSizeSource::Source)
+    }
+
     /// Set the size to a fixed size.
     fn with_fixed_size(self, size: usize) -> Self {
         self.with_size(size)
@@ -227,6 +232,7 @@ pub trait WithReplacementModeSetters: Sized {
 mod tests {
     use super::*;
     use rand::SeedableRng;
+
     #[test]
     fn test_randomsource() {
         assert_eq!(RandomSource::default(), RandomSource::System);
@@ -266,6 +272,49 @@ mod tests {
         );
     }
 
+    #[derive(Default)]
+    struct RandomSourceHolder {
+        pub msg: String,
+
+        pub rng: RandomSource,
+    }
+    impl WithRandomSourceSetters for RandomSourceHolder {
+        fn with_rng<R>(self, rng: R) -> Self
+        where
+            R: Into<RandomSource>,
+        {
+            Self {
+                rng: rng.into(),
+                ..self
+            }
+        }
+    }
+
+    #[test]
+    fn test_with_random_source_setters() {
+        let holder = RandomSourceHolder::default();
+        assert_eq!(holder.msg, "");
+        assert_eq!(holder.rng, RandomSource::System);
+        let _unused = holder.rng.build();
+
+        let holder = RandomSourceHolder::default().with_system_rng();
+        assert_eq!(holder.rng, RandomSource::System);
+        let _unused = holder.rng.build();
+
+        let holder = RandomSourceHolder::default().with_rng(42);
+        assert_eq!(holder.rng, RandomSource::FromSeed(42));
+        assert_eq!(holder.rng.build(), StdRng::seed_from_u64(42));
+
+        let holder = RandomSourceHolder::default().with_seed(42);
+        assert_eq!(holder.rng, RandomSource::FromSeed(42));
+        assert_eq!(holder.rng.build(), StdRng::seed_from_u64(42));
+
+        let rng = StdRng::from_os_rng();
+        let holder = RandomSourceHolder::default().with_rng(rng.clone());
+        assert_eq!(holder.rng, RandomSource::FromRng(Box::new(rng.clone())));
+        assert_eq!(holder.rng.build(), rng.clone());
+    }
+
     #[test]
     fn test_sizesource() {
         assert_eq!(WrapperSizeSource::default(), WrapperSizeSource::Source);
@@ -275,10 +324,18 @@ mod tests {
         );
 
         assert_eq!(WrapperSizeSource::from(42), WrapperSizeSource::Fixed(42));
+        assert_eq!(
+            WrapperSizeSource::from(Some(42)),
+            WrapperSizeSource::Fixed(42)
+        );
         assert_eq!(WrapperSizeSource::fixed(42), WrapperSizeSource::Fixed(42));
         assert_eq!(WrapperSizeSource::fixed(100).evaluate_for_source(50), 100);
 
         assert_eq!(WrapperSizeSource::from(1.5), WrapperSizeSource::Ratio(1.5));
+        assert_eq!(
+            WrapperSizeSource::from(Some(1.5)),
+            WrapperSizeSource::Ratio(1.5)
+        );
         assert_eq!(WrapperSizeSource::ratio(1.5), WrapperSizeSource::Ratio(1.5));
         assert_eq!(WrapperSizeSource::ratio(1.5).evaluate_for_source(50), 75);
 
@@ -292,6 +349,51 @@ mod tests {
         );
         assert_eq!(WrapperSizeSource::source(), WrapperSizeSource::Source);
         assert_eq!(WrapperSizeSource::source().evaluate_for_source(50), 50);
+    }
+
+    #[derive(Default)]
+    struct SizeSourceHolder {
+        pub msg: String,
+        pub size: WrapperSizeSource,
+    }
+
+    impl WithWrapperSizeSourceSetters for SizeSourceHolder {
+        fn with_size<S>(self, size: S) -> Self
+        where
+            S: Into<WrapperSizeSource>,
+        {
+            Self {
+                size: size.into(),
+                ..self
+            }
+        }
+    }
+
+    #[test]
+    fn test_with_wrapper_size_source_setters() {
+        let holder = SizeSourceHolder::default();
+        assert_eq!(holder.msg, "");
+        assert_eq!(holder.size, WrapperSizeSource::Source);
+
+        let holder = SizeSourceHolder::default().with_source_size();
+        assert_eq!(holder.msg, "");
+        assert_eq!(holder.size, WrapperSizeSource::Source);
+
+        let holder = SizeSourceHolder::default().with_size(42);
+        assert_eq!(holder.size, WrapperSizeSource::Fixed(42));
+        assert_eq!(holder.size.evaluate_for_source(50), 42);
+
+        let holder = SizeSourceHolder::default().with_fixed_size(42);
+        assert_eq!(holder.size, WrapperSizeSource::Fixed(42));
+        assert_eq!(holder.size.evaluate_for_source(50), 42);
+
+        let holder = SizeSourceHolder::default().with_size(1.5);
+        assert_eq!(holder.size, WrapperSizeSource::Ratio(1.5));
+        assert_eq!(holder.size.evaluate_for_source(50), 75);
+
+        let holder = SizeSourceHolder::default().with_size_ratio(1.5);
+        assert_eq!(holder.size, WrapperSizeSource::Ratio(1.5));
+        assert_eq!(holder.size.evaluate_for_source(50), 75);
     }
 
     #[test]
@@ -310,5 +412,70 @@ mod tests {
             ReplacementMode::from(false),
             ReplacementMode::WithoutReplacement
         );
+
+        let a: bool = ReplacementMode::WithReplacement.into();
+        assert_eq!(a, true);
+
+        let b: bool = ReplacementMode::WithoutReplacement.into();
+        assert_eq!(b, false);
+    }
+
+    #[derive(Default)]
+    struct ReplacementModeHolder {
+        pub msg: String,
+        pub mode: ReplacementMode,
+    }
+
+    impl WithReplacementModeSetters for ReplacementModeHolder {
+        fn with_replacement_mode<M>(self, mode: M) -> Self
+        where
+            M: Into<ReplacementMode>,
+        {
+            Self {
+                mode: mode.into(),
+                ..self
+            }
+        }
+    }
+
+    #[test]
+    fn test_with_replacement_mode_setters() {
+        let holder = ReplacementModeHolder::default();
+        assert_eq!(holder.msg, "");
+        assert_eq!(holder.mode, ReplacementMode::WithReplacement);
+
+        let holder = ReplacementModeHolder::default().with_replacement();
+        assert_eq!(holder.mode, ReplacementMode::WithReplacement);
+
+        let holder = ReplacementModeHolder::default().with_replacement_mode(true);
+        assert_eq!(holder.mode, ReplacementMode::WithReplacement);
+
+        let holder = ReplacementModeHolder::default().with_replacement_mode(Some(true));
+        assert_eq!(holder.mode, ReplacementMode::WithReplacement);
+
+        let holder = ReplacementModeHolder::default()
+            .with_replacement_mode(ReplacementMode::WithReplacement);
+        assert_eq!(holder.mode, ReplacementMode::WithReplacement);
+
+        let holder = ReplacementModeHolder::default()
+            .with_replacement_mode(Some(ReplacementMode::WithReplacement));
+        assert_eq!(holder.mode, ReplacementMode::WithReplacement);
+
+        let holder = ReplacementModeHolder::default().without_replacement();
+        assert_eq!(holder.mode, ReplacementMode::WithoutReplacement);
+
+        let holder = ReplacementModeHolder::default().with_replacement_mode(false);
+        assert_eq!(holder.mode, ReplacementMode::WithoutReplacement);
+
+        let holder = ReplacementModeHolder::default().with_replacement_mode(Some(false));
+        assert_eq!(holder.mode, ReplacementMode::WithoutReplacement);
+
+        let holder = ReplacementModeHolder::default()
+            .with_replacement_mode(ReplacementMode::WithoutReplacement);
+        assert_eq!(holder.mode, ReplacementMode::WithoutReplacement);
+
+        let holder = ReplacementModeHolder::default()
+            .with_replacement_mode(Some(ReplacementMode::WithoutReplacement));
+        assert_eq!(holder.mode, ReplacementMode::WithoutReplacement);
     }
 }

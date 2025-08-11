@@ -127,11 +127,11 @@ where
     /// ## Examples
     /// ```rust,no_run
     /// use burn_dataset::transform::{
+    ///   ReplacementMode,
     ///   SamplerDataset,
     ///   SamplerDatasetOptions,
-    ///   ReplacementMode,
-    ///   WithReplacementModeSetters,
     ///   WithRandomSourceSetters,
+    ///   WithReplacementModeSetters,
     ///   WithWrapperSizeSourceSetters
     /// };
     /// use burn_dataset::FakeDataset;
