@@ -5,7 +5,7 @@ use std::{marker::PhantomData, ops::DerefMut, sync::Mutex};
 
 /// Sample items from a dataset.
 ///
-/// This is an convenient way of modeling a dataset as a probability distribution of a fixed size.
+/// This is a convenient way of modeling a dataset as a probability distribution of a fixed size.
 /// You have multiple options to instantiate the dataset sampler.
 ///
 /// * With replacement (Default): This is the most efficient way of using the sampler because no state is
@@ -15,6 +15,8 @@ use std::{marker::PhantomData, ops::DerefMut, sync::Mutex};
 ///   [shuffled dataset](crate::transform::ShuffledDataset), but with more flexibility since you can
 ///   set the dataset to an arbitrary size. Once every item has been used, a new cycle is
 ///   created with a new random suffle.
+///
+/// See also: [SamplerDatasetBuilder] for a fluent-builder api.
 pub struct SamplerDataset<D, I> {
     dataset: D,
     size: usize,
@@ -43,7 +45,7 @@ where
 
     /// Creates a builder for the given dataset.
     pub fn builder(dataset: D) -> SamplerDatasetBuilder<D, I> {
-        SamplerDatasetBuilder::for_dataset(dataset)
+        SamplerDatasetBuilder::new(dataset)
     }
 
     /// Creates a new sampler dataset with replacement.
@@ -238,7 +240,7 @@ where
     /// # Arguments
     ///
     /// - `dataset`: the dataset to wrap.
-    pub fn for_dataset(dataset: D) -> Self {
+    pub fn new(dataset: D) -> Self {
         Self {
             dataset,
             size: None,
@@ -310,7 +312,7 @@ mod tests {
 
     #[test]
     fn sampler_dataset_builder() {
-        let ds = SamplerDataset::builder(FakeDataset::<u32>::new(10))
+        let ds = SamplerDatasetBuilder::new(FakeDataset::<u32>::new(10))
             .with_size(15)
             .with_replacement(false)
             .with_seed(42)
@@ -319,7 +321,7 @@ mod tests {
         assert_eq!(ds.dataset.len(), 10);
         assert!(!ds.uses_replacement());
 
-        let ds = SamplerDataset::builder(FakeDataset::<u32>::new(10))
+        let ds = SamplerDatasetBuilder::new(FakeDataset::<u32>::new(10))
             .with_size_ratio(1.5)
             .with_replacement(true)
             .build();
