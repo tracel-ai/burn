@@ -69,6 +69,7 @@ fn main() {
         .input("tests/constant_of_shape/constant_of_shape_scalar.onnx")
         .input("tests/constant_of_shape/constant_of_shape_scalar_custom_value.onnx")
         .input("tests/constant_of_shape/constant_of_shape_tensor.onnx")
+        .input("tests/constant_of_shape/constant_of_shape_shape_optimization.onnx")
         .input("tests/conv1d/conv1d.onnx")
         .input("tests/conv2d/conv2d.onnx")
         .input("tests/conv3d/conv3d.onnx")

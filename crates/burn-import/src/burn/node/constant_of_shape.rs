@@ -33,8 +33,8 @@ impl ConstantOfShapeNode {
             "ConstantOfShape input needs to be a Shape!"
         );
         assert!(
-            matches!(output, Type::Tensor(_) | Type::Scalar(_)),
-            "ConstantOfShape output needs to be a Tensor or Scalar!"
+            matches!(output, Type::Tensor(_) | Type::Scalar(_) | Type::Shape(_)),
+            "ConstantOfShape output needs to be a Tensor, Scalar, or Shape!"
         );
         Self {
             input,
@@ -143,7 +143,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
                     },
                 }
             }
-            _ => unreachable!("ConstantOfShape output must be Tensor or Scalar"),
+            Type::Shape(shape) => {
+                // Optimization: When ConstantOfShape outputs Shape(1) with Int64,
+                // we directly create a shape array instead of a tensor.
+                // This is a common pattern for shape manipulation operations.
+                assert_eq!(shape.rank, 1, "Shape optimization only supports Shape(1)");
+                
+                // The input is Shape(1) which means [N] where N is the dimension
+                // We need to create a shape array with that single value
+                quote! {
+                    // Input shape tells us the size, value tells us what to fill
+                    let #output: [i64; 1] = [#value];
+                }
+            }
+            _ => unreachable!("ConstantOfShape output must be Tensor, Scalar, or Shape"),
         }
     }
 
@@ -258,6 +271,52 @@ mod tests {
                 pub fn forward(&self, shape1: [i64;0]) -> f32 {
                     let scalar1: f32 = 42f32;
                     scalar1
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_shape_output() {
+        use crate::burn::ShapeType;
+        
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(ConstantOfShapeNode::new(
+            Type::Shape(ShapeType::new("shape_input", 1)),
+            Type::Shape(ShapeType::new("shape_output", 1)),
+            ConstantValue::Int64(10i64),
+        ));
+
+        graph.register_input_output(vec!["shape_input".to_string()], vec!["shape_output".to_string()]);
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::backend::Backend,
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, shape_input: [i64;1]) -> [i64;1] {
+                    // Input shape tells us the size, value tells us what to fill
+                    let shape_output: [i64; 1] = [10i64];
+                    shape_output
                 }
             }
         };

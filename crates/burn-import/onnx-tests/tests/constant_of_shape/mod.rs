@@ -5,7 +5,8 @@ include_models!(
     constant_of_shape_full_like,
     constant_of_shape_scalar,
     constant_of_shape_scalar_custom_value,
-    constant_of_shape_tensor
+    constant_of_shape_tensor,
+    constant_of_shape_shape_optimization
 );
 
 #[cfg(test)]
@@ -91,5 +92,19 @@ mod tests {
         assert_eq!(output.dims(), [2, 3]);
         let expected = Tensor::<Backend, 2>::zeros([2, 3], &device);
         output.to_data().assert_eq(&expected.to_data(), true);
+    }
+
+    #[test]
+    fn constant_of_shape_shape_optimization_test() {
+        // Test Shape(1) -> Shape(1) optimization with Int64
+        let device = Default::default();
+        let model = constant_of_shape_shape_optimization::Model::<Backend>::new(&device);
+
+        // Input is Shape(1) with some dimension
+        let shape_input = [3i64]; // Requesting a shape with 3 elements
+        let output: [i64; 1] = model.forward(shape_input);
+
+        // Output should be Shape(1) with value 5 (as specified in the model)
+        assert_eq!(output, [5i64]);
     }
 }

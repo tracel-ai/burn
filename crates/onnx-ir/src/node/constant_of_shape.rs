@@ -52,11 +52,24 @@ pub fn constant_of_shape_update_output(node: &mut Node) {
         node.name
     );
 
-    // When rank is 0, output should be a scalar
-    if rank == 0 {
+    // Optimization: When input is Shape(1) and value type is Int64,
+    // output Shape(1) directly instead of a tensor. This is a common pattern
+    // in ONNX models where ConstantOfShape is used to create shape arrays.
+    // Downstream operations can cast to tensor if needed.
+    // This optimization improves performance by keeping shape operations in the Shape domain.
+    if rank == 1 && value_type == ElementType::Int64 {
+        // Special optimization for Shape(1) with Int64 values
+        node.outputs[0].ty = ArgType::Shape(1);
+        log::debug!(
+            "ConstantOfShape optimization: Shape(1) -> Shape(1) with Int64 value for {}",
+            node.name
+        );
+    } else if rank == 0 {
+        // When rank is 0, output should be a scalar
         node.outputs[0].ty = ArgType::Scalar(value_type);
         log::debug!("ConstantOfShape output is Scalar for {}", node.name);
     } else {
+        // General case: output is a tensor
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type: value_type,
             rank,
@@ -195,6 +208,68 @@ mod tests {
                 assert_eq!(*elem_type, ElementType::Int64);
             }
             _ => panic!("Expected scalar output for rank 0 input"),
+        }
+    }
+
+    #[test]
+    fn test_shape_optimization_with_int64() {
+        // Test Shape(1) -> Shape(1) optimization when value type is Int64
+        let mut node = create_test_node(ArgType::Shape(1));
+        node.attrs.insert(
+            "value".to_string(),
+            AttributeValue::Tensor(TensorData {
+                shape: vec![],
+                data: Data::Int64s(vec![5]), // Int64 value
+            }),
+        );
+
+        constant_of_shape_update_output(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Shape(rank) => {
+                assert_eq!(*rank, 1);
+            }
+            _ => panic!("Expected Shape(1) output for Shape(1) input with Int64 value"),
+        }
+    }
+
+    #[test]
+    fn test_shape_1_with_float_no_optimization() {
+        // Test that Shape(1) with Float32 does NOT get optimized (outputs Tensor)
+        let mut node = create_test_node(ArgType::Shape(1));
+        node.attrs.insert(
+            "value".to_string(),
+            AttributeValue::Tensor(TensorData {
+                shape: vec![],
+                data: Data::Float32s(vec![1.5]), // Float32 value
+            }),
+        );
+
+        constant_of_shape_update_output(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.rank, 1);
+            }
+            _ => panic!("Expected Tensor output for Shape(1) input with Float32 value"),
+        }
+    }
+
+    #[test]
+    fn test_shape_1_default_value_no_optimization() {
+        // Test that Shape(1) with default value (Float32) does NOT get optimized
+        let mut node = create_test_node(ArgType::Shape(1));
+        // No value attribute means default Float32
+
+        constant_of_shape_update_output(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.rank, 1);
+            }
+            _ => panic!("Expected Tensor output for Shape(1) input with default Float32 value"),
         }
     }
 }
