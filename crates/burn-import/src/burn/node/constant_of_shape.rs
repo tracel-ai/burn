@@ -148,7 +148,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
                 // we directly create a shape array instead of a tensor.
                 // This is a common pattern for shape manipulation operations.
                 assert_eq!(shape.rank, 1, "Shape optimization only supports Shape(1)");
-                
+
                 // The input is Shape(1) which means [N] where N is the dimension
                 // We need to create a shape array with that single value
                 quote! {
@@ -281,7 +281,7 @@ mod tests {
     #[test]
     fn test_codegen_shape_output() {
         use crate::burn::ShapeType;
-        
+
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(ConstantOfShapeNode::new(
@@ -290,7 +290,10 @@ mod tests {
             ConstantValue::Int64(10i64),
         ));
 
-        graph.register_input_output(vec!["shape_input".to_string()], vec!["shape_output".to_string()]);
+        graph.register_input_output(
+            vec!["shape_input".to_string()],
+            vec!["shape_output".to_string()],
+        );
 
         let expected = quote! {
             use burn::{
