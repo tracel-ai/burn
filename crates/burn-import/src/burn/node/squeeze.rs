@@ -67,8 +67,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
                     let #output_name = #input_name;
                 }
             }
-            (Type::Tensor(input), Type::Scalar(output)) if input.rank == 1 => {
-                // General case: 1D tensor to scalar conversion
+            (Type::Tensor(input), Type::Scalar(output)) => {
                 // This handles ONNX models where single-element tensors need to be converted to scalars
                 // Works for all tensor types (Float, Int, Bool) using the .into_scalar() method
                 let input = scope.tensor_use_owned(input, node_position);

@@ -197,6 +197,7 @@ fn main() {
         .input("tests/squeeze/squeeze_shape_noop.onnx")
         .input("tests/squeeze/squeeze_scalar.onnx")
         .input("tests/squeeze/squeeze_float.onnx")
+        .input("tests/squeeze/squeeze_tensor_to_scalar.onnx")
         .input("tests/sub/sub.onnx")
         .input("tests/sub/sub_shape.onnx")
         .input("tests/sub/sub_int.onnx")

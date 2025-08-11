@@ -5,7 +5,8 @@ include_models!(
     squeeze_shape,
     squeeze_shape_noop,
     squeeze_scalar,
-    squeeze_float
+    squeeze_float,
+    squeeze_tensor_to_scalar
 );
 
 #[cfg(test)]
@@ -80,5 +81,15 @@ mod tests {
         let input = Tensor::<Backend, 1>::from_data([14159.222f32], &device);
         let output = model.forward(input);
         assert!((output - 14159.222f32).abs() < 1e-6);
+    }
+
+    #[test]
+    fn squeeze_tensor_to_scalar() {
+        // Test squeezing a multi-dimensional tensor [1, 1, 1] with one element to a scalar
+        let device = Default::default();
+        let model = squeeze_tensor_to_scalar::Model::<Backend>::new(&device);
+        let input = Tensor::<Backend, 3>::from_data([[[42.5f32]]], &device);
+        let output = model.forward(input);
+        assert!((output - 42.5f32).abs() < 1e-6);
     }
 }
