@@ -880,10 +880,13 @@ impl ParsedOnnxGraph {
     }
 
     fn reshape_conversion(node: Node) -> ReshapeNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
+        let input_arg = node.inputs.first().unwrap();
         let output_arg = node.outputs.first().unwrap();
         let output = Type::from(output_arg);
         let config = reshape_config(&node);
+
+        // Convert input to appropriate Type
+        let input = Type::from(input_arg);
 
         match config.shape {
             onnx_ir::node::reshape::ReshapeInput::Static(shape) => {

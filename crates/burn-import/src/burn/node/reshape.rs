@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorType, ToTokens, Type};
+use crate::burn::{Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -12,13 +12,13 @@ pub enum ReshapeShape {
 
 #[derive(Debug, Clone)]
 pub struct ReshapeNode {
-    pub input: TensorType,
+    pub input: Type,  // Changed to Type to support both Tensor and Shape inputs
     pub output: Type, // Changed from TensorType to Type to support scalar outputs
     pub shape: ReshapeShape,
 }
 
 impl ReshapeNode {
-    pub fn new<S: Into<ReshapeShape>>(input: TensorType, output: Type, shape: S) -> Self {
+    pub fn new<S: Into<ReshapeShape>>(input: Type, output: Type, shape: S) -> Self {
         Self {
             input,
             output,
@@ -39,6 +39,157 @@ impl From<Type> for ReshapeShape {
     }
 }
 
+impl ReshapeNode {
+    // Helper for runtime shape reshaping
+    fn reshape_with_runtime_shape(
+        &self,
+        input: TokenStream,
+        output: &proc_macro2::Ident,
+        shape_type: &Type,
+        output_rank: usize,
+    ) -> TokenStream {
+        match shape_type {
+            Type::Shape(shape) => {
+                let shape_name = &shape.name;
+                quote! {
+                    let #output = #input.reshape(#shape_name);
+                }
+            }
+            Type::Tensor(tensor) => {
+                let shape_name = &tensor.name;
+                let array_init = (0..output_rank)
+                    .map(|i| {
+                        let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                        quote! { shape_array[#idx] as usize }
+                    })
+                    .collect::<Vec<_>>();
+
+                quote! {
+                    let shape_data = #shape_name.to_data();
+                    let shape_array = shape_data.as_slice::<i64>().unwrap();
+                    let #output = #input.reshape([#(#array_init),*]);
+                }
+            }
+            _ => panic!("Shape parameter must be a tensor or shape type"),
+        }
+    }
+
+    // Handle reshaping when input is a Tensor
+    fn reshape_tensor_input(&self, input: TokenStream) -> TokenStream {
+        match &self.output {
+            Type::Scalar(scalar) => {
+                let output_name = &scalar.name;
+                let elem_type = scalar.ty();
+                quote! {
+                    let #output_name = #input.into_scalar().elem::<#elem_type>();
+                }
+            }
+            Type::Shape(shape) => {
+                let output_name = &shape.name;
+                let output_rank = shape.rank;
+                quote! {
+                    let #output_name: [i64; #output_rank] = {
+                        let reshaped = #input.reshape([#output_rank]);
+                        let data = reshaped.into_data();
+                        let values = data.as_slice::<i64>().unwrap();
+                        let mut result = [0i64; #output_rank];
+                        result.copy_from_slice(&values[..#output_rank]);
+                        result
+                    };
+                }
+            }
+            Type::Tensor(output_tensor) => {
+                let output = &output_tensor.name;
+                match &self.shape {
+                    ReshapeShape::Static(shape_values) => {
+                        let shape_values = shape_values.to_tokens();
+                        quote! {
+                            let #output = #input.reshape(#shape_values);
+                        }
+                    }
+                    ReshapeShape::Runtime(shape_type) => self.reshape_with_runtime_shape(
+                        input,
+                        output,
+                        shape_type,
+                        output_tensor.rank,
+                    ),
+                }
+            }
+            _ => panic!("Unexpected output type"),
+        }
+    }
+
+    // Handle reshaping when input is a Shape
+    fn reshape_shape_input(&self, input_shape: &crate::burn::ShapeType) -> TokenStream {
+        let shape_name = &input_shape.name;
+        let input_rank = input_shape.rank;
+
+        match &self.output {
+            Type::Scalar(scalar) => {
+                if input_rank != 1 {
+                    panic!(
+                        "Shape to scalar requires Shape(1), got Shape({})",
+                        input_rank
+                    );
+                }
+                let output_name = &scalar.name;
+                let elem_type = scalar.ty();
+                quote! {
+                    let #output_name = #shape_name[0] as #elem_type;
+                }
+            }
+            Type::Shape(output_shape) => {
+                let output_name = &output_shape.name;
+                let output_rank = output_shape.rank;
+
+                if input_rank == output_rank {
+                    quote! {
+                        let #output_name = #shape_name;
+                    }
+                } else {
+                    quote! {
+                        let #output_name: [i64; #output_rank] = {
+                            let mut result = [0i64; #output_rank];
+                            let copy_len = #input_rank.min(#output_rank);
+                            result[..copy_len].copy_from_slice(&#shape_name[..copy_len]);
+                            result
+                        };
+                    }
+                }
+            }
+            Type::Tensor(output_tensor) => {
+                // Convert Shape to Tensor first, then reshape
+                let shape_to_tensor = quote! {
+                    {
+                        let shape_array = #shape_name as [i64; #input_rank];
+                        Tensor::<B, 1, Int>::from_data(
+                            TensorData::from(shape_array),
+                            &self.device
+                        )
+                    }
+                };
+
+                let output = &output_tensor.name;
+                match &self.shape {
+                    ReshapeShape::Static(shape_values) => {
+                        let shape_values = shape_values.to_tokens();
+                        quote! {
+                            let #output = #shape_to_tensor.reshape(#shape_values);
+                        }
+                    }
+                    ReshapeShape::Runtime(shape_type) => self.reshape_with_runtime_shape(
+                        shape_to_tensor,
+                        output,
+                        shape_type,
+                        output_tensor.rank,
+                    ),
+                }
+            }
+            _ => panic!("Unexpected output type"),
+        }
+    }
+}
+
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ReshapeNode {
     fn output_types(&self) -> Vec<Type> {
         vec![self.output.clone()]
@@ -49,75 +200,36 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReshapeNode {
         if let Type::Scalar(_) = &self.output {
             imports.register("burn::tensor::ElementConversion");
         }
+
+        // Register imports for Shape input conversion
+        if let Type::Shape(_) = &self.input {
+            imports.register("burn::tensor::TensorData");
+            imports.register("burn::tensor::Int");
+        }
     }
 
     fn input_types(&self) -> Vec<Type> {
         match &self.shape {
-            ReshapeShape::Static(_) => vec![Type::Tensor(self.input.clone())],
+            ReshapeShape::Static(_) => vec![self.input.clone()],
             ReshapeShape::Runtime(shape_type) => {
-                vec![Type::Tensor(self.input.clone()), shape_type.clone()]
+                vec![self.input.clone(), shape_type.clone()]
             }
         }
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        let input = scope.tensor_use_owned(&self.input, node_position);
-
-        // Check if output is scalar
-        match &self.output {
-            Type::Scalar(scalar) => {
-                let output_name = &scalar.name;
-                let elem_type = scalar.ty();
-
-                // Convert tensor with single element to scalar
-                // into_scalar() works on any tensor shape as long as it has exactly one element
-                quote! {
-                    let #output_name = #input.into_scalar().elem::<#elem_type>();
-                }
+        // Simplified logic driven by input type
+        match &self.input {
+            Type::Tensor(input_tensor) => {
+                // Tensor input path
+                let input = scope.tensor_use_owned(input_tensor, node_position);
+                self.reshape_tensor_input(input)
             }
-            Type::Tensor(output_tensor) => {
-                let output = &output_tensor.name;
-
-                match &self.shape {
-                    ReshapeShape::Static(shape_values) => {
-                        let shape_values = shape_values.to_tokens();
-                        quote! {
-                            let #output = #input.reshape(#shape_values);
-                        }
-                    }
-                    ReshapeShape::Runtime(shape_type) => {
-                        match shape_type {
-                            Type::Shape(shape) => {
-                                let shape_name = &shape.name;
-                                quote! {
-                                    let #output = #input.reshape(#shape_name);
-                                }
-                            }
-                            Type::Tensor(tensor) => {
-                                let shape_name = &tensor.name;
-                                let output_rank = output_tensor.rank;
-
-                                // Generate a const generic array initialization
-                                // This will create: shape_array[0] as usize, shape_array[1] as usize, ...
-                                let array_init = (0..output_rank)
-                                    .map(|i| {
-                                        let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                                        quote! { shape_array[#idx] as usize }
-                                    })
-                                    .collect::<Vec<_>>();
-
-                                quote! {
-                                    let shape_data = #shape_name.to_data();
-                                    let shape_array = shape_data.as_slice::<i64>().unwrap();
-                                    let #output = #input.reshape([#(#array_init),*]);
-                                }
-                            }
-                            _ => panic!("Shape input must be a tensor or shape type"),
-                        }
-                    }
-                }
+            Type::Shape(input_shape) => {
+                // Shape input path
+                self.reshape_shape_input(input_shape)
             }
-            _ => panic!("Reshape output must be a tensor or scalar"),
+            _ => panic!("Reshape: unexpected input type"),
         }
     }
 
@@ -142,7 +254,7 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(ReshapeNode::new(
-            TensorType::new_float("tensor1", 4),
+            Type::Tensor(TensorType::new_float("tensor1", 4)),
             Type::Tensor(TensorType::new_float("tensor2", 4)),
             vec![4, 4, 4, 4],
         ));
@@ -187,7 +299,7 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(ReshapeNode::new(
-            TensorType::new_float("tensor1", 1),
+            Type::Tensor(TensorType::new_float("tensor1", 1)),
             Type::Tensor(TensorType::new_float("output", 2)),
             Type::Tensor(TensorType::new_int("shape", 1)),
         ));
@@ -240,7 +352,7 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(ReshapeNode::new(
-            TensorType::new_float("tensor1", 4),
+            Type::Tensor(TensorType::new_float("tensor1", 4)),
             Type::Tensor(TensorType::new_float("output", 2)),
             Type::Shape(ShapeType::new("shape", 2)),
         ));
@@ -290,7 +402,7 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(ReshapeNode::new(
-            TensorType::new_float("tensor1", 2),
+            Type::Tensor(TensorType::new_float("tensor1", 2)),
             Type::Scalar(ScalarType::new("output", crate::burn::ScalarKind::Float32)),
             vec![], // Empty shape for scalar
         ));

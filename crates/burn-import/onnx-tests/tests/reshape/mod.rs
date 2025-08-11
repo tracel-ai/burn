@@ -4,7 +4,10 @@ include_models!(
     reshape_with_1d_tensor,
     reshape_with_shape,
     reshape_to_scalar,
-    reshape_3d_to_scalar
+    reshape_3d_to_scalar,
+    reshape_shape_to_shape,
+    reshape_shape_with_neg,
+    reshape_shape_partial
 );
 
 #[cfg(test)]
@@ -104,5 +107,57 @@ mod tests {
 
         // Output should be a scalar value
         assert_eq!(output, 2.5f32);
+    }
+
+    #[test]
+    fn reshape_shape_to_shape_test() {
+        // This test verifies that reshape can accept a Shape type directly as input
+        // and output a Shape type (Shape -> Shape path)
+
+        // Initialize the model
+        let device = Default::default();
+        let model: reshape_shape_to_shape::Model<Backend> =
+            reshape_shape_to_shape::Model::new(&device);
+
+        // Run the model with a tensor whose shape will be extracted and reshaped
+        let input = Tensor::<Backend, 3>::zeros([2, 3, 4], &device);
+        let output = model.forward(input);
+
+        // Output should be [2, 3, 4] - the shape of the input tensor
+        assert_eq!(output, [2i64, 3, 4]);
+    }
+
+    #[test]
+    fn reshape_shape_with_neg_test() {
+        // This test verifies that reshape with -1 (infer dimension) works with Shape inputs
+
+        // Initialize the model
+        let device = Default::default();
+        let model: reshape_shape_with_neg::Model<Backend> =
+            reshape_shape_with_neg::Model::new(&device);
+
+        // Run the model with a tensor whose shape will be extracted and reshaped with -1
+        let input = Tensor::<Backend, 3>::zeros([2, 3, 4], &device);
+        let output = model.forward(input);
+
+        // Output should be [2, 3, 4] reshaped to 1D with inferred size 3
+        assert_eq!(output, [2i64, 3, 4]);
+    }
+
+    #[test]
+    fn reshape_shape_partial_test() {
+        // This test verifies partial reshaping of Shape arrays (Shape(2) -> Shape(2))
+
+        // Initialize the model
+        let device = Default::default();
+        let model: reshape_shape_partial::Model<Backend> =
+            reshape_shape_partial::Model::new(&device);
+
+        // Run the model with a tensor whose shape will be sliced and reshaped
+        let input = Tensor::<Backend, 4>::zeros([2, 3, 4, 5], &device);
+        let output = model.forward(input);
+
+        // Output should be [2, 3] - first two dimensions after slicing
+        assert_eq!(output, [2i64, 3]);
     }
 }
