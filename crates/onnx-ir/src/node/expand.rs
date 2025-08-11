@@ -64,14 +64,17 @@ pub fn expand_update_outputs(node: &mut Node) {
                             .expect("Static shape must contain at least one element")
                     } else {
                         // For dynamic rank-1 tensors without static shape, we need to make an assumption
-                        // or get the information from elsewhere. 
+                        // or get the information from elsewhere.
                         // Check if we have a value that can tell us the rank
                         if let Some(value) = &node.inputs[1].value {
                             if let Data::Int64s(shape_data) = &value.data {
                                 // We have the actual shape values, so the output rank is the number of elements
                                 shape_data.len()
                             } else {
-                                panic!("Expand shape tensor has unexpected data type: {:?}", value.data)
+                                panic!(
+                                    "Expand shape tensor has unexpected data type: {:?}",
+                                    value.data
+                                )
                             }
                         } else {
                             // No static shape and no value - this is truly dynamic
@@ -86,7 +89,7 @@ pub fn expand_update_outputs(node: &mut Node) {
                                 _ => panic!(
                                     "Cannot determine output rank for Expand node {} with fully dynamic shape tensor. Please provide static shape or use Shape type.",
                                     node.name
-                                )
+                                ),
                             }
                         }
                     }
