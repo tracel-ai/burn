@@ -1,6 +1,7 @@
 use crate::FloatDType;
 use crate::Tensor;
 use crate::cast::ToElement;
+use crate::ops::InterpolateMode;
 use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
@@ -625,14 +626,16 @@ where
     /// * `tensor` - The tensor being sampled from, shape (N, C, H_in, W_in)
     /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
     ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
+    /// * `method` - How to interpolate between samples
     ///
     /// # Returns
     ///
     /// A tensor with shape (N, C, H_out, W_out)
-    pub fn grid_sample_2d(self, grid: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn grid_sample_2d(self, grid: Tensor<B, D>, method: InterpolateMode) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::Float(B::float_grid_sample_2d(
             self.primitive.tensor(),
             grid.primitive.tensor(),
+            method,
         )))
     }
 }
