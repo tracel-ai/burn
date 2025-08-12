@@ -34,37 +34,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceMeanNode {
                 let dims_tokens: Vec<_> = dims.iter().map(|d| d.to_tokens()).collect();
                 let dims_isize: Vec<isize> = dims.iter().map(|&d| d as isize).collect();
 
+                // Apply mean_dim for each axis
+                let mut result = quote! { #input };
+                for dim in &dims_tokens {
+                    result = quote! { #result.mean_dim(#dim) };
+                }
+
                 if self.keepdims {
-                    if dims.len() == 1 {
-                        let dim = &dims_tokens[0];
-                        quote! {
-                            let #output = #input.mean_dim(#dim);
-                        }
-                    } else {
-                        let mut result = quote! { #input };
-                        for dim in &dims_tokens {
-                            result = quote! { #result.mean_dim(#dim) };
-                        }
-                        quote! {
-                            let #output = #result;
-                        }
+                    quote! {
+                        let #output = #result;
                     }
                 } else {
                     // Apply squeeze_dims to remove reduced dimensions
-                    if dims.len() == 1 {
-                        let dim = &dims_tokens[0];
-                        let dim_isize = dims_isize[0];
-                        quote! {
-                            let #output = #input.mean_dim(#dim).squeeze_dims(&[#dim_isize]);
-                        }
-                    } else {
-                        let mut result = quote! { #input };
-                        for dim in &dims_tokens {
-                            result = quote! { #result.mean_dim(#dim) };
-                        }
-                        quote! {
-                            let #output = #result.squeeze_dims(&[#(#dims_isize),*]);
-                        }
+                    quote! {
+                        let #output = #result.squeeze_dims(&[#(#dims_isize),*]);
                     }
                 }
             }
