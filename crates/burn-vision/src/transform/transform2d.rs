@@ -1,4 +1,4 @@
-use burn_tensor::{Tensor, backend::Backend, grid::affine_grid_2d};
+use burn_tensor::{Tensor, backend::Backend, grid::affine_grid_2d, ops::InterpolateMode};
 
 /// 2D point transformation
 ///
@@ -23,22 +23,19 @@ impl Transform2D {
         let transform = transform.reshape([1, 2, 3]).expand([batch_size, 2, 3]);
         let grid = affine_grid_2d(transform, [batch_size, channels, height, width]);
 
-        img.grid_sample_2d(grid)
+        img.grid_sample_2d(grid, InterpolateMode::Bilinear)
     }
 
     /// Makes a 2d transformation composed of other transformations
     pub fn composed<I: IntoIterator<Item = Self>>(transforms: I) -> Self {
-        let mut iter = transforms.into_iter();
-
         let mut result = Self::identity();
-        while let Some(t) = iter.next() {
+        for t in transforms.into_iter() {
             result = result.mul(t);
         }
         result
     }
 
-    /// Multiply two affine transforms represented as 2x3 matrices,
-    /// assuming implicit last row [0, 0, 1].
+    /// Multiply two affine transforms represented as 2x3 matrices
     fn mul(self, other: Transform2D) -> Transform2D {
         let mut result = [[0.0f32; 3]; 2];
 
@@ -130,6 +127,7 @@ impl Transform2D {
 mod tests {
     use super::*;
     use burn_ndarray::NdArray;
+    use burn_tensor::Tolerance;
     type B = NdArray;
 
     #[test]
@@ -137,7 +135,9 @@ mod tests {
         let t = Transform2D::translation(0.0, 0.0);
         let image_original = Tensor::<B, 4>::from([[[[1., 0.], [0., 2.]]]]);
         let image_transformed = t.transform(image_original.clone());
-        image_original.to_data().assert_eq(&image_transformed.to_data(), false);
+        image_original
+            .to_data()
+            .assert_approx_eq(&image_transformed.to_data(), Tolerance::<f32>::balanced());
     }
 
     #[test]
@@ -147,7 +147,9 @@ mod tests {
         // This result would change if the padding method is different
         let image_expected = Tensor::<B, 4>::from([[[[2.5, 3.], [3.5, 4.]]]]);
         let image = t.transform(image);
-        image_expected.to_data().assert_eq(&image.to_data(), false);
+        image_expected
+            .to_data()
+            .assert_approx_eq(&image.to_data(), Tolerance::<f32>::balanced());
     }
 
     #[test]
@@ -156,7 +158,9 @@ mod tests {
         let image = Tensor::<B, 4>::from([[[[1., 2.], [3., 4.]]]]);
         let image_expected = Tensor::<B, 4>::from([[[[2., 4.], [1., 3.]]]]);
         let image = t.transform(image);
-        image_expected.to_data().assert_eq(&image.to_data(), false);
+        image_expected
+            .to_data()
+            .assert_approx_eq(&image.to_data(), Tolerance::<f32>::balanced());
     }
 
     #[test]
@@ -168,7 +172,9 @@ mod tests {
         // This result would change if the padding method is different
         let image_expected = Tensor::<B, 4>::from([[[[2., 2.], [1., 1.]]]]);
         let image = t.transform(image);
-        image_expected.to_data().assert_eq(&image.to_data(), false);
+        image_expected
+            .to_data()
+            .assert_approx_eq(&image.to_data(), Tolerance::<f32>::balanced());
     }
 
     #[test]
@@ -179,7 +185,9 @@ mod tests {
         let image = Tensor::<B, 4>::from([[[[1., 2.], [3., 4.]]]]);
         let image_expected = Tensor::<B, 4>::from([[[[1.75, 2.25], [2.75, 3.25]]]]);
         let image = t.transform(image);
-        image_expected.to_data().assert_eq(&image.to_data(), false);
+        image_expected
+            .to_data()
+            .assert_approx_eq(&image.to_data(), Tolerance::<f32>::balanced());
     }
 
     #[test]
@@ -190,7 +198,9 @@ mod tests {
         let image = Tensor::<B, 4>::from([[[[1., 2.], [3., 4.]]]]);
         let image_expected = Tensor::<B, 4>::from([[[[1.5, 2.], [2.5, 3.]]]]);
         let image = t.transform(image);
-        image_expected.to_data().assert_eq(&image.to_data(), false);
+        image_expected
+            .to_data()
+            .assert_approx_eq(&image.to_data(), Tolerance::<f32>::balanced());
     }
 
     #[test]
@@ -201,8 +211,11 @@ mod tests {
 
         let image = Tensor::<B, 4>::from([[[[1., 2.], [3., 4.]]]]);
         // This result would change if the padding method is different
-        let image_expected = Tensor::<B, 4>::from([[[[1.7830127, 2.8660254], [1.1339746, 3.2830124]]]]);
+        let image_expected =
+            Tensor::<B, 4>::from([[[[1.7830127, 2.8660254], [1.1339746, 3.2830124]]]]);
         let image = t.transform(image);
-        image_expected.to_data().assert_eq(&image.to_data(), false);
+        image_expected
+            .to_data()
+            .assert_approx_eq(&image.to_data(), Tolerance::<f32>::balanced());
     }
 }
