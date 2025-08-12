@@ -575,10 +575,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         {
             match (tensor, grid) {
                 (NdArrayTensorFloat::F64(tensor), NdArrayTensorFloat::F64(grid)) => {
-                    NdArrayTensorFloat::F64((|tensor| grid_sample_2d(tensor, grid, method))(tensor))
+                    NdArrayTensorFloat::F64(grid_sample_2d(tensor, grid, method))
                 }
                 (NdArrayTensorFloat::F32(tensor), NdArrayTensorFloat::F32(grid)) => {
-                    NdArrayTensorFloat::F32((|tensor| grid_sample_2d(tensor, grid, method))(tensor))
+                    NdArrayTensorFloat::F32(grid_sample_2d(tensor, grid, method))
                 }
                 _ => panic!("Invalid grid type, must match tensor type"),
             }
