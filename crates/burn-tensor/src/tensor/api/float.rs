@@ -165,7 +165,7 @@ where
     ///     let device = Default::default();
     ///
     ///     let tensor = Tensor::<B, 3>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.sinh()); // [0.0, -0.7616, 0.9640]
+    ///     println!("{}", tensor.tanh()); // [0.0, -0.7616, 0.9640]
     /// }
     /// ```
     pub fn tanh(self) -> Self {
