@@ -3,6 +3,13 @@ use cubecl::std::{FastDivmod, FastDivmodArgs};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use std::ops::Range;
 
+#[inline]
+fn clamp_range(dim: usize, r: &Range<usize>) -> (usize, usize) {
+    let s = r.start.min(dim);
+    let e = r.end.min(dim);
+    if e < s { (s, s) } else { (s, e) }
+}
+
 #[cube(launch_unchecked)]
 fn slice_assign_kernel<E: CubePrimitive>(
     input: &mut Tensor<Line<E>>,
@@ -54,13 +61,17 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
     };
     let ndims = tensor.shape.num_dims();
 
+    // --- Vectorization (line size) decision using clamped last-dim slice ---
     let line_size = if tensor.strides[ndims - 1] == 1 && value.strides[ndims - 1] == 1 {
-        let last = indices.get(ndims - 1).cloned().unwrap_or(Range {
+        let last_dim = tensor.shape.dims[ndims - 1];
+        let last_req = indices.get(ndims - 1).cloned().unwrap_or(Range {
             start: 0,
-            end: tensor.shape.dims[ndims - 1],
+            end: last_dim,
         });
-        let shape = last.end - last.start;
-        let offset = last.start;
+        let (start, end) = clamp_range(last_dim, &last_req);
+        let shape = end.saturating_sub(start);
+        let offset = start;
+
         *R::supported_line_sizes()
             .iter()
             .filter(|it| {
@@ -79,16 +90,28 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
     let mut shape = SequenceArg::<R, FastDivmod>::new();
     let mut offsets = SequenceArg::<R, u32>::new();
 
+    // --- Build per-dimension shapes/offsets with clamped ranges ---
     for i in 0..ndims {
-        let range = indices.get(i).cloned().unwrap_or(Range {
+        let dimi = tensor.shape.dims[i];
+        let req = indices.get(i).cloned().unwrap_or(Range {
             start: 0,
-            end: tensor.shape.dims[i],
+            end: dimi,
         });
-        let start = range.start;
-        let length = range.end - start;
+        let (s, e) = clamp_range(dimi, &req);
+        let length = e.saturating_sub(s);
+
+        // Empty slice is a no-op write; skip kernel entirely.
+        if length == 0 {
+            return tensor;
+        }
 
         shape.push(FastDivmodArgs::new(&client, length as u32));
-        offsets.push(ScalarArg::new(start as u32));
+        offsets.push(ScalarArg::new(s as u32));
+    }
+
+    // Nothing to write?
+    if value.shape.num_elements() == 0 {
+        return tensor;
     }
 
     let cube_dim = CubeDim::default();

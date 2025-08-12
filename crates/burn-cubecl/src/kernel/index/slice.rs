@@ -3,6 +3,14 @@ use burn_tensor::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use std::ops::Range;
 
+// clamping the start and end values to avoid overflow
+#[inline]
+fn clamp_range(dim: usize, r: &Range<usize>) -> (usize, usize) {
+    let s = r.start.min(dim);
+    let e = r.end.min(dim);
+    if e < s { (s, s) } else { (s, e) }
+}
+
 /// Slice a jit tensor with a set of ranges
 pub fn slice<R: CubeRuntime, E: CubeElement>(
     tensor: CubeTensor<R>,
@@ -13,9 +21,15 @@ pub fn slice<R: CubeRuntime, E: CubeElement>(
     let mut offset_end = 0u64;
 
     for i in 0..indices.len() {
-        offset_start += (tensor.strides[i] * indices[i].start) as u64;
-        offset_end += (tensor.strides[i] * (dims[i] - indices[i].end)) as u64;
-        dims[i] = indices[i].end - indices[i].start;
+        let dim0 = dims[i];
+        let (s, e) = clamp_range(dim0, &indices[i]);
+
+        // NB: use dim0 (the original size) for offset_end
+        offset_start += (tensor.strides[i] * s) as u64;
+        offset_end += (tensor.strides[i] * dim0.saturating_sub(e)) as u64;
+
+        // Output dimension is the (clamped) length of the slice
+        dims[i] = e.saturating_sub(s);
     }
 
     let offset_start = offset_start * E::cube_elem().size() as u64;
@@ -78,8 +92,9 @@ pub(crate) fn slice_on_output<R: CubeRuntime, E: CubeElement>(
     let mut indices_sequence = SequenceArg::<R, u32>::new();
 
     for i in 0..ndims {
-        let start = indices.get(i).map(|index| index.start).unwrap_or(0);
-        indices_sequence.push(ScalarArg::new(start as u32));
+        let dimi = tensor.shape.dims[i];
+        let s = indices.get(i).map(|r| r.start).unwrap_or(0).min(dimi);
+        indices_sequence.push(ScalarArg::new(s as u32));
     }
 
     let cube_dim = CubeDim::default();
