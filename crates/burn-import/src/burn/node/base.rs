@@ -12,13 +12,13 @@ use super::{
     dropout::DropoutNode, expand::ExpandNode, floor::FloorNode, gather::GatherNode,
     gather_elements::GatherElementsNode, gemm::GemmNode, global_avg_pool::GlobalAvgPoolNode,
     group_norm::GroupNormNode, instance_norm::InstanceNormNode, layer_norm::LayerNormNode,
-    linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode, max_pool1d::MaxPool1dNode,
-    max_pool2d::MaxPool2dNode, mean::MeanNode, one_hot::OneHotNode, pad::PadNode, prelu::PReluNode,
+    linear::LinearNode, matmul::MatmulNode, max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode,
+    mean::MeanNode, one_hot::OneHotNode, pad::PadNode, prelu::PReluNode,
     random_normal::RandomNormalNode, random_normal_like::RandomNormalLikeNode,
     random_uniform::RandomUniformNode, random_uniform_like::RandomUniformLikeNode,
     range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, round::RoundNode, slice::SliceNode,
     split::SplitNode, squeeze::SqueezeNode, sum::SumNode, tile::TileNode, top_k::TopKNode,
-    trilu::TriluNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
+    trilu::TriluNode, unary::UnaryNode, unsqueeze::UnsqueezeNode, where_op::WhereNode,
 };
 use crate::burn::{
     BurnImports, Scope, Type,

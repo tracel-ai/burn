@@ -56,7 +56,7 @@ pub mod less_or_equal;
 pub mod linear;
 pub mod log;
 pub mod log_softmax;
-pub mod mask_where;
+pub mod where_op;
 pub mod matmul;
 pub mod max;
 pub mod maxpool;

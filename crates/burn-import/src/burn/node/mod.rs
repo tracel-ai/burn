@@ -37,7 +37,6 @@ pub(crate) mod group_norm;
 pub(crate) mod instance_norm;
 pub(crate) mod layer_norm;
 pub(crate) mod linear;
-pub(crate) mod mask_where;
 pub(crate) mod matmul;
 pub(crate) mod max_pool1d;
 pub(crate) mod max_pool2d;
@@ -63,6 +62,7 @@ pub(crate) mod top_k;
 pub(crate) mod trilu;
 pub(crate) mod unary;
 pub(crate) mod unsqueeze;
+pub(crate) mod where_op;
 pub(crate) use base::*;
 
 #[cfg(test)]
