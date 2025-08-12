@@ -118,7 +118,7 @@ where
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::<B, 3>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.cosh()); // [1.0, 1.5430, 3.7621]
     /// }
     /// ```
@@ -141,7 +141,7 @@ where
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::<B, 3>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.sinh()); // [0.0, -1.1752, 3.6269]
     /// }
     /// ```
@@ -164,8 +164,8 @@ where
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::<B, 3>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.sinh()); // [0.0, -0.7616, 0.9640]
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     println!("{}", tensor.tanh()); // [0.0, -0.7616, 0.9640]
     /// }
     /// ```
     pub fn tanh(self) -> Self {
