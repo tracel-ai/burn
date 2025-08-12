@@ -99,4 +99,15 @@ mod tests {
             panic!("OUPS")
         }
     }
+
+    #[test]
+    #[should_panic = "Can't store in u32"]
+    fn should_panic_when_shape_cannot_store_quants() {
+        let device = Default::default();
+        let scheme = QuantScheme::default();
+
+        let tensor_1 =
+            Tensor::<TestBackend, 2>::from_floats([[1.0, 6.35], [2.0, 3.0], [1.0, 3.0]], &device)
+                .quantize_dynamic(&scheme);
+    }
 }

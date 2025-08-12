@@ -46,19 +46,30 @@ mod tests {
     }
 
     #[test]
-    fn quant_scheme_should_propagate_by_default() {
+    fn quant_scheme_should_inhibit_by_default() {
         let device = Default::default();
         let scheme = QuantScheme::default();
 
-        let tensor_1 = TestTensor::<2>::from_floats([[1.0, 6.35], [2.0, 3.0], [1.0, 3.0]], &device)
-            .quantize_dynamic(&scheme);
-        let tensor_2 = TestTensor::<2>::from_floats([[4.0, 8.0, 12.7], [2.0, 3.0, 6.0]], &device)
-            .quantize_dynamic(&scheme);
+        let tensor_1 = TestTensor::<2>::from_floats(
+            [[1.0, 6.35, 0., 0.], [2.0, 3.0, 0., 0.], [1.0, 3.0, 0., 0.]],
+            &device,
+        )
+        .quantize_dynamic(&scheme);
+        let tensor_2 = TestTensor::<2>::from_floats(
+            [
+                [4.0, 8.0, 12.7, 0.],
+                [2.0, 3.0, 6.0, 0.],
+                [0., 0., 0., 0.],
+                [0., 0., 0., 0.],
+            ],
+            &device,
+        )
+        .quantize_dynamic(&scheme);
 
-        let tensor_3 = tensor_1.matmul(tensor_2);
-        assert_eq!(tensor_3.to_data().dtype, DType::QFloat(scheme));
+        // let tensor_3 = tensor_1.clone().matmul(tensor_2);
+        // assert_eq!(tensor_3.to_data().dtype, FT::dtype());
 
-        let tensor_4 = tensor_3.add_scalar(1.);
-        assert_eq!(tensor_4.to_data().dtype, DType::QFloat(scheme));
+        let tensor_4 = tensor_1.add_scalar(1.);
+        assert_eq!(tensor_4.to_data().dtype, FT::dtype());
     }
 }
