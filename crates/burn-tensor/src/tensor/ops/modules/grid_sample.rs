@@ -25,7 +25,10 @@ pub fn float_grid_sample_2d_bilinear<B: Backend>(
     let x_max_half = (w_in - 1) as f64 / 2.0;
     let y_max_half = (h_in - 1) as f64 / 2.0;
 
-    // Separate x and y coordinates
+    // Clamp grid
+    let grid = B::float_clamp(grid, (-1_f32).elem(), (1_f32).elem());
+
+    // Seperate x and y coordinates
     // shape: (N, H_out, W_out, 1)
     let grid_x_slice = &[0..n, 0..h_out, 0..w_out, 0..1];
     let grid_y_slice = &[0..n, 0..h_out, 0..w_out, 1..2];
