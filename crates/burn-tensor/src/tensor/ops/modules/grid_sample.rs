@@ -28,7 +28,7 @@ pub fn float_grid_sample_2d_bilinear<B: Backend>(
     // Clamp grid
     let grid = B::float_clamp(grid, (-1_f32).elem(), (1_f32).elem());
 
-    // Seperate x and y coordinates
+    // Separate x and y coordinates
     // shape: (N, H_out, W_out, 1)
     let grid_x_slice = &[0..n, 0..h_out, 0..w_out, 0..1];
     let grid_y_slice = &[0..n, 0..h_out, 0..w_out, 1..2];
