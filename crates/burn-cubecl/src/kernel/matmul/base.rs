@@ -1,9 +1,6 @@
 use super::init_matmul_output;
 use crate::{CubeRuntime, FloatElement, tensor::CubeTensor};
-use burn_tensor::{
-    DType,
-    quantization::{QTensorPrimitive, QuantFloatPrecision},
-};
+use burn_tensor::{DType, quantization::QuantAcc};
 use cubecl::matmul::{MatmulInputHandleRef, components::MatmulSetupError};
 
 #[cfg(feature = "autotune")]
@@ -68,16 +65,14 @@ pub fn q_matmul<R: CubeRuntime>(
 
     let client = &lhs.client;
 
-    let scheme = *lhs.scheme();
-
     lhs.dtype = DType::I8;
     rhs.dtype = DType::I8;
 
     let lhs_scales = lhs.scales().unwrap();
     let rhs_scales = rhs.scales().unwrap();
 
-    match scheme.acc_precision {
-        QuantFloatPrecision::F32 => {
+    match QuantAcc::default() {
+        QuantAcc::F32 => {
             cubecl::matmul::launch_ref::<R, (i8, i8, half::f16, half::f16, f32, half::f16)>(
                 &Default::default(),
                 client,
@@ -92,7 +87,7 @@ pub fn q_matmul<R: CubeRuntime>(
                 &out.as_handle_ref(),
             )?;
         }
-        QuantFloatPrecision::F16 => {
+        QuantAcc::F16 => {
             cubecl::matmul::launch_ref::<R, (i8, i8, half::f16, half::f16, half::f16, half::f16)>(
                 &Default::default(),
                 client,
@@ -107,7 +102,7 @@ pub fn q_matmul<R: CubeRuntime>(
                 &out.as_handle_ref(),
             )?;
         }
-        QuantFloatPrecision::BF16 => unimplemented!(),
+        QuantAcc::BF16 => unimplemented!(),
     }
 
     Ok(out)

@@ -5,9 +5,8 @@ use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParams, QuantInputType, QuantLevel, QuantMode, QuantScheme,
-        QuantizationParametersPrimitive, QuantizationStrategy, QuantizedBytes,
-        SymmetricQuantization,
+        QParams, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizationParametersPrimitive,
+        QuantizationStrategy, QuantizedBytes, SymmetricQuantization,
     },
 };
 
@@ -50,7 +49,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                     QuantScheme {
                         level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
-                        q_type: QuantInputType::QInt8,
+                        value: QuantValue::QInt8,
                         ..
                     } => {
                         // We should probably check that `Q` matches i8.. but it's the only valid type now
@@ -88,7 +87,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => {
                 let scales = into_data_f(qparams.scales).iter().next().unwrap();
@@ -102,7 +101,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
             QuantScheme {
                 level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => {
                 let (strategy, qparams) = into_data_f(qparams.scales)
