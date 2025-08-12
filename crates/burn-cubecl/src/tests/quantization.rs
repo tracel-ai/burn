@@ -3,14 +3,14 @@ mod tests {
     use super::*;
     use burn_tensor::{
         Int, Tensor,
+        backend::Backend,
         quantization::{QuantLevel, QuantParam, QuantScheme, QuantStore, QuantValue},
     };
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
-    #[test]
-    fn should_quantize_dequantize_symmetric_arange() {
-        let scheme = QuantScheme::default();
+    fn should_quantize_dequantize_symmetric_arange(store: QuantStore) {
+        let scheme = QuantScheme::default().with_store(store);
         let input = Tensor::<TestBackend, 1, Int>::arange(0..128, &Default::default()).float();
         let input_ref =
             Tensor::<ReferenceBackend, 1>::from_data(input.to_data(), &Default::default());
@@ -28,9 +28,10 @@ mod tests {
             .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
     }
 
-    #[test]
-    fn should_quantize_dequantize_symmetric_per_block() {
-        let scheme = QuantScheme::default().with_level(QuantLevel::Block(8));
+    fn should_quantize_dequantize_symmetric_per_block(store: QuantStore) {
+        let scheme = QuantScheme::default()
+            .with_level(QuantLevel::Block(8))
+            .with_store(store);
 
         let input = Tensor::<TestBackend, 2>::from_floats(
             [
@@ -59,5 +60,43 @@ mod tests {
         output
             .into_data()
             .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
+    }
+
+    fn supports_native() -> bool {
+        let name = <TestBackend as Backend>::name(&Default::default());
+        // TODO: Proper checks for i8 support.
+        name.contains("cuda")
+            || name.contains("rocm")
+            || name.contains("hip")
+            || name.contains("vulkan")
+            || name.contains("spirv")
+            || name.contains("metal")
+            || name.contains("msl")
+    }
+
+    #[test]
+    fn should_quantize_dequantize_symmetric_arange_packed() {
+        should_quantize_dequantize_symmetric_arange(QuantStore::U32)
+    }
+
+    #[test]
+    fn should_quantize_dequantize_symmetric_per_block_packed() {
+        should_quantize_dequantize_symmetric_per_block(QuantStore::U32)
+    }
+
+    #[test]
+    fn should_quantize_dequantize_symmetric_arange_native() {
+        if supports_native() {
+            should_quantize_dequantize_symmetric_arange(QuantStore::Native)
+        }
+    }
+
+    #[test]
+    fn should_quantize_dequantize_symmetric_per_block_native() {
+        if supports_native() {
+            should_quantize_dequantize_symmetric_per_block(QuantStore::Native)
+        } else {
+            panic!("OUPS")
+        }
     }
 }

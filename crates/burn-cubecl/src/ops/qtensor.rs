@@ -249,7 +249,7 @@ where
             return execute_with_dtype!(tensor.dtype, E, into_data::<R, E>(tensor).await);
         }
 
-        let (shape, dtype) = (tensor.shape.dims.to_vec(), tensor.dtype.clone());
+        let (shape, dtype) = (tensor.shape.dims.clone(), tensor.dtype);
         let scheme = match dtype {
             DType::QFloat(val) => val,
             _ => unreachable!("Already checked if quantized."),
@@ -324,7 +324,7 @@ where
             let out =
                 kernel::matmul::q_matmul(lhs.clone(), rhs.clone(), None, MatmulStrategy::default());
             if let Ok(out) = out {
-                return match QuantPropagation::default() {
+                return match lhs.propagation() {
                     QuantPropagation::Propagate => {
                         TensorPrimitive::QFloat(Self::quantize_dynamic(out, lhs.scheme()))
                     }
@@ -335,11 +335,12 @@ where
 
         // If the above quantized matmul fail, we fallback to the dequantize-then-matmul pattern.
         let scheme = *lhs.scheme();
+        let propagation = lhs.propagation();
         let t1_f = <Self>::dequantize(lhs);
         let t2_f = <Self>::dequantize(rhs);
         let out = Self::float_matmul(t1_f, t2_f);
 
-        match QuantPropagation::default() {
+        match propagation {
             QuantPropagation::Propagate => {
                 TensorPrimitive::QFloat(Self::quantize_dynamic(out, &scheme))
             }

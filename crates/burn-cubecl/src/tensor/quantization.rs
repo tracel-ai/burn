@@ -31,7 +31,7 @@ impl<R: CubeRuntime> CubeTensor<R> {
         }
     }
 
-    /// TODO
+    /// Returns the two tensors: (values, params) for a quantized tensor.
     pub fn quantized_handles(&self) -> Option<(CubeTensor<R>, CubeTensor<R>)> {
         let params = self.scales()?;
         let scheme = match self.dtype {
