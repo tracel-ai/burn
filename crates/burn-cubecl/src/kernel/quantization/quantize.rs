@@ -21,7 +21,7 @@ where
         &out_values.as_handle_ref(),
         &scale.as_handle_ref(),
         &out_params.as_handle_ref(),
-        &scheme,
+        scheme,
     );
 
     output
