@@ -16,8 +16,8 @@ extern crate alloc;
 pub mod backends;
 mod base;
 mod ops;
-mod tensor;
 mod show;
+mod tensor;
 
 #[cfg(feature = "export-tests")]
 #[allow(missing_docs)]
@@ -25,7 +25,7 @@ pub mod tests;
 
 pub use base::*;
 pub use ops::*;
-pub use tensor::*;
 pub use show::*;
+pub use tensor::*;
 
 pub use backends::{KernelShape, create_structuring_element};
