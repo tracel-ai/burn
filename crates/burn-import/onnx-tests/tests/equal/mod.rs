@@ -51,9 +51,9 @@ mod tests {
         let input2 = Tensor::<Backend, 3>::ones([2, 3, 4], &Default::default());
 
         let output = model.forward(input1, input2);
-        // Both have shape [2, 3, 4] so all elements should be equal
-        let expected = TensorData::from([true, true, true]);
+        // Both have shape [2, 3, 4] so all elements should be equal (1 for true)
+        let expected: [i64; 3] = [1, 1, 1];
 
-        output.to_data().assert_eq(&expected, true);
+        assert_eq!(output, expected);
     }
 }

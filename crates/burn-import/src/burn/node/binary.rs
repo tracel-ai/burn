@@ -130,12 +130,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BinaryNode {
         // Check if we need to import Bool and Int for Shape comparisons
         if self.binary_type == BinaryType::Equal {
             match (&self.lhs, &self.rhs) {
-                // Shape comparisons need these imports
-                (Type::Shape(_), _) | (_, Type::Shape(_)) => {
+                // Shape-to-Tensor comparisons need these imports
+                (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
                     imports.register("burn::tensor::Bool");
                     imports.register("burn::tensor::Int");
                     imports.register("burn::tensor::Tensor");
                 }
+                // Shape-to-Shape comparison doesn't need any special imports
                 _ => {}
             }
         }
@@ -339,6 +340,17 @@ impl BinaryNode {
         let function = match (&lhs, &rhs) {
             (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.equal(#rhs) },
             (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs == #rhs },
+            (Type::Shape(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let mut result = #lhs;
+                        for (result_item, rhs_item) in result.iter_mut().zip(#rhs.iter()) {
+                            *result_item = if result_item == rhs_item { 1i64 } else { 0i64 };
+                        }
+                        result
+                    }
+                }
+            },
             (Type::Shape(_), Type::Tensor(_)) => move |lhs, rhs| {
                 quote! {
                     {
@@ -355,16 +367,8 @@ impl BinaryNode {
                     }
                 }
             },
-            (Type::Shape(_), Type::Shape(_)) => move |lhs, rhs| {
-                quote! {
-                    {
-                        let result: Vec<bool> = #lhs.iter().zip(#rhs.iter()).map(|(a, b)| a == b).collect();
-                        Tensor::<B, 1, Bool>::from_data(result.as_slice(), &*self.device)
-                    }
-                }
-            },
             _ => panic!(
-                "Comparison is supported for tensor to tensor, scalar to scalar, and shape to tensor/shape only"
+                "Comparison is supported for tensor to tensor, scalar to scalar, shape to shape, and shape to tensor only"
             ),
         };
 

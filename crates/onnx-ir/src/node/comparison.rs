@@ -4,6 +4,21 @@ use crate::ir::{ArgType, ElementType, Node, TensorType};
 pub fn elementwise_comparison_outputs(node: &mut Node) {
     log::debug!("Elementwise comparison for node {}", node.name);
 
+    // Check if both inputs are Shape types
+    let both_shapes = node.inputs.len() == 2
+        && matches!(&node.inputs[0].ty, ArgType::Shape(_))
+        && matches!(&node.inputs[1].ty, ArgType::Shape(_));
+
+    if both_shapes {
+        // For Shape-to-Shape comparison, output should be a Shape type
+        // Get the dimension from the first Shape input
+        if let ArgType::Shape(dim) = &node.inputs[0].ty {
+            node.outputs[0].ty = ArgType::Shape(*dim);
+            log::debug!("Shape result for node {} with dimension {}", node.name, dim);
+            return;
+        }
+    }
+
     let max_rank = node.inputs.iter().fold(0, |acc, input| match &input.ty {
         ArgType::Tensor(tensor) => acc.max(tensor.rank),
         ArgType::Scalar(_) => acc,
@@ -76,15 +91,16 @@ mod tests {
     }
 
     #[test]
-    fn test_comparison_with_shape_input() {
+    fn test_comparison_with_shape_and_tensor() {
         let mut node = create_test_node(2, 2);
         node.inputs[0].ty = ArgType::Shape(3);
+        // node.inputs[1] remains as Tensor with rank 2
         elementwise_comparison_outputs(&mut node);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.elem_type, ElementType::Bool);
-                assert_eq!(tensor.rank, 2); // max(1, 2) = 2 (Shape is rank 1, other is rank 2)
+                assert_eq!(tensor.rank, 2); // max(1, 2) = 2 (Shape is rank 1, Tensor is rank 2)
             }
             _ => panic!("Expected tensor output"),
         }
@@ -98,11 +114,10 @@ mod tests {
         elementwise_comparison_outputs(&mut node);
 
         match &node.outputs[0].ty {
-            ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.elem_type, ElementType::Bool);
-                assert_eq!(tensor.rank, 1); // Both Shape inputs are rank 1
+            ArgType::Shape(dim) => {
+                assert_eq!(*dim, 3); // Shape output with same dimension
             }
-            _ => panic!("Expected tensor output"),
+            _ => panic!("Expected shape output"),
         }
     }
 }
