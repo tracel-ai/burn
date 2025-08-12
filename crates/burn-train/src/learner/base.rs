@@ -28,7 +28,7 @@ pub struct Learner<LC: LearnerComponentTypes> {
     pub(crate) summary: Option<LearnerSummaryConfig>,
 }
 
-/// Clonable reference to an early stopping strategy
+/// Cloneable reference to an early stopping strategy
 pub(crate) type EarlyStoppingStrategyRef = Box<dyn CloneEarlyStoppingStrategy>;
 
 #[derive(new)]
