@@ -3,10 +3,7 @@ use core::marker::PhantomData;
 use num_traits::{Float, PrimInt, Signed};
 use serde::{Deserialize, Serialize};
 
-use super::{
-    QuantFloatPrecision, QuantInputType, QuantLevel, QuantMode, QuantPropagation, QuantScheme,
-    QuantStoreType,
-};
+use super::{QuantLevel, QuantMode, QuantParam, QuantScheme, QuantStore, QuantValue};
 
 /// Quantization strategy.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -68,20 +65,16 @@ impl QuantizationStrategy {
             QuantizationStrategy::PerTensorSymmetricInt8(_) => QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
-                q_store_type: QuantStoreType::Native,
-                q_params_precision: QuantFloatPrecision::F32,
-                acc_precision: QuantFloatPrecision::F32,
-                propagation: QuantPropagation::Inhibit,
+                value: QuantValue::QInt8,
+                store: QuantStore::U32,
+                param: QuantParam::F32,
             },
             QuantizationStrategy::PerBlockSymmetricInt8(_blocks, block_size) => QuantScheme {
                 level: QuantLevel::Block(*block_size),
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
-                q_store_type: QuantStoreType::Native,
-                q_params_precision: QuantFloatPrecision::F32,
-                acc_precision: QuantFloatPrecision::F32,
-                propagation: QuantPropagation::Inhibit,
+                value: QuantValue::QInt8,
+                store: QuantStore::U32,
+                param: QuantParam::F32,
             },
         }
     }
