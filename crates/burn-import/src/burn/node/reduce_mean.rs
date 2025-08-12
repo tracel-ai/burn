@@ -32,7 +32,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceMeanNode {
                 dims.sort_by(|a, b| b.cmp(a));
 
                 let dims_tokens: Vec<_> = dims.iter().map(|d| d.to_tokens()).collect();
-                let dims_isize: Vec<isize> = dims.iter().map(|&d| d as isize).collect();
+                let dims_isize: Vec<isize> = dims
+                    .iter()
+                    .map(|&d| isize::try_from(d).expect("Axis index exceeds isize::MAX"))
+                    .collect();
 
                 // Apply mean_dim for each axis
                 let mut result = quote! { #input };
