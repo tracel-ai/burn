@@ -45,17 +45,26 @@ pub fn where_update_outputs(node: &mut Node) {
     let y_elem_type = get_elem_type(y);
     let condition_elem_type = get_elem_type(condition);
 
-    assert_eq!(
-        condition_elem_type,
-        ElementType::Bool,
-        "Where condition must be boolean!"
-    );
-    assert_eq!(
-        x_elem_type, y_elem_type,
-        "Where x and y have different element types!"
-    );
+    if !matches!(condition, ArgType::Shape(_)) {
+        assert_eq!(
+            condition_elem_type,
+            ElementType::Bool,
+            "Where condition must be boolean!"
+        );
+    }
 
-    let elem_type = x_elem_type;
+    let elem_type = if x_elem_type == y_elem_type {
+        x_elem_type
+    } else if matches!(x, ArgType::Shape(_)) {
+        y_elem_type
+    } else if matches!(y, ArgType::Shape(_)) {
+        x_elem_type
+    } else {
+        panic!(
+            "Where x and y have different element types! ({:?} vs {:?})",
+            x_elem_type, y_elem_type
+        );
+    };
 
     log::debug!(
         "Where input ranks for {}: condition={}, x={}, y={}",
