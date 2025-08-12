@@ -33,7 +33,7 @@ pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
                 Data::Float16(min) => Some(f32::from(min) as f64),
                 Data::Float32(min) => Some(min as f64),
                 Data::Float64(min) => Some(min),
-                _ => panic!("Clip: only float min is supported"),
+                _ => panic!("Clip: only float min is supported but got {:?}", min),
             };
         }
 
