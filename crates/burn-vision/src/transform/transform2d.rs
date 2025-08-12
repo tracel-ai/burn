@@ -4,7 +4,7 @@ use burn_tensor::{Tensor, backend::Backend, grid::affine_grid_2d, ops::Interpola
 ///
 /// Useful for resampling: rotating, scaling, translating, etc image tensors
 pub struct Transform2D {
-    // 2x3 transformation matrix, to be used with collumn vectors:
+    // 2x3 transformation matrix, to be used with column vectors:
     // T(x) = Ax
     transform: [[f32; 3]; 2],
 }
