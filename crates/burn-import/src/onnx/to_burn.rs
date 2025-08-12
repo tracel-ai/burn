@@ -895,9 +895,9 @@ impl ParsedOnnxGraph {
     fn reduce_mean_conversion(node: Node) -> UnaryNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        let dim = reduce_mean_config(&node);
+        let config = reduce_mean_config(&node);
 
-        UnaryNode::reduce_mean(input, output, dim)
+        UnaryNode::reduce_mean(input, output, config.axes, config.keepdims)
     }
 
     fn reduce_prod_conversion(node: Node) -> UnaryNode {

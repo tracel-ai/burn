@@ -1,7 +1,13 @@
-use crate::ir::{ArgType, AttributeValue, Node, TensorType};
+use crate::ir::{ArgType, Node, TensorType};
+
+/// Configuration for ReduceMean operation
+pub struct ReduceMeanConfig {
+    pub axes: Option<Vec<i64>>,
+    pub keepdims: bool,
+}
 
 /// Create a ReduceMeanConfig from the attributes of the node
-pub fn reduce_mean_config(node: &Node) -> Option<usize> {
+pub fn reduce_mean_config(node: &Node) -> ReduceMeanConfig {
     let mut axes = Vec::new();
     let mut keepdims = 1;
 
@@ -19,29 +25,26 @@ pub fn reduce_mean_config(node: &Node) -> Option<usize> {
         }
     }
 
-    if axes.len() > 1 {
-        panic!("ReduceMean: reducing on multiple dimensions is not supported")
-    }
+    // Note: Multiple axes reduction is now supported
 
-    if axes.is_empty() && keepdims == 1 {
-        panic!("ReduceMean: axes must be provided with keepdims")
-    }
-
-    if !axes.is_empty() && keepdims == 0 {
-        // Not supported in Burn
-        panic!("ReduceMean: the reduce operation must preserve the reduced dimension")
-    }
-
-    if axes.is_empty() {
+    // Convert negative axes to positive
+    let processed_axes = if axes.is_empty() {
         None
     } else {
-        let mut dim = axes[0];
-
-        if dim < 0 {
-            // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
-            dim += tensor.rank as i64;
+        let mut processed = Vec::new();
+        for mut axis in axes {
+            if axis < 0 {
+                // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
+                axis += tensor.rank as i64;
+            }
+            processed.push(axis);
         }
-        Some(dim as usize)
+        Some(processed)
+    };
+
+    ReduceMeanConfig {
+        axes: processed_axes,
+        keepdims: keepdims != 0,
     }
 }
 
@@ -57,16 +60,21 @@ pub fn reduce_mean_update_outputs(node: &mut Node) {
         _ => panic!("Only tensor input is valid"),
     };
 
-    let dim_only = match node.attrs.get("axes") {
-        Some(value) => match &value {
-            AttributeValue::Int64(_) => true,
-            AttributeValue::Int64s(ints) => ints.len() == 1,
-            _ => false,
-        },
-        None => false,
+    let config = reduce_mean_config(node);
+
+    let output_rank = if let Some(ref axes) = config.axes {
+        if config.keepdims {
+            // Keep the same rank with reduced dimension size = 1
+            tensor.rank
+        } else {
+            // Reduce rank by the number of axes being reduced
+            tensor.rank - axes.len()
+        }
+    } else {
+        // Reduce all dimensions - results in scalar (rank 1)
+        1
     };
 
-    let output_rank = if dim_only { tensor.rank } else { 1 };
     log::debug!("ReduceMean output rank for {}: {}", node.name, output_rank);
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
@@ -100,37 +108,58 @@ mod tests {
     #[test]
     fn test_reduce_mean_config_basic() {
         let node = create_test_node(Some(vec![1]), Some(1));
-        let dim = reduce_mean_config(&node);
-        assert_eq!(dim, Some(1));
+        let config = reduce_mean_config(&node);
+        assert_eq!(config.axes, Some(vec![1]));
+        assert_eq!(config.keepdims, true);
     }
 
     #[test]
     fn test_reduce_mean_config_negative_axis() {
         let node = create_test_node(Some(vec![-2]), Some(1));
-        let dim = reduce_mean_config(&node);
-        assert_eq!(dim, Some(1)); // -2 + 3 = 1
+        let config = reduce_mean_config(&node);
+        assert_eq!(config.axes, Some(vec![1])); // -2 + 3 = 1
+        assert_eq!(config.keepdims, true);
     }
 
     #[test]
-    #[should_panic(expected = "ReduceMean: axes must be provided with keepdims")]
-    fn test_reduce_mean_config_no_axes() {
+    fn test_reduce_mean_config_no_axes_keepdims() {
+        // When axes is None, it means reduce over all dimensions
         let node = create_test_node(None, Some(1));
-        let _ = reduce_mean_config(&node);
+        let config = reduce_mean_config(&node);
+        assert_eq!(config.axes, None);
+        assert_eq!(config.keepdims, true);
     }
 
     #[test]
-    #[should_panic(expected = "ReduceMean: reducing on multiple dimensions is not supported")]
+    fn test_reduce_mean_config_no_axes_no_keepdims() {
+        // When axes is None, it means reduce over all dimensions
+        let node = create_test_node(None, Some(0));
+        let config = reduce_mean_config(&node);
+        assert_eq!(config.axes, None);
+        assert_eq!(config.keepdims, false);
+    }
+
+    #[test]
     fn test_reduce_mean_config_multiple_axes() {
         let node = create_test_node(Some(vec![0, 1]), Some(1));
-        let _ = reduce_mean_config(&node);
+        let config = reduce_mean_config(&node);
+        assert_eq!(config.axes, Some(vec![0, 1]));
+        assert_eq!(config.keepdims, true);
     }
 
     #[test]
-    #[should_panic(
-        expected = "ReduceMean: the reduce operation must preserve the reduced dimension"
-    )]
+    fn test_reduce_mean_config_multiple_axes_no_keepdims() {
+        let node = create_test_node(Some(vec![0, 2]), Some(0));
+        let config = reduce_mean_config(&node);
+        assert_eq!(config.axes, Some(vec![0, 2]));
+        assert_eq!(config.keepdims, false);
+    }
+
+    #[test]
     fn test_reduce_mean_config_no_keepdims() {
         let node = create_test_node(Some(vec![1]), Some(0));
-        let _ = reduce_mean_config(&node);
+        let config = reduce_mean_config(&node);
+        assert_eq!(config.axes, Some(vec![1]));
+        assert_eq!(config.keepdims, false);
     }
 }

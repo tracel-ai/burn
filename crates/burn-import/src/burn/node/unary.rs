@@ -423,26 +423,50 @@ impl UnaryNode {
         }
     }
 
-    pub(crate) fn reduce_mean(input: Type, output: Type, dim: Option<usize>) -> Self {
+    pub(crate) fn reduce_mean(
+        input: Type,
+        output: Type,
+        axes: Option<Vec<i64>>,
+        keepdims: bool,
+    ) -> Self {
         // ReduceMean is constrained to numeric tensors, so no need to check for bool.
         if let Type::Tensor(_) = output {
-            if let Some(dim) = dim {
-                // ReduceMean, keepdims=1, axes=[dim]
-                let dim = dim.to_tokens();
-                Self::new(
-                    input,
-                    output,
-                    UnaryNodeKind::ReduceMean,
-                    Rc::new(move |input| quote! { #input.mean_dim(#dim) }),
-                )
-            } else {
-                // ReduceMean, keepdims=0, axes=None
-                Self::new(
-                    input,
-                    output,
-                    UnaryNodeKind::ReduceMean,
-                    Rc::new(move |input| quote! { #input.mean() }),
-                )
+            match axes {
+                Some(axes) if !axes.is_empty() => {
+                    // Convert axes to usize and sort in descending order to avoid index shifting when squeezing
+                    let mut dims: Vec<usize> = axes.iter().map(|&axis| axis as usize).collect();
+                    dims.sort_by(|a, b| b.cmp(a));
+
+                    let dims_tokens: Vec<_> = dims.iter().map(|d| d.to_tokens()).collect();
+                    let dims_isize: Vec<isize> = dims.iter().map(|&d| d as isize).collect();
+
+                    Self::new(
+                        input,
+                        output,
+                        UnaryNodeKind::ReduceMean,
+                        Rc::new(move |input| {
+                            // Reduce all dimensions
+                            let mut tokens = quote! { #input };
+                            for dim_token in &dims_tokens {
+                                tokens = quote! { #tokens.mean_dim(#dim_token) };
+                            }
+                            // Squeeze if needed
+                            if !keepdims {
+                                tokens = quote! { #tokens.squeeze_dims(&[#(#dims_isize),*]) };
+                            }
+                            tokens
+                        }),
+                    )
+                }
+                _ => {
+                    // ReduceMean, axes=None or empty - reduce all dimensions
+                    Self::new(
+                        input,
+                        output,
+                        UnaryNodeKind::ReduceMean,
+                        Rc::new(move |input| quote! { #input.mean() }),
+                    )
+                }
             }
         } else {
             panic!("ReduceMean only supports tensor output");
@@ -865,11 +889,13 @@ mod tests {
 
     #[test]
     fn test_unary_codegen_reduce_mean() {
+        // Test with keepdims=true
         one_node_graph(
             UnaryNode::reduce_mean(
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
-                Some(1),
+                Some(vec![1]),
+                true,
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
@@ -882,11 +908,32 @@ mod tests {
             vec!["tensor2".to_string()],
         );
 
+        // Test with keepdims=false
+        one_node_graph(
+            UnaryNode::reduce_mean(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 3)),
+                Some(vec![1]),
+                false,
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 3> {
+                    let tensor2 = tensor1.mean_dim(1).squeeze_dims(&[1isize]);
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+
+        // Test with no axes (reduce all)
         one_node_graph(
             UnaryNode::reduce_mean(
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 1)),
                 None,
+                false,
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
