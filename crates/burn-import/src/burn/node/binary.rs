@@ -130,6 +130,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BinaryNode {
         // Check if we need to import Bool and Int for Shape comparisons
         if self.binary_type == BinaryType::Equal {
             match (&self.lhs, &self.rhs) {
+                // Shape comparisons need these imports
                 (Type::Shape(_), _) | (_, Type::Shape(_)) => {
                     imports.register("burn::tensor::Bool");
                     imports.register("burn::tensor::Int");
