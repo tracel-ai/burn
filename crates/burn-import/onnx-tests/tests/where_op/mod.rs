@@ -78,8 +78,7 @@ mod tests {
     #[test]
     fn where_op_all_scalar() {
         let device = Default::default();
-        let model: where_op_all_scalar::Model<Backend> =
-            where_op_all_scalar::Model::new(&device);
+        let model: where_op_all_scalar::Model<Backend> = where_op_all_scalar::Model::new(&device);
 
         let x = 1.0f32;
         let y = 0.0f32;
