@@ -16,7 +16,6 @@ extern crate alloc;
 pub mod backends;
 mod base;
 mod ops;
-mod show;
 mod tensor;
 
 #[cfg(feature = "export-tests")]
@@ -25,7 +24,9 @@ pub mod tests;
 
 pub use base::*;
 pub use ops::*;
-pub use show::*;
 pub use tensor::*;
+
+/// Module for vision/image utilities
+pub mod utils;
 
 pub use backends::{KernelShape, create_structuring_element};

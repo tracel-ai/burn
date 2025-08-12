@@ -22,17 +22,17 @@ pub struct TensorDisplayOptions {
 /// How to interpret dimensions for image tensors
 pub enum ImageDimOrder {
     /// dims: (height, width)
-    HW,
+    Hw,
     /// dims: (channels, height, width)
-    CHW,
+    Chw,
     /// dims: (height, width, channels)
-    HWC,
+    Hwc,
     /// dims: (batch_size, height, width)
-    NHW,
+    Nhw,
     /// dims: (batch_size, channels, height, width)
-    NCHW,
+    Nchw,
     /// dims: (batch_size, height, width, channels)
-    NHWC,
+    Nhwc,
 }
 
 /// How to translate tensor values to colors
@@ -62,13 +62,13 @@ pub enum BatchDisplayOpts {
 /// * `tensor` - Image batch with shape (N, height, width)
 /// * `opts` - Options for how to draw the tensor
 /// * `path` - The file path to use
-pub fn save_tensor_as_image<B: Backend, const D: usize>(
+pub fn save_tensor_as_image<B: Backend, const D: usize, P: AsRef<std::ffi::OsStr>>(
     tensor: Tensor<B, D>,
     opts: TensorDisplayOptions,
-    path: &str,
+    path: P,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Output file
-    let path = Path::new(path);
+    let path = Path::new(&path);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -77,24 +77,24 @@ pub fn save_tensor_as_image<B: Backend, const D: usize>(
 
     // convert to (N,C,H,W) format
     let tensor: Tensor<B, 4> = match opts.dim_order {
-        ImageDimOrder::HW => {
+        ImageDimOrder::Hw => {
             let [h, w] = tensor.shape().dims();
             tensor.reshape([1, 1, h, w])
         }
-        ImageDimOrder::CHW => {
+        ImageDimOrder::Chw => {
             let [c, h, w] = tensor.shape().dims();
             tensor.reshape([1, c, h, w])
         }
-        ImageDimOrder::HWC => {
+        ImageDimOrder::Hwc => {
             let [h, w, c] = tensor.shape().dims();
             tensor.swap_dims(0, 2).swap_dims(1, 2).reshape([1, c, h, w])
         }
-        ImageDimOrder::NHW => {
+        ImageDimOrder::Nhw => {
             let [n, h, w] = tensor.shape().dims();
             tensor.reshape([n, 1, h, w])
         }
-        ImageDimOrder::NCHW => tensor.reshape([0, 0, 0, 0]),
-        ImageDimOrder::NHWC => tensor.swap_dims(1, 3).swap_dims(2, 3).reshape([0, 0, 0, 0]),
+        ImageDimOrder::Nchw => tensor.reshape([0, 0, 0, 0]),
+        ImageDimOrder::Nhwc => tensor.swap_dims(1, 3).swap_dims(2, 3).reshape([0, 0, 0, 0]),
     };
 
     let data = tensor.to_data();
