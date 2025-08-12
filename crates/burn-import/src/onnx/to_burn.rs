@@ -64,6 +64,7 @@ use crate::{
             random_uniform::RandomUniformNode,
             random_uniform_like::RandomUniformLikeNode,
             range::RangeNode,
+            reduce_mean::ReduceMeanNode,
             reshape::ReshapeNode,
             resize::ResizeNode,
             round::RoundNode,
@@ -892,12 +893,12 @@ impl ParsedOnnxGraph {
         UnaryNode::reduce_min(input, output, dim)
     }
 
-    fn reduce_mean_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+    fn reduce_mean_conversion(node: Node) -> ReduceMeanNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
         let config = reduce_mean_config(&node);
 
-        UnaryNode::reduce_mean(input, output, config.axes, config.keepdims)
+        ReduceMeanNode::new(input, output, config.axes, config.keepdims)
     }
 
     fn reduce_prod_conversion(node: Node) -> UnaryNode {
