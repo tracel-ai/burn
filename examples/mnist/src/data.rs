@@ -1,6 +1,6 @@
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
-    prelude::*,
+    prelude::*, vision::Transform2D,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -37,6 +37,8 @@ impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher {
 
         let images = Tensor::cat(images, 0);
         let targets = Tensor::cat(targets, 0);
+
+        let t = Transform2D::translation(1, 1);
 
         MnistBatch { images, targets }
     }
