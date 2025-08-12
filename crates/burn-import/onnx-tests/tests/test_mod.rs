@@ -56,7 +56,6 @@ pub mod less_or_equal;
 pub mod linear;
 pub mod log;
 pub mod log_softmax;
-pub mod where_op;
 pub mod matmul;
 pub mod max;
 pub mod maxpool;
@@ -105,6 +104,7 @@ pub mod topk;
 pub mod transpose;
 pub mod trilu;
 pub mod unsqueeze;
+pub mod where_op;
 pub mod xor;
 
 /// Include specified models in the `model` directory in the target directory.
