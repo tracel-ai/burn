@@ -58,13 +58,11 @@ pub fn affine_grid_2d<B: Backend>(transform: Tensor<B, 3>, dims: [usize; 4]) -> 
     let grid = grid
         .reshape([1, height, width, 3, 1])
         .expand([batch_size, height, width, 3, 1]);
-    println!("{}", transform.clone());
-    println!("{}", grid.clone());
-    let result = transform.matmul(grid);
-    let result = result.reshape([batch_size, height, width, 3]);
+    let grid = transform.matmul(grid.clone());
+    let grid = grid.reshape([batch_size, height, width, 3]);
 
     // Homogeneous coordinates (x, y, w) to normal coordinates (x/w, y/w)
-    let mut grid = result.split_with_sizes(vec![2, 1], 3);
+    let mut grid = grid.split_with_sizes(vec![2, 1], 3);
     let grid_xy = grid.remove(0);
     let grid_w = grid.remove(0);
     let grid_w = grid_w.expand([batch_size, height, width, 2]);
