@@ -26,4 +26,7 @@ pub use base::*;
 pub use ops::*;
 pub use tensor::*;
 
+/// Module for vision/image utilities
+pub mod utils;
+
 pub use backends::{KernelShape, create_structuring_element};
