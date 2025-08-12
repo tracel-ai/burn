@@ -707,6 +707,7 @@ dependencies = [
  "burn-router",
  "burn-tch",
  "burn-tensor",
+ "burn-vision",
  "burn-wgpu",
  "data-encoding",
  "derive-new",
