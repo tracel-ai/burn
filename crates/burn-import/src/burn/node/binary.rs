@@ -1,11 +1,11 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, Type};
+use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::sync::Arc;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum BinaryType {
     Add,
     Sub,
@@ -124,6 +124,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BinaryNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Binary(self)
+    }
+
+    fn register_imports(&self, imports: &mut BurnImports) {
+        // Check if we need to import Bool and Int for Shape comparisons
+        if self.binary_type == BinaryType::Equal {
+            match (&self.lhs, &self.rhs) {
+                (Type::Shape(_), _) | (_, Type::Shape(_)) => {
+                    imports.register("burn::tensor::Bool");
+                    imports.register("burn::tensor::Int");
+                    imports.register("burn::tensor::Tensor");
+                }
+                _ => {}
+            }
+        }
     }
 }
 
@@ -324,7 +338,33 @@ impl BinaryNode {
         let function = match (&lhs, &rhs) {
             (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.equal(#rhs) },
             (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs == #rhs },
-            _ => panic!("Comparison is supported for tensor to tensor and scalar to scalar only"),
+            (Type::Shape(_), Type::Tensor(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let shape_tensor = Tensor::<B, 1, Int>::from_data(#lhs.as_slice(), &*self.device);
+                        shape_tensor.equal(#rhs)
+                    }
+                }
+            },
+            (Type::Tensor(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let shape_tensor = Tensor::<B, 1, Int>::from_data(#rhs.as_slice(), &*self.device);
+                        #lhs.equal(shape_tensor)
+                    }
+                }
+            },
+            (Type::Shape(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let result: Vec<bool> = #lhs.iter().zip(#rhs.iter()).map(|(a, b)| a == b).collect();
+                        Tensor::<B, 1, Bool>::from_data(result.as_slice(), &*self.device)
+                    }
+                }
+            },
+            _ => panic!(
+                "Comparison is supported for tensor to tensor, scalar to scalar, and shape to tensor/shape only"
+            ),
         };
 
         Self::new(lhs, rhs, output, BinaryType::Equal, Arc::new(function))

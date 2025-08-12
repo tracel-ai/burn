@@ -84,6 +84,8 @@ fn main() {
         .input("tests/div/div_shape.onnx")
         .input("tests/dropout/dropout.onnx")
         .input("tests/equal/equal.onnx")
+        .input("tests/equal/equal_shape.onnx")
+        .input("tests/equal/equal_two_shapes.onnx")
         .input("tests/erf/erf.onnx")
         .input("tests/exp/exp.onnx")
         .input("tests/expand/expand.onnx")
