@@ -77,13 +77,13 @@ impl CosineEmbeddingLoss {
     ///
     /// # Shapes
     ///
-    /// - input1: [batch_size, embedding_dim]
-    /// - input2: [batch_size, embedding_dim]
-    /// - target: [batch_size] with values 1 or -1
+    /// - input1: ``[batch_size, embedding_dim]``
+    /// - input2: ``[batch_size, embedding_dim]``
+    /// - target: ``[batch_size]`` with values 1 or -1
     ///
     /// # Returns
     ///
-    /// Loss tensor of shape [1]
+    /// Loss tensor of shape ``[1]``
     pub fn forward<B: Backend>(
         &self,
         input1: Tensor<B, 2>,
@@ -102,13 +102,13 @@ impl CosineEmbeddingLoss {
     ///
     /// # Arguments
     ///
-    /// * `input1` - First input tensor of shape [batch_size, embedding_dim]
-    /// * `input2` - Second input tensor of shape [batch_size, embedding_dim]
-    /// * `target` - Target tensor of shape [batch_size] with values 1 or -1
+    /// * `input1` - First input tensor of shape ``[batch_size, embedding_dim]``
+    /// * `input2` - Second input tensor of shape ``[batch_size, embedding_dim]``
+    /// * `target` - Target tensor of shape ``[batch_size]`` with values 1 or -1
     ///
     /// # Returns
     ///
-    /// Tensor of per-element losses with shape [batch_size]
+    /// Tensor of per-element losses with shape ``[batch_size]``
     pub fn forward_no_reduction<B: Backend>(
         &self,
         input1: Tensor<B, 2>,

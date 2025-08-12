@@ -533,7 +533,6 @@ where
 
         for b in 0..batch_size {
             let indices = indices.slice(s!(b, ..));
-
             for (i, index) in indices.iter().enumerate() {
                 output[[b, i]] = tensor[[b, index.elem::<i64>() as usize]];
             }
