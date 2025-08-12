@@ -2,6 +2,7 @@ use crate::ElementConversion;
 use crate::backend::Backend;
 use crate::s;
 use crate::tensor::{Int, Tensor};
+use alloc::vec;
 
 /// Generate a tensor with homogeonous coordinates of each element's
 /// transformed location
