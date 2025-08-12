@@ -811,6 +811,73 @@ mod tests {
         test.assert_grads(grads);
     }
 
+    #[test]
+    fn test_conv2d_groups_stride_2_no_pad() {
+        let test = Conv2dTestCase {
+            batch_size: 1,
+            channels_in: 4,
+            channels_out: 2,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 0,
+            padding_2: 0,
+            stride_1: 2,
+            stride_2: 2,
+            dilation_1: 1,
+            dilation_2: 1,
+            groups: 2,
+            height: 4,
+            width: 4,
+        };
+        let device = Default::default();
+        let grads = Grads {
+            x: TestTensor::from_floats(
+                [[
+                    [
+                        [0., 1., 2., 0.],
+                        [3., 4., 5., 0.],
+                        [6., 7., 8., 0.],
+                        [0., 0., 0., 0.],
+                    ],
+                    [
+                        [9., 10., 11., 0.],
+                        [12., 13., 14., 0.],
+                        [15., 16., 17., 0.],
+                        [0., 0., 0., 0.],
+                    ],
+                    [
+                        [18., 19., 20., 0.],
+                        [21., 22., 23., 0.],
+                        [24., 25., 26., 0.],
+                        [0., 0., 0., 0.],
+                    ],
+                    [
+                        [27., 28., 29., 0.],
+                        [30., 31., 32., 0.],
+                        [33., 34., 35., 0.],
+                        [0., 0., 0., 0.],
+                    ],
+                ]],
+                &device,
+            ),
+            weight: TestTensor::from_floats(
+                [
+                    [
+                        [[0., 1., 2.], [4., 5., 6.], [8., 9., 10.]],
+                        [[16., 17., 18.], [20., 21., 22.], [24., 25., 26.]],
+                    ],
+                    [
+                        [[32., 33., 34.], [36., 37., 38.], [40., 41., 42.]],
+                        [[48., 49., 50.], [52., 53., 54.], [56., 57., 58.]],
+                    ],
+                ],
+                &device,
+            ),
+            bias: TestTensor::from_floats([1., 1.], &device),
+        };
+        test.assert_grads(grads);
+    }
+
     struct Conv2dTestCase {
         batch_size: usize,
         channels_in: usize,
