@@ -52,10 +52,7 @@ pub fn affine_grid_2d<B: Backend>(transform: Tensor<B, 3>, dims: [usize; 4]) -> 
     let a_22 = transform.clone().slice(s![.., 1, 1]);
     let trans_y = transform.slice(s![.., 1, 2]);
 
-    let grid_x = a_11
-        .mul(x.clone())
-        .add(a_12.mul(y.clone()))
-        .add(trans_x);
+    let grid_x = a_11.mul(x.clone()).add(a_12.mul(y.clone())).add(trans_x);
     let grid_y = a_21.mul(x).add(a_22.mul(y)).add(trans_y);
 
     Tensor::stack(vec![grid_x, grid_y], 3)
