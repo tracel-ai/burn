@@ -48,8 +48,8 @@ pub(crate) fn grid_sample_2d<E: FloatNdArrayElement>(
             let sample_x = grid[(b, y, x, 0)].elem::<f64>();
             let sample_y = grid[(b, y, x, 1)].elem::<f64>();
 
-            let sample_x = sample_x.min(1_f64);
-            let sample_y = sample_y.min(1_f64);
+            let sample_x = sample_x.clamp(-1.0, 1.0);
+            let sample_y = sample_y.clamp(-1.0, 1.0);
 
             let x_max = width_in - 1;
             let y_max = height_in - 1;
