@@ -1,5 +1,6 @@
 use crate::ElementConversion;
 use crate::backend::Backend;
+use crate::s;
 use crate::tensor::{Int, Tensor};
 
 /// Generate a tensor with homogeonous coordinates of each element's
@@ -17,19 +18,16 @@ use crate::tensor::{Int, Tensor};
 /// Tensor with shape (batch_size, height, width, 2), where dim 2 is (x, y)
 /// All coordinates are broadcast on the batch dim
 pub fn affine_grid_2d<B: Backend>(transform: Tensor<B, 3>, dims: [usize; 4]) -> Tensor<B, 4> {
-    let batch_size = dims[0];
-    let _channels = dims[1];
-    let height = dims[2];
-    let width = dims[3];
+    let [batch_size, _c, height, width] = dims;
 
     let device = &transform.device();
 
     let x = Tensor::<B, 1, Int>::arange(0..width as i64, device)
-        .reshape([1, width, 1])
-        .expand([height, width, 1]);
+        .reshape([1, width])
+        .expand([height, width]);
     let y = Tensor::<B, 1, Int>::arange(0..height as i64, device)
-        .reshape([height, 1, 1])
-        .expand([height, width, 1]);
+        .reshape([height, 1])
+        .expand([height, width]);
 
     // from ints (0..(width-1)) and (0..(height-1)), to (-1.0..1.0)
     let x = x
@@ -40,32 +38,25 @@ pub fn affine_grid_2d<B: Backend>(transform: Tensor<B, 3>, dims: [usize; 4]) -> 
         .float()
         .div_scalar(((height - 1) as f32 / 2.0).elem::<f32>())
         .sub_scalar((1_f32).elem::<f32>());
-    let w = Tensor::<B, 3>::ones([height, width, 1], device);
 
-    let grid = Tensor::cat(vec![x, y, w], 2);
+    // Broadcast to batch dimension
+    let x = x.unsqueeze_dim::<3>(0).expand([batch_size, height, width]); // [B, H, W]
+    let y = y.unsqueeze_dim::<3>(0).expand([batch_size, height, width]); // [B, H, W]
 
-    // Arange coordinates as column vectors for transformation
-    let transform = Tensor::cat(
-        vec![
-            transform,
-            Tensor::<B, 3>::from([[[0, 0, 1]]]).expand([batch_size, 1, 3]),
-        ],
-        1,
-    );
-    let transform = transform
-        .reshape([batch_size, 1, 1, 3, 3])
-        .expand([batch_size, height, width, 3, 3]);
-    let grid = grid
-        .reshape([1, height, width, 3, 1])
-        .expand([batch_size, height, width, 3, 1]);
-    let grid = transform.matmul(grid.clone());
-    let grid = grid.reshape([batch_size, height, width, 3]);
+    // Apply affine transform
+    let a_11 = transform.clone().slice(s![.., 0, 0]);
+    let a_12 = transform.clone().slice(s![.., 0, 1]);
+    let trans_x = transform.clone().slice(s![.., 0, 2]);
 
-    // Homogeneous coordinates (x, y, w) to normal coordinates (x/w, y/w)
-    let mut grid = grid.split_with_sizes(vec![2, 1], 3);
-    let grid_xy = grid.remove(0);
-    let grid_w = grid.remove(0);
-    let grid_w = grid_w.expand([batch_size, height, width, 2]);
+    let a_21 = transform.clone().slice(s![.., 1, 0]);
+    let a_22 = transform.clone().slice(s![.., 1, 1]);
+    let trans_y = transform.slice(s![.., 1, 2]);
 
-    grid_xy.div(grid_w)
+    let grid_x = a_11
+        .mul(x.clone())
+        .add(a_12.mul(y.clone()))
+        .add(trans_x);
+    let grid_y = a_21.mul(x).add(a_22.mul(y)).add(trans_y);
+
+    Tensor::stack(vec![grid_x, grid_y], 3)
 }
