@@ -50,7 +50,7 @@ fn handle_wgpu_test(member: &str, args: &TestCmdArgs) -> anyhow::Result<()> {
             .unwrap_or(false);
 
         if should_ignore {
-            // Ignore intermittent sucessful failures
+            // Ignore intermittent successful failures
             // https://github.com/gfx-rs/wgpu/issues/2949
             // https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/4391
             eprintln!("⚠️ Ignored SIGSEGV in wgpu test");

@@ -273,7 +273,7 @@ pub fn tanh<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
 /// ### Returns
 /// * A tensor with the same shape as the input, except the size along `dim` is halved.
 pub fn glu<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
-    // TODO: Handle negative indicies with AsIndex for compatibility with Pytorch nn.GLU.
+    // TODO: Handle negative indices with AsIndex for compatibility with Pytorch nn.GLU.
 
     assert!(
         tensor.dims()[dim].is_multiple_of(2),

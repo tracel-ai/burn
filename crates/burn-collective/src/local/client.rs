@@ -7,7 +7,7 @@ use crate::{
 use burn_tensor::{Tensor, backend::Backend};
 use std::sync::mpsc::SyncSender;
 
-/// Local client to comminicate with the local server. Each thread has a client.
+/// Local client to communicate with the local server. Each thread has a client.
 #[derive(Clone)]
 pub(crate) struct LocalCollectiveClient<B: Backend> {
     pub channel: SyncSender<Message<B>>,

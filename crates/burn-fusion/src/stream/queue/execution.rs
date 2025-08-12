@@ -67,7 +67,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
     }
 }
 
-/// A queue execution has the responsability to run the provided
+/// A queue execution has the responsibility to run the provided
 /// [optimization](FusionRuntime::Optimization) without holes.
 enum QueueExecution<'a, R: FusionRuntime> {
     Single {

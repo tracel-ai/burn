@@ -68,7 +68,7 @@ where
                     ProcessorTask::RegisterTensor(id, data) => {
                         runner.register_tensor_data_id(id, data);
                     }
-                    // TODO see the params of these two foloowing tasks, aren't tjey a bit stu[id? uea] yeaaah
+                    // TODO: see the params of these two following tasks, aren't they a bit stupid?
                     ProcessorTask::RegisterTensorRemote(remote_tensor, new_id) => {
                         log::info!(
                             "Registering remote tensor...(id: {:?})",
