@@ -181,8 +181,8 @@ pub fn save_tensor_as_image<B: Backend, const D: usize, P: AsRef<std::ffi::OsStr
 
 /// Normalize values in 2D tensor from 0 to 1
 fn normalize<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, D> {
-    let min = tensor.clone().min().to_data().to_vec::<f32>().unwrap()[0];
-    let max = tensor.clone().max().to_data().to_vec::<f32>().unwrap()[0];
+    let min = tensor.clone().min().into_scalar().elem::<f32>();
+    let max = tensor.clone().max().into_scalar().elem::<f32>();
     let range = if max - min == 0.0 { 1.0 } else { max - min };
 
     tensor
