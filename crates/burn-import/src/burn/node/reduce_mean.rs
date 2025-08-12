@@ -28,7 +28,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceMeanNode {
         match &self.axes {
             Some(axes) if !axes.is_empty() => {
                 // Convert axes to usize and sort in descending order to avoid index shifting when squeezing
-                let mut dims: Vec<usize> = axes.iter().map(|&axis| axis as usize).collect();
+                let mut dims: Vec<usize> = axes
+                    .iter()
+                    .map(|&axis| usize::try_from(axis).expect("Axis value must be non-negative and fit in usize"))
+                    .collect();
                 dims.sort_by(|a, b| b.cmp(a));
 
                 let dims_tokens: Vec<_> = dims.iter().map(|d| d.to_tokens()).collect();
