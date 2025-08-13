@@ -428,6 +428,7 @@ impl ParsedOnnxGraph {
                 NodeType::Gemm => graph.register(Self::gemm_conversion(node)),
                 NodeType::IsNaN => graph.register(Self::is_nan_conversion(node)),
                 NodeType::IsInf => graph.register(Self::is_inf_conversion(node)),
+                NodeType::Abs => graph.register(Self::abs_conversion(node)),
                 node_type => unsupported_ops.push(node_type),
             }
         }
