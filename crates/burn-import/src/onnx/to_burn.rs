@@ -1029,6 +1029,13 @@ impl ParsedOnnxGraph {
         UnaryNode::sqrt(input, output)
     }
 
+    fn abs_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        UnaryNode::abs(input, output)
+    }
+
     fn tan_conversion(node: Node) -> UnaryNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());

@@ -23,6 +23,7 @@ pub struct UnaryNode {
 pub enum UnaryNodeKind {
     // Input and output tensor types (required for codegen imports)
     Cast(Option<TensorKind>, Option<TensorKind>),
+    Abs,
     Cos,
     Cosh,
     Erf,
@@ -61,6 +62,7 @@ impl UnaryNodeKind {
     pub fn as_str(&self) -> &str {
         match self {
             Self::Cast(..) => "cast",
+            Self::Abs => "abs",
             Self::Cos => "cos",
             Self::Cosh => "cosh",
             Self::Erf => "erf",
@@ -243,6 +245,11 @@ impl UnaryNode {
     pub(crate) fn sqrt(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.sqrt()};
         Self::new(input, output, UnaryNodeKind::Sqrt, Rc::new(function))
+    }
+
+    pub(crate) fn abs(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.abs()};
+        Self::new(input, output, UnaryNodeKind::Abs, Rc::new(function))
     }
 
     pub(crate) fn tan(input: Type, output: Type) -> Self {
@@ -1444,6 +1451,25 @@ mod tests {
             },
             vec!["scalar1".to_string()],
             vec!["scalar2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_abs() {
+        one_node_graph(
+            UnaryNode::abs(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.abs();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
         );
     }
 }
