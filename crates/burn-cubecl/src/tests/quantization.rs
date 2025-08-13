@@ -95,8 +95,6 @@ mod tests {
     fn should_quantize_dequantize_symmetric_per_block_native() {
         if supports_native() {
             should_quantize_dequantize_symmetric_per_block(QuantStore::Native)
-        } else {
-            panic!("OUPS")
         }
     }
 

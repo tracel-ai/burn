@@ -89,9 +89,9 @@ mod tests {
         let input = TestTensorInt::<1>::arange(0..32, &Default::default()).float();
 
         let quant = input.quantize_dynamic(&scheme);
-        let quant = quant * 10;
+        let result = quant * 10;
 
-        let data = quant.into_data();
+        let data = result.into_data();
         let expected = [
             0.0, 9.76378, 19.52756, 29.29134, 39.05512, 48.818897, 61.02362, 70.7874, 80.551186,
             90.31496, 100.07874, 109.84252, 119.60631, 129.37009, 139.13387, 148.89764, 161.10237,

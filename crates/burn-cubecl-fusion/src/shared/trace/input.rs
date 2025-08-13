@@ -4,14 +4,10 @@ use super::{
 };
 use crate::{
     CubeFusionHandle,
-    shared::{
-        ir::FusePrecision,
-        trace::{QuantDataHandleInput, QuantScalesHandleInput},
-    },
+    shared::trace::{QuantDataHandleInput, QuantScalesHandleInput},
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
-use burn_tensor::quantization::QuantParam;
 use cubecl::Runtime;
 use std::marker::PhantomData;
 
@@ -76,15 +72,11 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                         .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
                     let scheme = match tensor_relative.dtype {
                         burn_tensor::DType::QFloat(scheme) => scheme,
-                        _ => panic!(),
+                        _ => unreachable!("Can't have quant data without QFloat"),
                     };
                     let scales = handle.scales(scheme).unwrap();
                     let precision = tensor_relative.dtype.try_into().unwrap();
-                    let precision_scales = match scheme.param {
-                        QuantParam::F32 => FusePrecision::F32,
-                        QuantParam::F16 => FusePrecision::F16,
-                        QuantParam::BF16 => FusePrecision::BF16,
-                    };
+                    let precision_scales = scales.dtype.try_into().unwrap();
 
                     plan.handle_inputs
                         .push(HandleInput::QuantData(QuantDataHandleInput {
@@ -103,6 +95,8 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 }
                 RegisterTensor::QuantScales(_) => {
                     // It is registered at the same time as quant data.
+                    // The order is important and the index in the vector as well, so that's why we
+                    // have QuantScales.
                 }
             }
         }

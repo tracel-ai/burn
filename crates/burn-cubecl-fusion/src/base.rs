@@ -6,7 +6,7 @@ use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
 
 use burn_fusion::stream::Context;
 use burn_tensor::DType;
-use burn_tensor::quantization::{QParamTensor, QuantParam, QuantScheme, QuantValue};
+use burn_tensor::quantization::{QParamTensor, QuantParam, QuantScheme};
 use cubecl::client::ComputeClient;
 use cubecl::ir::Elem;
 use cubecl::prelude::{TensorArg, TensorHandleRef};

@@ -267,7 +267,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             | ReferenceSelection::VirtualShape { strides, shape, .. } = &block.reference
                 && strides == &hi.handle.strides
                 && shape == &hi.global_ir.shape
-                && let Some(ops) = block.reads.get_mut(&hi.relative_id)
+                && block.reads.contains_key(&hi.relative_id)
             {
                 if strides == &hi.handle.strides && shape == &hi.global_ir.shape {
                     if let Some(ops) = block.reads.get_mut(&hi.relative_id) {
