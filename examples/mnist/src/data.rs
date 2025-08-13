@@ -1,7 +1,11 @@
+use std::f32::consts::FRAC_PI_3;
+
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
-    prelude::*, vision::Transform2D,
+    prelude::*,
+    vision::Transform2D,
 };
+use rand::Rng;
 
 #[derive(Clone, Debug, Default)]
 pub struct MnistBatcher {}
@@ -38,8 +42,70 @@ impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher {
         let images = Tensor::cat(images, 0);
         let targets = Tensor::cat(targets, 0);
 
-        let t = Transform2D::translation(1, 1);
+        let images = mangle_image_batch::<B>(images);
 
         MnistBatch { images, targets }
     }
+}
+
+/// Mange the image by applying small random transformations to augment the dataset.
+///
+/// * `images` - The images with shape [batch size, height, width]
+///
+/// ## Return
+///
+/// The transformed images tensor with shape [batch size, height, width]
+fn mangle_image_batch<B: Backend>(images: Tensor<B, 3>) -> Tensor<B, 3> {
+    let mut rng = rand::rng();
+
+    // Resample
+    let shear = Transform2D::shear(
+        rng.random_range(-0.5..0.5),
+        rng.random_range(-0.5..0.5),
+        0.0,
+        0.0,
+    );
+    let rotation = Transform2D::rotation(rng.random_range(-FRAC_PI_3..FRAC_PI_3), 0.0, 0.0);
+    let scale = Transform2D::scale(
+        rng.random_range(0.6..1.5),
+        rng.random_range(0.6..1.5),
+        0.0,
+        0.0,
+    );
+    let translate =
+        Transform2D::translation(rng.random_range(-0.2..0.2), rng.random_range(-0.2..0.2));
+
+    let transform = Transform2D::composed([translate, shear, scale, rotation]);
+
+    transform
+        .transform(images.unsqueeze_dim::<4>(1))
+        .squeeze_dims::<3>(&[1])
+
+    // These save_as_image help visualise the transformations
+    // {
+    //     use burn::vision::utils::{TensorDisplayOptions, save_tensor_as_image};
+    //     save_tensor_as_image(
+    //         images.clone(),
+    //         TensorDisplayOptions {
+    //             dim_order: burn::vision::utils::ImageDimOrder::Nhw,
+    //             color_opts: burn::vision::utils::ColorDisplayOpts::Rgb,
+    //             batch_opts: Some(burn::vision::utils::BatchDisplayOpts::Tiled),
+    //             width_out: 250,
+    //             height_out: 250,
+    //         },
+    //         "before.png",
+    //     ).unwrap();
+    //     save_tensor_as_image(
+    //         images.clone(),
+    //         TensorDisplayOptions {
+    //             dim_order: burn::vision::utils::ImageDimOrder::Nhw,
+    //             color_opts: burn::vision::utils::ColorDisplayOpts::Rgb,
+    //             batch_opts: Some(burn::vision::utils::BatchDisplayOpts::Tiled),
+    //             width_out: 250,
+    //             height_out: 250,
+    //         },
+    //         "after.png",
+    //     ).unwrap();
+    //     panic!("woah");
+    // }
 }
