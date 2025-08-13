@@ -87,7 +87,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             Aggregate::Mean,
             Direction::Lowest,
             Split::Valid,
-            StoppingCondition::NoImprovementSince { n_epochs: 1 },
+            StoppingCondition::NoImprovementSince { n_epochs: 3 },
         ))
         .learning_strategy(burn::train::ddp(vec![device], collective))
         .num_epochs(config.num_epochs)

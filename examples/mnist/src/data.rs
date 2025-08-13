@@ -60,8 +60,8 @@ fn mangle_image_batch<B: Backend>(images: Tensor<B, 3>) -> Tensor<B, 3> {
 
     // Resample
     let shear = Transform2D::shear(
-        rng.random_range(-0.5..0.5),
-        rng.random_range(-0.5..0.5),
+        rng.random_range(-1.0..1.0),
+        rng.random_range(-1.0..1.0),
         0.0,
         0.0,
     );

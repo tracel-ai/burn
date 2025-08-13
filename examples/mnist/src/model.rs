@@ -1,6 +1,10 @@
 use crate::data::MnistBatch;
 use burn::{
-    nn::{BatchNorm, PaddingConfig2d, loss::CrossEntropyLossConfig},
+    nn::{
+        BatchNorm, PaddingConfig2d,
+        loss::CrossEntropyLossConfig,
+        pool::{MaxPool2d, MaxPool2dConfig},
+    },
     prelude::*,
     tensor::backend::AutodiffBackend,
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
@@ -28,10 +32,10 @@ const NUM_CLASSES: usize = 10;
 
 impl<B: Backend> Model<B> {
     pub fn new(device: &B::Device) -> Self {
-        let conv1 = ConvBlock::new([1, 8], [3, 3], device); // out: [Batch,8,26,26]
-        let conv2 = ConvBlock::new([8, 16], [3, 3], device); // out: [Batch,16,24x24]
-        let conv3 = ConvBlock::new([16, 24], [3, 3], device); // out: [Batch,24,22x22]
-        let hidden_size = 24 * 22 * 22;
+        let conv1 = ConvBlock::new([1, 32], [3, 3], device); // out: [Batch,32,13,13]
+        let conv2 = ConvBlock::new([32, 64], [3, 3], device); // out: [Batch,64,5x5]
+        let conv3 = ConvBlock::new([64, 128], [3, 3], device); // out: max_pool 2x2 -> [Batch,128,1x1]
+        let hidden_size = 128 * 1 * 1;
         let fc1 = nn::LinearConfig::new(hidden_size, 32)
             .with_bias(false)
             .init(device);
@@ -89,6 +93,7 @@ impl<B: Backend> Model<B> {
 pub struct ConvBlock<B: Backend> {
     conv: nn::conv::Conv2d<B>,
     norm: BatchNorm<B, 2>,
+    pool: MaxPool2d,
     activation: nn::Gelu,
 }
 
@@ -98,10 +103,12 @@ impl<B: Backend> ConvBlock<B> {
             .with_padding(PaddingConfig2d::Valid)
             .init(device);
         let norm = nn::BatchNormConfig::new(channels[1]).init(device);
+        let pool = MaxPool2dConfig::new([2, 2]).with_strides([2, 2]).init();
 
         Self {
             conv,
             norm,
+            pool,
             activation: nn::Gelu::new(),
         }
     }
@@ -109,8 +116,9 @@ impl<B: Backend> ConvBlock<B> {
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         let x = self.conv.forward(input);
         let x = self.norm.forward(x);
+        let x = self.activation.forward(x);
 
-        self.activation.forward(x)
+        self.pool.forward(x)
     }
 }
 
