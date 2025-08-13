@@ -22,8 +22,6 @@ mod tests {
 
         let output = affine_grid_2d(transform, [batch_size, channels, height, width]);
 
-        println!("{output}");
-
         // Expected normalized coords:
         // [-1, -1], [ 1,-1]
         // [-1,  1], [ 1, 1]
