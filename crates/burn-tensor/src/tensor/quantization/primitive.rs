@@ -6,7 +6,7 @@ use crate::quantization::{QuantAcc, QuantPropagation};
 pub trait QTensorPrimitive {
     /// Returns the quantization settings for the given tensor.
     fn scheme(&self) -> &QuantScheme;
-    /// The precision used for the accumulation in varius kernels.
+    /// The precision used for the accumulation in various kernels.
     fn acc_precision(&self) -> QuantAcc {
         QuantAcc::F32
     }

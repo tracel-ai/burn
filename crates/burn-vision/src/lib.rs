@@ -17,6 +17,7 @@ pub mod backends;
 mod base;
 mod ops;
 mod tensor;
+mod transform;
 
 #[cfg(feature = "export-tests")]
 #[allow(missing_docs)]
@@ -25,6 +26,7 @@ pub mod tests;
 pub use base::*;
 pub use ops::*;
 pub use tensor::*;
+pub use transform::*;
 
 /// Module for vision/image utilities
 pub mod utils;
