@@ -125,7 +125,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
                 let name = scalar.name.clone();
                 quote! { #name }
             }
-            _ => panic!("lhs must be a tensor or scalar"),
+            Type::Shape(shape) => {
+                let name = &shape.name;
+                quote! { #name }
+            }
+            _ => panic!("Input must be a tensor, scalar, or shape"),
         };
 
         let output = &self.output.name();
