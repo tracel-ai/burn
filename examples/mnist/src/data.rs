@@ -1,6 +1,7 @@
 use std::f32::consts::FRAC_PI_4;
 
 use burn::{
+    backend::NdArray,
     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
     prelude::*,
     vision::Transform2D,
@@ -21,28 +22,34 @@ impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher {
         let images = items
             .iter()
             .map(|item| TensorData::from(item.image))
-            .map(|data| Tensor::<B, 2>::from_data(data.convert::<B::FloatElem>(), device))
+            .map(|data| {
+                Tensor::<NdArray, 2>::from_data(data.convert::<B::FloatElem>(), &Default::default())
+            })
             .map(|tensor| tensor.reshape([1, 28, 28]))
             // normalize: make between [0,1] and make the mean =  0 and std = 1
             // values mean=0.1307,std=0.3081 were copied from Pytorch Mist Example
             // https://github.com/pytorch/examples/blob/54f4572509891883a947411fd7239237dd2a39c3/mnist/main.py#L122
             .map(|tensor| ((tensor / 255) - 0.1307) / 0.3081)
+            .map(|tensor| mangle_image_batch(tensor))
             .collect();
 
         let targets = items
             .iter()
             .map(|item| {
-                Tensor::<B, 1, Int>::from_data(
+                Tensor::<NdArray, 1, Int>::from_data(
                     TensorData::from([(item.label as i64).elem::<B::IntElem>()]),
-                    device,
+                    &Default::default(),
                 )
             })
             .collect();
 
         let images = Tensor::cat(images, 0);
-        let targets = Tensor::cat(targets, 0);
+        let images = Tensor::from_data(images.into_data(), device);
 
-        let images = mangle_image_batch::<B>(images);
+        let targets = Tensor::cat(targets, 0);
+        let targets = Tensor::from_data(targets.into_data(), device);
+
+        // let images = mangle_image_batch::<B>(images);
 
         MnistBatch { images, targets }
     }

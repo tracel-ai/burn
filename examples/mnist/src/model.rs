@@ -1,10 +1,12 @@
 use crate::data::MnistBatch;
 use burn::{
     nn::{
-        loss::CrossEntropyLossConfig, pool::{MaxPool2d, MaxPool2dConfig}, BatchNorm, PaddingConfig2d
+        BatchNorm, PaddingConfig2d,
+        loss::CrossEntropyLossConfig,
+        pool::{MaxPool2d, MaxPool2dConfig},
     },
     prelude::*,
-    tensor::{activation::softmax, backend::AutodiffBackend},
+    tensor::backend::AutodiffBackend,
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
 
@@ -14,8 +16,8 @@ pub struct Model<B: Backend> {
     conv2: ConvBlock<B>,
     conv3: ConvBlock<B>,
     dropout: nn::Dropout,
-    fc1: nn::Linear<B>,
-    fc2: nn::Linear<B>,
+    linears: Vec<nn::Linear<B>>,
+    head: nn::Linear<B>,
     activation: nn::Gelu,
 }
 
@@ -30,26 +32,26 @@ const NUM_CLASSES: usize = 10;
 
 impl<B: Backend> Model<B> {
     pub fn new(device: &B::Device) -> Self {
-        let conv1 = ConvBlock::new([1, 32], [3, 3], device); // out: [Batch,32,13,13]
-        let conv2 = ConvBlock::new([32, 64], [3, 3], device); // out: [Batch,64,5x5]
-        let conv3 = ConvBlock::new([64, 128], [3, 3], device); // out: max_pool 2x2 -> [Batch,128,1x1]
-        let hidden_size = 128 * 1 * 1;
-        let fc1 = nn::LinearConfig::new(hidden_size, 256)
-            .with_bias(false)
-            .init(device);
-        let fc2 = nn::LinearConfig::new(256, NUM_CLASSES)
-            .with_bias(false)
-            .init(device);
+        let conv1 = ConvBlock::new([1, 64], [3, 3], device); // out: [Batch,32,13,13]
+        let conv2 = ConvBlock::new([64, 64], [3, 3], device); // out: [Batch,64,5x5]
+        let conv3 = ConvBlock::new([64, 64], [3, 3], device); // out: max_pool 2x2 -> [Batch,128,1x1]
+        let hidden_size = 64 * 1 * 1;
+        let mut linears = vec![nn::LinearConfig::new(hidden_size, 128).init(device)];
 
-        let dropout = nn::DropoutConfig::new(0.5).init();
+        for _ in 0..2 {
+            linears.push(nn::LinearConfig::new(128, 128).init(device));
+        }
+        let head = nn::LinearConfig::new(128, NUM_CLASSES).init(device);
+
+        let dropout = nn::DropoutConfig::new(0.25).init();
 
         Self {
             conv1,
             conv2,
             conv3,
             dropout,
-            fc1,
-            fc2,
+            linears,
+            head,
             activation: nn::Gelu::new(),
         }
     }
@@ -63,15 +65,15 @@ impl<B: Backend> Model<B> {
         let x = self.conv3.forward(x);
 
         let [batch_size, channels, height, width] = x.dims();
-        let x = x.reshape([batch_size, channels * height * width]);
+        let mut x = x.reshape([batch_size, channels * height * width]);
 
-        let x = self.fc1.forward(x);
-        let x = self.activation.forward(x);
-        let x = self.dropout.forward(x);
+        for linear in self.linears.iter() {
+            x = linear.forward(x);
+            x = self.activation.forward(x);
+            x = self.dropout.forward(x);
+        }
 
-        let x = self.fc2.forward(x);
-
-        softmax(x, 1)
+        self.head.forward(x)
     }
 
     pub fn forward_classification(&self, item: MnistBatch<B>) -> ClassificationOutput<B> {
@@ -119,7 +121,6 @@ impl<B: Backend> ConvBlock<B> {
         let x = self.activation.forward(x);
 
         self.pool.forward(x)
-        
     }
 }
 
