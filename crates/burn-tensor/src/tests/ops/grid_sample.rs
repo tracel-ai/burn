@@ -53,7 +53,7 @@ mod tests {
         );
         let grid = TestTensor::<4>::from_floats([[[[0.0, 1.0f32 / 0.0]]]], &device);
 
-        let output = tensor.grid_sample_2d(grid);
+        let output = tensor.grid_sample_2d(grid, InterpolateMode::Bilinear);
 
         // Should clamp to nearest, regardless of inf grid value: 7.0
         let expected = TensorData::from([[[[7.0]]]]);
