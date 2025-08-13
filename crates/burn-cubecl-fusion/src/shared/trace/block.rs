@@ -3,7 +3,7 @@ use crate::shared::{
     settings::FuseSettings,
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};
-use burn_tensor::quantization::QuantFloatPrecision;
+use burn_tensor::quantization::QuantParam;
 use cubecl::prelude::Sequence;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, btree_map::Entry};
@@ -156,10 +156,10 @@ impl FuseBlockBuilder {
             Err(_) => return None,
         };
         let precision_scales = match tensor.dtype {
-            burn_tensor::DType::QFloat(scheme) => match scheme.q_params_precision {
-                QuantFloatPrecision::F32 => FusePrecision::F32,
-                QuantFloatPrecision::F16 => FusePrecision::F16,
-                QuantFloatPrecision::BF16 => FusePrecision::BF16,
+            burn_tensor::DType::QFloat(scheme) => match scheme.param {
+                QuantParam::F32 => FusePrecision::F32,
+                QuantParam::F16 => FusePrecision::F16,
+                QuantParam::BF16 => FusePrecision::BF16,
             },
             _ => return None,
         };
@@ -397,18 +397,18 @@ impl FuseBlockBuilder {
         //
         // Only local variables can become outputs.
         let mark = |var: &Arg, list: &mut Vec<(TensorId, FusePrecision)>| {
-            if let Arg::Local(index, precision) = var {
-                if let Some(tensor_id) = self.locals.find_tensor_id(*precision, *index) {
-                    // Input and outputs tensors are using bool_precision for booleans.
-                    let precision = match precision {
-                        FusePrecision::Bool => self.bool_precision,
-                        _ => *precision,
-                    };
+            if let Arg::Local(index, precision) = var
+                && let Some(tensor_id) = self.locals.find_tensor_id(*precision, *index)
+            {
+                // Input and outputs tensors are using bool_precision for booleans.
+                let precision = match precision {
+                    FusePrecision::Bool => self.bool_precision,
+                    _ => *precision,
+                };
 
-                    let entry = (tensor_id, precision);
-                    if !list.contains(&entry) {
-                        list.push(entry);
-                    }
+                let entry = (tensor_id, precision);
+                if !list.contains(&entry) {
+                    list.push(entry);
                 }
             }
         };
@@ -628,10 +628,10 @@ struct LocalVariablePool {
 
 impl LocalVariablePool {
     fn get(&self, precision: FusePrecision, tensor_id: TensorId) -> Option<Arg> {
-        if let Some(indexes) = self.values.get(&precision) {
-            if let Some(index) = indexes.get(&tensor_id) {
-                return Some(Arg::Local(*index, precision));
-            }
+        if let Some(indexes) = self.values.get(&precision)
+            && let Some(index) = indexes.get(&tensor_id)
+        {
+            return Some(Arg::Local(*index, precision));
         }
 
         None

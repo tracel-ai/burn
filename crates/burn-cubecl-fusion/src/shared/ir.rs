@@ -1,5 +1,5 @@
 use burn_tensor::DType;
-use burn_tensor::quantization::{QuantInputType, QuantScheme, QuantStoreType};
+use burn_tensor::quantization::{QuantScheme, QuantStore, QuantValue};
 use cubecl::ir::{Elem, FloatKind, IntKind, UIntKind};
 use cubecl::prelude::*;
 use half::{bf16, f16};
@@ -443,13 +443,13 @@ impl TryFrom<DType> for FusePrecision {
             DType::U8 => Self::U8,
             DType::Bool => Self::Bool,
             DType::F64 => Self::F64,
-            DType::QFloat(scheme) => match scheme.q_store_type {
-                QuantStoreType::Native => match scheme.q_type {
-                    QuantInputType::QInt8 => {
+            DType::QFloat(scheme) => match scheme.store {
+                QuantStore::Native => match scheme.value {
+                    QuantValue::QInt8 => {
                         panic!("no");
                     }
                 },
-                QuantStoreType::U32 => Self::U32,
+                QuantStore::U32 => Self::U32,
             },
         })
     }

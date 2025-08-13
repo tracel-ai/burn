@@ -102,9 +102,10 @@ mod tests {
 
         let expected = quote! {
             use burn::tensor::s; // Added import
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
@@ -147,7 +148,7 @@ mod tests {
             use burn::tensor::RangesArg;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
@@ -191,7 +192,7 @@ mod tests {
             use burn::tensor::RangesArg;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor}, // Removed Shape
+                tensor::backend::Backend, // Removed Shape
             };
 
             #[derive(Module, Debug)]

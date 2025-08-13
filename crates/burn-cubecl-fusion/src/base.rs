@@ -6,7 +6,7 @@ use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
 
 use burn_fusion::stream::Context;
 use burn_tensor::DType;
-use burn_tensor::quantization::{QParamTensor, QuantInputType, QuantScheme};
+use burn_tensor::quantization::{QParamTensor, QuantParam, QuantScheme, QuantValue};
 use cubecl::client::ComputeClient;
 use cubecl::ir::Elem;
 use cubecl::prelude::{TensorArg, TensorHandleRef};
@@ -189,8 +189,10 @@ impl<R: Runtime> CubeFusionHandle<R> {
             client: self.client.clone(),
             handle,
             device: self.device.clone(),
-            dtype: match scheme.q_type {
-                QuantInputType::QInt8 => DType::I8,
+            dtype: match scheme.param {
+                QuantParam::F32 => DType::F32,
+                QuantParam::F16 => DType::F16,
+                QuantParam::BF16 => DType::BF16,
             },
             strides: vec![1],
             qparams: None,

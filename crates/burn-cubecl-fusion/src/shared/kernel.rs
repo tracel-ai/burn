@@ -2,11 +2,11 @@ use super::io::*;
 use super::ir::*;
 use crate::shared::DYN_ELEM_ID;
 use crate::shared::Q_STORE_DYN_ELEM_ID;
-use burn_tensor::quantization::QuantInputType;
 use burn_tensor::quantization::QuantLevel;
 use burn_tensor::quantization::QuantMode;
 use burn_tensor::quantization::QuantScheme;
-use burn_tensor::quantization::QuantStoreType;
+use burn_tensor::quantization::QuantStore;
+use burn_tensor::quantization::QuantValue;
 use cubecl::ir::Elem;
 use cubecl::ir::UIntKind;
 use cubecl::prelude::*;
@@ -732,11 +732,11 @@ fn dequantize<C: Float>(
     #[comptime] scheme: QuantScheme,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    set_polyfill::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(comptime![match scheme.q_store_type {
-        QuantStoreType::Native => match scheme.q_type {
-            QuantInputType::QInt8 => Elem::UInt(UIntKind::U8),
+    set_polyfill::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(comptime![match scheme.store {
+        QuantStore::Native => match scheme.value {
+            QuantValue::QInt8 => Elem::UInt(UIntKind::U8),
         },
-        QuantStoreType::U32 => Elem::UInt(UIntKind::U32),
+        QuantStore::U32 => Elem::UInt(UIntKind::U32),
     }]);
 
     let input = read_quantized::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(
@@ -784,13 +784,13 @@ impl QParams {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => scale_tensor[0],
             QuantScheme {
                 level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => {
                 // The input position is `num_quants` smaller because it acts as vectorize with a line
@@ -831,7 +831,7 @@ pub fn dequantize_packed_value<F: Float, QS: Int>(
     // TODO: q_store_type: QuantStoreType::Native
     let floats = unpack_q::<F, QS>(
         value,
-        comptime!(scheme.q_type.size_bits() as u32),
+        comptime!(scheme.value.size_bits() as u32),
         comptime!(scheme.size_bits_stored() as u32),
     );
 

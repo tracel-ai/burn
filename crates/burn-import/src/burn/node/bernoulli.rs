@@ -63,9 +63,10 @@ mod tests {
 
         let expected = quote! {
             use burn::tensor::Distribution;
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
@@ -110,9 +111,10 @@ mod tests {
         let expected = quote! {
             use burn::tensor::Int;
             use burn::tensor::Distribution;
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]

@@ -4,11 +4,11 @@ use std::marker::PhantomData;
 
 /// Specification for a fused standard matmul.
 #[derive(Clone)]
-pub struct FusedMatmulSpec<EG: MatmulPrecision> {
-    _eg: PhantomData<EG>,
+pub struct FusedMatmulSpec<MP: MatmulPrecision> {
+    _phantom: PhantomData<MP>,
 }
 
-impl<EG: MatmulPrecision> MatmulSpec for FusedMatmulSpec<EG> {
-    type Precision = EG;
+impl<MP: MatmulPrecision> MatmulSpec for FusedMatmulSpec<MP> {
+    type Precision = MP;
     type Args = FusedMatmulArgs;
 }

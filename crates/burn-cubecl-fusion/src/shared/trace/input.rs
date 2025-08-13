@@ -11,7 +11,7 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
-use burn_tensor::quantization::QuantFloatPrecision;
+use burn_tensor::quantization::QuantParam;
 use cubecl::Runtime;
 use std::marker::PhantomData;
 
@@ -80,10 +80,10 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     };
                     let scales = handle.scales(scheme).unwrap();
                     let precision = tensor_relative.dtype.try_into().unwrap();
-                    let precision_scales = match scheme.q_params_precision {
-                        QuantFloatPrecision::F32 => FusePrecision::F32,
-                        QuantFloatPrecision::F16 => FusePrecision::F16,
-                        QuantFloatPrecision::BF16 => FusePrecision::BF16,
+                    let precision_scales = match scheme.param {
+                        QuantParam::F32 => FusePrecision::F32,
+                        QuantParam::F16 => FusePrecision::F16,
+                        QuantParam::BF16 => FusePrecision::BF16,
                     };
 
                     plan.handle_inputs

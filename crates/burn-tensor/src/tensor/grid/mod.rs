@@ -1,6 +1,9 @@
+mod affine_grid;
 mod meshgrid;
 
 pub use meshgrid::*;
+
+pub use affine_grid::*;
 
 /// Enum to specify index cardinal layout.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]

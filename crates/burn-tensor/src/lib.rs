@@ -34,6 +34,8 @@ pub use cubecl::flex32;
 mod cube {
     use cubecl::ir::{Elem, FloatKind, IntKind, UIntKind};
 
+    use crate::quantization::{QuantStore, QuantValue};
+
     impl From<crate::DType> for cubecl::ir::Elem {
         fn from(dtype: crate::DType) -> Self {
             match dtype {
@@ -51,11 +53,11 @@ mod cube {
                 crate::DType::U16 => Elem::UInt(UIntKind::U16),
                 crate::DType::U8 => Elem::UInt(UIntKind::U8),
                 crate::DType::Bool => Elem::Bool,
-                crate::DType::QFloat(scheme) => match scheme.q_store_type {
-                    crate::quantization::QuantStoreType::Native => match scheme.q_type {
-                        crate::quantization::QuantInputType::QInt8 => Self::Int(IntKind::I8),
+                crate::DType::QFloat(scheme) => match scheme.store {
+                    QuantStore::Native => match scheme.value {
+                        QuantValue::QInt8 => Self::Int(IntKind::I8),
                     },
-                    crate::quantization::QuantStoreType::U32 => Self::UInt(UIntKind::U32),
+                    QuantStore::U32 => Self::UInt(UIntKind::U32),
                 },
             }
         }

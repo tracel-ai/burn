@@ -3,7 +3,7 @@ use burn_tensor::ElementConversion;
 use burn_tensor::TensorData;
 use burn_tensor::TensorMetadata;
 #[cfg(feature = "simd")]
-use burn_tensor::{DType, quantization::QuantInputType};
+use burn_tensor::{DType, quantization::QuantValue};
 use core::fmt::Debug;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::Array2;
@@ -198,8 +198,8 @@ macro_rules! dispatch_binary_simd {
         paste! {
             let simd = match $elem::dtype() {
                 $(DType::[<$ty:upper>] => try_binary_simd::<$elem, $elem, $ty, $ty, $op>($lhs, $rhs),)*
-                DType::QFloat(strategy) => match strategy.q_type {
-                    QuantInputType::QInt8 => try_binary_simd::<$elem, $elem, i8, i8, $op>($lhs, $rhs),
+                DType::QFloat(strategy) => match strategy.value {
+                    QuantValue::QInt8 => try_binary_simd::<$elem, $elem, i8, i8, $op>($lhs, $rhs),
                 },
                 _ => Err(($lhs, $rhs)),
             };
@@ -235,8 +235,8 @@ macro_rules! dispatch_binary_scalar_simd {
         paste! {
             let simd = match $elem::dtype() {
                 $(DType::[<$ty:upper>] => try_binary_scalar_simd::<$elem, $elem, $ty, $ty, $op>($lhs, $rhs),)*
-                DType::QFloat(strategy) => match strategy.q_type {
-                    QuantInputType::QInt8 => try_binary_scalar_simd::<$elem, $elem, i8, i8, $op>($lhs, $rhs),
+                DType::QFloat(strategy) => match strategy.value {
+                    QuantValue::QInt8 => try_binary_scalar_simd::<$elem, $elem, i8, i8, $op>($lhs, $rhs),
                 },
                 _ => Err($lhs),
             };
@@ -260,8 +260,8 @@ macro_rules! dispatch_cmp_simd {
         paste! {
             let simd = match $elem::dtype() {
                 $(DType::[<$ty:upper>] => try_cmp_simd::<$elem, $ty, $op>($lhs, $rhs),)*
-                DType::QFloat(strategy) => match strategy.q_type {
-                    QuantInputType::QInt8 => try_cmp_simd::<$elem, i8, $op>($lhs, $rhs),
+                DType::QFloat(strategy) => match strategy.value {
+                    QuantValue::QInt8 => try_cmp_simd::<$elem, i8, $op>($lhs, $rhs),
                 },
                 _ => Err(($lhs, $rhs)),
             };
@@ -284,8 +284,8 @@ macro_rules! dispatch_cmp_scalar_simd {
         paste! {
             let simd = match $elem::dtype() {
                 $(DType::[<$ty:upper>] => try_cmp_scalar_simd::<$elem, $ty, $op>($lhs, $rhs),)*
-                DType::QFloat(strategy) => match strategy.q_type {
-                    QuantInputType::QInt8 => try_cmp_scalar_simd::<$elem, i8, $op>($lhs, $rhs),
+                DType::QFloat(strategy) => match strategy.value {
+                    QuantValue::QInt8 => try_cmp_scalar_simd::<$elem, i8, $op>($lhs, $rhs),
                 },
                 _ => Err($lhs),
             };
@@ -533,7 +533,6 @@ where
 
         for b in 0..batch_size {
             let indices = indices.slice(s!(b, ..));
-
             for (i, index) in indices.iter().enumerate() {
                 output[[b, i]] = tensor[[b, index.elem::<i64>() as usize]];
             }

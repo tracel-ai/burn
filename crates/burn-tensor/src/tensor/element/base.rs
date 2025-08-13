@@ -1,12 +1,10 @@
 use core::cmp::Ordering;
 
-use crate::{
-    Distribution,
-    cast::ToElement,
-    quantization::{QuantInputType, QuantScheme, QuantStoreType},
-};
+use crate::{Distribution, cast::ToElement, quantization::QuantScheme};
 #[cfg(feature = "cubecl")]
 use cubecl::flex32;
+
+use cubecl_quant::scheme::{QuantStore, QuantValue};
 use half::{bf16, f16};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -374,11 +372,11 @@ impl DType {
             DType::U16 => core::mem::size_of::<u16>(),
             DType::U8 => core::mem::size_of::<u8>(),
             DType::Bool => core::mem::size_of::<bool>(),
-            DType::QFloat(scheme) => match scheme.q_store_type {
-                QuantStoreType::Native => match scheme.q_type {
-                    QuantInputType::QInt8 => core::mem::size_of::<i8>(),
+            DType::QFloat(scheme) => match scheme.store {
+                QuantStore::Native => match scheme.value {
+                    QuantValue::QInt8 => core::mem::size_of::<i8>(),
                 },
-                QuantStoreType::U32 => core::mem::size_of::<u32>(),
+                QuantStore::U32 => core::mem::size_of::<u32>(),
             },
         }
     }

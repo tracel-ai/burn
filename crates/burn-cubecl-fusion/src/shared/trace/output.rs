@@ -265,6 +265,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         }) {
             if let ReferenceSelection::Concrete { strides, shape, .. }
             | ReferenceSelection::VirtualShape { strides, shape, .. } = &block.reference
+                && strides == &hi.handle.strides
+                && shape == &hi.global_ir.shape
+                && let Some(ops) = block.reads.get_mut(&hi.relative_id)
             {
                 if strides == &hi.handle.strides && shape == &hi.global_ir.shape {
                     if let Some(ops) = block.reads.get_mut(&hi.relative_id) {
@@ -421,15 +424,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             strides: ref_strides,
             ..
         } = &block.reference
+            && ref_strides == &strides
+            && ref_shape == &tensor_global.shape
+            && let FuseOp::Assign(op) = block.writes.get_mut(&output.tensor_relative.id).unwrap()
         {
-            if ref_strides == &strides && ref_shape == &tensor_global.shape {
-                if let FuseOp::Assign(op) =
-                    block.writes.get_mut(&output.tensor_relative.id).unwrap()
-                {
-                    op.out.add_layout_info(LayoutInfo::SameAsRef);
-                };
-            }
-        }
+            op.out.add_layout_info(LayoutInfo::SameAsRef);
+        };
 
         // We encode bool tensors as `B`.
         let dtype = match tensor_global.dtype {

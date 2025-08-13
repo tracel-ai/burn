@@ -1,6 +1,7 @@
 use crate::FloatDType;
 use crate::Tensor;
 use crate::cast::ToElement;
+use crate::ops::InterpolateMode;
 use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
@@ -118,7 +119,7 @@ where
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::<B, 3>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.cosh()); // [1.0, 1.5430, 3.7621]
     /// }
     /// ```
@@ -141,7 +142,7 @@ where
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::<B, 3>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.sinh()); // [0.0, -1.1752, 3.6269]
     /// }
     /// ```
@@ -164,8 +165,8 @@ where
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::<B, 3>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.sinh()); // [0.0, -0.7616, 0.9640]
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     println!("{}", tensor.tanh()); // [0.0, -0.7616, 0.9640]
     /// }
     /// ```
     pub fn tanh(self) -> Self {
@@ -612,5 +613,29 @@ where
             .is_nan()
             .bool_not()
             .bool_and(self.is_inf().bool_not())
+    }
+
+    /// Samples tensor as a two-dimensional spatial grid of (possibly multi-channel) values,
+    /// using the given locations in [-1, 1].
+    ///
+    /// Interpolation is bilinear.
+    /// Padding is border: out of bounds locations will be clamped to the nearest border
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor being sampled from, shape (N, C, H_in, W_in)
+    /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
+    ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
+    /// * `method` - How to interpolate between samples
+    ///
+    /// # Returns
+    ///
+    /// A tensor with shape (N, C, H_out, W_out)
+    pub fn grid_sample_2d(self, grid: Tensor<B, D>, method: InterpolateMode) -> Tensor<B, D> {
+        Tensor::new(TensorPrimitive::Float(B::float_grid_sample_2d(
+            self.primitive.tensor(),
+            grid.primitive.tensor(),
+            method,
+        )))
     }
 }
