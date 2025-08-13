@@ -1,12 +1,10 @@
 use crate::data::MnistBatch;
 use burn::{
     nn::{
-        BatchNorm, PaddingConfig2d,
-        loss::CrossEntropyLossConfig,
-        pool::{MaxPool2d, MaxPool2dConfig},
+        loss::CrossEntropyLossConfig, pool::{MaxPool2d, MaxPool2dConfig}, BatchNorm, PaddingConfig2d
     },
     prelude::*,
-    tensor::backend::AutodiffBackend,
+    tensor::{activation::softmax, backend::AutodiffBackend},
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
 
@@ -36,10 +34,10 @@ impl<B: Backend> Model<B> {
         let conv2 = ConvBlock::new([32, 64], [3, 3], device); // out: [Batch,64,5x5]
         let conv3 = ConvBlock::new([64, 128], [3, 3], device); // out: max_pool 2x2 -> [Batch,128,1x1]
         let hidden_size = 128 * 1 * 1;
-        let fc1 = nn::LinearConfig::new(hidden_size, 32)
+        let fc1 = nn::LinearConfig::new(hidden_size, 256)
             .with_bias(false)
             .init(device);
-        let fc2 = nn::LinearConfig::new(32, NUM_CLASSES)
+        let fc2 = nn::LinearConfig::new(256, NUM_CLASSES)
             .with_bias(false)
             .init(device);
 
@@ -67,11 +65,13 @@ impl<B: Backend> Model<B> {
         let [batch_size, channels, height, width] = x.dims();
         let x = x.reshape([batch_size, channels * height * width]);
 
-        let x = self.dropout.forward(x);
         let x = self.fc1.forward(x);
         let x = self.activation.forward(x);
+        let x = self.dropout.forward(x);
 
-        self.fc2.forward(x)
+        let x = self.fc2.forward(x);
+
+        softmax(x, 1)
     }
 
     pub fn forward_classification(&self, item: MnistBatch<B>) -> ClassificationOutput<B> {
@@ -94,7 +94,7 @@ pub struct ConvBlock<B: Backend> {
     conv: nn::conv::Conv2d<B>,
     norm: BatchNorm<B, 2>,
     pool: MaxPool2d,
-    activation: nn::Gelu,
+    activation: nn::Relu,
 }
 
 impl<B: Backend> ConvBlock<B> {
@@ -109,7 +109,7 @@ impl<B: Backend> ConvBlock<B> {
             conv,
             norm,
             pool,
-            activation: nn::Gelu::new(),
+            activation: nn::Relu::new(),
         }
     }
 
@@ -119,6 +119,7 @@ impl<B: Backend> ConvBlock<B> {
         let x = self.activation.forward(x);
 
         self.pool.forward(x)
+        
     }
 }
 

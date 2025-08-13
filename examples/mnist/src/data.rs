@@ -1,4 +1,4 @@
-use std::f32::consts::FRAC_PI_3;
+use std::f32::consts::FRAC_PI_4;
 
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
@@ -60,12 +60,12 @@ fn mangle_image_batch<B: Backend>(images: Tensor<B, 3>) -> Tensor<B, 3> {
 
     // Resample
     let shear = Transform2D::shear(
-        rng.random_range(-1.0..1.0),
-        rng.random_range(-1.0..1.0),
+        rng.random_range(-0.6..0.6),
+        rng.random_range(-0.6..0.6),
         0.0,
         0.0,
     );
-    let rotation = Transform2D::rotation(rng.random_range(-FRAC_PI_3..FRAC_PI_3), 0.0, 0.0);
+    let rotation = Transform2D::rotation(rng.random_range(-FRAC_PI_4..FRAC_PI_4), 0.0, 0.0);
     let scale = Transform2D::scale(
         rng.random_range(0.6..1.5),
         rng.random_range(0.6..1.5),
