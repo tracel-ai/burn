@@ -432,6 +432,7 @@ impl ParsedOnnxGraph {
                 NodeType::IsNaN => graph.register(Self::is_nan_conversion(node)),
                 NodeType::IsInf => graph.register(Self::is_inf_conversion(node)),
                 NodeType::Identity => graph.register(Self::identity_conversion(node)),
+                NodeType::Abs => graph.register(Self::abs_conversion(node)),
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -1038,6 +1039,13 @@ impl ParsedOnnxGraph {
         let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::sqrt(input, output)
+    }
+
+    fn abs_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        UnaryNode::abs(input, output)
     }
 
     fn tan_conversion(node: Node) -> UnaryNode {
