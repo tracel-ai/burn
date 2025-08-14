@@ -66,7 +66,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                             new_strides,
                         )));
                 }
-                RegisterTensor::QuantData(tensor_relative) => {
+                RegisterTensor::QuantValues(tensor_relative) => {
                     let tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
                     let handle = context
                         .handles
@@ -102,10 +102,10 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                             shape: shape_params,
                         }));
                 }
-                RegisterTensor::QuantScales(_) => {
+                RegisterTensor::QuantParams(_) => {
                     // It is registered at the same time as quant data.
                     // The order is important and the index in the vector as well, so that's why we
-                    // have QuantScales.
+                    // have QuantParams.
                 }
             }
         }

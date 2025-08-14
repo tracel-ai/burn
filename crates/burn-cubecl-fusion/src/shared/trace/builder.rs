@@ -28,6 +28,7 @@ pub struct FuseTraceBuilder {
 }
 
 impl FuseTraceBuilder {
+    /// Create a new trace builder with the given bool precision and [fuse settings](FuseSettings).
     pub fn new(bool_precision: FusePrecision, settings: FuseSettings) -> Self {
         Self {
             settings,
@@ -60,6 +61,7 @@ impl FuseTraceBuilder {
         num_ops_fused as u32
     }
 
+    /// Close the current block with the given reference shape and creates a new one with new [fusion settings](FuseSettings).
     pub fn next_block(&mut self, shape_ref: Vec<usize>, settings: FuseSettings) {
         let mut block_new = FuseBlockBuilder::new(self.bool_precision, settings);
         core::mem::swap(&mut self.block_current, &mut block_new);

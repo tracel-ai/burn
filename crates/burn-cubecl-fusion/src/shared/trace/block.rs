@@ -14,10 +14,21 @@ use super::{FuseResources, RegisteredTensors, TensorView};
 /// A block containing all [operations](FuseOp) as well as reads and writes for each tensor along
 /// with the [fusion settings](FuseSettings).
 pub struct FuseBlock {
+    /// Contains the [fusion settings](FuseSettings) associated to the current block.
     pub settings: FuseSettings,
+    /// Contains all the [operations](FuseOp) registered in the current block.
     pub ops: Vec<FuseOp>,
+    /// The reference shape of the current block.
     pub shape_ref: Vec<usize>,
+    /// Contains all tensor inputs of the current block except for manually handled tensors.
+    ///
+    /// # Notes
+    ///
+    /// Some reads might not have read operations registered, such as dequantization, but it's
+    /// important to be registered here for vectorization. Input tensors that are not
+    /// registered here must be vectorized manually.
     pub reads: BTreeMap<TensorId, Vec<FuseOp>>,
+    /// Contains all tensor outputs of the current block except for manually handled tensors.
     pub writes: BTreeMap<TensorId, FuseOp>,
 }
 

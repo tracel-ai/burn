@@ -236,37 +236,42 @@ pub struct RegisteredTensors {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum RegisterTensor {
     Normal(TensorIr, FusePrecision),
-    QuantData(TensorIr),
-    QuantScales(TensorId),
+    QuantValues(TensorIr),
+    QuantParams(TensorId),
 }
 
 impl RegisterTensor {
     pub fn as_normal_tensor(&self) -> Option<(&TensorIr, &FusePrecision)> {
         match self {
             RegisterTensor::Normal(tensor_ir, precision) => Some((tensor_ir, precision)),
-            RegisterTensor::QuantData(_) => None,
-            RegisterTensor::QuantScales(_) => None,
+            RegisterTensor::QuantValues(_) => None,
+            RegisterTensor::QuantParams(_) => None,
         }
     }
 }
 
 impl RegisteredTensors {
+    /// Iterate over all the registered tensors.
     pub fn iter(&self) -> impl Iterator<Item = &RegisterTensor> {
         self.tensors.iter()
     }
+
+    /// Consumes and iterate over all the registered tensors.
     pub fn into_iter(self) -> impl Iterator<Item = RegisterTensor> {
         self.tensors.into_iter()
     }
 
+    /// Returns the number of tensors registered.
     pub fn len(&self) -> usize {
         self.tensors.len()
     }
 
+    /// Retrieve the [tensor id](TensorId) at the given index.
     pub fn get_id(&self, index: usize) -> Option<TensorId> {
         self.tensors.get(index).map(|entry| match entry {
             RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id,
-            RegisterTensor::QuantData(tensor_ir) => tensor_ir.id,
-            RegisterTensor::QuantScales(tensor_id) => *tensor_id,
+            RegisterTensor::QuantValues(tensor_ir) => tensor_ir.id,
+            RegisterTensor::QuantParams(tensor_id) => *tensor_id,
         })
     }
 
@@ -277,8 +282,8 @@ impl RegisteredTensors {
             .enumerate()
             .find(|(_pos, entry)| match entry {
                 RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor_id,
-                RegisterTensor::QuantData(_) => false,
-                RegisterTensor::QuantScales(_) => false,
+                RegisterTensor::QuantValues(_) => false,
+                RegisterTensor::QuantParams(_) => false,
             })
             .map(|(pos, _)| pos as u32)
     }
@@ -289,39 +294,43 @@ impl RegisteredTensors {
             .iter()
             .find(|entry| match entry {
                 RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor_id,
-                RegisterTensor::QuantData(_) => false,
-                RegisterTensor::QuantScales(_) => false,
+                RegisterTensor::QuantValues(_) => false,
+                RegisterTensor::QuantParams(_) => false,
             })
             .and_then(|entry| match entry {
                 RegisterTensor::Normal(tensor_ir, fuse_precision) => {
                     Some((tensor_ir, fuse_precision))
                 }
-                RegisterTensor::QuantData(_) => None,
-                RegisterTensor::QuantScales(_) => None,
+                RegisterTensor::QuantValues(_) => None,
+                RegisterTensor::QuantParams(_) => None,
             })
     }
 
+    /// Insert a quantized tensor.
+    ///
+    /// It will return the positions for both the value tensor and param tensor.
     pub fn insert_quant(&mut self, tensor: TensorIr) -> (u32, u32) {
         if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
-            RegisterTensor::QuantData(tensor_ir) => tensor_ir == &tensor,
+            RegisterTensor::QuantValues(tensor_ir) => tensor_ir == &tensor,
             _ => false,
         }) {
-            let val = old.0 as u32;
-            let scales = val + 1;
-            return (val, scales);
+            let values = old.0 as u32;
+            let params = values + 1;
+            return (values, params);
         }
 
-        let scales = RegisterTensor::QuantScales(tensor.id);
-        let data = RegisterTensor::QuantData(tensor);
-        let pos_data = self.len();
-        self.tensors.push(data);
+        let params = RegisterTensor::QuantParams(tensor.id);
+        let values = RegisterTensor::QuantValues(tensor);
+        let pos_values = self.len();
+        self.tensors.push(values);
 
-        let pos_scales = self.len();
-        self.tensors.push(scales);
+        let pos_params = self.len();
+        self.tensors.push(params);
 
-        (pos_data as u32, pos_scales as u32)
+        (pos_values as u32, pos_params as u32)
     }
 
+    /// Insert a normal tensor with the given [precision](FusePrecision) in the current block.
     pub fn insert(&mut self, precision: FusePrecision, tensor: TensorIr) -> u32 {
         if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
             RegisterTensor::Normal(tensor_ir, _) => tensor_ir == &tensor,
@@ -338,6 +347,11 @@ impl RegisteredTensors {
         pos as u32
     }
 
+    /// Update the already registered tensor with the given [tensor ir](TensorIr).
+    ///
+    /// # Notes
+    ///
+    /// This function only works with normal tensors, not quantized tensors.
     pub fn update(&mut self, tensor: &TensorIr) {
         if let Some(entry) = self.tensors.iter_mut().find(|entry| match entry {
             RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor.id,
