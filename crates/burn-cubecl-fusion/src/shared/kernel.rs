@@ -766,12 +766,24 @@ fn dequantize<C: Float>(
     } else {
         let mut line = Line::empty(line_size_result);
 
-        for i in 0..line_size {
+        // We have to do all index work as comptime because higher line sizes removes the
+        // possibility to index dynamically on lines.
+        let mut i = comptime!(0);
+
+        #[unroll]
+        for _ in 0..line_size {
+            let mut j = comptime!(0);
             let value = result[i];
-            for j in 0..num_quants {
-                line[i * num_quants + j] = value[j];
+
+            #[unroll]
+            for _ in 0..num_quants {
+                let index = comptime!(i * num_quants + j);
+                line[index] = value[j];
+                comptime!(j += 1);
             }
+            comptime!(i += 1);
         }
+
         line
     };
 
