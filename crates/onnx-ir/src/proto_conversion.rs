@@ -44,7 +44,7 @@ impl TryFrom<TensorProto> for TensorData {
                 ElementType::Float16,
                 // Convert the raw data to a vector of float16s
                 if !tensor.raw_data.is_empty() {
-                    Data::Float16s(cast_slice(&tensor.raw_data[..]).to_vec())
+                    Data::Float16s(safe_cast_bytes(tensor.raw_data))
                 } else {
                     unimplemented!()
                 },
