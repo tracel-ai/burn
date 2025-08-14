@@ -31,15 +31,15 @@ const NUM_CLASSES: usize = 10;
 
 impl<B: Backend> Model<B> {
     pub fn new(device: &B::Device) -> Self {
-        let conv1 = ConvBlock::new([1, 64], [3, 3], device, false); // out: [Batch,32,26,26]
-        let conv2 = ConvBlock::new([64, 64], [3, 3], device, false); // out: [Batch,64,24,24]
-        let hidden_size = 64 * 24 * 24;
-        let mut linears = vec![nn::LinearConfig::new(hidden_size, 64).init(device)];
+        let conv1 = ConvBlock::new([1, 64], [3, 3], device, true); // out: max_pool -> [Batch,32,13,13]
+        let conv2 = ConvBlock::new([64, 64], [3, 3], device, true); // out: max_pool -> [Batch,64,5,5]
+        let hidden_size = 64 * 5 * 5;
+        let mut linears = vec![nn::LinearConfig::new(hidden_size, 128).init(device)];
 
         for _ in 0..1 {
-            linears.push(nn::LinearConfig::new(64, 64).init(device));
+            linears.push(nn::LinearConfig::new(128, 128).init(device));
         }
-        let head = nn::LinearConfig::new(64, NUM_CLASSES).init(device);
+        let head = nn::LinearConfig::new(128, NUM_CLASSES).init(device);
 
         let dropout = nn::DropoutConfig::new(0.25).init();
 

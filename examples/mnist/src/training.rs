@@ -48,7 +48,8 @@ pub fn run<B: AutodiffBackend>(devices: Vec<B::Device>) {
     let config = MnistTrainingConfig::new(config_optimizer);
     B::seed(config.seed);
 
-    let model = Model::<B>::new(&device);
+    let first_device = devices.first().unwrap();
+    let model = Model::<B>::new(&first_device);
 
     // Data
     let batcher = MnistBatcher::default();
@@ -90,7 +91,7 @@ pub fn run<B: AutodiffBackend>(devices: Vec<B::Device>) {
     #[cfg(feature="ddp")]
     let learner_builder = learner_builder.learning_strategy(burn::train::ddp(devices));
     #[cfg(not(feature="ddp"))]
-    let learner_builder = learner_builder.learning_strategy(burn::train::LearningStrategy::SingleDevice(first_device));
+    let learner_builder = learner_builder.learning_strategy(burn::train::LearningStrategy::SingleDevice(first_device.clone()));
 
 
     let learner = learner_builder.build(model, config.optimizer.init(), 1.0e-3);
