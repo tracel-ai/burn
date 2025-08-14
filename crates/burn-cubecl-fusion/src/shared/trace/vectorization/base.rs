@@ -113,7 +113,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
     for input in inputs {
         if let Some((s, o, mr, dims)) = swapped
             .iter()
-            .find(|(_s, o, _mr, _dims)| input.from_tensor(o.id))
+            .find(|(_s, o, _mr, _dims)| input.is_from_tensor(o.id))
         {
             let (handle, id) = match input {
                 VectorizationHandle::NormalInput(handle, tensor_ir) => (handle, &tensor_ir.id),

@@ -99,10 +99,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             }
         }
         for r in plan.global_outputs.iter() {
-            let elem: Elem = match r.dtype.try_into() {
-                Ok(val) => val,
-                Err(_) => continue,
-            };
+            let elem: Elem = r.dtype.into();
             let elem_size = elem.size();
 
             if ref_elem.1 >= elem_size {

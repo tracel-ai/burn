@@ -720,6 +720,7 @@ fn conditional_assign<C: CubePrimitive>(
 }
 
 #[cube]
+#[allow(clippy::explicit_counter_loop)]
 fn dequantize<C: Float>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,

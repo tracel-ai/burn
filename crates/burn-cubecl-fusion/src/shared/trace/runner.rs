@@ -35,7 +35,8 @@ pub enum VectorizationHandle<'a, R: Runtime> {
 }
 
 impl<'a, R: Runtime> VectorizationHandle<'a, R> {
-    pub fn from_tensor(&self, id: TensorId) -> bool {
+    /// Returns if the current vectorization handle is from the given tensor id.
+    pub fn is_from_tensor(&self, id: TensorId) -> bool {
         match self {
             VectorizationHandle::NormalInput(_, tensor_ir) => tensor_ir.id == id,
             VectorizationHandle::QuantValues(_, tensor_ir) => tensor_ir.id == id,
