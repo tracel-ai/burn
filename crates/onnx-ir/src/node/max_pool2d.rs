@@ -64,8 +64,13 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
                     panic!("Unsupported 'auto_pad' value: {auto_pad}");
                 }
             }
+            "ceil_mode" => {
+                if value.clone().into_i64() == 1 {
+                    panic!("ceil_mode is not supported");
+                }
+            }
             // These are attributes that are allowed but not used in this implementation
-            "ceil_mode" | "storage_order" => {}
+            "storage_order" => {}
             _ => panic!("Unexpected attribute for MaxPool2d: {key}"),
         }
     }

@@ -81,7 +81,7 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
                     panic!("Unsupported 'auto_pad' value: {auto_pad}");
                 }
             }
-            _ => {}
+            _ => panic!("Unexpected attribute for Conv1d: {key}"),
         }
     }
 

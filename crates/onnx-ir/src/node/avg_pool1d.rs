@@ -54,8 +54,6 @@ pub fn avg_pool1d_config(curr: &Node) -> AvgPool1dConfig {
                     panic!("Unsupported 'auto_pad' value: {auto_pad}");
                 }
             }
-            // These are attributes that are allowed but not used in this implementation
-            "storage_order" => {}
             _ => panic!("Unexpected attribute for AvgPool1d: {key}"),
         }
     }
