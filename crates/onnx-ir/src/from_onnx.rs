@@ -252,7 +252,6 @@ impl OnnxGraphBuilder {
     }
 
     fn handle_node_renaming(&mut self, node: &mut Node) {
-        log::debug!("renaming node {:?}", &node.name);
         self.node_name_counter
             .entry(node.node_type.clone())
             .and_modify(|e| *e += 1)
@@ -262,6 +261,9 @@ impl OnnxGraphBuilder {
             node.node_type, self.node_name_counter[&node.node_type]
         )
         .to_lowercase();
+
+        log::debug!("renaming node {:?} to {new_name:?}", &node.name);
+
         node.name.clone_from(&new_name);
     }
 
