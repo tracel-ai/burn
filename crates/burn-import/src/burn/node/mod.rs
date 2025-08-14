@@ -33,6 +33,7 @@ pub(crate) mod gather_elements;
 pub(crate) mod gemm;
 pub(crate) mod global_avg_pool;
 pub(crate) mod group_norm;
+pub(crate) mod identity;
 pub(crate) mod instance_norm;
 pub(crate) mod layer_norm;
 pub(crate) mod linear;

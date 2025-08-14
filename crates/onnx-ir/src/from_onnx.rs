@@ -19,22 +19,31 @@ use super::rank_inference::rank_inference;
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 18] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 27] = [
     NodeType::BatchNormalization,
-    NodeType::InstanceNormalization,
-    NodeType::GroupNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
     NodeType::Conv2d,
+    NodeType::Conv3d,
+    NodeType::ConvTranspose1d,
+    NodeType::ConvTranspose2d,
+    NodeType::ConvTranspose3d,
     NodeType::Dropout,
     NodeType::Expand,
+    NodeType::GroupNormalization,
+    NodeType::InstanceNormalization,
+    NodeType::LayerNormalization,
+    NodeType::Linear,
     NodeType::OneHot,
+    NodeType::PRelu,
+    NodeType::Pad,
     NodeType::ReduceSum,
     NodeType::Reshape,
     NodeType::Resize,
     NodeType::Slice,
     NodeType::Split,
     NodeType::Squeeze,
+    NodeType::Tile,
     NodeType::TopK,
     NodeType::Trilu,
     NodeType::Unsqueeze,
@@ -150,7 +159,7 @@ impl GraphData {
     ///     2. maps the old output names to the node output
     ///     3. renames the node output
     fn add_node(&mut self, mut node: Node) {
-        log::debug!("adding node {:?}", &node.name);
+        log::debug!("Adding node {:?}", &node.name);
         self.mark_input_passed(&node);
         let mut out_count = 1;
         for output in node.outputs.iter_mut() {
@@ -172,6 +181,10 @@ impl GraphData {
             .into_iter()
             .filter_map(|x| match self.input_name_map.get(&x.name) {
                 Some(IOEntry::Node(i, j)) => Some(self.processed_nodes[*i].outputs[*j].clone()),
+                Some(IOEntry::In(i)) => {
+                    // Output maps directly to an input (e.g., when Identity nodes are removed)
+                    Some(self.inputs[*i].clone())
+                }
                 _ => None,
             })
             .collect();
@@ -198,8 +211,6 @@ pub(crate) struct OnnxGraphBuilder {
     constants_map: HashMap<String, usize>,
     /// Node types that should be lifted to constants
     constants_types: HashSet<NodeType>,
-    /// Map from identity node output names to indices of identity nodes
-    identity_idx: HashMap<String, usize>,
     node_name_counter: HashMap<NodeType, usize>,
 }
 
@@ -223,6 +234,7 @@ impl OnnxGraphBuilder {
             coalesce(&mut node, &mut node_iter, &graph_data);
             self.handle_identity(&mut node, &graph_data);
             self.check_constants(&mut node, &graph_data);
+            self.convert_initializer_inputs_to_constants(&mut node, &mut graph_data);
             // NOTE: potential start of custom functions
             // can filter, coalesce, or modify the nodes here
             // args : node, peek_iter, graph_data
@@ -233,6 +245,7 @@ impl OnnxGraphBuilder {
         }
 
         let (mut processed_nodes, inputs, outputs) = graph_data.consume();
+
         // Remove the graph inputs/output that are not used by any node
         let mut i = 0;
         processed_nodes.retain(|_| {
@@ -266,21 +279,19 @@ impl OnnxGraphBuilder {
     }
 
     fn check_constants(&mut self, node: &mut Node, graph_data: &GraphData) {
-        if node.node_type == NodeType::Constant
-            || (node.node_type == NodeType::Identity && node.inputs[0].value.is_some())
-        {
+        if node.node_type == NodeType::Constant {
             self.constants_map.insert(
                 format!("{}_out{}", &node.name, 1),
                 graph_data.get_current_index(),
             );
         } else if self.constants_types.contains(&node.node_type) {
-            log::debug!("checking node {} for constants", &node.name);
+            log::debug!("Checking node {} for constants", &node.name);
             for input in node.inputs.iter_mut().skip(1) {
-                log::debug!("checking input {input:?} for const");
+                log::debug!("Checking input {input:?} for const");
                 if let Some(const_idx) = self.constants_map.get(&input.name) {
                     let constant = &graph_data.processed_nodes[*const_idx];
                     log::debug!(
-                        "input {} matched constant node {}",
+                        "Input {} matched constant node {}",
                         &input.name,
                         &constant.name
                     );
@@ -314,21 +325,110 @@ impl OnnxGraphBuilder {
         }
     }
 
-    fn handle_identity(&mut self, node: &mut Node, graph_data: &GraphData) {
-        if node.node_type == NodeType::Identity && node.inputs[0].value.is_none() {
-            log::debug!("\nfound identity node:\n{:?}\n", &node);
-            let i = graph_data.get_current_index();
-            //map the output name to check for pass through values
-            self.identity_idx.insert(format!("{}_out1", &node.name), i);
-            self.nodes_to_remove.insert(i);
-        } else {
-            node.inputs.iter_mut().for_each(|x| {
-                if let Some(identity_idx) = self.identity_idx.get(&x.name) {
-                    let input_name = &graph_data.processed_nodes[*identity_idx].inputs[0].name;
+    /// Convert inputs with values (initializers) to Constant nodes
+    fn convert_initializer_inputs_to_constants(
+        &mut self,
+        node: &mut Node,
+        graph_data: &mut GraphData,
+    ) {
+        // Skip if this is already a Constant node
+        if node.node_type == NodeType::Constant {
+            return;
+        }
 
-                    x.name.clone_from(input_name);
+        // Check each input for initializer values
+        for (idx, input) in node.inputs.iter_mut().enumerate() {
+            if let Some(value) = &input.value {
+                // Skip inputs that will be lifted by the constant lifting mechanism
+                // For nodes in the constant lifting list, skip inputs at index >= 1
+                // (these will be lifted by check_constants later)
+                if self.constants_types.contains(&node.node_type) && idx >= 1 {
+                    log::debug!(
+                        "Skipping constant creation for {} input {} (will be lifted)",
+                        node.name,
+                        idx
+                    );
+                    continue;
                 }
-            });
+
+                // This input is an initializer - create a Constant node for it
+                // Use the existing constant naming convention
+                self.node_name_counter
+                    .entry(NodeType::Constant)
+                    .and_modify(|e| *e += 1)
+                    .or_insert(1);
+                let const_name = format!("constant{}", self.node_name_counter[&NodeType::Constant]);
+                log::debug!(
+                    "Creating Constant node {} for initializer {} at position {}",
+                    const_name,
+                    input.name,
+                    idx
+                );
+
+                // Create a new Constant node
+                let mut const_node = Node {
+                    node_type: NodeType::Constant,
+                    name: const_name.clone(),
+                    inputs: vec![],
+                    outputs: vec![input.clone()],
+                    attrs: HashMap::new(),
+                };
+
+                // Set the output name to match what the consuming node expects
+                const_node.outputs[0].name = format!("{}_out1", const_name);
+                const_node.attrs.insert(
+                    "value".to_string(),
+                    crate::ir::AttributeValue::Tensor(value.clone()),
+                );
+
+                // Add the Constant node to the graph
+                graph_data.add_node(const_node);
+
+                // Update the input to reference the Constant node's output
+                input.name = format!("{}_out1", const_name);
+                input.value = None; // Clear the value since it's now in the Constant node
+            }
+        }
+    }
+
+    fn handle_identity(&mut self, node: &mut Node, _graph_data: &GraphData) {
+        if node.node_type == NodeType::Identity {
+            // If Identity node has a constant/initializer input, convert it to a Constant node
+            if let Some(value) = &node.inputs[0].value {
+                log::debug!(
+                    "Converting Identity node with constant input to Constant node: {}",
+                    &node.name
+                );
+
+                // Convert Identity to Constant
+                node.node_type = NodeType::Constant;
+
+                // Update the name to use constant naming convention
+                self.node_name_counter
+                    .entry(NodeType::Constant)
+                    .and_modify(|e| *e += 1)
+                    .or_insert(1);
+                let new_name = format!("constant{}", self.node_name_counter[&NodeType::Constant]);
+                log::debug!("Renaming {} to {}", node.name, new_name);
+                node.name = new_name;
+
+                // Move the value from input to an attribute
+                node.attrs.insert(
+                    "value".to_string(),
+                    crate::ir::AttributeValue::Tensor(value.clone()),
+                );
+
+                // Clear the inputs since Constant nodes don't have inputs
+                node.inputs.clear();
+
+                // The output remains the same
+            } else {
+                // For Identity nodes without constant inputs, let them pass through to burn-import
+                log::debug!(
+                    "Identity node without constant - will pass through to burn-import: {}",
+                    &node.name
+                );
+            }
         }
     }
 }
