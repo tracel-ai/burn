@@ -186,7 +186,6 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
         let val = vectorization_output(tensor, axis, line_sizes, max, overrides.tensor(&tensor.id));
         vectorizations.insert(tensor.id, val);
     }
-    println!("{vectorizations:?}");
 }
 
 fn multi_reads_vectorization_update(
