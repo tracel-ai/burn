@@ -40,7 +40,7 @@ fn create_artifact_dir(artifact_dir: &str) {
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
-pub fn run<B: AutodiffBackend>(device: B::Device) {
+pub fn run<B: AutodiffBackend>(devices: Vec<B::Device>) {
     create_artifact_dir(ARTIFACT_DIR);
     // Config
     let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
@@ -84,7 +84,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             Split::Valid,
             StoppingCondition::NoImprovementSince { n_epochs: 2 },
         ))
-        .learning_strategy(burn::train::LearningStrategy::SingleDevice(device))
+        .learning_strategy(burn::train::ddp(devices))
         .num_epochs(config.num_epochs)
         .summary()
         .build(model, config.optimizer.init(), 1.0e-3);

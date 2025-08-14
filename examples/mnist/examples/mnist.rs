@@ -58,7 +58,15 @@ mod cuda {
     use mnist::training;
 
     pub fn run() {
-        let device = CudaDevice::default();
+        #[cfg(not(feature = "ddp"))]
+        let devices = vec![CudaDevice::default()];
+        #[cfg(feature = "ddp")]
+        let devices = vec![
+            burn_cuda::CudaDevice::new(0),
+            burn_cuda::CudaDevice::new(1),
+            burn_cuda::CudaDevice::new(2),
+            burn_cuda::CudaDevice::new(3),
+        ];
         training::run::<Autodiff<Cuda>>(device);
     }
 }
