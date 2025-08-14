@@ -342,10 +342,9 @@ impl RegisteredTensors {
         if let Some(entry) = self.tensors.iter_mut().find(|entry| match entry {
             RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor.id,
             _ => false,
-        }) {
-            if let RegisterTensor::Normal(tensor_ir, _) = entry {
-                tensor_ir.status = tensor.status
-            }
+        }) && let RegisterTensor::Normal(tensor_ir, _) = entry
+        {
+            tensor_ir.status = tensor.status
         }
     }
 }

@@ -321,7 +321,7 @@ impl FuseOptimizationBuilder {
                                 params,
                                 output: out,
                                 scheme: match desc.input.dtype {
-                                    DType::QFloat(scheme) => QuantSchemeFuse { scheme: scheme },
+                                    DType::QFloat(scheme) => QuantSchemeFuse { scheme },
                                     _ => unreachable!("Should be a quant tensor."),
                                 },
                             });
