@@ -68,6 +68,13 @@ pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
             "pads" => pads = value.clone().into_i64s(),
             "dilations" => dilations = value.clone().into_i64s(),
             "group" => group = value.clone().into_i64() as usize,
+            "auto_pad" => {
+                // At least support default (not set -> explicit)
+                let auto_pad = value.clone().into_string();
+                if auto_pad != "NOTSET" {
+                    panic!("Unsupported 'auto_pad' value: {auto_pad}");
+                }
+            }
             _ => panic!("Unexpected attribute for Conv3d: {key}"),
         }
     }
@@ -114,6 +121,7 @@ mod tests {
         dilations: Vec<i64>,
         group: i64,
         has_bias: bool,
+        auto_pad: Option<&str>,
     ) -> Node {
         // Create weight tensor data (not important for the test)
         let weight_data = vec![0.0; 32];
@@ -138,6 +146,10 @@ mod tests {
             .attr_ints("dilations", dilations)
             .attr_int("group", group);
 
+        if let Some(auto_pad) = auto_pad {
+            builder = builder.attr_string("auto_pad", auto_pad);
+        }
+
         builder.build()
     }
 
@@ -150,6 +162,7 @@ mod tests {
             vec![1, 1, 1],
             1,
             false,
+            None,
         );
         let config = conv3d_config(&node);
 
@@ -171,6 +184,7 @@ mod tests {
             vec![1, 1, 1],
             1,
             false,
+            None,
         );
         let config = conv3d_config(&node);
 
@@ -187,6 +201,7 @@ mod tests {
             vec![1, 1, 1],
             2,
             false,
+            None,
         );
         let config = conv3d_config(&node);
 
@@ -203,9 +218,47 @@ mod tests {
             vec![1, 1, 1],
             1,
             true,
+            None,
         );
         let config = conv3d_config(&node);
 
         assert!(config.bias);
+    }
+
+    #[test]
+    fn test_conv3d_config_autopad_not_set() {
+        let node = create_test_node(
+            vec![2, 2, 2],
+            vec![1, 1, 1],
+            vec![0, 0, 0, 0, 0, 0],
+            vec![1, 1, 1],
+            1,
+            false,
+            Some("NOTSET"),
+        );
+        let config = conv3d_config(&node);
+
+        assert_eq!(config.channels, [2, 4]);
+        assert_eq!(config.kernel_size, [2, 2, 2]);
+        assert_eq!(config.stride, [1, 1, 1]);
+        assert_eq!(config.dilation, [1, 1, 1]);
+        assert_eq!(config.groups, 1);
+        assert!(!config.bias);
+        assert!(matches!(config.padding, PaddingConfig3d::Valid));
+    }
+
+    #[test]
+    #[should_panic = "Unsupported 'auto_pad' value"]
+    fn test_conv3d_config_autopad_not_supported() {
+        let node = create_test_node(
+            vec![2, 2, 2],
+            vec![1, 1, 1],
+            vec![0, 0, 0, 0, 0, 0],
+            vec![1, 1, 1],
+            1,
+            false,
+            Some("SAME_UPPER"),
+        );
+        let _config = conv3d_config(&node);
     }
 }

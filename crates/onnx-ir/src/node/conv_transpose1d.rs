@@ -69,6 +69,13 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
             "dilations" => dilations = value.clone().into_i64s(),
             "group" => group = value.clone().into_i64() as usize,
             "output_padding" => output_padding = value.clone().into_i64s(),
+            "auto_pad" => {
+                // At least support default (not set -> explicit)
+                let auto_pad = value.clone().into_string();
+                if auto_pad != "NOTSET" {
+                    panic!("Unsupported 'auto_pad' value: {auto_pad}");
+                }
+            }
             _ => panic!("Unexpected attribute for ConvTranspose1d: {key}"),
         }
     }
@@ -119,6 +126,7 @@ mod tests {
         group: i64,
         output_padding: Vec<i64>,
         has_bias: bool,
+        auto_pad: Option<&str>,
     ) -> Node {
         // Create weight tensor data
         let weight_data = vec![0.1; 16];
@@ -147,12 +155,25 @@ mod tests {
             .attr_int("group", group)
             .attr_ints("output_padding", output_padding);
 
+        if let Some(auto_pad) = auto_pad {
+            builder = builder.attr_string("auto_pad", auto_pad);
+        }
+
         builder.build()
     }
 
     #[test]
     fn test_conv_transpose1d_config_basic() {
-        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 1, vec![0], false);
+        let node = create_test_node(
+            vec![4],
+            vec![1],
+            vec![0, 0],
+            vec![1],
+            1,
+            vec![0],
+            false,
+            None,
+        );
         let config = conv_transpose1d_config(&node);
 
         assert_eq!(config.channels_in, 2);
@@ -168,7 +189,16 @@ mod tests {
 
     #[test]
     fn test_conv_transpose1d_config_with_params() {
-        let node = create_test_node(vec![4], vec![2], vec![1, 1], vec![2], 2, vec![1], true);
+        let node = create_test_node(
+            vec![4],
+            vec![2],
+            vec![1, 1],
+            vec![2],
+            2,
+            vec![1],
+            true,
+            None,
+        );
         let config = conv_transpose1d_config(&node);
 
         assert_eq!(config.channels_in, 4); // weight_shape[1] * group = 2 * 2
@@ -185,7 +215,57 @@ mod tests {
     #[test]
     #[should_panic(expected = "Asymmetric padding is not supported")]
     fn test_conv_transpose1d_config_asymmetric_padding() {
-        let node = create_test_node(vec![4], vec![1], vec![1, 2], vec![1], 1, vec![0], false);
+        let node = create_test_node(
+            vec![4],
+            vec![1],
+            vec![1, 2],
+            vec![1],
+            1,
+            vec![0],
+            false,
+            None,
+        );
         let _ = conv_transpose1d_config(&node);
+    }
+
+    #[test]
+    fn test_conv_transpose1d_config_autopad_not_set() {
+        let node = create_test_node(
+            vec![4],
+            vec![1],
+            vec![0, 0],
+            vec![1],
+            1,
+            vec![0],
+            false,
+            Some("NOTSET"),
+        );
+        let config = conv_transpose1d_config(&node);
+
+        assert_eq!(config.channels_in, 2);
+        assert_eq!(config.channels_out, 2);
+        assert_eq!(config.kernel_size, 4);
+        assert_eq!(config.stride, 1);
+        assert_eq!(config.padding, 0);
+        assert_eq!(config.dilation, 1);
+        assert_eq!(config.padding_out, 0);
+        assert_eq!(config.groups, 1);
+        assert!(!config.bias);
+    }
+
+    #[test]
+    #[should_panic = "Unsupported 'auto_pad' value"]
+    fn test_conv_transpose1d_config_autopad_not_supported() {
+        let node = create_test_node(
+            vec![4],
+            vec![1],
+            vec![0, 0],
+            vec![1],
+            1,
+            vec![0],
+            false,
+            Some("SAME_UPPER"),
+        );
+        let _config = conv_transpose1d_config(&node);
     }
 }

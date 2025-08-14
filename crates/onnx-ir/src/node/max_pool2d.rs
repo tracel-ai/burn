@@ -57,8 +57,15 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
             "strides" => strides = value.clone().into_i64s(),
             "pads" => pads = value.clone().into_i64s(),
             "dilations" => dilations = value.clone().into_i64s(),
+            "auto_pad" => {
+                // At least support default (not set -> explicit)
+                let auto_pad = value.clone().into_string();
+                if auto_pad != "NOTSET" {
+                    panic!("Unsupported 'auto_pad' value: {auto_pad}");
+                }
+            }
             // These are attributes that are allowed but not used in this implementation
-            "auto_pad" | "ceil_mode" | "storage_order" => {}
+            "ceil_mode" | "storage_order" => {}
             _ => panic!("Unexpected attribute for MaxPool2d: {key}"),
         }
     }
@@ -82,20 +89,24 @@ mod tests {
         strides: Vec<i64>,
         pads: Vec<i64>,
         dilations: Vec<i64>,
+        auto_pad: Option<&str>,
     ) -> Node {
-        NodeBuilder::new(NodeType::MaxPool2d, "test_maxpool2d")
+        let mut builder = NodeBuilder::new(NodeType::MaxPool2d, "test_maxpool2d")
             .input_tensor_f32("data", 4, None)
             .output_tensor_f32("output", 4, None)
             .attr_ints("kernel_shape", kernel_shape)
             .attr_ints("strides", strides)
             .attr_ints("pads", pads)
-            .attr_ints("dilations", dilations)
-            .build()
+            .attr_ints("dilations", dilations);
+        if let Some(auto_pad) = auto_pad {
+            builder = builder.attr_string("auto_pad", auto_pad);
+        }
+        builder.build()
     }
 
     #[test]
     fn test_max_pool2d_config_basic() {
-        let node = create_test_node(vec![3, 3], vec![1, 1], vec![0, 0, 0, 0], vec![1, 1]);
+        let node = create_test_node(vec![3, 3], vec![1, 1], vec![0, 0, 0, 0], vec![1, 1], None);
         let config = max_pool2d_config(&node);
 
         assert_eq!(config.kernel_size, [3, 3]);
@@ -106,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_max_pool2d_config_with_padding() {
-        let node = create_test_node(vec![2, 2], vec![2, 2], vec![1, 1, 1, 1], vec![1, 1]);
+        let node = create_test_node(vec![2, 2], vec![2, 2], vec![1, 1, 1, 1], vec![1, 1], None);
         let config = max_pool2d_config(&node);
 
         assert_eq!(config.kernel_size, [2, 2]);
@@ -117,12 +128,42 @@ mod tests {
 
     #[test]
     fn test_max_pool2d_config_with_dilation() {
-        let node = create_test_node(vec![3, 3], vec![1, 1], vec![0, 0, 0, 0], vec![2, 2]);
+        let node = create_test_node(vec![3, 3], vec![1, 1], vec![0, 0, 0, 0], vec![2, 2], None);
         let config = max_pool2d_config(&node);
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
         assert_eq!(config.dilation, [2, 2]);
         assert!(matches!(config.padding, PaddingConfig2d::Valid));
+    }
+
+    #[test]
+    fn test_max_pool2d_config_auto_pad_not_set() {
+        let node = create_test_node(
+            vec![3, 3],
+            vec![1, 1],
+            vec![0, 0, 0, 0],
+            vec![1, 1],
+            Some("NOTSET"),
+        );
+        let config = max_pool2d_config(&node);
+
+        assert_eq!(config.kernel_size, [3, 3]);
+        assert_eq!(config.strides, [1, 1]);
+        assert_eq!(config.dilation, [1, 1]);
+        assert!(matches!(config.padding, PaddingConfig2d::Valid));
+    }
+
+    #[test]
+    #[should_panic = "Unsupported 'auto_pad' value"]
+    fn test_max_pool2d_config_auto_pad_not_supported() {
+        let node = create_test_node(
+            vec![3, 3],
+            vec![1, 1],
+            vec![0, 0, 0, 0],
+            vec![1, 1],
+            Some("SAME_UPPER"),
+        );
+        let _config = max_pool2d_config(&node);
     }
 }
