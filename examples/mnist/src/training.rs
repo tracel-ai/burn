@@ -89,7 +89,8 @@ pub fn run<B: AutodiffBackend>(devices: Vec<B::Device>) {
         .summary();
 
     #[cfg(feature = "ddp")]
-    let learner_builder = learner_builder.learning_strategy(burn::train::ddp(devices, Default::default()));
+    let learner_builder =
+        learner_builder.learning_strategy(burn::train::ddp(devices, Default::default()));
     #[cfg(not(feature = "ddp"))]
     let learner_builder = learner_builder.learning_strategy(
         burn::train::LearningStrategy::SingleDevice(first_device.clone()),
