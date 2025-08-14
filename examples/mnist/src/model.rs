@@ -14,7 +14,6 @@ use burn::{
 pub struct Model<B: Backend> {
     conv1: ConvBlock<B>,
     conv2: ConvBlock<B>,
-    conv3: ConvBlock<B>,
     dropout: nn::Dropout,
     linears: Vec<nn::Linear<B>>,
     head: nn::Linear<B>,
@@ -32,23 +31,21 @@ const NUM_CLASSES: usize = 10;
 
 impl<B: Backend> Model<B> {
     pub fn new(device: &B::Device) -> Self {
-        let conv1 = ConvBlock::new([1, 64], [3, 3], device); // out: [Batch,32,13,13]
-        let conv2 = ConvBlock::new([64, 64], [3, 3], device); // out: [Batch,64,5x5]
-        let conv3 = ConvBlock::new([64, 64], [3, 3], device); // out: max_pool 2x2 -> [Batch,128,1x1]
-        let hidden_size = 64 * 1 * 1;
-        let mut linears = vec![nn::LinearConfig::new(hidden_size, 128).init(device)];
+        let conv1 = ConvBlock::new([1, 64], [3, 3], device, false); // out: [Batch,32,26,26]
+        let conv2 = ConvBlock::new([64, 64], [3, 3], device, false); // out: [Batch,64,24,24]
+        let hidden_size = 64 * 24 * 24;
+        let mut linears = vec![nn::LinearConfig::new(hidden_size, 64).init(device)];
 
-        for _ in 0..2 {
-            linears.push(nn::LinearConfig::new(128, 128).init(device));
+        for _ in 0..1 {
+            linears.push(nn::LinearConfig::new(64, 64).init(device));
         }
-        let head = nn::LinearConfig::new(128, NUM_CLASSES).init(device);
+        let head = nn::LinearConfig::new(64, NUM_CLASSES).init(device);
 
         let dropout = nn::DropoutConfig::new(0.25).init();
 
         Self {
             conv1,
             conv2,
-            conv3,
             dropout,
             linears,
             head,
@@ -62,7 +59,6 @@ impl<B: Backend> Model<B> {
         let x = input.reshape([batch_size, 1, height, width]).detach();
         let x = self.conv1.forward(x);
         let x = self.conv2.forward(x);
-        let x = self.conv3.forward(x);
 
         let [batch_size, channels, height, width] = x.dims();
         let mut x = x.reshape([batch_size, channels * height * width]);
@@ -95,17 +91,21 @@ impl<B: Backend> Model<B> {
 pub struct ConvBlock<B: Backend> {
     conv: nn::conv::Conv2d<B>,
     norm: BatchNorm<B, 2>,
-    pool: MaxPool2d,
+    pool: Option<MaxPool2d>,
     activation: nn::Relu,
 }
 
 impl<B: Backend> ConvBlock<B> {
-    pub fn new(channels: [usize; 2], kernel_size: [usize; 2], device: &B::Device) -> Self {
+    pub fn new(channels: [usize; 2], kernel_size: [usize; 2], device: &B::Device, pool: bool) -> Self {
         let conv = nn::conv::Conv2dConfig::new(channels, kernel_size)
             .with_padding(PaddingConfig2d::Valid)
             .init(device);
         let norm = nn::BatchNormConfig::new(channels[1]).init(device);
-        let pool = MaxPool2dConfig::new([2, 2]).with_strides([2, 2]).init();
+        let pool = if pool {
+            Some(MaxPool2dConfig::new([2, 2]).with_strides([2, 2]).init())
+        } else {
+            None
+        };
 
         Self {
             conv,
@@ -120,7 +120,11 @@ impl<B: Backend> ConvBlock<B> {
         let x = self.norm.forward(x);
         let x = self.activation.forward(x);
 
-        self.pool.forward(x)
+        if let Some(pool) = &self.pool {
+            pool.forward(x)
+        } else {
+            x
+        }
     }
 }
 
