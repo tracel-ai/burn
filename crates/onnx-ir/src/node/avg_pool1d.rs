@@ -48,7 +48,6 @@ pub fn avg_pool1d_config(curr: &Node) -> AvgPool1dConfig {
             "count_include_pad" => count_include_pad = value.clone().into_i64(),
             "ceil_mode" => ceil_mode = value.clone().into_i64(),
             "auto_pad" => {
-                // At least support default (not set -> explicit)
                 let auto_pad = value.clone().into_string();
                 if auto_pad != "NOTSET" {
                     panic!("Unsupported 'auto_pad' value: {auto_pad}");

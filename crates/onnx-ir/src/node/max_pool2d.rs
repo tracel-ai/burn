@@ -58,7 +58,6 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
             "pads" => pads = value.clone().into_i64s(),
             "dilations" => dilations = value.clone().into_i64s(),
             "auto_pad" => {
-                // At least support default (not set -> explicit)
                 let auto_pad = value.clone().into_string();
                 if auto_pad != "NOTSET" {
                     panic!("Unsupported 'auto_pad' value: {auto_pad}");

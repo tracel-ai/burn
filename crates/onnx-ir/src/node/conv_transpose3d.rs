@@ -66,7 +66,6 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
             "group" => group = value.clone().into_i64() as usize,
             "output_padding" => output_padding = value.clone().into_i64s(),
             "auto_pad" => {
-                // At least support default (not set -> explicit)
                 let auto_pad = value.clone().into_string();
                 if auto_pad != "NOTSET" {
                     panic!("Unsupported 'auto_pad' value: {auto_pad}");

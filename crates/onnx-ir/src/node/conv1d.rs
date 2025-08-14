@@ -75,7 +75,6 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
             "dilations" => dilations = value.clone().into_i64s(),
             "group" => group = value.clone().into_i64() as usize,
             "auto_pad" => {
-                // At least support default (not set -> explicit)
                 let auto_pad = value.clone().into_string();
                 if auto_pad != "NOTSET" {
                     panic!("Unsupported 'auto_pad' value: {auto_pad}");
