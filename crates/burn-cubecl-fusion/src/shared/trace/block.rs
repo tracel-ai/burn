@@ -52,7 +52,7 @@ pub enum QuantInput {
     /// If already quantize, we cache the dequantization and returns the local variable
     /// corresponding to the float value.
     AlreadyDequantized { local: Arg },
-    /// Otherwise we return the infomation necessary to dequantize the tensor.
+    /// Otherwise we return the information necessary to dequantize the tensor.
     Quantized { values: Arg, params: Arg },
 }
 

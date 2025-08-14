@@ -112,7 +112,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             .iter()
             .map(|item| {
                 item.as_normal()
-                    // Filter out indexed ressources.
+                    // Filter out indexed resources.
                     .map(|item| !self.resources.indexed.contains_key(&item.relative_id))
                     .unwrap_or(true)
             })
