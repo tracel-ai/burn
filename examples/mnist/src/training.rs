@@ -65,7 +65,7 @@ pub fn run<B: AutodiffBackend>(devices: Vec<B::Device>) {
         .build(MnistDataset::test());
 
     // Model
-    let learner = LearnerBuilder::new(ARTIFACT_DIR)
+    let learner_builder = LearnerBuilder::new(ARTIFACT_DIR)
         .metric_train_numeric(AccuracyMetric::new())
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(CpuUse::new())
@@ -84,10 +84,16 @@ pub fn run<B: AutodiffBackend>(devices: Vec<B::Device>) {
             Split::Valid,
             StoppingCondition::NoImprovementSince { n_epochs: 2 },
         ))
-        .learning_strategy(burn::train::ddp(devices))
         .num_epochs(config.num_epochs)
-        .summary()
-        .build(model, config.optimizer.init(), 1.0e-3);
+        .summary();
+
+    #[cfg(feature="ddp")]
+    let learner_builder = learner_builder.learning_strategy(burn::train::ddp(devices));
+    #[cfg(not(feature="ddp"))]
+    let learner_builder = learner_builder.learning_strategy(burn::train::LearningStrategy::SingleDevice(first_device));
+
+
+    let learner = learner_builder.build(model, config.optimizer.init(), 1.0e-3);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
