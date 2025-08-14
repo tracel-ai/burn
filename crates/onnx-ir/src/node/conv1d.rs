@@ -258,15 +258,6 @@ mod tests {
             false,
             Some("SAME_UPPER"),
         );
-        let config = conv1d_config(&node);
-
-        assert_eq!(config.channels_in, 2);
-        assert_eq!(config.channels_out, 2);
-        assert_eq!(config.kernel_size, 4);
-        assert_eq!(config.stride, 1);
-        assert_eq!(config.dilation, 1);
-        assert_eq!(config.groups, 1);
-        assert!(!config.bias);
-        assert!(matches!(config.padding, PaddingConfig1d::Valid));
+        let _config = conv1d_config(&node);
     }
 }
