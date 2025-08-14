@@ -6,6 +6,7 @@ fn main() {
 
     // Add onnx models.
     ModelGen::new()
+        .input("tests/abs/abs.onnx")
         .input("tests/add/add.onnx")
         .input("tests/and/and.onnx")
         .input("tests/add/add_int.onnx")
