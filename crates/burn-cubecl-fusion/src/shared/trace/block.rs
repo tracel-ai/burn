@@ -613,12 +613,11 @@ impl FuseBlockBuilder {
         // All tensors where their latest representation is read only should be written to since they
         // are going to be used after the fused kernel by other operations.
         for output in self.outputs.iter() {
-            if let Some((tensor, precision)) = output.as_normal_tensor() {
-                if let TensorStatus::ReadOnly = tensor.status {
-                    if !resources.dropped.contains(&tensor.id) {
-                        result.insert(*precision, tensor.clone());
-                    }
-                }
+            if let Some((tensor, precision)) = output.as_normal_tensor()
+                && let TensorStatus::ReadOnly = tensor.status
+                && !resources.dropped.contains(&tensor.id)
+            {
+                result.insert(*precision, tensor.clone());
             }
         }
 

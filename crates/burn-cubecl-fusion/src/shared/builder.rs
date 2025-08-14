@@ -312,7 +312,7 @@ impl FuseOptimizationBuilder {
                         QuantInput::AlreadyDequantized { local } => {
                             build.register_operation(FuseOp::Assign(UnaryFuseArgs {
                                 input: local,
-                                out: out,
+                                out,
                             }));
                         }
                         QuantInput::Quantized { values, params } => {
@@ -321,9 +321,7 @@ impl FuseOptimizationBuilder {
                                 params,
                                 output: out,
                                 scheme: match desc.input.dtype {
-                                    DType::QFloat(scheme) => QuantSchemeFuse {
-                                        scheme: scheme.clone(),
-                                    },
+                                    DType::QFloat(scheme) => QuantSchemeFuse { scheme: scheme },
                                     _ => unreachable!("Should be a quant tensor."),
                                 },
                             });

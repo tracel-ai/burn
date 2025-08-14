@@ -268,14 +268,13 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 && strides == &hi.handle.strides
                 && shape == &hi.global_ir.shape
                 && block.reads.contains_key(&hi.relative_id)
+                && strides == &hi.handle.strides
+                && shape == &hi.global_ir.shape
+                && let Some(ops) = block.reads.get_mut(&hi.relative_id)
             {
-                if strides == &hi.handle.strides && shape == &hi.global_ir.shape {
-                    if let Some(ops) = block.reads.get_mut(&hi.relative_id) {
-                        for op in ops.iter_mut() {
-                            if let FuseOp::Assign(op) = op {
-                                op.input.add_layout_info(LayoutInfo::SameAsRef);
-                            }
-                        }
+                for op in ops.iter_mut() {
+                    if let FuseOp::Assign(op) = op {
+                        op.input.add_layout_info(LayoutInfo::SameAsRef);
                     }
                 }
             }
@@ -584,10 +583,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         self.globals[output.pos_original] = Some(tensor_global);
     }
 
-    fn find_child_input<'b>(
-        handle_inputs: &'b [HandleInput<R>],
+    fn find_child_input(
+        handle_inputs: &[HandleInput<R>],
         original: TensorId,
-    ) -> (usize, &'b NormalHandleInput<R>) {
+    ) -> (usize, &NormalHandleInput<R>) {
         handle_inputs
             .iter()
             .enumerate()

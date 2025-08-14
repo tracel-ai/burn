@@ -292,14 +292,13 @@ impl RegisteredTensors {
                 RegisterTensor::QuantData(_) => false,
                 RegisterTensor::QuantScales(_) => false,
             })
-            .map(|entry| match entry {
+            .and_then(|entry| match entry {
                 RegisterTensor::Normal(tensor_ir, fuse_precision) => {
                     Some((tensor_ir, fuse_precision))
                 }
                 RegisterTensor::QuantData(_) => None,
                 RegisterTensor::QuantScales(_) => None,
             })
-            .flatten()
     }
 
     pub fn insert_quant(&mut self, tensor: TensorIr) -> (u32, u32) {
@@ -344,9 +343,8 @@ impl RegisteredTensors {
             RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor.id,
             _ => false,
         }) {
-            match entry {
-                RegisterTensor::Normal(tensor_ir, _) => tensor_ir.status = tensor.status,
-                _ => {}
+            if let RegisterTensor::Normal(tensor_ir, _) = entry {
+                tensor_ir.status = tensor.status
             }
         }
     }

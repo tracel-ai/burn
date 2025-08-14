@@ -345,7 +345,7 @@ fn line_sizes_quants<R: Runtime>(quants_line_sizes: &mut Option<Vec<u8>>, scheme
             match &quants_line_sizes {
                 Some(sizes) => {
                     if sizes[0] < line_sizes[0] {
-                        let mut min = line_sizes.last().unwrap().clone();
+                        let mut min = *line_sizes.last().unwrap();
 
                         while min > 1 {
                             min /= 2;
