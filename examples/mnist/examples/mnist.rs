@@ -62,12 +62,12 @@ mod cuda {
         let devices = vec![CudaDevice::default()];
         #[cfg(feature = "ddp")]
         let devices = vec![
-            burn_cuda::CudaDevice::new(0),
-            burn_cuda::CudaDevice::new(1),
-            burn_cuda::CudaDevice::new(2),
-            burn_cuda::CudaDevice::new(3),
+            CudaDevice::new(0),
+            CudaDevice::new(1),
+            CudaDevice::new(2),
+            CudaDevice::new(3),
         ];
-        training::run::<Autodiff<Cuda>>(device);
+        training::run::<Autodiff<Cuda>>(devices);
     }
 }
 

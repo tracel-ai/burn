@@ -49,7 +49,7 @@ pub fn run<B: AutodiffBackend>(devices: Vec<B::Device>) {
     B::seed(config.seed);
 
     let first_device = devices.first().unwrap();
-    let model = Model::<B>::new(&first_device);
+    let model = Model::<B>::new(first_device);
 
     // Data
     let batcher = MnistBatcher::default();
@@ -88,11 +88,12 @@ pub fn run<B: AutodiffBackend>(devices: Vec<B::Device>) {
         .num_epochs(config.num_epochs)
         .summary();
 
-    #[cfg(feature="ddp")]
+    #[cfg(feature = "ddp")]
     let learner_builder = learner_builder.learning_strategy(burn::train::ddp(devices));
-    #[cfg(not(feature="ddp"))]
-    let learner_builder = learner_builder.learning_strategy(burn::train::LearningStrategy::SingleDevice(first_device.clone()));
-
+    #[cfg(not(feature = "ddp"))]
+    let learner_builder = learner_builder.learning_strategy(
+        burn::train::LearningStrategy::SingleDevice(first_device.clone()),
+    );
 
     let learner = learner_builder.build(model, config.optimizer.init(), 1.0e-3);
 

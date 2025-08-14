@@ -1,3 +1,4 @@
+use alloc::{vec, vec::Vec};
 use burn::{
     nn::{
         BatchNorm, PaddingConfig2d,
@@ -5,7 +6,6 @@ use burn::{
     },
     prelude::*,
 };
-use alloc::{vec::Vec, vec};
 
 #[derive(Module, Debug)]
 pub struct Model<B: Backend> {
@@ -72,7 +72,12 @@ pub struct ConvBlock<B: Backend> {
 }
 
 impl<B: Backend> ConvBlock<B> {
-    pub fn new(channels: [usize; 2], kernel_size: [usize; 2], device: &B::Device, pool: bool) -> Self {
+    pub fn new(
+        channels: [usize; 2],
+        kernel_size: [usize; 2],
+        device: &B::Device,
+        pool: bool,
+    ) -> Self {
         let conv = nn::conv::Conv2dConfig::new(channels, kernel_size)
             .with_padding(PaddingConfig2d::Valid)
             .init(device);

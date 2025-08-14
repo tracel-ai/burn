@@ -30,7 +30,7 @@ impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher {
             // values mean=0.1307,std=0.3081 were copied from Pytorch Mist Example
             // https://github.com/pytorch/examples/blob/54f4572509891883a947411fd7239237dd2a39c3/mnist/main.py#L122
             .map(|tensor| ((tensor / 255) - 0.1307) / 0.3081)
-            .map(|tensor| mangle_image_batch(tensor))
+            .map(mangle_image_batch)
             .collect();
 
         let targets = items
