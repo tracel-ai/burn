@@ -3,8 +3,6 @@ use super::ir::*;
 use crate::shared::DYN_ELEM_ID;
 use crate::shared::Q_PARAM_DYN_ELEM_ID;
 use crate::shared::Q_STORE_DYN_ELEM_ID;
-use burn_tensor::quantization::QuantLevel;
-use burn_tensor::quantization::QuantMode;
 use burn_tensor::quantization::QuantScheme;
 use burn_tensor::quantization::QuantStore;
 use burn_tensor::quantization::QuantValue;
@@ -304,8 +302,8 @@ fn fuse(
                 inputs, outputs, locals, pos, dim, input, indices, output, config,
             ),
             FuseOp::Dequantize {
-                input,
-                scales,
+                values,
+                params,
                 output,
                 scheme,
             } => dequantize::<NumericExpand<DYN_ELEM_ID>>(
@@ -313,8 +311,8 @@ fn fuse(
                 outputs,
                 locals,
                 pos,
-                input,
-                scales,
+                values,
+                params,
                 output,
                 scheme.scheme,
                 config,

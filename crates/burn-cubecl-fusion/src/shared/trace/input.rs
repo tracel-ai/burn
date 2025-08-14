@@ -79,7 +79,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     let precision_scales = scales.dtype.try_into().unwrap();
 
                     plan.handle_inputs
-                        .push(HandleInput::QuantData(QuantDataHandleInput {
+                        .push(HandleInput::QuantValues(QuantDataHandleInput {
                             relative_id: tensor_relative.id,
                             global_ir: tensor_global,
                             precision,
@@ -88,7 +88,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                         }));
 
                     plan.handle_inputs
-                        .push(HandleInput::QuantScales(QuantScalesHandleInput {
+                        .push(HandleInput::QuantParams(QuantScalesHandleInput {
                             precision: precision_scales,
                             handle: scales,
                         }));

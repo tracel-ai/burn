@@ -6,6 +6,7 @@ use cubecl::{
     Runtime,
     ir::{Elem, UIntKind},
 };
+use cubecl_quant::scheme::{QuantScheme, QuantStore, QuantValue};
 
 use crate::{
     CubeFusionHandle,
@@ -77,12 +78,19 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         });
 
         let mut ref_elem = (Elem::UInt(UIntKind::U64), 8);
+        let mut quants_line_sizes: Option<Vec<u8>> = None;
 
         for input in plan.handle_inputs.iter() {
             let elem: Elem = match input {
                 HandleInput::Normal(h) => h.global_ir.dtype.into(),
-                HandleInput::QuantData(..) => continue,
-                HandleInput::QuantScales(..) => continue,
+                HandleInput::QuantValues(handle) => match handle.global_ir.dtype {
+                    burn_tensor::DType::QFloat(scheme) => {
+                        line_sizes_quants::<R>(&mut quants_line_sizes, scheme);
+                        continue;
+                    }
+                    _ => panic!("YO"),
+                },
+                HandleInput::QuantParams(..) => continue,
             };
             let elem_size = elem.size();
 
@@ -93,12 +101,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         for r in plan.global_outputs.iter() {
             let elem: Elem = match r.dtype.try_into() {
                 Ok(val) => val,
-                Err(_) => match r.dtype {
-                    burn_tensor::DType::QFloat(quant_scheme) => {
-                        Elem::Float(cubecl::ir::FloatKind::F32)
-                    }
-                    _ => panic!(""),
-                },
+                Err(_) => continue,
             };
             let elem_size = elem.size();
 
@@ -118,6 +121,13 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             })
             .collect::<Vec<_>>();
 
+        let line_sizes = match quants_line_sizes {
+            // Quantization normally triggers higher vectorization than anything else, no need to
+            // compare to ref elem.
+            Some(line_sizes) => line_sizes,
+            None => R::line_size_elem(&ref_elem.0).collect::<Vec<u8>>(),
+        };
+
         runner.vectorization(
             context,
             &mut plan.vectorizations,
@@ -130,11 +140,11 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                             HandleInput::Normal(h) => {
                                 VectorizationHandle::NormalInput(&h.handle, &h.global_ir)
                             }
-                            HandleInput::QuantData(h) => {
-                                VectorizationHandle::QuantData(&h.handle, &h.global_ir)
+                            HandleInput::QuantValues(h) => {
+                                VectorizationHandle::QuantValues(&h.handle, &h.global_ir)
                             }
-                            HandleInput::QuantScales(h) => {
-                                VectorizationHandle::QuantScales(&h.handle)
+                            HandleInput::QuantParams(h) => {
+                                VectorizationHandle::QuantParams(&h.handle)
                             }
                         })
                     } else {
@@ -144,7 +154,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             plan.global_outputs.iter(),
             tensors_reshaped,
             tensors_swapped,
-            &ref_elem.0,
+            &line_sizes,
             u8::MAX,
             runner.axis(),
         );
@@ -162,8 +172,8 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         for (input_pos, handle) in plan.handle_inputs.iter_mut().enumerate() {
             let (global_ir, relative_id) = match handle {
                 HandleInput::Normal(h) => (&h.global_ir, &h.relative_id),
-                HandleInput::QuantData(h) => (&h.global_ir, &h.relative_id),
-                HandleInput::QuantScales(_) => continue,
+                HandleInput::QuantValues(h) => (&h.global_ir, &h.relative_id),
+                HandleInput::QuantParams(_) => continue,
             };
             let (vect, br) = match plan.vectorizations.get(&global_ir.id) {
                 Some(v) => (v.line_size(), v.is_broadcast()),
@@ -242,11 +252,13 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
     }
 }
 
+#[derive(Debug)]
 enum VectorizationAction {
     Input(usize),
     Output(usize),
 }
 
+#[derive(Debug)]
 struct BlockVectorization {
     action: VectorizationAction,
     potential: u8,
@@ -274,10 +286,10 @@ fn apply_vectorization_block<R: Runtime>(
                         input.vectorization = vect;
                         input.broadcated = br;
                     }
-                    HandleInput::QuantData(input) => {
+                    HandleInput::QuantValues(input) => {
                         input.vectorization = vect;
                     }
-                    HandleInput::QuantScales(_) => {
+                    HandleInput::QuantParams(_) => {
                         // Not vectorized
                     }
                 }
@@ -302,4 +314,50 @@ fn apply_vectorization_block<R: Runtime>(
             }
         }
     }
+}
+
+fn line_sizes_quants<R: Runtime>(quants_line_sizes: &mut Option<Vec<u8>>, scheme: QuantScheme) {
+    match scheme.store {
+        QuantStore::Native => match scheme.value {
+            QuantValue::QInt8 => {
+                let line_sizes =
+                    R::line_size_elem(&Elem::Int(cubecl::ir::IntKind::I8)).collect::<Vec<u8>>();
+
+                match &quants_line_sizes {
+                    Some(sizes) => {
+                        if sizes[0] < line_sizes[0] {
+                            *quants_line_sizes = Some(line_sizes);
+                        }
+                    }
+                    None => {
+                        *quants_line_sizes = Some(line_sizes);
+                    }
+                }
+            }
+        },
+        QuantStore::U32 => {
+            let mut line_sizes =
+                R::line_size_elem(&Elem::Int(cubecl::ir::IntKind::I32)).collect::<Vec<u8>>();
+            for val in line_sizes.iter_mut() {
+                *val *= scheme.num_quants() as u8;
+            }
+
+            match &quants_line_sizes {
+                Some(sizes) => {
+                    if sizes[0] < line_sizes[0] {
+                        let mut min = line_sizes.last().unwrap().clone();
+
+                        while min > 1 {
+                            min /= 2;
+                            line_sizes.push(min);
+                        }
+                        *quants_line_sizes = Some(line_sizes);
+                    }
+                }
+                None => {
+                    *quants_line_sizes = Some(line_sizes);
+                }
+            }
+        }
+    };
 }

@@ -5,7 +5,7 @@ use super::{
 use crate::CubeFusionHandle;
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
-use cubecl::{ir::Elem, prelude::*};
+use cubecl::prelude::*;
 use std::collections::BTreeMap;
 
 /// A trace runner is responsible for determining the vectorization factor as well as launching
@@ -30,16 +30,16 @@ pub trait TraceRunner<R: Runtime>: Vectorization<R> {
 
 pub enum VectorizationHandle<'a, R: Runtime> {
     NormalInput(&'a CubeFusionHandle<R>, &'a TensorIr),
-    QuantData(&'a CubeFusionHandle<R>, &'a TensorIr),
-    QuantScales(&'a CubeFusionHandle<R>),
+    QuantValues(&'a CubeFusionHandle<R>, &'a TensorIr),
+    QuantParams(&'a CubeFusionHandle<R>),
 }
 
 impl<'a, R: Runtime> VectorizationHandle<'a, R> {
     pub fn from_tensor(&self, id: TensorId) -> bool {
         match self {
             VectorizationHandle::NormalInput(_, tensor_ir) => tensor_ir.id == id,
-            VectorizationHandle::QuantData(_, tensor_ir) => tensor_ir.id == id,
-            VectorizationHandle::QuantScales(_) => false,
+            VectorizationHandle::QuantValues(_, tensor_ir) => tensor_ir.id == id,
+            VectorizationHandle::QuantParams(_) => false,
         }
     }
 }
@@ -58,7 +58,7 @@ pub trait Vectorization<R: Runtime> {
         outputs: impl Iterator<Item = &'a TensorIr>,
         reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
         swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
-        ref_elem: &Elem,
+        line_sizes: &[u8],
         max: u8,
         axis: Option<usize>,
     ) {
@@ -68,7 +68,7 @@ pub trait Vectorization<R: Runtime> {
             outputs,
             reshaped,
             swapped,
-            ref_elem,
+            line_sizes,
             &Default::default(),
             max,
             axis,

@@ -161,7 +161,7 @@ fn register_inputs<'h, R: Runtime>(
                     hi.broadcated,
                 ));
             }
-            HandleInput::QuantData(hi) => {
+            HandleInput::QuantValues(hi) => {
                 let arg = hi
                     .handle
                     .as_tensor_arg(&hi.global_ir.shape, hi.vectorization);
@@ -169,7 +169,7 @@ fn register_inputs<'h, R: Runtime>(
                     .tensors
                     .push(GlobalTensorArg::new(arg, hi.precision.into_elem(), false));
             }
-            HandleInput::QuantScales(hi) => {
+            HandleInput::QuantParams(hi) => {
                 // todo!("Use the scale to compute the correct shape");
                 let arg = hi.handle.as_tensor_arg(&[1], 1);
                 inputs

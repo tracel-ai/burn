@@ -42,7 +42,7 @@ pub enum QuantInput {
     /// corresponding to the float value.
     AlreadyDequantized { local: Arg },
     /// Otherwise we return the infomation necessary to dequantize the tensor.
-    Info { data: Arg, scales: Arg },
+    Quantized { values: Arg, params: Arg },
 }
 
 impl FuseBlockBuilder {
@@ -174,9 +174,14 @@ impl FuseBlockBuilder {
                 let input = Arg::Input(new_input, precision, LayoutInfo::Unknown);
                 let scales = Arg::Input(q_index, precision_scales, LayoutInfo::Unknown);
 
-                QuantInput::Info {
-                    data: input,
-                    scales,
+                // Important to flag that there is a read, even if no operation is registered.
+                if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
+                    e.insert(Vec::new());
+                };
+
+                QuantInput::Quantized {
+                    values: input,
+                    params: scales,
                 }
             }
         };
@@ -565,12 +570,12 @@ impl FuseBlockBuilder {
                 &mut local_tensor_ids_output,
             ),
             FuseOp::Dequantize {
-                input,
-                scales: _,
+                values,
+                params: _,
                 output,
                 scheme: _,
             } => {
-                mark(input, &mut local_tensor_ids_input);
+                mark(values, &mut local_tensor_ids_input);
                 mark(output, &mut local_tensor_ids_output);
             }
         };

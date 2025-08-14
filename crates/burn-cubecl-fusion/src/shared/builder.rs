@@ -315,10 +315,10 @@ impl FuseOptimizationBuilder {
                                 out: out,
                             }));
                         }
-                        QuantInput::Info { data, scales } => {
+                        QuantInput::Quantized { values, params } => {
                             build.register_operation(FuseOp::Dequantize {
-                                input: data,
-                                scales,
+                                values,
+                                params,
                                 output: out,
                                 scheme: match desc.input.dtype {
                                     DType::QFloat(scheme) => QuantSchemeFuse {

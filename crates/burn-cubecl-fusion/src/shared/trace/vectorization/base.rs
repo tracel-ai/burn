@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
-use cubecl::{Runtime, ir::Elem};
+use cubecl::Runtime;
 use serde::{Deserialize, Serialize};
 
 use crate::{CubeFusionHandle, shared::trace::VectorizationHandle};
@@ -103,8 +103,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
     outputs: impl Iterator<Item = &'a TensorIr>,
     reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
     swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
-    // Smallest element type that can be vectorized.
-    ref_elem: &Elem,
+    line_sizes: &[u8],
     overrides: &LineSizeOverrides,
     max: u8,
     axis: Option<usize>,
@@ -118,8 +117,8 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
         {
             let (handle, id) = match input {
                 VectorizationHandle::NormalInput(handle, tensor_ir) => (handle, &tensor_ir.id),
-                VectorizationHandle::QuantData(..) => panic!("Can't be swapped"),
-                VectorizationHandle::QuantScales(..) => panic!("Can't be swapped"),
+                VectorizationHandle::QuantValues(..) => panic!("Can't be swapped"),
+                VectorizationHandle::QuantParams(..) => panic!("Can't be swapped"),
             };
             let val = vectorization_swapped::<R>(
                 handle,
@@ -129,7 +128,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
                 dims,
                 max,
                 axis,
-                ref_elem,
+                line_sizes,
                 overrides.tensor(id),
             );
             multi_reads_vectorization_update(vectorizations, o.id, val);
@@ -140,16 +139,30 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
                         handle,
                         tensor_ir,
                         axis,
-                        ref_elem,
+                        line_sizes,
                         overrides.tensor(&tensor_ir.id),
                     );
                     vectorizations.insert(tensor_ir.id, val);
                 }
-                VectorizationHandle::QuantData(_, tensor_ir) => {
-                    // Set to 1 right now
-                    vectorizations.insert(tensor_ir.id, Vect::Aligned(1));
+                VectorizationHandle::QuantValues(handle, tensor_ir) => {
+                    let val = vectorization_input(
+                        handle,
+                        tensor_ir,
+                        axis,
+                        line_sizes,
+                        overrides.tensor(&tensor_ir.id),
+                    );
+                    let num_quants = match tensor_ir.dtype {
+                        burn_tensor::DType::QFloat(quant_scheme) => quant_scheme.num_quants() as u8,
+                        _ => panic!(""),
+                    };
+                    let val = match val {
+                        Vect::Broadcasted => Vect::Aligned(1),
+                        Vect::Aligned(val) => Vect::Aligned(val / num_quants),
+                    };
+                    vectorizations.insert(tensor_ir.id, val);
                 }
-                VectorizationHandle::QuantScales(..) => {
+                VectorizationHandle::QuantParams(..) => {
                     // Doesn't have vectorization for now.
                 }
             };
@@ -157,12 +170,12 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
     }
 
     for (reshaped, original, multi_reads) in reshaped {
-        let val = vectorization_reshape::<R>(
+        let val = vectorization_reshape(
             reshaped,
             original,
             multi_reads,
             axis,
-            ref_elem,
+            line_sizes,
             max,
             overrides.tensor(&original.id),
         );
@@ -170,10 +183,10 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
     }
 
     for tensor in outputs {
-        let val =
-            vectorization_output::<R>(tensor, axis, ref_elem, max, overrides.tensor(&tensor.id));
+        let val = vectorization_output(tensor, axis, line_sizes, max, overrides.tensor(&tensor.id));
         vectorizations.insert(tensor.id, val);
     }
+    println!("{vectorizations:?}");
 }
 
 fn multi_reads_vectorization_update(
@@ -207,7 +220,7 @@ fn vectorization_input<R: Runtime>(
     handle: &CubeFusionHandle<R>,
     desc: &TensorIr,
     axis: Option<usize>,
-    ref_elem: &Elem,
+    line_sizes: &[u8],
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
     let axis = axis.unwrap_or_else(|| handle.strides.len() - 1);
@@ -239,8 +252,8 @@ fn vectorization_input<R: Runtime>(
             }
         }
         None => {
-            for s in R::line_size_elem(ref_elem) {
-                if let Some(val) = inner(s) {
+            for s in line_sizes {
+                if let Some(val) = inner(*s) {
                     return val;
                 }
             }
@@ -250,10 +263,10 @@ fn vectorization_input<R: Runtime>(
     Vect::Aligned(1)
 }
 
-fn vectorization_output<R: Runtime>(
+fn vectorization_output(
     desc: &TensorIr,
     axis: Option<usize>,
-    ref_elem: &Elem,
+    line_sizes: &[u8],
     max: u8,
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
@@ -276,8 +289,8 @@ fn vectorization_output<R: Runtime>(
             }
         }
         None => {
-            for s in R::line_size_elem(ref_elem) {
-                if let Some(val) = inner(s) {
+            for s in line_sizes {
+                if let Some(val) = inner(*s) {
                     return val;
                 }
             }
@@ -287,12 +300,12 @@ fn vectorization_output<R: Runtime>(
     Vect::Aligned(1)
 }
 
-fn vectorization_reshape<R: Runtime>(
+fn vectorization_reshape(
     reshaped: &TensorIr,
     original: &TensorIr,
     multi_reads: bool,
     axis: Option<usize>,
-    ref_elem: &Elem,
+    line_sizes: &[u8],
     max: u8,
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
@@ -346,8 +359,8 @@ fn vectorization_reshape<R: Runtime>(
             }
         }
         None => {
-            for s in R::line_size_elem(ref_elem) {
-                if let Some(vect) = inner(s) {
+            for s in line_sizes {
+                if let Some(vect) = inner(*s) {
                     return vect;
                 }
             }
@@ -366,7 +379,7 @@ fn vectorization_swapped<R: Runtime>(
     dims: &(u32, u32),
     max: u8,
     axis: Option<usize>,
-    ref_elem: &Elem,
+    line_sizes: &[u8],
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
     let axis = axis.unwrap_or_else(|| swapped.shape.len() - 1);
@@ -420,8 +433,8 @@ fn vectorization_swapped<R: Runtime>(
             }
         }
         None => {
-            for s in R::line_size_elem(ref_elem) {
-                if let Some(val) = inner(s) {
+            for s in line_sizes {
+                if let Some(val) = inner(*s) {
                     return val;
                 }
             }

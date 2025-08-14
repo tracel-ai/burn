@@ -207,12 +207,12 @@ impl FuseTrace {
                         .handles
                         .register_handle(input.global_ir.id, input.handle_rollback());
                 }
-                HandleInput::QuantData(input) => {
+                HandleInput::QuantValues(input) => {
                     context
                         .handles
                         .register_handle(input.global_ir.id, input.handle);
                 }
-                HandleInput::QuantScales(_) => {
+                HandleInput::QuantParams(_) => {
                     // The scales are part fo the quant data handle.
                 }
             };

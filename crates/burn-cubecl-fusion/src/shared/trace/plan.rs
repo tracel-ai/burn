@@ -170,8 +170,8 @@ pub struct QuantScalesHandleInput<R: Runtime> {
 #[derive(Debug)]
 pub enum HandleInput<R: Runtime> {
     Normal(NormalHandleInput<R>),
-    QuantData(QuantDataHandleInput<R>),
-    QuantScales(QuantScalesHandleInput<R>),
+    QuantValues(QuantDataHandleInput<R>),
+    QuantParams(QuantScalesHandleInput<R>),
 }
 
 impl<R: Runtime> HandleInput<R> {

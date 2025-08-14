@@ -119,8 +119,8 @@ pub enum FuseOp {
         dim: u32,
     },
     Dequantize {
-        input: Arg,
-        scales: Arg,
+        values: Arg,
+        params: Arg,
         output: Arg,
         scheme: QuantSchemeFuse,
     },
