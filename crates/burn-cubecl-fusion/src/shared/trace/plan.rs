@@ -153,7 +153,7 @@ pub struct NormalHandleInput<R: Runtime> {
 }
 
 #[derive(Debug)]
-pub struct QuantDataHandleInput<R: Runtime> {
+pub struct QuantValuesHandleInput<R: Runtime> {
     pub relative_id: TensorId,
     pub global_ir: TensorIr,
     pub precision: FusePrecision,
@@ -162,16 +162,17 @@ pub struct QuantDataHandleInput<R: Runtime> {
 }
 
 #[derive(Debug)]
-pub struct QuantScalesHandleInput<R: Runtime> {
+pub struct QuantParamsHandleInput<R: Runtime> {
     pub precision: FusePrecision,
     pub handle: CubeFusionHandle<R>,
+    pub shape: [usize; 1],
 }
 
 #[derive(Debug)]
 pub enum HandleInput<R: Runtime> {
     Normal(NormalHandleInput<R>),
-    QuantValues(QuantDataHandleInput<R>),
-    QuantParams(QuantScalesHandleInput<R>),
+    QuantValues(QuantValuesHandleInput<R>),
+    QuantParams(QuantParamsHandleInput<R>),
 }
 
 impl<R: Runtime> HandleInput<R> {

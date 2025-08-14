@@ -4,11 +4,12 @@ use super::{
 };
 use crate::{
     CubeFusionHandle,
-    shared::trace::{QuantDataHandleInput, QuantScalesHandleInput},
+    shared::trace::{QuantParamsHandleInput, QuantValuesHandleInput},
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
 use cubecl::Runtime;
+use cubecl_quant::scheme::QuantLevel;
 use std::marker::PhantomData;
 
 use super::{LaunchPlan, NormalHandleInput, PotentialInplace};
@@ -74,12 +75,19 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                         burn_tensor::DType::QFloat(scheme) => scheme,
                         _ => unreachable!("Can't have quant data without QFloat"),
                     };
-                    let scales = handle.scales(scheme).unwrap();
+                    let params = handle.params(scheme).unwrap();
                     let precision = tensor_relative.dtype.try_into().unwrap();
-                    let precision_scales = scales.dtype.try_into().unwrap();
+                    let precision_scales = params.dtype.try_into().unwrap();
 
+                    let shape_params = match scheme.level {
+                        QuantLevel::Tensor => [1],
+                        QuantLevel::Block(block_size) => {
+                            let num_elems: usize = tensor_global.shape.iter().product();
+                            [num_elems / block_size]
+                        }
+                    };
                     plan.handle_inputs
-                        .push(HandleInput::QuantValues(QuantDataHandleInput {
+                        .push(HandleInput::QuantValues(QuantValuesHandleInput {
                             relative_id: tensor_relative.id,
                             global_ir: tensor_global,
                             precision,
@@ -88,9 +96,10 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                         }));
 
                     plan.handle_inputs
-                        .push(HandleInput::QuantParams(QuantScalesHandleInput {
+                        .push(HandleInput::QuantParams(QuantParamsHandleInput {
                             precision: precision_scales,
-                            handle: scales,
+                            handle: params,
+                            shape: shape_params,
                         }));
                 }
                 RegisterTensor::QuantScales(_) => {

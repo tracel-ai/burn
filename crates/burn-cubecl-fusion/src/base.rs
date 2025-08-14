@@ -179,7 +179,7 @@ impl<R: Runtime> CubeFusionHandle<R> {
         }
     }
     /// Construct a separate tensor for the quantization scales, if present
-    pub fn scales(&self, scheme: QuantScheme) -> Option<Self> {
+    pub fn params(&self, scheme: QuantScheme) -> Option<Self> {
         let qparams = self.qparams.as_ref()?;
         let mut handle = self.handle.clone();
         handle.offset_start = Some(qparams.scales.offset_start as u64);
