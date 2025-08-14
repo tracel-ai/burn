@@ -22,7 +22,6 @@ metal = ["burn/metal", "burn/fusion"]
 remote = ["burn/remote"]
 cuda = ["burn/cuda"]
 vulkan = ["burn/vulkan"]
-ddp = ["burn/collective"]
 
 [dependencies]
 # Disable autotune default for now (convolutions not optimized)

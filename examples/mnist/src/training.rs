@@ -40,7 +40,7 @@ fn create_artifact_dir(artifact_dir: &str) {
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
-pub fn run<B: AutodiffBackend>(devices: Vec<B::Device>) {
+pub fn run<B: AutodiffBackend>(device: B::Device) {
     create_artifact_dir(ARTIFACT_DIR);
     // Config
     let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
@@ -48,8 +48,7 @@ pub fn run<B: AutodiffBackend>(devices: Vec<B::Device>) {
     let config = MnistTrainingConfig::new(config_optimizer);
     B::seed(config.seed);
 
-    let first_device = devices.first().unwrap();
-    let model = Model::<B>::new(first_device);
+    let model = Model::<B>::new(&device);
 
     // Data
     let batcher = MnistBatcher::default();
@@ -66,7 +65,7 @@ pub fn run<B: AutodiffBackend>(devices: Vec<B::Device>) {
         .build(MnistDataset::test());
 
     // Model
-    let learner_builder = LearnerBuilder::new(ARTIFACT_DIR)
+    let learner = LearnerBuilder::new(ARTIFACT_DIR)
         .metric_train_numeric(AccuracyMetric::new())
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(CpuUse::new())
@@ -86,17 +85,9 @@ pub fn run<B: AutodiffBackend>(devices: Vec<B::Device>) {
             StoppingCondition::NoImprovementSince { n_epochs: 2 },
         ))
         .num_epochs(config.num_epochs)
-        .summary();
-
-    #[cfg(feature = "ddp")]
-    let learner_builder =
-        learner_builder.learning_strategy(burn::train::ddp(devices, Default::default()));
-    #[cfg(not(feature = "ddp"))]
-    let learner_builder = learner_builder.learning_strategy(
-        burn::train::LearningStrategy::SingleDevice(first_device.clone()),
-    );
-
-    let learner = learner_builder.build(model, config.optimizer.init(), 1.0e-3);
+        .summary()
+        .learning_strategy(burn::train::LearningStrategy::SingleDevice(device.clone()))
+        .build(model, config.optimizer.init(), 1.0e-2);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
