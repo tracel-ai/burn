@@ -17,7 +17,7 @@ use protobuf::Enum;
 /// Error type for parsing ONNX model
 #[derive(Debug)]
 pub enum ParseError {
-    VariantNotFound,
+    VariantNotFound(String),
 }
 
 /// Convert a vector of AttributeProto to a HashMap of AttributeValue
@@ -79,8 +79,8 @@ impl TryFrom<TensorProto> for TensorData {
                 Data::Bools(tensor.raw_data.iter().map(|x| *x != 0).collect())
             }),
             // TODO : Add more types
-            _ => {
-                return Err(ParseError::VariantNotFound);
+            data_type => {
+                return Err(ParseError::VariantNotFound(format!("{data_type:?}")));
             }
         };
         let shape = convert_shape(tensor.dims);
@@ -136,8 +136,8 @@ impl TryFrom<AttributeProto> for AttributeValue {
             // AttributeType::GRAPHS => AttributeValue::Graphs(attr.graphs),
             // AttributeType::SPARSE_TENSORS => AttributeValue::SparseTensors(attr.sparse_tensors),
             // AttributeType::SPARSE_TENSOR => AttributeValue::SparseTensor(attr.sparse_tensor),
-            _ => {
-                return Err(ParseError::VariantNotFound);
+            attribute_type => {
+                return Err(ParseError::VariantNotFound(format!("{attribute_type:?}")));
             }
         };
 
@@ -207,13 +207,13 @@ impl TryFrom<ValueInfoProto> for Argument {
 
         let elem_type = match DataType::from_i32(tensor_proto.elem_type).unwrap() {
             DataType::FLOAT => ElementType::Float32,
+            DataType::FLOAT16 => ElementType::Float16,
             DataType::INT32 => ElementType::Int32,
             DataType::INT64 => ElementType::Int64,
             DataType::DOUBLE => ElementType::Float64,
             DataType::BOOL => ElementType::Bool,
-            _ => {
-                return Err(ParseError::VariantNotFound);
-            }
+            DataType::STRING => ElementType::String,
+            data_type => return Err(ParseError::VariantNotFound(format!("{data_type:?}"))),
         };
 
         let ty = if tensor_proto.shape.dim.is_empty() {
