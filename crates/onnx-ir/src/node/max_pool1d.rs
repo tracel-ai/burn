@@ -104,6 +104,7 @@ mod tests {
         stride: Vec<i64>,
         pads: Vec<i64>,
         dilation: Vec<i64>,
+        ceil_mode: i64,
         auto_pad: Option<&str>,
     ) -> Node {
         let mut builder = NodeBuilder::new(NodeType::MaxPool1d, "test_maxpool1d")
@@ -112,6 +113,7 @@ mod tests {
             .attr_ints("kernel_shape", kernel_shape)
             .attr_ints("strides", stride)
             .attr_ints("pads", pads)
+            .attr_int("ceil_mode", ceil_mode)
             .attr_ints("dilations", dilation);
         if let Some(auto_pad) = auto_pad {
             builder = builder.attr_string("auto_pad", auto_pad);
@@ -121,7 +123,7 @@ mod tests {
 
     #[test]
     fn test_max_pool1d_config_basic() {
-        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], None);
+        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 0, None);
         let config = max_pool1d_config(&node);
 
         assert_eq!(config.kernel_size, 4);
@@ -132,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_max_pool1d_config_with_padding() {
-        let node = create_test_node(vec![4], vec![2], vec![2, 2], vec![1], None);
+        let node = create_test_node(vec![4], vec![2], vec![2, 2], vec![1], 0, None);
         let config = max_pool1d_config(&node);
 
         assert_eq!(config.kernel_size, 4);
@@ -143,7 +145,7 @@ mod tests {
 
     #[test]
     fn test_max_pool1d_config_with_dilation() {
-        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![2], None);
+        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![2], 0, None);
         let config = max_pool1d_config(&node);
 
         assert_eq!(config.kernel_size, 4);
@@ -155,13 +157,13 @@ mod tests {
     #[test]
     #[should_panic(expected = "Asymmetric padding is not supported")]
     fn test_max_pool1d_config_asymmetric_padding() {
-        let node = create_test_node(vec![4], vec![1], vec![1, 2], vec![1], None);
+        let node = create_test_node(vec![4], vec![1], vec![1, 2], vec![1], 0, None);
         let _ = max_pool1d_config(&node);
     }
 
     #[test]
     fn test_max_pool1d_config_auto_pad_not_set() {
-        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], Some("NOTSET"));
+        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 0, Some("NOTSET"));
         let config = max_pool1d_config(&node);
 
         assert_eq!(config.kernel_size, 4);
@@ -172,8 +174,15 @@ mod tests {
 
     #[test]
     #[should_panic = "Unsupported 'auto_pad' value"]
-    fn test_max_pool2d_config_auto_pad_not_supported() {
-        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], Some("SAME_UPPER"));
+    fn test_max_pool1d_config_auto_pad_not_supported() {
+        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 0, Some("SAME_UPPER"));
+        let _config = max_pool1d_config(&node);
+    }
+
+    #[test]
+    #[should_panic(expected = "ceil_mode is not supported")]
+    fn test_max_pool1d_config_with_ceil_mode() {
+        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 1, None);
         let _config = max_pool1d_config(&node);
     }
 }

@@ -94,6 +94,7 @@ mod tests {
         strides: Vec<i64>,
         pads: Vec<i64>,
         dilations: Vec<i64>,
+        ceil_mode: i64,
         auto_pad: Option<&str>,
     ) -> Node {
         let mut builder = NodeBuilder::new(NodeType::MaxPool2d, "test_maxpool2d")
@@ -102,6 +103,7 @@ mod tests {
             .attr_ints("kernel_shape", kernel_shape)
             .attr_ints("strides", strides)
             .attr_ints("pads", pads)
+            .attr_int("ceil_mode", ceil_mode)
             .attr_ints("dilations", dilations);
         if let Some(auto_pad) = auto_pad {
             builder = builder.attr_string("auto_pad", auto_pad);
@@ -111,7 +113,14 @@ mod tests {
 
     #[test]
     fn test_max_pool2d_config_basic() {
-        let node = create_test_node(vec![3, 3], vec![1, 1], vec![0, 0, 0, 0], vec![1, 1], None);
+        let node = create_test_node(
+            vec![3, 3],
+            vec![1, 1],
+            vec![0, 0, 0, 0],
+            vec![1, 1],
+            0,
+            None,
+        );
         let config = max_pool2d_config(&node);
 
         assert_eq!(config.kernel_size, [3, 3]);
@@ -122,7 +131,14 @@ mod tests {
 
     #[test]
     fn test_max_pool2d_config_with_padding() {
-        let node = create_test_node(vec![2, 2], vec![2, 2], vec![1, 1, 1, 1], vec![1, 1], None);
+        let node = create_test_node(
+            vec![2, 2],
+            vec![2, 2],
+            vec![1, 1, 1, 1],
+            vec![1, 1],
+            0,
+            None,
+        );
         let config = max_pool2d_config(&node);
 
         assert_eq!(config.kernel_size, [2, 2]);
@@ -133,7 +149,14 @@ mod tests {
 
     #[test]
     fn test_max_pool2d_config_with_dilation() {
-        let node = create_test_node(vec![3, 3], vec![1, 1], vec![0, 0, 0, 0], vec![2, 2], None);
+        let node = create_test_node(
+            vec![3, 3],
+            vec![1, 1],
+            vec![0, 0, 0, 0],
+            vec![2, 2],
+            0,
+            None,
+        );
         let config = max_pool2d_config(&node);
 
         assert_eq!(config.kernel_size, [3, 3]);
@@ -149,6 +172,7 @@ mod tests {
             vec![1, 1],
             vec![0, 0, 0, 0],
             vec![1, 1],
+            0,
             Some("NOTSET"),
         );
         let config = max_pool2d_config(&node);
@@ -167,7 +191,22 @@ mod tests {
             vec![1, 1],
             vec![0, 0, 0, 0],
             vec![1, 1],
+            0,
             Some("SAME_UPPER"),
+        );
+        let _config = max_pool2d_config(&node);
+    }
+
+    #[test]
+    #[should_panic(expected = "ceil_mode is not supported")]
+    fn test_max_pool2d_config_with_ceil_mode() {
+        let node = create_test_node(
+            vec![3, 3],
+            vec![1, 1],
+            vec![0, 0, 0, 0],
+            vec![1, 1],
+            1,
+            None,
         );
         let _config = max_pool2d_config(&node);
     }
