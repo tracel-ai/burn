@@ -34,6 +34,15 @@ impl TryFrom<TensorProto> for TensorData {
                     Data::Float32s(tensor.float_data)
                 },
             ),
+            DataType::FLOAT16 => (
+                ElementType::Float16,
+                // Convert the raw data to a vector of float16s
+                if !tensor.raw_data.is_empty() {
+                    Data::Float16s(cast_slice(&tensor.raw_data[..]).to_vec())
+                } else {
+                    unimplemented!()
+                },
+            ),
             DataType::INT16 => {
                 // TODO : Add support for int16 by converting to int32
                 todo!("Add support for int16");
