@@ -33,7 +33,9 @@ pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
                 Data::Float16(min) => Some(f32::from(min) as f64),
                 Data::Float32(min) => Some(min as f64),
                 Data::Float64(min) => Some(min),
-                _ => panic!("Clip: only float min is supported"),
+                Data::Int32(min) => Some(min as f64),
+                Data::Int64(min) => Some(min as f64),
+                _ => panic!("Clip: unsupported min data type {:?}", min),
             };
         }
 
@@ -45,7 +47,9 @@ pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
                 Data::Float16(max) => Some(f32::from(max) as f64),
                 Data::Float32(max) => Some(max as f64),
                 Data::Float64(max) => Some(max),
-                _ => panic!("Clip: only float max is supported"),
+                Data::Int32(max) => Some(max as f64),
+                Data::Int64(max) => Some(max as f64),
+                _ => panic!("Clip: unsupported max data type {:?}", max),
             };
         }
     }
