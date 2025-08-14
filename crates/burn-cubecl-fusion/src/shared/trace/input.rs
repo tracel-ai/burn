@@ -76,8 +76,8 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                         _ => unreachable!("Can't have quant data without QFloat"),
                     };
                     let params = handle.params(scheme).unwrap();
-                    let precision = tensor_relative.dtype.try_into().unwrap();
-                    let precision_scales = params.dtype.try_into().unwrap();
+                    let precision = tensor_relative.dtype.into();
+                    let precision_scales = params.dtype.into();
 
                     let shape_params = match scheme.level {
                         QuantLevel::Tensor => [1],

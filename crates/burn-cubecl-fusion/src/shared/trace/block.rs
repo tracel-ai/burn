@@ -3,7 +3,7 @@ use crate::shared::{
     settings::FuseSettings,
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};
-use burn_tensor::quantization::QuantParam;
+use burn_tensor::{DType, quantization::QuantParam};
 use cubecl::prelude::Sequence;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, btree_map::Entry};
@@ -75,9 +75,9 @@ impl FuseBlockBuilder {
         if resources.indexed.contains_key(&tensor.id) {
             return None;
         }
-        let precision = match tensor.dtype.try_into() {
-            Ok(val) => val,
-            Err(_) => return None,
+        let precision = match tensor.dtype {
+            DType::QFloat(_) => return None,
+            _ => tensor.dtype.into(),
         };
 
         // Bool tensors are encoded as bool_precision.
@@ -107,9 +107,9 @@ impl FuseBlockBuilder {
             return None;
         }
 
-        let precision = match tensor.dtype.try_into() {
-            Ok(val) => val,
-            Err(_) => return None,
+        let precision = match tensor.dtype {
+            DType::QFloat(_) => return None,
+            _ => tensor.dtype.into(),
         };
 
         // Bool tensors are encoded as bool_precision.
@@ -162,12 +162,9 @@ impl FuseBlockBuilder {
             return None;
         }
 
-        let precision = match tensor.dtype.try_into() {
-            Ok(val) => val,
-            Err(_) => return None,
-        };
+        let precision = tensor.dtype.into();
         let precision_scales = match tensor.dtype {
-            burn_tensor::DType::QFloat(scheme) => match scheme.param {
+            DType::QFloat(scheme) => match scheme.param {
                 QuantParam::F32 => FusePrecision::F32,
                 QuantParam::F16 => FusePrecision::F16,
                 QuantParam::BF16 => FusePrecision::BF16,
@@ -208,9 +205,9 @@ impl FuseBlockBuilder {
         dims: (u32, u32),
         resources: &mut FuseResources,
     ) -> Option<Arg> {
-        let precision = match tensor.dtype.try_into() {
-            Ok(val) => val,
-            Err(_) => return None,
+        let precision = match tensor.dtype {
+            DType::QFloat(_) => return None,
+            _ => tensor.dtype.into(),
         };
 
         // Bool tensors are encoded as bool_precision.
@@ -278,9 +275,9 @@ impl FuseBlockBuilder {
         output: &TensorIr,
         resources: &mut FuseResources,
     ) -> Option<Arg> {
-        let precision = match tensor.dtype.try_into() {
-            Ok(val) => val,
-            Err(_) => return None,
+        let precision = match tensor.dtype {
+            DType::QFloat(_) => return None,
+            _ => tensor.dtype.into(),
         };
 
         // Bool tensors are encoded as bool_precision.

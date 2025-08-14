@@ -424,11 +424,9 @@ impl FusePrecision {
     }
 }
 
-impl TryFrom<DType> for FusePrecision {
-    type Error = ();
-
-    fn try_from(value: DType) -> Result<Self, Self::Error> {
-        Ok(match value {
+impl From<DType> for FusePrecision {
+    fn from(value: DType) -> Self {
+        match value {
             DType::F32 => Self::F32,
             DType::Flex32 => Self::Flex32,
             DType::F16 => Self::F16,
@@ -445,13 +443,11 @@ impl TryFrom<DType> for FusePrecision {
             DType::F64 => Self::F64,
             DType::QFloat(scheme) => match scheme.store {
                 QuantStore::Native => match scheme.value {
-                    QuantValue::QInt8 => {
-                        panic!("no");
-                    }
+                    QuantValue::QInt8 => Self::I8,
                 },
                 QuantStore::U32 => Self::U32,
             },
-        })
+        }
     }
 }
 

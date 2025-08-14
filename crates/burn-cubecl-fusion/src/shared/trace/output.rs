@@ -263,12 +263,13 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             HandleInput::Normal(input) => Some(input),
             _ => None,
         }) {
-            if let ReferenceSelection::Concrete { strides, shape, .. }
-            | ReferenceSelection::VirtualShape { strides, shape, .. } = &block.reference
-                && strides == &hi.handle.strides
-                && shape == &hi.global_ir.shape
-                && block.reads.contains_key(&hi.relative_id)
-                && strides == &hi.handle.strides
+            let (strides, shape) = match &block.reference {
+                ReferenceSelection::Concrete { strides, shape, .. }
+                | ReferenceSelection::VirtualShape { strides, shape, .. } => (strides, shape),
+                _ => continue,
+            };
+
+            if strides == &hi.handle.strides
                 && shape == &hi.global_ir.shape
                 && let Some(ops) = block.reads.get_mut(&hi.relative_id)
             {
