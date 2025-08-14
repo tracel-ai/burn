@@ -15,8 +15,8 @@ pub struct Model<B: Backend> {
     conv1: ConvBlock<B>,
     conv2: ConvBlock<B>,
     dropout: nn::Dropout,
-    linears: Vec<nn::Linear<B>>,
-    head: nn::Linear<B>,
+    fc1: nn::Linear<B>,
+    fc2: nn::Linear<B>,
     activation: nn::Gelu,
 }
 
@@ -34,11 +34,8 @@ impl<B: Backend> Model<B> {
         let conv1 = ConvBlock::new([1, 64], [3, 3], device, true); // out: max_pool -> [Batch,32,13,13]
         let conv2 = ConvBlock::new([64, 64], [3, 3], device, true); // out: max_pool -> [Batch,64,5,5]
         let hidden_size = 64 * 5 * 5;
-        let mut linears = vec![nn::LinearConfig::new(hidden_size, 128).init(device)];
-
-        for _ in 0..1 {
-            linears.push(nn::LinearConfig::new(128, 128).init(device));
-        }
+        let fc1 = nn::LinearConfig::new(hidden_size, 128).init(device);
+        let fc2 = nn::LinearConfig::new(128, 128).init(device);
         let head = nn::LinearConfig::new(128, NUM_CLASSES).init(device);
 
         let dropout = nn::DropoutConfig::new(0.25).init();
@@ -47,8 +44,8 @@ impl<B: Backend> Model<B> {
             conv1,
             conv2,
             dropout,
-            linears,
-            head,
+            fc1,
+            fc2,
             activation: nn::Gelu::new(),
         }
     }
@@ -61,15 +58,13 @@ impl<B: Backend> Model<B> {
         let x = self.conv2.forward(x);
 
         let [batch_size, channels, height, width] = x.dims();
-        let mut x = x.reshape([batch_size, channels * height * width]);
+        let x = x.reshape([batch_size, channels * height * width]);
 
-        for linear in self.linears.iter() {
-            x = linear.forward(x);
-            x = self.activation.forward(x);
-            x = self.dropout.forward(x);
-        }
+        let x = self.fc1.forward(x);
+        let x = self.activation.forward(x);
+        let x = self.dropout.forward(x);
 
-        self.head.forward(x)
+        self.fc2.forward(x)
     }
 
     pub fn forward_classification(&self, item: MnistBatch<B>) -> ClassificationOutput<B> {

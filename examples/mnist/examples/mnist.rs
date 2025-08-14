@@ -13,7 +13,7 @@ mod ndarray {
 
     pub fn run() {
         let device = NdArrayDevice::Cpu;
-        training::run::<Autodiff<NdArray>>(device);
+        training::run::<Autodiff<NdArray>>(vec![device]);
     }
 }
 
@@ -31,7 +31,7 @@ mod tch_gpu {
         #[cfg(target_os = "macos")]
         let device = LibTorchDevice::Mps;
 
-        training::run::<Autodiff<LibTorch>>(device);
+        training::run::<Autodiff<LibTorch>>(vec![device]);
     }
 }
 
@@ -45,7 +45,7 @@ mod wgpu {
 
     pub fn run() {
         let device = WgpuDevice::default();
-        training::run::<Autodiff<Wgpu>>(device);
+        training::run::<Autodiff<Wgpu>>(vec![device]);
     }
 }
 
@@ -81,7 +81,7 @@ mod tch_cpu {
 
     pub fn run() {
         let device = LibTorchDevice::Cpu;
-        training::run::<Autodiff<LibTorch>>(device);
+        training::run::<Autodiff<LibTorch>>(vec![device]);
     }
 }
 
