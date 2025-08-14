@@ -232,7 +232,7 @@ impl OnnxGraphBuilder {
             remap_node_type(&mut node);
             self.handle_node_renaming(&mut node);
             coalesce(&mut node, &mut node_iter, &graph_data);
-            self.handle_identity(&mut node, &graph_data);
+            self.handle_identity(&mut node);
             self.check_constants(&mut node, &graph_data);
             self.convert_initializer_inputs_to_constants(&mut node, &mut graph_data);
             // NOTE: potential start of custom functions
@@ -391,7 +391,7 @@ impl OnnxGraphBuilder {
         }
     }
 
-    fn handle_identity(&mut self, node: &mut Node, _graph_data: &GraphData) {
+    fn handle_identity(&mut self, node: &mut Node) {
         if node.node_type == NodeType::Identity {
             // If Identity node has a constant/initializer input, convert it to a Constant node
             if let Some(value) = &node.inputs[0].value {
@@ -423,7 +423,9 @@ impl OnnxGraphBuilder {
 
                 // The output remains the same
             } else {
-                // For Identity nodes without constant inputs, let them pass through to burn-import
+                // For Identity nodes without constant inputs, we only optimize them away if they are
+                // part of a processing chain (not standalone). For now, let's pass them through to
+                // burn-import and let it handle them.
                 log::debug!(
                     "Identity node without constant - will pass through to burn-import: {}",
                     &node.name
