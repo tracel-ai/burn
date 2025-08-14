@@ -1,6 +1,6 @@
 use burn_common::{iter_range_par, run_par};
 use burn_tensor::{ElementConversion, TensorMetadata};
-use ndarray::Array4;
+use ndarray::{Array4, ArrayBase, DataOwned};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float;
@@ -88,6 +88,11 @@ fn start_index(output_size_index: usize, output_size: usize, input_size: usize) 
     ((output_size_index as f32 * input_size as f32) / output_size as f32).floor() as usize
 }
 
+// clamp ceil(frac) to stay within bounds in case of floating-point imprecision
+pub(crate) fn ceil_clamp(frac: f64, max: usize) -> f64 {
+    frac.ceil().min(max as f64)
+}
+
 pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
     x: NdArrayTensor<E>,
     output_size: [usize; 2],
@@ -110,11 +115,6 @@ pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
     let mut output = Array4::zeros((batch_size, channels, out_height, out_width));
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
 
-    // clamp ceil(frac) to stay within bounds in case of floating-point imprecision
-    fn ceil_clamp(frac: f64, max: usize) -> f64 {
-        frac.ceil().min(max as f64)
-    }
-
     run_par!(|| {
         iter_range_par!(0, out_element_num).for_each(|id| {
             let (b, c, h, w) = (
@@ -126,25 +126,13 @@ pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
 
             // We convert everything to `f64` for calculations and then back to `E` at the end.
             let y_frac = y_ratio * h as f64;
-            let y0 = y_frac.floor();
-            let y1 = ceil_clamp(y_frac, in_height - 1);
-            let yw = y_frac - y0;
-
             let x_frac = x_ratio * w as f64;
-            let x0 = x_frac.floor();
-            let x1 = ceil_clamp(x_frac, in_width - 1);
-            let xw = x_frac - x0;
-
-            let (x0, x1, y0, y1) = (x0 as usize, x1 as usize, y0 as usize, y1 as usize);
-
-            let p_a = x[(b, c, y0, x0)].elem::<f64>() * (1.0 - xw) * (1.0 - yw);
-            let p_b = x[(b, c, y0, x1)].elem::<f64>() * xw * (1.0 - yw);
-            let p_c = x[(b, c, y1, x0)].elem::<f64>() * (1.0 - xw) * yw;
-            let p_d = x[(b, c, y1, x1)].elem::<f64>() * xw * yw;
+            let val =
+                bilinear_interpolate_single(&x, b, c, x_frac, y_frac, in_width - 1, in_height - 1);
 
             unsafe {
                 let output = unsafe_shared_out.get();
-                output[(b, c, h, w)] = (p_a + p_b + p_c + p_d).elem();
+                output[(b, c, h, w)] = val.elem();
             }
         });
     });
@@ -255,4 +243,48 @@ pub(crate) fn bicubic_interpolate<E: FloatNdArrayElement>(
     });
 
     NdArrayTensor::new(output.into_dyn().into_shared())
+}
+
+/// Sample an element of the source array with bilinear interpolation
+///
+/// * `source` - The tensor to read from. Has shape (batch_size, channels, height, width)
+/// * `b` - The batch to read from
+/// * `c` - The channel to read from
+/// * `x` - The x position to read in the array
+/// * `y` - The y position to read in the array
+/// * `x_max` - The max x position (inclusive)
+/// * `y_max` - The max y position (inclusive)
+///
+/// # Returns
+///
+/// The interpolated value read from the array
+pub(crate) fn bilinear_interpolate_single<E, S>(
+    source: &ArrayBase<S, ndarray::Dim<[usize; 4]>>,
+    b: usize,
+    c: usize,
+    x: f64,
+    y: f64,
+    x_max: usize,
+    y_max: usize,
+) -> f64
+where
+    E: FloatNdArrayElement,
+    S: DataOwned<Elem = E>,
+{
+    let y0 = y.floor();
+    let y1 = ceil_clamp(y, y_max);
+    let yw = y - y0;
+
+    let x0 = x.floor();
+    let x1 = ceil_clamp(x, x_max);
+    let xw = x - x0;
+
+    let (x0, x1, y0, y1) = (x0 as usize, x1 as usize, y0 as usize, y1 as usize);
+
+    let p_a = source[(b, c, y0, x0)].elem::<f64>() * (1.0 - xw) * (1.0 - yw);
+    let p_b = source[(b, c, y0, x1)].elem::<f64>() * xw * (1.0 - yw);
+    let p_c = source[(b, c, y1, x0)].elem::<f64>() * (1.0 - xw) * yw;
+    let p_d = source[(b, c, y1, x1)].elem::<f64>() * xw * yw;
+
+    p_a + p_b + p_c + p_d
 }

@@ -3,7 +3,7 @@ use core::mem;
 use burn_tensor::{
     DType, Element, Shape, TensorData, TensorMetadata,
     quantization::{
-        QParams, QTensorPrimitive, QuantInputType, QuantLevel, QuantMode, QuantScheme,
+        QParams, QTensorPrimitive, QuantLevel, QuantMode, QuantScheme, QuantValue,
         QuantizationStrategy, SymmetricQuantization,
     },
 };
@@ -333,7 +333,7 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
                 self.qparams[0].scales,
@@ -341,7 +341,7 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
             QuantScheme {
                 level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => QuantizationStrategy::PerBlockSymmetricInt8(
                 self.qparams

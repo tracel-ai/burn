@@ -5,12 +5,13 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::CheckedCastError};
+use cubecl_quant::scheme::QuantScheme;
 use half::{bf16, f16};
 use num_traits::{Float, ToPrimitive};
 
 use crate::{
     DType, Distribution, Element, ElementConversion,
-    quantization::{QuantInputType, QuantScheme, QuantizationStrategy, QuantizedBytes},
+    quantization::{QuantValue, QuantizationStrategy, QuantizedBytes},
     tensor::bytes::Bytes,
 };
 
@@ -254,7 +255,7 @@ impl TensorData {
                     QuantScheme {
                         level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
-                        q_type: QuantInputType::QInt8,
+                        value: QuantValue::QInt8,
                         ..
                     } => {
                         // Quantized int8 values
@@ -543,7 +544,7 @@ impl TensorData {
                 };
 
                 // Data equality mostly depends on input quantization type, but we also check level
-                if q.q_type == q_other.q_type && q.level == q_other.level {
+                if q.value == q_other.value && q.level == q_other.level {
                     self.assert_eq_elem::<i8>(other)
                 } else {
                     panic!("Quantization schemes differ ({q:?} != {q_other:?})")
@@ -815,7 +816,7 @@ impl core::fmt::Display for TensorData {
                 QuantScheme {
                     level: QuantLevel::Tensor | QuantLevel::Block(_),
                     mode: QuantMode::Symmetric,
-                    q_type: QuantInputType::QInt8,
+                    value: QuantValue::QInt8,
                     ..
                 } => {
                     format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())

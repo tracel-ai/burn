@@ -2,7 +2,7 @@ use crate::{LibTorchDevice, TchElement};
 use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     quantization::{
-        QTensorPrimitive, QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantizationStrategy,
+        QTensorPrimitive, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizationStrategy,
         SymmetricQuantization,
     },
 };
@@ -334,7 +334,7 @@ impl TchQTensor {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => {
                 let scale = self.qtensor.tensor.q_scale();
