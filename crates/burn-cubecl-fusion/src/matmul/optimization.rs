@@ -19,20 +19,10 @@ use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
 use burn_ir::TensorId;
 use burn_ir::TensorIr;
-use cubecl::ir::Elem;
-use cubecl::matmul::components;
-use cubecl::matmul::components::AvailableLineSizes;
-use cubecl::matmul::components::LhsG;
-use cubecl::matmul::components::LhsS;
-use cubecl::matmul::components::MatmulLineSizes;
-use cubecl::matmul::components::MatmulPrecision;
-use cubecl::matmul::components::MatmulProblem;
-use cubecl::matmul::components::MatmulSetupError;
-use cubecl::matmul::components::RhsG;
-use cubecl::matmul::components::RhsS;
-use cubecl::matmul::components::tile::TileMatmulFamily;
-use cubecl::matmul::components::tile::accelerated::AcceleratedMatmul;
-use cubecl::matmul::kernels::layered::Algorithm;
+use cubecl::matmul::components::{
+    self, AvailableLineSizes, LhsG, MatmulProblem, MatmulSetupError, RhsG, RhsS,
+    tile::{TileMatmulFamily, accelerated::AcceleratedMatmul},
+};
 use cubecl::matmul::kernels::layered::Selection;
 use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::layered::double_buffering::DoubleBufferingArgs;
@@ -43,6 +33,10 @@ use cubecl::matmul::kernels::layered::ordered_double_buffering::OrderedSelection
 use cubecl::matmul::kernels::layered::simple::SimpleAlgorithm;
 use cubecl::matmul::kernels::layered::simple::SimpleArgs;
 use cubecl::matmul::kernels::layered::simple_unit::SimpleUnitAlgorithm;
+use cubecl::matmul::{
+    components::{LhsS, MatmulLineSizes, MatmulPrecision},
+    kernels::layered::Algorithm,
+};
 use cubecl::std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
 use half::{bf16, f16};
