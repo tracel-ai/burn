@@ -88,7 +88,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                         line_sizes_quants::<R>(&mut quants_line_sizes, scheme);
                         continue;
                     }
-                    _ => panic!("YO"),
+                    _ => panic!("Unable to retrieve the scheme for quantized values."),
                 },
                 HandleInput::QuantParams(..) => continue,
             };
