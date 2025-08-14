@@ -262,7 +262,7 @@ impl OnnxGraphBuilder {
         )
         .to_lowercase();
 
-        log::debug!("renaming node {:?} to {new_name:?}", &node.name);
+        log::debug!("Renaming node {:?} to {new_name:?}", &node.name);
 
         node.name.clone_from(&new_name);
     }
