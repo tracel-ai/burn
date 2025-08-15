@@ -95,6 +95,16 @@ mod wgpu {
     }
 }
 
+#[cfg(feature = "wgpu-ddp")]
+mod wgpu_ddp {
+    use crate::{ElemType, launch};
+    use burn::backend::{Autodiff, wgpu::Wgpu, wgpu::WgpuDevice};
+
+    pub fn run() {
+        launch::<Autodiff<Wgpu<ElemType, i32>>>(vec![WgpuDevice::default(), WgpuDevice::default()]);
+    }
+}
+
 #[cfg(feature = "vulkan")]
 mod vulkan {
     use crate::{ElemType, launch};
@@ -173,6 +183,8 @@ fn main() {
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]
     tch_cpu::run();
+    #[cfg(feature = "wgpu-ddp")]
+    wgpu_ddp::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
     #[cfg(feature = "cuda")]

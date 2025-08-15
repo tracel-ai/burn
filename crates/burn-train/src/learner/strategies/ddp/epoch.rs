@@ -129,7 +129,6 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
                     }
                 }
                 None => {
-                    eprintln!("There was no sync!");
                     // Sync grads with collective
                     let grads = item.grads.all_reduce(peer_id, ReduceOperation::Mean, &model);
 

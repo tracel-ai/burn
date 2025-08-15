@@ -273,6 +273,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
     }
 
     async fn process_finish_message(&mut self, id: PeerId, callback: SyncSender<RegisterResult>) {
+        println!("Finish!");
         if !self.peers.contains(&id) {
             callback
                 .send(Err(CollectiveError::MultipleUnregister))
@@ -354,12 +355,12 @@ impl<B: Backend> LocalCollectiveServer<B> {
     /// callback
     async fn process_all_reduce_message(
         &mut self,
-        device_id: PeerId,
+        peer_id: PeerId,
         tensor: <B as Backend>::FloatTensorPrimitive,
         op: ReduceOperation,
         callback: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
     ) {
-        if !self.peers.contains(&device_id) {
+        if !self.peers.contains(&peer_id) {
             callback
                 .send(Err(CollectiveError::RegisterNotFirstOperation))
                 .unwrap();
@@ -376,7 +377,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         }
 
         self.all_reduce_ops.push(AllReduceOp {
-            caller: device_id,
+            caller: peer_id,
             input: tensor,
             result_sender: callback,
         });
@@ -384,12 +385,21 @@ impl<B: Backend> LocalCollectiveServer<B> {
         let tensor_count = self.all_reduce_ops.len();
         if tensor_count > 0 && tensor_count == self.peers.len() {
             // all registered callers have sent a tensor to aggregate
-            let res = self.all_reduce().await;
-            if let Err(err) = res {
-                // Send error to all subscribers
-                self.all_reduce_ops.iter_mut().for_each(|op| {
-                    op.result_sender.send(Err(err.clone())).unwrap();
-                });
+            let tensors = self.all_reduce().await;
+            match tensors {
+                Ok(mut tensors) => {
+                    // Return resulting tensors
+                    self.all_reduce_ops.drain(..).for_each(|op| {
+                        let result = tensors.remove(&op.caller).unwrap();
+                        op.result_sender.send(Ok(result)).unwrap();
+                    });
+                }
+                Err(err) => {
+                    // Send error to all subscribers
+                    self.all_reduce_ops.iter_mut().for_each(|op| {
+                        op.result_sender.send(Err(err.clone())).unwrap();
+                    });
+                }
             }
         }
     }
@@ -484,8 +494,10 @@ impl<B: Backend> LocalCollectiveServer<B> {
         }
     }
 
-    /// Perform an all-reduce operation. Empties the all_reduces_ops map.
-    async fn all_reduce(&mut self) -> Result<(), CollectiveError> {
+    /// Perform an all-reduce operation.
+    async fn all_reduce(
+        &mut self,
+    ) -> Result<HashMap<PeerId, B::FloatTensorPrimitive>, CollectiveError> {
         let mut tensors = HashMap::new();
         for op in &self.all_reduce_ops {
             tensors.insert(op.caller, op.input.clone());
@@ -499,13 +511,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
             Self::all_reduce_local_only(&mut tensors, op, config).await?;
         }
 
-        // Return resulting tensors
-        self.all_reduce_ops.iter_mut().for_each(|op| {
-            let result = tensors.remove(&op.caller).unwrap();
-            op.result_sender.send(Ok(result)).unwrap();
-        });
-
-        Ok(())
+        Ok(tensors)
     }
 
     /// Perform an all-reduce with no multi-node operations (global ops)
@@ -694,6 +700,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
 
     // Reinitializes the collective server
     fn reset(&mut self) {
+        println!("Clearing");
         self.peers.clear();
         self.reset_all_reduce_op();
         self.reset_reduce_op();

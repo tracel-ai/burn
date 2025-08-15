@@ -18,7 +18,7 @@ use burn::{
     record::{CompactRecorder, Recorder},
     tensor::backend::AutodiffBackend,
     train::{
-        LearnerBuilder, LearningStrategy,
+        LearnerBuilder,
         metric::{
             AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
         },
@@ -83,7 +83,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .unwrap();
 
     // Initialize learner
-    #[cfg(not(feature = "cuda-ddp"))]
+    #[cfg(not(feature = "ddp"))]
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
@@ -99,7 +99,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .summary()
         .build(model, optim, lr_scheduler);
 
-    #[cfg(feature = "cuda-ddp")]
+    #[cfg(feature = "ddp")]
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
