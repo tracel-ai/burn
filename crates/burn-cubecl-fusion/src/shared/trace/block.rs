@@ -586,6 +586,20 @@ impl FuseBlockBuilder {
                 mark(values, &mut local_tensor_ids_input);
                 mark(output, &mut local_tensor_ids_output);
             }
+            FuseOp::Rem(op) => mark_binary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            FuseOp::Clamp {
+                input,
+                min: _,
+                max: _,
+                out,
+            } => {
+                mark(input, &mut local_tensor_ids_input);
+                mark(out, &mut local_tensor_ids_output);
+            }
         };
 
         // For all operators, mark their local tensor id in the proper set.
