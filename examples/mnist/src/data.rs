@@ -8,13 +8,22 @@ use burn::{
 };
 use rand::Rng;
 
-#[derive(Clone, Debug, Default)]
-pub struct MnistBatcher {}
+#[derive(Clone, Debug)]
+pub struct MnistBatcher {
+    augment: bool,
+}
 
 #[derive(Clone, Debug)]
 pub struct MnistBatch<B: Backend> {
     pub images: Tensor<B, 3>,
     pub targets: Tensor<B, 1, Int>,
+}
+
+impl MnistBatcher {
+    /// Create a batcher with optional data augmentation activated.
+    pub fn new(augment: bool) -> Self {
+        Self { augment }
+    }
 }
 
 impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher {
@@ -30,7 +39,13 @@ impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher {
             // values mean=0.1307,std=0.3081 were copied from Pytorch Mist Example
             // https://github.com/pytorch/examples/blob/54f4572509891883a947411fd7239237dd2a39c3/mnist/main.py#L122
             .map(|tensor| ((tensor / 255) - 0.1307) / 0.3081)
-            .map(mangle_image_batch)
+            .map(|tensor| {
+                if self.augment {
+                    mangle_image_batch(tensor)
+                } else {
+                    tensor
+                }
+            })
             .collect();
 
         let targets = items

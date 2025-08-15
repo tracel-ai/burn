@@ -1,13 +1,16 @@
 use crate::{data::MnistBatcher, model::Model};
 
 use burn::{
-    data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
+    data::{
+        dataloader::DataLoaderBuilder,
+        dataset::{transform::SamplerDataset, vision::MnistDataset},
+    },
     optim::{AdamConfig, decay::WeightDecayConfig},
     prelude::*,
     record::{CompactRecorder, NoStdTrainingRecorder},
     tensor::backend::AutodiffBackend,
     train::{
-        LearnerBuilder, MetricEarlyStoppingStrategy, StoppingCondition,
+        EvaluatorBuilder, LearnerBuilder, MetricEarlyStoppingStrategy, StoppingCondition,
         metric::{
             AccuracyMetric, CpuMemory, CpuTemperature, CpuUse, LossMetric,
             store::{Aggregate, Direction, Split},
@@ -19,7 +22,7 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config)]
 pub struct MnistTrainingConfig {
-    #[config(default = 30)]
+    #[config(default = 1)]
     pub num_epochs: usize,
 
     #[config(default = 256)]
@@ -51,13 +54,13 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let model = Model::<B>::new(&device);
 
     // Data
-    let batcher = MnistBatcher::default();
+    let batcher = MnistBatcher::new(true);
 
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MnistDataset::train());
+        .build(SamplerDataset::new(MnistDataset::train(), 1_000));
     let dataloader_test = DataLoaderBuilder::new(batcher)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
@@ -86,19 +89,33 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         ))
         .num_epochs(config.num_epochs)
         .summary()
-        .learning_strategy(burn::train::LearningStrategy::SingleDevice(device.clone()))
+        .learning_strategy(burn::train::LearningStrategy::SingleDevice(device))
         .build(model, config.optimizer.init(), 1.0e-3);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
-    config
-        .save(format!("{ARTIFACT_DIR}/config.json").as_str())
-        .unwrap();
+    // model_trained
+    //     .clone()
+    //     .save_file(
+    //         format!("{ARTIFACT_DIR}/model"),
+    //         &NoStdTrainingRecorder::new(),
+    //     )
+    //     .expect("Failed to save trained model");
 
-    model_trained
-        .save_file(
-            format!("{ARTIFACT_DIR}/model"),
-            &NoStdTrainingRecorder::new(),
-        )
-        .expect("Failed to save trained model");
+    // config
+    //     .save(format!("{ARTIFACT_DIR}/config.json").as_str())
+    //     .unwrap();
+
+    let batcher = MnistBatcher::new(false);
+    let dataloader_test = DataLoaderBuilder::new(batcher)
+        .batch_size(config.batch_size)
+        .num_workers(config.num_workers)
+        .build(SamplerDataset::new(MnistDataset::test(), 50_000));
+
+    let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
+        .metric_numeric(AccuracyMetric::new())
+        .metric_numeric(LossMetric::new())
+        .build(model_trained);
+
+    evaluator.eval(dataloader_test);
 }

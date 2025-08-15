@@ -71,3 +71,11 @@ impl<T: ItemLazy> ItemLazy for LearnerItem<T> {
         }
     }
 }
+
+impl ItemLazy for () {
+    type ItemSync = ();
+
+    fn sync(self) -> Self::ItemSync {
+        ()
+    }
+}
