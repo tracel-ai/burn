@@ -7,7 +7,7 @@ use crate::{
         processor::{AsyncProcessor, FullEventProcessor, Metrics},
         store::{EventStoreClient, LogEventStore},
     },
-    renderer::{MetricsRenderer, default_renderer},
+    renderer::{MetricsRenderer, cli::CliMetricsRenderer},
 };
 use burn_core::{module::Module, prelude::Backend};
 use std::{
@@ -18,12 +18,11 @@ use std::{
 };
 
 pub struct EvaluatorBuilder<B: Backend, TI, TO: ItemLazy> {
-    renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     event_store: LogEventStore,
     summary_metrics: BTreeSet<String>,
     interrupter: TrainingInterrupter,
-    metrics: Metrics<(), TO>,
+    metrics: Metrics<TO, ()>,
     directory: PathBuf,
     summary: bool,
     _p: PhantomData<(B, TI, TO)>,
@@ -40,7 +39,6 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
         let experiment_log_file = directory.join("evaluator.log");
 
         Self {
-            renderer: None,
             tracing_logger: Some(Box::new(FileApplicationLoggerInstaller::new(
                 experiment_log_file,
             ))),
@@ -63,7 +61,7 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
         <TO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name());
-        self.metrics.register_valid_metric_numeric(metric);
+        self.metrics.register_train_metric_numeric(metric);
         self
     }
 
@@ -79,15 +77,13 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
         self,
         model: M,
     ) -> Evaluator<
-        EvaluatorComponentTypesMarker<B, M, AsyncProcessor<FullEventProcessor<(), TO>>, TI, TO>,
+        EvaluatorComponentTypesMarker<B, M, AsyncProcessor<FullEventProcessor<TO, ()>>, TI, TO>,
     >
     where
         TI: Send + 'static,
         M: Module<B> + TestStep<TI, TO> + core::fmt::Display + 'static,
     {
-        let renderer = self
-            .renderer
-            .unwrap_or_else(|| default_renderer(self.interrupter.clone(), None));
+        let renderer = Box::new(CliMetricsRenderer::new());
 
         let event_store = Arc::new(EventStoreClient::new(self.event_store));
         let event_processor = AsyncProcessor::new(FullEventProcessor::new(

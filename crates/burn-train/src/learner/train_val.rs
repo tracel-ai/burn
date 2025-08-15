@@ -120,10 +120,10 @@ impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
         self,
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
-    ) -> LC::Model {
+    ) -> LC::InnerModel {
         log::info!("Fitting the model:\n {}", self.model);
 
-        match &self.learning_strategy {
+        let model = match &self.learning_strategy {
             LearningStrategy::SingleDevice(device) => {
                 let single_device = SingleDeviceLearningStrategy::new(device.clone());
                 single_device.fit(self, dataloader_train, dataloader_valid)
@@ -138,6 +138,8 @@ impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
                 let ddp = DdpLearningStrategy::new(devices.clone(), config.clone());
                 ddp.fit(self, dataloader_train, dataloader_valid)
             }
-        }
+        };
+
+        model.valid()
     }
 }

@@ -60,7 +60,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(SamplerDataset::new(MnistDataset::train(), 1_000));
+        .build(MnistDataset::train());
     let dataloader_test = DataLoaderBuilder::new(batcher)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
@@ -110,7 +110,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let dataloader_test = DataLoaderBuilder::new(batcher)
         .batch_size(config.batch_size)
         .num_workers(config.num_workers)
-        .build(SamplerDataset::new(MnistDataset::test(), 50_000));
+        .build(SamplerDataset::new(MnistDataset::test(), 5_000_000));
 
     let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
         .metric_numeric(AccuracyMetric::new())

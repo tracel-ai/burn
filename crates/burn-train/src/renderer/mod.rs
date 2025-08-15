@@ -4,7 +4,7 @@ use std::io::IsTerminal;
 mod base;
 pub use base::*;
 
-mod cli;
+pub(crate) mod cli;
 
 /// The tui renderer
 #[cfg(feature = "tui")]

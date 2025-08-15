@@ -13,7 +13,7 @@ pub trait EvaluatorComponentTypes {
         + TestStep<Self::TestInput, Self::TestOutput>
         + core::fmt::Display
         + 'static;
-    type EventProcessor: EventProcessor<ItemTrain = (), ItemValid = Self::TestOutput> + 'static;
+    type EventProcessor: EventProcessor<ItemTrain = Self::TestOutput, ItemValid = ()> + 'static;
     /// Type of input to the evaluation step
     type TestInput: Send + 'static;
     /// Type of output of the evaluation step
@@ -42,7 +42,7 @@ impl<B, M, E, TI, TO> EvaluatorComponentTypes for EvaluatorComponentTypesMarker<
 where
     B: Backend,
     M: Module<B> + TestStep<TI, TO> + core::fmt::Display + 'static,
-    E: EventProcessor<ItemTrain = (), ItemValid = TO> + 'static,
+    E: EventProcessor<ItemTrain = TO, ItemValid = ()> + 'static,
     TI: Send + 'static,
     TO: ItemLazy + 'static,
 {

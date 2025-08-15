@@ -35,13 +35,14 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
             let item = LearnerItem::new(item, progress, 0, 1, iteration, None);
 
             self.event_processor
-                .process_valid(Event::ProcessedItem(item));
+                .process_train(Event::ProcessedItem(item));
 
             if self.interrupter.should_stop() {
                 log::info!("Testing interrupted.");
                 break;
             }
         }
+        self.event_processor.process_train(Event::EndEpoch(1));
         self.event_processor.process_valid(Event::EndEpoch(1));
     }
 }
