@@ -11,8 +11,13 @@ use super::protos::{
     attribute_proto::AttributeType, tensor_proto::DataType, tensor_shape_proto::dimension::Value,
 };
 
-use bytemuck::cast_slice;
+use bytemuck::{cast_slice, try_cast_vec};
 use protobuf::Enum;
+
+fn cast_vec_with_fallback<E: bytemuck::Pod>(raw_data: Vec<u8>) -> Vec<E> {
+    // Zero-copy `try_cast_vec` with fallback when alignment and size are not compatible
+    try_cast_vec(raw_data).unwrap_or_else(|(_e, raw_data)| cast_slice(&raw_data).to_vec())
+}
 
 /// Error type for parsing ONNX model
 #[derive(Debug)]
@@ -24,12 +29,13 @@ pub enum ParseError {
 impl TryFrom<TensorProto> for TensorData {
     type Error = ParseError;
     fn try_from(tensor: TensorProto) -> Result<TensorData, Self::Error> {
+        let shape = convert_shape(tensor.dims);
         let (_, data) = match DataType::from_i32(tensor.data_type).unwrap() {
             DataType::FLOAT => (
                 ElementType::Float32,
                 // Convert the raw data to a vector of floats
                 if !tensor.raw_data.is_empty() {
-                    Data::Float32s(cast_slice(&tensor.raw_data[..]).to_vec())
+                    Data::Float32s(cast_vec_with_fallback(tensor.raw_data))
                 } else {
                     Data::Float32s(tensor.float_data)
                 },
@@ -38,7 +44,7 @@ impl TryFrom<TensorProto> for TensorData {
                 ElementType::Float16,
                 // Convert the raw data to a vector of float16s
                 if !tensor.raw_data.is_empty() {
-                    Data::Float16s(cast_slice(&tensor.raw_data[..]).to_vec())
+                    Data::Float16s(cast_vec_with_fallback(tensor.raw_data))
                 } else {
                     unimplemented!()
                 },
@@ -51,7 +57,7 @@ impl TryFrom<TensorProto> for TensorData {
                 ElementType::Int32,
                 // Convert the raw data to a vector of ints
                 if !tensor.raw_data.is_empty() {
-                    Data::Int32s(cast_slice(&tensor.raw_data[..]).to_vec())
+                    Data::Int32s(cast_vec_with_fallback(tensor.raw_data))
                 } else {
                     Data::Int32s(tensor.int32_data)
                 },
@@ -60,7 +66,7 @@ impl TryFrom<TensorProto> for TensorData {
                 ElementType::Int64,
                 // Convert the raw data to a vector of ints
                 if !tensor.raw_data.is_empty() {
-                    Data::Int64s(cast_slice(&tensor.raw_data[..]).to_vec())
+                    Data::Int64s(cast_vec_with_fallback(tensor.raw_data))
                 } else {
                     Data::Int64s(tensor.int64_data)
                 },
@@ -69,7 +75,7 @@ impl TryFrom<TensorProto> for TensorData {
                 ElementType::Float64,
                 // Convert the raw data to a vector of floats
                 if !tensor.raw_data.is_empty() {
-                    Data::Float64s(cast_slice(&tensor.raw_data[..]).to_vec())
+                    Data::Float64s(cast_vec_with_fallback(tensor.raw_data))
                 } else {
                     Data::Float64s(tensor.double_data)
                 },
@@ -83,7 +89,6 @@ impl TryFrom<TensorProto> for TensorData {
                 return Err(ParseError::VariantNotFound(format!("{data_type:?}")));
             }
         };
-        let shape = convert_shape(tensor.dims);
 
         Ok(TensorData { shape, data })
     }
