@@ -82,4 +82,9 @@ where
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
+    /// Get id of every tensor in the container
+    pub fn ids(&self) -> Vec<&ID> {
+        self.tensors.keys().collect()
+    }
 }

@@ -9,6 +9,8 @@ use crate::{
     data::{BertCasedTokenizer, TextClassificationBatcher, TextClassificationDataset, Tokenizer},
     model::TextClassificationModelConfig,
 };
+#[cfg(not(feature = "ddp"))]
+use burn::train::LearningStrategy;
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
     lr_scheduler::noam::NoamLrSchedulerConfig,
