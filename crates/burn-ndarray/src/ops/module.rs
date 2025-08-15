@@ -10,7 +10,7 @@ use super::{
 use crate::ops::simd::{
     avgpool::try_avg_pool2d_simd, conv::try_conv2d_simd, maxpool::try_max_pool2d_simd,
 };
-use crate::{NdArray, NdArrayTensorFloat, element::FloatNdArrayElement, tensor::NdArrayTensor};
+use crate::{NdArray, NdArrayTensorFloat, element::FloatNdArrayElement};
 use crate::{
     element::{IntNdArrayElement, QuantElement},
     ops::interpolate::nearest_interpolate_backward,
@@ -198,7 +198,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         padding: [usize; 2],
         dilation: [usize; 2],
         output_grad: FloatTensor<Self>,
-        indices: NdArrayTensor<I>,
+        indices: IntTensor<Self>,
     ) -> MaxPool2dBackward<NdArray<E, I, Q>> {
         module_op!(inp(x, output_grad), opt(), E, |x, output_grad| {
             let output = max_pool2d_backward::<E, I>(

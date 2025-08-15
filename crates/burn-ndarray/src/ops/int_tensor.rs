@@ -408,10 +408,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn int_powf(lhs: IntTensor<Self>, rhs: FloatTensor<Self>) -> IntTensor<Self> {
-        execute_with_int_dtype!(lhs => |lhs| {
-                execute_with_float_dtype!(rhs => |rhs| {
-                    NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| {
-                    (a.elem::<i64>().pow(*b as u32)).elem()
+        execute_with_int_dtype!(lhs, I, |lhs| {
+                execute_with_float_dtype!(rhs, E => |rhs| {
+                    NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &E| {
+                    (a.elem::<i64>().pow((*b).elem())).elem()
                 })
             })
         })
@@ -503,9 +503,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_int_dtype!((lhs, rhs), E, |lhs, rhs| {
-            NdArrayMathOps::elementwise_op(lhs, rhs, |a: &E, b: &E| {
-                (a.elem() << (*b).elem::<u32>()).elem()
+        execute_with_int_dtype!((lhs, rhs), I, |lhs, rhs| {
+            NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
+                (a.elem::<I>() << (*b).elem::<I>()).elem()
             })
         })
     }
@@ -513,7 +513,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: I) -> IntTensor<Self> {
         execute_with_int_dtype!(lhs, I, |lhs| {
             NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
-                (a.elem() << rhs.elem::<u32>()).elem()
+                (a.elem::<I>() << rhs.elem::<I>()).elem()
             })
         })
     }
@@ -521,7 +521,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         execute_with_int_dtype!((lhs, rhs), I, |lhs, rhs| {
             NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
-                (a.elem() >> (*b).elem::<u32>()).elem()
+                (a.elem::<I>() >> (*b).elem::<I>()).elem()
             })
         })
     }
@@ -529,7 +529,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: I) -> IntTensor<Self> {
         execute_with_int_dtype!(lhs, I, |lhs| {
             NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
-                (a.elem() >> rhs.elem::<u32>()).elem()
+                (a.elem::<I>() >> rhs.elem::<I>()).elem()
             })
         })
     }
