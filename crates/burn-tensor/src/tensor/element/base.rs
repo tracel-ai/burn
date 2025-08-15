@@ -4,7 +4,7 @@ use crate::{Distribution, cast::ToElement, quantization::QuantScheme};
 #[cfg(feature = "cubecl")]
 use cubecl::flex32;
 
-use cubecl_quant::scheme::QuantValue;
+use cubecl_quant::scheme::{QuantStore, QuantValue};
 use half::{bf16, f16};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -372,8 +372,11 @@ impl DType {
             DType::U16 => core::mem::size_of::<u16>(),
             DType::U8 => core::mem::size_of::<u8>(),
             DType::Bool => core::mem::size_of::<bool>(),
-            DType::QFloat(scheme) => match scheme.value {
-                QuantValue::QInt8 => core::mem::size_of::<i8>(),
+            DType::QFloat(scheme) => match scheme.store {
+                QuantStore::Native => match scheme.value {
+                    QuantValue::QInt8 => core::mem::size_of::<i8>(),
+                },
+                QuantStore::U32 => core::mem::size_of::<u32>(),
             },
         }
     }
