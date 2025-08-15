@@ -566,8 +566,6 @@ mod tests {
         assert_tokens(graph.codegen(), expected);
     }
 
-    // Scalar output test removed - no longer supported
-
     #[test]
     fn test_codegen_gather_static_indices() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
