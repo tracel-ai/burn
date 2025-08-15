@@ -4,7 +4,7 @@ use crate::{Distribution, cast::ToElement, quantization::QuantScheme};
 #[cfg(feature = "cubecl")]
 use cubecl::flex32;
 
-use cubecl_quant::scheme::QuantValue;
+use cubecl_quant::scheme::{QuantStore, QuantValue};
 use half::{bf16, f16};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -372,14 +372,20 @@ impl DType {
             DType::U16 => core::mem::size_of::<u16>(),
             DType::U8 => core::mem::size_of::<u8>(),
             DType::Bool => core::mem::size_of::<bool>(),
-            DType::QFloat(scheme) => match scheme.value {
-                QuantValue::QInt8 => core::mem::size_of::<i8>(),
+            DType::QFloat(scheme) => match scheme.store {
+                QuantStore::Native => match scheme.value {
+                    QuantValue::QInt8 => core::mem::size_of::<i8>(),
+                },
+                QuantStore::U32 => core::mem::size_of::<u32>(),
             },
         }
     }
     /// Returns true if the data type is a floating point type.
     pub fn is_float(&self) -> bool {
-        matches!(self, DType::F64 | DType::F32 | DType::F16 | DType::BF16)
+        matches!(
+            self,
+            DType::F64 | DType::F32 | DType::Flex32 | DType::F16 | DType::BF16
+        )
     }
     /// Returns true if the data type is a signed integer type.
     pub fn is_int(&self) -> bool {
@@ -418,6 +424,7 @@ impl DType {
 pub enum FloatDType {
     F64,
     F32,
+    Flex32,
     F16,
     BF16,
 }
@@ -427,6 +434,7 @@ impl From<DType> for FloatDType {
         match value {
             DType::F64 => FloatDType::F64,
             DType::F32 => FloatDType::F32,
+            DType::Flex32 => FloatDType::Flex32,
             DType::F16 => FloatDType::F16,
             DType::BF16 => FloatDType::BF16,
             _ => panic!("Expected float data type, got {value:?}"),
@@ -439,6 +447,7 @@ impl From<FloatDType> for DType {
         match value {
             FloatDType::F64 => DType::F64,
             FloatDType::F32 => DType::F32,
+            FloatDType::Flex32 => DType::Flex32,
             FloatDType::F16 => DType::F16,
             FloatDType::BF16 => DType::BF16,
         }

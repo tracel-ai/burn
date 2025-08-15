@@ -10,6 +10,7 @@ use crate::shared::ir::RefLayout;
 use crate::shared::trace::TraceError;
 use crate::shared::trace::TuneOutput;
 use crate::shared::trace::Vectorization;
+use crate::shared::trace::VectorizationHandle;
 use crate::shared::trace::vectorization::LineSizeOverrides;
 use crate::shared::trace::vectorization::Vect;
 use crate::shared::trace::vectorization::vectorization_default;
@@ -18,20 +19,10 @@ use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
 use burn_ir::TensorId;
 use burn_ir::TensorIr;
-use cubecl::ir::Elem;
-use cubecl::matmul::components;
-use cubecl::matmul::components::AvailableLineSizes;
-use cubecl::matmul::components::LhsG;
-use cubecl::matmul::components::LhsS;
-use cubecl::matmul::components::MatmulLineSizes;
-use cubecl::matmul::components::MatmulPrecision;
-use cubecl::matmul::components::MatmulProblem;
-use cubecl::matmul::components::MatmulSetupError;
-use cubecl::matmul::components::RhsG;
-use cubecl::matmul::components::RhsS;
-use cubecl::matmul::components::tile::TileMatmulFamily;
-use cubecl::matmul::components::tile::accelerated::AcceleratedMatmul;
-use cubecl::matmul::kernels::layered::Algorithm;
+use cubecl::matmul::components::{
+    self, AvailableLineSizes, LhsG, MatmulProblem, MatmulSetupError, RhsG, RhsS,
+    tile::{TileMatmulFamily, accelerated::AcceleratedMatmul},
+};
 use cubecl::matmul::kernels::layered::Selection;
 use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::layered::double_buffering::DoubleBufferingArgs;
@@ -42,6 +33,10 @@ use cubecl::matmul::kernels::layered::ordered_double_buffering::OrderedSelection
 use cubecl::matmul::kernels::layered::simple::SimpleAlgorithm;
 use cubecl::matmul::kernels::layered::simple::SimpleArgs;
 use cubecl::matmul::kernels::layered::simple_unit::SimpleUnitAlgorithm;
+use cubecl::matmul::{
+    components::{LhsS, MatmulLineSizes, MatmulPrecision},
+    kernels::layered::Algorithm,
+};
 use cubecl::std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
 use half::{bf16, f16};
@@ -303,36 +298,33 @@ impl<R: Runtime> Vectorization<R> for FusedMatmul {
         &self,
         context: &Context<'_, CubeFusionHandle<R>>,
         vectorizations: &mut BTreeMap<TensorId, Vect>,
-        handles_inputs: impl Iterator<Item = &'a CubeFusionHandle<R>>,
-        inputs: impl Iterator<Item = &'a TensorIr>,
+        inputs: impl Iterator<Item = VectorizationHandle<'a, R>>,
         outputs: impl Iterator<Item = &'a TensorIr>,
         reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
         swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
-        ref_elem: &Elem,
+        line_sizes: &[u8],
         max: u8,
         axis: Option<usize>,
     ) {
         match &self.selector {
             FusedMatmulSelector::SimpleUnit(line_size_overrides) => vectorization_default(
                 vectorizations,
-                handles_inputs,
                 inputs,
                 outputs,
                 reshaped,
                 swapped,
-                ref_elem,
+                line_sizes,
                 &line_size_overrides.mapping(context),
                 max,
                 axis,
             ),
             _ => vectorization_default(
                 vectorizations,
-                handles_inputs,
                 inputs,
                 outputs,
                 reshaped,
                 swapped,
-                ref_elem,
+                line_sizes,
                 &Default::default(),
                 max,
                 axis,
