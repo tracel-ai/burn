@@ -22,7 +22,7 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config)]
 pub struct MnistTrainingConfig {
-    #[config(default = 1)]
+    #[config(default = 30)]
     pub num_epochs: usize,
 
     #[config(default = 256)]
@@ -53,15 +53,12 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
     let model = Model::<B>::new(&device);
 
-    // Data
-    let batcher = MnistBatcher::new(true);
-
-    let dataloader_train = DataLoaderBuilder::new(batcher.clone())
+    let dataloader_train = DataLoaderBuilder::new(MnistBatcher::new(true))
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
         .build(MnistDataset::train());
-    let dataloader_test = DataLoaderBuilder::new(batcher)
+    let dataloader_test = DataLoaderBuilder::new(MnistBatcher::new(false))
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
@@ -94,23 +91,23 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
-    // model_trained
-    //     .clone()
-    //     .save_file(
-    //         format!("{ARTIFACT_DIR}/model"),
-    //         &NoStdTrainingRecorder::new(),
-    //     )
-    //     .expect("Failed to save trained model");
+    model_trained
+        .clone()
+        .save_file(
+            format!("{ARTIFACT_DIR}/model"),
+            &NoStdTrainingRecorder::new(),
+        )
+        .expect("Failed to save trained model");
 
-    // config
-    //     .save(format!("{ARTIFACT_DIR}/config.json").as_str())
-    //     .unwrap();
+    config
+        .save(format!("{ARTIFACT_DIR}/config.json").as_str())
+        .unwrap();
 
     let batcher = MnistBatcher::new(false);
     let dataloader_test = DataLoaderBuilder::new(batcher)
         .batch_size(config.batch_size)
         .num_workers(config.num_workers)
-        .build(SamplerDataset::new(MnistDataset::test(), 5_000_000));
+        .build(MnistDataset::test());
 
     let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
         .metric_numeric(AccuracyMetric::new())
