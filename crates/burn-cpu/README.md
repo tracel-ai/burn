@@ -1,4 +1,4 @@
-# Burn CUDA Backend
+# Burn CPU Backend
 
 [Burn](https://github.com/tracel-ai/burn) CubeCL CPU backend
 
