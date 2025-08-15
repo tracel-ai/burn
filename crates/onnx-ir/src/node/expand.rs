@@ -7,6 +7,20 @@ use crate::{
 /// If the shape is a constant, the rank and static shape of the output are set accordingly.
 /// If the shape is dynamic, the rank is inferred from the static shape of the shape input.
 pub fn expand_update_outputs(node: &mut Node) {
+    log::debug!("Expand node {} has {} inputs", node.name, node.inputs.len());
+    if node.inputs.len() >= 2 {
+        log::debug!(
+            "Expand node {} input[0]: {:?}",
+            node.name,
+            node.inputs[0].ty
+        );
+        log::debug!(
+            "Expand node {} input[1]: {:?}",
+            node.name,
+            node.inputs[1].ty
+        );
+    }
+
     let shape = if node.inputs.len() == 2 {
         match &node.inputs[1].value {
             Some(value) => match &value.data {
@@ -32,17 +46,61 @@ pub fn expand_update_outputs(node: &mut Node) {
         });
     } else {
         // When the shape cannot be determined statically (i.e., the second argument 'shape' is passed dynamically),
-        // infer the rank from the static shape of the input tensor.
+        // infer the rank from the shape input.
         let output_rank = match &node.inputs[1].ty {
-            ArgType::Tensor(tensor) => tensor
-                .static_shape
-                .as_ref()
-                .expect("Shape input must have a static shape defined")
-                .first()
-                .copied()
-                .expect("Static shape must contain at least one element"),
-            ArgType::Shape(rank) => *rank,
-            _ => panic!("Shape input must be of tensor or shape type",),
+            ArgType::Shape(rank) => {
+                // Shape type directly gives us the output rank
+                *rank
+            }
+            ArgType::Tensor(tensor) => {
+                // For tensor inputs representing shapes, the rank should be 1
+                // and the output rank is determined by the number of elements
+                if tensor.rank == 1 {
+                    // If we have a static shape, use it to get the exact output rank
+                    if let Some(static_shape) = &tensor.static_shape {
+                        static_shape
+                            .first()
+                            .copied()
+                            .expect("Static shape must contain at least one element")
+                    } else {
+                        // For dynamic rank-1 tensors without static shape, we need to make an assumption
+                        // or get the information from elsewhere.
+                        // Check if we have a value that can tell us the rank
+                        if let Some(value) = &node.inputs[1].value {
+                            if let Data::Int64s(shape_data) = &value.data {
+                                // We have the actual shape values, so the output rank is the number of elements
+                                shape_data.len()
+                            } else {
+                                panic!(
+                                    "Expand shape tensor has unexpected data type: {:?}",
+                                    value.data
+                                )
+                            }
+                        } else {
+                            // No static shape and no value - this is truly dynamic
+                            // We need to look at the output type if it's been set
+                            log::warn!(
+                                "Expand node {} has dynamic shape tensor without static shape info. Using output rank if available.",
+                                node.name
+                            );
+                            // Use the current output rank if it's already a tensor
+                            match &output {
+                                TensorType { rank, .. } if *rank > 0 => *rank,
+                                _ => panic!(
+                                    "Cannot determine output rank for Expand node {} with fully dynamic shape tensor. Please provide static shape or use Shape type.",
+                                    node.name
+                                ),
+                            }
+                        }
+                    }
+                } else {
+                    panic!(
+                        "Shape tensor for Expand must be 1-dimensional, got rank {}",
+                        tensor.rank
+                    )
+                }
+            }
+            _ => panic!("Shape input must be of tensor or shape type"),
         };
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
@@ -265,5 +323,45 @@ mod tests {
         });
 
         let _ = expand_config(&node);
+    }
+
+    #[test]
+    fn test_expand_update_outputs_with_shape_input() {
+        // Test Expand with Shape type as shape input
+        let mut node = create_test_node(2, None, Some(ArgType::Shape(4)));
+
+        expand_update_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.rank, 4); // Shape(4) means output will be rank 4
+                assert_eq!(tensor.static_shape, None); // Dynamic shape
+            }
+            _ => panic!("Expected tensor output"),
+        }
+    }
+
+    #[test]
+    fn test_expand_update_outputs_with_shape_input_static_value() {
+        // Test Expand with Shape type that has a static value
+        let mut node = create_test_node(2, None, Some(ArgType::Shape(3)));
+
+        // Add a static value to the shape input
+        node.inputs[1].value = Some(TensorData {
+            shape: vec![3],
+            data: Data::Int64s(vec![5, 10, 15]),
+        });
+
+        expand_update_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.elem_type, ElementType::Float32);
+                assert_eq!(tensor.rank, 3);
+                assert_eq!(tensor.static_shape, Some(vec![5, 10, 15]));
+            }
+            _ => panic!("Expected tensor output"),
+        }
     }
 }
