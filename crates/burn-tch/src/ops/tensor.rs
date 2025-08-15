@@ -455,6 +455,7 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
         let kind = match dtype {
             FloatDType::F64 => tch::Kind::Double,
             FloatDType::F32 => tch::Kind::Float,
+            FloatDType::Flex32 => tch::Kind::Float,
             FloatDType::F16 => tch::Kind::Half,
             FloatDType::BF16 => tch::Kind::BFloat16,
         };

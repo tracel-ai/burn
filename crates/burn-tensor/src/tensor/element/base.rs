@@ -382,7 +382,10 @@ impl DType {
     }
     /// Returns true if the data type is a floating point type.
     pub fn is_float(&self) -> bool {
-        matches!(self, DType::F64 | DType::F32 | DType::F16 | DType::BF16)
+        matches!(
+            self,
+            DType::F64 | DType::F32 | DType::Flex32 | DType::F16 | DType::BF16
+        )
     }
     /// Returns true if the data type is a signed integer type.
     pub fn is_int(&self) -> bool {
@@ -421,6 +424,7 @@ impl DType {
 pub enum FloatDType {
     F64,
     F32,
+    Flex32,
     F16,
     BF16,
 }
@@ -430,6 +434,7 @@ impl From<DType> for FloatDType {
         match value {
             DType::F64 => FloatDType::F64,
             DType::F32 => FloatDType::F32,
+            DType::Flex32 => FloatDType::Flex32,
             DType::F16 => FloatDType::F16,
             DType::BF16 => FloatDType::BF16,
             _ => panic!("Expected float data type, got {value:?}"),
@@ -442,6 +447,7 @@ impl From<FloatDType> for DType {
         match value {
             FloatDType::F64 => DType::F64,
             FloatDType::F32 => DType::F32,
+            FloatDType::Flex32 => DType::Flex32,
             FloatDType::F16 => DType::F16,
             FloatDType::BF16 => DType::BF16,
         }
