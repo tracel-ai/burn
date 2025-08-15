@@ -43,17 +43,23 @@ pub fn gather_update_outputs(node: &mut Node) {
             let output_rank = indices_rank + input_tensor.rank - 1;
             log::debug!("Gather output rank for {}: {}", node.name, output_rank);
 
-            // Always output tensor, even if rank is 0 (scalar tensor)
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: input_tensor.elem_type.clone(),
-                rank: output_rank.max(1), // Ensure minimum rank of 1
-                static_shape: None,
-            });
-            log::debug!(
-                "Gather result for {} is tensor with rank {}",
-                node.name,
-                output_rank.max(1)
-            );
+            if output_rank == 0 {
+                // Output is scalar when gathering a single element
+                node.outputs[0].ty = ArgType::Scalar(input_tensor.elem_type.clone());
+                log::debug!("Gather result for {} is scalar", node.name);
+            } else {
+                // Output is tensor
+                node.outputs[0].ty = ArgType::Tensor(TensorType {
+                    elem_type: input_tensor.elem_type.clone(),
+                    rank: output_rank,
+                    static_shape: None,
+                });
+                log::debug!(
+                    "Gather result for {} is tensor with rank {}",
+                    node.name,
+                    output_rank
+                );
+            }
         }
         ArgType::Shape(_shape_rank) => {
             log::debug!("Gather input is shape for {}", node.name);
@@ -240,6 +246,49 @@ mod tests {
                 assert_eq!(vals, vec![0, 2, 1]);
             }
             _ => panic!("Expected static indices"),
+        }
+    }
+
+    #[test]
+    fn test_gather_update_outputs_scalar_result() {
+        // Test gather with scalar indices on 1D tensor -> scalar output
+        let mut node = NodeBuilder::new(NodeType::Gather, "test_scalar_gather")
+            .attr_int("axis", 0)
+            .input_tensor_f32("data", 1, None)
+            .add_input("indices", ArgType::Scalar(crate::ir::ElementType::Int64))
+            .output_tensor_f32("output", 1, None)
+            .build();
+
+        gather_update_outputs(&mut node);
+
+        // Should output scalar, not tensor
+        match &node.outputs[0].ty {
+            ArgType::Scalar(elem_type) => {
+                assert_eq!(*elem_type, crate::ir::ElementType::Float32);
+            }
+            other => panic!("Expected scalar output, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_gather_update_outputs_tensor_result() {
+        // Test gather with 1D indices on 2D tensor -> 2D tensor output
+        let mut node = NodeBuilder::new(NodeType::Gather, "test_tensor_gather")
+            .attr_int("axis", 0)
+            .input_tensor_f32("data", 2, None)
+            .input_tensor_i64("indices", 1, None)
+            .output_tensor_f32("output", 2, None)
+            .build();
+
+        gather_update_outputs(&mut node);
+
+        // Should output tensor with rank 2 (1 + 2 - 1)
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.rank, 2);
+                assert_eq!(tensor.elem_type, crate::ir::ElementType::Float32);
+            }
+            other => panic!("Expected tensor output, got {:?}", other),
         }
     }
 }

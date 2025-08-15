@@ -101,8 +101,9 @@ impl GatherNode {
                                     .unwrap();
                             }
                         } else {
-                            unreachable!(
-                                "Multi-dimensional indices for Shape gather should be 1-dimensional"
+                            panic!(
+                                "Multi-dimensional indices for Shape gather should be 1-dimensional, but got rank {}",
+                                index_rank
                             );
                         }
                     }
@@ -148,16 +149,48 @@ impl GatherNode {
     ) -> proc_macro2::TokenStream {
         let dim = self.dim.to_tokens();
         let input = match &self.input {
-            Type::Tensor(in_tensor) => scope.tensor_use_owned(in_tensor, node_position),
+            Type::Tensor(in_tensor) => in_tensor,
             _ => unreachable!(),
         };
-        let input_rank = match &self.input {
-            Type::Tensor(in_tensor) => in_tensor.rank,
-            _ => unreachable!(),
-        };
+        let input_rank = input.rank;
+        let input = scope.tensor_use_owned(input, node_position);
         let output = &self.output.name();
 
         match &self.output {
+            Type::Scalar(scalar_type) => {
+                // Gathering a single element from a tensor produces a scalar
+                let scalar_ty = scalar_type.ty();
+                match &self.index {
+                    GatherIndices::Runtime(Type::Scalar(idx_scalar)) => {
+                        let index = &idx_scalar.name;
+                        let output = &scalar_type.name;
+                        quote! {
+                            let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
+                            let selected = Tensor::select(#input, #dim, indices);
+                            let #output = selected.into_scalar().elem::<#scalar_ty>();
+                        }
+                    }
+                    GatherIndices::Static(indices) => {
+                        if indices.len() != 1 {
+                            panic!(
+                                "Static indices length {} doesn't match scalar output",
+                                indices.len()
+                            );
+                        }
+                        let idx = indices[0];
+                        let output = &scalar_type.name;
+                        quote! {
+                            let indices = Tensor::<B, 1, _>::from_data([#idx], &*self.device);
+                            let selected = Tensor::select(#input, #dim, indices);
+                            let #output = selected.into_scalar().elem::<#scalar_ty>();
+                        }
+                    }
+                    _ => panic!(
+                        "Gather from Tensor to Scalar needs scalar index, got {:?}!",
+                        self.index
+                    ),
+                }
+            }
             Type::Tensor(_) => {
                 match &self.index {
                     GatherIndices::Runtime(Type::Scalar(idx_scalar)) => {
@@ -167,18 +200,10 @@ impl GatherNode {
                         let index = &idx_scalar.name;
                         let output_rank = input_rank - 1;
 
-                        if output_rank == 0 {
-                            // If output rank is 0, squeeze and keep as 1D tensor
-                            quote! {
-                                let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
-                                let #output = Tensor::select(#input, #dim, indices);
-                            }
-                        } else {
-                            quote! {
-                                let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
-                                let slice = Tensor::select(#input, #dim, indices);
-                                let #output = slice.squeeze::<#output_rank>(#dim);
-                            }
+                        quote! {
+                            let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
+                            let slice = Tensor::select(#input, #dim, indices);
+                            let #output = slice.squeeze::<#output_rank>(#dim);
                         }
                     }
                     GatherIndices::Runtime(Type::Tensor(idx_tensor)) => {
@@ -222,20 +247,9 @@ impl GatherNode {
                             .map(|&idx| quote! { #idx })
                             .collect::<Vec<_>>();
 
-                        // Calculate output rank based on indices dimensionality
-                        let indices_rank = 1; // Static indices are always 1D
-                        let output_rank = indices_rank + input_rank - 1;
-
-                        if output_rank == 0 {
-                            quote! {
-                                let indices = Tensor::<B, 1, _>::from_data([#(#indices_tokens),*], &*self.device);
-                                let #output = Tensor::select(#input, #dim, indices);
-                            }
-                        } else {
-                            quote! {
-                                let indices = Tensor::<B, 1, _>::from_data([#(#indices_tokens),*], &*self.device);
-                                let #output = Tensor::select(#input, #dim, indices);
-                            }
+                        quote! {
+                            let indices = Tensor::<B, 1, _>::from_data([#(#indices_tokens),*], &*self.device);
+                            let #output = Tensor::select(#input, #dim, indices);
                         }
                     }
                     _ => panic!("Gather needs Scalar or Tensor index, got {:?}!", self.index),
@@ -274,8 +288,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
         Node::Gather(self)
     }
 
-    fn register_imports(&self, _imports: &mut BurnImports) {
-        // No special imports needed for tensor/shape outputs
+    fn register_imports(&self, imports: &mut BurnImports) {
+        // Register ElementConversion trait when doing tensor-to-scalar gather
+        if matches!(self.input, crate::burn::Type::Tensor(_))
+            && matches!(self.output, crate::burn::Type::Scalar(_))
+        {
+            imports.register("burn::tensor::ElementConversion");
+        }
     }
 }
 

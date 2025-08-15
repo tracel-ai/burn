@@ -83,8 +83,8 @@ mod tests {
         let index = 1;
         let output = model.forward(input, index);
 
-        let expected = TensorData::from([2f32]);
-        assert_eq!(output.to_data(), expected);
+        let expected = 2.0f32;
+        assert_eq!(output, expected);
     }
 
     #[test]
