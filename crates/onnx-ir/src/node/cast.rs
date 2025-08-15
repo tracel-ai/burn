@@ -14,11 +14,13 @@ pub fn cast_update_outputs(node: &mut Node) {
         Some(value) => match &value {
             AttributeValue::Int64(type_id) => match DataType::from_i32(*type_id as i32).unwrap() {
                 DataType::FLOAT => ElementType::Float32,
+                DataType::FLOAT16 => ElementType::Float16,
                 DataType::INT32 => ElementType::Int32,
                 DataType::INT64 => ElementType::Int64,
                 DataType::DOUBLE => ElementType::Float64,
                 DataType::BOOL => ElementType::Bool,
-                _ => panic!("Cast: unsupported type"),
+                DataType::STRING => ElementType::String,
+                data_type => panic!("Cast: unsupported type {data_type:?}"),
             },
             _ => panic!("'to' attribute must be an Int64"),
         },
