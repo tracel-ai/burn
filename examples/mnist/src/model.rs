@@ -65,7 +65,7 @@ impl<B: Backend> Model<B> {
         let x = self.fc1.forward(x);
         let x = self.activation.forward(x);
         let x = self.dropout.forward(x);
-        
+
         let x = self.fc2.forward(x);
         let x = self.activation.forward(x);
         let x = self.dropout.forward(x);
