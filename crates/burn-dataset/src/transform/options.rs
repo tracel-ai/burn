@@ -3,6 +3,7 @@ use rand::prelude::StdRng;
 
 /// Helper option to create a rng from a variety of options.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[allow(clippy::large_enum_variant)]
 pub enum RngSource {
     /// Build a new rng from the system.
     #[default]
@@ -44,7 +45,7 @@ impl From<StdRng> for RngSource {
 pub enum SizeConfig {
     /// Use the size of the source dataset.
     #[default]
-    Source,
+    Default,
 
     /// Use the size as a ratio of the source dataset size.
     ///
@@ -58,15 +59,15 @@ pub enum SizeConfig {
 impl SizeConfig {
     /// Construct a source which will have the same size as the source dataset.
     pub fn source() -> Self {
-        Self::Source
+        Self::Default
     }
 
     /// Computes the effective size, given the source.
     pub fn evaluate_for_source(self, source_size: usize) -> usize {
         match self {
-            SizeConfig::Source => source_size,
+            SizeConfig::Default => source_size,
             SizeConfig::Ratio(ratio) => {
-                assert!(ratio > 0.0, "Ratio must be positive: {ratio}");
+                assert!(ratio >= 0.0, "Ratio must be positive: {ratio}");
                 ((source_size as f64) * ratio) as usize
             }
             SizeConfig::Fixed(size) => size,
@@ -162,13 +163,13 @@ mod tests {
 
     #[test]
     fn test_sizesource() {
-        assert_eq!(SizeConfig::default(), SizeConfig::Source);
+        assert_eq!(SizeConfig::default(), SizeConfig::Default);
 
         assert_eq!(SizeConfig::from(42), SizeConfig::Fixed(42));
 
         assert_eq!(SizeConfig::from(1.5), SizeConfig::Ratio(1.5));
 
-        assert_eq!(SizeConfig::source(), SizeConfig::Source);
+        assert_eq!(SizeConfig::source(), SizeConfig::Default);
         assert_eq!(SizeConfig::source().evaluate_for_source(50), 50);
     }
 

@@ -70,7 +70,7 @@ impl SamplerDatasetOptions {
 
     /// Set the size to the size of the source.
     pub fn with_source_size(self) -> Self {
-        self.with_size(SizeConfig::Source)
+        self.with_size(SizeConfig::Default)
     }
 
     /// Set the size to a fixed size.
@@ -311,7 +311,7 @@ mod tests {
     fn test_samplerdataset_options() {
         let options = SamplerDatasetOptions::default();
         assert_eq!(options.mode, ReplacementMode::default());
-        assert_eq!(options.size, SizeConfig::Source);
+        assert_eq!(options.size, SizeConfig::Default);
         assert_eq!(options.rng, RngSource::Default);
 
         // ReplacementMode
@@ -323,10 +323,10 @@ mod tests {
         assert_eq!(options.mode, ReplacementMode::WithoutReplacement);
 
         // SourceSize
-        let options = options.with_size(SizeConfig::Source);
-        assert_eq!(options.size, SizeConfig::Source);
+        let options = options.with_size(SizeConfig::Default);
+        assert_eq!(options.size, SizeConfig::Default);
         let options = options.with_source_size();
-        assert_eq!(options.size, SizeConfig::Source);
+        assert_eq!(options.size, SizeConfig::Default);
         let options = options.with_fixed_size(10);
         assert_eq!(options.size, SizeConfig::Fixed(10));
         let options = options.with_size_ratio(1.5);
