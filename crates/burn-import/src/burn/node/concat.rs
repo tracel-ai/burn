@@ -23,7 +23,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConcatNode {
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         match &self.output {
-            Type::Tensor(_) => {
+            Type::Tensor(output_tensor) => {
                 // Tensor concatenation
                 let dim = self.dim.to_tokens();
                 let inputs = self.inputs.iter().map(|t| match t {
@@ -31,10 +31,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConcatNode {
                     _ => panic!("Expected tensor input for tensor concatenation"),
                 });
 
-                let output = match &self.output {
-                    Type::Tensor(tensor) => &tensor.name,
-                    _ => panic!("Expected tensor output"),
-                };
+                let output = &output_tensor.name;
 
                 quote! {
                     let #output = burn::tensor::Tensor::cat([#(#inputs),*].into(), #dim);
@@ -64,11 +61,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConcatNode {
                 }
 
                 quote! {
-                    let #output: [i64; #output_rank] = {
-                        let mut result = alloc::vec::Vec::new();
-                        #(result.extend_from_slice(#shape_parts);)*
-                        result.try_into().unwrap()
-                    };
+                    let #output: [i64; #output_rank] = [#(#shape_parts),*].concat().try_into().unwrap();
                 }
             }
             _ => panic!("Concat only supports Tensor or Shape outputs"),
@@ -199,13 +192,7 @@ mod tests {
                     shape2: [i64; 3],
                     shape3: [i64; 1]
                 ) -> [i64; 6] {
-                    let output_shape: [i64; 6usize] = {
-                        let mut result = alloc::vec::Vec::new();
-                        result.extend_from_slice(&shape1[..]);
-                        result.extend_from_slice(&shape2[..]);
-                        result.extend_from_slice(&shape3[..]);
-                        result.try_into().unwrap()
-                    };
+                    let output_shape: [i64; 6usize] = [&shape1[..], &shape2[..], &shape3[..]].concat().try_into().unwrap();
 
                     output_shape
                 }
