@@ -51,7 +51,12 @@ pub fn squeeze_update_output(node: &mut Node) {
                 // Without static shape info, we can't know which dims are size 1
                 // The output type will be corrected later if ONNX provides it
                 // TODO: Infer rank from output tensor shape based on static shape inference
-                todo!("Output tensor rank must be inferred from static shape inference");
+                if let Some(ref static_shape) = tensor.static_shape {
+                    // Count the number of dimensions not equal to 1
+                    static_shape.iter().filter(|&&dim| dim != 1).count()
+                } else {
+                    panic!("Squeeze: Cannot infer output rank when axes is empty and input tensor static shape is unknown. Please provide static shape information for accurate inference.");
+                }
             } else {
                 tensor.rank - axes.len()
             };

@@ -114,7 +114,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
                     crate::burn::ScalarKind::Int64 => quote! { #input_name },
                     crate::burn::ScalarKind::Int32 => quote! { #input_name as i64 },
                     _ => panic!(
-                        "Unsqueeze from Scalar to Shape only supports Int32/Int64 input types"
+                        "Unsqueeze from Scalar to Shape only supports Int32/Int64 input types, but got: {:?}", scalar.kind
                     ),
                 };
 
