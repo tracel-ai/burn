@@ -194,16 +194,24 @@ impl GatherNode {
             Type::Tensor(_) => {
                 match &self.index {
                     GatherIndices::Runtime(Type::Scalar(idx_scalar)) => {
-                        // To do a scalar select (select just a single index in one dim),
-                        // convert the 0-D index to a 1-D Tensor with len 1 to use burn's select,
-                        // then squeeze the dimension to reduce the rank
+                        // Use tensor.slice(...) with range syntax for more efficient gather operation
                         let index = &idx_scalar.name;
                         let output_rank = input_rank - 1;
 
+                        // Generate slice ranges: s![.., index..index+1, ..] where the range is at position `dim`
+                        let slice_args = (0..input_rank)
+                            .map(|i| {
+                                if i == self.dim {
+                                    quote! { (#index as usize)..((#index as usize) + 1) }
+                                } else {
+                                    quote! { .. }
+                                }
+                            })
+                            .collect::<Vec<_>>();
+
                         quote! {
-                            let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
-                            let slice = Tensor::select(#input, #dim, indices);
-                            let #output = slice.squeeze::<#output_rank>(#dim);
+                            let sliced = #input.slice(s![#(#slice_args),*]);
+                            let #output = sliced.squeeze::<#output_rank>(#dim);
                         }
                     }
                     GatherIndices::Runtime(Type::Tensor(idx_tensor)) => {
@@ -294,6 +302,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
             && matches!(self.output, crate::burn::Type::Scalar(_))
         {
             imports.register("burn::tensor::ElementConversion");
+        }
+
+        // Register slice macro for tensor slice operations with scalar indices
+        if matches!(self.input, crate::burn::Type::Tensor(_))
+            && matches!(
+                self.index,
+                GatherIndices::Runtime(crate::burn::Type::Scalar(_))
+            )
+        {
+            imports.register("burn::tensor::s");
         }
     }
 }
@@ -510,6 +528,7 @@ mod tests {
         );
 
         let expected = quote! {
+            use burn::tensor::s;
             use burn::tensor::Tensor;
             use burn::{
                 module::Module,
@@ -537,11 +556,8 @@ mod tests {
                     tensor1: Tensor<B, 2>,
                     scalar1: i64
                 ) -> Tensor<B, 1> {
-                    let indices = Tensor::<B, 1, _>::from_data([scalar1], &*self.device);
-
-                    let slice = Tensor::select(tensor1, 0, indices);
-                    let tensor2 = slice.squeeze::<1usize>(0);
-
+                    let sliced = tensor1.slice(s![(scalar1 as usize)..((scalar1 as usize) + 1), ..]);
+                    let tensor2 = sliced.squeeze::<1usize>(0);
                     tensor2
                 }
             }
