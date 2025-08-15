@@ -114,6 +114,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
+    #[allow(clippy::too_many_arguments)]
     fn create_test_node(
         kernel_shape: Vec<i64>,
         strides: Vec<i64>,
