@@ -45,7 +45,7 @@ impl Conv3dConfig {
 
 /// Create a Conv3dConfig from the attributes of the node
 pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
-    let mut kernel_shape = Vec::new(); // TODO default inferred from weight tensor per spec
+    let mut kernel_shape = Vec::new();
     let mut strides = vec![1, 1, 1];
     let mut pads = vec![0, 0, 0, 0, 0, 0];
     let mut dilations = vec![1, 1, 1];
@@ -84,13 +84,28 @@ pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
 
     let padding = padding_config_3d(&pads);
 
+    let kernel_size = if kernel_shape.is_empty() {
+        // https://onnx.ai/onnx/operators/onnx__Conv.html#attributes
+        // Spec says if kernel shape not present in attributes it should be inferred from the weight tensor
+        if weight_shape.len() != 5 {
+            panic!(
+                "expected to infer kernel shape from a weight tensor of rank 5 but got shape {weight_shape:?}"
+            );
+        }
+
+        [weight_shape[2], weight_shape[3], weight_shape[4]]
+    } else {
+        // Was set explicitly via attributes- use that
+        [
+            kernel_shape[0] as _,
+            kernel_shape[1] as _,
+            kernel_shape[2] as _,
+        ]
+    };
+
     Conv3dConfig::new(
         [channels_in, channels_out],
-        [
-            kernel_shape[0] as usize,
-            kernel_shape[1] as usize,
-            kernel_shape[2] as usize,
-        ],
+        kernel_size,
         [
             strides[0] as usize,
             strides[1] as usize,
@@ -126,6 +141,8 @@ mod tests {
         let weight_data = vec![0.0; 32];
         let weight_shape = vec![4, 2, 2, 2, 2]; // [output_channels, input_channels/groups, k_d, k_h, k_w]
 
+        let has_kernel_shape = !kernel_shape.is_empty();
+
         // Start building the node with input and weight
         let mut builder = NodeBuilder::new(NodeType::Conv3d, "test_conv3d")
             .input_tensor_f32("data", 5, None)
@@ -139,11 +156,14 @@ mod tests {
 
         // Add attributes
         builder = builder
-            .attr_ints("kernel_shape", kernel_shape)
             .attr_ints("strides", strides)
             .attr_ints("pads", pads)
             .attr_ints("dilations", dilations)
             .attr_int("group", group);
+
+        if has_kernel_shape {
+            builder = builder.attr_ints("kernel_shape", kernel_shape);
+        }
 
         if let Some(auto_pad) = auto_pad {
             builder = builder.attr_string("auto_pad", auto_pad);
@@ -259,5 +279,21 @@ mod tests {
             Some("SAME_UPPER"),
         );
         let _config = conv3d_config(&node);
+    }
+
+    #[test]
+    fn test_conv3d_config_kernel_shape_not_set() {
+        let node = create_test_node(
+            vec![],
+            vec![1, 1, 1],
+            vec![0, 0, 0, 0, 0, 0],
+            vec![1, 1, 1],
+            1,
+            false,
+            None,
+        );
+        let config = conv3d_config(&node);
+
+        assert_eq!(config.kernel_size, [2, 2, 2]); // Inferred via weight tensor shape
     }
 }
