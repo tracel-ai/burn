@@ -137,9 +137,9 @@ mod cuda {
 }
 
 #[cfg(feature = "cuda-ddp")]
-mod cuda {
+mod cuda_ddp {
     use crate::{ElemType, launch};
-    use burn::backend::{Autodiff, Cuda, autodiff::checkpoint::strategy::BalancedCheckpointing};
+    use burn::backend::{Autodiff, Cuda, cuda::CudaDevice, autodiff::checkpoint::strategy::BalancedCheckpointing};
 
     pub fn run() {
         launch::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>(vec![
@@ -177,6 +177,8 @@ fn main() {
     wgpu::run();
     #[cfg(feature = "cuda")]
     cuda::run();
+    #[cfg(feature = "cuda-ddp")]
+    cuda_ddp::run();
     #[cfg(feature = "rocm")]
     rocm::run();
     #[cfg(feature = "remote")]
