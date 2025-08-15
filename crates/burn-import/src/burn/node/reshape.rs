@@ -66,7 +66,7 @@ impl ReshapeNode {
 
                 quote! {
                     let shape_data = #shape_name.to_data();
-                    let shape_array = shape_data.as_slice::<i64>().expect("Expected tensor data of type i64 for shape parameter in reshape operation");
+                    let shape_array = shape_data.as_slice::<i64>().unwrap();
                     let #output = #input.reshape([#(#array_init),*]);
                 }
             }
