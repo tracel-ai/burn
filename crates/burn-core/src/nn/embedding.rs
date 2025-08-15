@@ -12,7 +12,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::module::embedding;
 
 /// Configuration to create an [Embedding](Embedding) layer using the [init function](EmbeddingConfig::init).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct EmbeddingConfig {
     /// The number of embedding vectors.
     pub n_embedding: usize,
