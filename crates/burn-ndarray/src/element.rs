@@ -1,7 +1,6 @@
 use burn_tensor::Element;
 use ndarray::LinalgScalar;
-use num_traits::Signed;
-use std::ops::Neg;
+use num_traits::{One, Signed, Zero};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -34,6 +33,37 @@ pub trait NdArrayElement:
     + core::ops::Rem<Output = Self>
 {
 }
+
+pub trait Signum: Zero + One {
+    fn signum(self) -> Self;
+}
+
+macro_rules! impl_signum_signed {
+    ($($t:ty),*) => {
+        $(
+            impl Signum for $t {
+                fn signum(self) -> Self {
+                    if self > Self::zero() { Self::one() } else if self < Self::zero() { -Self::one() } else { Self::zero() }
+                }
+            }
+        )*
+    };
+}
+
+macro_rules! impl_signum_unsigned {
+    ($($t:ty),*) => {
+        $(
+            impl Signum for $t {
+                fn signum(self) -> Self {
+                    if self > Self::zero() { Self::one() } else { Self::zero() }
+                }
+            }
+        )*
+    };
+}
+
+impl_signum_signed!(i32, i64, f32, f64); // for all required signed types
+impl_signum_unsigned!(u8, u16, u32, u64); // // for all required unsigned types
 
 /// A element for ndarray backend that supports exp ops.
 pub trait ExpElement {

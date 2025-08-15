@@ -800,7 +800,7 @@ where
 
     pub(crate) fn sign_op(tensor: NdArrayTensor<E>) -> NdArrayTensor<E>
     where
-        E: Signed,
+        E: Signum,
     {
         let zero = 0.elem();
         let one = 1.elem::<E>();
