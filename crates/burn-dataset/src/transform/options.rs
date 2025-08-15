@@ -62,8 +62,16 @@ impl SizeConfig {
         Self::Default
     }
 
-    /// Computes the effective size, given the source.
-    pub fn evaluate_for_source(self, source_size: usize) -> usize {
+    /// Resolve the effective size.
+    ///
+    /// ## Arguments
+    ///
+    /// - `source_size`: the size of the source dataset.
+    ///
+    /// ## Returns
+    ///
+    /// The resolved size of the wrapper dataset.
+    pub fn resolve(self, source_size: usize) -> usize {
         match self {
             SizeConfig::Default => source_size,
             SizeConfig::Ratio(ratio) => {
@@ -170,7 +178,7 @@ mod tests {
         assert_eq!(SizeConfig::from(1.5), SizeConfig::Ratio(1.5));
 
         assert_eq!(SizeConfig::source(), SizeConfig::Default);
-        assert_eq!(SizeConfig::source().evaluate_for_source(50), 50);
+        assert_eq!(SizeConfig::source().resolve(50), 50);
     }
 
     #[test]

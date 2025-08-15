@@ -185,7 +185,7 @@ where
         O: Into<SamplerDatasetOptions>,
     {
         let options = options.into();
-        let size = options.size.evaluate_for_source(dataset.len());
+        let size = options.size.resolve(dataset.len());
         let rng = options.rng.into();
         Self {
             dataset,
