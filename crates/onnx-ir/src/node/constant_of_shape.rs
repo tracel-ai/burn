@@ -135,4 +135,21 @@ mod tests {
         let mut node = create_test_node(ArgType::Scalar(ElementType::Float32));
         constant_of_shape_update_output(&mut node);
     }
+
+    #[test]
+    fn test_no_static_shapes_with_value_attr() {
+        let mut node = NodeBuilder::new(NodeType::ConstantOfShape, "constantofshape1")
+            .input_tensor_i64("constant180_out1", 1, None)
+            .output_default("/model/encoder/patch_encoder/ConstantOfShape_output_0")
+            .attr_tensor(
+                "value",
+                TensorData {
+                    data: Data::Int64s(vec![1]),
+                    shape: vec![1],
+                },
+            )
+            .build();
+
+        constant_of_shape_update_output(&mut node);
+    }
 }
