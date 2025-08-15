@@ -87,7 +87,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .num_epochs(config.num_epochs)
         .summary()
         .learning_strategy(burn::train::LearningStrategy::SingleDevice(device.clone()))
-        .build(model, config.optimizer.init(), 1.0e-2);
+        .build(model, config.optimizer.init(), 1.0e-3);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 

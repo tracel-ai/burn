@@ -97,9 +97,14 @@ pub enum FuseOp {
     Lower(BinaryFuseArgs),
     Greater(BinaryFuseArgs),
     LowerEqual(BinaryFuseArgs),
+    Rem(BinaryFuseArgs),
     GreaterEqual(BinaryFuseArgs),
-    // TODO @nath
-    // Dequantize(BinaryFuseArgs),
+    Clamp {
+        input: Arg,
+        min: Arg,
+        max: Arg,
+        out: Arg,
+    },
     ConditionalAssign {
         cond: Arg,
         lhs: Arg,
@@ -163,6 +168,8 @@ impl FuseOp {
             FuseOp::Gather { output, .. } => output.precision().into_elem(),
             FuseOp::Select { output, .. } => output.precision().into_elem(),
             FuseOp::Dequantize { output, .. } => output.precision().into_elem(),
+            FuseOp::Rem(op) => op.out.precision().into_elem(),
+            FuseOp::Clamp { out, .. } => out.precision().into_elem(),
         }
     }
 }
