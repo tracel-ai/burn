@@ -262,7 +262,7 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
         iter_range_par!(0, batch_size * out_channels * options.groups).for_each(|k| unsafe {
             let b = k / (out_channels * options.groups);
             let oc = k % out_channels;
-            let g = k % options.groups;
+            let g = (k / out_channels) % options.groups;
 
             let output = unsafe_shared_out.get();
 
@@ -511,7 +511,7 @@ pub(crate) fn conv_transpose3d<E: FloatNdArrayElement>(
         iter_range_par!(0, batch_size * out_channels * options.groups).for_each(|k| unsafe {
             let b = k / (out_channels * options.groups);
             let oc = k % out_channels;
-            let g = k % options.groups;
+            let g = (k / out_channels) % options.groups;
 
             let output = unsafe_shared_out.get();
 

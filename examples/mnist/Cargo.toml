@@ -20,6 +20,8 @@ tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu", "burn/fusion"]
 metal = ["burn/metal", "burn/fusion"]
 remote = ["burn/remote"]
+cuda = ["burn/cuda"]
+vulkan = ["burn/vulkan"]
 
 [dependencies]
 # Disable autotune default for now (convolutions not optimized)
@@ -28,9 +30,12 @@ burn = { path = "../../crates/burn", features = [
     "vision",
     "metrics",
     "std",
-    "collective",
+    "fusion",
+    "ndarray",
+    "autotune",
 ], default-features = false }
 
 # Serialization
 log = { workspace = true }
+rand.workspace = true
 serde = { workspace = true, features = ["std", "derive"] }

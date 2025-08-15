@@ -2,10 +2,10 @@ use core::any::TypeId;
 
 use crate::{Bytes, Element};
 use alloc::vec::Vec;
+use cubecl_quant::scheme::QuantScheme;
 
 use super::{
-    QParams, QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantizationStrategy,
-    SymmetricQuantization,
+    QParams, QuantLevel, QuantMode, QuantValue, QuantizationStrategy, SymmetricQuantization,
 };
 
 /// Quantized data bytes representation.
@@ -134,7 +134,7 @@ impl QuantizedBytes {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => {
                 let (values, qparams) = self.into_vec_i8();
@@ -146,7 +146,7 @@ impl QuantizedBytes {
             QuantScheme {
                 level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => {
                 let (values, qparams) = self.into_vec_i8();

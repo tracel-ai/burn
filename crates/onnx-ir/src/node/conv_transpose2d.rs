@@ -65,6 +65,12 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
             "dilations" => dilations = value.clone().into_i64s(),
             "group" => group = value.clone().into_i64() as usize,
             "output_padding" => output_padding = value.clone().into_i64s(),
+            "auto_pad" => {
+                let auto_pad = value.clone().into_string();
+                if auto_pad != "NOTSET" {
+                    panic!("Unsupported 'auto_pad' value: {auto_pad}");
+                }
+            }
             _ => panic!("Unexpected attribute for ConvTranspose2d: {key}"),
         }
     }
@@ -116,6 +122,7 @@ mod tests {
         output_padding: Vec<i64>,
         group: i64,
         has_bias: bool,
+        auto_pad: Option<&str>,
     ) -> Node {
         // Create weight tensor data
         let weight_data = vec![0.0; 16]; // Not important for the test
@@ -144,6 +151,10 @@ mod tests {
             .attr_ints("output_padding", output_padding)
             .attr_int("group", group);
 
+        if let Some(auto_pad) = auto_pad {
+            builder = builder.attr_string("auto_pad", auto_pad);
+        }
+
         builder.build()
     }
 
@@ -157,6 +168,7 @@ mod tests {
             vec![0, 0],
             1,
             false,
+            None,
         );
         let config = conv_transpose2d_config(&node);
 
@@ -180,6 +192,7 @@ mod tests {
             vec![0, 0],
             1,
             false,
+            None,
         );
         let config = conv_transpose2d_config(&node);
 
@@ -197,6 +210,7 @@ mod tests {
             vec![1, 1],
             1,
             false,
+            None,
         );
         let config = conv_transpose2d_config(&node);
 
@@ -213,6 +227,7 @@ mod tests {
             vec![0, 0],
             2,
             false,
+            None,
         );
         let config = conv_transpose2d_config(&node);
 
@@ -230,6 +245,7 @@ mod tests {
             vec![0, 0],
             1,
             true,
+            None,
         );
         let config = conv_transpose2d_config(&node);
 
@@ -247,7 +263,48 @@ mod tests {
             vec![0, 0],
             1,
             false,
+            None,
         );
         let _ = conv_transpose2d_config(&node);
+    }
+
+    #[test]
+    fn test_conv_transpose2d_config_autopad_not_set() {
+        let node = create_test_node(
+            vec![2, 2],
+            vec![1, 1],
+            vec![0, 0, 0, 0],
+            vec![1, 1],
+            vec![0, 0],
+            1,
+            false,
+            Some("NOTSET"),
+        );
+        let config = conv_transpose2d_config(&node);
+
+        assert_eq!(config.channels, [4, 2]);
+        assert_eq!(config.kernel_size, [2, 2]);
+        assert_eq!(config.stride, [1, 1]);
+        assert_eq!(config.dilation, [1, 1]);
+        assert_eq!(config.padding, [0, 0]);
+        assert_eq!(config.padding_out, [0, 0]);
+        assert_eq!(config.groups, 1);
+        assert!(!config.bias);
+    }
+
+    #[test]
+    #[should_panic = "Unsupported 'auto_pad' value"]
+    fn test_conv_transpose2d_config_autopad_not_supported() {
+        let node = create_test_node(
+            vec![2, 2],
+            vec![1, 1],
+            vec![0, 0, 0, 0],
+            vec![1, 1],
+            vec![0, 0],
+            1,
+            false,
+            Some("SAME_UPPER"),
+        );
+        let _config = conv_transpose2d_config(&node);
     }
 }

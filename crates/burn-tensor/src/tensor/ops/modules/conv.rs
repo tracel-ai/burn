@@ -747,8 +747,8 @@ fn conv2d_weight_grad_groups<B: Backend>(
             weight_grad_tmp = B::float_slice(
                 weight_grad_tmp,
                 &[
-                    0..increment_ci,
                     0..increment_co,
+                    0..increment_ci,
                     0..kernel_size_1,
                     0..kernel_size_2,
                 ],
@@ -818,8 +818,8 @@ fn conv3d_weight_grad_groups<B: Backend>(
             weight_grad_tmp = B::float_slice(
                 weight_grad_tmp,
                 &[
-                    0..increment_ci,
                     0..increment_co,
+                    0..increment_ci,
                     0..kernel_size_1,
                     0..kernel_size_2,
                     0..kernel_size_3,

@@ -49,6 +49,7 @@ use crate::{
             gemm::GemmNode,
             global_avg_pool::GlobalAvgPoolNode,
             group_norm::GroupNormNode,
+            identity::IdentityNode,
             instance_norm::InstanceNormNode,
             layer_norm::LayerNormNode,
             linear::LinearNode,
@@ -282,7 +283,9 @@ impl ModelGen {
         };
 
         let code_str = format_tokens(code);
-        fs::write(out_file.with_extension("rs"), code_str).unwrap();
+        let source_code_file = out_file.with_extension("rs");
+        log::info!("Writing source code to {}", source_code_file.display());
+        fs::write(source_code_file, code_str).unwrap();
 
         log::info!("Model generated");
     }
@@ -428,6 +431,8 @@ impl ParsedOnnxGraph {
                 NodeType::Gemm => graph.register(Self::gemm_conversion(node)),
                 NodeType::IsNaN => graph.register(Self::is_nan_conversion(node)),
                 NodeType::IsInf => graph.register(Self::is_inf_conversion(node)),
+                NodeType::Identity => graph.register(Self::identity_conversion(node)),
+                NodeType::Abs => graph.register(Self::abs_conversion(node)),
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -533,6 +538,13 @@ impl ParsedOnnxGraph {
         }
 
         RandomUniformNode::new(output_type, low, high, shape)
+    }
+
+    fn identity_conversion(node: Node) -> IdentityNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        IdentityNode::new(input, output)
     }
 
     fn random_uniform_like_conversion(node: Node) -> RandomUniformLikeNode {
@@ -1027,6 +1039,13 @@ impl ParsedOnnxGraph {
         let output = Type::from(node.outputs.first().unwrap());
 
         UnaryNode::sqrt(input, output)
+    }
+
+    fn abs_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+
+        UnaryNode::abs(input, output)
     }
 
     fn tan_conversion(node: Node) -> UnaryNode {

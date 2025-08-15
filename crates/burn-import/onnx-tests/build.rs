@@ -6,7 +6,9 @@ fn main() {
 
     // Add onnx models.
     ModelGen::new()
+        .input("tests/abs/abs.onnx")
         .input("tests/add/add.onnx")
+        .input("tests/initializer_to_const/initializer_to_const.onnx")
         .input("tests/and/and.onnx")
         .input("tests/add/add_int.onnx")
         .input("tests/argmax/argmax.onnx")
@@ -59,6 +61,7 @@ fn main() {
         .input("tests/constant/constant_i64.onnx")
         .input("tests/constant_of_shape/constant_of_shape.onnx")
         .input("tests/constant_of_shape/constant_of_shape_full_like.onnx")
+        .input("tests/constant_lifting_multiple/constant_lifting_multiple.onnx")
         .input("tests/conv1d/conv1d.onnx")
         .input("tests/conv2d/conv2d.onnx")
         .input("tests/conv3d/conv3d.onnx")
@@ -98,6 +101,10 @@ fn main() {
         .input("tests/greater_or_equal/greater_or_equal_scalar.onnx")
         .input("tests/group_norm/group_norm.onnx")
         .input("tests/hard_sigmoid/hard_sigmoid.onnx")
+        .input("tests/identity/identity_constant.onnx")
+        .input("tests/identity/identity_passthrough.onnx")
+        .input("tests/identity/identity_chain.onnx")
+        .input("tests/identity/identity_only.onnx")
         .input("tests/instance_norm1d/instance_norm1d.onnx")
         .input("tests/instance_norm2d/instance_norm2d.onnx")
         .input("tests/instance_norm3d/instance_norm3d.onnx")

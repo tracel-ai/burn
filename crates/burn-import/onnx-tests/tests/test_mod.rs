@@ -5,6 +5,7 @@ extern crate alloc;
 mod backend;
 
 // Import individual node modules
+pub mod abs;
 pub mod add;
 pub mod and;
 pub mod argmax;
@@ -23,6 +24,7 @@ pub mod ceil;
 pub mod clip;
 pub mod concat;
 pub mod constant;
+pub mod constant_lifting_multiple;
 pub mod constant_of_shape;
 pub mod conv;
 pub mod conv_transpose;
@@ -46,6 +48,8 @@ pub mod greater;
 pub mod greater_or_equal;
 pub mod group_norm;
 pub mod hard_sigmoid;
+pub mod identity;
+pub mod initializer_to_const;
 pub mod instance_norm;
 pub mod is_inf;
 pub mod is_nan;

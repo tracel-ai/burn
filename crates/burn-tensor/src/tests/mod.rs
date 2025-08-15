@@ -160,6 +160,7 @@ macro_rules! testgen_with_float_param {
 
         // test grid
         burn_tensor::testgen_meshgrid!();
+        burn_tensor::testgen_affine_grid!();
 
         // test linalg
         burn_tensor::testgen_vector_norm!();

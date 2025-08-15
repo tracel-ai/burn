@@ -64,6 +64,7 @@ cubecl = { workspace = true, features = [
     "random",
     "stdlib",
 ] }
+cubecl-quant = { workspace = true, features = ["kernels"] }
 
 bytemuck = { workspace = true }
 derive-new = { workspace = true }
