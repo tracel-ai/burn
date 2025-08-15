@@ -89,7 +89,7 @@ pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
         // Spec says if kernel shape not present in attributes it should be inferred from the weight tensor
         if weight_shape.len() != 5 {
             panic!(
-                "expected to infer kernel shape from a weight tensor of rank 4 but got shape {weight_shape:?}"
+                "expected to infer kernel shape from a weight tensor of rank 5 but got shape {weight_shape:?}"
             );
         }
 
