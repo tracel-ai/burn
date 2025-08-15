@@ -16,8 +16,6 @@ pub enum RngSource {
     Rng(StdRng),
 }
 
-impl RngSource {}
-
 impl From<RngSource> for StdRng {
     fn from(source: RngSource) -> Self {
         match &source {
