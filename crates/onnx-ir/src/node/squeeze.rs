@@ -55,7 +55,9 @@ pub fn squeeze_update_output(node: &mut Node) {
                     // Count the number of dimensions not equal to 1
                     static_shape.iter().filter(|&&dim| dim != 1).count()
                 } else {
-                    panic!("Squeeze: Cannot infer output rank when axes is empty and input tensor static shape is unknown. Please provide static shape information for accurate inference.");
+                    panic!(
+                        "Squeeze: Cannot infer output rank when axes is empty and input tensor static shape is unknown. Please provide static shape information for accurate inference."
+                    );
                 }
             } else {
                 tensor.rank - axes.len()
