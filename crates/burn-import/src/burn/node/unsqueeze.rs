@@ -77,35 +77,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
                 }
             }
             (Type::Scalar(scalar), Type::Shape(shape)) => {
-                // Scalar(Int) -> Shape[1] conversion: The reverse of squeeze(Shape[1]) -> Scalar
-                // ================================================================================
-                //
-                // This handles the important pattern where shape information flows through
-                // squeeze/unsqueeze operations in ONNX models. This is particularly common in
-                // dynamic reshape operations where dimensions are computed at runtime.
-                //
-                // Why this is a key optimization:
-                // --------------------------------
-                // 1. Performance: Avoids unnecessary tensor allocations for shape metadata.
-                //    Many ONNX models use this pattern extensively for dynamic shapes, and
-                //    keeping the data as Shape type is much more efficient.
-                //
-                // 2. Zero-cost conversion: Both scalars and Shape arrays are CPU-resident,
-                //    so this is just a type system change with no runtime overhead.
-                //
-                // 3. Maintains type symmetry: This is the exact reverse of the squeeze
-                //    operation (Shape[1] -> Scalar), ensuring bidirectional compatibility.
-                //
-                // 4. Lazy GPU transfer: If a downstream operation needs this on GPU, it can
-                //    convert Shape to Tensor at that point. We don't pay the transfer cost
-                //    unless absolutely necessary.
-                //
-                // Common usage pattern in ONNX:
-                // - Reshape node computes output shape dynamically
-                // - Shape values flow through squeeze (Shape->Scalar) for computation
-                // - Results flow through unsqueeze (Scalar->Shape) for next reshape
-                //
-                // This optimization ensures this common pattern remains efficient.
+                // Scalar(Int) -> Shape[1] conversion: Reverses squeeze(Shape[1]) -> Scalar
+                // Common in ONNX for dynamic reshape operations where dimensions are computed at runtime.
+                // This is a zero-cost conversion (both types are CPU-resident) that avoids unnecessary
+                // tensor allocations and GPU transfers.
                 let input_name = &scalar.name;
                 let output_name = &shape.name;
 
