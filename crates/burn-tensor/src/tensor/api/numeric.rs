@@ -2120,6 +2120,44 @@ where
     }
 }
 
+impl<B, K> Tensor<B, 1, K>
+where
+    B: Backend,
+    K: Numeric<B>,
+    K::Elem: Element,
+{
+    /// Calculates the dot product with another tensor.
+    ///
+    /// `y = x2.dot(x1)`
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The tensor to compute dot product with.
+    ///
+    /// # Notes
+    ///
+    /// Both tensors must have the same number of elements.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor1 = Tensor::<B, 1>::from_data([1.0, 2.0], &device);
+    ///    let tensor2 = Tensor::<B, 1>::from_data([-2.0, 3.0], &device);
+    ///    let tensor = tensor1.dot(tensor2);
+    ///    println!("{tensor}");
+    ///    // [4]
+    /// }
+    /// ```
+    pub fn dot(self, other: Self) -> Self {
+        self.mul(other).sum()
+    }
+}
+
 impl<B, K> Tensor<B, 2, K>
 where
     B: Backend,

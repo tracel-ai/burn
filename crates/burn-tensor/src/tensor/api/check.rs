@@ -248,8 +248,8 @@ impl TensorCheck {
                         "Movedim",
                         TensorError::new("The given dimensions contain duplicates.").details(
                             format!(
-                                "The dimension {dim_i} is duplicated in the given dimensions {dims:?}.",
-                            ),
+                            "The dimension {dim_i} is duplicated in the given dimensions {dims:?}.",
+                        ),
                         ),
                     );
                 }
