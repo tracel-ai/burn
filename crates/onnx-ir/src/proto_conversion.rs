@@ -14,7 +14,7 @@ use super::protos::{
 use bytemuck::{cast_slice, try_cast_vec};
 use protobuf::Enum;
 
-fn safe_cast_bytes<E: bytemuck::Pod>(raw_data: Vec<u8>) -> Vec<E> {
+fn cast_vec_with_fallback<E: bytemuck::Pod>(raw_data: Vec<u8>) -> Vec<E> {
     // Zero-copy `try_cast_vec` with fallback when alignment and size are not compatible
     try_cast_vec(raw_data).unwrap_or_else(|(_e, raw_data)| cast_slice(&raw_data).to_vec())
 }
@@ -35,7 +35,7 @@ impl TryFrom<TensorProto> for TensorData {
                 ElementType::Float32,
                 // Convert the raw data to a vector of floats
                 if !tensor.raw_data.is_empty() {
-                    Data::Float32s(safe_cast_bytes(tensor.raw_data))
+                    Data::Float32s(cast_vec_with_fallback(tensor.raw_data))
                 } else {
                     Data::Float32s(tensor.float_data)
                 },
@@ -44,7 +44,7 @@ impl TryFrom<TensorProto> for TensorData {
                 ElementType::Float16,
                 // Convert the raw data to a vector of float16s
                 if !tensor.raw_data.is_empty() {
-                    Data::Float16s(safe_cast_bytes(tensor.raw_data))
+                    Data::Float16s(cast_vec_with_fallback(tensor.raw_data))
                 } else {
                     unimplemented!()
                 },
@@ -57,7 +57,7 @@ impl TryFrom<TensorProto> for TensorData {
                 ElementType::Int32,
                 // Convert the raw data to a vector of ints
                 if !tensor.raw_data.is_empty() {
-                    Data::Int32s(safe_cast_bytes(tensor.raw_data))
+                    Data::Int32s(cast_vec_with_fallback(tensor.raw_data))
                 } else {
                     Data::Int32s(tensor.int32_data)
                 },
@@ -66,7 +66,7 @@ impl TryFrom<TensorProto> for TensorData {
                 ElementType::Int64,
                 // Convert the raw data to a vector of ints
                 if !tensor.raw_data.is_empty() {
-                    Data::Int64s(safe_cast_bytes(tensor.raw_data))
+                    Data::Int64s(cast_vec_with_fallback(tensor.raw_data))
                 } else {
                     Data::Int64s(tensor.int64_data)
                 },
@@ -75,7 +75,7 @@ impl TryFrom<TensorProto> for TensorData {
                 ElementType::Float64,
                 // Convert the raw data to a vector of floats
                 if !tensor.raw_data.is_empty() {
-                    Data::Float64s(safe_cast_bytes(tensor.raw_data))
+                    Data::Float64s(cast_vec_with_fallback(tensor.raw_data))
                 } else {
                     Data::Float64s(tensor.double_data)
                 },
