@@ -12,26 +12,14 @@ pub struct CastNode {
     pub output: Type,
     /// Target element type from ONNX cast operation
     pub target_elem_type: ElementType,
-    /// Input and output tensor types (required for codegen imports)
-    pub input_kind: Option<TensorKind>,
-    pub output_kind: Option<TensorKind>,
 }
 
 impl CastNode {
     pub fn new(input: Type, output: Type, target_elem_type: ElementType) -> Self {
-        let (input_kind, output_kind) = match (&input, &output) {
-            (Type::Tensor(input_tensor), Type::Tensor(output_tensor)) => {
-                (Some(input_tensor.kind), Some(output_tensor.kind))
-            }
-            _ => (None, None),
-        };
-
         Self {
             input,
             output,
             target_elem_type,
-            input_kind,
-            output_kind,
         }
     }
 }
@@ -180,11 +168,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
             }
         }
 
-        if let (Some(input_kind), Some(output_kind)) = (self.input_kind, self.output_kind) {
-            if input_kind == TensorKind::Bool || output_kind == TensorKind::Bool {
+        // Check tensor kinds directly from input and output types
+        if let (Type::Tensor(input_tensor), Type::Tensor(output_tensor)) =
+            (&self.input, &self.output)
+        {
+            if input_tensor.kind == TensorKind::Bool || output_tensor.kind == TensorKind::Bool {
                 imports.register("burn::tensor::Bool");
             }
-            if input_kind == TensorKind::Int || output_kind == TensorKind::Int {
+            if input_tensor.kind == TensorKind::Int || output_tensor.kind == TensorKind::Int {
                 imports.register("burn::tensor::Int");
             }
         }
