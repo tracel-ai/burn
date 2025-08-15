@@ -136,6 +136,21 @@ mod cuda {
     }
 }
 
+#[cfg(feature = "cuda-ddp")]
+mod cuda {
+    use crate::{ElemType, launch};
+    use burn::backend::{Autodiff, Cuda, autodiff::checkpoint::strategy::BalancedCheckpointing};
+
+    pub fn run() {
+        launch::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>(vec![
+            CudaDevice::new(0),
+            CudaDevice::new(1),
+            CudaDevice::new(2),
+            CudaDevice::new(3),
+        ]);
+    }
+}
+
 #[cfg(feature = "rocm")]
 mod rocm {
     use crate::{ElemType, launch};
