@@ -3,7 +3,9 @@
 import onnx
 import torch
 import torch.nn as nn
+import numpy as np
 from onnx import TensorProto, helper, numpy_helper
+from onnx.reference import ReferenceEvaluator
 
 
 def main():
@@ -45,12 +47,35 @@ def main():
         initializer=[reshape_target]
     )
     
-    onnx_model = helper.make_model(graph)
-    onnx_model.opset_import[0].version = 16
+    onnx_model = helper.make_model(
+        graph,
+        producer_name="reshape_shape_to_shape_test",
+        opset_imports=[helper.make_operatorsetid("", 16)]
+    )
     
     # Save the model
     onnx.save(onnx_model, "reshape_shape_to_shape.onnx")
     print("Model saved to reshape_shape_to_shape.onnx")
+    
+    # Test with ReferenceEvaluator
+    try:
+        test_input = np.random.randn(2, 3, 4).astype(np.float32)
+        print(f"\nTest input shape: {test_input.shape}")
+        
+        session = ReferenceEvaluator(onnx_model, verbose=0)
+        output, = session.run(None, {"input": test_input})
+        
+        print(f"Output: {output}")
+        print(f"Output shape: {output.shape}")
+        print(f"Expected: [2, 3, 4] (Shape(3) -> Shape(3) no-op)")
+        
+        # Verify the result
+        expected = np.array([2, 3, 4], dtype=np.int64)
+        assert np.array_equal(output, expected), f"Expected {expected}, got {output}"
+        print("Test passed: Shape(3) to Shape(3) reshape worked correctly")
+        
+    except Exception as e:
+        print(f"ReferenceEvaluator error: {e}")
 
 
 if __name__ == "__main__":

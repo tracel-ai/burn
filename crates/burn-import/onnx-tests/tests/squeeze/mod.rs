@@ -54,10 +54,10 @@ mod tests {
     fn squeeze_shape_noop() {
         let device = Default::default();
         let model = squeeze_shape_noop::Model::<Backend>::new(&device);
-        // Input tensor is 6x7x8x9
-        let input = Tensor::<Backend, 4>::ones([6, 7, 8, 9], &device);
-        // The model: Shape -> Slice(0:2) -> Squeeze(axis=0)
-        // Expected: [6, 7, 8, 9] -> [6, 7] -> [6, 7] (no-op)
+        // Input tensor is 6x7
+        let input = Tensor::<Backend, 2>::ones([6, 7], &device);
+        // The model: Shape -> Squeeze(axis=0)
+        // Expected: [6, 7] -> [6, 7] (no-op since axis 0 has size 6, not 1)
         let output = model.forward(input);
         assert_eq!(output, [6, 7]);
     }

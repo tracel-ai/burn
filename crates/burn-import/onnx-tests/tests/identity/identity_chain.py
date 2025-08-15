@@ -46,7 +46,7 @@ def main():
     model = helper.make_model(
         graph, 
         producer_name='test',
-        opset_imports=[helper.make_opsetid("", 16)]
+        opset_imports=[helper.make_operatorsetid("", 16)]
     )
     
     # Save the model

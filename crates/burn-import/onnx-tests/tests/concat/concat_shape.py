@@ -91,9 +91,9 @@ def main():
     
     print(f"Finished exporting model to {file_name}")
     
-    # Test with onnxruntime if available
+    # Test with onnx.reference.ReferenceEvaluator
     try:
-        import onnxruntime as ort
+        from onnx.reference import ReferenceEvaluator
         
         # Create test data
         test_input1 = np.ones((2, 3), dtype=np.float32)
@@ -101,7 +101,7 @@ def main():
         test_input3 = np.ones((7,), dtype=np.float32)
         
         # Run inference
-        sess = ort.InferenceSession(file_name)
+        sess = ReferenceEvaluator(onnx_model)
         result = sess.run(None, {
             "input1": test_input1, 
             "input2": test_input2,
@@ -115,7 +115,7 @@ def main():
         print(f"Expected: [2, 3, 4, 5, 6, 7]")
         
     except ImportError:
-        print("onnxruntime not available, skipping inference test")
+        print("onnx.reference not available, skipping inference test")
 
 
 if __name__ == "__main__":

@@ -40,21 +40,39 @@ def main():
     )
     
     # Create the model
-    model_def = helper.make_model(graph_def, producer_name="reshape_3d_to_scalar")
-    model_def.opset_import[0].version = 16
+    model_def = helper.make_model(
+        graph_def, 
+        producer_name="reshape_3d_to_scalar",
+        opset_imports=[helper.make_operatorsetid("", 16)]
+    )
     
     # Save the model
     onnx.save(model_def, "reshape_3d_to_scalar.onnx")
     print("Model exported successfully to reshape_3d_to_scalar.onnx")
     print("Model structure: Reshape([1, 1, 1] -> scalar)")
     
-    # Verify with numpy
-    test_input = np.array([[[2.5]]], dtype=np.float32)
-    print(f"Test input shape: {test_input.shape}")
-    print(f"Test input value: {test_input}")
-    reshaped = test_input.reshape(())  # Reshape to scalar
-    print(f"Reshaped shape: {reshaped.shape}")
-    print(f"Reshaped value: {reshaped}")
+    # Verify with onnx.reference.ReferenceEvaluator
+    try:
+        from onnx.reference import ReferenceEvaluator
+        
+        test_input = np.array([[[2.5]]], dtype=np.float32)
+        print(f"Test input shape: {test_input.shape}")
+        print(f"Test input value: {test_input}")
+        
+        # Run inference with ONNX model
+        sess = ReferenceEvaluator(model_def)
+        result = sess.run(None, {"input": test_input})
+        
+        print(f"ONNX model output shape: {result[0].shape}")
+        print(f"ONNX model output value: {result[0]}")
+        print(f"ONNX model output dtype: {result[0].dtype}")
+        
+    except ImportError:
+        print("onnx.reference not available, skipping ONNX model verification")
+        # Fallback to numpy verification
+        reshaped = test_input.reshape(())  # Reshape to scalar
+        print(f"NumPy reshaped shape: {reshaped.shape}")
+        print(f"NumPy reshaped value: {reshaped}")
 
 
 if __name__ == "__main__":

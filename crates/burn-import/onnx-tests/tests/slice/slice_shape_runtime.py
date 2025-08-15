@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from onnx import helper, TensorProto, save
+import onnx
 
 def build_manual_graph():
     """Build ONNX graph manually using ONNX helper functions"""
@@ -79,8 +80,11 @@ def build_manual_graph():
     )
     
     # Create the model
-    model = helper.make_model(graph, producer_name='slice_shape_runtime')
-    model.opset_import[0].version = 16
+    model = helper.make_model(
+        graph, 
+        producer_name='slice_shape_runtime',
+        opset_imports=[helper.make_operatorsetid('', 16)]
+    )
     
     return model
 
@@ -94,21 +98,47 @@ def main():
     save(model, 'slice_shape_runtime.onnx')
     print("Model saved to slice_shape_runtime.onnx")
     
-    # Test with dummy data
-    print("\nTesting with dummy data:")
-    input_data = np.random.randn(10, 8, 6).astype(np.float32)
-    shape_input_data = np.random.randn(3, 4).astype(np.float32)
-    
-    print(f"Input shape: {input_data.shape}")
-    print(f"Shape input shape: {shape_input_data.shape}")
-    
-    # Simulate the operations
-    shape = np.array(shape_input_data.shape)  # [3, 4]
-    print(f"Extracted shape: {shape}")
-    
-    # The slice uses shape as ends, slicing axes 0 and 1
-    print(f"Slice on axes [0, 1]: starts=[0, 0], ends={shape}")
-    print(f"Expected output shape: [3, 4, 6]")
+    # Test with ReferenceEvaluator to get actual results
+    print("\nTesting with ReferenceEvaluator:")
+    try:
+        from onnx.reference import ReferenceEvaluator
+        
+        input_data = np.random.randn(10, 8, 6).astype(np.float32)
+        shape_input_data = np.random.randn(3, 4).astype(np.float32)
+        
+        print(f"Input shape: {input_data.shape}")
+        print(f"Shape input shape: {shape_input_data.shape}")
+        
+        # Run with ReferenceEvaluator to get actual output
+        session = ReferenceEvaluator(model, verbose=0)
+        actual_output, = session.run(None, {"input": input_data, "shape_input": shape_input_data})
+        
+        print(f"Actual output shape: {actual_output.shape}")
+        print(f"Actual output dtype: {actual_output.dtype}")
+        
+        # Verify the slicing operation
+        shape = np.array(shape_input_data.shape)  # [3, 4]
+        print(f"Extracted shape (used as slice ends): {shape}")
+        print(f"Slice operation: input[0:{shape[0]}, 0:{shape[1]}, :] -> output[{actual_output.shape}]")
+        
+        # Manual verification
+        expected_output = input_data[0:shape[0], 0:shape[1], :]
+        print(f"Manual slice result shape: {expected_output.shape}")
+        print(f"Outputs match: {np.allclose(actual_output, expected_output)}")
+        
+    except ImportError:
+        print("onnx.reference not available, skipping ReferenceEvaluator test")
+        # Fallback to simulation
+        input_data = np.random.randn(10, 8, 6).astype(np.float32)
+        shape_input_data = np.random.randn(3, 4).astype(np.float32)
+        
+        print(f"Input shape: {input_data.shape}")
+        print(f"Shape input shape: {shape_input_data.shape}")
+        
+        shape = np.array(shape_input_data.shape)  # [3, 4]
+        print(f"Extracted shape: {shape}")
+        print(f"Slice on axes [0, 1]: starts=[0, 0], ends={shape}")
+        print(f"Expected output shape: [3, 4, 6]")
 
 if __name__ == "__main__":
     main()

@@ -56,8 +56,11 @@ def main():
         initializer=[start, end, reshape_target]
     )
     
-    onnx_model = helper.make_model(graph)
-    onnx_model.opset_import[0].version = 16
+    onnx_model = helper.make_model(
+        graph,
+        producer_name="reshape_shape_partial_test",
+        opset_imports=[helper.make_operatorsetid("", 16)]
+    )
     
     # Save the model
     onnx.save(onnx_model, "reshape_shape_partial.onnx")

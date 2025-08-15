@@ -46,8 +46,11 @@ def main():
         initializer=[reshape_target]
     )
     
-    onnx_model = helper.make_model(graph)
-    onnx_model.opset_import[0].version = 16
+    onnx_model = helper.make_model(
+        graph,
+        producer_name="reshape_shape_with_neg_test", 
+        opset_imports=[helper.make_operatorsetid("", 16)]
+    )
     
     # Save the model
     onnx.save(onnx_model, "reshape_shape_with_neg.onnx")
