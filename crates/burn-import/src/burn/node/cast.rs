@@ -6,22 +6,12 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 /// Node for cast operations.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct CastNode {
     pub input: Type,
     pub output: Type,
     /// Target element type from ONNX cast operation
     pub target_elem_type: ElementType,
-}
-
-impl CastNode {
-    pub fn new(input: Type, output: Type, target_elem_type: ElementType) -> Self {
-        Self {
-            input,
-            output,
-            target_elem_type,
-        }
-    }
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
