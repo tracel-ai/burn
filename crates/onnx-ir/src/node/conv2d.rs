@@ -87,7 +87,7 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
     let kernel_size = if kernel_shape.is_empty() {
         // https://onnx.ai/onnx/operators/onnx__Conv.html#attributes
         // Spec says if kernel shape not present in attributes it should be inferred from
-        // weight tensor, which has shape (M, C/group, kH, kW).
+        // the weight tensor, which has shape (M, C/group, kH, kW).
         if weight_shape.len() != 4 {
             panic!(
                 "expected to infer kernel shape from a weight tensor of rank 4 but got shape {weight_shape:?}"
@@ -131,15 +131,20 @@ mod tests {
         // [output_channels, input_channels/groups, k_h, k_w]
         let weight_shape = vec![4, 2, 2, 2];
 
+        let has_kernel_shape = !kernel_shape.is_empty();
+
         let mut builder = NodeBuilder::new(NodeType::Conv2d, "test_conv2d")
             .input_tensor_f32("data", 4, None)
             .input_tensor_f32_data("weight", weight_data.clone(), weight_shape)
             .output_tensor_f32("output", 4, None)
-            .attr_ints("kernel_shape", kernel_shape)
             .attr_ints("strides", strides)
             .attr_ints("pads", pads)
             .attr_ints("dilations", dilations)
             .attr_int("group", group);
+
+        if has_kernel_shape {
+            builder = builder.attr_ints("kernel_shape", kernel_shape);
+        }
 
         if has_bias {
             builder = builder.input_tensor_f32("bias", 1, None);
@@ -254,5 +259,21 @@ mod tests {
             Some("SAME_UPPER"),
         );
         let _config = conv2d_config(&node);
+    }
+
+    #[test]
+    fn test_conv2d_config_kernel_shape_not_set() {
+        let node = create_test_node(
+            vec![],
+            vec![1, 1],
+            vec![0, 0, 0, 0],
+            vec![1, 1],
+            1,
+            false,
+            None,
+        );
+        let config = conv2d_config(&node);
+
+        assert_eq!(config.kernel_size, [2, 2]); // Inferred via weight tensor shape
     }
 }
