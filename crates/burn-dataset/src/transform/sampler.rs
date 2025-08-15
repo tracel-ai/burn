@@ -1,8 +1,5 @@
 use crate::Dataset;
-use crate::transform::options::{RandomSource, ReplacementMode, WrapperSizeSource};
-use crate::transform::{
-    WithRandomSourceSetters, WithReplacementModeSetters, WithWrapperSizeSourceSetters,
-};
+use crate::transform::options::{ReplacementMode, RngSource, SizeConfig};
 use rand::prelude::SliceRandom;
 use rand::{Rng, distr::Uniform, rngs::StdRng, seq::IteratorRandom};
 use std::{marker::PhantomData, ops::DerefMut, sync::Mutex};
@@ -14,10 +11,10 @@ pub struct SamplerDatasetOptions {
     pub mode: ReplacementMode,
 
     /// The size source of the wrapper relative to the dataset.
-    pub size: WrapperSizeSource,
+    pub size: SizeConfig,
 
     /// The source of the random number generator.
-    pub rng: RandomSource,
+    pub rng: RngSource,
 }
 
 impl<T> From<Option<T>> for SamplerDatasetOptions
@@ -38,14 +35,9 @@ impl From<usize> for SamplerDatasetOptions {
     }
 }
 
-impl From<f64> for SamplerDatasetOptions {
-    fn from(ratio: f64) -> Self {
-        Self::default().with_size_ratio(ratio)
-    }
-}
-
-impl WithReplacementModeSetters for SamplerDatasetOptions {
-    fn with_replacement_mode<M>(self, mode: M) -> Self
+impl SamplerDatasetOptions {
+    /// Set the replacement mode.
+    pub fn with_replacement_mode<M>(self, mode: M) -> Self
     where
         M: Into<ReplacementMode>,
     {
@@ -54,29 +46,62 @@ impl WithReplacementModeSetters for SamplerDatasetOptions {
             ..self
         }
     }
-}
 
-impl WithWrapperSizeSourceSetters for SamplerDatasetOptions {
-    fn with_size<S>(self, source: S) -> Self
+    /// Set the replacement mode to WithReplacement.
+    pub fn with_replacement(self) -> Self {
+        self.with_replacement_mode(ReplacementMode::WithReplacement)
+    }
+
+    /// Set the replacement mode to WithoutReplacement.
+    pub fn without_replacement(self) -> Self {
+        self.with_replacement_mode(ReplacementMode::WithoutReplacement)
+    }
+
+    /// Set the size source.
+    pub fn with_size<S>(self, source: S) -> Self
     where
-        S: Into<WrapperSizeSource>,
+        S: Into<SizeConfig>,
     {
         Self {
             size: source.into(),
             ..self
         }
     }
-}
 
-impl WithRandomSourceSetters for SamplerDatasetOptions {
-    fn with_rng<R>(self, rng: R) -> Self
+    /// Set the size to the size of the source.
+    pub fn with_source_size(self) -> Self {
+        self.with_size(SizeConfig::Source)
+    }
+
+    /// Set the size to a fixed size.
+    pub fn with_fixed_size(self, size: usize) -> Self {
+        self.with_size(size)
+    }
+
+    /// Set the size to be a multiple of the ration and the source size.
+    pub fn with_size_ratio(self, size_ratio: f64) -> Self {
+        self.with_size(size_ratio)
+    }
+
+    /// Set the `RngSource`.
+    pub fn with_rng<R>(self, rng: R) -> Self
     where
-        R: Into<RandomSource>,
+        R: Into<RngSource>,
     {
         Self {
             rng: rng.into(),
             ..self
         }
+    }
+
+    /// Use the system rng.
+    pub fn with_system_rng(self) -> Self {
+        self.with_rng(RngSource::Default)
+    }
+
+    /// Use a rng, built from a seed.
+    pub fn with_seed(self, seed: u64) -> Self {
+        self.with_rng(seed)
     }
 }
 
@@ -130,9 +155,6 @@ where
     ///   ReplacementMode,
     ///   SamplerDataset,
     ///   SamplerDatasetOptions,
-    ///   WithRandomSourceSetters,
-    ///   WithReplacementModeSetters,
-    ///   WithWrapperSizeSourceSetters
     /// };
     /// use burn_dataset::FakeDataset;
     ///
@@ -140,11 +162,6 @@ where
     /// // WithReplacement
     /// // rng: StdRng::from_os_rng()
     /// SamplerDataset::new(FakeDataset::<String>::new(10), 5);
-    ///
-    /// // sample size: 15
-    /// // WithReplacement
-    /// // rng: StdRng::from_os_rng()
-    /// SamplerDataset::new(FakeDataset::<String>::new(10), 1.5);
     ///
     /// // sample size: 10
     /// // WithReplacement
@@ -287,20 +304,42 @@ where
 mod tests {
     use super::*;
     use crate::FakeDataset;
+    use rand::SeedableRng;
     use std::collections::HashMap;
 
     #[test]
     fn test_samplerdataset_options() {
         let options = SamplerDatasetOptions::default();
         assert_eq!(options.mode, ReplacementMode::default());
-        assert_eq!(options.size, WrapperSizeSource::Source);
-        assert_eq!(options.rng, RandomSource::System);
+        assert_eq!(options.size, SizeConfig::Source);
+        assert_eq!(options.rng, RngSource::Default);
 
+        // ReplacementMode
         let options = options.with_replacement_mode(ReplacementMode::WithoutReplacement);
         assert_eq!(options.mode, ReplacementMode::WithoutReplacement);
-
         let options = options.with_replacement();
         assert_eq!(options.mode, ReplacementMode::WithReplacement);
+        let options = options.without_replacement();
+        assert_eq!(options.mode, ReplacementMode::WithoutReplacement);
+
+        // SourceSize
+        let options = options.with_size(SizeConfig::Source);
+        assert_eq!(options.size, SizeConfig::Source);
+        let options = options.with_source_size();
+        assert_eq!(options.size, SizeConfig::Source);
+        let options = options.with_fixed_size(10);
+        assert_eq!(options.size, SizeConfig::Fixed(10));
+        let options = options.with_size_ratio(1.5);
+        assert_eq!(options.size, SizeConfig::Ratio(1.5));
+
+        // RngSource
+        let options = options.with_system_rng();
+        assert_eq!(options.rng, RngSource::Default);
+        let options = options.with_seed(42);
+        assert_eq!(options.rng, RngSource::Seed(42));
+        let rng = StdRng::seed_from_u64(9);
+        let options = options.with_rng(rng.clone());
+        assert_eq!(options.rng, RngSource::Rng(rng.clone()));
     }
 
     #[test]
