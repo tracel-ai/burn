@@ -99,7 +99,7 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
     let channels_out = weight_shape[0];
 
     let kernel_size = if kernel_shape.is_empty() {
-        // https://onnx.ai/onnx/operators/onnx__Conv.html#attributes
+        // https://onnx.ai/onnx/operators/onnx__ConvTranspose.html
         // Spec says if kernel shape not present in attributes it should be inferred from the weight tensor
         if weight_shape.len() != 3 {
             panic!(
