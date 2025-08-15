@@ -531,6 +531,37 @@ impl FuseOptimizationBuilder {
                     Some(())
                 })
             }
+            NumericOperationIr::Rem(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
+                FuseOp::Rem(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            NumericOperationIr::RemScalar(desc) => self
+                .register_scalar_ops(desc, |lhs, rhs, out| {
+                    FuseOp::Rem(BinaryFuseArgs { lhs, rhs, out })
+                }),
+            NumericOperationIr::Powf(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
+                FuseOp::Powf(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            NumericOperationIr::Clamp(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                self.builder.register(|build| {
+                    let input = build.input(&desc.tensor)?;
+                    let min = build.scalar(&desc.min, desc.out.dtype);
+                    let max = build.scalar(&desc.max, desc.out.dtype);
+                    let out = build.output(&desc.out)?;
+
+                    build.register_operation(FuseOp::Clamp {
+                        input,
+                        min,
+                        max,
+                        out,
+                    });
+
+                    Some(())
+                })
+            }
             _ => false,
         }
     }
