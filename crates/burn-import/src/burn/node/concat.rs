@@ -5,22 +5,11 @@ use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ConcatNode {
     pub inputs: Vec<Type>,
     pub output: Type,
     pub dim: usize,
-}
-
-impl ConcatNode {
-    /// Create a new concat node
-    pub fn new(inputs: Vec<Type>, output: Type, dim: usize) -> Self {
-        Self {
-            inputs,
-            output,
-            dim,
-        }
-    }
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ConcatNode {
