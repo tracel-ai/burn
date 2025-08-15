@@ -84,20 +84,7 @@ impl ReshapeNode {
                     let #output_name = #input.into_scalar().elem::<#elem_type>();
                 }
             }
-            Type::Shape(shape) => {
-                let output_name = &shape.name;
-                let output_rank = shape.rank;
-                quote! {
-                    let #output_name: [i64; #output_rank] = {
-                        let reshaped = #input.reshape([#output_rank]);
-                        let data = reshaped.into_data();
-                        let values = data.as_slice::<i64>().unwrap();
-                        let mut result = [0i64; #output_rank];
-                        result.copy_from_slice(&values[..#output_rank]);
-                        result
-                    };
-                }
-            }
+            Type::Shape(_) => unimplemented!("Tensor to Shape is not supported"),
             Type::Tensor(output_tensor) => {
                 let output = &output_tensor.name;
                 match &self.shape {
