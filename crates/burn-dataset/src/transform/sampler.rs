@@ -1,20 +1,30 @@
 use crate::Dataset;
-use crate::transform::options::{ReplacementMode, RngSource, SizeConfig};
+use crate::transform::{RngSource, SizeConfig};
 use rand::prelude::SliceRandom;
 use rand::{Rng, distr::Uniform, rngs::StdRng, seq::IteratorRandom};
 use std::{marker::PhantomData, ops::DerefMut, sync::Mutex};
 
 /// Options to configure a [SamplerDataset].
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SamplerDatasetOptions {
     /// The sampling mode.
-    pub mode: ReplacementMode,
+    pub replace_samples: bool,
 
     /// The size source of the wrapper relative to the dataset.
-    pub size: SizeConfig,
+    pub size_config: SizeConfig,
 
     /// The source of the random number generator.
-    pub rng: RngSource,
+    pub rng_source: RngSource,
+}
+
+impl Default for SamplerDatasetOptions {
+    fn default() -> Self {
+        Self {
+            replace_samples: true,
+            size_config: SizeConfig::Default,
+            rng_source: RngSource::Default,
+        }
+    }
 }
 
 impl<T> From<Option<T>> for SamplerDatasetOptions
@@ -31,30 +41,27 @@ where
 
 impl From<usize> for SamplerDatasetOptions {
     fn from(size: usize) -> Self {
-        Self::default().with_fixed_size(size)
+        Self::default().with_replacement().with_fixed_size(size)
     }
 }
 
 impl SamplerDatasetOptions {
     /// Set the replacement mode.
-    pub fn with_replacement_mode<M>(self, mode: M) -> Self
-    where
-        M: Into<ReplacementMode>,
-    {
+    pub fn with_replace_samples(self, replace_samples: bool) -> Self {
         Self {
-            mode: mode.into(),
+            replace_samples,
             ..self
         }
     }
 
     /// Set the replacement mode to WithReplacement.
     pub fn with_replacement(self) -> Self {
-        self.with_replacement_mode(ReplacementMode::WithReplacement)
+        self.with_replace_samples(true)
     }
 
     /// Set the replacement mode to WithoutReplacement.
     pub fn without_replacement(self) -> Self {
-        self.with_replacement_mode(ReplacementMode::WithoutReplacement)
+        self.with_replace_samples(false)
     }
 
     /// Set the size source.
@@ -63,7 +70,7 @@ impl SamplerDatasetOptions {
         S: Into<SizeConfig>,
     {
         Self {
-            size: source.into(),
+            size_config: source.into(),
             ..self
         }
     }
@@ -89,7 +96,7 @@ impl SamplerDatasetOptions {
         R: Into<RngSource>,
     {
         Self {
-            rng: rng.into(),
+            rng_source: rng.into(),
             ..self
         }
     }
@@ -152,7 +159,6 @@ where
     /// ## Examples
     /// ```rust,no_run
     /// use burn_dataset::transform::{
-    ///   ReplacementMode,
     ///   SamplerDataset,
     ///   SamplerDatasetOptions,
     /// };
@@ -185,16 +191,14 @@ where
         O: Into<SamplerDatasetOptions>,
     {
         let options = options.into();
-        let size = options.size.resolve(dataset.len());
-        let rng = options.rng.into();
+        let size = options.size_config.resolve(dataset.len());
+        let rng = options.rng_source.into();
         Self {
             dataset,
             size,
-            state: Mutex::new(match options.mode {
-                ReplacementMode::WithReplacement => SamplerState::WithReplacement(rng),
-                ReplacementMode::WithoutReplacement => {
-                    SamplerState::WithoutReplacement(rng, Vec::with_capacity(size))
-                }
+            state: Mutex::new(match options.replace_samples {
+                true => SamplerState::WithReplacement(rng),
+                false => SamplerState::WithoutReplacement(rng, Vec::with_capacity(size)),
             }),
             input: PhantomData,
         }
@@ -310,36 +314,36 @@ mod tests {
     #[test]
     fn test_samplerdataset_options() {
         let options = SamplerDatasetOptions::default();
-        assert_eq!(options.mode, ReplacementMode::default());
-        assert_eq!(options.size, SizeConfig::Default);
-        assert_eq!(options.rng, RngSource::Default);
+        assert_eq!(options.replace_samples, true);
+        assert_eq!(options.size_config, SizeConfig::Default);
+        assert_eq!(options.rng_source, RngSource::Default);
 
         // ReplacementMode
-        let options = options.with_replacement_mode(ReplacementMode::WithoutReplacement);
-        assert_eq!(options.mode, ReplacementMode::WithoutReplacement);
+        let options = options.with_replace_samples(false);
+        assert_eq!(options.replace_samples, false);
         let options = options.with_replacement();
-        assert_eq!(options.mode, ReplacementMode::WithReplacement);
+        assert_eq!(options.replace_samples, true);
         let options = options.without_replacement();
-        assert_eq!(options.mode, ReplacementMode::WithoutReplacement);
+        assert_eq!(options.replace_samples, false);
 
         // SourceSize
         let options = options.with_size(SizeConfig::Default);
-        assert_eq!(options.size, SizeConfig::Default);
+        assert_eq!(options.size_config, SizeConfig::Default);
         let options = options.with_source_size();
-        assert_eq!(options.size, SizeConfig::Default);
+        assert_eq!(options.size_config, SizeConfig::Default);
         let options = options.with_fixed_size(10);
-        assert_eq!(options.size, SizeConfig::Fixed(10));
+        assert_eq!(options.size_config, SizeConfig::Fixed(10));
         let options = options.with_size_ratio(1.5);
-        assert_eq!(options.size, SizeConfig::Ratio(1.5));
+        assert_eq!(options.size_config, SizeConfig::Ratio(1.5));
 
         // RngSource
         let options = options.with_system_rng();
-        assert_eq!(options.rng, RngSource::Default);
+        assert_eq!(options.rng_source, RngSource::Default);
         let options = options.with_seed(42);
-        assert_eq!(options.rng, RngSource::Seed(42));
+        assert_eq!(options.rng_source, RngSource::Seed(42));
         let rng = StdRng::seed_from_u64(9);
         let options = options.with_rng(rng.clone());
-        assert_eq!(options.rng, RngSource::Rng(rng.clone()));
+        assert_eq!(options.rng_source, RngSource::Rng(rng.clone()));
     }
 
     #[test]

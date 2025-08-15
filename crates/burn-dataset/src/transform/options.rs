@@ -95,37 +95,6 @@ impl From<f64> for SizeConfig {
     }
 }
 
-/// Replacement sampling mode.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum ReplacementMode {
-    /// New samples are selected with replacement.
-    #[default]
-    WithReplacement,
-
-    /// New samples are selected without replacement;
-    /// unless sampling more than the source dataset.
-    WithoutReplacement,
-}
-
-impl From<bool> for ReplacementMode {
-    fn from(value: bool) -> Self {
-        if value {
-            Self::WithReplacement
-        } else {
-            Self::WithoutReplacement
-        }
-    }
-}
-
-impl From<ReplacementMode> for bool {
-    fn from(mode: ReplacementMode) -> Self {
-        match mode {
-            ReplacementMode::WithReplacement => true,
-            ReplacementMode::WithoutReplacement => false,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,25 +148,5 @@ mod tests {
 
         assert_eq!(SizeConfig::source(), SizeConfig::Default);
         assert_eq!(SizeConfig::source().resolve(50), 50);
-    }
-
-    #[test]
-    fn test_replacementmode() {
-        assert_eq!(ReplacementMode::default(), ReplacementMode::WithReplacement);
-
-        assert_eq!(
-            ReplacementMode::from(true),
-            ReplacementMode::WithReplacement
-        );
-        assert_eq!(
-            ReplacementMode::from(false),
-            ReplacementMode::WithoutReplacement
-        );
-
-        let a: bool = ReplacementMode::WithReplacement.into();
-        assert_eq!(a, true);
-
-        let b: bool = ReplacementMode::WithoutReplacement.into();
-        assert_eq!(b, false);
     }
 }
