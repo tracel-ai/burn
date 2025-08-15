@@ -49,7 +49,7 @@ pub struct FuseBlockBuilder {
 #[derive(Debug)]
 /// How a quantized input can be read.
 pub enum QuantInput {
-    /// If already quantize, we cache the dequantization and returns the local variable
+    /// If already dequantized, we cache the dequantization and returns the local variable
     /// corresponding to the float value.
     AlreadyDequantized { local: Arg },
     /// Otherwise we return the information necessary to dequantize the tensor.
@@ -75,10 +75,10 @@ impl FuseBlockBuilder {
         if resources.indexed.contains_key(&tensor.id) {
             return None;
         }
-        let precision = match tensor.dtype {
-            DType::QFloat(_) => return None,
-            _ => tensor.dtype.into(),
-        };
+        if matches!(tensor.dtype, DType::QFloat(..)) {
+            return None;
+        }
+        let precision = tensor.dtype.into();
 
         // Bool tensors are encoded as bool_precision.
         let precision_output = match precision {
@@ -107,10 +107,10 @@ impl FuseBlockBuilder {
             return None;
         }
 
-        let precision = match tensor.dtype {
-            DType::QFloat(_) => return None,
-            _ => tensor.dtype.into(),
-        };
+        if matches!(tensor.dtype, DType::QFloat(..)) {
+            return None;
+        }
+        let precision = tensor.dtype.into();
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
@@ -205,10 +205,10 @@ impl FuseBlockBuilder {
         dims: (u32, u32),
         resources: &mut FuseResources,
     ) -> Option<Arg> {
-        let precision = match tensor.dtype {
-            DType::QFloat(_) => return None,
-            _ => tensor.dtype.into(),
-        };
+        if matches!(tensor.dtype, DType::QFloat(..)) {
+            return None;
+        }
+        let precision = tensor.dtype.into();
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
@@ -275,10 +275,10 @@ impl FuseBlockBuilder {
         output: &TensorIr,
         resources: &mut FuseResources,
     ) -> Option<Arg> {
-        let precision = match tensor.dtype {
-            DType::QFloat(_) => return None,
-            _ => tensor.dtype.into(),
-        };
+        if matches!(tensor.dtype, DType::QFloat(..)) {
+            return None;
+        }
+        let precision = tensor.dtype.into();
 
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {

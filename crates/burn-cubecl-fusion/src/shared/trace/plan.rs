@@ -11,7 +11,6 @@ use std::collections::BTreeMap;
 /// at one place.
 #[derive(Debug)]
 pub(crate) struct LaunchPlan<'a, R: Runtime> {
-    // pub global_inputs: Vec<TensorIr>,
     pub global_outputs: Vec<TensorIr>,
     pub handle_inputs: Vec<HandleInput<R>>,
     pub handle_outputs: Vec<HandleOutput<R>>,
@@ -101,7 +100,6 @@ impl<R: Runtime> LaunchPlan<'_, R> {
         }
 
         LaunchPlan {
-            // global_inputs: Vec::new(),
             global_outputs: Vec::new(),
             handle_inputs: Vec::new(),
             handle_outputs: Vec::new(),
