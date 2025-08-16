@@ -27,14 +27,13 @@ mod tests {
             .into_data()
             .assert_eq(&TensorData::from([[2, 2], [2, 2]]), false);
 
-        // TODO enable after adding support for bool
-        // // Test full with bool
-        // let bool_tensor = TestTensorBool::<2>::full([2, 2], true, &device);
-        // let data_expected = TensorData::from([[true, true], [true, true]]);
-        // assert_eq!(data_expected, bool_tensor.into_data());
+        // Test full with bool
+        let bool_tensor = TestTensorBool::<2>::full([2, 2], true, &device);
+        let data_expected = TensorData::from([[true, true], [true, true]]);
+        assert_eq!(data_expected, bool_tensor.into_data());
 
-        // let bool_tensor = TestTensorBool::<2>::full([2, 2], false, &device);
-        // let data_expected = TensorData::from([[false, false], [false, false]]);
-        // assert_eq!(data_expected, bool_tensor.into_data());
+        let bool_tensor = TestTensorBool::<2>::full([2, 2], false, &device);
+        let data_expected = TensorData::from([[false, false], [false, false]]);
+        assert_eq!(data_expected, bool_tensor.into_data());
     }
 }
