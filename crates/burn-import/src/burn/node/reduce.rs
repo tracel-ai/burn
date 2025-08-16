@@ -181,9 +181,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
                 match &self.input {
                     Type::Tensor(tensor) => match tensor.kind {
                         TensorKind::Int => {
+                            // Cast to F32 before sqrt to avoid overflow/underflow in lower precision types,
+                            // as per ONNX ReduceL2 specification: https://onnx.ai/onnx/operators/onnx__ReduceL2.html#function-body
                             quote! { #input_square_reduced.float().cast(burn::tensor::DType::F32).sqrt().int() }
                         }
                         TensorKind::Float => {
+                            // Cast to F32 before sqrt to avoid overflow/underflow in lower precision types,
+                            // then cast back to original dtype to maintain input precision
                             quote! {
                                 let input_dtype = #input.dtype();
                                 #input_square_reduced.cast(burn::tensor::DType::F32).sqrt().cast(input_dtype)
