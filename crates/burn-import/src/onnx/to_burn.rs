@@ -961,80 +961,80 @@ impl ParsedOnnxGraph {
     }
 
     fn reduce_max_conversion(node: Node) -> ReduceNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let config = reduce_config(&node);
 
         ReduceNode::new(input, output, ReductionType::Max, config)
     }
 
     fn reduce_min_conversion(node: Node) -> ReduceNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let config = reduce_config(&node);
 
         ReduceNode::new(input, output, ReductionType::Min, config)
     }
 
     fn reduce_mean_conversion(node: Node) -> ReduceNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let config = reduce_config(&node);
 
         ReduceNode::new(input, output, ReductionType::Mean, config)
     }
 
     fn reduce_prod_conversion(node: Node) -> ReduceNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let config = reduce_config(&node);
 
         ReduceNode::new(input, output, ReductionType::Prod, config)
     }
 
     fn reduce_sum_conversion(node: Node) -> ReduceNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let config = reduce_config(&node);
 
         ReduceNode::new(input, output, ReductionType::Sum, config)
     }
 
     fn reduce_sum_square_conversion(node: Node) -> ReduceNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let config = reduce_config(&node);
 
         ReduceNode::new(input, output, ReductionType::SumSquare, config)
     }
 
     fn reduce_l1_conversion(node: Node) -> ReduceNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let config = reduce_config(&node);
 
         ReduceNode::new(input, output, ReductionType::L1, config)
     }
 
     fn reduce_l2_conversion(node: Node) -> ReduceNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let config = reduce_config(&node);
 
         ReduceNode::new(input, output, ReductionType::L2, config)
     }
 
     fn reduce_log_sum_conversion(node: Node) -> ReduceNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let config = reduce_config(&node);
 
         ReduceNode::new(input, output, ReductionType::LogSum, config)
     }
 
     fn reduce_log_sum_exp_conversion(node: Node) -> ReduceNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let config = reduce_config(&node);
 
         ReduceNode::new(input, output, ReductionType::LogSumExp, config)

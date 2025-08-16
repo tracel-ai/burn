@@ -73,43 +73,55 @@ pub fn reduce_update_outputs(node: &mut Node) {
     );
 
     let config = reduce_config(node);
-    let output_rank = if config.keepdims {
-        tensor.rank
-    } else if config.dims.is_empty() {
-        1
+    
+    // Determine if the output should be a scalar
+    let should_be_scalar = !config.keepdims && 
+        (config.dims.is_empty() || config.dims.len() == tensor.rank);
+
+    if should_be_scalar {
+        // Output is a scalar
+        log::debug!(
+            "{} output is scalar for node {}",
+            node.node_type,
+            node.name
+        );
+        node.outputs[0].ty = ArgType::Scalar(tensor.elem_type.clone());
     } else {
-        tensor.rank - config.dims.len()
-    };
-
-    // Infer static shape based if given
-    let output_shape = tensor.static_shape.clone().map(|mut shape| {
-        if config.keepdims {
-            for dim in config.dims {
-                shape[dim] = 1;
-            }
-            shape
-        } else if config.dims.is_empty() {
-            vec![1]
+        // Output is a tensor
+        let output_rank = if config.keepdims {
+            tensor.rank
         } else {
-            for dim in config.dims.iter().rev() {
-                shape.remove(*dim);
+            tensor.rank - config.dims.len()
+        };
+
+        // Infer static shape based if given
+        let output_shape = tensor.static_shape.clone().map(|mut shape| {
+            if config.keepdims {
+                for dim in config.dims {
+                    shape[dim] = 1;
+                }
+                shape
+            } else {
+                for dim in config.dims.iter().rev() {
+                    shape.remove(*dim);
+                }
+                shape
             }
-            shape
-        }
-    });
+        });
 
-    log::debug!(
-        "{} output rank for {}: {}",
-        node.node_type,
-        node.name,
-        output_rank
-    );
+        log::debug!(
+            "{} output rank for {}: {}",
+            node.node_type,
+            node.name,
+            output_rank
+        );
 
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: tensor.elem_type.clone(),
-        rank: output_rank,
-        static_shape: output_shape,
-    });
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: tensor.elem_type.clone(),
+            rank: output_rank,
+            static_shape: output_shape,
+        });
+    }
 }
 
 #[cfg(test)]
@@ -176,5 +188,83 @@ mod tests {
 
         assert_eq!(config.dims, [1]);
         assert_eq!(config.keepdims, false);
+    }
+
+    #[test]
+    fn test_reduce_update_outputs_scalar_no_axes_no_keepdims() {
+        // Test that reduce with no axes and keepdims=false produces a scalar output
+        let mut node = create_test_node(None, Some(0));
+        reduce_update_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Scalar(_) => {
+                // This is the expected case - scalar output
+            }
+            ArgType::Tensor(_) => {
+                panic!("Expected scalar output but got tensor");
+            }
+            _ => {
+                panic!("Unexpected output type");
+            }
+        }
+    }
+
+    #[test]
+    fn test_reduce_update_outputs_scalar_all_dims_no_keepdims() {
+        // Test that reduce with all dimensions and keepdims=false produces a scalar output
+        let mut node = create_test_node(Some(vec![0, 1, 2]), Some(0));
+        reduce_update_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Scalar(_) => {
+                // This is the expected case - scalar output
+            }
+            ArgType::Tensor(_) => {
+                panic!("Expected scalar output but got tensor");
+            }
+            _ => {
+                panic!("Unexpected output type");
+            }
+        }
+    }
+
+    #[test]
+    fn test_reduce_update_outputs_tensor_partial_dims_no_keepdims() {
+        // Test that reduce with partial dimensions and keepdims=false produces a tensor output
+        let mut node = create_test_node(Some(vec![1]), Some(0));
+        reduce_update_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                // Should be rank 2 (3 - 1 = 2)
+                assert_eq!(tensor.rank, 2);
+            }
+            ArgType::Scalar(_) => {
+                panic!("Expected tensor output but got scalar");
+            }
+            _ => {
+                panic!("Unexpected output type");
+            }
+        }
+    }
+
+    #[test]
+    fn test_reduce_update_outputs_tensor_with_keepdims() {
+        // Test that reduce with keepdims=true always produces a tensor output
+        let mut node = create_test_node(None, Some(1));
+        reduce_update_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                // Should maintain original rank when keepdims=true
+                assert_eq!(tensor.rank, 3);
+            }
+            ArgType::Scalar(_) => {
+                panic!("Expected tensor output but got scalar when keepdims=true");
+            }
+            _ => {
+                panic!("Unexpected output type");
+            }
+        }
     }
 }
