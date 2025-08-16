@@ -101,6 +101,7 @@ fn main() {
         .input("tests/gather/gather_2d_idx.onnx")
         .input("tests/gather/gather_scalar.onnx")
         .input("tests/gather/gather_shape.onnx")
+        .input("tests/gather/gather_with_shape_indices.onnx")
         .input("tests/gather/gather_scalar_out.onnx")
         .input("tests/gather_elements/gather_elements.onnx")
         .input("tests/gelu/gelu.onnx")
