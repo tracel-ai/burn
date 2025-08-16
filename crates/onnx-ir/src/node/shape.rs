@@ -8,15 +8,23 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
         );
     }
 
-    // Extract the shape of the input tensor
-    let tensor = match curr.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
+    // Extract the rank/dimension count from the input
+    let rank = match &curr.inputs.first().unwrap().ty {
+        ArgType::Tensor(tensor) => tensor.rank,
+        ArgType::Shape(rank) => {
+            // When Shape is applied to a Shape type, we're getting the "shape of the shape"
+            // which is just the number of dimensions (rank) as a 1D tensor
+            *rank
+        }
+        _ => panic!(
+            "Shape operation expects Tensor or Shape input, got {:?}",
+            curr.inputs.first().unwrap().ty
+        ),
     };
 
     // Default: all axes up to the last one (included)
     let mut start_dim: i64 = 0;
-    let mut end_dim: i64 = tensor.rank as i64;
+    let mut end_dim: i64 = rank as i64;
 
     // Extract the attributes
     for (key, value) in curr.attrs.iter() {
@@ -29,10 +37,10 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
 
     // If dim is negative, it is counted from the end
     if start_dim < 0 {
-        start_dim += tensor.rank as i64;
+        start_dim += rank as i64;
     }
     if end_dim < 0 {
-        end_dim += tensor.rank as i64;
+        end_dim += rank as i64;
     }
 
     (start_dim as usize, end_dim as usize)
@@ -43,6 +51,21 @@ pub fn shape_update_outputs(node: &mut Node) {
     if node.inputs.len() != 1 {
         panic!("Shape: multiple inputs are not supported: {node:?}");
     }
+
+    // Special case: Shape of Shape returns a 1D tensor with single element (the rank)
+    if let ArgType::Shape(rank) = &node.inputs[0].ty {
+        // The shape of a shape is always a 1D tensor with one element
+        // containing the rank/number of dimensions
+        // Since Shape types are [i64; N], getting their shape gives us [N] which is Shape(1)
+        log::debug!(
+            "Shape operation on Shape({}) input for node {}: output is Shape(1)",
+            rank,
+            node.name
+        );
+        node.outputs[0].ty = ArgType::Shape(1);
+        return;
+    }
+
     let (start, end) = shape_config(node);
     let dim = end - start;
     log::debug!(
@@ -133,5 +156,56 @@ mod tests {
             passed: true,
         });
         let _ = shape_config(&node);
+    }
+
+    #[test]
+    fn test_shape_of_shape() {
+        // Test Shape operation on Shape input
+        let mut node = NodeBuilder::new(NodeType::Shape, "test_shape_of_shape")
+            .add_input("shape_input", ArgType::Shape(3)) // Input is Shape(3) - a 3D shape
+            .output_tensor_i64("output", 1, None)
+            .build();
+
+        // Before update
+        assert!(matches!(node.inputs[0].ty, ArgType::Shape(3)));
+
+        // Apply shape_update_outputs
+        shape_update_outputs(&mut node);
+
+        // After update: Shape of Shape(3) should give Shape(1)
+        // because [i64; 3] has shape [3] which is 1D
+        assert!(matches!(node.outputs[0].ty, ArgType::Shape(1)));
+    }
+
+    #[test]
+    fn test_shape_config_with_shape_input() {
+        // Test shape_config with Shape input
+        let node = NodeBuilder::new(NodeType::Shape, "test_shape_config_shape")
+            .add_input("shape_input", ArgType::Shape(5)) // Input is Shape(5)
+            .output_tensor_i64("output", 1, None)
+            .build();
+
+        let (start, end) = shape_config(&node);
+        // Shape(5) means a 5-dimensional shape, so getting its shape
+        // would be from 0 to 5 (the full extent)
+        assert_eq!(start, 0);
+        assert_eq!(end, 5);
+    }
+
+    #[test]
+    fn test_shape_of_shape_with_attributes() {
+        // Test Shape operation on Shape input with start/end attributes
+        let mut node = NodeBuilder::new(NodeType::Shape, "test_shape_of_shape_attrs")
+            .add_input("shape_input", ArgType::Shape(4)) // Input is Shape(4)
+            .output_tensor_i64("output", 1, None)
+            .attr_int("start", 1)
+            .attr_int("end", 3)
+            .build();
+
+        shape_update_outputs(&mut node);
+
+        // Even with start/end attributes, Shape of Shape always outputs Shape(1)
+        // because we're getting the shape of the shape array itself
+        assert!(matches!(node.outputs[0].ty, ArgType::Shape(1)));
     }
 }

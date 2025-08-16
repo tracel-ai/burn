@@ -33,8 +33,8 @@ impl ConstantOfShapeNode {
             "ConstantOfShape input needs to be a Shape!"
         );
         assert!(
-            matches!(output, Type::Tensor(_)),
-            "ConstantOfShape output needs to be a Tensor!"
+            matches!(output, Type::Tensor(_) | Type::Scalar(_) | Type::Shape(_)),
+            "ConstantOfShape output needs to be a Tensor, Scalar, or Shape!"
         );
         Self {
             input,
@@ -103,34 +103,60 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
     fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {
         let output = self.output.name();
         let input = self.input.name();
-
-        let output_rank = match &self.output {
-            Type::Tensor(tensor) => tensor.rank.to_tokens(),
-            _ => unreachable!(),
-        };
-
         let value = self.value.val_tokens();
-        // Note: in the generated code, self.device is a &module::Ignored<Device>,
-        // so to get a &Device, &* is needed
 
-        match &self.value {
-            ConstantValue::Bool(bool) => {
-                // Currently there is no full bool tensor support in the backend
-                // So we use 0 or 1 with bool type casting
-                // See: https://github.com/tracel-ai/burn/issues/1535
-                if *bool {
-                    quote! {
-                        let #output = Tensor::<B, #output_rank, Int>::ones(#input, &*self.device).bool();
-                    }
-                } else {
-                    quote! {
-                        let #output = Tensor::<B, #output_rank, Int>::zeros(#input, &*self.device).bool();
-                    }
+        match &self.output {
+            Type::Scalar(scalar) => {
+                // For scalar output, the input shape should be empty (rank 0)
+                // Just return the constant value directly
+                let ty = scalar.ty();
+                quote! {
+                    let #output: #ty = #value;
                 }
             }
-            _ => quote! {
-                let #output = Tensor::full(#input, #value, &*self.device);
-            },
+            Type::Tensor(tensor) => {
+                let output_rank = tensor.rank.to_tokens();
+
+                // Note: in the generated code, self.device is a &module::Ignored<Device>,
+                // so to get a &Device, &* is needed
+
+                // Shape (i64 array) now implements Into<Shape> directly
+                let shape_expr = quote! { #input };
+
+                match &self.value {
+                    ConstantValue::Bool(bool) => {
+                        // Currently there is no full bool tensor support in the backend
+                        // So we use 0 or 1 with bool type casting
+                        // See: https://github.com/tracel-ai/burn/issues/1535
+                        if *bool {
+                            quote! {
+                                let #output = Tensor::<B, #output_rank, Int>::ones(#shape_expr, &*self.device).bool();
+                            }
+                        } else {
+                            quote! {
+                                let #output = Tensor::<B, #output_rank, Int>::zeros(#shape_expr, &*self.device).bool();
+                            }
+                        }
+                    }
+                    _ => quote! {
+                        let #output = Tensor::full(#shape_expr, #value, &*self.device);
+                    },
+                }
+            }
+            Type::Shape(shape) => {
+                // Optimization: When ConstantOfShape outputs Shape(1) with Int64,
+                // we directly create a shape array instead of a tensor.
+                // This is a common pattern for shape manipulation operations.
+                assert_eq!(shape.rank, 1, "Shape optimization only supports Shape(1)");
+
+                // The input is Shape(1) which means [N] where N is the dimension
+                // We need to create a shape array with that single value
+                quote! {
+                    // Input shape tells us the size, value tells us what to fill
+                    let #output: [i64; 1] = [#value];
+                }
+            }
+            _ => unreachable!("ConstantOfShape output must be Tensor, Scalar, or Shape"),
         }
     }
 
@@ -197,9 +223,103 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, shape1: [usize;4]) -> Tensor<B, 4> {
+                pub fn forward(&self, shape1: [i64;4]) -> Tensor<B, 4> {
                     let tensor2 = Tensor::full(shape1, 1.25f32, &*self.device);
                     tensor2
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_scalar_output() {
+        use crate::burn::ScalarType;
+
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(ConstantOfShapeNode::new(
+            Type::Shape(ShapeType::new("shape1", 0)),
+            Type::Scalar(ScalarType::new("scalar1", crate::burn::ScalarKind::Float32)),
+            ConstantValue::Float32(42.0f32),
+        ));
+
+        graph.register_input_output(vec!["shape1".to_string()], vec!["scalar1".to_string()]);
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::backend::Backend,
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, shape1: [i64;0]) -> f32 {
+                    let scalar1: f32 = 42f32;
+                    scalar1
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_shape_output() {
+        use crate::burn::ShapeType;
+
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(ConstantOfShapeNode::new(
+            Type::Shape(ShapeType::new("shape_input", 1)),
+            Type::Shape(ShapeType::new("shape_output", 1)),
+            ConstantValue::Int64(10i64),
+        ));
+
+        graph.register_input_output(
+            vec!["shape_input".to_string()],
+            vec!["shape_output".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::backend::Backend,
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, shape_input: [i64;1]) -> [i64;1] {
+                    // Input shape tells us the size, value tells us what to fill
+                    let shape_output: [i64; 1] = [10i64];
+                    shape_output
                 }
             }
         };

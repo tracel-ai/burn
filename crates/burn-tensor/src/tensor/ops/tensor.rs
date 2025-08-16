@@ -1,6 +1,8 @@
 use super::cat::cat_with_slice_assign;
+use super::grid_sample::float_grid_sample_2d_bilinear;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
+use crate::ops::InterpolateMode;
 use crate::{Distribution, ElementConversion, Float, TensorData, backend::Backend, tensor::Shape};
 use crate::{FloatDType, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
@@ -1341,5 +1343,30 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
     fn float_argsort(tensor: FloatTensor<B>, dim: usize, descending: bool) -> IntTensor<B> {
         argsort::<B, Float>(TensorPrimitive::Float(tensor), dim, descending)
+    }
+
+    /// Samples tensor as a two-dimensional spatial grid of (possibly multi-channel) values,
+    /// using the given locations in [-1, 1].
+    ///
+    /// Interpolation is bilinear.
+    /// Padding is border: out of bounds locations will be clamped to the nearest border
+    ///
+    /// * `tensor` - The tensor being sampled from, shape (N, C, H_in, W_in)
+    /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
+    ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
+    /// * `method` - How to interpolate between samples
+    ///
+    /// # Returns
+    ///
+    /// A tensor with shape (N, C, H_out, W_out)
+    fn float_grid_sample_2d(
+        tensor: FloatTensor<B>,
+        grid: FloatTensor<B>,
+        method: InterpolateMode,
+    ) -> FloatTensor<B> {
+        match method {
+            InterpolateMode::Bilinear => float_grid_sample_2d_bilinear::<B>(tensor, grid),
+            _ => todo!("Default implementation for grid_sample_2d with {method:?} unimplemented"),
+        }
     }
 }

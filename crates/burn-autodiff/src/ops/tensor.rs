@@ -2187,7 +2187,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
                 let (tensor, index) = B::float_max_dim_with_indices(tensor.primitive, dim);
-                prep.finish((index, shape), tensor)
+                prep.finish((index, shape, dim), tensor)
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_max_dim(tensor.primitive, dim)),
         }
@@ -2204,7 +2204,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
                 let (tensor, index) = B::float_max_dim_with_indices(tensor.primitive, dim);
-                let tensor = prep.finish((index.clone(), shape), tensor);
+                let tensor = prep.finish((index.clone(), shape, dim), tensor);
 
                 (tensor, index)
             }
@@ -2216,6 +2216,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             }
         }
     }
+
     fn float_min_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         match MaxMinDim
             .prepare::<C>([tensor.node])
@@ -2225,7 +2226,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
                 let (tensor, index) = B::float_min_dim_with_indices(tensor.primitive, dim);
-                prep.finish((index, shape), tensor)
+                prep.finish((index, shape, dim), tensor)
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_min_dim(tensor.primitive, dim)),
         }
@@ -2242,7 +2243,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
                 let (tensor, index) = B::float_min_dim_with_indices(tensor.primitive, dim);
-                let tensor = prep.finish((index.clone(), shape), tensor);
+                let tensor = prep.finish((index.clone(), shape, dim), tensor);
 
                 (tensor, index)
             }
@@ -2449,7 +2450,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let shape = tensor.primitive.shape();
                 let (tensor, indices) =
                     B::float_sort_with_indices(tensor.primitive, dim, descending);
-                prep.finish((indices, shape), tensor)
+                prep.finish((indices, shape, dim), tensor)
             }
             OpsKind::UnTracked(prep) => {
                 prep.finish(B::float_sort(tensor.primitive, dim, descending))
@@ -2471,7 +2472,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let shape = tensor.primitive.shape();
                 let (tensor, indices) =
                     B::float_sort_with_indices(tensor.primitive, dim, descending);
-                let tensor = prep.finish((indices.clone(), shape), tensor);
+                let tensor = prep.finish((indices.clone(), shape, dim), tensor);
 
                 (tensor, indices)
             }

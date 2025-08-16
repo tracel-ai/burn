@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 # used to generate models:
-#  mask_where.onnx
-#  mask_where_broadcast.onnx
-#  mask_where_scalar_x.onnx
-#  mask_where_scalar_y.onnx
+#  where_op.onnx
+#  where_op_broadcast.onnx
+#  where_op_scalar_x.onnx
+#  where_op_scalar_y.onnx
 
 import torch
 import torch.nn as nn
@@ -46,11 +46,11 @@ def main():
     mask_scalar = torch.tensor(True, device=device)
     x_scalar = torch.tensor(1., device=device)
     y_scalar = torch.tensor(0., device=device)
-    create_model("mask_where", device, mask, x, y)
-    create_model("mask_where_broadcast", device, mask, x[0], y[0])
-    create_model("mask_where_scalar_x", device, mask, x_scalar, y)
-    create_model("mask_where_scalar_y", device, mask, x, y_scalar)
-    create_model("mask_where_all_scalar", device, mask_scalar, x_scalar, y_scalar)
+    create_model("where_op", device, mask, x, y)
+    create_model("where_op_broadcast", device, mask, x[0], y[0])
+    create_model("where_op_scalar_x", device, mask, x_scalar, y)
+    create_model("where_op_scalar_y", device, mask, x, y_scalar)
+    create_model("where_op_all_scalar", device, mask_scalar, x_scalar, y_scalar)
     
 
 

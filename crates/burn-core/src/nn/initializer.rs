@@ -70,7 +70,7 @@ pub enum Initializer {
     },
     /// Fills tensor with values according to the (semi) orthogonal initialization
     /// described in [Exact solutions to the nonlinear dynamics of learning in deep linear neural networks`
-    ///  - Saxe, A. et al. (2013)](https://arxiv.org/abs/1312.6120)
+    ///  - [Saxe, A. et al. (2013)](https://arxiv.org/abs/1312.6120)
     Orthogonal {
         /// The gain to use in initialization formula
         gain: f64,

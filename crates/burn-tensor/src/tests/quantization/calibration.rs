@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::{
         Tensor, TensorData,
-        quantization::{Calibration, QuantLevel, QuantScheme},
+        quantization::{Calibration, QuantLevel, QuantScheme, compute_range},
     };
 
     // NOTE: The scheme variant fields are not important for calibration, only the "main" variant (e.g., per-tensor)
@@ -12,7 +12,7 @@ mod tests {
         let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &Default::default());
         let scheme = QuantScheme::default();
 
-        let range = scheme.compute_range(&tensor, &Calibration::MinMax);
+        let range = compute_range(&scheme, &tensor, &Calibration::MinMax);
 
         range
             .min
@@ -35,9 +35,9 @@ mod tests {
             ],
             &Default::default(),
         );
-        let scheme = QuantScheme::default().set_level(QuantLevel::Block(4));
+        let scheme = QuantScheme::default().with_level(QuantLevel::Block(4));
 
-        let range = scheme.compute_range(&tensor, &Calibration::MinMax);
+        let range = compute_range(&scheme, &tensor, &Calibration::MinMax);
 
         range
             .min

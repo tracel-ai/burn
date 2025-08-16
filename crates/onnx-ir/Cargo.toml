@@ -17,8 +17,8 @@ workspace = true
 
 
 [dependencies]
-bytemuck = { workspace = true }
-half = { workspace = true }
+bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
+half = { workspace = true, features = ["bytemuck"] }
 log = { workspace = true }
 protobuf = { workspace = true, features = ["with-bytes"] }
 regex = { workspace = true }

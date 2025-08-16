@@ -40,6 +40,10 @@ pub mod record;
 /// Module for the tensor.
 pub mod tensor;
 
+/// Module for visual operations
+#[cfg(feature = "vision")]
+pub mod vision;
+
 extern crate alloc;
 
 /// Backend for test cases

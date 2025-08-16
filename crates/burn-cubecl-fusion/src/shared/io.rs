@@ -1,4 +1,5 @@
 use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
+use burn_tensor::quantization::QuantScheme;
 use cubecl::{
     intrinsic,
     ir::{ExpandElement, Variable},
@@ -37,6 +38,7 @@ pub fn read<C: CubePrimitive>(
             read_output(inputs, outputs, locals, pos, ref_pos, layout, config)
         }
         Arg::Local(pos, precision) => match comptime![precision] {
+            FusePrecision::F64 => Line::cast_from(locals.l_f64.find(pos)),
             FusePrecision::F32 | FusePrecision::Flex32 => Line::cast_from(locals.l_f32.find(pos)),
             FusePrecision::F16 => Line::cast_from(locals.l_f16.find(pos)),
             FusePrecision::BF16 => Line::cast_from(locals.l_bf16.find(pos)),
@@ -129,6 +131,30 @@ pub fn read<C: CubePrimitive>(
 }
 
 #[cube]
+pub fn read_quantized<C: CubePrimitive>(
+    inputs: &GlobalArgs,
+    locals: &LocalArgs,
+    ref_pos: u32,
+    #[comptime] arg: Arg,
+    #[comptime] config: &FuseBlockConfig,
+    #[comptime] scheme: QuantScheme,
+) -> Line<C> {
+    match arg {
+        Arg::Input(pos, _precision, _layout) => {
+            let global = inputs.tensors.index(pos);
+
+            let offset =
+                index_offset_with_layout(inputs, global, locals, ref_pos, None, config.rank, None);
+            let additional_factor = comptime!(scheme.num_quants() as u32);
+            let offset = offset / additional_factor;
+            let val = global.tensor[offset];
+            Line::cast_from(val)
+        }
+        _ => panic!("Not supported"),
+    }
+}
+
+#[cube]
 pub fn read_scalar<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] arg: Arg) -> C {
     match arg {
         Arg::Scalar(pos, _precision) => {
@@ -175,6 +201,13 @@ pub fn read_input_window<C: CubePrimitive>(
 ) -> Slice<Line<C>> {
     let tensor = inputs.tensors.index(pos);
     let slice = tensor.tensor.slice(start, end);
+    slice.try_cast_unchecked()
+}
+
+#[cube]
+pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: u32) -> Slice<C> {
+    let tensor = inputs.tensors.index(pos);
+    let slice = tensor.tensor.to_slice();
     slice.try_cast_unchecked()
 }
 
@@ -308,6 +341,7 @@ pub fn write<C: CubePrimitive>(
             tensor.tensor[offset] = Line::cast_from(value);
         }
         Arg::Local(pos, precision) => match comptime![precision] {
+            FusePrecision::F64 => locals.l_f64.insert(pos, Line::cast_from(value)),
             FusePrecision::F32 | FusePrecision::Flex32 => {
                 locals.l_f32.insert(pos, Line::cast_from(value))
             }

@@ -29,6 +29,7 @@ burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = 
     "cubecl",
 ] }
 cubecl = { workspace = true, features = ["matmul", "convolution", "reduce"] }
+cubecl-quant = { workspace = true, features = ["kernels"] }
 
 half = { workspace = true }
 serde = { workspace = true }

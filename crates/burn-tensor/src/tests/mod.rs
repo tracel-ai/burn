@@ -160,6 +160,7 @@ macro_rules! testgen_with_float_param {
 
         // test grid
         burn_tensor::testgen_meshgrid!();
+        burn_tensor::testgen_affine_grid!();
 
         // test linalg
         burn_tensor::testgen_vector_norm!();
@@ -203,6 +204,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_cosh!();
         burn_tensor::testgen_create_like!();
         burn_tensor::testgen_div!();
+        burn_tensor::testgen_dot!();
         burn_tensor::testgen_erf!();
         burn_tensor::testgen_exp!();
         burn_tensor::testgen_flatten!();
@@ -261,6 +263,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_select!();
         burn_tensor::testgen_split!();
         burn_tensor::testgen_prod!();
+        burn_tensor::testgen_grid_sample!();
 
         // test stats
         burn_tensor::testgen_var!();
