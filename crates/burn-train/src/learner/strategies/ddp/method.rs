@@ -67,8 +67,6 @@ impl<LC: LearnerComponentTypes + Send + 'static> LearningMethod<LC> for DdpLearn
         let mut peer_id = 1;
         let mut secondary_workers = vec![];
         for device in &self.devices[1..] {
-            peer_id += 1;
-
             let handle = DdpWorker::<LC>::start(
                 peer_id.into(),
                 device.clone(),
@@ -87,6 +85,8 @@ impl<LC: LearnerComponentTypes + Send + 'static> LearningMethod<LC> for DdpLearn
                 components.num_epochs,
                 components.grad_accumulation,
             );
+
+            peer_id += 1;
 
             secondary_workers.push(handle);
         }
