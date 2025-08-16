@@ -9,6 +9,7 @@ pub struct ArgMinNode {
     pub input: TensorType,
     pub output: TensorType,
     pub axis: usize,
+    pub keepdims: bool,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMinNode {
@@ -27,14 +28,23 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMinNode {
         scope: &mut crate::burn::Scope,
         node_position: usize,
     ) -> proc_macro2::TokenStream {
-        //NOTE: select_last_index and keep_dims are not supported
+        //NOTE: select_last_index=1 is not supported (will panic during conversion)
         let axis = self.axis.to_tokens();
-
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
 
-        quote! {
-            let #output = #input.argmin(#axis);
+        if self.keepdims {
+            // keepdims=True: Burn's argmin keeps dimensions by default
+            quote! {
+                let #output = #input.argmin(#axis);
+            }
+        } else {
+            // keepdims=False: use argmin followed by squeeze to remove the kept dimension
+            let output_rank = self.output.rank;
+            quote! {
+                let argmin_result = #input.argmin(#axis);
+                let #output = argmin_result.squeeze::<#output_rank>(#axis);
+            }
         }
     }
 
@@ -59,6 +69,7 @@ mod tests {
             TensorType::new_float("tensor1", 2),
             TensorType::new_int("tensor2", 2),
             1,
+            true, // keepdims=true
         ));
 
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
@@ -92,6 +103,58 @@ mod tests {
                     tensor1: Tensor<B, 2>
                 ) -> Tensor<B, 2, Int> {
                     let tensor2 = tensor1.argmin(1);
+
+                    tensor2
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_argmin_keepdims_false() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(ArgMinNode::new(
+            TensorType::new_float("tensor1", 2),
+            TensorType::new_int("tensor2", 1), // Output rank reduced due to keepdims=false
+            1,
+            false, // keepdims=false
+        ));
+
+        graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
+
+        let expected = quote! {
+            use burn::tensor::Int;
+            use burn::tensor::Tensor;
+            use burn::{
+                module::Module,
+                tensor::backend::Backend,
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(
+                    &self,
+                    tensor1: Tensor<B, 2>
+                ) -> Tensor<B, 1, Int> {
+                    let argmin_result = tensor1.argmin(1);
+                    let tensor2 = argmin_result.squeeze::<1usize>(1);
 
                     tensor2
                 }

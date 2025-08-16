@@ -6,7 +6,8 @@ include_models!(
     gather_elements,
     gather_scalar,
     gather_scalar_out,
-    gather_shape
+    gather_shape,
+    gather_with_shape_indices
 );
 
 #[cfg(test)]
@@ -98,6 +99,26 @@ mod tests {
         let index = Tensor::<Backend, 2, Int>::from_ints([[0, 0], [1, 0]], &device);
         let output = model.forward(input, index);
         let expected = TensorData::from([[1f32, 1.], [4., 3.]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn gather_with_shape_indices() {
+        // Test the most comprehensive case of our runtime Shape indices implementation:
+        // This is the exact scenario that was causing the original panic and required our full fix.
+        let model: gather_with_shape_indices::Model<Backend> =
+            gather_with_shape_indices::Model::default();
+
+        let device = Default::default();
+
+        // Input tensor with shape [2, 3]
+        let input = Tensor::<Backend, 2>::from_floats([[1., 2., 3.], [4., 5., 6.]], &device);
+        let output = model.forward(input);
+
+        // Expected: shape [2, 3] used as indices to gather from [100, 200, 300, 400, 500]
+        // Gathering at indices [2, 3] should give us [300, 400]
+        let expected = TensorData::from([300i64, 400]);
 
         assert_eq!(output.to_data(), expected);
     }

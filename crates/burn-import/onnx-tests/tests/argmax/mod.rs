@@ -1,6 +1,6 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(argmax);
+include_models!(argmax, argmax_both_keepdims);
 
 #[cfg(test)]
 mod tests {
@@ -21,5 +21,32 @@ mod tests {
         let expected = TensorData::from([[2i64], [2]]);
 
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn argmax_both_keepdims() {
+        // Test both keepdims=True and keepdims=False in the same model
+        let model: argmax_both_keepdims::Model<Backend> = argmax_both_keepdims::Model::default();
+
+        let device = Default::default();
+        // Input: [[1.0, 3.0, 2.0], [4.0, 2.0, 1.0]]
+        // ArgMax along dim=1 should return:
+        // - keepdims=True: [[1], [0]] (indices in 2D format)
+        // - keepdims=False: [1, 0] (indices in 1D format)
+        let input = Tensor::<Backend, 2>::from_floats([[1.0, 3.0, 2.0], [4.0, 2.0, 1.0]], &device);
+        let (output_keepdims_true, output_keepdims_false) = model.forward(input);
+
+        // Expected outputs based on PyTorch verification:
+        // keepdims=True: [[1], [0]] -> shape [2, 1]
+        let expected_true = TensorData::from([[1i64], [0]]);
+        // keepdims=False: [1, 0] -> shape [2]
+        let expected_false = TensorData::from([1i64, 0]);
+
+        output_keepdims_true
+            .to_data()
+            .assert_eq(&expected_true, true);
+        output_keepdims_false
+            .to_data()
+            .assert_eq(&expected_false, true);
     }
 }

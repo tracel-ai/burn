@@ -18,6 +18,7 @@ workspace = true
 
 [dependencies]
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
+derive-new = { workspace = true }
 half = { workspace = true, features = ["bytemuck"] }
 log = { workspace = true }
 protobuf = { workspace = true, features = ["with-bytes"] }

@@ -1210,17 +1210,17 @@ impl ParsedOnnxGraph {
     fn argmax_conversion(node: Node) -> ArgMaxNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let axis = argmax_config(&node);
+        let config = argmax_config(&node);
 
-        ArgMaxNode::new(input, output, axis)
+        ArgMaxNode::new(input, output, config.axis, config.keepdims)
     }
 
     fn argmin_conversion(node: Node) -> ArgMinNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let axis = argmin_config(&node);
+        let config = argmin_config(&node);
 
-        ArgMinNode::new(input, output, axis)
+        ArgMinNode::new(input, output, config.axis, config.keepdims)
     }
 
     fn bernoulli_conversion(node: Node) -> BernoulliNode {

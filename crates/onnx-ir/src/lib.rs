@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate derive_new;
+
 mod coalesce;
 mod from_onnx;
 pub mod ir;
