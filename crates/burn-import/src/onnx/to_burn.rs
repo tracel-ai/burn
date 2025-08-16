@@ -1166,7 +1166,16 @@ impl ParsedOnnxGraph {
         let output = TensorType::from(node.outputs.first().unwrap());
         let axis = argmax_config(&node);
 
-        ArgMaxNode::new(input, output, axis)
+        // Extract keepdims parameter (default is 1/true per ONNX spec)
+        let mut keepdims = true;
+        for (key, value) in &node.attrs {
+            if key == "keepdims" {
+                keepdims = value.clone().into_i64() != 0;
+                break;
+            }
+        }
+
+        ArgMaxNode::new(input, output, axis, keepdims)
     }
 
     fn argmin_conversion(node: Node) -> ArgMinNode {

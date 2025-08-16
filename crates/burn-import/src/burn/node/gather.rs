@@ -250,7 +250,7 @@ impl GatherNode {
                     }
                     GatherIndices::Runtime(Type::Shape(shape_type)) => {
                         let shape_name = &shape_type.name;
-                        
+
                         // Shape array can be directly used to create tensor data
                         quote! {
                             let indices = Tensor::<B, 1, _>::from_data(#shape_name, &*self.device);

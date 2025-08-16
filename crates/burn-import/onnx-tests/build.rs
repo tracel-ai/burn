@@ -13,6 +13,7 @@ fn main() {
         .input("tests/and/and.onnx")
         .input("tests/add/add_int.onnx")
         .input("tests/argmax/argmax.onnx")
+        .input("tests/argmax/argmax_both_keepdims.onnx")
         .input("tests/argmin/argmin.onnx")
         .input("tests/attention/attention_4d.onnx")
         .input("tests/attention/attention_3d.onnx")
