@@ -128,13 +128,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let output = &self.output.name();
-        
+
         // Handle input based on type
         let (input, input_rank) = match &self.input {
             Type::Tensor(tensor) => (scope.tensor_use_owned(tensor, node_position), tensor.rank),
             _ => panic!("ReduceNode input must be a tensor"),
         };
-        
+
         // Handle output based on type
         let output_rank = match &self.output {
             Type::Tensor(tensor) => tensor.rank,
@@ -291,7 +291,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
                 // For scalar outputs, extract the scalar value using .into_scalar() and convert to the proper type
                 let elem_type = &scalar_type.ty();
                 quote! { #raw_output_expr.into_scalar().elem::<#elem_type>() }
-            },
+            }
             Type::Tensor(_) => raw_output_expr,
             _ => panic!("ReduceNode output must be tensor or scalar"),
         };
