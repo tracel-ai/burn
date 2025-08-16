@@ -1,8 +1,14 @@
-use crate::shared::DYN_ELEM_ID;
-
 use super::io::*;
 use super::ir::*;
+use crate::shared::DYN_ELEM_ID;
+use crate::shared::Q_PARAM_DYN_ELEM_ID;
+use crate::shared::Q_STORE_DYN_ELEM_ID;
+use burn_tensor::quantization::QuantScheme;
+use burn_tensor::quantization::QuantStore;
+use burn_tensor::quantization::QuantValue;
+use cubecl::ir::{Elem, FloatKind, UIntKind};
 use cubecl::prelude::*;
+use cubecl_quant::dequantize::dequantize_packed_value_at;
 
 #[cube]
 /// Fuse element-wise operations at the given write position.
@@ -295,6 +301,33 @@ fn fuse(
             } => select_indices::<NumericExpand<DYN_ELEM_ID>>(
                 inputs, outputs, locals, pos, dim, input, indices, output, config,
             ),
+            FuseOp::Dequantize {
+                values,
+                params,
+                output,
+                scheme,
+            } => dequantize::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                locals,
+                pos,
+                values,
+                params,
+                output,
+                scheme.scheme,
+                config,
+            ),
+            FuseOp::Rem(op) => {
+                rem::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            FuseOp::Clamp {
+                input,
+                min,
+                max,
+                out,
+            } => clamp::<NumericExpand<DYN_ELEM_ID>>(
+                inputs, outputs, locals, pos, input, min, max, out, config,
+            ),
         }
     }
 }
@@ -404,17 +437,25 @@ fn gather<C: Numeric>(
     #[comptime] output: Arg,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    let mut index = read::<u32>(inputs, outputs, locals, write_pos, indices, config);
-    let (pos, _precision) = comptime! {
+    let line_size = locals.ref_line_size;
+
+    let pos_input = comptime! {
         match input {
-            Arg::Input(pos, precision, _) => (pos, precision),
+            Arg::Input(pos, ..) => pos,
             _ => panic!("Input tensor isn't an input"),
         }
     };
-    let line_size = locals.ref_line_size;
-    let stride = global_stride(inputs, dim, pos);
+    let pos_indices = comptime! {
+        match indices {
+            Arg::Input(pos, ..) => pos,
+            _ => panic!("Indices tensor isn't an input"),
+        }
+    };
 
-    index *= Line::new(stride);
+    let stride_input_dim = global_stride(inputs, dim, pos_input);
+
+    let mut index = 0u32;
+    let mut result = Line::empty(line_size);
 
     if comptime![dim > 0] {
         let index_before = global_offset(
@@ -426,7 +467,7 @@ fn gather<C: Numeric>(
             comptime![Some((0u32, dim))],
             config,
         );
-        index += Line::new(index_before);
+        index += index_before;
     }
 
     if comptime![dim + 1 < config.rank] {
@@ -439,17 +480,75 @@ fn gather<C: Numeric>(
             comptime![Some((dim + 1, config.rank))],
             config,
         );
-        index += Line::new(index_after);
+        index += index_after;
     }
 
-    let mut result = Line::empty(line_size);
+    let index_offset = global_offset(
+        inputs,
+        outputs,
+        locals,
+        write_pos,
+        indices,
+        comptime![Some((0u32, config.rank))],
+        config,
+    );
 
-    #[unroll]
-    for i in 0..line_size {
-        let index = index[i];
+    if comptime![dim == config.rank - 1] {
+        // Per-element indexing (along the dimension)
+        #[unroll]
+        for i in 0..line_size {
+            let offset = read_input::<u32>(
+                inputs,
+                locals,
+                pos_indices,
+                index_offset + i,
+                LayoutInfo::IsRef,
+                config,
+                None,
+            );
 
-        let input = read_input::<C>(inputs, locals, pos, index, LayoutInfo::IsRef, config, None);
-        result[i] = input[0];
+            let input = read_input::<C>(
+                inputs,
+                locals,
+                pos_input,
+                index + (offset[0] * stride_input_dim),
+                LayoutInfo::IsRef,
+                config,
+                None,
+            );
+
+            result[i] = input[0];
+        }
+    } else {
+        // Shared index for whole line
+        let stride_input_line = global_stride(inputs, comptime!(config.rank - 1), pos_input);
+
+        let offset = read_input::<u32>(
+            inputs,
+            locals,
+            pos_indices,
+            index_offset,
+            LayoutInfo::IsRef,
+            config,
+            None,
+        );
+
+        index += offset[0] * stride_input_dim;
+
+        #[unroll]
+        for i in 0..line_size {
+            let input = read_input::<C>(
+                inputs,
+                locals,
+                pos_input,
+                index + i * stride_input_line,
+                LayoutInfo::IsRef,
+                config,
+                None,
+            );
+
+            result[i] = input[0];
+        }
     }
 
     write::<C>(inputs, outputs, locals, write_pos, result, output, config);
@@ -631,6 +730,98 @@ fn conditional_assign<C: CubePrimitive>(
     write::<C>(inputs, outputs, locals, write_pos, result, out, config);
 }
 
+#[cube]
+fn clamp<C: Numeric>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: u32,
+    #[comptime] input: Arg,
+    #[comptime] min: Arg,
+    #[comptime] max: Arg,
+    #[comptime] out: Arg,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    let input = read::<C>(inputs, outputs, locals, write_pos, input, config);
+    let min = read::<C>(inputs, outputs, locals, write_pos, min, config);
+    let max = read::<C>(inputs, outputs, locals, write_pos, max, config);
+    let result = Line::<C>::clamp(input, min, max);
+
+    write::<C>(inputs, outputs, locals, write_pos, result, out, config);
+}
+
+#[cube]
+#[allow(clippy::explicit_counter_loop)]
+fn dequantize<C: Float>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: u32,
+    #[comptime] input: Arg,
+    #[comptime] scales: Arg,
+    #[comptime] output: Arg,
+    #[comptime] scheme: QuantScheme,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    set_polyfill::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(comptime![match scheme.store {
+        QuantStore::Native => match scheme.value {
+            QuantValue::QInt8 => Elem::UInt(UIntKind::U8),
+        },
+        QuantStore::U32 => Elem::UInt(UIntKind::U32),
+    }]);
+    set_polyfill::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(comptime![match scheme.param {
+        cubecl_quant::scheme::QuantParam::F32 => Elem::Float(FloatKind::F32),
+        cubecl_quant::scheme::QuantParam::F16 => Elem::Float(FloatKind::F16),
+        cubecl_quant::scheme::QuantParam::BF16 => Elem::Float(FloatKind::BF16),
+    }]);
+
+    let input = read_quantized::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(
+        inputs, locals, write_pos, input, config, scheme,
+    );
+    let pos = comptime!(match scales {
+        Arg::Input(pos, ..) => pos,
+        _ => unreachable!(""),
+    });
+    let scales = input_as_slice::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(inputs, pos);
+    let result = dequantize_packed_value_at::<
+        C,
+        ElemExpand<Q_PARAM_DYN_ELEM_ID>,
+        ElemExpand<Q_STORE_DYN_ELEM_ID>,
+    >(write_pos, input, scales, scheme);
+
+    let line_size = input.line_size();
+    let num_quants = comptime!(scheme.num_quants() as u32);
+    let line_size_result = comptime!(num_quants * line_size);
+
+    let line = if comptime!(num_quants == line_size_result) {
+        result[0]
+    } else {
+        let mut line = Line::empty(line_size_result);
+
+        // We have to do all index work as comptime because higher line sizes removes the
+        // possibility to index dynamically on lines.
+        let mut i = comptime!(0);
+
+        #[unroll]
+        for _ in 0..line_size {
+            let mut j = comptime!(0);
+            let value = result[i];
+
+            #[unroll]
+            for _ in 0..num_quants {
+                let index = comptime!(i * num_quants + j);
+                line[index] = value[j];
+                comptime!(j += 1);
+            }
+            comptime!(i += 1);
+        }
+
+        line
+    };
+
+    write::<C>(inputs, outputs, locals, write_pos, line, output, config);
+}
+
 binary_op!(add, +);
 binary_op!(mul, *);
 binary_op!(div, /);
@@ -643,6 +834,7 @@ comparison_op!(lower, <);
 comparison_op!(lower_equal, <=);
 
 binary_func!(powf, Line::<C>::powf, Float);
+binary_func!(rem, Line::<C>::rem, Float);
 
 unary_func!(exp, Line::<C>::exp, Float);
 unary_func!(log, Line::<C>::log, Float);

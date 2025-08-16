@@ -160,6 +160,7 @@ macro_rules! testgen_with_float_param {
 
         // test grid
         burn_tensor::testgen_meshgrid!();
+        burn_tensor::testgen_affine_grid!();
 
         // test linalg
         burn_tensor::testgen_vector_norm!();
@@ -203,6 +204,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_cosh!();
         burn_tensor::testgen_create_like!();
         burn_tensor::testgen_div!();
+        burn_tensor::testgen_dot!();
         burn_tensor::testgen_erf!();
         burn_tensor::testgen_exp!();
         burn_tensor::testgen_flatten!();
@@ -224,6 +226,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_repeat_dim!();
         burn_tensor::testgen_repeat!();
         burn_tensor::testgen_reshape!();
+        burn_tensor::testgen_roll!();
         burn_tensor::testgen_sin!();
         burn_tensor::testgen_sinh!();
         burn_tensor::testgen_slice!();
@@ -252,12 +255,15 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_remainder!();
         burn_tensor::testgen_cartesian_grid!();
         burn_tensor::testgen_nan!();
+        burn_tensor::testgen_inf!();
+        burn_tensor::testgen_finite!();
         burn_tensor::testgen_round!();
         burn_tensor::testgen_floor!();
         burn_tensor::testgen_ceil!();
         burn_tensor::testgen_select!();
         burn_tensor::testgen_split!();
         burn_tensor::testgen_prod!();
+        burn_tensor::testgen_grid_sample!();
 
         // test stats
         burn_tensor::testgen_var!();
@@ -318,7 +324,6 @@ macro_rules! testgen_with_bool_param {
         burn_tensor::testgen_full!();
         burn_tensor::testgen_map_comparison!();
         burn_tensor::testgen_mask!();
-        burn_tensor::testgen_nan!();
         burn_tensor::testgen_repeat_dim!();
         burn_tensor::testgen_repeat!();
         burn_tensor::testgen_reshape!();

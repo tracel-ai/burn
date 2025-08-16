@@ -186,7 +186,8 @@ impl<B: Backend> DeformConv2d<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::Tolerance;
+    use burn_tensor::{ElementConversion, Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     use super::*;
     use crate::TestBackend;
@@ -198,7 +199,7 @@ mod tests {
 
         let config = DeformConv2dConfig::new([5, 1], [5, 5]);
         let k = (config.channels[0] * config.kernel_size[0] * config.kernel_size[1]) as f64;
-        let k = (config.offset_groups as f64 / k).sqrt() as f32;
+        let k = (config.offset_groups as f64 / k).sqrt().elem::<FT>();
         let device = Default::default();
         let conv = config.init::<TestBackend>(&device);
 
@@ -214,7 +215,7 @@ mod tests {
         let conv = config.init::<TestBackend>(&device);
 
         assert_eq!(config.initializer, Initializer::Zeros);
-        conv.weight.to_data().assert_approx_eq::<f32>(
+        conv.weight.to_data().assert_approx_eq::<FT>(
             &TensorData::zeros::<f32, _>(conv.weight.shape()),
             Tolerance::default(),
         );
@@ -274,7 +275,7 @@ mod tests {
         let conv = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            alloc::format!("{}", conv),
+            alloc::format!("{conv}"),
             "DeformConv2d {stride: [1, 1], kernel_size: [5, 5], dilation: [1, 1], weight_groups: 1, offset_groups: 1, padding: Valid, params: 126}"
         );
     }

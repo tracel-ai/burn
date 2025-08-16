@@ -7,7 +7,7 @@ mod tests {
     use super::*;
     use burn::tensor::{Int, Tensor, TensorData};
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
 
     #[test]
     fn sum_tensor_and_tensor() {

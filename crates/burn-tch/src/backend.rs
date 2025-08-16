@@ -89,7 +89,7 @@ impl Default for LibTorchDevice {
 /// requires `LibTorch` to be installed correctly. The CPU version can be downloaded
 /// automatically and the CUDA version as well by setting the `TORCH_CUDA_VERSION` environment
 /// variable. For more complex configurations, check out the manual installation for
-/// [burn-tch](https://github.com/tracel-ai/burn/tree/main/burn-tch).
+/// [burn-tch](https://github.com/tracel-ai/burn/tree/main/crates/burn-tch).
 ///
 /// Refer to the [tch] crate for more information.
 #[derive(Clone, Copy, Default, Debug)]

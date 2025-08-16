@@ -544,7 +544,7 @@ where
         pragma_update_with_error_handling(&conn, "journal_mode", "OFF")?;
 
         // Insert the serialized item into the database
-        let insert_statement = format!("insert into {split} (item) values (?)", split = split);
+        let insert_statement = format!("insert into {split} (item) values (?)");
         conn.execute(insert_statement.as_str(), [serialized_item])?;
 
         // Get the primary key of the last inserted row and convert to index (row_id-1)
@@ -622,11 +622,12 @@ fn pragma_update_with_error_handling(
     value: &str,
 ) -> Result<()> {
     let result = conn.pragma_update(None, setting, value);
-    if let Err(error) = result {
-        if error != rusqlite::Error::ExecuteReturnedResults {
-            return Err(SqliteDatasetError::Sql(error));
-        }
+    if let Err(error) = result
+        && error != rusqlite::Error::ExecuteReturnedResults
+    {
+        return Err(SqliteDatasetError::Sql(error));
     }
+
     Ok(())
 }
 
@@ -822,7 +823,7 @@ mod tests {
         (0..record_count).into_par_iter().for_each(|index: i64| {
             let thread_id: std::thread::ThreadId = std::thread::current().id();
             let sample = Complex {
-                column_str: format!("test_{:?}_{}", thread_id, index),
+                column_str: format!("test_{thread_id:?}_{index}"),
                 column_bytes: vec![index as u8, 2, 3],
                 column_int: index,
                 column_bool: true,

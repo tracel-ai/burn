@@ -17,8 +17,8 @@ use alloc::vec::Vec;
 /// * `Cartesian` indexing; where the first two dimensions are swapped.
 ///
 /// See:
-///  - https://numpy.org/doc/stable/reference/generated/numpy.meshgrid.html
-///  - https://pytorch.org/docs/stable/generated/torch.meshgrid.html
+///  - [numpy.meshgrid](https://numpy.org/doc/stable/reference/generated/numpy.meshgrid.html)
+///  - [torch.meshgrid](https://pytorch.org/docs/stable/generated/torch.meshgrid.html)
 ///
 /// # Arguments
 ///
@@ -92,7 +92,7 @@ pub fn meshgrid_stack<B: Backend, const D: usize, const D2: usize, K>(
 where
     K: BasicOps<B>,
 {
-    assert_eq!(D2, D + 1, "D2 ({}) != D ({}) + 1", D2, D);
+    assert_eq!(D2, D + 1, "D2 ({D2}) != D ({D}) + 1");
 
     let xs: Vec<Tensor<B, D, K>> = meshgrid(tensors, GridOptions::default())
         .into_iter()

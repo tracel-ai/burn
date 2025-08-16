@@ -11,7 +11,7 @@ pub enum Distribution {
     /// Bernoulli distribution with the given probability.
     Bernoulli(f64),
 
-    /// Uniform distribution. The range is inclusive.
+    /// Uniform distribution `[low, high)`.
     Uniform(f64, f64),
 
     /// Normal distribution with the given mean and standard deviation.

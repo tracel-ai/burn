@@ -19,12 +19,15 @@ default = ["sys-metrics", "tui"]
 doc = ["default"]
 sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui"]
+# Distributed Data Parallel
+ddp = ["burn-collective"]
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "0.18.0", features = [
+burn-core = { path = "../burn-core", version = "0.19.0", features = [
     "dataset",
     "std",
 ], default-features = false }
+burn-collective = { path = "../burn-collective", optional = true }
 
 log = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -43,11 +46,11 @@ ratatui = { workspace = true, optional = true, features = ["all-widgets", "cross
 derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 async-channel = { workspace = true }
-burn-ndarray = { path = "../burn-ndarray", version = "0.18.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.19.0" }
 rstest.workspace = true
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "0.18.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.19.0" }
 
 [package.metadata.docs.rs]
 features = ["doc"]

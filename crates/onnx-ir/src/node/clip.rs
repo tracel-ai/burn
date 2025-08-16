@@ -25,23 +25,31 @@ pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
         let min = node.inputs.get(1).and_then(|arg| arg.value.clone());
         let max = node.inputs.get(2).and_then(|arg| arg.value.clone());
 
-        if min_result.is_none() && min.is_some() {
-            let min = min.unwrap().data.into_scalar();
+        if min_result.is_none()
+            && let Some(min) = min
+        {
+            let min = min.data.into_scalar();
             min_result = match min {
                 Data::Float16(min) => Some(f32::from(min) as f64),
                 Data::Float32(min) => Some(min as f64),
                 Data::Float64(min) => Some(min),
-                _ => panic!("Clip: only float min is supported"),
+                Data::Int32(min) => Some(min as f64),
+                Data::Int64(min) => Some(min as f64),
+                _ => panic!("Clip: unsupported min data type {:?}", min),
             };
         }
 
-        if max_result.is_none() && max.is_some() {
-            let max = max.unwrap().data.into_scalar();
+        if max_result.is_none()
+            && let Some(max) = max
+        {
+            let max = max.data.into_scalar();
             max_result = match max {
                 Data::Float16(max) => Some(f32::from(max) as f64),
                 Data::Float32(max) => Some(max as f64),
                 Data::Float64(max) => Some(max),
-                _ => panic!("Clip: only float max is supported"),
+                Data::Int32(max) => Some(max as f64),
+                Data::Int64(max) => Some(max as f64),
+                _ => panic!("Clip: unsupported max data type {:?}", max),
             };
         }
     }

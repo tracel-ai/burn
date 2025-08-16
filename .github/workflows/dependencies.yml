@@ -13,7 +13,7 @@ env:
   #
 
   # Udeps version
-  UDEPS_VERSION: "0.1.143"
+  UDEPS_VERSION: "0.1.57"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,10 +23,18 @@ jobs:
   dependencies:
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        checks:
+          - licenses
+          - bans sources
+
+    continue-on-error: ${{ matrix.checks == 'licenses' }} # failed licenses don't abort
+
     steps:
 
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Audit Rust dependencies
         # If a vulnerability is found, a new issue will automatically be opened
@@ -36,7 +44,7 @@ jobs:
       - name: Detect multiple versions of the same crate
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          command: check bans licenses sources
+          command: check ${{ matrix.checks }}
 
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly

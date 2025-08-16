@@ -2,11 +2,13 @@
 use alloc::vec::Vec;
 use burn_tensor::cast::ToElement;
 use burn_tensor::ops::FloatTensor;
+use burn_tensor::ops::InterpolateMode;
 use core::ops::Range;
 
 // Current crate
 use super::{NdArrayMathOps, NdArrayOps, matmul::matmul};
 use crate::element::{ExpElement, FloatNdArrayElement, IntNdArrayElement, QuantElement};
+use crate::ops::grid_sample::grid_sample_2d;
 use crate::{NdArray, tensor::NdArrayTensor};
 use crate::{NdArrayDevice, NdArrayTensorFloat, SEED, execute_with_float_dtype};
 
@@ -562,6 +564,24 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
                 NdArrayTensorFloat::F32(cast(tensor))
             }
             _ => panic!("Invalid cast types"),
+        }
+    }
+
+    fn float_grid_sample_2d(
+        tensor: FloatTensor<Self>,
+        grid: FloatTensor<Self>,
+        method: InterpolateMode,
+    ) -> FloatTensor<Self> {
+        {
+            match (tensor, grid) {
+                (NdArrayTensorFloat::F64(tensor), NdArrayTensorFloat::F64(grid)) => {
+                    NdArrayTensorFloat::F64(grid_sample_2d(tensor, grid, method))
+                }
+                (NdArrayTensorFloat::F32(tensor), NdArrayTensorFloat::F32(grid)) => {
+                    NdArrayTensorFloat::F32(grid_sample_2d(tensor, grid, method))
+                }
+                _ => panic!("Invalid grid type, must match tensor type"),
+            }
         }
     }
 }

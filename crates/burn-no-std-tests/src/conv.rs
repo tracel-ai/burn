@@ -27,6 +27,7 @@ impl<B: Backend> ConvBlock<B> {
             .with_padding(nn::PaddingConfig2d::Same)
             .init(device);
         let pool = nn::pool::MaxPool2dConfig::new(config.kernel_size)
+            .with_strides([1, 1])
             .with_padding(nn::PaddingConfig2d::Same)
             .init();
         let activation = nn::Gelu::new();

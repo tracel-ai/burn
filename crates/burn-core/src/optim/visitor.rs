@@ -27,11 +27,12 @@ where
     M: AutodiffModule<B>,
 {
     fn visit_float<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D>) {
-        if let Some(filter) = self.filter.as_ref() {
-            if !filter.contains(&id) {
-                return;
-            }
+        if let Some(filter) = self.filter.as_ref()
+            && !filter.contains(&id)
+        {
+            return;
         }
+
         let Some(grad) = tensor.grad_remove(self.grads) else {
             return;
         };

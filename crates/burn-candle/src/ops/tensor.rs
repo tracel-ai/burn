@@ -162,7 +162,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         tensor: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
-        CandleTensor::new(tensor.tensor.gather(&indices.tensor, dim).unwrap())
+        let tensor = tensor.tensor.contiguous().unwrap();
+        let indices = indices.tensor.contiguous().unwrap();
+        CandleTensor::new(tensor.gather(&indices, dim).unwrap())
     }
 
     fn float_scatter(
@@ -229,14 +231,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         mask: BoolTensor<Self>,
         value: FloatElem<Self>,
     ) -> FloatTensor<Self> {
-        CandleTensor::new(
-            mask.tensor
-                .where_cond(
-                    &super::candle_utils::fill_like::<F>(value, &tensor.tensor),
-                    &tensor.tensor,
-                )
-                .unwrap(),
-        )
+        let value = super::candle_utils::fill_like::<F>(value, &tensor.tensor);
+        super::base::mask_where_broadcasted(tensor, mask, CandleTensor::new(value))
     }
 
     fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
@@ -465,6 +461,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         let dtype = match dtype {
             FloatDType::F64 => candle_core::DType::F64,
             FloatDType::F32 => candle_core::DType::F32,
+            FloatDType::Flex32 => candle_core::DType::F32,
             FloatDType::F16 => candle_core::DType::F16,
             FloatDType::BF16 => candle_core::DType::BF16,
         };

@@ -6,7 +6,7 @@ mod tests {
     use super::*;
     use burn::tensor::Tensor;
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
 
     #[test]
     fn shape() {
@@ -16,7 +16,7 @@ mod tests {
         // Run the model
         let input = Tensor::<Backend, 2>::ones([4, 2], &device);
         let output = model.forward(input);
-        let expected = [4, 2];
+        let expected = [4i64, 2i64];
         assert_eq!(output, expected);
     }
 }

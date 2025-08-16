@@ -49,7 +49,7 @@ where
         Tensor::new(B::bool_or(self.primitive, rhs.primitive))
     }
 
-    /// Compute the indices of the elements that are non-zero.
+    /// Compute the indices of `true` elements in the tensor (i.e., non-zero for boolean tensors).
     ///
     /// # Returns
     ///
@@ -60,7 +60,7 @@ where
             .expect("Failed to read tensor data synchronously. Try using nonzero_async instead.")
     }
 
-    /// Compute the indices of the elements that are non-zero.
+    /// Compute the indices of `true` elements in the tensor (i.e., non-zero for boolean tensors).
     ///
     /// # Returns
     ///

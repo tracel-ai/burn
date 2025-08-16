@@ -2,7 +2,7 @@ use crate::{LibTorchDevice, TchElement};
 use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     quantization::{
-        QTensorPrimitive, QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantizationStrategy,
+        QTensorPrimitive, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizationStrategy,
         SymmetricQuantization,
     },
 };
@@ -227,17 +227,17 @@ impl TchTensor {
         let num_elements_out = out_shape.num_elements();
 
         // Attempt to mutate lhs tensor
-        if lhs_shape.num_elements() == num_elements_out {
-            if let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor)) {
-                return output;
-            }
+        if lhs_shape.num_elements() == num_elements_out
+            && let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor))
+        {
+            return output;
         }
 
         // Attempt to mutate rhs tensor
-        if rhs_shape.num_elements() == num_elements_out {
-            if let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs)) {
-                return output;
-            }
+        if rhs_shape.num_elements() == num_elements_out
+            && let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs))
+        {
+            return output;
         }
 
         let storage = lhs.storage;
@@ -334,7 +334,7 @@ impl TchQTensor {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => {
                 let scale = self.qtensor.tensor.q_scale();
@@ -342,6 +342,10 @@ impl TchQTensor {
                     scale as f32,
                 ))
             }
+            QuantScheme {
+                level: QuantLevel::Block(_),
+                ..
+            } => unimplemented!("LibTorch backend does not support per-block quantization"),
         }
     }
 }
@@ -435,11 +439,10 @@ mod tests {
             TchTensor::from_data::<f32>(TensorData::from([-1.8, -1.0, 0.0, 0.5]), tch::Device::Cpu);
         let scheme = QuantScheme::default();
         let qparams = QuantizationParametersPrimitive::<LibTorch<f32, i8>> {
-            scale: TchTensor::from_data::<f32>(TensorData::from([0.009_019_608]), tch::Device::Cpu),
-            offset: Some(TchTensor::from_data::<i8>(
-                TensorData::from([72]),
+            scales: TchTensor::from_data::<f32>(
+                TensorData::from([0.009_019_608]),
                 tch::Device::Cpu,
-            )),
+            ),
         };
         let qtensor: TchQTensor = LibTorch::quantize(tensor, &scheme, qparams);
 

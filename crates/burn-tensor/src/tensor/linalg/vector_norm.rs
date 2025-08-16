@@ -66,8 +66,8 @@ impl From<f64> for Norm {
 /// Generic dispatch wrapper over specialized / optimized norms.
 ///
 /// See:
-/// - https://pytorch.org/docs/stable/generated/torch.linalg.vector_norm.html
-/// - https://numpy.org/doc/stable/reference/generated/numpy.linalg.vector_norm.html
+/// - [torch.linalg.vector_norm](https://pytorch.org/docs/stable/generated/torch.linalg.vector_norm.html)
+/// - [numpy.linalg.vector_norm](https://numpy.org/doc/stable/reference/generated/numpy.linalg.vector_norm.html)
 ///
 /// # Arguments
 ///

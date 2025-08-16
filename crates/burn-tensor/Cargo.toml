@@ -15,20 +15,21 @@ version.workspace = true
 workspace = true
 
 [features]
+default = ["std"]
 cubecl = ["dep:cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
 cubecl-hip = ["cubecl", "cubecl/hip"]
 cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
-default = ["std", "burn-common/rayon"]
 doc = ["default"]
 experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen", "cubecl"]
 std = ["rand/std", "half/std", "num-traits/std", "burn-common/std", "colored"]
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.18.0", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.18.0", optional = true }
+burn-common = { path = "../burn-common", version = "0.19.0", default-features = false }
+burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.19.0", optional = true }
 cubecl = { workspace = true, optional = true, default-features = false }
+cubecl-quant = { workspace = true }
 
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 colored = { workspace = true, optional = true }
@@ -51,4 +52,4 @@ rand = { workspace = true, features = ["thread_rng"] } # Default enables std
 
 [package.metadata.docs.rs]
 features = ["doc"]
-rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "katex-header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "docs/katex-header.html"]

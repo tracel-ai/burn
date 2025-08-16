@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use burn_ir::{HandleContainer, TensorStatus};
 
 use crate::{
@@ -65,7 +67,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
     }
 }
 
-/// A queue execution has the responsability to run the provided
+/// A queue execution has the responsibility to run the provided
 /// [optimization](FusionRuntime::Optimization) without holes.
 enum QueueExecution<'a, R: FusionRuntime> {
     Single {
@@ -84,8 +86,8 @@ impl<'a, R: FusionRuntime> QueueExecution<'a, R> {
         optimization: &mut BlockOptimization<R::Optimization>,
         converter: &'a mut OperationConverter,
         handles: &'a mut HandleContainer<R::FusionHandle>,
-        operations: Vec<Box<dyn Operation<R>>>,
-    ) -> (Vec<Box<dyn Operation<R>>>, usize) {
+        operations: Vec<Arc<dyn Operation<R>>>,
+    ) -> (Vec<Arc<dyn Operation<R>>>, usize) {
         let execution = OrderedExecution::new(operations);
 
         if matches!(&optimization.strategy, ExecutionStrategy::Composed(..)) {

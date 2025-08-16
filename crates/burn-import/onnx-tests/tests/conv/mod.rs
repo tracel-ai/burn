@@ -9,7 +9,7 @@ mod tests {
     use core::f64::consts;
     use float_cmp::ApproxEq;
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
 
     #[test]
     fn conv1d() {

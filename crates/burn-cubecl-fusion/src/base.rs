@@ -6,6 +6,7 @@ use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
 
 use burn_fusion::stream::Context;
 use burn_tensor::DType;
+use burn_tensor::quantization::{QParamTensor, QuantParam, QuantScheme};
 use cubecl::client::ComputeClient;
 use cubecl::ir::Elem;
 use cubecl::prelude::{TensorArg, TensorHandleRef};
@@ -83,6 +84,7 @@ pub(crate) fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
 pub(crate) fn elem_dtype<E: CubeElement>() -> DType {
     match E::cube_elem() {
         Elem::Float(kind) => match kind {
+            cubecl::ir::FloatKind::F64 => DType::F64,
             cubecl::ir::FloatKind::F16 => DType::F16,
             cubecl::ir::FloatKind::BF16 => DType::BF16,
             cubecl::ir::FloatKind::F32 => DType::F32,
@@ -105,6 +107,10 @@ pub(crate) fn elem_dtype<E: CubeElement>() -> DType {
     }
 }
 
+/// Runtime parameters for quantization. Can be used to construct a scales handle from the base
+/// tensor handle.
+pub type QParams = burn_tensor::quantization::QParams<QParamTensor>;
+
 /// Handle to be used when fusing operations.
 pub struct CubeFusionHandle<R: Runtime> {
     /// Compute client for jit.
@@ -117,6 +123,8 @@ pub struct CubeFusionHandle<R: Runtime> {
     pub dtype: DType,
     /// The strides of the tensor.
     pub strides: Vec<usize>,
+    /// Quantization runtime parameters, if applicable
+    pub qparams: Option<QParams>,
 }
 
 impl<R: Runtime> core::fmt::Debug for CubeFusionHandle<R> {
@@ -137,6 +145,7 @@ impl<R: Runtime> Clone for CubeFusionHandle<R> {
             device: self.device.clone(),
             strides: self.strides.clone(),
             dtype: self.dtype,
+            qparams: self.qparams.clone(),
         }
     }
 }
@@ -168,5 +177,25 @@ impl<R: Runtime> CubeFusionHandle<R> {
                 self.dtype.size(),
             )
         }
+    }
+    /// Construct a separate tensor for the quantization scales, if present
+    pub fn params(&self, scheme: QuantScheme) -> Option<Self> {
+        let qparams = self.qparams.as_ref()?;
+        let mut handle = self.handle.clone();
+        handle.offset_start = Some(qparams.scales.offset_start as u64);
+        handle.offset_end = Some(qparams.scales.offset_end as u64);
+
+        Some(Self {
+            client: self.client.clone(),
+            handle,
+            device: self.device.clone(),
+            dtype: match scheme.param {
+                QuantParam::F32 => DType::F32,
+                QuantParam::F16 => DType::F16,
+                QuantParam::BF16 => DType::BF16,
+            },
+            strides: vec![1],
+            qparams: None,
+        })
     }
 }

@@ -15,23 +15,24 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "simd"]
-doc = ["default"]
+default = ["std", "simd", "multi-threads"]
 std = [
     "burn-autodiff",
     "burn-common/std",
-    "burn-common/rayon",
     "burn-tensor/std",
     "burn-ir/std",
-    "matrixmultiply/std",
-    "matrixmultiply/threading",
-    "ndarray/rayon",
     "ndarray/std",
+    "matrixmultiply/std",
     "rand/std",
     "num-traits/std",
     "macerator/std",
 ]
-
+doc = ["default"]
+multi-threads = [
+    "ndarray/rayon",
+    "burn-common/rayon",
+    "matrixmultiply/threading",
+]
 blas-accelerate = [
     "blas-src/accelerate", # Accelerate framework (macOS only)
     "ndarray/blas",
@@ -49,10 +50,10 @@ simd = ["macerator", "bytemuck", "seq-macro", "itertools"]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-autodiff = { path = "../burn-autodiff", version = "0.18.0", default-features = false, optional = true }
-burn-common = { path = "../burn-common", version = "0.18.0", default-features = false }
-burn-ir = { path = "../burn-ir", version = "0.18.0", default-features = false }
-burn-tensor = { path = "../burn-tensor", version = "0.18.0", default-features = false }
+burn-autodiff = { path = "../burn-autodiff", version = "0.19.0", default-features = false, optional = true }
+burn-common = { path = "../burn-common", version = "0.19.0", default-features = false }
+burn-ir = { path = "../burn-ir", version = "0.19.0", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false }
 
 atomic_float = { workspace = true }
 blas-src = { workspace = true, default-features = false, optional = true } # no-std compatible
@@ -76,10 +77,10 @@ seq-macro = { version = "0.3", optional = true }
 portable-atomic-util = { workspace = true }
 
 [dev-dependencies]
-burn-autodiff = { path = "../burn-autodiff", version = "0.18.0", default-features = false, features = [
+burn-autodiff = { path = "../burn-autodiff", version = "0.19.0", default-features = false, features = [
     "export_tests",
 ] }
-burn-tensor = { path = "../burn-tensor", version = "0.18.0", default-features = false, features = [
+burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false, features = [
     "export_tests",
 ] }
 

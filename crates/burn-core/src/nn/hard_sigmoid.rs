@@ -90,7 +90,7 @@ mod tests {
     fn display() {
         let config = HardSigmoidConfig::new().init();
         assert_eq!(
-            alloc::format!("{}", config),
+            alloc::format!("{config}"),
             "HardSigmoid {alpha: 0.2, beta: 0.5}"
         );
     }

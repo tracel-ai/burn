@@ -16,7 +16,7 @@ pub struct MaxPool2dConfig {
     /// The size of the kernel.
     pub kernel_size: [usize; 2],
     /// The strides.
-    #[config(default = "[1, 1]")]
+    #[config(default = "kernel_size")]
     pub strides: [usize; 2],
     /// The padding configuration.
     ///
@@ -100,6 +100,7 @@ impl MaxPool2d {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     #[test]
     #[should_panic = "Same padding with an even kernel size is not supported"]
@@ -115,8 +116,21 @@ mod tests {
         let layer = config.init();
 
         assert_eq!(
-            alloc::format!("{}", layer),
-            "MaxPool2d {kernel_size: [3, 3], stride: [1, 1], padding: Valid, dilation: [1, 1]}"
+            alloc::format!("{layer}"),
+            "MaxPool2d {kernel_size: [3, 3], stride: [3, 3], padding: Valid, dilation: [1, 1]}"
+        );
+    }
+
+    #[rstest]
+    #[case([2, 2])]
+    #[case([1, 2])]
+    fn default_strides_match_kernel_size(#[case] kernel_size: [usize; 2]) {
+        let config = MaxPool2dConfig::new(kernel_size);
+
+        assert_eq!(
+            config.strides, kernel_size,
+            "Expected strides ({:?}) to match kernel size ({:?}) in default MaxPool2dConfig::new constructor",
+            config.strides, config.kernel_size
         );
     }
 }

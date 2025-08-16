@@ -7,8 +7,7 @@ use rand::rngs::StdRng;
 
 use super::batcher::Batcher;
 use super::{BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, Progress};
-use core::cell::OnceCell;
-use std::sync::{Arc, mpsc};
+use std::sync::{Arc, OnceLock, mpsc};
 use std::thread;
 
 const MAX_QUEUED_ITEMS: usize = 100;
@@ -24,7 +23,7 @@ pub struct MultiThreadDataLoader<B: Backend, I, O> {
     num_threads: usize,
 
     // The lazily initialized data loaders
-    dataloaders: OnceCell<Vec<BatchDataLoader<B, I, O>>>,
+    dataloaders: OnceLock<Vec<BatchDataLoader<B, I, O>>>,
 }
 
 /// A message that can be sent between threads.
@@ -79,7 +78,7 @@ where
             num_threads,
             device,
             rng,
-            dataloaders: OnceCell::new(),
+            dataloaders: OnceLock::new(),
         }
     }
 
@@ -87,7 +86,22 @@ where
     fn initialize(&self) -> &[BatchDataLoader<B, I, O>] {
         self.dataloaders
             .get_or_init(|| {
-                let datasets = PartialDataset::split(self.dataset.clone(), self.num_threads);
+                let mut dataset = self.dataset.clone();
+                if let Some(rng) = self.rng.as_ref() {
+                    // Pre-shuffle the dataset before split if shuffle is enabled.
+                    // This ensures that each thread gets a uniform random sample of the dataset.
+                    let mut rng = rng.clone();
+                    dataset = Arc::new(burn_dataset::transform::ShuffledDataset::new(
+                        dataset, &mut rng,
+                    ));
+                }
+
+                let datasets = match self.strategy.batch_size() {
+                    Some(batch_size) => {
+                        PartialDataset::split_chunks(dataset, self.num_threads, batch_size)
+                    }
+                    None => PartialDataset::split(dataset, self.num_threads),
+                };
 
                 // Create more rngs from the first one, one for each new dataloader.
                 let mut rng = self.rng.clone();
@@ -254,12 +268,12 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use super::*;
     use crate::data::dataloader::FixBatchStrategy;
     use crate::data::dataloader::batcher::TestBatcher;
     use crate::data::dataset::FakeDataset;
+    use burn_dataset::InMemDataset;
+    use std::collections::HashSet;
 
     #[test]
     fn test_multi_thread_batch_dataloader() {
@@ -296,6 +310,110 @@ mod tests {
             }
         }
 
+        assert_eq!(items_single_thread, items_multi_thread);
+    }
+
+    #[test]
+    fn test_multi_thread_batch_dataloader_shuffle() {
+        let num_classes = 2;
+        let class_size = 100;
+        let batch_size = 10;
+
+        // Items is a deliberately ordered dataset.
+        let mut items = Vec::new();
+        for class in 0..num_classes {
+            items.extend(vec![class; class_size]);
+        }
+
+        {
+            // Unshuffled multithreaded loader
+            let dataset = Arc::new(InMemDataset::new(items.clone()));
+            let batcher = Arc::new(TestBatcher::new());
+
+            let loader = MultiThreadDataLoader::new(
+                Box::new(FixBatchStrategy::new(batch_size)),
+                dataset,
+                batcher,
+                num_classes,
+                Default::default(),
+                // No rng means no shuffling.
+                None,
+            );
+
+            for batch in loader.iter() {
+                let mut batch_items = HashSet::new();
+                for item in batch {
+                    batch_items.insert(item);
+                }
+
+                // Since the dataset is not shuffled, we expect each batch to contain the same item.
+                assert_eq!(batch_items.len(), 1);
+            }
+        }
+
+        {
+            // Shuffled multithreaded loader
+            let dataset = Arc::new(InMemDataset::new(items.clone()));
+            let batcher = Arc::new(TestBatcher::new());
+
+            let loader = MultiThreadDataLoader::new(
+                Box::new(FixBatchStrategy::new(batch_size)),
+                dataset.clone(),
+                batcher.clone(),
+                num_classes,
+                Default::default(),
+                // The rng enables shuffling.
+                Some(StdRng::seed_from_u64(42)),
+            );
+
+            for batch in loader.iter() {
+                let mut batch_items = HashSet::new();
+                for item in batch {
+                    batch_items.insert(item);
+                }
+
+                // Since the dataset is shuffled, we expect to see all items.
+                assert_eq!(batch_items.len(), num_classes);
+            }
+        }
+    }
+
+    #[test]
+    fn test_multi_thread_batch_dataloader_incomplete_batches() {
+        let batcher = Arc::new(TestBatcher::new());
+        let dataset = Arc::new(FakeDataset::<String>::new(27));
+        let dataloader_single_thread = BatchDataLoader::new(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset.clone(),
+            batcher.clone(),
+            Default::default(),
+            None,
+        );
+        let dataloader_multi_thread = MultiThreadDataLoader::new(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset,
+            batcher,
+            4,
+            Default::default(),
+            None,
+        );
+
+        let mut items_single_thread = HashSet::new();
+        let mut items_multi_thread = HashSet::new();
+
+        let mut single_thread_cnt = 0;
+        let mut multi_thread_cnt = 0;
+        for items in dataloader_single_thread.iter() {
+            items_single_thread.insert(items);
+            single_thread_cnt += 1;
+        }
+
+        for items in dataloader_multi_thread.iter() {
+            items_multi_thread.insert(items);
+            multi_thread_cnt += 1;
+        }
+
+        assert_eq!(single_thread_cnt, multi_thread_cnt);
         assert_eq!(items_single_thread, items_multi_thread);
     }
 }

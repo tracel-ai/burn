@@ -58,6 +58,10 @@ pub enum ImporterError {
 ///       .dataset("train")
 ///       .unwrap();
 /// ```
+///
+/// # Note
+/// This loader relies on the [`datasets` library by HuggingFace](https://huggingface.co/docs/datasets/index)
+/// to download datasets. This is a Python library, so you must have an existing Python installation.
 pub struct HuggingfaceDatasetLoader {
     name: String,
     subset: Option<String>,
@@ -172,9 +176,9 @@ impl HuggingfaceDatasetLoader {
 
         // create the db file path
         let db_file_name = if let Some(subset) = self.subset.clone() {
-            format!("{}-{}.db", name, sanitize(subset.as_str()))
+            format!("{name}-{}.db", sanitize(subset.as_str()))
         } else {
-            format!("{}.db", name)
+            format!("{name}.db")
         };
 
         let db_file = base_dir.join(db_file_name);
@@ -321,12 +325,23 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
         let mut handle = command.spawn().unwrap();
 
         handle.wait().map_err(|err| {
-            ImporterError::FailToDownloadPythonDependencies(format!(" error: {}", err))
+            ImporterError::FailToDownloadPythonDependencies(format!(" error: {err}"))
         })?;
         // Check if the venv environment can be used successfully."
         if !check_python_version_is_3(venv_python_path.to_str().unwrap()) {
             return Err(ImporterError::VenvNotInitialized);
         }
+    }
+
+    let mut ensurepip_cmd = Command::new(&venv_python_path);
+    ensurepip_cmd.args(["-m", "ensurepip", "--upgrade"]);
+    let status = ensurepip_cmd.status().map_err(|err| {
+        ImporterError::FailToDownloadPythonDependencies(format!("failed to run ensurepip: {err}"))
+    })?;
+    if !status.success() {
+        return Err(ImporterError::FailToDownloadPythonDependencies(
+            "ensurepip failed to initialize pip".to_string(),
+        ));
     }
 
     let mut command = Command::new(&venv_python_path);
@@ -344,9 +359,9 @@ fn install_python_deps(base_dir: &Path) -> Result<PathBuf, ImporterError> {
 
     // Spawn the pip install process and wait for it to complete.
     let mut handle = command.spawn().unwrap();
-    handle.wait().map_err(|err| {
-        ImporterError::FailToDownloadPythonDependencies(format!(" error: {}", err))
-    })?;
+    handle
+        .wait()
+        .map_err(|err| ImporterError::FailToDownloadPythonDependencies(format!(" error: {err}")))?;
 
     Ok(venv_python_path)
 }

@@ -1,13 +1,13 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(div);
+include_models!(div, div_shape);
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData};
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
 
     #[test]
     fn div_tensor_by_scalar_and_tensor_by_tensor() {
@@ -23,5 +23,24 @@ mod tests {
         let expected = TensorData::from([[[[1f32, 2., 2., 3.]]]]);
 
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn div_shape_with_scalar_and_shape() {
+        // Initialize the model
+        let device = Default::default();
+        let model: div_shape::Model<Backend> = div_shape::Model::new(&device);
+
+        // Create input tensors
+        let input1 = Tensor::<Backend, 3>::ones([8, 12, 16], &device);
+        let input2 = Tensor::<Backend, 3>::ones([2, 3, 4], &device);
+        let (shape_div_scalar, shape_div_shape) = model.forward(input1, input2);
+
+        // Expected outputs
+        let expected_scalar = [4, 6, 8]; // shape1 [8, 12, 16] / 2
+        let expected_shape = [4, 4, 4]; // shape1 [8, 12, 16] / shape2 [2, 3, 4]
+
+        assert_eq!(shape_div_scalar, expected_scalar);
+        assert_eq!(shape_div_shape, expected_shape);
     }
 }

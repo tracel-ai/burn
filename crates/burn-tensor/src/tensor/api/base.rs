@@ -14,14 +14,14 @@ use serde::{Deserialize, Deserializer};
 
 use serde::{Serialize, Serializer};
 
+use super::{Slice, TensorMetadata, Transaction};
+use crate::indexing::{AsIndex, canonicalize_dim, wrap_index};
 use crate::{
     Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, backend::Backend, check,
     ops::Device,
 };
 use crate::{DType, Element, TensorPrimitive};
 use crate::{cast::ToElement, check::TensorCheck};
-
-use super::{Slice, TensorMetadata, Transaction};
 
 /// A tensor with a given backend, shape and data type.
 ///
@@ -269,6 +269,12 @@ where
     /// ```
     pub fn transpose(self) -> Tensor<B, D, K> {
         Tensor::new(K::transpose(self.primitive))
+    }
+
+    /// Alias for `transpose`.
+    #[inline(always)]
+    pub fn t(self) -> Tensor<B, D, K> {
+        self.transpose()
     }
 
     /// Swaps two dimensions of a tensor.
@@ -840,6 +846,196 @@ where
         //lastly, create the shape and reshape
         let shape = Shape::new(new_dims);
         self.reshape(shape)
+    }
+
+    /// Roll operation along a specific dimension; wrapping around the elements.
+    ///
+    /// ## Parameters
+    ///
+    /// - `shift`: The roll extent; supports negative values and wraps around.
+    /// - `dim`: The dimension to roll; supports negative indexing.
+    ///
+    /// ## Returns
+    ///
+    /// A new tensor with the specified dimension rolled by the given shift amount.
+    pub fn roll_dim<Shift, Dim>(self, shift: Shift, dim: Dim) -> Self
+    where
+        Shift: AsIndex,
+        Dim: AsIndex,
+    {
+        let dim = canonicalize_dim(dim, D, false);
+        let size = self.shape().dims[dim];
+        if size == 0 {
+            // If the dimension is empty, return the tensor as is.
+            return self;
+        }
+
+        let shift = wrap_index(shift, size);
+        if shift == 0 {
+            // If the shift is zero, return the tensor as is.
+            return self;
+        }
+
+        self.unchecked_roll_dim(shift, dim)
+    }
+
+    /// Internal implementation of `roll_dim` that does not canonicalize dimensions or shifts.
+    ///
+    /// ## Parameters
+    ///
+    /// - `shift`: The number of positions to shift; must be (0 < shift < size).
+    /// - `dim`: The dimension to roll; must be a valid index for the tensor's shape.
+    ///
+    /// ## Returns
+    ///
+    /// A new tensor with the specified dimension rolled by the given shift amount.
+    #[inline(always)]
+    fn unchecked_roll_dim(self, shift: usize, dim: usize) -> Self {
+        #[cfg(debug_assertions)]
+        {
+            let size = self.shape().dims[dim];
+            assert!(
+                0 < shift && shift < size,
+                "Expected: 0 < shift < size: found shift={shift}, size={size}",
+            );
+            assert!(
+                dim < self.shape().num_dims(),
+                "Expected: dim < num_dims: found dim={dim}, num_dims={size}",
+            );
+        }
+
+        Tensor::cat(
+            vec![
+                self.clone().slice_dim(dim, shift..),
+                self.slice_dim(dim, ..shift),
+            ],
+            dim,
+        )
+    }
+
+    /// Roll operation.
+    ///
+    /// Note: unlike ``pytorch``, `dims` and `shifts` must have the same length.
+    ///
+    /// A given `dim` may be rolled multiple times, and the shifts will be applied sequentially.
+    ///
+    /// ## Parameters
+    ///
+    /// - `shifts`: A slice of shifts corresponding to each dimension;
+    ///   supports negative values and wraps around.
+    /// - `dims`: A slice of dimensions to roll; supports negative indexing.
+    ///
+    /// ## Returns
+    ///
+    /// A new tensor with the specified dimensions rolled by the given shifts.
+    pub fn roll<Shift, Dim>(self, shifts: &[Shift], dims: &[Dim]) -> Self
+    where
+        Shift: AsIndex,
+        Dim: AsIndex,
+    {
+        assert_eq!(
+            dims.len(),
+            shifts.len(),
+            "Dimensions and shifts must align; found dims={dims:#?}, shifts={shifts:#?}",
+        );
+
+        // This is a fair amount of complexity, which could be replaced
+        // by a simple canonicalization of `dims` and wrapping of `shifts`.
+        // The work is done here to ensure that any roll operation
+        // which could be a no-op is a no-op; simplifying the accounting
+        // needed by backend-specific implementations of the inner roll op.
+
+        let item_count = dims.len();
+
+        let shape = self.shape().dims;
+
+        // Accumulate the effective shifts for each dimension.
+        let mut accumulated_shifts: Vec<isize> = vec![0; shape.len()];
+        for i in 0..item_count {
+            let dim = canonicalize_dim(dims[i], D, false);
+            accumulated_shifts[dim] += shifts[i].index();
+        }
+
+        // Do this after we've checked the validity of `dims` and `shifts`.
+        if self.shape().num_elements() == 0 {
+            // If the tensor is empty, return it as is.
+            return self;
+        }
+
+        // Wrap the accumulated shifts, and filter out empty dimensions.
+        let mut effective_dims: Vec<usize> = Vec::with_capacity(item_count);
+        let mut effective_shifts: Vec<usize> = Vec::with_capacity(item_count);
+        for dim in 0..shape.len() {
+            // `wrap_index` should inline, and has a fast-exit path for zero shifts.
+            let shift = wrap_index(accumulated_shifts[dim], shape[dim]);
+            if shift == 0 {
+                continue;
+            }
+
+            effective_dims.push(dim);
+            effective_shifts.push(shift);
+        }
+
+        // If no shifts are needed, return the original tensor.
+        if effective_shifts.is_empty() {
+            return self;
+        }
+
+        // At this point:
+        // - `dims` contains the effective dimensions to roll, in index order,
+        // - `shifts` contains the effective usize shifts for each dimension.
+        // - Every shift is non-zero, and less than the size of the corresponding dimension.
+        self.unchecked_roll(&effective_shifts, &effective_dims)
+    }
+
+    /// `roll` internal implementation.
+    ///
+    /// ## Parameters
+    ///
+    /// - `shifts`: A slice of shifts corresponding to each dimension;
+    ///   must be non-empty, the same length as `dims`, and all ``1..<size>``.
+    /// - `dims`: A slice of dimensions to roll; must be non-empty;
+    ///   the same length as `shifts`, and must not contain repeats.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the shifts and dimensions do not align, or if dimensions contain repeats.
+    ///
+    /// ## Returns
+    ///
+    /// A new tensor with the specified dimensions rolled by the given shifts.
+    #[inline(always)]
+    fn unchecked_roll(self, shifts: &[usize], dims: &[usize]) -> Self {
+        #[cfg(debug_assertions)]
+        {
+            assert!(!shifts.is_empty());
+            assert_eq!(
+                shifts.len(),
+                dims.len(),
+                "Shifts and dimensions must align; found {} shifts and {} dims",
+                shifts.len(),
+                dims.len()
+            );
+
+            let mut unique_dims = dims.to_vec();
+            unique_dims.dedup();
+
+            assert_eq!(
+                unique_dims.len(),
+                dims.len(),
+                "Dimensions must not contain repeats; found {} unique dims and {} total dims",
+                unique_dims.len(),
+                dims.len()
+            )
+        }
+
+        let x = self.unchecked_roll_dim(shifts[0], dims[0]);
+
+        if dims.len() == 1 {
+            x
+        } else {
+            x.unchecked_roll(&shifts[1..], &dims[1..])
+        }
     }
 
     /// Returns a tensor containing the elements selected from the given ranges.
@@ -1880,9 +2076,9 @@ where
             if let Some(data) = data {
                 let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
                 match (precision, K::name()) {
-                    (Some(p), "Float") => acc.push_str(&format!("{:.1$}", elem, p)),
+                    (Some(p), "Float") => acc.push_str(&format!("{elem:.p$}")),
                     (_, "Bool") => acc.push_str(&format!("{}", elem.to_bool())),
-                    _ => acc.push_str(&format!("{:?}", elem)),
+                    _ => acc.push_str(&format!("{elem:?}")),
                 }
             } else {
                 acc.push_str("<Tensor data not available>");
@@ -2090,26 +2286,6 @@ where
 
         writeln!(f, "  dtype:  {:?},", dtype.name())?;
         write!(f, "}}")
-    }
-}
-
-/// Transpose marker (zero-size type). Used to sugar the transpose of a tensor, e.g.
-/// ```rust
-/// use burn_tensor::backend::Backend;
-/// use burn_tensor::{Tensor, T};
-///
-/// fn example<B: Backend>() {
-///     let device = Default::default();
-///     let tensor = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
-///     let transposed = tensor^T;
-/// }
-/// ```
-pub struct T;
-
-impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
-    type Output = Self;
-    fn bitxor(self, _: T) -> Self::Output {
-        self.transpose()
     }
 }
 
@@ -2686,14 +2862,14 @@ impl<B: Backend> BasicOps<B> for Float {
 
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
         match data.dtype {
-            DType::QFloat(_strategy) => TensorPrimitive::QFloat(B::q_from_data(data, device)),
+            DType::QFloat(_scheme) => TensorPrimitive::QFloat(B::q_from_data(data, device)),
             _ => TensorPrimitive::Float(B::float_from_data(data.convert::<B::FloatElem>(), device)),
         }
     }
 
     fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
         match dtype {
-            DType::QFloat(_strategy) => {
+            DType::QFloat(_scheme) => {
                 TensorPrimitive::QFloat(B::q_from_data(data.convert_dtype(dtype), device))
             }
             _ if dtype.is_float() => {
@@ -3124,16 +3300,16 @@ impl<const D2: usize> ReshapeArgs<D2> for [usize; D2] {
     }
 }
 
-impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
+impl<const D2: usize> ReshapeArgs<D2> for [i64; D2] {
     fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
         self,
         tensor: &Tensor<B, D, K>,
     ) -> Shape {
         // Validate the reshape arguments
-        check!(TensorCheck::reshape_args_i32(&self));
+        check!(TensorCheck::reshape_args_i64(&self));
 
         // Temporary shape
-        let mut new_shape: [i32; D2] = [1; D2];
+        let mut new_shape: [i64; D2] = [1; D2];
 
         // We need to find the index of the 0 dimension and
         // replace it with the actual dimension value.
@@ -3141,7 +3317,7 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
             if s != 0 {
                 new_shape[i] = s;
             } else {
-                new_shape[i] = tensor.dims()[i] as i32;
+                new_shape[i] = tensor.dims()[i] as i64;
             }
         }
 
@@ -3157,7 +3333,7 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
                     product *= s;
                 }
             }
-            let product_current = tensor.shape().num_elements() as i32;
+            let product_current = tensor.shape().num_elements() as i64;
 
             new_shape[index] = product_current / product;
 
@@ -3175,6 +3351,17 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
         let new_shape: [usize; D2] = new_shape.map(|x| x as usize);
 
         Shape::from(new_shape)
+    }
+}
+
+impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
+    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
+        self,
+        tensor: &Tensor<B, D, K>,
+    ) -> Shape {
+        // Convert i32 array to i64 array and use existing implementation
+        let i64_array: [i64; D2] = self.map(|x| x as i64);
+        ReshapeArgs::into_shape(i64_array, tensor)
     }
 }
 

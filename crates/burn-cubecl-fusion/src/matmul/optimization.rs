@@ -1,4 +1,6 @@
 use std::any::TypeId;
+use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use crate::CubeFusionHandle;
 use crate::FallbackOperation;
@@ -8,22 +10,35 @@ use crate::shared::ir::RefLayout;
 use crate::shared::trace::TraceError;
 use crate::shared::trace::TuneOutput;
 use crate::shared::trace::Vectorization;
+use crate::shared::trace::VectorizationHandle;
+use crate::shared::trace::vectorization::LineSizeOverrides;
+use crate::shared::trace::vectorization::Vect;
+use crate::shared::trace::vectorization::vectorization_default;
 
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
-use cubecl::matmul::components;
-use cubecl::matmul::components::MatmulLineSizes;
-use cubecl::matmul::components::MatmulPrecision;
-use cubecl::matmul::components::MatmulProblem;
-use cubecl::matmul::components::tile::TileMatmulFamily;
-use cubecl::matmul::components::tile::accelerated_matmul::AcceleratedMatmul;
-use cubecl::matmul::kernels::matmul::Algorithm;
-use cubecl::matmul::kernels::matmul::double_buffering::CyclicDoubleBufferingAlgorithm;
-use cubecl::matmul::kernels::matmul::select_kernel_virtual;
-use cubecl::matmul::kernels::matmul::simple::SimpleAlgorithm;
-use cubecl::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
+use burn_ir::TensorId;
+use burn_ir::TensorIr;
+use cubecl::matmul::components::{
+    self, AvailableLineSizes, LhsG, MatmulProblem, MatmulSetupError, RhsG, RhsS,
+    tile::{TileMatmulFamily, accelerated::AcceleratedMatmul},
+};
+use cubecl::matmul::kernels::layered::Selection;
+use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
+use cubecl::matmul::kernels::layered::double_buffering::DoubleBufferingArgs;
+use cubecl::matmul::kernels::layered::double_unit::DoubleUnitAlgorithm;
+use cubecl::matmul::kernels::layered::launch_kernel_virtual;
+use cubecl::matmul::kernels::layered::ordered_double_buffering::OrderedDoubleBufferingAlgorithm;
+use cubecl::matmul::kernels::layered::ordered_double_buffering::OrderedSelectionArgs;
+use cubecl::matmul::kernels::layered::simple::SimpleAlgorithm;
+use cubecl::matmul::kernels::layered::simple::SimpleArgs;
+use cubecl::matmul::kernels::layered::simple_unit::SimpleUnitAlgorithm;
+use cubecl::matmul::{
+    components::{LhsS, MatmulLineSizes, MatmulPrecision},
+    kernels::layered::Algorithm,
+};
+use cubecl::std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
-use cubecl_std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
@@ -38,14 +53,32 @@ use super::tune::fused_matmul_autotune;
 
 /// Fuse matmul operation followed by elemwise operations into a single kernel.
 pub struct MatmulOptimization<R: Runtime> {
+    pub(crate) info: Arc<MatmulOptimizationInfo<R>>,
+}
+
+pub struct MatmulOptimizationTuneArg<R: Runtime> {
+    pub(crate) info: Arc<MatmulOptimizationInfo<R>>,
+    pub(crate) fallback: Box<dyn FallbackOperation<R>>,
+}
+
+pub(crate) struct MatmulOptimizationInfo<R: Runtime> {
     trace: FuseTrace,
     trace_fallback: FuseTrace,
     pub(crate) client: ComputeClient<R::Server, R::Channel>,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
-    pub(crate) matmul_simple: FusedMatmul,
-    pub(crate) matmul_double_buffering: FusedMatmul,
-    fallback: Option<Box<dyn FallbackOperation<R>>>,
+    pub(crate) variants: MatmulVariants,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub(crate) struct MatmulVariants {
+    pub(crate) simple_unit: FusedMatmul,
+    pub(crate) double_unit: FusedMatmul,
+    pub(crate) simple: FusedMatmul,
+    pub(crate) simple_multi_rows: FusedMatmul,
+    pub(crate) double_buffering: FusedMatmul,
+    pub(crate) specialized: FusedMatmul,
+    pub(crate) ordered: FusedMatmul,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -53,9 +86,98 @@ pub struct MatmulOptimization<R: Runtime> {
 pub struct MatmulOptimizationState {
     trace: FuseTrace,
     trace_fallback: FuseTrace,
-    matmul_simple: FusedMatmul,
-    matmul_double_buffering: FusedMatmul,
+    variants: MatmulVariants,
     len: usize,
+}
+
+impl MatmulVariants {
+    pub fn from_default<R: Runtime>(matmul: &FusedMatmul, trace: &FuseTrace) -> Self {
+        let selector = |selector: FusedMatmulSelector| {
+            let mut matmul = matmul.clone();
+            matmul.selector = selector;
+            matmul
+        };
+        let line_sizes = line_size_overrides::<R, SimpleUnitAlgorithm>(matmul, trace);
+
+        Self {
+            simple_unit: selector(FusedMatmulSelector::SimpleUnit(line_sizes.clone())),
+            double_unit: selector(FusedMatmulSelector::DoubleUnit(line_sizes)),
+            simple: selector(FusedMatmulSelector::Simple),
+            simple_multi_rows: selector(FusedMatmulSelector::SimpleMultiRows),
+            double_buffering: selector(FusedMatmulSelector::DoubleBuffering),
+            specialized: selector(FusedMatmulSelector::Specialized),
+            ordered: selector(FusedMatmulSelector::OrderedDoubleBuffering),
+        }
+    }
+}
+
+impl<R: Runtime> MatmulOptimizationInfo<R> {
+    /// Returns the number of output buffers added by fusion.
+    pub fn num_output_buffers(&self) -> usize {
+        self.trace_fallback.resources.outputs.len()
+    }
+
+    /// Number of operations fused.
+    pub fn num_ops_fused(&self) -> usize {
+        self.len
+    }
+}
+
+impl<R: Runtime> MatmulOptimizationTuneArg<R> {
+    pub(crate) fn execute_fused<BT: CubeElement, S: MatmulVariantSelection>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+    ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
+        self.info.trace.run::<R, BT, FusedMatmul>(
+            &self.info.client,
+            &self.info.device,
+            context,
+            S::select(&self.info.variants),
+        )
+    }
+
+    pub fn execute_fallback<BT: CubeElement>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+    ) -> TuneOutput<R> {
+        self.fallback.run(context);
+
+        #[cfg(feature = "autotune-checks")]
+        let mut output = TuneOutput::Checked {
+            handles: Default::default(),
+        };
+        #[cfg(not(feature = "autotune-checks"))]
+        let output = TuneOutput::UnChecked(core::marker::PhantomData::<R>);
+
+        #[cfg(feature = "autotune-checks")]
+        if let TuneOutput::Checked { handles } = &mut output {
+            let out_desc = context
+                .tensors
+                .get(&self.variants.simple.op.out.id)
+                .unwrap();
+            let handle_out = context
+                .handles
+                .get_handle(&out_desc.id, &burn_ir::TensorStatus::ReadOnly);
+
+            handles.insert(
+                self.variants.simple.op.out.id,
+                (out_desc.shape.clone(), handle_out.clone()),
+            );
+        }
+
+        let output_write = self
+            .info
+            .trace_fallback
+            .run::<R, BT, ElemwiseRunner>(
+                &self.info.client,
+                &self.info.device,
+                context,
+                &ElemwiseRunner,
+            )
+            .unwrap();
+
+        output.merge(output_write)
+    }
 }
 
 impl<R: Runtime> MatmulOptimization<R> {
@@ -67,21 +189,19 @@ impl<R: Runtime> MatmulOptimization<R> {
         len: usize,
         matmul: FusedMatmul,
     ) -> Self {
-        let mut matmul_simple = matmul.clone();
-        let mut matmul_double_buffering = matmul;
+        let variants = MatmulVariants::from_default::<R>(&matmul, &trace);
 
-        matmul_simple.selector = FusedMatmulSelector::Simple;
-        matmul_double_buffering.selector = FusedMatmulSelector::DoubleBuffering;
-
-        Self {
+        let info = MatmulOptimizationInfo {
             trace,
             trace_fallback,
             client,
             device,
             len,
-            matmul_simple,
-            matmul_double_buffering,
-            fallback: None,
+            variants,
+        };
+
+        Self {
+            info: Arc::new(info),
         }
     }
     /// Execute the optimization.
@@ -91,111 +211,50 @@ impl<R: Runtime> MatmulOptimization<R> {
         fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
         // The index of the fallback matmul is always 0.
-        self.fallback = Some(fallback(0));
+        let fallback = fallback(0);
+        let arg = MatmulOptimizationTuneArg {
+            info: self.info.clone(),
+            fallback,
+        };
 
         #[cfg(feature = "autotune")]
-        fused_matmul_autotune::<R, BT>(self, context);
+        fused_matmul_autotune::<R, BT>(arg, context);
 
         #[cfg(not(feature = "autotune"))]
-        if self.execute_standard_fused::<BT>(context).is_err() {
-            self.execute_fallback::<BT>(context);
+        if arg.execute_fused::<BT, Simple>(context).is_err() {
+            arg.execute_fallback::<BT>(context);
         }
     }
 
     /// Number of operations fused.
     pub fn num_ops_fused(&self) -> usize {
-        self.len
+        self.info.num_ops_fused()
     }
 
     /// Create an optimization from its [state](MatmulOptimizationState).
     pub fn from_state(device: &R::Device, state: MatmulOptimizationState) -> Self {
-        Self {
+        let info = MatmulOptimizationInfo {
             trace: state.trace,
             trace_fallback: state.trace_fallback,
             len: state.len,
             client: R::client(device),
             device: device.clone(),
-            matmul_simple: state.matmul_simple.clone(),
-            matmul_double_buffering: state.matmul_double_buffering.clone(),
-            fallback: None,
+            variants: state.variants.clone(),
+        };
+
+        Self {
+            info: Arc::new(info),
         }
     }
 
     /// Convert the optimization to its [state](MatmulOptimizationState).
     pub fn to_state(&self) -> MatmulOptimizationState {
         MatmulOptimizationState {
-            trace: self.trace.clone(),
-            trace_fallback: self.trace_fallback.clone(),
-            matmul_simple: self.matmul_simple.clone(),
-            matmul_double_buffering: self.matmul_double_buffering.clone(),
-            len: self.len,
+            trace: self.info.trace.clone(),
+            trace_fallback: self.info.trace_fallback.clone(),
+            variants: self.info.variants.clone(),
+            len: self.info.len,
         }
-    }
-
-    /// Returns the number of output buffers added by fusion.
-    pub fn num_output_buffers(&self) -> usize {
-        self.trace_fallback.resources.outputs.len()
-    }
-
-    pub fn execute_simple_fused<BT: CubeElement>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
-        self.trace.run::<R, BT, FusedMatmul>(
-            &self.client,
-            &self.device,
-            context,
-            &self.matmul_simple,
-        )
-    }
-
-    pub fn execute_double_buffering_fused<BT: CubeElement>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
-        self.trace.run::<R, BT, FusedMatmul>(
-            &self.client,
-            &self.device,
-            context,
-            &self.matmul_double_buffering,
-        )
-    }
-
-    pub fn execute_fallback<BT: CubeElement>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> TuneOutput<R> {
-        self.fallback
-            .as_ref()
-            .expect("A fallback operation should be available")
-            .run(context);
-
-        #[cfg(feature = "autotune-checks")]
-        let mut output = TuneOutput::Checked {
-            handles: Default::default(),
-        };
-        #[cfg(not(feature = "autotune-checks"))]
-        let output = TuneOutput::UnChecked(core::marker::PhantomData::<R>);
-
-        #[cfg(feature = "autotune-checks")]
-        if let TuneOutput::Checked { handles } = &mut output {
-            let out_desc = context.tensors.get(&self.matmul_simple.op.out.id).unwrap();
-            let handle_out = context
-                .handles
-                .get_handle(&out_desc.id, &burn_ir::TensorStatus::ReadOnly);
-
-            handles.insert(
-                self.matmul_simple.op.out.id,
-                (out_desc.shape.clone(), handle_out.clone()),
-            );
-        }
-
-        let output_write = self
-            .trace_fallback
-            .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
-            .unwrap();
-
-        output.merge(output_write)
     }
 }
 
@@ -203,7 +262,12 @@ impl<R: Runtime> MatmulOptimization<R> {
 pub enum FusedMatmulSelector {
     #[default]
     Simple,
+    SimpleMultiRows,
     DoubleBuffering,
+    Specialized,
+    OrderedDoubleBuffering,
+    SimpleUnit(LineSizeOverrides),
+    DoubleUnit(LineSizeOverrides),
 }
 
 #[derive(new, Clone, Serialize, Deserialize, Debug)]
@@ -217,17 +281,57 @@ pub struct FusedMatmul {
 
 #[derive(Debug)]
 pub enum FusedMatmulError {
-    LaunchError(MatmulLaunchError),
+    LaunchError(MatmulSetupError),
     InvalidInput,
 }
 
-impl From<MatmulLaunchError> for FusedMatmulError {
-    fn from(value: MatmulLaunchError) -> Self {
+impl From<MatmulSetupError> for FusedMatmulError {
+    fn from(value: MatmulSetupError) -> Self {
         Self::LaunchError(value)
     }
 }
 
-impl<R: Runtime> Vectorization<R> for FusedMatmul {}
+impl<R: Runtime> Vectorization<R> for FusedMatmul {
+    /// The vectorization factor for all inputs and outputs.
+    #[allow(clippy::too_many_arguments)]
+    fn vectorization<'a>(
+        &self,
+        context: &Context<'_, CubeFusionHandle<R>>,
+        vectorizations: &mut BTreeMap<TensorId, Vect>,
+        inputs: impl Iterator<Item = VectorizationHandle<'a, R>>,
+        outputs: impl Iterator<Item = &'a TensorIr>,
+        reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
+        swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
+        line_sizes: &[u8],
+        max: u8,
+        axis: Option<usize>,
+    ) {
+        match &self.selector {
+            FusedMatmulSelector::SimpleUnit(line_size_overrides) => vectorization_default(
+                vectorizations,
+                inputs,
+                outputs,
+                reshaped,
+                swapped,
+                line_sizes,
+                &line_size_overrides.mapping(context),
+                max,
+                axis,
+            ),
+            _ => vectorization_default(
+                vectorizations,
+                inputs,
+                outputs,
+                reshaped,
+                swapped,
+                line_sizes,
+                &Default::default(),
+                max,
+                axis,
+            ),
+        }
+    }
+}
 
 impl<R: Runtime> TraceRunner<R> for FusedMatmul {
     type Error = FusedMatmulError;
@@ -310,10 +414,8 @@ impl FusedMatmul {
             m: m as usize,
             n: n as usize,
             k: k as usize,
-            batches: (
-                lhs_shape[..lhs_shape.len() - 2].to_vec(),
-                rhs_shape[..rhs_shape.len() - 2].to_vec(),
-            ),
+            lhs_batches: lhs_shape[..lhs_shape.len() - 2].to_vec(),
+            rhs_batches: rhs_shape[..rhs_shape.len() - 2].to_vec(),
             lhs_layout: match lhs_transposed {
                 true => components::MatrixLayout::ColMajor,
                 false => components::MatrixLayout::RowMajor,
@@ -324,40 +426,88 @@ impl FusedMatmul {
             },
         };
 
-        let plane_size = client.properties().hardware.defined_plane_size();
+        match &self.selector {
+            FusedMatmulSelector::Simple | FusedMatmulSelector::SimpleMultiRows => {
+                let multi_rows = matches!(self.selector, FusedMatmulSelector::SimpleMultiRows);
 
-        let plane_size = match plane_size {
-            Some(val) => val,
-            None => {
-                return Err(MatmulLaunchError::Unavailable(
-                    MatmulAvailabilityError::PlaneDimUnknown,
-                )
-                .into());
-            }
-        };
-
-        match self.selector {
-            FusedMatmulSelector::Simple => {
-                match matmul_launch_kernel::<R, EG, SimpleAlgorithm<AcceleratedMatmul>>(
+                match launch_inner_fix_dtype::<R, EG, SimpleAlgorithm<AcceleratedMatmul>>(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,
                     problem,
                     line_sizes,
-                    plane_size,
+                    &Selection::Inferred(SimpleArgs { multi_rows }),
                 ) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
-            FusedMatmulSelector::DoubleBuffering => {
-                match matmul_launch_kernel::<R, EG, CyclicDoubleBufferingAlgorithm<AcceleratedMatmul>>(
+            FusedMatmulSelector::DoubleBuffering | FusedMatmulSelector::Specialized => {
+                let specialized = matches!(self.selector, FusedMatmulSelector::Specialized);
+
+                match launch_inner_fix_dtype::<
+                    R,
+                    EG,
+                    CyclicDoubleBufferingAlgorithm<AcceleratedMatmul>,
+                >(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,
                     problem,
                     line_sizes,
-                    plane_size,
+                    &Selection::Inferred(DoubleBufferingArgs { specialized }),
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+            FusedMatmulSelector::OrderedDoubleBuffering => {
+                let row_count = match self.lhs.precision() {
+                    FusePrecision::F16 | FusePrecision::BF16 => 8,
+                    _ => 4,
+                };
+
+                match launch_inner_fix_dtype::<
+                    R,
+                    EG,
+                    OrderedDoubleBufferingAlgorithm<AcceleratedMatmul>,
+                >(
+                    client,
+                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    outputs,
+                    problem,
+                    line_sizes,
+                    &Selection::Inferred(OrderedSelectionArgs {
+                        row_count: Some(row_count),
+                        rows_per_plane: Some(2),
+                        partition_k: Some(2),
+                    }),
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+            FusedMatmulSelector::SimpleUnit(..) => {
+                match launch_inner_fix_dtype::<R, EG, SimpleUnitAlgorithm>(
+                    client,
+                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    outputs,
+                    problem,
+                    line_sizes,
+                    &Default::default(),
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+            FusedMatmulSelector::DoubleUnit(..) => {
+                match launch_inner_fix_dtype::<R, EG, DoubleUnitAlgorithm>(
+                    client,
+                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    outputs,
+                    problem,
+                    line_sizes,
+                    &Default::default(),
                 ) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
@@ -367,34 +517,142 @@ impl FusedMatmul {
     }
 }
 
-fn matmul_launch_kernel<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
+fn launch_inner_fix_dtype<'a, R: Runtime, MP: MatmulPrecision, A: Algorithm>(
     client: &ComputeClient<R::Server, R::Channel>,
     input: FusedMatmulInputLaunch<'a, R>,
     output: GlobalArgsLaunch<'a, R>,
     problem: MatmulProblem,
     line_sizes: MatmulLineSizes,
-    plane_size: u32,
-) -> Result<(), MatmulLaunchError> {
-    if <A::TileMatmul as TileMatmulFamily>::requires_tensor_cores()
-        && TypeId::of::<EG::ES>() == TypeId::of::<f32>()
-        && tf32::is_supported(client)
-    {
-        select_kernel_virtual::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
-            client,
-            input,
-            output,
-            problem,
-            Some(line_sizes),
-            plane_size,
-        )
+    selection: &Selection<A::SelectionArgs>,
+) -> Result<(), MatmulSetupError> {
+    let fix_plane_dim = |plane_dim: u32| {
+        // Sometimes the GPU doesn't support plane instructions and doesn't report the
+        // plane size, but we can still execute algorithms that don't use plane instructions.
+        //
+        // In this case, we set a plane size for the selector to work, defaulting to 32 as it
+        // is a common plane size.
+        if plane_dim == 0 { 32 } else { plane_dim }
+    };
+
+    let plane_size = fix_plane_dim(A::select_plane_dim::<R>(client));
+
+    if <A::TileMatmul as TileMatmulFamily>::requires_accelerator() && tf32::is_supported(client) {
+        match (
+            TypeId::of::<LhsG<MP>>() == TypeId::of::<f32>(),
+            TypeId::of::<RhsG<MP>>() == TypeId::of::<f32>(),
+        ) {
+            (true, true) => {
+                launch_kernel_virtual::<FusedMatmulSpec<(f32, f32, tf32, tf32, MP::EA, MP::EO)>, R, A>(
+                    client, input, output, problem, line_sizes, plane_size, selection,
+                )
+            }
+            (true, false) => launch_kernel_virtual::<
+                FusedMatmulSpec<(f32, RhsG<MP>, tf32, RhsS<MP>, MP::EA, MP::EO)>,
+                R,
+                A,
+            >(
+                client, input, output, problem, line_sizes, plane_size, selection,
+            ),
+            (false, true) => launch_kernel_virtual::<
+                FusedMatmulSpec<(LhsG<MP>, f32, LhsS<MP>, tf32, MP::EA, MP::EO)>,
+                R,
+                A,
+            >(
+                client, input, output, problem, line_sizes, plane_size, selection,
+            ),
+            (false, false) => launch_kernel_virtual::<FusedMatmulSpec<MP>, R, A>(
+                client, input, output, problem, line_sizes, plane_size, selection,
+            ),
+        }
     } else {
-        select_kernel_virtual::<FusedMatmulSpec<EG>, R, A>(
-            client,
-            input,
-            output,
-            problem,
-            Some(line_sizes),
-            plane_size,
+        launch_kernel_virtual::<FusedMatmulSpec<MP>, R, A>(
+            client, input, output, problem, line_sizes, plane_size, selection,
         )
+    }
+}
+
+fn line_size_overrides<R: Runtime, A: Algorithm>(
+    matmul: &FusedMatmul,
+    trace: &FuseTrace,
+) -> LineSizeOverrides {
+    let elem_lhs = matmul.lhs.precision().into_elem();
+    let elem_rhs = matmul.rhs.precision().into_elem();
+    let elem_out = matmul.out.precision().into_elem();
+
+    let lhs_id = match &matmul.lhs {
+        Arg::Input(pos, ..) => trace.resources.inputs.get_id(*pos as usize).unwrap(),
+        _ => unreachable!(),
+    };
+    let rhs_id = match &matmul.rhs {
+        Arg::Input(pos, ..) => trace.resources.inputs.get_id(*pos as usize).unwrap(),
+        _ => unreachable!(),
+    };
+
+    let available_line_sizes = AvailableLineSizes {
+        lhs: R::line_size_elem(&elem_lhs).collect(),
+        rhs: R::line_size_elem(&elem_rhs).collect(),
+        out: R::line_size_elem(&elem_out).collect(),
+    };
+    let available_line_sizes_filtered = A::filter_line_sizes(available_line_sizes);
+
+    let mut line_size_overrides = LineSizeOverrides::default();
+    line_size_overrides.overrides(&lhs_id, available_line_sizes_filtered.lhs);
+    line_size_overrides.overrides(&rhs_id, available_line_sizes_filtered.rhs);
+    line_size_overrides.overrides_default(available_line_sizes_filtered.out);
+
+    line_size_overrides
+}
+
+pub(crate) trait MatmulVariantSelection {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul;
+}
+
+pub(crate) struct Simple;
+pub(crate) struct SimpleUnit;
+pub(crate) struct DoubleUnit;
+pub(crate) struct SimpleMultiRows;
+pub(crate) struct DoubleBuffering;
+pub(crate) struct Specialized;
+pub(crate) struct Ordered;
+
+impl MatmulVariantSelection for Simple {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.simple
+    }
+}
+
+impl MatmulVariantSelection for SimpleUnit {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.simple_unit
+    }
+}
+
+impl MatmulVariantSelection for DoubleUnit {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.double_unit
+    }
+}
+
+impl MatmulVariantSelection for SimpleMultiRows {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.simple_multi_rows
+    }
+}
+
+impl MatmulVariantSelection for DoubleBuffering {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.double_buffering
+    }
+}
+
+impl MatmulVariantSelection for Specialized {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.specialized
+    }
+}
+
+impl MatmulVariantSelection for Ordered {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.ordered
     }
 }

@@ -159,7 +159,8 @@ impl<B: Backend> ConvTranspose3d<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::Tolerance;
+    use burn_tensor::{ElementConversion, Tolerance, ops::FloatElem};
+    type FT = FloatElem<TestBackend>;
 
     use super::*;
     use crate::TestBackend;
@@ -174,7 +175,7 @@ mod tests {
             * config.kernel_size[0]
             * config.kernel_size[1]
             * config.kernel_size[2]) as f64;
-        let k = (config.groups as f64 / k).sqrt() as f32;
+        let k = (config.groups as f64 / k).sqrt().elem::<FT>();
         let conv = config.init::<TestBackend>(&Default::default());
 
         conv.weight.to_data().assert_within_range(-k..k);
@@ -201,7 +202,7 @@ mod tests {
         let conv = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-            format!("{}", conv),
+            format!("{conv}"),
             "ConvTranspose3d {channels: [5, 2], stride: [1, 1, 1], kernel_size: [5, 5, 5], dilation: [1, 1, 1], groups: 1, padding: [0, 0, 0], padding_out: [0, 0, 0], params: 1252}"
         );
     }

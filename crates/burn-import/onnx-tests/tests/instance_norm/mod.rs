@@ -7,7 +7,7 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData, Tolerance, ops::FloatElem};
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
     type FT = FloatElem<Backend>;
 
     #[test]

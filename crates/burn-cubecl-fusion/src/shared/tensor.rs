@@ -35,6 +35,7 @@ pub struct GlobalTensorArg<'a, R: Runtime> {
 
 #[derive(CubeType)]
 pub enum GlobalScalar {
+    F64(f64),
     F32(f32),
     F16(f16),
     BF16(bf16),
@@ -90,6 +91,14 @@ impl GlobalScalarExpand {
             }
             GlobalScalarExpand::U16(val) => {
                 if dtype == Elem::UInt(cubecl::ir::UIntKind::U16) {
+                    let expand: ExpandElement = val.clone().into();
+                    ExpandElementTyped::from(expand.clone())
+                } else {
+                    C::__expand_cast_from(scope, val.clone())
+                }
+            }
+            GlobalScalarExpand::F64(val) => {
+                if dtype == Elem::Float(cubecl::ir::FloatKind::F64) {
                     let expand: ExpandElement = val.clone().into();
                     ExpandElementTyped::from(expand.clone())
                 } else {
@@ -170,6 +179,7 @@ impl LaunchArg for GlobalScalar {
 
     fn compilation_arg<R: Runtime>(arg: &Self::RuntimeArg<'_, R>) -> Self::CompilationArg {
         match arg {
+            GlobalScalar::F64(_) => GlobalScalarCompilationArg::new(Elem::Float(FloatKind::F64)),
             GlobalScalar::F32(_) => GlobalScalarCompilationArg::new(Elem::Float(FloatKind::F32)),
             GlobalScalar::F16(_) => GlobalScalarCompilationArg::new(Elem::Float(FloatKind::F16)),
             GlobalScalar::BF16(_) => GlobalScalarCompilationArg::new(Elem::Float(FloatKind::BF16)),
@@ -208,12 +218,12 @@ impl LaunchArgExpand for GlobalScalar {
                 FloatKind::F32 => GlobalScalarExpand::F32(expand.into()),
                 FloatKind::TF32 => GlobalScalarExpand::F32(expand.into()),
                 FloatKind::F64 => GlobalScalarExpand::F32(expand.into()),
-                FloatKind::E2M3
+                FloatKind::E2M1
+                | FloatKind::E2M3
                 | FloatKind::E3M2
                 | FloatKind::E4M3
                 | FloatKind::E5M2
-                | FloatKind::E2M1
-                | FloatKind::UE8M0 => GlobalScalarExpand::F32(expand.into()),
+                | FloatKind::UE8M0 => unimplemented!("FP8 can't be passed as scalar"),
             },
             Elem::Int(int_kind) | Elem::AtomicInt(int_kind) => match int_kind {
                 IntKind::I8 => GlobalScalarExpand::I8(expand.into()),
@@ -235,6 +245,7 @@ impl LaunchArgExpand for GlobalScalar {
 impl<R: Runtime> ArgSettings<R> for GlobalScalar {
     fn register(&self, launcher: &mut KernelLauncher<R>) {
         match self {
+            GlobalScalar::F64(val) => launcher.register_f64(*val),
             GlobalScalar::F32(val) => launcher.register_f32(*val),
             GlobalScalar::F16(val) => launcher.register_f16(*val),
             GlobalScalar::BF16(val) => launcher.register_bf16(*val),

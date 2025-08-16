@@ -5,9 +5,8 @@ use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParams, QuantInputType, QuantLevel, QuantMode, QuantScheme,
-        QuantizationParametersPrimitive, QuantizationStrategy, QuantizedBytes,
-        SymmetricQuantization,
+        QParams, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizationParametersPrimitive,
+        QuantizationStrategy, QuantizedBytes, SymmetricQuantization,
     },
 };
 
@@ -48,9 +47,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
 
                 match scheme {
                     QuantScheme {
-                        level: QuantLevel::Tensor,
+                        level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
-                        q_type: QuantInputType::QInt8,
+                        value: QuantValue::QInt8,
                         ..
                     } => {
                         // We should probably check that `Q` matches i8.. but it's the only valid type now
@@ -58,12 +57,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                         let data = TensorData::new(values, shape);
 
                         let qparams = qparams
-                            .scale
+                            .scales
                             .into_iter()
-                            .map(|scale| QParams {
-                                scale,
-                                offset: None,
-                            })
+                            .map(|scales| QParams { scales })
                             .collect();
 
                         NdArrayQTensor {
@@ -91,18 +87,30 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
+                value: QuantValue::QInt8,
                 ..
             } => {
-                let scale = into_data_f(qparams.scale).iter().next().unwrap();
+                let scales = into_data_f(qparams.scales).iter().next().unwrap();
                 (
                     QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                        scale,
+                        scales,
                     )),
-                    vec![QParams {
-                        scale,
-                        offset: None,
-                    }],
+                    vec![QParams { scales }],
+                )
+            }
+            QuantScheme {
+                level: QuantLevel::Block(block_size),
+                mode: QuantMode::Symmetric,
+                value: QuantValue::QInt8,
+                ..
+            } => {
+                let (strategy, qparams) = into_data_f(qparams.scales)
+                    .iter()
+                    .map(|s| (SymmetricQuantization::init(s), QParams { scales: s }))
+                    .unzip();
+                (
+                    QuantizationStrategy::PerBlockSymmetricInt8(strategy, *block_size),
+                    qparams,
                 )
             }
         };

@@ -5,12 +5,13 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::CheckedCastError};
+use cubecl_quant::scheme::QuantScheme;
 use half::{bf16, f16};
 use num_traits::{Float, ToPrimitive};
 
 use crate::{
     DType, Distribution, Element, ElementConversion,
-    quantization::{QuantInputType, QuantScheme, QuantizationStrategy, QuantizedBytes},
+    quantization::{QuantValue, QuantizationStrategy, QuantizedBytes},
     tensor::bytes::Bytes,
     tensor::element::{Complex32, Complex64},
 };
@@ -91,8 +92,7 @@ impl TensorData {
         let num_data = data.len();
         assert_eq!(
             expected_data_len, num_data,
-            "Shape {:?} is invalid for input of size {:?}",
-            shape, num_data,
+            "Shape {shape:?} is invalid for input of size {num_data:?}",
         );
     }
 
@@ -276,9 +276,9 @@ impl TensorData {
                 ),
                 DType::QFloat(scheme) => match scheme {
                     QuantScheme {
-                        level: QuantLevel::Tensor,
+                        level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
-                        q_type: QuantInputType::QInt8,
+                        value: QuantValue::QInt8,
                         ..
                     } => {
                         // Quantized int8 values
@@ -575,10 +575,12 @@ impl TensorData {
                 } else {
                     panic!("Quantized data differs from other not quantized data")
                 };
-                if q == q_other {
+
+                // Data equality mostly depends on input quantization type, but we also check level
+                if q.value == q_other.value && q.level == q_other.level {
                     self.assert_eq_elem::<i8>(other)
                 } else {
-                    panic!("Quantization schemes differ ({:?} != {:?})", q, q_other)
+                    panic!("Quantization schemes differ ({q:?} != {q_other:?})")
                 }
             }
         }
@@ -612,7 +614,7 @@ impl TensorData {
         }
 
         if !message.is_empty() {
-            panic!("Tensors are not eq:{}", message);
+            panic!("Tensors are not eq:{message}");
         }
     }
 
@@ -677,7 +679,7 @@ impl TensorData {
         }
 
         if !message.is_empty() {
-            panic!("Tensors are not approx eq:{}", message);
+            panic!("Tensors are not approx eq:{message}");
         }
     }
 
@@ -692,11 +694,8 @@ impl TensorData {
     /// If any value is not within the half-open range bounded inclusively below
     /// and exclusively above (`start..end`).
     pub fn assert_within_range<E: Element>(&self, range: core::ops::Range<E>) {
-        let start = range.start.elem::<f32>();
-        let end = range.end.elem::<f32>();
-
-        for elem in self.iter::<f32>() {
-            if elem < start || elem >= end {
+        for elem in self.iter::<E>() {
+            if elem.cmp(&range.start).is_lt() || elem.cmp(&range.end).is_ge() {
                 panic!("Element ({elem:?}) is not within range {range:?}");
             }
         }
@@ -712,11 +711,11 @@ impl TensorData {
     ///
     /// If any value is not within the half-open range bounded inclusively (`start..=end`).
     pub fn assert_within_range_inclusive<E: Element>(&self, range: core::ops::RangeInclusive<E>) {
-        let start = range.start().elem::<f32>();
-        let end = range.end().elem::<f32>();
+        let start = range.start();
+        let end = range.end();
 
-        for elem in self.iter::<f32>() {
-            if elem < start || elem > end {
+        for elem in self.iter::<E>() {
+            if elem.cmp(start).is_lt() || elem.cmp(end).is_gt() {
                 panic!("Element ({elem:?}) is not within range {range:?}");
             }
         }
@@ -850,9 +849,9 @@ impl core::fmt::Display for TensorData {
             DType::Complex64 => format!("{:?}", self.as_slice::<Complex64>().unwrap()),
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
-                    level: QuantLevel::Tensor,
+                    level: QuantLevel::Tensor | QuantLevel::Block(_),
                     mode: QuantMode::Symmetric,
-                    q_type: QuantInputType::QInt8,
+                    value: QuantValue::QInt8,
                     ..
                 } => {
                     format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())
@@ -913,7 +912,7 @@ impl<F: Float> Tolerance<F> {
     pub fn permissive() -> Self {
         Self {
             relative: F::from(0.01).unwrap(), // 1.0%
-            absolute: F::from(1e-3).unwrap(),
+            absolute: F::from(0.01).unwrap(),
         }
     }
     /// When comparing two numbers, this uses both the relative and absolute differences.

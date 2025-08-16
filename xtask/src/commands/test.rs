@@ -1,6 +1,15 @@
-use tracel_xtask::prelude::{clap::ValueEnum, *};
+use tracel_xtask::{
+    prelude::{clap::ValueEnum, *},
+    utils::{
+        process::{ExitSignal, ProcessExitError},
+        workspace::WorkspaceMember,
+    },
+};
 
 use crate::NO_STD_CRATES;
+
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
 
 #[macros::extend_command_args(TestCmdArgs, Target, TestSubCommand)]
 pub struct BurnTestCmdArgs {
@@ -13,16 +22,52 @@ pub struct BurnTestCmdArgs {
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum CiTestType {
     GithubRunner,
+    GithubMacRunner,
     GcpCudaRunner,
     GcpVulkanRunner,
+    GcpWgpuRunner,
+}
+
+fn handle_wgpu_test(member: &str, args: &TestCmdArgs) -> anyhow::Result<()> {
+    #[cfg(unix)]
+    let filter_err = |e: &&ProcessExitError| {
+        e.status.signal() == Some(11) || matches!(e.signal, Some(ExitSignal { code: 11, .. }))
+    };
+    #[cfg(not(unix))]
+    let filter_err = |e: &&ProcessExitError| matches!(e.signal, Some(ExitSignal { code: 11, .. }));
+
+    let workspace_member = WorkspaceMember {
+        name: member.into(),
+        path: "".into(), // unused
+    };
+
+    if let Err(err) = base_commands::test::run_unit_test(&workspace_member, args) {
+        let should_ignore = err
+            .downcast_ref::<ProcessExitError>()
+            .filter(filter_err)
+            // Failed to execute unit test for '{member}'
+            .map(|e| e.message.contains(member))
+            .unwrap_or(false);
+
+        if should_ignore {
+            // Ignore intermittent successful failures
+            // https://github.com/gfx-rs/wgpu/issues/2949
+            // https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/4391
+            eprintln!("⚠️ Ignored SIGSEGV in wgpu test");
+        } else {
+            return Err(err);
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn handle_command(
     mut args: BurnTestCmdArgs,
-    exec_env: ExecutionEnvironment,
+    env: Environment,
+    context: Context,
 ) -> anyhow::Result<()> {
-    match exec_env {
-        ExecutionEnvironment::NoStd => {
+    match context {
+        Context::NoStd => {
             ["Default"].iter().try_for_each(|test_target| {
                 let mut test_args = vec!["--no-default-features"];
                 if *test_target != "Default" {
@@ -30,7 +75,7 @@ pub(crate) fn handle_command(
                 }
                 helpers::custom_crates_tests(
                     NO_STD_CRATES.to_vec(),
-                    test_args,
+                    handle_test_args(&test_args, args.release),
                     None,
                     None,
                     "no-std",
@@ -38,18 +83,19 @@ pub(crate) fn handle_command(
             })?;
             Ok(())
         }
-        ExecutionEnvironment::Std => {
-            let disable_wgpu = std::env::var("DISABLE_WGPU")
-                .map(|val| val == "1" || val == "true")
-                .unwrap_or(false);
-
+        Context::Std => {
+            // 1) Tests with default features
+            // ------------------------------
             match args.ci {
                 CiTestType::GithubRunner => {
                     // Exclude crates that are not supported on CI
                     args.exclude.extend(vec![
                         "burn-cuda".to_string(),
                         "burn-rocm".to_string(),
+                        // "burn-router" uses "burn-wgpu" for the tests.
+                        "burn-router".to_string(),
                         "burn-tch".to_string(),
+                        "burn-wgpu".to_string(),
                     ]);
 
                     // Burn remote tests don't work on windows for now
@@ -58,108 +104,103 @@ pub(crate) fn handle_command(
                         args.exclude.extend(vec!["burn-remote".to_string()]);
                     };
 
-                    if disable_wgpu {
-                        args.exclude.extend(vec![
-                            "burn-wgpu".to_string(),
-                            // "burn-router" uses "burn-wgpu" for the tests.
-                            "burn-router".to_string(),
-                        ]);
-                    };
+                    base_commands::test::handle_command(
+                        args.clone().try_into().unwrap(),
+                        env,
+                        context,
+                    )?;
                 }
-                CiTestType::GcpCudaRunner => {
-                    args.target = Target::AllPackages;
-                    args.only.push("burn-cuda".to_string());
-                }
-                CiTestType::GcpVulkanRunner => {
+                CiTestType::GithubMacRunner => {
                     args.target = Target::AllPackages;
                     args.only.push("burn-wgpu".to_string());
                     args.features
                         .get_or_insert_with(Vec::new)
+                        .push("metal".to_string());
+
+                    base_commands::test::handle_command(
+                        args.clone().try_into().unwrap(),
+                        env,
+                        context,
+                    )?;
+                }
+                CiTestType::GcpCudaRunner => {
+                    args.target = Target::AllPackages;
+                    args.only.push("burn-cuda".to_string());
+
+                    base_commands::test::handle_command(
+                        args.clone().try_into().unwrap(),
+                        env,
+                        context,
+                    )?;
+                }
+                CiTestType::GcpVulkanRunner => {
+                    let mut args_vulkan = args.clone();
+                    args_vulkan
+                        .features
+                        .get_or_insert_with(Vec::new)
                         .push("vulkan".to_string());
+
+                    let mut args_vulkan = args_vulkan.clone().try_into().unwrap();
+                    handle_wgpu_test("burn-wgpu", &args_vulkan)?;
+
+                    args_vulkan.features = Some(vec!["test-vulkan".into()]);
+                    handle_wgpu_test("burn-core", &args_vulkan)?;
+                    handle_wgpu_test("burn-vision", &args_vulkan)?;
+                }
+                CiTestType::GcpWgpuRunner => {
+                    args.target = Target::AllPackages;
+                    // "burn-router" uses "burn-wgpu" for the tests.
+                    let mut args_wgpu = args.clone().try_into().unwrap();
+                    handle_wgpu_test("burn-wgpu", &args_wgpu)?;
+                    handle_wgpu_test("burn-router", &args_wgpu)?;
+
+                    args_wgpu.features = Some(vec!["test-wgpu".into()]);
+                    handle_wgpu_test("burn-core", &args_wgpu)?;
+                    handle_wgpu_test("burn-vision", &args_wgpu)?;
                 }
             }
 
-            // test workspace
-            base_commands::test::handle_command(args.clone().try_into().unwrap())?;
+            // 2) Specific additional commands to test specific features
+            // ---------------------------------------------------------
+            match args.ci {
+                CiTestType::GithubRunner => {
+                    // burn-dataset
+                    helpers::custom_crates_tests(
+                        vec!["burn-dataset"],
+                        handle_test_args(&["--all-features"], args.release),
+                        None,
+                        None,
+                        "std all features",
+                    )?;
 
-            // Specific additional commands to test specific features
-            if args.ci == CiTestType::GithubRunner {
-                // burn-dataset
-                helpers::custom_crates_tests(
-                    vec!["burn-dataset"],
-                    vec!["--all-features"],
-                    None,
-                    None,
-                    "std all features",
-                )?;
-
-                // burn-core
-                helpers::custom_crates_tests(
-                    vec!["burn-core"],
-                    vec!["--features", "test-tch,record-item-custom-serde"],
-                    None,
-                    None,
-                    "std with features: test-tch,record-item-custom-serde",
-                )?;
-
-                // burn-vision
-                helpers::custom_crates_tests(
-                    vec!["burn-vision"],
-                    vec!["--features", "test-cpu"],
-                    None,
-                    None,
-                    "std cpu",
-                )?;
-
-                if !disable_wgpu {
+                    // burn-core
                     helpers::custom_crates_tests(
                         vec!["burn-core"],
-                        vec!["--features", "test-wgpu"],
+                        handle_test_args(
+                            &["--features", "test-tch,record-item-custom-serde"],
+                            args.release,
+                        ),
                         None,
                         None,
-                        "std wgpu",
+                        "std with features: test-tch,record-item-custom-serde",
                     )?;
+
+                    // burn-vision
                     helpers::custom_crates_tests(
                         vec!["burn-vision"],
-                        vec!["--features", "test-wgpu"],
+                        handle_test_args(&["--features", "test-cpu"], args.release),
                         None,
                         None,
-                        "std wgpu",
+                        "std cpu",
                     )?;
-
-                    // Vulkan isn't available on MacOS
-                    #[cfg(not(target_os = "macos"))]
-                    {
-                        let disable_wgpu_spirv = std::env::var("DISABLE_WGPU_SPIRV")
-                            .map(|val| val == "1" || val == "true")
-                            .unwrap_or(false);
-
-                        if !disable_wgpu_spirv {
-                            helpers::custom_crates_tests(
-                                vec!["burn-core"],
-                                vec!["--features", "test-wgpu-spirv"],
-                                None,
-                                None,
-                                "std vulkan",
-                            )?;
-                            helpers::custom_crates_tests(
-                                vec!["burn-vision"],
-                                vec!["--features", "test-vulkan"],
-                                None,
-                                None,
-                                "std vulkan",
-                            )?;
-                        }
-                    }
                 }
-
-                // MacOS specific tests
-                #[cfg(target_os = "macos")]
-                {
+                CiTestType::GcpCudaRunner => (),
+                CiTestType::GcpVulkanRunner | CiTestType::GcpWgpuRunner => (), // handled in tests above
+                CiTestType::GithubMacRunner => {
                     // burn-candle
                     helpers::custom_crates_tests(
                         vec!["burn-candle"],
-                        vec!["--features", "accelerate"],
+                        handle_test_args(&["--features", "accelerate"], args.release),
                         None,
                         None,
                         "std accelerate",
@@ -167,20 +208,33 @@ pub(crate) fn handle_command(
                     // burn-ndarray
                     helpers::custom_crates_tests(
                         vec!["burn-ndarray"],
-                        vec!["--features", "blas-accelerate"],
+                        handle_test_args(&["--features", "blas-accelerate"], args.release),
                         None,
                         None,
                         "std blas-accelerate",
                     )?;
+                    helpers::custom_crates_tests(
+                        vec!["burn-core"],
+                        handle_test_args(&["--features", "test-metal"], args.release),
+                        None,
+                        None,
+                        "std metal",
+                    )?;
+                    helpers::custom_crates_tests(
+                        vec!["burn-vision"],
+                        handle_test_args(&["--features", "test-metal"], args.release),
+                        None,
+                        None,
+                        "std metal",
+                    )?;
                 }
             }
-
             Ok(())
         }
-        ExecutionEnvironment::All => ExecutionEnvironment::value_variants()
+        Context::All => Context::value_variants()
             .iter()
-            .filter(|env| **env != ExecutionEnvironment::All)
-            .try_for_each(|env| {
+            .filter(|ctx| **ctx != Context::All)
+            .try_for_each(|ctx| {
                 handle_command(
                     BurnTestCmdArgs {
                         command: args.command.clone(),
@@ -192,9 +246,22 @@ pub(crate) fn handle_command(
                         ci: args.ci.clone(),
                         features: args.features.clone(),
                         no_default_features: args.no_default_features,
+                        release: args.release,
+                        test: args.test.clone(),
+                        force: args.force,
+                        no_capture: args.no_capture,
                     },
                     env.clone(),
+                    ctx.clone(),
                 )
             }),
     }
+}
+
+fn handle_test_args<'a>(args: &'a [&'a str], release: bool) -> Vec<&'a str> {
+    let mut args = args.to_vec();
+    if release {
+        args.push("--release");
+    }
+    args
 }

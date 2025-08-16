@@ -69,10 +69,10 @@ impl FileMetricLogger {
 
                 let epoch = dir_name.replace(EPOCH_PREFIX, "").parse::<usize>().ok();
 
-                if let Some(epoch) = epoch {
-                    if epoch > max_epoch {
-                        max_epoch = epoch;
-                    }
+                if let Some(epoch) = epoch
+                    && epoch > max_epoch
+                {
+                    max_epoch = epoch;
                 }
             }
         }
@@ -81,7 +81,7 @@ impl FileMetricLogger {
     }
 
     fn epoch_directory(&self, epoch: usize) -> PathBuf {
-        let name = format!("{}{}", EPOCH_PREFIX, epoch);
+        let name = format!("{EPOCH_PREFIX}{epoch}");
         self.directory.join(name)
     }
 

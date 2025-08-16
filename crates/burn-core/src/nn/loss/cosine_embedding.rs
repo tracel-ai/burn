@@ -77,13 +77,13 @@ impl CosineEmbeddingLoss {
     ///
     /// # Shapes
     ///
-    /// - input1: [batch_size, embedding_dim]
-    /// - input2: [batch_size, embedding_dim]
-    /// - target: [batch_size] with values 1 or -1
+    /// - input1: ``[batch_size, embedding_dim]``
+    /// - input2: ``[batch_size, embedding_dim]``
+    /// - target: ``[batch_size]`` with values 1 or -1
     ///
     /// # Returns
     ///
-    /// Loss tensor of shape [1]
+    /// Loss tensor of shape ``[1]``
     pub fn forward<B: Backend>(
         &self,
         input1: Tensor<B, 2>,
@@ -94,7 +94,7 @@ impl CosineEmbeddingLoss {
         match &self.reduction.0 {
             Reduction::Mean => tensor.mean(),
             Reduction::Sum => tensor.sum(),
-            other => panic!("{:?} reduction is not supported", other),
+            other => panic!("{other:?} reduction is not supported"),
         }
     }
 
@@ -102,13 +102,13 @@ impl CosineEmbeddingLoss {
     ///
     /// # Arguments
     ///
-    /// * `input1` - First input tensor of shape [batch_size, embedding_dim]
-    /// * `input2` - Second input tensor of shape [batch_size, embedding_dim]
-    /// * `target` - Target tensor of shape [batch_size] with values 1 or -1
+    /// * `input1` - First input tensor of shape ``[batch_size, embedding_dim]``
+    /// * `input2` - Second input tensor of shape ``[batch_size, embedding_dim]``
+    /// * `target` - Target tensor of shape ``[batch_size]`` with values 1 or -1
     ///
     /// # Returns
     ///
-    /// Tensor of per-element losses with shape [batch_size]
+    /// Tensor of per-element losses with shape ``[batch_size]``
     pub fn forward_no_reduction<B: Backend>(
         &self,
         input1: Tensor<B, 2>,
@@ -150,20 +150,17 @@ impl CosineEmbeddingLoss {
 
         assert_eq!(
             batch_size1, batch_size2,
-            "Batch size of input1 ({}) must match batch size of input2 ({})",
-            batch_size1, batch_size2
+            "Batch size of input1 ({batch_size1}) must match batch size of input2 ({batch_size2})"
         );
 
         assert_eq!(
             dim1, dim2,
-            "Embedding dimension of input1 ({}) must match embedding dimension of input2 ({})",
-            dim1, dim2
+            "Embedding dimension of input1 ({dim1}) must match embedding dimension of input2 ({dim2})"
         );
 
         assert_eq!(
             batch_size1, batch_size_target,
-            "Batch size of inputs ({}) must match batch size of target ({})",
-            batch_size1, batch_size_target
+            "Batch size of inputs ({batch_size1}) must match batch size of target ({batch_size_target})"
         );
     }
 }
@@ -313,7 +310,7 @@ mod tests {
         let loss = config.init();
 
         assert_eq!(
-            alloc::format!("{}", loss),
+            alloc::format!("{loss}"),
             "CosineEmbeddingLoss {margin: 0.5, reduction: Mean}"
         );
     }

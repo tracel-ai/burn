@@ -1,19 +1,16 @@
-use std::collections::BTreeMap;
-
+use super::{block::FuseBlock, vectorization::Vect};
 use crate::{
     CubeFusionHandle,
     shared::ir::{Arg, FuseOp, FusePrecision},
 };
 use burn_ir::{TensorId, TensorIr};
 use cubecl::Runtime;
-
-use super::block::FuseBlock;
+use std::collections::BTreeMap;
 
 /// The plan is responsible to keep runtime information related to the launch of a fused kernel
 /// at one place.
 #[derive(Debug)]
 pub(crate) struct LaunchPlan<'a, R: Runtime> {
-    pub global_inputs: Vec<TensorIr>,
     pub global_outputs: Vec<TensorIr>,
     pub handle_inputs: Vec<HandleInput<R>>,
     pub handle_outputs: Vec<HandleOutput<R>>,
@@ -84,32 +81,6 @@ impl ReferenceSelection {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum Vect {
-    Broadcasted,
-    Aligned(u8),
-}
-
-impl Vect {
-    pub fn line_size(&self) -> u8 {
-        match self {
-            Vect::Broadcasted => 1,
-            Vect::Aligned(val) => *val,
-        }
-    }
-
-    pub fn is_broadcast(&self) -> bool {
-        matches!(self, Vect::Broadcasted)
-    }
-
-    pub fn limit_to_one(&self) -> Self {
-        match self {
-            Vect::Broadcasted => Vect::Broadcasted,
-            Vect::Aligned(_) => Vect::Aligned(1),
-        }
-    }
-}
-
 impl<R: Runtime> LaunchPlan<'_, R> {
     pub fn new(fuse_blocks: &[FuseBlock]) -> Self {
         let mut rank = 0;
@@ -129,7 +100,6 @@ impl<R: Runtime> LaunchPlan<'_, R> {
         }
 
         LaunchPlan {
-            global_inputs: Vec::new(),
             global_outputs: Vec::new(),
             handle_inputs: Vec::new(),
             handle_outputs: Vec::new(),
@@ -150,6 +120,7 @@ pub struct HandleOutputAliasDebugInfo<R: Runtime> {
 }
 
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum HandleOutput<R: Runtime> {
     Alias {
         input_pos: usize,
@@ -168,14 +139,74 @@ pub enum HandleOutput<R: Runtime> {
 }
 
 #[derive(Debug)]
-pub struct HandleInput<R: Runtime> {
+pub struct NormalHandleInput<R: Runtime> {
     pub relative_id: TensorId,
-    pub global_id: TensorId,
+    pub global_ir: TensorIr,
     pub precision: FusePrecision,
     pub handle: CubeFusionHandle<R>,
-    pub global_shape: Vec<usize>,
     pub vectorization: u8,
     pub broadcated: bool,
+    // Strides can be modified during plan execution, but need to be restored on rollback
+    pub orig_strides: Vec<usize>,
+}
+
+#[derive(Debug)]
+pub struct QuantValuesHandleInput<R: Runtime> {
+    pub relative_id: TensorId,
+    pub global_ir: TensorIr,
+    pub precision: FusePrecision,
+    pub handle: CubeFusionHandle<R>,
+    pub vectorization: u8,
+}
+
+#[derive(Debug)]
+pub struct QuantParamsHandleInput<R: Runtime> {
+    pub precision: FusePrecision,
+    pub handle: CubeFusionHandle<R>,
+    pub shape: [usize; 1],
+}
+
+#[derive(Debug)]
+pub enum HandleInput<R: Runtime> {
+    Normal(NormalHandleInput<R>),
+    QuantValues(QuantValuesHandleInput<R>),
+    QuantParams(QuantParamsHandleInput<R>),
+}
+
+impl<R: Runtime> HandleInput<R> {
+    pub fn as_normal(&self) -> Option<&NormalHandleInput<R>> {
+        match self {
+            HandleInput::Normal(normal) => Some(normal),
+            _ => None,
+        }
+    }
+}
+
+impl<R: Runtime> NormalHandleInput<R> {
+    pub fn new(
+        tensor_global: TensorIr,
+        tensor_relative: &TensorIr,
+        precision: FusePrecision,
+        mut handle: CubeFusionHandle<R>,
+        mut strides: Vec<usize>,
+    ) -> Self {
+        // For rollback
+        core::mem::swap(&mut handle.strides, &mut strides);
+        Self {
+            precision,
+            handle,
+            relative_id: tensor_relative.id,
+            global_ir: tensor_global,
+            vectorization: 1,
+            broadcated: false,
+            orig_strides: strides,
+        }
+    }
+
+    pub fn handle_rollback(mut self) -> CubeFusionHandle<R> {
+        core::mem::swap(&mut self.handle.strides, &mut self.orig_strides);
+        self.handle
+    }
 }
 
 #[derive(Debug)]

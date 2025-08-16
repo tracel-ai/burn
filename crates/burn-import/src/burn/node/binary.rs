@@ -1,11 +1,11 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, Type};
+use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::sync::Arc;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum BinaryType {
     Add,
     Sub,
@@ -93,7 +93,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BinaryNode {
                 let name = scalar.name.clone();
                 quote! { #name }
             }
-            _ => panic!("lhs must be a tensor or scalar"),
+            Type::Shape(shape) => {
+                let name = shape.name.clone();
+                quote! { #name }
+            }
+            _ => panic!("lhs must be a tensor, scalar, or shape"),
         };
 
         // Get the rhs name in the form of token stream
@@ -103,7 +107,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BinaryNode {
                 let name = scalar.name.clone();
                 quote! { #name }
             }
-            _ => panic!("rhs must be a tensor or scalar"),
+            Type::Shape(shape) => {
+                let name = shape.name.clone();
+                quote! { #name }
+            }
+            _ => panic!("rhs must be a tensor, scalar, or shape"),
         };
 
         let output = &self.output.name();
@@ -117,16 +125,69 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BinaryNode {
     fn into_node(self) -> Node<PS> {
         Node::Binary(self)
     }
+
+    fn register_imports(&self, imports: &mut BurnImports) {
+        // Check if we need to import Bool and Int for Shape comparisons
+        if self.binary_type == BinaryType::Equal {
+            match (&self.lhs, &self.rhs) {
+                // Shape-to-Tensor comparisons need these imports
+                (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
+                    imports.register("burn::tensor::Bool");
+                    imports.register("burn::tensor::Int");
+                    imports.register("burn::tensor::Tensor");
+                }
+                // Shape-to-Shape comparison doesn't need any special imports
+                _ => {}
+            }
+        }
+    }
 }
 
 impl BinaryNode {
     pub(crate) fn add(lhs: Type, rhs: Type, output: Type) -> Self {
+        log::debug!("BinaryNode::add called with lhs: {lhs:?}, rhs: {rhs:?}, output: {output:?}");
         let function = match (&lhs, &rhs) {
             (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.add(#rhs) },
             (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.add_scalar(#rhs) },
             (Type::Scalar(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #rhs.add_scalar(#lhs) },
             (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs + #rhs },
-            _ => panic!("Addition is supported for tensor and scalar only"),
+            (Type::Shape(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let mut result = #lhs;
+                        for (result_item, rhs_item) in result.iter_mut().zip(#rhs.iter()) {
+                            *result_item = result_item.saturating_add(*rhs_item);
+                        }
+                        result
+                    }
+                }
+            },
+            (Type::Shape(_), Type::Scalar(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let mut result = #lhs;
+                        for result_item in result.iter_mut() {
+                            *result_item = result_item.saturating_add(#rhs as i64);
+                        }
+                        result
+                    }
+                }
+            },
+            (Type::Scalar(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let mut result = #rhs;
+                        for result_item in result.iter_mut() {
+                            *result_item = result_item.saturating_add(#lhs as i64);
+                        }
+                        result
+                    }
+                }
+            },
+            (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
+                panic!("Binary operation is not supported between shape and tensor types")
+            }
+            _ => panic!("Addition is supported for tensor, scalar, and shape types only"),
         };
 
         Self::new(lhs, rhs, output, BinaryType::Add, Arc::new(function))
@@ -138,7 +199,43 @@ impl BinaryNode {
             (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.sub_scalar(#rhs) },
             (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs - #rhs },
             (Type::Scalar(_), Type::Tensor(_)) => move |lhs, rhs| quote! { -#rhs.sub_scalar(#lhs) },
-            _ => panic!("Subtraction is supported for tensor and scalar only"),
+            (Type::Shape(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let mut result = #lhs;
+                        for (result_item, rhs_item) in result.iter_mut().zip(#rhs.iter()) {
+                            *result_item = result_item.saturating_sub(*rhs_item);
+                        }
+                        result
+                    }
+                }
+            },
+            (Type::Shape(_), Type::Scalar(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let mut result = #lhs;
+                        for result_item in result.iter_mut() {
+                            *result_item = result_item.saturating_sub(#rhs as i64);
+                        }
+                        result
+                    }
+                }
+            },
+            (Type::Scalar(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let mut result = #rhs;
+                        for result_item in result.iter_mut() {
+                            *result_item = (#lhs as i64).saturating_sub(*result_item);
+                        }
+                        result
+                    }
+                }
+            },
+            (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
+                panic!("Binary operation is not supported between shape and tensor types")
+            }
+            _ => panic!("Subtraction is supported for tensor, scalar, and shape types only"),
         };
 
         Self::new(lhs, rhs, output, BinaryType::Sub, Arc::new(function))
@@ -150,7 +247,43 @@ impl BinaryNode {
             (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.mul_scalar(#rhs) },
             (Type::Scalar(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #rhs.mul_scalar(#lhs) },
             (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs * #rhs },
-            _ => panic!("Multiplication is supported for tensor and scalar only"),
+            (Type::Shape(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let mut result = #lhs;
+                        for (result_item, rhs_item) in result.iter_mut().zip(#rhs.iter()) {
+                            *result_item = result_item.saturating_mul(*rhs_item);
+                        }
+                        result
+                    }
+                }
+            },
+            (Type::Shape(_), Type::Scalar(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let mut result = #lhs;
+                        for result_item in result.iter_mut() {
+                            *result_item = result_item.saturating_mul(#rhs as i64);
+                        }
+                        result
+                    }
+                }
+            },
+            (Type::Scalar(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let mut result = #rhs;
+                        for result_item in result.iter_mut() {
+                            *result_item = result_item.saturating_mul(#lhs as i64);
+                        }
+                        result
+                    }
+                }
+            },
+            (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
+                panic!("Multiplication is not supported between shape and tensor types")
+            }
+            _ => panic!("Multiplication is supported for tensor, scalar, and shape types only"),
         };
 
         Self::new(lhs, rhs, output, BinaryType::Mul, Arc::new(function))
@@ -161,7 +294,43 @@ impl BinaryNode {
             (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.div(#rhs) },
             (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.div_scalar(#rhs) },
             (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs / #rhs },
-            _ => panic!("Division is supported for tensor and scalar only"),
+            (Type::Shape(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let mut result = #lhs;
+                        for (result_item, rhs_item) in result.iter_mut().zip(#rhs.iter()) {
+                            *result_item = if *rhs_item != 0 { *result_item / *rhs_item } else { *result_item };
+                        }
+                        result
+                    }
+                }
+            },
+            (Type::Shape(_), Type::Scalar(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let mut result = #lhs;
+                        for result_item in result.iter_mut() {
+                            *result_item = if #rhs as i64 != 0 { *result_item / (#rhs as i64) } else { *result_item };
+                        }
+                        result
+                    }
+                }
+            },
+            (Type::Scalar(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let mut result = #rhs;
+                        for result_item in result.iter_mut() {
+                            *result_item = if *result_item != 0 { (#lhs as i64) / *result_item } else { (#lhs as i64) };
+                        }
+                        result
+                    }
+                }
+            },
+            (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
+                panic!("Division is not supported between shape and tensor types")
+            }
+            _ => panic!("Division is supported for tensor, scalar, and shape types only"),
         };
 
         Self::new(lhs, rhs, output, BinaryType::Div, Arc::new(function))
@@ -171,11 +340,41 @@ impl BinaryNode {
         let function = match (&lhs, &rhs) {
             (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.equal(#rhs) },
             (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs == #rhs },
-            _ => panic!("Comparison is supported for tensor to tensor and scalar to scalar only"),
+            (Type::Shape(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let mut result = #lhs;
+                        for (result_item, rhs_item) in result.iter_mut().zip(#rhs.iter()) {
+                            *result_item = if result_item == rhs_item { 1i64 } else { 0i64 };
+                        }
+                        result
+                    }
+                }
+            },
+            (Type::Shape(_), Type::Tensor(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let shape_tensor = Tensor::<B, 1, Int>::from_data(#lhs.as_slice(), &*self.device);
+                        shape_tensor.equal(#rhs)
+                    }
+                }
+            },
+            (Type::Tensor(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    {
+                        let shape_tensor = Tensor::<B, 1, Int>::from_data(#rhs.as_slice(), &*self.device);
+                        #lhs.equal(shape_tensor)
+                    }
+                }
+            },
+            _ => panic!(
+                "Comparison is supported for tensor to tensor, scalar to scalar, shape to shape, and shape to tensor only"
+            ),
         };
 
         Self::new(lhs, rhs, output, BinaryType::Equal, Arc::new(function))
     }
+
     pub(crate) fn powf(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
             (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.powf(#rhs) },
@@ -533,9 +732,10 @@ mod tests {
 
         let expected = quote! {
             use burn::tensor::Bool;
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]

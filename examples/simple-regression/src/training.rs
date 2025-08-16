@@ -1,6 +1,7 @@
 use crate::dataset::{HousingBatcher, HousingDataset};
 use crate::model::RegressionModelConfig;
 use burn::optim::AdamConfig;
+use burn::train::LearningStrategy;
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
     prelude::*,
@@ -69,7 +70,7 @@ pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .devices(vec![device.clone()])
+        .learning_strategy(LearningStrategy::SingleDevice(device.clone()))
         .num_epochs(config.num_epochs)
         .summary()
         .build(model, config.optimizer.init(), 1e-3);

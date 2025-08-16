@@ -14,7 +14,7 @@ fn main() {
     // Get image index argument (first) from command line
 
     let image_index = if let Some(image_index) = args().nth(1) {
-        println!("Image index: {}", image_index);
+        println!("Image index: {image_index}");
         image_index
             .parse::<usize>()
             .expect("Failed to parse image index")
@@ -55,7 +55,7 @@ fn main() {
     assert!(arg_max == item.label);
 
     println!("Success!");
-    println!("Predicted: {}", arg_max);
+    println!("Predicted: {arg_max}");
     println!("Actual: {}", item.label);
     println!("See the image online, click the link below:");
     println!("https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row={image_index}");

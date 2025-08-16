@@ -139,7 +139,7 @@ impl MnistDataset {
                 MnistDataset::download_file(TEST_IMAGES, &split_dir);
                 MnistDataset::download_file(TEST_LABELS, &split_dir);
             }
-            _ => panic!("Invalid split specified {}", split),
+            _ => panic!("Invalid split specified {split}"),
         };
 
         split_dir

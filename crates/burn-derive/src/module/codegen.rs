@@ -44,7 +44,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
     let clone_fn = codegen.gen_clone();
 
     let record = codegen.record_codegen();
-    let record_name = Ident::new(format!("{}Record", name).as_str(), name.span());
+    let record_name = Ident::new(format!("{name}Record").as_str(), name.span());
     let record_type = record.gen_record_type(&record_name, &generics.module);
 
     let (generics_module, generics_ty_module, generics_where_module) =

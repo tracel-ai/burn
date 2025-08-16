@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr, TensorStatus};
 use hashbrown::{HashMap, HashSet};
 
@@ -47,7 +49,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         &mut self,
         streams: OperationStreams,
         mut repr: OperationIr,
-        operation: Box<dyn Operation<R>>,
+        operation: Arc<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
         let id = self.resolve_streams(&streams, handles, &mut repr);
@@ -76,13 +78,13 @@ impl<R: FusionRuntime> MultiStream<R> {
 
         let num_executed = self.enqueue_operation(id, repr, &streams, operation, handles);
 
-        if num_executed > 0 {
-            if let Some(stream) = self.streams.get_mut(&id) {
-                let cleared = self.shared_tensors.on_executed_ops(id, stream);
-                self.clear_shared_tensors(&cleared, id);
-                let to_drop = self.shared_tensors.clear_tensors(cleared);
-                self.drop_shared_tensors(to_drop, handles, id);
-            }
+        if num_executed > 0
+            && let Some(stream) = self.streams.get_mut(&id)
+        {
+            let cleared = self.shared_tensors.on_executed_ops(id, stream);
+            self.clear_shared_tensors(&cleared, id);
+            let to_drop = self.shared_tensors.clear_tensors(cleared);
+            self.drop_shared_tensors(to_drop, handles, id);
         }
 
         let stream = match self.streams.get(&id) {
@@ -133,7 +135,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         id: StreamId,
         repr: OperationIr,
         streams: &OperationStreams,
-        operation: Box<dyn Operation<R>>,
+        operation: Arc<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) -> usize {
         let stream = match self.streams.get_mut(&id) {
@@ -260,7 +262,7 @@ impl<R: FusionRuntime> MultiStream<R> {
                 .shared_tensors
                 .analyse(current, node, streams, &self.streams);
             match analysis {
-                SharedTensorAnalysis::SharedFromCurrentStrean => {
+                SharedTensorAnalysis::SharedFromCurrentStream => {
                     shared_analysis.current.push(node.id);
                 }
                 SharedTensorAnalysis::NotShared => {}
@@ -342,10 +344,10 @@ impl<R: FusionRuntime> MultiStream<R> {
     ) {
         for (stream_id, s) in self.streams.iter_mut() {
             for tensor in tensors.iter() {
-                if let Some((original, _status)) = s.queue.variables.get(&tensor.id) {
-                    if original != stream_id {
-                        s.queue.variables.remove(&tensor.id);
-                    }
+                if let Some((original, _status)) = s.queue.variables.get(&tensor.id)
+                    && original != stream_id
+                {
+                    s.queue.variables.remove(&tensor.id);
                 }
             }
         }
@@ -355,7 +357,7 @@ impl<R: FusionRuntime> MultiStream<R> {
                 current,
             };
 
-            let op = Box::new(DropOp { id: tensor.id });
+            let op = Arc::new(DropOp { id: tensor.id });
             self.register(streams, OperationIr::Drop(tensor), op, handles);
         }
     }

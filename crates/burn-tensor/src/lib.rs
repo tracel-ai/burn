@@ -34,6 +34,8 @@ pub use cubecl::flex32;
 mod cube {
     use cubecl::ir::{Elem, FloatKind, IntKind, UIntKind};
 
+    use crate::quantization::{QuantStore, QuantValue};
+
     impl From<crate::DType> for cubecl::ir::Elem {
         fn from(dtype: crate::DType) -> Self {
             match dtype {
@@ -51,9 +53,14 @@ mod cube {
                 crate::DType::U16 => Elem::UInt(UIntKind::U16),
                 crate::DType::U8 => Elem::UInt(UIntKind::U8),
                 crate::DType::Bool => Elem::Bool,
+                crate::DType::QFloat(scheme) => match scheme.store {
+                    QuantStore::Native => match scheme.value {
+                        QuantValue::QInt8 => Self::Int(IntKind::I8),
+                    },
+                    QuantStore::U32 => Self::UInt(UIntKind::U32),
+                },
                 crate::DType::Complex32 => panic!("Complex32 type is not supported in CubeCL."),
                 crate::DType::Complex64 => panic!("Complex64 type is not supported in CubeCL."),
-                crate::DType::QFloat(_) => panic!("quantized type is not supported yet."),
             }
         }
     }
@@ -92,13 +99,12 @@ mod cube_cuda {
     }
 }
 
-#[cfg(target_os = "linux")]
 #[cfg(feature = "cubecl-hip")]
 mod cube_hip {
     use crate::backend::{DeviceId, DeviceOps};
-    use cubecl::hip::HipDevice;
+    use cubecl::hip::AmdDevice;
 
-    impl DeviceOps for HipDevice {
+    impl DeviceOps for AmdDevice {
         fn id(&self) -> DeviceId {
             DeviceId::new(0, self.index as u32)
         }

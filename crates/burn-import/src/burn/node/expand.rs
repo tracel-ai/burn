@@ -41,11 +41,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
                     }
                 }
                 Type::Shape(shape) => {
-                    // Shape implements BroadcastArgs, allowing it to be passed directly to the expand method.
+                    // Shape arrays are [i64; N] and expand now accepts them directly via Element trait
                     let shape_name = &shape.name;
                     quote! { #shape_name }
                 }
-                b => panic!("Invalid shape source {:?}", b),
+                b => panic!("Invalid shape source {b:?}"),
             },
         };
 
@@ -84,9 +84,10 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
@@ -135,9 +136,10 @@ mod tests {
         );
 
         let expected = quote! {
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
@@ -158,7 +160,7 @@ mod tests {
                 pub fn forward(
                     &self,
                     tensor1: Tensor<B, 4>,
-                    shape1: [usize; 4],
+                    shape1: [i64; 4],
                 ) -> Tensor<B, 4> {
                     let tensor2 = tensor1.expand(shape1);
 
@@ -196,9 +198,10 @@ mod tests {
 
         let expected = quote! {
             use burn::tensor::Int;
+            use burn::tensor::Tensor;
             use burn::{
                 module::Module,
-                tensor::{backend::Backend, Tensor},
+                tensor::backend::Backend,
             };
 
             #[derive(Module, Debug)]
