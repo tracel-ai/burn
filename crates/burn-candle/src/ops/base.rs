@@ -43,8 +43,18 @@ pub fn to_device(tensor: CandleTensor, device: &CandleDevice) -> CandleTensor {
 }
 
 pub fn empty(shape: Shape, device: &CandleDevice, dtype: candle_core::DType) -> CandleTensor {
+    zeros(shape, device, dtype)
+}
+
+pub fn zeros(shape: Shape, device: &CandleDevice, dtype: candle_core::DType) -> CandleTensor {
     CandleTensor::new(
         candle_core::Tensor::zeros(shape.dims, dtype, &(device.clone()).into()).unwrap(),
+    )
+}
+
+pub fn ones(shape: Shape, device: &CandleDevice, dtype: candle_core::DType) -> CandleTensor {
+    CandleTensor::new(
+        candle_core::Tensor::ones(shape.dims, dtype, &(device.clone()).into()).unwrap(),
     )
 }
 

@@ -24,6 +24,30 @@ pub trait BoolTensorOps<B: Backend> {
     /// The boolean tensor with the given shape.
     fn bool_empty(shape: Shape, device: &Device<B>) -> BoolTensor<B>;
 
+    /// Creates a new bool tensor filled false.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The boolean tensor filled with false.
+    fn bool_zeros(shape: Shape, device: &Device<B>) -> BoolTensor<B>;
+
+    /// Creates a new bool tensor filled true.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The boolean tensor filled with true.
+    fn bool_ones(shape: Shape, device: &Device<B>) -> BoolTensor<B>;
+
     /// Converts the tensor to a data structure.
     ///
     /// # Arguments
