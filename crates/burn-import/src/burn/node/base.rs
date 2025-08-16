@@ -1,29 +1,27 @@
 use std::marker::PhantomData;
 
 use super::{
-    argmax::ArgMaxNode, argmin::ArgMinNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
-    batch_norm::BatchNormNode, bernoulli::BernoulliNode, binary::BinaryNode,
-    bitshift::BitShiftNode, bitwiseand::BitwiseAndNode, bitwisenot::BitwiseNotNode,
-    bitwiseor::BitwiseOrNode, bitwisexor::BitwiseXorNode, ceil::CeilNode, clip::ClipNode,
-    concat::ConcatNode, constant::ConstantNode, constant_of_shape::ConstantOfShapeNode,
-    conv_transpose_1d::ConvTranspose1dNode, conv_transpose_2d::ConvTranspose2dNode,
-    conv_transpose_3d::ConvTranspose3dNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
-    conv3d::Conv3dNode, depth_to_space::DepthToSpaceNode, dropout::DropoutNode, expand::ExpandNode,
-    floor::FloorNode, gather::GatherNode, gather_elements::GatherElementsNode, gemm::GemmNode,
-    global_avg_pool::GlobalAvgPoolNode, group_norm::GroupNormNode, identity::IdentityNode,
-    instance_norm::InstanceNormNode, layer_norm::LayerNormNode, linear::LinearNode,
-    matmul::MatmulNode, max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, mean::MeanNode,
-    one_hot::OneHotNode, pad::PadNode, prelu::PReluNode, random_normal::RandomNormalNode,
-    random_normal_like::RandomNormalLikeNode, random_uniform::RandomUniformNode,
-    random_uniform_like::RandomUniformLikeNode, range::RangeNode, reshape::ReshapeNode,
-    resize::ResizeNode, round::RoundNode, slice::SliceNode, split::SplitNode, squeeze::SqueezeNode,
-    sum::SumNode, tile::TileNode, top_k::TopKNode, trilu::TriluNode, unary::UnaryNode,
-    unsqueeze::UnsqueezeNode, where_op::WhereNode,
+    argmax::ArgMaxNode, argmin::ArgMinNode, attention::AttentionNode, avg_pool1d::AvgPool1dNode,
+    avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode, bernoulli::BernoulliNode,
+    binary::BinaryNode, bitshift::BitShiftNode, bitwiseand::BitwiseAndNode,
+    bitwisenot::BitwiseNotNode, bitwiseor::BitwiseOrNode, bitwisexor::BitwiseXorNode,
+    cast::CastNode, ceil::CeilNode, clip::ClipNode, concat::ConcatNode, constant::ConstantNode,
+    constant_of_shape::ConstantOfShapeNode, conv_transpose_1d::ConvTranspose1dNode,
+    conv_transpose_2d::ConvTranspose2dNode, conv_transpose_3d::ConvTranspose3dNode,
+    conv1d::Conv1dNode, conv2d::Conv2dNode, conv3d::Conv3dNode, depth_to_space::DepthToSpaceNode,
+    dropout::DropoutNode, expand::ExpandNode, floor::FloorNode, gather::GatherNode,
+    gather_elements::GatherElementsNode, gemm::GemmNode, global_avg_pool::GlobalAvgPoolNode,
+    group_norm::GroupNormNode, identity::IdentityNode, instance_norm::InstanceNormNode,
+    layer_norm::LayerNormNode, linear::LinearNode, matmul::MatmulNode, max_pool1d::MaxPool1dNode,
+    max_pool2d::MaxPool2dNode, mean::MeanNode, one_hot::OneHotNode, pad::PadNode, prelu::PReluNode,
+    random_normal::RandomNormalNode, random_normal_like::RandomNormalLikeNode,
+    random_uniform::RandomUniformNode, random_uniform_like::RandomUniformLikeNode,
+    range::RangeNode, reduce::ReduceNode, reshape::ReshapeNode, resize::ResizeNode,
+    round::RoundNode, slice::SliceNode, space_to_depth::SpaceToDepthNode, split::SplitNode,
+    squeeze::SqueezeNode, sum::SumNode, tile::TileNode, top_k::TopKNode, trilu::TriluNode,
+    unary::UnaryNode, unsqueeze::UnsqueezeNode, where_op::WhereNode,
 };
-use crate::burn::{
-    BurnImports, Scope, Type,
-    node::{attention::AttentionNode, cast::CastNode, space_to_depth::SpaceToDepthNode},
-};
+use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use serde::Serialize;
@@ -135,6 +133,7 @@ pub enum Node<PS: PrecisionSettings> {
     OneHot(OneHotNode),
     Pad(PadNode),
     Range(RangeNode),
+    Reduce(ReduceNode),
     Reshape(ReshapeNode),
     Resize(ResizeNode),
     Round(RoundNode),
@@ -208,6 +207,7 @@ macro_rules! match_all {
             Node::OneHot(node) => $func(node),
             Node::Pad(node) => $func(node),
             Node::Range(node) => $func(node),
+            Node::Reduce(node) => $func(node),
             Node::Reshape(node) => $func(node),
             Node::Resize(node) => $func(node),
             Node::Round(node) => $func(node),
@@ -289,6 +289,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::OneHot(_) => "one_hot",
             Node::Pad(_) => "pad",
             Node::Range(_) => "range",
+            Node::Reduce(_) => "reduce",
             Node::Reshape(_) => "reshape",
             Node::Resize(_) => "resize",
             Node::Round(_) => "round",

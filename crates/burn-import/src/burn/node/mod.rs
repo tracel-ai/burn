@@ -50,6 +50,7 @@ pub(crate) mod random_normal_like;
 pub(crate) mod random_uniform;
 pub(crate) mod random_uniform_like;
 pub(crate) mod range;
+pub(crate) mod reduce;
 pub(crate) mod reshape;
 pub(crate) mod resize;
 pub(crate) mod round;
