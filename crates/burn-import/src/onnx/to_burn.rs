@@ -1164,26 +1164,17 @@ impl ParsedOnnxGraph {
     fn argmax_conversion(node: Node) -> ArgMaxNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let axis = argmax_config(&node);
+        let config = argmax_config(&node);
 
-        // Extract keepdims parameter (default is 1/true per ONNX spec)
-        let mut keepdims = true;
-        for (key, value) in &node.attrs {
-            if key == "keepdims" {
-                keepdims = value.clone().into_i64() != 0;
-                break;
-            }
-        }
-
-        ArgMaxNode::new(input, output, axis, keepdims)
+        ArgMaxNode::new(input, output, config.axis, config.keepdims)
     }
 
     fn argmin_conversion(node: Node) -> ArgMinNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let axis = argmin_config(&node);
+        let config = argmin_config(&node);
 
-        ArgMinNode::new(input, output, axis)
+        ArgMinNode::new(input, output, config.axis, config.keepdims)
     }
 
     fn bernoulli_conversion(node: Node) -> BernoulliNode {

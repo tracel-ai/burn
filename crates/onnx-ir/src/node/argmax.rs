@@ -1,8 +1,18 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 
+/// Configuration for ArgMax operations
+#[derive(Debug, Clone, new)]
+pub struct ArgMaxConfig {
+    /// Axis along which to find the maximum
+    pub axis: usize,
+    /// Whether to keep dimensions after reduction
+    pub keepdims: bool,
+}
+
 /// Create argmax config from the attributes of the node
-pub fn argmax_config(node: &Node) -> usize {
+pub fn argmax_config(node: &Node) -> ArgMaxConfig {
     let mut axis: i64 = 0;
+    let mut keepdims = true; // default value per ONNX spec
 
     // check if the node has only one input
     if node.inputs.len() != 1 {
@@ -37,6 +47,7 @@ pub fn argmax_config(node: &Node) -> usize {
                         "Only keepdims=0 or keepdims=1 is supported for argmax in burn (got {value:?})",
                     );
                 }
+                keepdims = keepdims_val != 0;
             }
             _ => {}
         }
@@ -47,7 +58,7 @@ pub fn argmax_config(node: &Node) -> usize {
         axis += tensor.rank as i64;
     }
 
-    axis as usize
+    ArgMaxConfig::new(axis as usize, keepdims)
 }
 
 /// Update output rank for ArgMax based on keepdims parameter.
@@ -64,25 +75,19 @@ pub fn argmax_update_outputs(node: &mut Node) {
 
     log::debug!("ArgMax input rank for {}: {}", node.name, tensor.rank);
 
-    // Check keepdims attribute to determine output rank
-    let mut keepdims = 1; // default value per ONNX spec
-    for (key, value) in &node.attrs {
-        if key == "keepdims" {
-            keepdims = value.clone().into_i64();
-            break;
-        }
-    }
+    // Get config to determine output rank
+    let config = argmax_config(node);
 
     // For burn compatibility, argmax always outputs a tensor
-    // When keepdims=0, we still output a tensor but with adjusted rank
-    let output_rank = if keepdims == 1 {
-        // keepdims=1: output rank same as input rank (dimension becomes 1)
+    // When keepdims=false, we still output a tensor but with adjusted rank
+    let output_rank = if config.keepdims {
+        // keepdims=true: output rank same as input rank (dimension becomes 1)
         tensor.rank
     } else {
-        // keepdims=0: output rank is input rank - 1 (dimension is removed)
+        // keepdims=false: output rank is input rank - 1 (dimension is removed)
         // But ensure minimum rank of 1 for burn compatibility
         if tensor.rank == 0 {
-            panic!("Cannot reduce rank 0 tensor with keepdims=0");
+            panic!("Cannot reduce rank 0 tensor with keepdims=false");
         }
         (tensor.rank - 1).max(1)
     };
@@ -96,7 +101,7 @@ pub fn argmax_update_outputs(node: &mut Node) {
     log::debug!(
         "ArgMax output rank for {} (keepdims={}): {}",
         node.name,
-        keepdims,
+        config.keepdims,
         output_rank
     );
 }
@@ -121,14 +126,16 @@ mod tests {
     fn test_argmax_config_basic() {
         let node = create_test_node(0, 0, 1);
         let config = argmax_config(&node);
-        assert_eq!(config, 0);
+        assert_eq!(config.axis, 0);
+        assert_eq!(config.keepdims, true);
     }
 
     #[test]
     fn test_argmax_config_negative_axis() {
         let node = create_test_node(-2, 0, 1);
         let config = argmax_config(&node);
-        assert_eq!(config, 1); // -2 + 3 = 1
+        assert_eq!(config.axis, 1); // -2 + 3 = 1
+        assert_eq!(config.keepdims, true);
     }
 
     #[test]
@@ -152,11 +159,13 @@ mod tests {
     fn test_argmax_config_keepdims_supported() {
         let node_keepdims_0 = create_test_node(0, 0, 0);
         let config_0 = argmax_config(&node_keepdims_0);
-        assert_eq!(config_0, 0);
+        assert_eq!(config_0.axis, 0);
+        assert_eq!(config_0.keepdims, false);
 
         let node_keepdims_1 = create_test_node(0, 0, 1);
         let config_1 = argmax_config(&node_keepdims_1);
-        assert_eq!(config_1, 0);
+        assert_eq!(config_1.axis, 0);
+        assert_eq!(config_1.keepdims, true);
     }
 
     #[test]

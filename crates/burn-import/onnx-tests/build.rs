@@ -15,6 +15,7 @@ fn main() {
         .input("tests/argmax/argmax.onnx")
         .input("tests/argmax/argmax_both_keepdims.onnx")
         .input("tests/argmin/argmin.onnx")
+        .input("tests/argmin/argmin_both_keepdims.onnx")
         .input("tests/attention/attention_4d.onnx")
         .input("tests/attention/attention_3d.onnx")
         .input("tests/attention/attention_attn_mask_bool.onnx")
