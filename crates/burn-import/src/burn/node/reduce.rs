@@ -100,9 +100,7 @@ impl ReduceNode {
                 }
             } else {
                 // Reducing along all specific dimensions
-                if dims.is_empty() {
-                    dims = (0..input_rank).collect();
-                }
+                dims = (0..input_rank).collect();
                 Self::reduce_by_dims(reduction_type, input, dims, keepdims, output_rank)
             }
         } else {
