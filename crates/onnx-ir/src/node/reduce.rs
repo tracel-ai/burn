@@ -73,18 +73,14 @@ pub fn reduce_update_outputs(node: &mut Node) {
     );
 
     let config = reduce_config(node);
-    
+
     // Determine if the output should be a scalar
-    let should_be_scalar = !config.keepdims && 
-        (config.dims.is_empty() || config.dims.len() == tensor.rank);
+    let should_be_scalar =
+        !config.keepdims && (config.dims.is_empty() || config.dims.len() == tensor.rank);
 
     if should_be_scalar {
         // Output is a scalar
-        log::debug!(
-            "{} output is scalar for node {}",
-            node.node_type,
-            node.name
-        );
+        log::debug!("{} output is scalar for node {}", node.node_type, node.name);
         node.outputs[0].ty = ArgType::Scalar(tensor.elem_type.clone());
     } else {
         // Output is a tensor
