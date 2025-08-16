@@ -44,8 +44,9 @@ where
         }
     }
 
-    /// Sets the batch size to a fix number.The [fix batch strategy](FixBatchStrategy)
-    /// will be used.
+    /// Sets the batch size to a fix number.
+    ///
+    /// The [fix batch strategy](FixBatchStrategy) will be used.
     ///
     /// # Arguments
     ///
@@ -76,6 +77,12 @@ where
     }
 
     /// Sets the number of workers.
+    ///
+    /// - `Some(0)` or `None`: the dataloader will run without work threads.
+    /// - `Some(n); n > 0`: the dataloader will run with `n` background threads.
+    ///
+    /// A 1-worker threaded dataloader will run loads in a background thread,
+    /// while a 0-worker threaded dataloader will run loads in the main thread.
     ///
     /// # Arguments
     ///
@@ -124,24 +131,25 @@ where
             Some(strategy) => strategy,
             None => Box::new(FixBatchStrategy::new(1)),
         };
-        if let Some(num_threads) = self.num_threads {
-            return Arc::new(MultiThreadDataLoader::new(
+        let num_threads = self.num_threads.unwrap_or(0);
+        if num_threads > 0 {
+            Arc::new(MultiThreadDataLoader::new(
                 strategy,
                 dataset,
                 self.batcher,
                 num_threads,
                 device,
                 rng,
-            ));
+            ))
+        } else {
+            Arc::new(BatchDataLoader::new(
+                strategy,
+                dataset,
+                self.batcher,
+                device,
+                rng,
+            ))
         }
-
-        Arc::new(BatchDataLoader::new(
-            strategy,
-            dataset,
-            self.batcher,
-            device,
-            rng,
-        ))
     }
 }
 
@@ -150,6 +158,32 @@ mod tests {
     use super::*;
     use crate::data::dataset::FakeDataset;
     use crate::{TestBackend, data::dataloader::batcher::Batcher};
+
+    #[test]
+    fn test_dataloader_no_workers() {
+        type TestDevice = <TestBackend as Backend>::Device;
+
+        #[derive(new, Clone)]
+        pub struct TestBatcher;
+
+        #[cfg(test)]
+        impl<I> Batcher<TestBackend, I, TestDevice> for TestBatcher {
+            fn batch(&self, _items: Vec<I>, device: &TestDevice) -> TestDevice {
+                *device
+            }
+        }
+
+        let default_device = TestDevice::default();
+        let dataloader = DataLoaderBuilder::new(TestBatcher::new())
+            .batch_size(1)
+            .build(FakeDataset::<String>::new(9));
+
+        assert_eq!(dataloader.num_items(), 9);
+
+        for device in dataloader.iter() {
+            assert_eq!(device, default_device)
+        }
+    }
 
     #[test]
     fn test_dataloader_default_device() {
