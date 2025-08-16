@@ -261,7 +261,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
 #[cfg(test)]
 mod tests {
     use burn::record::FullPrecisionSettings;
-    use onnx_ir::{ArgType, Argument, ElementType};
 
     use super::*;
     use crate::burn::{

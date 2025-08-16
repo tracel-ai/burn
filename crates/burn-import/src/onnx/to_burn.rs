@@ -127,11 +127,6 @@ use onnx_ir::{
         one_hot::one_hot_config,
         pad::pad_config,
         reduce::reduce_config,
-        reduce_max::reduce_max_config,
-        reduce_mean::reduce_mean_config,
-        reduce_min::reduce_min_config,
-        reduce_prod::reduce_prod_config,
-        reduce_sum::reduce_sum_config,
         reshape::reshape_config,
         resize::resize_config,
         slice::slice_config,
@@ -965,44 +960,44 @@ impl ParsedOnnxGraph {
         RangeNode::new(start, end, step, output)
     }
 
-    fn reduce_max_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = reduce_max_config(&node);
+    fn reduce_max_conversion(node: Node) -> ReduceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = reduce_config(&node);
 
-        UnaryNode::reduce_max(input, output, config.dim)
+        ReduceNode::new(input, output, ReductionType::Max, config)
     }
 
-    fn reduce_min_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = reduce_min_config(&node);
+    fn reduce_min_conversion(node: Node) -> ReduceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = reduce_config(&node);
 
-        UnaryNode::reduce_min(input, output, config.dim)
+        ReduceNode::new(input, output, ReductionType::Min, config)
     }
 
-    fn reduce_mean_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = reduce_mean_config(&node);
+    fn reduce_mean_conversion(node: Node) -> ReduceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = reduce_config(&node);
 
-        UnaryNode::reduce_mean(input, output, config.dim)
+        ReduceNode::new(input, output, ReductionType::Mean, config)
     }
 
-    fn reduce_prod_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = reduce_prod_config(&node);
+    fn reduce_prod_conversion(node: Node) -> ReduceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = reduce_config(&node);
 
-        UnaryNode::reduce_prod(input, output, config.dim)
+        ReduceNode::new(input, output, ReductionType::Prod, config)
     }
 
-    fn reduce_sum_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        let config = reduce_sum_config(&node);
+    fn reduce_sum_conversion(node: Node) -> ReduceNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = reduce_config(&node);
 
-        UnaryNode::reduce_sum(input, output, config.dim)
+        ReduceNode::new(input, output, ReductionType::Sum, config)
     }
 
     fn reduce_sum_square_conversion(node: Node) -> ReduceNode {
