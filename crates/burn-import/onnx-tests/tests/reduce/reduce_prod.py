@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# used to generate model: onnx-tests/tests/reduce_sum/reduce_sum.onnx
+# used to generate model: onnx-tests/tests/reduce_prod/reduce_prod.onnx
 
 import torch
 import torch.nn as nn
@@ -18,6 +18,8 @@ class Model(nn.Module):
             torch.prod(x, dim=1, keepdim=True),
             # ReduceProd, keepdims=1, axes=[-1]
             torch.prod(x, dim=-1, keepdim=True),
+            # ReduceProd, keepdims=0, axes=[2]
+            torch.prod(x, dim=2, keepdim=False),
         )
 
 
@@ -29,16 +31,20 @@ def main():
     model = Model()
     model.eval()
     device = torch.device("cpu")
-    test_input = torch.tensor([[[[1.0, 4.0, 9.0, 25.0]]]], device=device)
+    test_input = torch.tensor([[[
+        [1.0, 4.0, 9.0, 25.0],
+        [2.0, 5.0, 10.0, 26.0],
+    ]]], device=device)
+
 
     torch.onnx.export(model, test_input, "reduce_prod.onnx", verbose=False, opset_version=16)
 
     print("Finished exporting model")
 
     # Output some test data for use in the test
-    print(f"Test input data: {test_input}")
-    output = model.forward(*test_input)
-    print(f"Test output data: {output}")
+    print(f"Test input data:\n{test_input}")
+    output = model.forward(test_input)
+    print("Test output data:", *output, sep = "\n")
 
 
 if __name__ == "__main__":
