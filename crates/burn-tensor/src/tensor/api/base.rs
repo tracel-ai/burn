@@ -757,11 +757,9 @@ where
 
         dims[0..dim].copy_from_slice(&shape.dims[0..dim]);
 
+        dims[dim] = 1;
         if dim < D {
-            dims[dim] = 1;
             dims[(dim + 1)..].copy_from_slice(&shape.dims[dim..]);
-        } else {
-            dims[dim] = 1;
         }
 
         let shape = Shape::new(dims);
@@ -822,7 +820,7 @@ where
             if prev_idx < *d {
                 current_right_b = *d - offset;
                 //copy the chunks of the dims
-                if current_right_b < D {
+                if current_right_b <= D {
                     new_dims[prev_idx..*d]
                         .copy_from_slice(&old_dims[current_left_b..current_right_b]);
                 } else {
