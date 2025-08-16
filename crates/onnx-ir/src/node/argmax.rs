@@ -23,10 +23,9 @@ pub fn argmax_config(node: &Node) -> usize {
         match key.as_str() {
             "axis" => axis = value.clone().into_i64(),
             "select_last_index" => {
-                // not all params are supported in burn
                 if value.clone().into_i64() != 0 {
-                    log::warn!(
-                        "only select_last_index=0 is supported for argmax in burn. Ignoring supplied value (got {value:?})"
+                    panic!(
+                        "select_last_index=1 is not supported for argmax in burn (got {value:?})"
                     );
                 }
             }
@@ -164,6 +163,13 @@ mod tests {
     #[should_panic(expected = "Only keepdims=0 or keepdims=1 is supported for argmax in burn")]
     fn test_argmax_config_keepdims_invalid() {
         let node = create_test_node(0, 0, 2); // Invalid keepdims value
+        let _ = argmax_config(&node);
+    }
+
+    #[test]
+    #[should_panic(expected = "select_last_index=1 is not supported for argmax in burn")]
+    fn test_argmax_config_select_last_index_invalid() {
+        let node = create_test_node(0, 1, 1); // Invalid select_last_index value
         let _ = argmax_config(&node);
     }
 

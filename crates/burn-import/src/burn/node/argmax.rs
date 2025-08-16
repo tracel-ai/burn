@@ -28,7 +28,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMaxNode {
         scope: &mut crate::burn::Scope,
         node_position: usize,
     ) -> proc_macro2::TokenStream {
-        //NOTE: select_last_index is not supported
+        //NOTE: select_last_index=1 is not supported (will panic during conversion)
         let axis = self.axis.to_tokens();
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
