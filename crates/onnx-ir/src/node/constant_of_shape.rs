@@ -155,7 +155,8 @@ pub fn constant_of_shape_config(node: &Node) -> ConstantOfShapeShape {
             ConstantOfShapeShape::Runtime(node.inputs[0].clone())
         }
         _ => panic!(
-            "Shape data type must be int64, is {:?}",
+            "ConstantOfShape node {} requires Int64 shape data, found {:?}",
+            node.name,
             &node.inputs[0].value
         ),
     }
