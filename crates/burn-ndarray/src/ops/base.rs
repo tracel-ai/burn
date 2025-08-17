@@ -11,7 +11,6 @@ use ndarray::IntoDimension;
 use ndarray::SliceInfo;
 use ndarray::Zip;
 use ndarray::s;
-use num_traits::Signed;
 #[cfg(feature = "simd")]
 use paste::paste;
 
@@ -25,7 +24,7 @@ use ndarray::Dim;
 use ndarray::IxDyn;
 use ndarray::SliceInfoElem;
 
-use crate::element::NdArrayElement;
+use crate::element::{NdArrayElement, Signum};
 #[cfg(feature = "simd")]
 use crate::ops::simd::{
     binary::try_binary_simd,
@@ -802,22 +801,7 @@ where
     where
         E: Signum,
     {
-        let zero = 0.elem();
-        let one = 1.elem::<E>();
-        NdArrayTensor::new(
-            tensor
-                .array
-                .mapv(|x| {
-                    if x > zero {
-                        one
-                    } else if x < zero {
-                        -one
-                    } else {
-                        zero
-                    }
-                })
-                .into_shared(),
-        )
+        NdArrayTensor::new(tensor.array.mapv(|x| x.signum()).into_shared())
     }
 
     pub(crate) fn abs(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {

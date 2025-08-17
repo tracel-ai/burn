@@ -49,6 +49,23 @@ macro_rules! new_tensor_int {
     }};
 }
 
+/// Macro to dispatch an integer tensor operation based on the element type.
+#[macro_export]
+macro_rules! dispatch_int_tensor {
+    ($tensor:expr, $element:ident, $tensor_var:ident, $body:expr) => {
+        match $tensor {
+            $crate::NdArrayTensorInt::I64($tensor_var) => {
+                type $element = i64;
+                $body
+            }
+            $crate::NdArrayTensorInt::U8($tensor_var) => {
+                type $element = u8;
+                $body
+            }
+        }
+    };
+}
+
 /// Macro to dispatch a float-to-int cast.
 /// It takes a float tensor and the generic integer type,
 /// and returns the correct integer enum variant.

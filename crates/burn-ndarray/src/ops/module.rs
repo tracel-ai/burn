@@ -10,9 +10,9 @@ use super::{
 use crate::ops::simd::{
     avgpool::try_avg_pool2d_simd, conv::try_conv2d_simd, maxpool::try_max_pool2d_simd,
 };
-use crate::{NdArray, NdArrayTensorFloat, element::FloatNdArrayElement};
+use crate::{NdArray, NdArrayTensorFloat, dispatch_int_tensor};
 use crate::{
-    element::{IntNdArrayElement, QuantElement},
+    element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
     ops::interpolate::nearest_interpolate_backward,
 };
 use burn_tensor::ops::*;
@@ -186,7 +186,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
     ) -> MaxPool2dWithIndices<NdArray<E, I, Q>> {
         module_op!(inp(x), opt(), E, |x| {
             let (output, indices) =
-                max_pool2d_with_indices::<E, I>(x, kernel_size, stride, padding, dilation);
+                max_pool2d_with_indices::<E, I>(x, kernel_size, stride, padding, dilation); 
             MaxPool2dWithIndices::new(output.into(), indices)
         })
     }
@@ -200,17 +200,19 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         output_grad: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> MaxPool2dBackward<NdArray<E, I, Q>> {
-        module_op!(inp(x, output_grad), opt(), E, |x, output_grad| {
-            let output = max_pool2d_backward::<E, I>(
-                x,
-                kernel_size,
-                stride,
-                padding,
-                dilation,
-                output_grad,
-                indices,
-            );
-            MaxPool2dBackward::new(output.into())
+        dispatch_int_tensor!(indices, I, t, {
+            module_op!(inp(x, output_grad), opt(), E, |x, output_grad| {
+                let output = max_pool2d_backward::<E, I>(
+                    x,
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    output_grad,
+                    t,
+                );
+                MaxPool2dBackward::new(output.into())
+            })
         })
     }
 
