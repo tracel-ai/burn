@@ -681,7 +681,7 @@ impl ParsedOnnxGraph {
 
         // Get the shape configuration from onnx-ir
         let shape = constant_of_shape_config(&node);
-        
+
         let output = Type::from(node.outputs.first().unwrap());
 
         // The value of the output elements.Should be a one-element tensor.
@@ -701,7 +701,7 @@ impl ParsedOnnxGraph {
                 ty => panic!("Unsupported value type {ty:?} for ConstantOfShape!"),
             })
             .unwrap_or(ConstantValue::Float32(0.0f32));
-        
+
         ConstantOfShapeNode::new(shape, output, value)
     }
 
