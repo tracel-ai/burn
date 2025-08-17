@@ -51,10 +51,8 @@ pub fn constant_of_shape_update_output(node: &mut Node) {
                         r
                     }
                     _ => panic!(
-                        "ConstantOfShape node {} requires Int64 shape input",
                         "ConstantOfShape node {} requires Int64 shape input, found {:?}",
-                        node.name,
-                        tensor_data.data
+                        node.name, tensor_data.data
                     ),
                 }
             } else if let Some(shape) = &tensor_type.static_shape {
@@ -156,8 +154,7 @@ pub fn constant_of_shape_config(node: &Node) -> ConstantOfShapeShape {
         }
         _ => panic!(
             "ConstantOfShape node {} requires Int64 shape data, found {:?}",
-            node.name,
-            &node.inputs[0].value
+            node.name, &node.inputs[0].value
         ),
     }
 }
