@@ -1,13 +1,14 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
+use onnx_ir::node::constant_of_shape::ConstantOfShapeShape;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-/// Node for all unary operators.
+/// Node for ConstantOfShape operation.
 #[derive(Debug, Clone)]
 pub struct ConstantOfShapeNode {
-    pub input: Type,
+    pub shape: ConstantOfShapeShape,
     pub output: Type,
     pub value: ConstantValue,
 }
@@ -27,17 +28,17 @@ pub enum ConstantValue {
 }
 
 impl ConstantOfShapeNode {
-    pub fn new(input: Type, output: Type, value: ConstantValue) -> Self {
-        assert!(
-            matches!(input, Type::Shape(_)),
-            "ConstantOfShape input needs to be a Shape!"
-        );
+    pub fn new(shape: ConstantOfShapeShape, output: Type, value: ConstantValue) -> Self {
+        // Verify output type
         assert!(
             matches!(output, Type::Tensor(_) | Type::Scalar(_) | Type::Shape(_)),
             "ConstantOfShape output needs to be a Tensor, Scalar, or Shape!"
         );
+
+        // Note: Runtime shape validation is done in onnx-ir's constant_of_shape_config
+        
         Self {
-            input,
+            shape,
             output,
             value,
         }
@@ -93,7 +94,10 @@ impl From<bool> for ConstantValue {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
     fn input_types(&self) -> Vec<Type> {
-        vec![self.input.clone()]
+        match &self.shape {
+            ConstantOfShapeShape::Static(_) => vec![],
+            ConstantOfShapeShape::Runtime(arg) => vec![Type::from(arg)],
+        }
     }
 
     fn output_types(&self) -> Vec<Type> {
@@ -102,8 +106,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
 
     fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {
         let output = self.output.name();
-        let input = self.input.name();
         let value = self.value.val_tokens();
+
+        // Generate shape expression based on Static or Runtime
+        let shape_expr = match &self.shape {
+            ConstantOfShapeShape::Static(static_shape) => {
+                // We have static shape values - embed them directly in the code
+                let shape_values = static_shape.iter().map(|v| *v as usize);
+                quote! { [#(#shape_values),*] }
+            }
+            ConstantOfShapeShape::Runtime(arg) => {
+                // Runtime shape input
+                let input = Type::from(arg);
+                let input_name = input.name();
+                quote! { #input_name }
+            }
+        };
 
         match &self.output {
             Type::Scalar(scalar) => {
@@ -119,9 +137,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
 
                 // Note: in the generated code, self.device is a &module::Ignored<Device>,
                 // so to get a &Device, &* is needed
-
-                // Shape (i64 array) now implements Into<Shape> directly
-                let shape_expr = quote! { #input };
 
                 match &self.value {
                     ConstantValue::Bool(bool) => {
