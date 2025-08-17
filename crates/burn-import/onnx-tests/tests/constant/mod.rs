@@ -144,9 +144,5 @@ mod tests {
             2 * 4 * 128,
             "Total elements should match concat output"
         );
-
-        // The test passes - the model was successfully imported and runs correctly
-        // This proves that rank inference propagation works after
-        // Constants are converted to Shape types
     }
 }
