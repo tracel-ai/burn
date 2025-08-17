@@ -690,6 +690,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-complex"
+version = "0.19.0"
+dependencies = [
+ "num-complex",
+]
+
+[[package]]
 name = "burn-core"
 version = "0.19.0"
 dependencies = [

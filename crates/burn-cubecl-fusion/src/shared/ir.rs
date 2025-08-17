@@ -454,6 +454,8 @@ impl From<DType> for FusePrecision {
                 },
                 QuantStore::U32 => Self::U32,
             },
+            DType::Complex64 => todo!(),
+            DType::Complex32 => todo!(),
         }
     }
 }
