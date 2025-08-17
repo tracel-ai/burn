@@ -112,7 +112,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
         let shape_expr = match &self.shape {
             ConstantOfShapeShape::Static(static_shape) => {
                 // We have static shape values - embed them directly in the code
-                let shape_values = static_shape.iter().map(|v| *v as usize);
+                let shape_values = static_shape.iter().map(|v| (*v).try_into().expect("Shape dimension must be non-negative and fit in usize"));
                 quote! { [#(#shape_values),*] }
             }
             ConstantOfShapeShape::Runtime(arg) => {
