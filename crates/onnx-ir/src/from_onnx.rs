@@ -411,6 +411,10 @@ impl OnnxGraphBuilder {
         nodes: &mut [Node],
         constants_to_convert: &HashMap<String, usize>,
     ) {
+        // Track nodes whose outputs have changed type
+        let mut changed_outputs = HashSet::new();
+
+        // First pass: convert constants and update direct uses
         for node in nodes.iter_mut() {
             match node.node_type {
                 NodeType::Constant => {
@@ -420,6 +424,7 @@ impl OnnxGraphBuilder {
                         && matches!(&output.ty, ArgType::Tensor(t) if t.rank == 1)
                     {
                         output.ty = ArgType::Shape(shape_rank);
+                        changed_outputs.insert(output.name.clone());
                         log::debug!(
                             "Converted constant {} to Shape({})",
                             output.name,
@@ -452,11 +457,115 @@ impl OnnxGraphBuilder {
 
                     // Re-run rank inference for Concat if inputs changed
                     if needs_reinference && node.node_type == NodeType::Concat {
+                        let old_output_type = node.outputs.first().map(|o| o.ty.clone());
                         rank_inference(node);
+
+                        // Check if output type changed
+                        if let Some(output) = node.outputs.first()
+                            && old_output_type != Some(output.ty.clone())
+                        {
+                            changed_outputs.insert(output.name.clone());
+                            log::debug!(
+                                "Concat node {} output changed type to {:?}",
+                                node.name,
+                                output.ty
+                            );
+                        }
+
                         log::debug!("Re-ran rank inference for Concat node {}", node.name);
                     }
                 }
                 _ => {}
+            }
+        }
+
+        // Second pass: propagate rank changes through all downstream nodes
+        if !changed_outputs.is_empty() {
+            log::debug!(
+                "Re-inferring ranks for nodes using changed outputs: {:?}",
+                changed_outputs
+            );
+
+            // We need to propagate changes through the entire graph
+            // Keep track of which outputs have been updated
+            let mut outputs_to_update = changed_outputs.clone();
+            let mut processed_nodes = HashSet::new();
+
+            // Continue until no more updates are needed
+            while !outputs_to_update.is_empty() {
+                let current_outputs = outputs_to_update.clone();
+                outputs_to_update.clear();
+
+                // Build a map of output names to their new types
+                let mut output_type_map = HashMap::new();
+                for node in nodes.iter() {
+                    for output in &node.outputs {
+                        if current_outputs.contains(&output.name) {
+                            output_type_map.insert(output.name.clone(), output.ty.clone());
+                        }
+                    }
+                }
+
+                // Update nodes that use these outputs
+                for (idx, node) in nodes.iter_mut().enumerate() {
+                    // Skip if already processed
+                    if processed_nodes.contains(&idx) {
+                        continue;
+                    }
+
+                    // Skip Constant nodes (they don't need rank inference)
+                    // But allow all other nodes including Add, Sub, Mul, Div, Concat
+                    // since they might need updated ranks from their inputs
+                    if matches!(node.node_type, NodeType::Constant) {
+                        continue;
+                    }
+
+                    // Check if any input uses a current output
+                    let uses_current_output = node
+                        .inputs
+                        .iter()
+                        .any(|input| current_outputs.contains(&input.name));
+
+                    if uses_current_output {
+                        // Update input types from current outputs
+                        for input in &mut node.inputs {
+                            if let Some(new_type) = output_type_map.get(&input.name) {
+                                input.ty = new_type.clone();
+                                log::debug!(
+                                    "Updated {} input {} type to {:?}",
+                                    node.name,
+                                    input.name,
+                                    input.ty
+                                );
+                            }
+                        }
+
+                        // Store old output type to check if it changes
+                        let old_output_type = node.outputs.first().map(|o| o.ty.clone());
+
+                        // Re-run rank inference
+                        rank_inference(node);
+                        log::debug!(
+                            "Re-ran rank inference for {} node {}",
+                            node.node_type,
+                            node.name
+                        );
+
+                        // Check if output type changed
+                        if let Some(output) = node.outputs.first()
+                            && old_output_type != Some(output.ty.clone())
+                        {
+                            // Add this output to the next round of updates
+                            outputs_to_update.insert(output.name.clone());
+                            log::debug!(
+                                "Node {} output changed, will propagate to downstream nodes",
+                                node.name
+                            );
+                        }
+
+                        processed_nodes.insert(idx);
+                    }
+                }
             }
         }
     }
