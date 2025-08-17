@@ -9,13 +9,14 @@ use crate::{
     shared::{
         ir::{Arg, FuseOp, LayoutInfo},
         settings::RefLayoutSetting,
+        trace::HandleInput,
     },
     strides_dyn_rank,
 };
 
 use super::{
-    super::ir::FusePrecision, BlockPlan, FuseResources, HandleInput, HandleOutput, InputReference,
-    LaunchPlan, ReferenceSelection, TensorView, block::FuseBlock,
+    super::ir::FusePrecision, BlockPlan, FuseResources, HandleOutput, InputReference, LaunchPlan,
+    NormalHandleInput, ReferenceSelection, RegisterTensor, TensorView, block::FuseBlock,
 };
 
 /// Create or reuse handles for the outputs.
@@ -52,7 +53,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             .outputs
             .iter()
             .enumerate()
-            .map(|(pos, (tensor, precision))| OutputSorted {
+            .filter_map(|(pos, entry)| match entry {
+                RegisterTensor::Normal(ir, p) => Some((pos, ir, p)),
+                RegisterTensor::QuantValues(_) => None,
+                RegisterTensor::QuantParams(_) => None,
+            })
+            .map(|(pos, tensor, precision)| OutputSorted {
                 pos_original: pos,
                 precision: *precision,
                 tensor_relative: tensor,
@@ -184,7 +190,11 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         if let Some(input_ref) = block.potential_reference_input.take() {
             match input_ref {
                 InputReference::Normal { input_pos } => {
-                    let reference = handle_inputs.get(input_pos).unwrap();
+                    let reference = handle_inputs
+                        .get(input_pos)
+                        .unwrap()
+                        .as_normal()
+                        .expect("Quant can't be used as inplace");
 
                     let set_ref_as_concrete = |block: &mut BlockPlan<'_>| {
                         block.reference = ReferenceSelection::Concrete {
@@ -193,7 +203,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                                 reference.precision,
                                 LayoutInfo::IsRef,
                             ),
-                            shape: reference.global_shape.clone(),
+                            shape: reference.global_ir.shape.clone(),
                             strides: reference.handle.strides.clone(),
                         };
                     };
@@ -205,15 +215,16 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                                 reference.precision,
                                 LayoutInfo::Unknown,
                             ),
-                            shape: reference.global_shape.clone(),
-                            strides: contiguous_strides(&reference.global_shape),
+                            shape: reference.global_ir.shape.clone(),
+                            strides: contiguous_strides(&reference.global_ir.shape),
                         };
                     };
 
                     match ref_layout_setting {
                         RefLayoutSetting::Any => set_ref_as_concrete(block),
                         RefLayoutSetting::OnlyContiguous => {
-                            if is_contiguous(&reference.global_shape, &reference.handle.strides) {
+                            if is_contiguous(&reference.global_ir.shape, &reference.handle.strides)
+                            {
                                 set_ref_as_concrete(block)
                             } else {
                                 set_ref_as_virtual(block)
@@ -224,7 +235,11 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     Self::add_layout_info_inputs(block, handle_inputs);
                 }
                 InputReference::SwapDims { original_pos, dims } => {
-                    let reference = handle_inputs.get(original_pos).unwrap();
+                    let reference = handle_inputs
+                        .get(original_pos)
+                        .unwrap()
+                        .as_normal()
+                        .expect("Quant can't be used in swap dims operation");
                     block.reference = ReferenceSelection::SwapDims {
                         original: Arg::Input(
                             original_pos as u32,
@@ -244,11 +259,18 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     }
 
     fn add_layout_info_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput<R>]) {
-        for hi in handle_inputs.iter() {
-            if let ReferenceSelection::Concrete { strides, shape, .. }
-            | ReferenceSelection::VirtualShape { strides, shape, .. } = &block.reference
-                && strides == &hi.handle.strides
-                && shape == &hi.global_shape
+        for hi in handle_inputs.iter().filter_map(|h| match h {
+            HandleInput::Normal(input) => Some(input),
+            _ => None,
+        }) {
+            let (strides, shape) = match &block.reference {
+                ReferenceSelection::Concrete { strides, shape, .. }
+                | ReferenceSelection::VirtualShape { strides, shape, .. } => (strides, shape),
+                _ => continue,
+            };
+
+            if strides == &hi.handle.strides
+                && shape == &hi.global_ir.shape
                 && let Some(ops) = block.reads.get_mut(&hi.relative_id)
             {
                 for op in ops.iter_mut() {
@@ -311,7 +333,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     ) {
         let block = &mut plan.blocks[block_idx];
         let potential_inplace = block.potential_inplaces.remove(input_index);
-        let handle_input = plan.handle_inputs.get(potential_inplace.input_pos).unwrap();
+        let handle_input = match plan.handle_inputs.get(potential_inplace.input_pos).unwrap() {
+            HandleInput::Normal(handle) => handle,
+            _ => {
+                unreachable!("Quant tensor handle can't be used inplace yet.")
+            }
+        };
 
         if !block.reference.is_found() {
             let index_input = self
@@ -451,12 +478,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     ) {
         let block = &mut plan.blocks[block_idx];
 
-        let (pos_input, original_handle) = plan
-            .handle_inputs
-            .iter()
-            .enumerate()
-            .find(|(_i, handle)| handle.relative_id == original)
-            .unwrap();
+        let (pos_input, original_handle) = Self::find_child_input(&plan.handle_inputs, original);
 
         // We encode bool tensors as `B`.
         let dtype = match tensor_global.dtype {
@@ -465,7 +487,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         };
 
         if is_contiguous(
-            &original_handle.global_shape,
+            &original_handle.global_ir.shape,
             &original_handle.handle.strides,
         ) {
             block.writes.remove(&output.tensor_relative.id);
@@ -522,13 +544,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         block_idx: usize,
     ) {
         let block = &mut plan.blocks[block_idx];
-
-        let (pos_input, original_handle) = plan
-            .handle_inputs
-            .iter()
-            .enumerate()
-            .find(|(_i, handle)| handle.relative_id == original)
-            .unwrap();
+        let (pos_input, original_handle) = Self::find_child_input(&plan.handle_inputs, original);
 
         // We encode bool tensors as `B`.
         let dtype = match tensor_global.dtype {
@@ -566,5 +582,22 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             },
         });
         self.globals[output.pos_original] = Some(tensor_global);
+    }
+
+    fn find_child_input(
+        handle_inputs: &[HandleInput<R>],
+        original: TensorId,
+    ) -> (usize, &NormalHandleInput<R>) {
+        handle_inputs
+            .iter()
+            .enumerate()
+            .find_map(|(pi, handle)| match handle {
+                HandleInput::Normal(handle) => match handle.relative_id == original {
+                    true => Some((pi, handle)),
+                    false => None,
+                },
+                _ => None, // Quant tensor can't be reshaped.
+            })
+            .unwrap()
     }
 }

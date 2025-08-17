@@ -1,6 +1,6 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(equal);
+include_models!(equal, equal_shape, equal_two_shapes);
 
 #[cfg(test)]
 mod tests {
@@ -24,5 +24,36 @@ mod tests {
 
         tensor_out.to_data().assert_eq(&expected_tensor, true);
         assert_eq!(scalar_out, expected_scalar);
+    }
+
+    #[test]
+    fn equal_shape() {
+        // Test comparing a Shape output with a constant shape
+        let model: equal_shape::Model<Backend> = equal_shape::Model::default();
+
+        // Create input tensor with shape [2, 3, 4]
+        let input = Tensor::<Backend, 3>::zeros([2, 3, 4], &Default::default());
+
+        let output = model.forward(input);
+        // Shape [2, 3, 4] should equal [2, 3, 4]
+        let expected = TensorData::from([true, true, true]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn equal_two_shapes() {
+        // Test comparing shapes from two different tensors
+        let model: equal_two_shapes::Model<Backend> = equal_two_shapes::Model::default();
+
+        // Create two input tensors with same shape [2, 3, 4]
+        let input1 = Tensor::<Backend, 3>::zeros([2, 3, 4], &Default::default());
+        let input2 = Tensor::<Backend, 3>::ones([2, 3, 4], &Default::default());
+
+        let output = model.forward(input1, input2);
+        // Both have shape [2, 3, 4] so all elements should be equal (1 for true)
+        let expected: [i64; 3] = [1, 1, 1];
+
+        assert_eq!(output, expected);
     }
 }

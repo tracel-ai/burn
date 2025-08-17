@@ -60,7 +60,6 @@ pub mod less_or_equal;
 pub mod linear;
 pub mod log;
 pub mod log_softmax;
-pub mod mask_where;
 pub mod matmul;
 pub mod max;
 pub mod maxpool;
@@ -80,11 +79,7 @@ pub mod random_uniform;
 pub mod random_uniform_like;
 pub mod range;
 pub mod recip;
-pub mod reduce_max;
-pub mod reduce_mean;
-pub mod reduce_min;
-pub mod reduce_prod;
-pub mod reduce_sum;
+pub mod reduce;
 pub mod relu;
 pub mod reshape;
 pub mod resize;
@@ -109,6 +104,7 @@ pub mod topk;
 pub mod transpose;
 pub mod trilu;
 pub mod unsqueeze;
+pub mod where_op;
 pub mod xor;
 
 /// Include specified models in the `model` directory in the target directory.

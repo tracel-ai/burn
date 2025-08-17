@@ -461,6 +461,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         let dtype = match dtype {
             FloatDType::F64 => candle_core::DType::F64,
             FloatDType::F32 => candle_core::DType::F32,
+            FloatDType::Flex32 => candle_core::DType::F32,
             FloatDType::F16 => candle_core::DType::F16,
             FloatDType::BF16 => candle_core::DType::BF16,
         };

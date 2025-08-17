@@ -1,5 +1,4 @@
 #[burn_tensor_testgen::testgen(quantize)]
-
 mod tests {
     use super::*;
     use alloc::{vec, vec::Vec};
@@ -82,5 +81,23 @@ mod tests {
         );
 
         x_q.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_quantize_dequantize_symmetric_single_with_transform() {
+        let scheme = QuantScheme::default();
+        let input = TestTensorInt::<1>::arange(0..32, &Default::default()).float();
+
+        let quant = input.quantize_dynamic(&scheme);
+        let result = quant * 10;
+
+        let data = result.into_data();
+        let expected = [
+            0.0, 9.76378, 19.52756, 29.29134, 39.05512, 48.818897, 61.02362, 70.7874, 80.551186,
+            90.31496, 100.07874, 109.84252, 119.60631, 129.37009, 139.13387, 148.89764, 161.10237,
+            170.86615, 180.62991, 190.39369, 200.15749, 209.92126, 219.68504, 229.44882, 239.21262,
+            248.97638, 261.1811, 270.9449, 280.70865, 290.47244, 300.23624, 310.0,
+        ];
+        data.assert_approx_eq::<f32>(&TensorData::from(expected), Tolerance::default());
     }
 }

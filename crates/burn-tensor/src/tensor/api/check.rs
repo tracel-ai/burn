@@ -167,7 +167,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn reshape_args_i32<const D: usize>(target: &[i32; D]) -> Self {
+    pub(crate) fn reshape_args_i64<const D: usize>(target: &[i64; D]) -> Self {
         let mut check = Self::Ok;
 
         if target.iter().any(|&dim| dim < -1) {
@@ -248,8 +248,8 @@ impl TensorCheck {
                         "Movedim",
                         TensorError::new("The given dimensions contain duplicates.").details(
                             format!(
-                                "The dimension {dim_i} is duplicated in the given dimensions {dims:?}.",
-                            ),
+                            "The dimension {dim_i} is duplicated in the given dimensions {dims:?}.",
+                        ),
                         ),
                     );
                 }

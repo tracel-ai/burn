@@ -5,7 +5,7 @@ use super::{
 use crate::CubeFusionHandle;
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
-use cubecl::{ir::Elem, prelude::*};
+use cubecl::prelude::*;
 use std::collections::BTreeMap;
 
 /// A trace runner is responsible for determining the vectorization factor as well as launching
@@ -28,6 +28,23 @@ pub trait TraceRunner<R: Runtime>: Vectorization<R> {
     ) -> Result<(), Self::Error>;
 }
 
+pub enum VectorizationHandle<'a, R: Runtime> {
+    NormalInput(&'a CubeFusionHandle<R>, &'a TensorIr),
+    QuantValues(&'a CubeFusionHandle<R>, &'a TensorIr),
+    QuantParams(&'a CubeFusionHandle<R>),
+}
+
+impl<'a, R: Runtime> VectorizationHandle<'a, R> {
+    /// Returns if the current vectorization handle is from the given tensor id.
+    pub fn is_from_tensor(&self, id: TensorId) -> bool {
+        match self {
+            VectorizationHandle::NormalInput(_, tensor_ir) => tensor_ir.id == id,
+            VectorizationHandle::QuantValues(_, tensor_ir) => tensor_ir.id == id,
+            VectorizationHandle::QuantParams(_) => false,
+        }
+    }
+}
+
 pub trait Vectorization<R: Runtime> {
     fn axis(&self) -> Option<usize> {
         None
@@ -38,23 +55,21 @@ pub trait Vectorization<R: Runtime> {
         &self,
         _context: &Context<'_, CubeFusionHandle<R>>,
         vectorizations: &mut BTreeMap<TensorId, Vect>,
-        handles_inputs: impl Iterator<Item = &'a CubeFusionHandle<R>>,
-        inputs: impl Iterator<Item = &'a TensorIr>,
+        inputs: impl Iterator<Item = VectorizationHandle<'a, R>>,
         outputs: impl Iterator<Item = &'a TensorIr>,
         reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
         swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
-        ref_elem: &Elem,
+        line_sizes: &[u8],
         max: u8,
         axis: Option<usize>,
     ) {
         vectorization_default(
             vectorizations,
-            handles_inputs,
             inputs,
             outputs,
             reshaped,
             swapped,
-            ref_elem,
+            line_sizes,
             &Default::default(),
             max,
             axis,
